@@ -130,13 +130,13 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
     }
   }
 
-  if (previousHash && packHash !== previousHash) {
-    changes.push({ field: "limits_hash", oldValue: previousHash, newValue: packHash });
+  if (previousHash && currentHash !== previousHash) {
+    changes.push({ field: "effective_snapshot", oldValue: previousHash, newValue: currentHash });
     driftChanges.push({
-      category: "platform_limits",
-      field: "policy_pack_version",
+      category: "effective_policy_state",
+      field: "policy_snapshot_hash",
       oldValue: previousHash,
-      newValue: packHash,
+      newValue: currentHash,
       severity: "medium",
     });
   }

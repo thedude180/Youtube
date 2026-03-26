@@ -3,7 +3,7 @@ import {
   creatorCredibilityScores, complianceChecks, copyrightClaims,
   disclosureRequirements, channels
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("creator-credibility");
@@ -23,19 +23,34 @@ export interface CredibilityAssessment {
 }
 
 export async function computeCreatorCredibility(userId: string, channelId?: number): Promise<CredibilityAssessment> {
-  const checks = await db.select().from(complianceChecks)
-    .where(eq(complianceChecks.userId, userId))
-    .orderBy(desc(complianceChecks.checkedAt))
-    .limit(200);
+  const resolvedChannelId = channelId || null;
 
-  const claims = await db.select().from(copyrightClaims)
-    .where(eq(copyrightClaims.userId, userId))
-    .orderBy(desc(copyrightClaims.detectedAt))
-    .limit(100);
+  const checksQuery = channelId
+    ? db.select().from(complianceChecks)
+        .where(and(eq(complianceChecks.userId, userId), eq(complianceChecks.channelId, channelId)))
+        .orderBy(desc(complianceChecks.checkedAt)).limit(200)
+    : db.select().from(complianceChecks)
+        .where(eq(complianceChecks.userId, userId))
+        .orderBy(desc(complianceChecks.checkedAt)).limit(200);
+  const checks = await checksQuery;
 
-  const disclosures = await db.select().from(disclosureRequirements)
-    .where(eq(disclosureRequirements.userId, userId))
-    .limit(100);
+  const claimsQuery = channelId
+    ? db.select().from(copyrightClaims)
+        .where(and(eq(copyrightClaims.userId, userId), eq(copyrightClaims.channelId, channelId)))
+        .orderBy(desc(copyrightClaims.detectedAt)).limit(100)
+    : db.select().from(copyrightClaims)
+        .where(eq(copyrightClaims.userId, userId))
+        .orderBy(desc(copyrightClaims.detectedAt)).limit(100);
+  const claims = await claimsQuery;
+
+  const disclosuresQuery = channelId
+    ? db.select().from(disclosureRequirements)
+        .where(and(eq(disclosureRequirements.userId, userId), eq(disclosureRequirements.channelId, channelId)))
+        .limit(100)
+    : db.select().from(disclosureRequirements)
+        .where(eq(disclosureRequirements.userId, userId))
+        .limit(100);
+  const disclosures = await disclosuresQuery;
 
   const totalChecks = checks.length;
   const passedChecks = checks.filter(c => c.status === "passed").length;
@@ -89,10 +104,12 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
   if (claims.filter(c => c.status === "detected").length > 0) recommendations.push("Resolve outstanding copyright claims to improve copyright health score");
   if (tier === "poor") recommendations.push("Your credibility score is critically low — automated publishing may be restricted");
 
-  const resolvedChannelId = channelId || null;
+  const whereConditions = channelId
+    ? and(eq(creatorCredibilityScores.userId, userId), eq(creatorCredibilityScores.channelId, channelId))
+    : and(eq(creatorCredibilityScores.userId, userId));
 
   const existing = await db.select().from(creatorCredibilityScores)
-    .where(eq(creatorCredibilityScores.userId, userId))
+    .where(whereConditions)
     .limit(1);
 
   if (existing.length > 0) {
@@ -105,7 +122,6 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
         resolvedDisputeCount,
         disclosureComplianceRate,
         factors,
-        channelId: resolvedChannelId,
         lastCalculatedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -139,9 +155,19 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
   };
 }
 
-export async function getCredibilityScore(userId: string): Promise<(typeof creatorCredibilityScores.$inferSelect) | null> {
+export async function getCredibilityScore(userId: string, channelId?: number): Promise<(typeof creatorCredibilityScores.$inferSelect) | null> {
+  const conditions = channelId
+    ? and(eq(creatorCredibilityScores.userId, userId), eq(creatorCredibilityScores.channelId, channelId))
+    : eq(creatorCredibilityScores.userId, userId);
   const [score] = await db.select().from(creatorCredibilityScores)
-    .where(eq(creatorCredibilityScores.userId, userId))
+    .where(conditions)
+    .orderBy(desc(creatorCredibilityScores.overallScore))
     .limit(1);
   return score || null;
+}
+
+export async function getCredibilityScoresForUser(userId: string): Promise<(typeof creatorCredibilityScores.$inferSelect)[]> {
+  return db.select().from(creatorCredibilityScores)
+    .where(eq(creatorCredibilityScores.userId, userId))
+    .orderBy(desc(creatorCredibilityScores.lastCalculatedAt));
 }

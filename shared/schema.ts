@@ -4067,6 +4067,7 @@ export type PerformanceBenchmark = typeof performanceBenchmarks.$inferSelect;
 export const complianceChecks = pgTable("compliance_checks", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
   platform: text("platform").notNull(),
   checkType: text("check_type").notNull(),
   status: text("status").notNull().default("passed"),
@@ -4081,6 +4082,7 @@ export type ComplianceCheck = typeof complianceChecks.$inferSelect;
 export const copyrightClaims = pgTable("copyright_claims", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
   videoId: integer("video_id"),
   status: text("status").notNull().default("detected"),
   details: jsonb("details").$type<Record<string, any>>().default({}),
@@ -4109,6 +4111,7 @@ export type LicensingAudit = typeof licensingAudits.$inferSelect;
 export const disclosureRequirements = pgTable("disclosure_requirements", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
   contentId: integer("content_id"),
   required: boolean("required").default(false),
   disclosureType: text("disclosure_type"),
