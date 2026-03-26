@@ -3,7 +3,7 @@ import { asyncHandler, requireAuth, requireAdmin, parseNumericId } from "./helpe
 import {
   getTrustBudgetStatus, deductTrustBudget, resetTrustBudget, getTrustBudgetHistory,
   evaluateApproval, getApprovalMatrixRules, updateApprovalRule, seedApprovalMatrix,
-  getApprovalHistory,
+  getApprovalHistory, getPendingApprovals, resolveApproval,
   enforceTenantIsolation, buildTenantContext, auditTenantAccess,
   analyzeChannelThreats, getChannelImmuneHistory, resolveChannelThreat,
   ingestCommunitySignal, computeCommunityTrustScore, applyCommunityTrustToBudget,
@@ -102,6 +102,34 @@ router.post("/approval/seed", asyncHandler(async (req, res) => {
   if (!userId) return;
   const seeded = await seedApprovalMatrix();
   res.json({ seeded });
+}));
+
+router.get("/approval/pending", asyncHandler(async (req, res) => {
+  const userId = requireAdmin(req, res);
+  if (!userId) return;
+  const targetUserId = req.query.userId as string | undefined;
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+  const pending = await getPendingApprovals(targetUserId, limit);
+  res.json({ pending, count: pending.length });
+}));
+
+router.post("/approval/resolve/:id", asyncHandler(async (req, res) => {
+  const userId = requireAdmin(req, res);
+  if (!userId) return;
+  const approvalId = parseNumericId(req.params.id, res, "approval ID");
+  if (approvalId === null) return;
+  const { resolution, reason } = req.body;
+  if (!resolution || !["approved", "denied"].includes(resolution)) {
+    return res.status(400).json({ error: "resolution must be 'approved' or 'denied'" });
+  }
+  if (!reason) {
+    return res.status(400).json({ error: "reason is required" });
+  }
+  const result = await resolveApproval(approvalId, userId, resolution, reason);
+  if (!result.success) {
+    return res.status(404).json({ error: `Approval not found or already resolved (${result.decision})` });
+  }
+  res.json(result);
 }));
 
 router.get("/approval/history", asyncHandler(async (req, res) => {

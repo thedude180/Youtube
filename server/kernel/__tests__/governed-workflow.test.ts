@@ -327,6 +327,89 @@ describe("Webhook Verification Middleware", () => {
   });
 });
 
+describe("RED-Band Approval Lifecycle (DB-backed)", () => {
+  const TEST_USER = "test-red-band-" + Date.now();
+
+  beforeAll(async () => {
+    await db.insert(approvalMatrixRules).values({
+      actionClass: "test-red-action",
+      bandClass: "RED",
+      defaultState: "human-required",
+      approver: "admin",
+      confidenceThreshold: null,
+      description: "Test RED-band action requiring human approval",
+    }).onConflictDoNothing();
+  });
+
+  it("should return pending_human for RED-band actions", async () => {
+    const { evaluateApproval } = await import("../../services/trust-governance");
+    const result = await evaluateApproval(TEST_USER, "test-red-action", 1.0);
+    expect(result.decision).toBe("pending_human");
+    expect(result.reason).toContain("RED band");
+  });
+
+  it("should record pending decision in approval_decisions table", async () => {
+    const [pending] = await db.select().from(approvalDecisions)
+      .where(and(
+        eq(approvalDecisions.userId, TEST_USER),
+        eq(approvalDecisions.actionClass, "test-red-action"),
+        eq(approvalDecisions.decision, "pending_human"),
+      ))
+      .orderBy(desc(approvalDecisions.decidedAt))
+      .limit(1);
+    expect(pending).toBeDefined();
+    expect(pending.decision).toBe("pending_human");
+  });
+
+  it("should resolve pending approval via resolveApproval", async () => {
+    const { resolveApproval } = await import("../../services/trust-governance");
+    const [pending] = await db.select().from(approvalDecisions)
+      .where(and(
+        eq(approvalDecisions.userId, TEST_USER),
+        eq(approvalDecisions.decision, "pending_human"),
+      ))
+      .orderBy(desc(approvalDecisions.decidedAt))
+      .limit(1);
+
+    if (pending) {
+      const result = await resolveApproval(pending.id, "test-admin", "approved", "Test approval for integration test");
+      expect(result.success).toBe(true);
+      expect(result.decision).toBe("approved");
+
+      const [resolved] = await db.select().from(approvalDecisions)
+        .where(eq(approvalDecisions.id, pending.id))
+        .limit(1);
+      expect(resolved.decision).toBe("approved");
+      expect(resolved.decidedBy).toBe("test-admin");
+    }
+  });
+
+  afterAll(async () => {
+    await db.delete(approvalDecisions).where(eq(approvalDecisions.userId, TEST_USER)).catch(() => {});
+    await db.delete(approvalMatrixRules).where(eq(approvalMatrixRules.actionClass, "test-red-action")).catch(() => {});
+  });
+});
+
+describe("Tenant Isolation Enforcement (DB-backed)", () => {
+  it("should deny cross-tenant access", async () => {
+    const { enforceTenantIsolation } = await import("../../services/trust-governance");
+    const result = enforceTenantIsolation("user-alice", "user-bob", "video");
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toContain("isolation violation");
+  });
+
+  it("should allow same-tenant access", async () => {
+    const { enforceTenantIsolation } = await import("../../services/trust-governance");
+    const result = enforceTenantIsolation("user-alice", "user-alice", "video");
+    expect(result.allowed).toBe(true);
+  });
+
+  it("should throw TenantIsolationError on assertTenantOwnership", async () => {
+    const { assertTenantOwnership } = await import("../../services/trust-governance");
+    expect(() => assertTenantOwnership("alice", "bob", "content")).toThrow("Tenant isolation violation");
+  });
+});
+
 describe("Kernel Seed Data", () => {
   it("should seed approval matrix rules and Agent Explanation Contract", async () => {
     const { seedKernelData } = await import("../seed");

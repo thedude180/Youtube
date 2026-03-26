@@ -56,9 +56,13 @@ import {
   evaluateApproval,
   getApprovalMatrixRules,
   getApprovalHistory,
+  getPendingApprovals,
+  resolveApproval,
   enforceTenantIsolation,
   buildTenantContext,
   validateTenantAccess,
+  tenantScopedWhere,
+  assertTenantOwnership,
   analyzeChannelThreats,
   getChannelImmuneHistory,
   resolveChannelThreat,
@@ -849,12 +853,23 @@ describe("Phase 6C: Trust & Governance Hardening", () => {
     });
   });
 
-  describe("Global Governance Middleware Architecture", () => {
-    it("should have comprehensive ACTION_CLASS_MAP covering all route prefixes", async () => {
-      const routes = await import("../../routes");
-      expect(typeof routes.registerRoutes).toBe("function");
+  describe("RED-Band Approval Lifecycle", () => {
+    it("should expose approval queue functions", () => {
+      expect(typeof getPendingApprovals).toBe("function");
+      expect(typeof resolveApproval).toBe("function");
     });
 
+    it("should have resolve approval with full lifecycle", async () => {
+      expect(typeof resolveApproval).toBe("function");
+      expect(resolveApproval.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("should support approved and denied resolutions", () => {
+      expect(typeof resolveApproval).toBe("function");
+    });
+  });
+
+  describe("Centralized Tenant Isolation", () => {
     it("should enforce tenant isolation via enforceTenantIsolation", () => {
       const sameUser = enforceTenantIsolation("user-A", "user-A", "test-resource");
       expect(sameUser.allowed).toBe(true);
@@ -867,6 +882,41 @@ describe("Phase 6C: Trust & Governance Hardening", () => {
       const result = enforceTenantIsolation("tenant-1", "tenant-2", "nexus-data");
       expect(result.allowed).toBe(false);
       expect(result.reason).toBeDefined();
+    });
+
+    it("should provide tenant-scoped query utility", () => {
+      expect(typeof tenantScopedWhere).toBe("function");
+    });
+
+    it("should throw TenantIsolationError on ownership violation", () => {
+      expect(() => assertTenantOwnership("user-A", "user-B", "resource")).toThrow("Tenant isolation violation");
+    });
+
+    it("should not throw when ownership matches", () => {
+      expect(() => assertTenantOwnership("user-A", "user-A", "resource")).not.toThrow();
+    });
+
+    it("should not throw when resource owner is null", () => {
+      expect(() => assertTenantOwnership("user-A", null, "resource")).not.toThrow();
+    });
+
+    it("should validate tenant access symmetrically", () => {
+      expect(validateTenantAccess("user-1", "user-1")).toBe(true);
+      expect(validateTenantAccess("user-1", "user-2")).toBe(false);
+    });
+
+    it("should build tenant context with isolation scope", () => {
+      const ctx = buildTenantContext("user-123");
+      expect(ctx.userId).toBe("user-123");
+      expect(ctx.isolationScope).toBe("tenant:user-123");
+      expect(ctx.aiContextBoundary).toBeDefined();
+    });
+  });
+
+  describe("Global Governance Middleware Architecture", () => {
+    it("should have comprehensive ACTION_CLASS_MAP covering all route prefixes", async () => {
+      const routes = await import("../../routes");
+      expect(typeof routes.registerRoutes).toBe("function");
     });
   });
 

@@ -342,6 +342,59 @@ export async function getApprovalHistory(userId: string, limit: number = 50) {
     .limit(Math.min(limit, 200));
 }
 
+export async function getPendingApprovals(userId?: string, limit: number = 50) {
+  const conditions = [eq(approvalDecisions.decision, "pending_human")];
+  if (userId) conditions.push(eq(approvalDecisions.userId, userId));
+
+  return db.select().from(approvalDecisions)
+    .where(and(...conditions))
+    .orderBy(desc(approvalDecisions.decidedAt))
+    .limit(Math.min(limit, 200));
+}
+
+export async function resolveApproval(
+  approvalId: number,
+  resolvedBy: string,
+  resolution: "approved" | "denied",
+  resolutionReason: string,
+): Promise<{ success: boolean; decision: string }> {
+  const [existing] = await db.select().from(approvalDecisions)
+    .where(eq(approvalDecisions.id, approvalId))
+    .limit(1);
+
+  if (!existing) {
+    return { success: false, decision: "not_found" };
+  }
+
+  if (existing.decision !== "pending_human") {
+    return { success: false, decision: existing.decision ?? "unknown" };
+  }
+
+  await db.update(approvalDecisions).set({
+    decision: resolution,
+    decidedBy: resolvedBy,
+    reason: `Human ${resolution}: ${resolutionReason}`,
+    metadata: {
+      ...(existing.metadata as Record<string, unknown> ?? {}),
+      resolvedAt: new Date().toISOString(),
+      resolvedBy,
+      resolutionReason,
+      originalDecision: "pending_human",
+    },
+  }).where(eq(approvalDecisions.id, approvalId));
+
+  await logGovernanceAction(existing.userId ?? "unknown", "approval_resolved", "approval_queue", {
+    approvalId, resolution, resolvedBy, resolutionReason,
+    actionClass: existing.actionClass,
+  }, resolution === "denied" ? "warning" : "info", resolution);
+
+  if (resolution === "approved" && existing.userId) {
+    await deductTrustBudget(existing.userId, existing.actionClass ?? "unknown", 1, `human-approved:${approvalId}`);
+  }
+
+  return { success: true, decision: resolution };
+}
+
 export async function getApprovalMatrixRules() {
   return db.select().from(approvalMatrixRules).orderBy(approvalMatrixRules.actionClass);
 }
@@ -377,6 +430,24 @@ export function enforceTenantIsolation(
     return { allowed: false, reason: `Tenant isolation violation: user ${requestUserId} cannot access ${resourceType} owned by ${resourceUserId}` };
   }
   return { allowed: true };
+}
+
+export function tenantScopedWhere(userId: string, userIdColumn: any) {
+  return eq(userIdColumn, userId);
+}
+
+export function assertTenantOwnership(requestUserId: string, resourceUserId: string | null, resourceType: string): void {
+  if (!resourceUserId) return;
+  if (requestUserId !== resourceUserId) {
+    throw new TenantIsolationError(requestUserId, resourceUserId, resourceType);
+  }
+}
+
+class TenantIsolationError extends Error {
+  constructor(requestUser: string, resourceOwner: string, resourceType: string) {
+    super(`Tenant isolation violation: ${requestUser} cannot access ${resourceType} owned by ${resourceOwner}`);
+    this.name = "TenantIsolationError";
+  }
 }
 
 export function buildTenantContext(userId: string): {
