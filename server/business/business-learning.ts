@@ -25,6 +25,7 @@ export interface BusinessLearningReport {
     nextMilestone: string;
   };
   revenueConfidence: { totalRevenue: number; verifiedPercent: number; confidenceLabel: string };
+  governedConfidence: { confidence: number; maturityLevel: string } | null;
   feedbackLoops: Array<{ loop: string; status: "active" | "dormant" | "missing"; impact: string }>;
 }
 
@@ -57,6 +58,13 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
   const maturityAssessment = assessMaturity(totalRevenue, totalSubs, userVideos.length, sourceDiversity, platformCount);
   const feedbackLoops = identifyFeedbackLoops(userVideos.length, records.length, sourceDiversity, platformCount);
 
+  let governedRevenue: { confidence: number; maturityLevel: string } | null = null;
+  try {
+    const { getGovernedConfidenceForDomain } = await import("../services/learning-governance");
+    const gc = await getGovernedConfidenceForDomain(userId, "revenue");
+    governedRevenue = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
+  } catch {}
+
   return {
     signals,
     patterns,
@@ -66,6 +74,7 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
       verifiedPercent: confidence.verifiedPercent,
       confidenceLabel: confidence.confidenceLabel,
     },
+    governedConfidence: governedRevenue,
     feedbackLoops,
   };
 }

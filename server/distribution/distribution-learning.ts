@@ -39,6 +39,15 @@ export async function recordDistributionLearning(
       `${platform}:${eventType}`
     );
   } catch {}
+
+  try {
+    const { ingestLearningSignal } = await import("../services/learning-governance");
+    const confidence = signal.publishSuccess ? 0.85 : 0.5;
+    await ingestLearningSignal(
+      userId, "distribution", `dist_${eventType}`,
+      { platform, ...signal }, confidence, "distribution-learning"
+    );
+  } catch {}
 }
 
 export function getDistributionLearningContext(userId: string, platform?: string): {

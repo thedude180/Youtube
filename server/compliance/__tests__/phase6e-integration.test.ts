@@ -196,7 +196,7 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
 
       const contradictions = await getOpenContradictions(TEST_USER, "content");
       if (contradictions.length > 0) {
-        const resolved = await resolveContradiction(contradictions[0].id, "Prioritizing health — reducing frequency");
+        const resolved = await resolveContradiction(TEST_USER, contradictions[0].id, "Prioritizing health — reducing frequency");
         expect(resolved).toBe(true);
 
         const [updated] = await db.select().from(signalContradictions)
@@ -246,7 +246,7 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
     it("should update promise progress", async () => {
       const { updatePromiseProgress } = await import("../../services/learning-governance");
 
-      await updatePromiseProgress(promiseId, 0.3);
+      await updatePromiseProgress(TEST_USER, promiseId, 0.3);
 
       const [promise] = await db.select().from(narrativePromises)
         .where(eq(narrativePromises.id, promiseId));
@@ -272,7 +272,7 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
     it("should mark fulfilled promises", async () => {
       const { updatePromiseProgress } = await import("../../services/learning-governance");
 
-      await updatePromiseProgress(promiseId, 1.0);
+      await updatePromiseProgress(TEST_USER, promiseId, 1.0);
 
       const [promise] = await db.select().from(narrativePromises)
         .where(eq(narrativePromises.id, promiseId));
@@ -353,7 +353,7 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
     it("should update licensing status and compute readiness", async () => {
       const { updateLicensingStatus } = await import("../../services/learning-governance");
 
-      await updateLicensingStatus(assetRecordId, "fully_licensed", true);
+      await updateLicensingStatus(TEST_USER, assetRecordId, "fully_licensed", true);
 
       const [asset] = await db.select().from(licensingExchangeAssets)
         .where(eq(licensingExchangeAssets.id, assetRecordId));
@@ -366,7 +366,7 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
       const { registerLicensingAsset, updateLicensingStatus, getLicensingReadiness } = await import("../../services/learning-governance");
 
       const id2 = await registerLicensingAsset(TEST_USER, "video", "vid-002", "Elden Ring Guide");
-      await updateLicensingStatus(id2, "partially_licensed", false);
+      await updateLicensingStatus(TEST_USER, id2, "partially_licensed", false);
 
       const readiness = await getLicensingReadiness(TEST_USER);
       expect(readiness.totalAssets).toBeGreaterThanOrEqual(2);
@@ -404,6 +404,46 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
       const governed = await getGovernedConfidenceForDomain(TEST_USER, "distribution");
       expect(governed.confidence).toBeGreaterThan(0);
       expect(governed.maturityLevel).toBeDefined();
+    });
+
+    it("should embed governed confidence in kernel receipts", async () => {
+      const { exitSafeMode } = await import("../../services/resilience-observability");
+      exitSafeMode();
+
+      const { ingestLearningSignal } = await import("../../services/learning-governance");
+      await ingestLearningSignal(TEST_USER, "content", "kernel_quality", { quality: "high" }, 0.9, "kernel-test");
+
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("tags_change", async () => ({ changed: true }));
+
+      const result = await routeCommand("tags_change", {
+        userId: TEST_USER,
+        executionKey: `kernel-governance-${Date.now()}`,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.receiptId) {
+        const { signedActionReceipts } = await import("@shared/schema");
+        const [receipt] = await db.select().from(signedActionReceipts)
+          .where(eq(signedActionReceipts.id, result.receiptId));
+        const theater = receipt.decisionTheater as Record<string, any>;
+        expect(theater.governedConfidence).toBeDefined();
+        expect(typeof theater.governedConfidence.confidence).toBe("number");
+        expect(["nascent", "developing", "mature"]).toContain(theater.governedConfidence.maturityLevel);
+      }
+    });
+
+    it("should propagate learning signals from distribution-learning to governance", async () => {
+      const { recordDistributionLearning } = await import("../../distribution/distribution-learning");
+      const { getDecayedSignals } = await import("../../services/learning-governance");
+
+      await recordDistributionLearning(TEST_USER, "youtube", "publish", {
+        allowed: true, trustCost: 1, policyIssues: [], connectionStatus: "connected", publishSuccess: true,
+      });
+
+      const signals = await getDecayedSignals(TEST_USER, "distribution");
+      const distSignal = signals.find(s => s.signalType === "dist_publish");
+      expect(distSignal).toBeDefined();
     });
   });
 });

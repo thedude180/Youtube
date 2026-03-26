@@ -25,6 +25,10 @@ export function recordLiveOverride(
     reason,
     timestamp: new Date(),
   });
+
+  import("../services/learning-governance").then(({ recordOverrideLearning }) => {
+    recordOverrideLearning(userId, actionType, { original: originalValue }, { override: overrideValue }, reason).catch(() => {});
+  }).catch(() => {});
 }
 
 export function getLiveOverridePatterns(userId: string): {

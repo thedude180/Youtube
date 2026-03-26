@@ -383,6 +383,14 @@ export async function routeCommand(
 
     const blastStatus = blastCtx.getStatus();
 
+    let governedConfidenceData: { confidence: number; maturityLevel: string } | null = null;
+    try {
+      const { getGovernedConfidenceForDomain } = await import("../services/learning-governance");
+      const domain = inferDomainFromActionType(actionType);
+      const gc = await getGovernedConfidenceForDomain(userId, domain);
+      governedConfidenceData = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
+    } catch {}
+
     const decisionTheater = {
       whatChanged: options.decisionTheater?.whatChanged || actionType,
       whyChanged: options.decisionTheater?.whyChanged || "auto-triggered",
@@ -390,6 +398,7 @@ export async function routeCommand(
       modelVersion: options.decisionTheater?.modelVersion || "gpt-4o-mini",
       promptVersion: options.decisionTheater?.promptVersion || "1.0",
       confidenceScore: options.confidence ?? null,
+      governedConfidence: governedConfidenceData,
       riskLevel: "GREEN",
       rollbackAvailable: options.rollbackAvailable ?? false,
       approvalState: "auto-approved",
@@ -438,4 +447,12 @@ export async function routeCommand(
   } finally {
     endCorrelation(correlationId);
   }
+}
+
+function inferDomainFromActionType(actionType: string): string {
+  if (actionType.includes("content") || actionType.includes("video") || actionType.includes("publish") || actionType.includes("seo") || actionType.includes("tags")) return "content";
+  if (actionType.includes("revenue") || actionType.includes("monetiz") || actionType.includes("sponsor")) return "revenue";
+  if (actionType.includes("audience") || actionType.includes("subscriber") || actionType.includes("community") || actionType.includes("comment")) return "audience";
+  if (actionType.includes("distribut") || actionType.includes("platform") || actionType.includes("cross_post") || actionType.includes("notification")) return "distribution";
+  return "content";
 }

@@ -18,6 +18,15 @@ export async function recordLiveLearning(
     context,
     appliedTo,
   }).returning();
+
+  try {
+    const { ingestLearningSignal } = await import("../services/learning-governance");
+    await ingestLearningSignal(
+      userId, "content", `live_${signalType}`,
+      { streamId, signalValue, ...context }, Math.min(1, Math.max(0, signalValue)), "live-learning"
+    );
+  } catch {}
+
   return row.id;
 }
 

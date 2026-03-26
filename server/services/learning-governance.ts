@@ -308,12 +308,13 @@ export async function detectContradictions(
 }
 
 export async function resolveContradiction(
+  userId: string,
   contradictionId: number,
   resolution: string,
 ): Promise<boolean> {
   const [updated] = await db.update(signalContradictions)
     .set({ status: "resolved", resolution, resolvedAt: new Date() })
-    .where(eq(signalContradictions.id, contradictionId))
+    .where(and(eq(signalContradictions.id, contradictionId), eq(signalContradictions.userId, userId)))
     .returning();
   return !!updated;
 }
@@ -358,14 +359,17 @@ export async function createNarrativePromise(
 }
 
 export async function updatePromiseProgress(
+  userId: string,
   promiseId: number,
   progress: number,
-): Promise<void> {
+): Promise<boolean> {
   const riskLevel = progress >= 0.8 ? "low" : progress >= 0.5 ? "medium" : "high";
   const status = progress >= 1.0 ? "fulfilled" : "active";
-  await db.update(narrativePromises)
+  const [updated] = await db.update(narrativePromises)
     .set({ deliveryProgress: progress, riskLevel, status, updatedAt: new Date() })
-    .where(eq(narrativePromises.id, promiseId));
+    .where(and(eq(narrativePromises.id, promiseId), eq(narrativePromises.userId, userId)))
+    .returning();
+  return !!updated;
 }
 
 export async function checkAtRiskPromises(userId: string): Promise<Array<{
@@ -522,14 +526,17 @@ export async function registerLicensingAsset(
 }
 
 export async function updateLicensingStatus(
+  userId: string,
   id: number,
   licensingStatus: string,
   rightsVerified: boolean,
-): Promise<void> {
+): Promise<boolean> {
   const readinessScore = computeLicensingReadiness(licensingStatus, rightsVerified);
-  await db.update(licensingExchangeAssets)
+  const [updated] = await db.update(licensingExchangeAssets)
     .set({ licensingStatus, rightsVerified, readinessScore, updatedAt: new Date() })
-    .where(eq(licensingExchangeAssets.id, id));
+    .where(and(eq(licensingExchangeAssets.id, id), eq(licensingExchangeAssets.userId, userId)))
+    .returning();
+  return !!updated;
 }
 
 function computeLicensingReadiness(status: string, rightsVerified: boolean): number {
