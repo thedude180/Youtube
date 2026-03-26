@@ -308,6 +308,39 @@ export async function initAutomationEngine() {
     });
   });
 
+  cron.schedule("*/5 * * * *", async () => {
+    await withCronLock("ResilienceHealthMonitor", 4 * 60 * 1000, async () => {
+      const {
+        checkAutoSafeModeEntry,
+        checkAutoSafeModeExit,
+        recordMetric,
+      } = await import("./services/resilience-observability");
+
+      const memUsage = process.memoryUsage();
+      const heapPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+
+      const signals = {
+        errorRate: 0,
+        failedJobsPercent: 0,
+        memoryUsagePercent: heapPercent,
+      };
+
+      recordMetric("resilience.health_check.memory", heapPercent, "%", {});
+
+      const entryResult = checkAutoSafeModeEntry(signals);
+      if (entryResult.triggered) {
+        logger.warn(`Auto safe mode triggered: ${entryResult.reason}`);
+        recordMetric("resilience.safe_mode.auto_entry", 1, "count", { reason: entryResult.reason || "threshold" });
+      }
+
+      const exitResult = checkAutoSafeModeExit(signals);
+      if (exitResult.recovered) {
+        logger.info("Auto safe mode recovery: conditions improved");
+        recordMetric("resilience.safe_mode.auto_exit", 1, "count", {});
+      }
+    });
+  });
+
   cron.schedule("0 */2 * * *", async () => {
     await withCronLock("GrowthMonitoring", 90 * 60 * 1000, async () => {
       await selfHealingCore("GrowthMonitoring", async () => {

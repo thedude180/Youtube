@@ -13,6 +13,16 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("resilience-observability");
 
+const CANONICAL_ENGINES = ["smart-edit", "automation", "content-pipeline", "analytics", "seo", "social"] as const;
+type CanonicalEngine = (typeof CANONICAL_ENGINES)[number];
+
+function normalizeEngineKey(engine: string): string {
+  const normalized = engine.toLowerCase().replace(/_/g, "-").trim();
+  if ((CANONICAL_ENGINES as readonly string[]).includes(normalized)) return normalized;
+  const match = CANONICAL_ENGINES.find(e => normalized.startsWith(e) || e.startsWith(normalized));
+  return match ?? normalized;
+}
+
 function getHmacSecretForVerification(): string {
   const secret = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET;
   if (!secret) {
@@ -110,10 +120,11 @@ export async function restoreSafeModeState(): Promise<void> {
 
 export function enterSafeMode(reason: string, engine?: string): { activated: boolean; scope: string } {
   if (engine) {
-    safeModeState.engines[engine] = true;
-    logger.warn(`Safe mode ENTERED for engine: ${engine} — ${reason}`);
+    const key = normalizeEngineKey(engine);
+    safeModeState.engines[key] = true;
+    logger.warn(`Safe mode ENTERED for engine: ${key} — ${reason}`);
     persistSafeModeState();
-    return { activated: true, scope: `engine:${engine}` };
+    return { activated: true, scope: `engine:${key}` };
   }
   safeModeState.global = true;
   safeModeState.enteredAt = Date.now();
@@ -125,11 +136,12 @@ export function enterSafeMode(reason: string, engine?: string): { activated: boo
 
 export function exitSafeMode(engine?: string): { deactivated: boolean; scope: string } {
   if (engine) {
-    const was = safeModeState.engines[engine] ?? false;
-    delete safeModeState.engines[engine];
-    logger.info(`Safe mode EXITED for engine: ${engine}`);
+    const key = normalizeEngineKey(engine);
+    const was = safeModeState.engines[key] ?? false;
+    delete safeModeState.engines[key];
+    logger.info(`Safe mode EXITED for engine: ${key}`);
     persistSafeModeState();
-    return { deactivated: was, scope: `engine:${engine}` };
+    return { deactivated: was, scope: `engine:${key}` };
   }
   const was = safeModeState.global;
   safeModeState.global = false;
@@ -143,7 +155,7 @@ export function exitSafeMode(engine?: string): { deactivated: boolean; scope: st
 
 export function isInSafeMode(engine?: string): boolean {
   if (safeModeState.global) return true;
-  if (engine) return safeModeState.engines[engine] ?? false;
+  if (engine) return safeModeState.engines[normalizeEngineKey(engine)] ?? false;
   return false;
 }
 
