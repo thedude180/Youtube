@@ -176,12 +176,25 @@ export function checkAutoSafeModeExit(signals: {
   errorRate?: number;
   failedJobsPercent?: number;
   memoryUsagePercent?: number;
-}): { recovered: boolean } {
+}): { recovered: boolean; reason?: string } {
   if (!safeModeState.global || !safeModeState.autoRecoveryEnabled) return { recovered: false };
 
-  const belowError = !signals.errorRate || signals.errorRate < safeModeThresholds.errorRatePerMinute * 0.5;
-  const belowJobs = !signals.failedJobsPercent || signals.failedJobsPercent < safeModeThresholds.failedJobsPercent * 0.5;
-  const belowMem = !signals.memoryUsagePercent || signals.memoryUsagePercent < safeModeThresholds.memoryUsagePercent * 0.8;
+  const hasErrorSignal = signals.errorRate !== undefined;
+  const hasJobsSignal = signals.failedJobsPercent !== undefined;
+  const hasMemSignal = signals.memoryUsagePercent !== undefined;
+
+  if (!hasErrorSignal && !hasJobsSignal && !hasMemSignal) {
+    return { recovered: false, reason: "No health signals provided — cannot verify recovery" };
+  }
+
+  const signalCount = [hasErrorSignal, hasJobsSignal, hasMemSignal].filter(Boolean).length;
+  if (signalCount < 2) {
+    return { recovered: false, reason: `Insufficient health signals (${signalCount}/3) — need at least 2 for auto-recovery` };
+  }
+
+  const belowError = !hasErrorSignal || signals.errorRate! < safeModeThresholds.errorRatePerMinute * 0.5;
+  const belowJobs = !hasJobsSignal || signals.failedJobsPercent! < safeModeThresholds.failedJobsPercent * 0.5;
+  const belowMem = !hasMemSignal || signals.memoryUsagePercent! < safeModeThresholds.memoryUsagePercent * 0.8;
 
   if (belowError && belowJobs && belowMem) {
     exitSafeMode();
