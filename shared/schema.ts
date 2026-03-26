@@ -7368,3 +7368,58 @@ export const exceptionDeskItems = pgTable("exception_desk_items", {
 export type ExceptionDeskItem = typeof exceptionDeskItems.$inferSelect;
 export const insertExceptionDeskItemSchema = createInsertSchema(exceptionDeskItems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertExceptionDeskItem = z.infer<typeof insertExceptionDeskItemSchema>;
+
+// === PHASE 6C: TRUST & GOVERNANCE HARDENING ===
+
+export const governanceAuditLogs = pgTable("governance_audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  action: text("action").notNull(),
+  domain: text("domain").notNull(),
+  severity: text("severity").notNull().default("info"),
+  details: jsonb("details").$type<Record<string, any>>().default({}),
+  outcome: text("outcome").notNull().default("success"),
+  performedBy: text("performed_by").notNull().default("system"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("gov_audit_user_idx").on(t.userId),
+  index("gov_audit_action_idx").on(t.action),
+  index("gov_audit_domain_idx").on(t.domain),
+  index("gov_audit_created_idx").on(t.createdAt),
+]);
+export type GovernanceAuditLog = typeof governanceAuditLogs.$inferSelect;
+
+export const channelImmuneEvents = pgTable("channel_immune_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
+  threatType: text("threat_type").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  indicators: jsonb("indicators").$type<Record<string, any>>().default({}),
+  defensiveAction: text("defensive_action"),
+  status: text("status").notNull().default("detected"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cie_user_idx").on(t.userId),
+  index("cie_threat_idx").on(t.threatType),
+  index("cie_status_idx").on(t.status),
+  index("cie_created_idx").on(t.createdAt),
+]);
+export type ChannelImmuneEvent = typeof channelImmuneEvents.$inferSelect;
+
+export const communityTrustSignals = pgTable("community_trust_signals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  value: real("value").notNull().default(0),
+  weight: real("weight").notNull().default(1),
+  source: text("source").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cts_user_idx").on(t.userId),
+  index("cts_type_idx").on(t.signalType),
+  index("cts_created_idx").on(t.createdAt),
+]);
+export type CommunityTrustSignal = typeof communityTrustSignals.$inferSelect;

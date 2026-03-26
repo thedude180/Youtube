@@ -43,6 +43,13 @@
       "when": 1774497234265,
       "tag": "0005_big_onslaught",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774499703678,
+      "tag": "0006_clever_diamondback",
+      "breakpoints": true
     }
   ]
 }

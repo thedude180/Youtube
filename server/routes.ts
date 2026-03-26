@@ -48,6 +48,7 @@ import { registerBusinessIntelligenceRoutes } from "./routes/business-intelligen
 import { registerComplianceHardeningRoutes } from "./routes/compliance-hardening";
 import exceptionDeskRoutes from "./routes/exception-desk";
 import { registerKernelOpsRoutes } from "./routes/kernel-ops";
+import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 
@@ -247,6 +248,7 @@ export async function registerRoutes(
   registerBusinessIntelligenceRoutes(app);
   registerComplianceHardeningRoutes(app);
   app.use("/api/exception-desk", exceptionDeskRoutes);
+  registerTrustGovernanceRoutes(app);
 
   const vitalsBuffer: any[] = [];
   app.post("/api/vitals", (req, res) => {
