@@ -168,8 +168,7 @@ function isProviderCircuitOpen(source: string): boolean {
   const health = providerHealth.get(source);
   if (!health) return false;
   if (health.circuitState === "closed") return false;
-  if (health.circuitState === "open") return true;
-  return false;
+  return true;
 }
 
 export interface WebhookProviderHealthSummary {

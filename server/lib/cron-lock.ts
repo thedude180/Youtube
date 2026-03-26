@@ -11,6 +11,7 @@ interface HeartbeatConfig {
 }
 
 const heartbeatRegistry = new Map<string, HeartbeatConfig>();
+const heartbeatExceptionTracker = new Map<string, number>();
 
 export function registerCronHeartbeat(jobName: string, expectedIntervalMs: number): void {
   heartbeatRegistry.set(jobName, { expectedIntervalMs, registeredAt: Date.now() });
@@ -118,8 +119,20 @@ export async function runHeartbeatCheck(): Promise<{
   let exceptionsCreated = 0;
 
   const unhealthy = heartbeats.filter(h => h.status === "missed" || h.status === "overdue" || h.status === "never_run");
+  const healthy = heartbeats.filter(h => h.status === "healthy");
+
+  for (const h of healthy) {
+    heartbeatExceptionTracker.delete(h.jobName);
+  }
+
+  const DEDUPE_COOLDOWN_MS = 30 * 60_000;
 
   for (const h of unhealthy) {
+    const lastAlerted = heartbeatExceptionTracker.get(h.jobName);
+    if (lastAlerted && Date.now() - lastAlerted < DEDUPE_COOLDOWN_MS) {
+      continue;
+    }
+
     try {
       const { createException } = await import("../services/exception-desk");
       await createException({
@@ -139,6 +152,7 @@ export async function runHeartbeatCheck(): Promise<{
           lastCompletedAt: h.lastCompletedAt?.toISOString() || null,
         },
       });
+      heartbeatExceptionTracker.set(h.jobName, Date.now());
       exceptionsCreated++;
     } catch {}
   }
