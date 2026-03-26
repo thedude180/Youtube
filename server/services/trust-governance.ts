@@ -600,6 +600,9 @@ export async function simulateTrustRisk(
 
   for (const scenario of scenarios) {
     simulatedBudget = Math.max(0, simulatedBudget - scenario.budgetCost);
+    if (scenario.communityImpact) {
+      simulatedBudget = Math.max(0, simulatedBudget + scenario.communityImpact);
+    }
     const tightenMult = getAutoTightenMultiplier(simulatedBudget);
 
     let approvalDecision: string;
@@ -610,7 +613,9 @@ export async function simulateTrustRisk(
         .where(eq(approvalMatrixRules.actionClass, scenario.action))
         .limit(1);
 
-      if (!rule || rule.bandClass === "GREEN") {
+      if (!rule) {
+        approvalDecision = "pending_human";
+      } else if (rule.bandClass === "GREEN") {
         approvalDecision = "approved";
       } else if (rule.bandClass === "YELLOW") {
         const threshold = (rule.confidenceThreshold ?? 0.7) / tightenMult;
@@ -883,12 +888,22 @@ import { getUserId } from "../routes/helpers";
 export function tenantIsolationMiddleware(
   getResourceUserId: (req: Request) => string | null,
   resourceType: string = "resource",
+  options: { allowAdmin?: boolean } = {},
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     const requestUserId = getUserId(req);
     if (!requestUserId) {
       return next();
     }
+
+    if (options.allowAdmin) {
+      const email = ((req as Record<string, unknown>).user as Record<string, unknown>)?.claims as Record<string, unknown>;
+      const userEmail = email?.email as string;
+      if (userEmail && userEmail.toLowerCase() === (process.env.ADMIN_EMAIL || "").toLowerCase()) {
+        return next();
+      }
+    }
+
     const resourceUserId = getResourceUserId(req);
     if (resourceUserId === null) {
       return next();

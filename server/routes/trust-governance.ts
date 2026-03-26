@@ -19,6 +19,7 @@ const router = Router();
 router.use(tenantIsolationMiddleware(
   extractTargetUserId,
   "trust-governance",
+  { allowAdmin: true },
 ));
 
 router.get("/budget/status", asyncHandler(async (req, res) => {
