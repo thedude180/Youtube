@@ -71,7 +71,7 @@ async function persistSafeModeState(): Promise<void> {
       eventType: "safe_mode_state_snapshot",
       severity: "info",
       userId: "system",
-      metadata: {
+      details: {
         state: safeModeState,
         persistedAt: new Date().toISOString(),
       },
@@ -90,9 +90,9 @@ export async function restoreSafeModeState(): Promise<void> {
       .orderBy(desc(securityEvents.id))
       .limit(1);
     if (latest) {
-      const meta = latest.metadata as any;
-      if (meta?.state) {
-        const restored = meta.state as SafeModeState;
+      const details = latest.details as any;
+      if (details?.state) {
+        const restored = details.state as SafeModeState;
         safeModeState.global = restored.global || false;
         safeModeState.engines = restored.engines || {};
         safeModeState.enteredAt = restored.enteredAt || null;

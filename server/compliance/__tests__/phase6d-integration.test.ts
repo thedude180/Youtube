@@ -14,6 +14,10 @@ const TEST_USER = "test-phase6d-user";
 const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
 
 describe("Phase 6D: Resilience & Observability Hardening", () => {
+  beforeAll(async () => {
+    const { seedApprovalMatrix } = await import("../../services/trust-governance");
+    await seedApprovalMatrix();
+  });
   describe("Safe Mode Controls", () => {
     it("should enter and exit global safe mode", async () => {
       const {
@@ -82,6 +86,42 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       const result = checkAutoSafeModeExit({ errorRate: 5, failedJobsPercent: 10, memoryUsagePercent: 50 });
       expect(result.recovered).toBe(true);
       expect(isInSafeMode()).toBe(false);
+    });
+
+    it("should reject auto-exit with insufficient health signals", async () => {
+      const { enterSafeMode, checkAutoSafeModeExit, isInSafeMode, exitSafeMode } = await import(
+        "../../services/resilience-observability"
+      );
+      exitSafeMode();
+      enterSafeMode("Test insufficient signals");
+      expect(isInSafeMode()).toBe(true);
+
+      const noSignals = checkAutoSafeModeExit({});
+      expect(noSignals.recovered).toBe(false);
+      expect(noSignals.reason).toContain("No health signals");
+
+      const oneSignal = checkAutoSafeModeExit({ errorRate: 1 });
+      expect(oneSignal.recovered).toBe(false);
+      expect(oneSignal.reason).toContain("Insufficient");
+
+      expect(isInSafeMode()).toBe(true);
+      exitSafeMode();
+    });
+
+    it("should persist and restore safe mode state across calls", async () => {
+      const { enterSafeMode, restoreSafeModeState, getSafeModeState, exitSafeMode } = await import(
+        "../../services/resilience-observability"
+      );
+      exitSafeMode();
+
+      enterSafeMode("Persistence test");
+      await new Promise(r => setTimeout(r, 100));
+
+      exitSafeMode();
+
+      await restoreSafeModeState();
+      const state = getSafeModeState();
+      expect(typeof state.global).toBe("boolean");
     });
   });
 
@@ -440,12 +480,15 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
     });
 
     it("should include chainIntegrity in kernel-issued receipts", async () => {
-      const { registerCommand, routeCommand } = await import("../../kernel/index");
-      registerCommand("stream_start", async () => ({ started: true }));
+      const { exitSafeMode } = await import("../../services/resilience-observability");
+      exitSafeMode();
 
-      const result = await routeCommand("stream_start", {
+      const { registerCommand, routeCommand } = await import("../../kernel/index");
+      registerCommand("tags_change", async () => ({ changed: true }));
+
+      const result = await routeCommand("tags_change", {
         userId: TEST_USER,
-        executionKey: `chain-test-${Date.now()}`,
+        executionKey: `chain-integrity-test-${Date.now()}`,
       });
 
       expect(result.success).toBe(true);
