@@ -89,9 +89,10 @@ export function registerResilienceObservabilityRoutes(app: Express) {
   app.post("/api/resilience/rollback", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const { receiptId, reason } = req.body || {};
+    const { receiptId, reason, adminOverride } = req.body || {};
     if (!receiptId || !reason) return res.status(400).json({ error: "receiptId and reason are required" });
-    const result = await executeRollback(receiptId, userId, reason, true);
+    const isAdminOverride = adminOverride === true;
+    const result = await executeRollback(receiptId, userId, reason, isAdminOverride);
     res.json(result);
   });
 
