@@ -569,19 +569,22 @@ export async function emitSunsetNotification(
     .limit(100);
 
   for (const { userId } of users) {
-    await emitDomainEvent(
+    await db.insert(domainEvents).values({
       userId,
-      "feature.sunset.notification",
-      {
+      eventType: "feature.sunset.notification",
+      payload: {
         featureKey,
         phase,
         reason,
         migrationPath: migrationPath || null,
         notifiedAt: new Date().toISOString(),
       },
-      "feature-sunset",
-      `sunset:${featureKey}:${phase}`
-    );
+      metadata: {
+        source: "resilience-observability",
+        actionType: "feature-sunset",
+        executionKey: `sunset:${featureKey}:${phase}`,
+      },
+    });
   }
   logger.info(`Sunset notification sent for ${featureKey} (phase: ${phase}) to ${users.length} users`);
 }
@@ -606,9 +609,12 @@ export async function initiateFeatureSunset(
     .returning({ id: featureSunsetRecords.id });
   logger.info(`Feature sunset initiated: ${featureKey} — grace period ${gracePeriodDays} days`);
 
-  await emitSunsetNotification(featureKey, "announced", reason, migrationPath).catch(err =>
-    logger.error(`Failed to send sunset notification: ${err?.message}`)
-  );
+  try {
+    await emitSunsetNotification(featureKey, "announced", reason, migrationPath);
+  } catch (err: any) {
+    logger.error(`Failed to send sunset announcement notification for ${featureKey}: ${err?.message}`);
+    recordMetric("feature_sunset.notification_failure", 1, "count", { featureKey, phase: "announced" });
+  }
 
   return record.id;
 }
@@ -641,9 +647,12 @@ export async function advanceFeatureSunset(featureKey: string): Promise<{
   await db.update(featureSunsetRecords).set(updates).where(eq(featureSunsetRecords.id, record.id));
   logger.info(`Feature sunset advanced: ${featureKey} → ${newPhase}`);
 
-  await emitSunsetNotification(featureKey, newPhase, record.sunsetReason || "Feature sunset", record.migrationPath).catch(err =>
-    logger.error(`Failed to send sunset advance notification: ${err?.message}`)
-  );
+  try {
+    await emitSunsetNotification(featureKey, newPhase, record.sunsetReason || "Feature sunset", record.migrationPath);
+  } catch (err: any) {
+    logger.error(`Failed to send sunset advance notification for ${featureKey} → ${newPhase}: ${err?.message}`);
+    recordMetric("feature_sunset.notification_failure", 1, "count", { featureKey, phase: newPhase });
+  }
 
   return { success: true, newPhase };
 }

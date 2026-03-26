@@ -466,7 +466,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   describe("Feature Sunset System", () => {
     const TEST_FEATURE = `test-feature-${Date.now()}`;
 
-    it("should initiate feature sunset with announced phase", async () => {
+    it("should initiate feature sunset with announced phase and emit notification", async () => {
       const { initiateFeatureSunset, getFeatureSunsetStatus } = await import(
         "../../services/resilience-observability"
       );
@@ -477,6 +477,19 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       expect(records.length).toBe(1);
       expect(records[0].sunsetPhase).toBe("announced");
       expect(records[0].migrationPath).toBe("/docs/migrate-v2");
+
+      const notifications = await db
+        .select()
+        .from(domainEvents)
+        .where(eq(domainEvents.eventType, "feature.sunset.notification"))
+        .orderBy(desc(domainEvents.id))
+        .limit(10);
+      const announcedNotifs = notifications.filter(n => {
+        const p = n.payload as any;
+        return p?.featureKey === TEST_FEATURE && p?.phase === "announced";
+      });
+      expect(announcedNotifs.length).toBeGreaterThan(0);
+      expect((announcedNotifs[0].payload as any).reason).toBe("Replaced by v2");
     });
 
     it("should advance through sunset phases", async () => {
