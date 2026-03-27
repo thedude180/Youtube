@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { vodShortsLoopRuns, videos, channels, contentClips, autopilotQueue } from "@shared/schema";
-import { eq, and, desc, lt, asc, sql } from "drizzle-orm";
+import { eq, and, desc, lt, asc, sql, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
@@ -8,6 +8,22 @@ import { recordHeartbeat } from "./services/engine-heartbeat";
 
 const logger = createLogger("vod-shorts-loop");
 const openai = getOpenAIClient();
+
+async function getUserChannelIds(userId: string): Promise<number[]> {
+  const userChannels = await db.select({ id: channels.id }).from(channels)
+    .where(eq(channels.userId, userId));
+  return userChannels.map(c => c.id);
+}
+
+async function getUserVideos(userId: string, orderCol: any = desc(videos.createdAt), limit?: number) {
+  const channelIds = await getUserChannelIds(userId);
+  if (channelIds.length === 0) return [];
+  let q = db.select().from(videos)
+    .where(inArray(videos.channelId, channelIds))
+    .orderBy(orderCol);
+  if (limit) q = q.limit(limit) as any;
+  return q;
+}
 
 const VOD_SHORTS_PHASES = [
   "content-scan",
@@ -58,9 +74,7 @@ async function updatePhase(runId: number, phaseName: string, update: Partial<Pha
 }
 
 async function runContentScan(userId: string): Promise<any> {
-  const allVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(desc(videos.createdAt));
+  const allVideos = await getUserVideos(userId, desc(videos.createdAt));
 
   const totalViews = allVideos.reduce((sum, v) => sum + (v.views || 0), 0);
   const avgViews = totalViews / Math.max(allVideos.length, 1);
@@ -88,9 +102,7 @@ async function runContentScan(userId: string): Promise<any> {
 }
 
 async function runDecayDetection(userId: string): Promise<any> {
-  const allVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(asc(videos.views));
+  const allVideos = await getUserVideos(userId, asc(videos.views));
 
   if (allVideos.length === 0) return { decaying: 0, reason: "no_videos" };
 
@@ -114,10 +126,7 @@ async function runDecayDetection(userId: string): Promise<any> {
 }
 
 async function runTitleOptimization(userId: string): Promise<any> {
-  const allVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(asc(videos.views))
-    .limit(10);
+  const allVideos = await getUserVideos(userId, asc(videos.views), 10);
 
   if (allVideos.length === 0) return { optimized: 0, reason: "no_videos" };
 
@@ -162,10 +171,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
 }
 
 async function runDescriptionSeo(userId: string): Promise<any> {
-  const recentVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(desc(videos.createdAt))
-    .limit(5);
+  const recentVideos = await getUserVideos(userId, desc(videos.createdAt), 5);
 
   let optimized = 0;
   for (const video of recentVideos) {
@@ -202,10 +208,7 @@ async function runDescriptionSeo(userId: string): Promise<any> {
 }
 
 async function runThumbnailRefresh(userId: string): Promise<any> {
-  const allVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(asc(videos.views))
-    .limit(5);
+  const allVideos = await getUserVideos(userId, asc(videos.views), 5);
 
   let refreshed = 0;
   for (const video of allVideos) {
@@ -242,10 +245,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
 }
 
 async function runShortsExtraction(userId: string): Promise<any> {
-  const allVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(desc(videos.views))
-    .limit(10);
+  const allVideos = await getUserVideos(userId, desc(videos.views), 10);
 
   const existingClips = await db.select().from(contentClips)
     .where(and(eq(contentClips.userId, userId), eq(contentClips.clipType, "short")));
@@ -327,10 +327,7 @@ async function runCrossPlatformDistribution(userId: string): Promise<any> {
 }
 
 async function runVodPerformanceVerification(userId: string): Promise<any> {
-  const recentlyOptimized = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
-    .orderBy(desc(videos.createdAt))
-    .limit(20);
+  const recentlyOptimized = await getUserVideos(userId, desc(videos.createdAt), 20);
 
   const optimizedVideos = recentlyOptimized.filter(v => {
     const meta = (v.metadata as any) || {};

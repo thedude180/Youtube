@@ -5,7 +5,7 @@ import * as path from "path";
 import * as os from "os";
 import { db } from "./db";
 import { videos, channels, autopilotQueue, aiAgentTasks } from "@shared/schema";
-import { eq, and, desc, gte, or, sql } from "drizzle-orm";
+import { eq, and, desc, gte, or, sql, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { downloadSourceVideo } from "./clip-video-processor";
@@ -749,9 +749,13 @@ export async function queueVideoForSmartEdit(userId: string, videoId: number): P
 
 export async function initSmartEditForAllLongVideos(userId: string): Promise<{ queued: number }> {
   try {
+    const userChannels = await db.select({ id: channels.id }).from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+    if (userChannels.length === 0) return { queued: 0 };
+    const channelIds = userChannels.map(c => c.id);
     const userVideos = await db.select().from(videos)
-      .where(and(eq(videos.userId, userId), eq(videos.platform, "youtube")))
-      .orderBy(desc((videos as any).createdAt || videos.id))
+      .where(and(inArray(videos.channelId, channelIds), eq(videos.platform, "youtube")))
+      .orderBy(desc(videos.id))
       .limit(50);
 
     const longVideos = userVideos.filter(v => {

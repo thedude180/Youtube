@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   vodAutopilotConfig, videos, channels, contentClips, autopilotQueue,
 } from "@shared/schema";
-import { eq, and, desc, lt, notInArray, sql, gte } from "drizzle-orm";
+import { eq, and, desc, lt, notInArray, sql, gte, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { getOpenAIClient } from "./lib/openai";
 import { sendSSEEvent } from "./routes/events";
@@ -132,13 +132,13 @@ async function runCycle(userId: string) {
     const longFormBudget = Math.max(0, cfg.maxLongFormPerDay - todayLong);
 
     if (longFormBudget > 0 && ytChannel) {
-      const candidateVideos = await db.select().from(videos)
+      const candidateVideos = channelIds.length > 0 ? await db.select().from(videos)
         .where(and(
-          eq(videos.userId, userId),
+          inArray(videos.channelId, channelIds),
           lt(videos.createdAt, new Date(Date.now() - 7 * 86400_000)),
         ))
         .orderBy(desc(videos.views))
-        .limit(20);
+        .limit(20) : [];
 
       const unprocessed = candidateVideos
         .filter(v => v.channelId && channelIds.includes(v.channelId) && !alreadyQueued.has(v.id))
@@ -178,10 +178,10 @@ async function runCycle(userId: string) {
     const shortsBudget = Math.max(0, cfg.maxShortsPerDay - todayShorts);
 
     if (shortsBudget > 0) {
-      const topVideos = await db.select().from(videos)
-        .where(eq(videos.userId, userId))
+      const topVideos = channelIds.length > 0 ? await db.select().from(videos)
+        .where(inArray(videos.channelId, channelIds))
         .orderBy(desc(videos.views))
-        .limit(10);
+        .limit(10) : [];
 
       const processedVideoIds = new Set(
         (await db.select({ sourceVideoId: contentClips.sourceVideoId })

@@ -50,7 +50,7 @@ Respond as JSON:
   const parsed = JSON.parse(content);
   const results = [];
 
-  for (const candidate of parsed.candidates) {
+  for (const candidate of (parsed.candidates || [])) {
     const [inserted] = await db
       .insert(collabCandidates)
       .values({

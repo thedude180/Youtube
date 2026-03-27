@@ -109,7 +109,7 @@ Respond with JSON:
       keyword: kw.keyword,
       source: "youtube",
       score: Math.min(100, Math.max(0, kw.score || 50)),
-      totalViews: kw.avgViews || 0,
+      totalViews: Math.round(kw.avgViews || 0),
       totalVideos: (kw.videoIds || []).length,
       avgCtr: null as number | null,
       avgWatchTime: null as number | null,
