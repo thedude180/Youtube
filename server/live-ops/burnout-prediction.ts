@@ -96,3 +96,80 @@ export async function suggestRecovery(userId: string): Promise<string[]> {
 
   return suggestions;
 }
+
+export interface LiveLoadAssessment {
+  userId: string;
+  currentLoad: number;
+  sustainabilityScore: number;
+  projectedBurnoutDays: number | null;
+  loadBreakdown: { factor: string; contribution: number; status: "safe" | "warning" | "danger" }[];
+  adaptiveRecommendations: string[];
+  assessedAt: Date;
+}
+
+export async function assessLiveLoad(
+  userId: string,
+  factors: {
+    streamsThisWeek?: number;
+    avgStreamDurationHours?: number;
+    daysSinceBreak?: number;
+    consecutiveStreamDays?: number;
+    contentBacklogSize?: number;
+    overrideCount?: number;
+    socialMediaHoursDaily?: number;
+    editingHoursDaily?: number;
+  }
+): Promise<LiveLoadAssessment> {
+  const prediction = await predictBurnout(userId, factors);
+
+  const loadBreakdown: LiveLoadAssessment["loadBreakdown"] = [];
+
+  const streamLoad = Math.min(1, (factors.streamsThisWeek || 0) / 7);
+  loadBreakdown.push({ factor: "Stream frequency", contribution: streamLoad * 0.2, status: streamLoad > 0.7 ? "danger" : streamLoad > 0.4 ? "warning" : "safe" });
+
+  const durationLoad = Math.min(1, (factors.avgStreamDurationHours || 0) / 6);
+  loadBreakdown.push({ factor: "Stream duration", contribution: durationLoad * 0.2, status: durationLoad > 0.7 ? "danger" : durationLoad > 0.5 ? "warning" : "safe" });
+
+  const restLoad = Math.min(1, (factors.daysSinceBreak || 0) / 21);
+  loadBreakdown.push({ factor: "Rest deficit", contribution: restLoad * 0.25, status: restLoad > 0.7 ? "danger" : restLoad > 0.4 ? "warning" : "safe" });
+
+  const consecutiveLoad = Math.min(1, (factors.consecutiveStreamDays || 0) / 10);
+  loadBreakdown.push({ factor: "Consecutive days", contribution: consecutiveLoad * 0.15, status: consecutiveLoad > 0.7 ? "danger" : consecutiveLoad > 0.5 ? "warning" : "safe" });
+
+  const overrideLoad = Math.min(1, (factors.overrideCount || 0) / 20);
+  loadBreakdown.push({ factor: "AI friction (overrides)", contribution: overrideLoad * 0.1, status: overrideLoad > 0.5 ? "warning" : "safe" });
+
+  const editingLoad = Math.min(1, (factors.editingHoursDaily || 0) / 8);
+  loadBreakdown.push({ factor: "Editing workload", contribution: editingLoad * 0.1, status: editingLoad > 0.7 ? "danger" : editingLoad > 0.4 ? "warning" : "safe" });
+
+  const currentLoad = loadBreakdown.reduce((sum, l) => sum + l.contribution, 0);
+  const sustainabilityScore = Math.max(0, 1 - currentLoad);
+
+  let projectedBurnoutDays: number | null = null;
+  if (currentLoad > 0.6) {
+    projectedBurnoutDays = Math.max(1, Math.round((1 - currentLoad) / 0.05 * 7));
+  }
+
+  const dangerFactors = loadBreakdown.filter(l => l.status === "danger");
+  const adaptiveRecommendations: string[] = [];
+
+  if (dangerFactors.length > 0) {
+    for (const d of dangerFactors) {
+      switch (d.factor) {
+        case "Stream frequency": adaptiveRecommendations.push("Reduce to 3-4 streams per week max"); break;
+        case "Stream duration": adaptiveRecommendations.push("Cap streams at 3 hours — use timer alerts"); break;
+        case "Rest deficit": adaptiveRecommendations.push("Take at least 2 consecutive rest days this week"); break;
+        case "Consecutive days": adaptiveRecommendations.push("Insert a rest day between every 3 streaming days"); break;
+        case "Editing workload": adaptiveRecommendations.push("Batch edit sessions and consider outsourcing clips"); break;
+      }
+    }
+  }
+
+  if (sustainabilityScore > 0.7) adaptiveRecommendations.push("Current pace is sustainable — maintain this rhythm");
+  if (projectedBurnoutDays && projectedBurnoutDays < 14) adaptiveRecommendations.push(`Burnout projected in ~${projectedBurnoutDays} days — take preventive action now`);
+
+  return {
+    userId, currentLoad, sustainabilityScore, projectedBurnoutDays,
+    loadBreakdown, adaptiveRecommendations, assessedAt: new Date(),
+  };
+}

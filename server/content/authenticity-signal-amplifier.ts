@@ -80,3 +80,67 @@ export async function amplifyAndEmit(
 
   return result;
 }
+
+export interface LiveAuthenticityAssessment {
+  streamId: string;
+  realTimeScore: number;
+  gameplayAuthenticity: number;
+  interactionAuthenticity: number;
+  technicalAuthenticity: number;
+  alerts: string[];
+  enhancementSuggestions: string[];
+  assessedAt: Date;
+}
+
+export function assessLiveAuthenticity(
+  streamId: string,
+  liveMetrics: {
+    isOriginalGameplay: boolean;
+    hasUniqueCommentary: boolean;
+    chatInteractionRate: number;
+    viewerRetentionRate: number;
+    isRebroadcast: boolean;
+    hasWatermark: boolean;
+    webcamActive: boolean;
+    micActive: boolean;
+    customOverlays: boolean;
+    viewBotSuspicion: number;
+  }
+): LiveAuthenticityAssessment {
+  let gameplayAuthenticity = 0;
+  if (liveMetrics.isOriginalGameplay) gameplayAuthenticity += 0.4;
+  if (!liveMetrics.isRebroadcast) gameplayAuthenticity += 0.3;
+  if (liveMetrics.hasWatermark) gameplayAuthenticity += 0.1;
+  if (liveMetrics.customOverlays) gameplayAuthenticity += 0.2;
+
+  let interactionAuthenticity = 0;
+  interactionAuthenticity += Math.min(0.4, liveMetrics.chatInteractionRate * 0.4);
+  interactionAuthenticity += Math.min(0.3, liveMetrics.viewerRetentionRate * 0.3);
+  interactionAuthenticity += (1 - liveMetrics.viewBotSuspicion) * 0.3;
+
+  let technicalAuthenticity = 0.3;
+  if (liveMetrics.micActive) technicalAuthenticity += 0.2;
+  if (liveMetrics.webcamActive) technicalAuthenticity += 0.2;
+  if (liveMetrics.customOverlays) technicalAuthenticity += 0.15;
+  if (liveMetrics.hasUniqueCommentary) technicalAuthenticity += 0.15;
+  technicalAuthenticity = Math.min(1, technicalAuthenticity);
+
+  const realTimeScore = gameplayAuthenticity * 0.4 + interactionAuthenticity * 0.35 + technicalAuthenticity * 0.25;
+
+  const alerts: string[] = [];
+  if (liveMetrics.isRebroadcast) alerts.push("Rebroadcast detected — may violate platform policies");
+  if (liveMetrics.viewBotSuspicion > 0.5) alerts.push("Possible view bot activity detected");
+  if (liveMetrics.chatInteractionRate < 0.1) alerts.push("Very low chat interaction — may appear inauthentic");
+
+  const enhancementSuggestions: string[] = [];
+  if (!liveMetrics.customOverlays) enhancementSuggestions.push("Add branded overlays for stream identity");
+  if (liveMetrics.chatInteractionRate < 0.3) enhancementSuggestions.push("Increase chat engagement — respond to more viewer messages");
+  if (!liveMetrics.hasWatermark) enhancementSuggestions.push("Add subtle watermark to prevent content theft");
+  if (realTimeScore > 0.8) enhancementSuggestions.push("Authenticity is excellent — highlight this in channel branding");
+
+  return {
+    streamId, realTimeScore, gameplayAuthenticity,
+    interactionAuthenticity, technicalAuthenticity,
+    alerts, enhancementSuggestions, assessedAt: new Date(),
+  };
+}
