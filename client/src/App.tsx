@@ -572,19 +572,31 @@ function AppContent() {
     }
   }, [isAuthenticated, user, needsOnboarding]);
 
+  const { toast } = useToast();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ytConnected = params.get("yt_connected");
     const ytError = params.get("yt_error");
+    const ytNoChannel = params.get("yt_no_channel");
     const channelName = params.get("channel");
+    const cleanUrl = window.location.pathname;
     if (ytConnected) {
       queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
       queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
-      const cleanUrl = window.location.pathname;
+      toast({ title: `YouTube Connected`, description: channelName ? `${channelName} linked successfully.` : "Your channel is now connected." });
+      window.history.replaceState({}, "", cleanUrl);
+    }
+    if (ytNoChannel) {
+      toast({
+        title: "No YouTube Channel Found",
+        description: "Your Google account doesn't have a YouTube channel yet. Create one at youtube.com, then come back and connect.",
+        variant: "destructive",
+        duration: 10000,
+      });
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytError) {
-      const cleanUrl = window.location.pathname;
+      toast({ title: "YouTube Connection Failed", description: decodeURIComponent(ytError), variant: "destructive" });
       window.history.replaceState({}, "", cleanUrl);
     }
   }, []);

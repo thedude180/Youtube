@@ -138,9 +138,10 @@ export function setupGoogleAuth(app: Express) {
           return res.redirect("/?auth_error=login_failed");
         }
 
+        let ytResult: any = null;
         try {
           if (user.google_access_token && user.claims?.sub) {
-            await autoConnectYouTubeFromGoogle(
+            ytResult = await autoConnectYouTubeFromGoogle(
               user.claims.sub,
               user.google_access_token,
               user.google_refresh_token
@@ -161,7 +162,13 @@ export function setupGoogleAuth(app: Express) {
 
         req.session.save((saveErr) => {
           if (saveErr) console.error("Google auth session save error:", saveErr);
-          res.redirect("/");
+          if (ytResult?.hasChannel && ytResult?.ytChannel) {
+            res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(ytResult.ytChannel.title || "YouTube")}`);
+          } else if (ytResult && !ytResult.hasChannel) {
+            res.redirect("/?yt_no_channel=true");
+          } else {
+            res.redirect("/");
+          }
         });
       });
     });

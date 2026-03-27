@@ -148,7 +148,12 @@ export async function registerPlatformRoutes(app: Express) {
       res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);
-      res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
+      const isNoChannel = error.message?.includes("No YouTube channel found");
+      if (isNoChannel) {
+        res.redirect("/?yt_no_channel=true");
+      } else {
+        res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
+      }
     }
   });
 
