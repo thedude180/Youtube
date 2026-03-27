@@ -52,6 +52,7 @@ import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { registerResilienceObservabilityRoutes, registerCorrelationMiddleware, getRequestCorrelationId } from "./routes/resilience-observability";
 import { registerLearningGovernanceRoutes } from "./routes/learning-governance";
 import { registerOpsHealthRoutes } from "./routes/ops-health";
+import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -358,6 +359,7 @@ export async function registerRoutes(
   registerResilienceObservabilityRoutes(app);
   registerLearningGovernanceRoutes(app);
   registerOpsHealthRoutes(app);
+  registerPhase7IntelligenceRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
