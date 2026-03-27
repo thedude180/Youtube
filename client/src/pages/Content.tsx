@@ -15,7 +15,7 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { useTranslation } from "react-i18next";
 import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
-  Calendar as CalendarIcon, Eye, Loader2, Brain,
+  Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
   Sparkles, Shield,
 } from "lucide-react";
@@ -28,12 +28,11 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "retention" | "intelligence";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "intelligence";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
 const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
-const RetentionBeatsTab = lazyRetry(() => import("./content/RetentionBeatsTab"));
 const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntelligenceTab"));
 
 function ContentStatsStrip() {
@@ -86,7 +85,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "retention"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "intelligence"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -115,9 +114,6 @@ export default function Content() {
             <TabsTrigger value="calendar" data-testid="tab-calendar" aria-label="Content calendar tab">
               <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />Calendar
             </TabsTrigger>
-            <TabsTrigger value="retention" data-testid="tab-retention" aria-label="Retention beats tab">
-              <Brain className="h-3.5 w-3.5 mr-1.5" />Retention
-            </TabsTrigger>
             <TabsTrigger value="intelligence" data-testid="tab-intelligence" aria-label="Content intelligence tab">
               <Shield className="h-3.5 w-3.5 mr-1.5" />Intelligence
             </TabsTrigger>
@@ -140,11 +136,6 @@ export default function Content() {
         <TabsContent value="calendar" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <CalendarTab />
-          </Suspense>
-        </TabsContent>
-        <TabsContent value="retention" className="mt-2">
-          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-            <RetentionBeatsTab />
           </Suspense>
         </TabsContent>
         <TabsContent value="intelligence" className="mt-2">

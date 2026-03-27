@@ -15,8 +15,6 @@ import { registerEventRoutes } from "./routes/events";
 import { registerAutopilotRoutes } from "./routes/autopilot";
 import { registerPipelineRoutes } from "./routes/pipeline";
 import { registerDualPipelineRoutes } from "./routes/dual-pipeline";
-import { registerUpgradeRoutes } from "./routes/upgrades";
-import { registerUltimateRoutes } from "./routes/ultimate";
 import { registerFeedbackRoutes } from "./routes/feedback";
 import { registerSecurityDashboardRoutes } from "./routes/security-dashboard";
 import { registerFortressRoutes } from "./routes/fortress";
@@ -24,17 +22,11 @@ import { registerPillarRoutes } from "./routes/pillars";
 import { registerClipRoutes } from "./routes/clips";
 import { registerGrowthTrackingRoutes } from "./routes/growth-tracking";
 import { registerSyncRoutes } from "./routes/sync";
-import { registerRetentionBeatsRoutes } from "./routes/retention-beats";
-import { registerMarketingRoutes } from "./routes/marketing";
 import { registerContentVerificationRoutes } from "./routes/content-verification";
 import { registerWorldBestRoutes } from "./routes/world-best";
 import { registerCompetitiveEdgeRoutes } from "./routes/competitive-edge";
 import { registerAutonomyRoutes } from "./routes/autonomy";
-import { registerLoopRoutes } from "./routes/loops";
-import { registerNexusRoutes } from "./routes/nexus";
 import { registerLegalTaxRoutes } from "./routes/legal-tax";
-import { registerBusinessAgentRoutes } from "./routes/business-agents";
-import { registerTeamOpsRoutes } from "./routes/team-ops";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerTestAuthRoutes } from "./routes/test-auth";
@@ -132,12 +124,10 @@ export async function registerRoutes(
     "/settings": "channel_settings_change",
     "/automation": "automation_toggle",
     "/clips": "content_draft",
-    "/marketing": "distribution_push",
     "/copyright": "community_moderation",
     "/pipeline": "content_publish",
     "/business": "financial_action",
     "/kernel": "smart_edit",
-    "/nexus": "content_draft",
     "/exceptions": "community_moderation",
     "/toxicity": "community_moderation",
     "/governance": "channel_settings_change",
@@ -151,15 +141,12 @@ export async function registerRoutes(
     "/retention": "analytics_export",
     "/competitive": "analytics_export",
     "/autonomy": "channel_settings_change",
-    "/loops": "content_publish",
     "/legal": "financial_action",
     "/team": "channel_settings_change",
     "/multistream": "stream_config",
     "/live-ops": "stream_config",
     "/compliance": "channel_settings_change",
     "/world-best": "analytics_export",
-    "/upgrades": "channel_settings_change",
-    "/ultimate": "content_draft",
     "/resilience": "channel_settings_change",
   };
 
@@ -324,8 +311,6 @@ export async function registerRoutes(
   registerPipelineRoutes(app);
   registerDualPipelineRoutes(app);
   await registerAutomationRoutes(app);
-  registerUpgradeRoutes(app);
-  registerUltimateRoutes(app);
   registerFeedbackRoutes(app);
   registerSecurityDashboardRoutes(app);
   registerFortressRoutes(app);
@@ -333,17 +318,11 @@ export async function registerRoutes(
   registerClipRoutes(app);
   registerGrowthTrackingRoutes(app);
   registerSyncRoutes(app);
-  registerRetentionBeatsRoutes(app);
-  registerMarketingRoutes(app);
   registerContentVerificationRoutes(app);
   registerWorldBestRoutes(app);
   registerCompetitiveEdgeRoutes(app);
   registerAutonomyRoutes(app);
-  registerLoopRoutes(app);
-  registerNexusRoutes(app);
   registerLegalTaxRoutes(app);
-  registerBusinessAgentRoutes(app);
-  registerTeamOpsRoutes(app);
   registerContentAutomationRoutes(app);
   registerStreamAgentRoutes(app);
   registerCopyrightGuardianRoutes(app);

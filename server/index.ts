@@ -301,8 +301,6 @@ app.use("/api", timingAttackMitigation());
 app.use("/api", sensitiveRouteHardening());
 app.use("/api", perEndpointRateLimit({
   "/api/ai/": { max: 30, windowMs: 60_000 },
-  "/api/nexus/co-pilot": { max: 20, windowMs: 60_000 },
-  "/api/nexus/voice": { max: 15, windowMs: 60_000 },
   "/api/login": { max: 10, windowMs: 60_000 },
   "/api/empire/launch": { max: 5, windowMs: 300_000 },
   "/api/stripe": { max: 20, windowMs: 60_000 },
@@ -1156,7 +1154,6 @@ httpServer.listen(
     delay(200_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
     delay(220_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
     delay(240_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
-    delay(260_000, () => import("./retention-beats-engine").then(m => m.startRetentionBeatsEngine()).catch(err => logger.error("Retention Beats Engine init failed", { error: String(err) })));
     delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
     delay(285_000, () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(err => logger.error("Livestream Growth Agent init failed", { error: String(err) })));
     delay(287_000, () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(err => logger.error("Live Chat Agent init failed", { error: String(err) })));
@@ -1164,7 +1161,6 @@ httpServer.listen(
     delay(291_000, () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(err => logger.error("Live Raid Scout init failed", { error: String(err) })));
     delay(293_000, () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(err => logger.error("Live Revenue Activator init failed", { error: String(err) })));
     delay(295_000, () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(err => logger.error("Continuity Engine init failed", { error: String(err) })));
-    delay(300_000, () => import("./streaming-loop-engine").then(m => m.initStreamingLoopEngine()).catch(err => logger.error("Streaming Loop Engine init failed", { error: String(err) })));
     delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
     delay(325_000, () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(err => logger.error("VOD Continuous Engine init failed", { error: String(err) })));
     delay(340_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
