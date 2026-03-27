@@ -372,6 +372,7 @@ export class DatabaseStorage implements IStorage {
       const channelVideos = await tx.select({ id: videos.id }).from(videos).where(eq(videos.channelId, id));
       if (channelVideos.length > 0) {
         const videoIds = channelVideos.map(v => v.id);
+        const videoIdArray = sql`ARRAY[${sql.join(videoIds.map(vid => sql`${vid}`), sql`, `)}]::int[]`;
         const tables = [
           'playlist_items', 'ab_tests', 'cannibalization_alerts', 'comment_responses',
           'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
@@ -379,13 +380,13 @@ export class DatabaseStorage implements IStorage {
           'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
         ];
         for (const table of tables) {
-          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIds})`);
+          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
         }
         const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
         for (const table of srcTables) {
-          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIds})`);
+          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIdArray})`);
         }
-        await tx.execute(sql`DELETE FROM thumbnails WHERE video_id = ANY(${videoIds})`);
+        await tx.execute(sql`DELETE FROM thumbnails WHERE video_id = ANY(${videoIdArray})`);
         await tx.delete(videos).where(eq(videos.channelId, id));
       }
       await tx.delete(channels).where(eq(channels.id, id));
