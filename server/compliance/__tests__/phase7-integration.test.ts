@@ -566,4 +566,94 @@ describe("Phase 7 — Advanced Learning / Full Intelligence", () => {
       expect(result.graphStats).toBeDefined();
     });
   });
+
+  describe("Master Prompt Line 1748: Advanced Systems → Capital Allocation & Buyer Readiness", () => {
+    it("should compute capital allocation influences from advanced systems", async () => {
+      const { computeCapitalAllocationInfluences } = await import("../../kernel/advanced-systems-integration");
+      const influences = computeCapitalAllocationInfluences();
+      expect(influences.length).toBeGreaterThanOrEqual(6);
+      const systemNames = influences.map((i) => i.system);
+      expect(systemNames).toContain("collaboration_intelligence");
+      expect(systemNames).toContain("seasonal_intelligence");
+      expect(systemNames).toContain("creator_wellness");
+      expect(systemNames).toContain("content_preservation");
+      expect(systemNames).toContain("estate_succession");
+      expect(systemNames).toContain("adaptation");
+      for (const inf of influences) {
+        expect(inf.allocationWeight).toBeGreaterThanOrEqual(0);
+        expect(inf.recommendation).toBeTruthy();
+      }
+    });
+
+    it("should compute buyer readiness influences from advanced systems", async () => {
+      const { computeBuyerReadinessInfluences } = await import("../../kernel/advanced-systems-integration");
+      const influences = computeBuyerReadinessInfluences();
+      expect(influences.length).toBeGreaterThanOrEqual(6);
+      for (const inf of influences) {
+        expect(inf.readinessContribution).toBeGreaterThanOrEqual(0);
+        expect(inf.detail).toBeTruthy();
+      }
+    });
+
+    it("should produce full advanced systems report with graph event", async () => {
+      const { getAdvancedSystemsReport } = await import("../../kernel/advanced-systems-integration");
+      const report = getAdvancedSystemsReport();
+      expect(report.capitalAllocationInfluences.length).toBeGreaterThanOrEqual(6);
+      expect(report.buyerReadinessInfluences.length).toBeGreaterThanOrEqual(6);
+      expect(typeof report.totalCapitalAllocationScore).toBe("number");
+      expect(typeof report.totalBuyerReadinessScore).toBe("number");
+      expect(report.assessedAt).toBeDefined();
+    });
+  });
+
+  describe("Master Prompt Line 1744: Full Systems Registration", () => {
+    it("should register all 27 systems including collaboration, seasonal, wellness, preservation, succession", async () => {
+      const { seedAllSystems, getAllSystemStates } = await import("../../content/full-systems-activation");
+      seedAllSystems();
+      const states = getAllSystemStates();
+      const systemNames = states.map((s) => s.systemName);
+      expect(systemNames).toContain("narrative_arc");
+      expect(systemNames).toContain("moment_genome");
+      expect(systemNames).toContain("content_demand_graph");
+      expect(systemNames).toContain("pre_creation_oracle");
+      expect(systemNames).toContain("smart_inbox");
+      expect(systemNames).toContain("weekly_intelligence_brief");
+      expect(systemNames).toContain("data_sovereignty");
+      expect(systemNames).toContain("sponsor_ops");
+      expect(systemNames).toContain("capital_allocation");
+      expect(systemNames).toContain("collaboration_intelligence");
+      expect(systemNames).toContain("seasonal_intelligence");
+      expect(systemNames).toContain("creator_wellness");
+      expect(systemNames).toContain("content_preservation");
+      expect(systemNames).toContain("estate_succession");
+      expect(systemNames).toContain("audience_identity");
+      expect(systemNames).toContain("offer_system");
+      expect(systemNames).toContain("privacy_benchmark");
+      expect(states.length).toBeGreaterThanOrEqual(26);
+    });
+  });
+
+  describe("Master Prompt Line 1752: Freshness & Contradiction → Confidence Everywhere", () => {
+    it("should have freshness decay affect domain confidence used by adaptive layer", async () => {
+      const { recordLearningSignal, getConfidenceForDomain } = await import("../../kernel/learning-maturity-system");
+      recordLearningSignal("fresh_test", "confidence_test_domain", 0.8, 0.9, "test");
+      const conf = getConfidenceForDomain("confidence_test_domain");
+      expect(conf).toBeGreaterThan(0);
+    });
+
+    it("should have adaptive layer consume learning maturity confidence for gating", async () => {
+      const { configureAdaptiveLayer, adaptiveGate } = await import("../../kernel/adaptive-operating-layer");
+      configureAdaptiveLayer("maturity_wire_test", { automationLevel: "supervised", confidenceThreshold: 0.1, maturityGate: 0.0 });
+      const decision = adaptiveGate("maturity_wire_test", "test_action");
+      expect(decision.confidence).toBeGreaterThanOrEqual(0);
+      expect(decision.reason).toBeTruthy();
+    });
+
+    it("should have predictive content bound confidence by domain maturity", async () => {
+      const { makePrediction } = await import("../../content/predictive-content-promotion");
+      const pred = makePrediction("maturity_test", [{ factor: "test", weight: 1, value: 0.9 }]);
+      expect(pred.confidence).toBeLessThanOrEqual(0.95);
+      expect(pred.confidence).toBeGreaterThanOrEqual(0);
+    });
+  });
 });

@@ -56,6 +56,14 @@ export function seedAllSystems(): void {
   initSystemState("ai_displacement", "business", 0.5, 20);
   initSystemState("mna_intelligence", "business", 0.6, 30);
   initSystemState("infrastructure_positioning", "business", 0.4, 10);
+  initSystemState("collaboration_intelligence", "business", 0.4, 15);
+  initSystemState("seasonal_intelligence", "distribution", 0.3, 10);
+  initSystemState("creator_wellness", "business", 0.3, 10);
+  initSystemState("content_preservation", "distribution", 0.4, 15);
+  initSystemState("estate_succession", "business", 0.5, 20);
+  initSystemState("audience_identity", "audience", 0.5, 25);
+  initSystemState("offer_system", "business", 0.4, 15);
+  initSystemState("privacy_benchmark", "compliance", 0.5, 20);
 }
 
 export function checkAndActivate(systemName: string): {

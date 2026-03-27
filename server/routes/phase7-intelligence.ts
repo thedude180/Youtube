@@ -234,6 +234,21 @@ export function registerPhase7IntelligenceRoutes(app: Express) {
     res.json(buildAudienceSoulModel(channelId, signals));
   });
 
+  app.get("/api/intelligence/advanced-systems/report", async (_req, res) => {
+    const { getAdvancedSystemsReport } = await import("../kernel/advanced-systems-integration");
+    res.json(getAdvancedSystemsReport());
+  });
+
+  app.get("/api/intelligence/advanced-systems/capital-influences", async (_req, res) => {
+    const { computeCapitalAllocationInfluences } = await import("../kernel/advanced-systems-integration");
+    res.json(computeCapitalAllocationInfluences());
+  });
+
+  app.get("/api/intelligence/advanced-systems/buyer-readiness", async (_req, res) => {
+    const { computeBuyerReadinessInfluences } = await import("../kernel/advanced-systems-integration");
+    res.json(computeBuyerReadinessInfluences());
+  });
+
   app.post("/api/intelligence/audience-soul/predict", async (req, res) => {
     const { buildAudienceSoulModel, makeBoundedPrediction } = await import("../business/audience-soul-model");
     const { channelId, signals, prediction, basis } = req.body;
