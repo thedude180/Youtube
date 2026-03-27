@@ -7875,3 +7875,250 @@ export const liveRecoveryActions = pgTable("live_recovery_actions", {
   index("lra_status_idx").on(t.status),
 ]);
 export type LiveRecoveryAction = typeof liveRecoveryActions.$inferSelect;
+
+export const liveProductionCrewSessions = pgTable("live_production_crew_sessions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  commandCenterSessionId: integer("command_center_session_id").references(() => liveCommandCenterSessions.id),
+  streamId: integer("stream_id").references(() => streams.id),
+  status: text("status").notNull().default("active"),
+  activeRoles: jsonb("active_roles").$type<string[]>().default([]),
+  crewConfig: jsonb("crew_config").$type<Record<string, any>>().default({}),
+  interruptPolicy: text("interrupt_policy").notNull().default("standard"),
+  scores: jsonb("scores").$type<Record<string, number>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+}, (t) => [
+  index("lpc_sess_user_idx").on(t.userId),
+  index("lpc_sess_status_idx").on(t.status),
+  index("lpc_sess_stream_idx").on(t.streamId),
+]);
+export type LiveProductionCrewSession = typeof liveProductionCrewSessions.$inferSelect;
+
+export const liveCommunityActions = pgTable("live_community_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  platform: text("platform").notNull(),
+  content: text("content"),
+  targetUser: text("target_user"),
+  riskLevel: text("risk_level").notNull().default("low"),
+  approvalClass: text("approval_class").notNull().default("green"),
+  autoApproved: boolean("auto_approved").notNull().default(true),
+  brandVoiceCompliant: boolean("brand_voice_compliant").notNull().default(true),
+  triggerSignal: text("trigger_signal"),
+  status: text("status").notNull().default("pending"),
+  result: jsonb("result").$type<Record<string, any>>().default({}),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lcomm_session_idx").on(t.sessionId),
+  index("lcomm_user_idx").on(t.userId),
+  index("lcomm_type_idx").on(t.actionType),
+  index("lcomm_risk_idx").on(t.riskLevel),
+]);
+export type LiveCommunityAction = typeof liveCommunityActions.$inferSelect;
+
+export const liveModerationEvents = pgTable("live_moderation_events", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  eventType: text("event_type").notNull(),
+  targetUser: text("target_user"),
+  targetContent: text("target_content"),
+  detectionMethod: text("detection_method").notNull().default("automated"),
+  severity: text("severity").notNull().default("low"),
+  actionTaken: text("action_taken"),
+  escalated: boolean("escalated").notNull().default(false),
+  escalationReason: text("escalation_reason"),
+  platformPolicyRef: text("platform_policy_ref"),
+  confidenceScore: real("confidence_score").default(0),
+  status: text("status").notNull().default("detected"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (t) => [
+  index("lme_session_idx").on(t.sessionId),
+  index("lme_user_idx").on(t.userId),
+  index("lme_severity_idx").on(t.severity),
+  index("lme_type_idx").on(t.eventType),
+]);
+export type LiveModerationEvent = typeof liveModerationEvents.$inferSelect;
+
+export const liveSeoActions = pgTable("live_seo_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  actionType: text("action_type").notNull(),
+  field: text("field").notNull(),
+  previousValue: text("previous_value"),
+  newValue: text("new_value"),
+  triggerSignal: text("trigger_signal").notNull(),
+  signalSource: text("signal_source"),
+  trustCost: real("trust_cost").default(0),
+  approved: boolean("approved").notNull().default(false),
+  approvalClass: text("approval_class").notNull().default("yellow"),
+  volatilityCheck: boolean("volatility_check").notNull().default(true),
+  status: text("status").notNull().default("proposed"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  proposedAt: timestamp("proposed_at").defaultNow(),
+  appliedAt: timestamp("applied_at"),
+}, (t) => [
+  index("lsa_session_idx").on(t.sessionId),
+  index("lsa_user_idx").on(t.userId),
+  index("lsa_field_idx").on(t.field),
+  index("lsa_status_idx").on(t.status),
+]);
+export type LiveSeoAction = typeof liveSeoActions.$inferSelect;
+
+export const liveCrewThumbnailActions = pgTable("live_crew_thumbnail_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  actionType: text("action_type").notNull(),
+  variantId: integer("variant_id"),
+  thumbnailUrl: text("thumbnail_url"),
+  previousUrl: text("previous_url"),
+  triggerSignal: text("trigger_signal"),
+  capabilityAware: boolean("capability_aware").notNull().default(true),
+  honestyCompliant: boolean("honesty_compliant").notNull().default(true),
+  approved: boolean("approved").notNull().default(false),
+  status: text("status").notNull().default("proposed"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  proposedAt: timestamp("proposed_at").defaultNow(),
+  appliedAt: timestamp("applied_at"),
+}, (t) => [
+  index("lcta_session_idx").on(t.sessionId),
+  index("lcta_user_idx").on(t.userId),
+  index("lcta_platform_idx").on(t.platform),
+]);
+export type LiveCrewThumbnailAction = typeof liveCrewThumbnailActions.$inferSelect;
+
+export const liveMomentMarkers = pgTable("live_moment_markers", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id").references(() => streams.id),
+  markerType: text("marker_type").notNull(),
+  title: text("title"),
+  timestampStart: real("timestamp_start").notNull(),
+  timestampEnd: real("timestamp_end"),
+  intensityScore: real("intensity_score").default(0),
+  clipTriggered: boolean("clip_triggered").notNull().default(false),
+  clipId: integer("clip_id"),
+  archiveMarker: boolean("archive_marker").notNull().default(false),
+  replayQueued: boolean("replay_queued").notNull().default(false),
+  triggerSignal: text("trigger_signal"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+}, (t) => [
+  index("lmm_session_idx").on(t.sessionId),
+  index("lmm_user_idx").on(t.userId),
+  index("lmm_stream_idx").on(t.streamId),
+  index("lmm_type_idx").on(t.markerType),
+]);
+export type LiveMomentMarker = typeof liveMomentMarkers.$inferSelect;
+
+export const liveCtaRecommendations = pgTable("live_cta_recommendations", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  ctaType: text("cta_type").notNull(),
+  content: text("content"),
+  platform: text("platform"),
+  triggerSignal: text("trigger_signal").notNull(),
+  audienceToleranceScore: real("audience_tolerance_score").default(1),
+  sponsorSafe: boolean("sponsor_safe").notNull().default(true),
+  trustCost: real("trust_cost").default(0),
+  fatigueRisk: text("fatigue_risk").notNull().default("low"),
+  approved: boolean("approved").notNull().default(false),
+  approvalClass: text("approval_class").notNull().default("yellow"),
+  status: text("status").notNull().default("proposed"),
+  windowStart: timestamp("window_start"),
+  windowEnd: timestamp("window_end"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  proposedAt: timestamp("proposed_at").defaultNow(),
+  executedAt: timestamp("executed_at"),
+}, (t) => [
+  index("lcr_session_idx").on(t.sessionId),
+  index("lcr_user_idx").on(t.userId),
+  index("lcr_status_idx").on(t.status),
+  index("lcr_fatigue_idx").on(t.fatigueRisk),
+]);
+export type LiveCtaRecommendation = typeof liveCtaRecommendations.$inferSelect;
+
+export const creatorInterruptEvents = pgTable("creator_interrupt_events", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  interruptType: text("interrupt_type").notNull(),
+  source: text("source").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  title: text("title").notNull(),
+  description: text("description"),
+  valueScore: real("value_score").notNull().default(0.5),
+  thresholdPassed: boolean("threshold_passed").notNull().default(true),
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  actionTaken: text("action_taken"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  firedAt: timestamp("fired_at").defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at"),
+}, (t) => [
+  index("crint_session_idx").on(t.sessionId),
+  index("crint_user_idx").on(t.userId),
+  index("crint_type_idx").on(t.interruptType),
+  index("crint_severity_idx").on(t.severity),
+]);
+export type CreatorInterruptEvent = typeof creatorInterruptEvents.$inferSelect;
+
+export const liveChatIntentClusters = pgTable("live_chat_intent_clusters", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  clusterLabel: text("cluster_label").notNull(),
+  intent: text("intent").notNull(),
+  messageCount: integer("message_count").notNull().default(0),
+  uniqueUsers: integer("unique_users").notNull().default(0),
+  sentiment: real("sentiment").default(0),
+  actionable: boolean("actionable").notNull().default(false),
+  autoResponseEligible: boolean("auto_response_eligible").notNull().default(false),
+  sampleMessages: jsonb("sample_messages").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+}, (t) => [
+  index("lcic_session_idx").on(t.sessionId),
+  index("lcic_user_idx").on(t.userId),
+  index("lcic_intent_idx").on(t.intent),
+]);
+export type LiveChatIntentCluster = typeof liveChatIntentClusters.$inferSelect;
+
+export const liveEngagementPrompts = pgTable("live_engagement_prompts", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveProductionCrewSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  promptType: text("prompt_type").notNull(),
+  content: text("content").notNull(),
+  platform: text("platform"),
+  triggerSignal: text("trigger_signal"),
+  riskLevel: text("risk_level").notNull().default("low"),
+  brandVoiceCompliant: boolean("brand_voice_compliant").notNull().default(true),
+  autoDeployable: boolean("auto_deployable").notNull().default(false),
+  deployed: boolean("deployed").notNull().default(false),
+  engagementResult: jsonb("engagement_result").$type<Record<string, any>>().default({}),
+  status: text("status").notNull().default("ready"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  deployedAt: timestamp("deployed_at"),
+}, (t) => [
+  index("lep_session_idx").on(t.sessionId),
+  index("lep_user_idx").on(t.userId),
+  index("lep_type_idx").on(t.promptType),
+  index("lep_status_idx").on(t.status),
+]);

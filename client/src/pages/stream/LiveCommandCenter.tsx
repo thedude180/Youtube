@@ -9,7 +9,9 @@ import {
   Radio, Monitor, FileText, Bot, MessageSquare, DollarSign,
   Shield, AlertTriangle, Activity, Eye, RotateCcw,
   CheckCircle2, XCircle, Pause, Play, Download,
-  TrendingUp, Clock, Zap, Target, ArrowRight
+  TrendingUp, Clock, Zap, Target, ArrowRight,
+  Users, Megaphone, Image, Clapperboard, Bell,
+  Search, MessageCircle, ShieldAlert, Tag
 } from "lucide-react";
 
 function ScoreBadge({ score, label }: { score: number; label: string }) {
@@ -456,6 +458,298 @@ function DecisionTheaterPanel({ actions }: { actions: any[] }) {
   );
 }
 
+function CrewCommunityPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-community">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Users className="h-4 w-4 text-blue-400" />Community Host
+          <Badge variant="outline" className={`ml-auto text-[10px] ${data?.posture === "elevated" ? "text-red-400 border-red-400/30" : data?.posture === "busy" ? "text-amber-400 border-amber-400/30" : "text-emerald-400 border-emerald-400/30"}`}>
+            {data?.posture?.toUpperCase() || "IDLE"}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-lg font-bold">{stats.executed || 0}</p><p className="text-[10px] text-muted-foreground">Executed</p></div>
+          <div><p className="text-lg font-bold">{stats.autoApproved || 0}</p><p className="text-[10px] text-muted-foreground">Auto</p></div>
+          <div><p className="text-lg font-bold text-amber-400">{stats.pending || 0}</p><p className="text-[10px] text-muted-foreground">Pending</p></div>
+        </div>
+        {stats.highRisk > 0 && (
+          <div className="text-xs text-red-400 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />{stats.highRisk} high-risk action{stats.highRisk > 1 ? "s" : ""} requiring review
+          </div>
+        )}
+        {(data?.recentActions || []).slice(0, 3).map((a: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="text-muted-foreground">{a.actionType?.replace(/_/g, " ")}</span>
+            <div className="flex items-center gap-1">
+              <StatusDot status={a.status} />
+              <span>{a.platform}</span>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewModerationPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-moderation">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 text-orange-400" />Moderation Captain
+          <Badge variant="outline" className={`ml-auto text-[10px] ${data?.status === "alert" ? "text-red-400 border-red-400/30" : data?.status === "escalated" ? "text-amber-400 border-amber-400/30" : "text-emerald-400 border-emerald-400/30"}`}>
+            {data?.status?.toUpperCase() || "CLEAR"}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-4 gap-1 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Events</p></div>
+          <div><p className="text-sm font-bold text-amber-400">{stats.escalated || 0}</p><p className="text-[10px] text-muted-foreground">Escalated</p></div>
+          <div><p className="text-sm font-bold text-red-400">{stats.highSeverity || 0}</p><p className="text-[10px] text-muted-foreground">High Sev</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.resolved || 0}</p><p className="text-[10px] text-muted-foreground">Resolved</p></div>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Confidence</span>
+          <span className={`font-medium ${(data?.confidence || 0) >= 0.8 ? "text-emerald-400" : (data?.confidence || 0) >= 0.5 ? "text-amber-400" : "text-red-400"}`}>
+            {Math.round((data?.confidence || 0) * 100)}%
+          </span>
+        </div>
+        {(data?.recentEvents || []).slice(0, 3).map((e: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="text-muted-foreground">{e.eventType?.replace(/_/g, " ")}</span>
+            <Badge variant="outline" className={`text-[9px] ${e.severity === "high" || e.severity === "critical" ? "text-red-400 border-red-400/30" : "text-amber-400 border-amber-400/30"}`}>
+              {e.severity}
+            </Badge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewSeoPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-seo">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Search className="h-4 w-4 text-violet-400" />Live SEO Producer
+          <Badge variant="outline" className={`ml-auto text-[10px] ${data?.volatility === "high" ? "text-red-400 border-red-400/30" : data?.volatility === "moderate" ? "text-amber-400 border-amber-400/30" : "text-emerald-400 border-emerald-400/30"}`}>
+            {data?.volatility?.toUpperCase() || "LOW"} VOL
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Proposed</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.applied || 0}</p><p className="text-[10px] text-muted-foreground">Applied</p></div>
+          <div><p className="text-sm font-bold text-amber-400">{stats.pending || 0}</p><p className="text-[10px] text-muted-foreground">Pending</p></div>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Trust Cost</span>
+          <span className={`font-medium ${(stats.totalTrustCost || 0) > 0.5 ? "text-red-400" : "text-muted-foreground"}`}>
+            {(stats.totalTrustCost || 0).toFixed(2)}
+          </span>
+        </div>
+        {(data?.recentActions || []).slice(0, 3).map((a: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="text-muted-foreground">{a.field}: {a.newValue?.substring(0, 30)}{(a.newValue?.length || 0) > 30 ? "..." : ""}</span>
+            <Badge variant="outline" className={`text-[9px] ${a.approvalClass === "green" ? "text-emerald-400 border-emerald-400/30" : a.approvalClass === "red" ? "text-red-400 border-red-400/30" : "text-amber-400 border-amber-400/30"}`}>
+              {a.approvalClass}
+            </Badge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewThumbnailPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-thumbnails">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Image className="h-4 w-4 text-pink-400" />Thumbnail Producer
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Total</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.applied || 0}</p><p className="text-[10px] text-muted-foreground">Applied</p></div>
+          <div><p className="text-sm font-bold text-amber-400">{stats.proposed || 0}</p><p className="text-[10px] text-muted-foreground">Proposed</p></div>
+        </div>
+        {stats.honestyCompliant !== undefined && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Honesty Compliant</span>
+            <span className="font-medium text-emerald-400">{stats.honestyCompliant}/{stats.total || 0}</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewMomentPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-moments">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Clapperboard className="h-4 w-4 text-yellow-400" />Moment Producer
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-4 gap-1 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Moments</p></div>
+          <div><p className="text-sm font-bold text-blue-400">{stats.clipsTriggered || 0}</p><p className="text-[10px] text-muted-foreground">Clips</p></div>
+          <div><p className="text-sm font-bold text-purple-400">{stats.archived || 0}</p><p className="text-[10px] text-muted-foreground">Archived</p></div>
+          <div><p className="text-sm font-bold text-amber-400">{stats.replayQueued || 0}</p><p className="text-[10px] text-muted-foreground">Replay</p></div>
+        </div>
+        {stats.avgIntensity > 0 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Avg Intensity</span>
+            <span className={`font-medium ${stats.avgIntensity >= 0.7 ? "text-emerald-400" : "text-muted-foreground"}`}>
+              {(stats.avgIntensity * 100).toFixed(0)}%
+            </span>
+          </div>
+        )}
+        {(data?.recentMoments || []).slice(0, 3).map((m: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="text-muted-foreground">{m.markerType?.replace(/_/g, " ")}</span>
+            <div className="flex items-center gap-1">
+              {m.clipTriggered && <Zap className="h-3 w-3 text-yellow-400" />}
+              <span className="text-[10px]">{m.title?.substring(0, 20) || "—"}</span>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewCtaPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-cta">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Megaphone className="h-4 w-4 text-green-400" />Commerce & CTA
+          <Badge variant="outline" className={`ml-auto text-[10px] ${data?.fatigueLevel === "high" ? "text-red-400 border-red-400/30" : data?.fatigueLevel === "moderate" ? "text-amber-400 border-amber-400/30" : "text-emerald-400 border-emerald-400/30"}`}>
+            {data?.fatigueLevel?.toUpperCase() || "LOW"} FATIGUE
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">CTAs</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.approved || 0}</p><p className="text-[10px] text-muted-foreground">Approved</p></div>
+          <div><p className="text-sm font-bold text-red-400">{stats.highFatigue || 0}</p><p className="text-[10px] text-muted-foreground">High Fat.</p></div>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Trust Cost</span>
+          <span className={`font-medium ${(stats.totalTrustCost || 0) > 0.3 ? "text-red-400" : "text-muted-foreground"}`}>
+            {(stats.totalTrustCost || 0).toFixed(2)}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewInterruptPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-interrupts">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Bell className="h-4 w-4 text-red-400" />Creator Interrupts
+          {stats.unacknowledged > 0 && (
+            <Badge className="ml-auto bg-red-500/20 text-red-400 text-[10px]">{stats.unacknowledged} pending</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Total</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.acknowledged || 0}</p><p className="text-[10px] text-muted-foreground">Ack'd</p></div>
+          <div><p className="text-sm font-bold text-red-400">{stats.highSeverity || 0}</p><p className="text-[10px] text-muted-foreground">Critical</p></div>
+        </div>
+        {(data?.queue || []).slice(0, 3).map((e: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <div className="flex items-center gap-1">
+              <StatusDot status={e.severity === "critical" || e.severity === "high" ? "critical" : "warning"} />
+              <span className="text-muted-foreground">{e.title?.substring(0, 30)}</span>
+            </div>
+            <Badge variant="outline" className="text-[9px]">{e.interruptType?.replace(/_/g, " ")}</Badge>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewIntentPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-intents">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <MessageCircle className="h-4 w-4 text-cyan-400" />Chat Intent Clusters
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Clusters</p></div>
+          <div><p className="text-sm font-bold text-blue-400">{stats.actionable || 0}</p><p className="text-[10px] text-muted-foreground">Actionable</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.autoResponseEligible || 0}</p><p className="text-[10px] text-muted-foreground">Auto Reply</p></div>
+        </div>
+        {(data?.clusters || []).slice(0, 4).map((c: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="font-medium">{c.clusterLabel?.replace(/_/g, " ")}</span>
+            <span className="text-muted-foreground">{c.messageCount} msgs / {c.uniqueUsers} users</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CrewEngagementPanel({ data }: { data: any }) {
+  const stats = data?.stats || {};
+  return (
+    <Card className="card-empire" data-testid="panel-crew-engagement">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Tag className="h-4 w-4 text-teal-400" />Engagement Prompts
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-sm font-bold">{stats.total || 0}</p><p className="text-[10px] text-muted-foreground">Created</p></div>
+          <div><p className="text-sm font-bold text-emerald-400">{stats.deployed || 0}</p><p className="text-[10px] text-muted-foreground">Deployed</p></div>
+          <div><p className="text-sm font-bold text-blue-400">{stats.ready || 0}</p><p className="text-[10px] text-muted-foreground">Ready</p></div>
+        </div>
+        {(data?.recentPrompts || []).slice(0, 3).map((p: any, i: number) => (
+          <div key={i} className="flex items-center justify-between text-xs border-t border-border/30 pt-1">
+            <span className="text-muted-foreground">{p.promptType?.replace(/_/g, " ")}</span>
+            <div className="flex items-center gap-1">
+              {p.deployed && <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+              <span className="text-[10px]">{p.content?.substring(0, 25)}...</span>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LiveCommandCenter() {
   const { toast } = useToast();
 
@@ -464,11 +758,31 @@ export default function LiveCommandCenter() {
     refetchInterval: 10000,
   });
 
+  const { data: crewState } = useQuery<any>({
+    queryKey: ["/api/live-crew/state"],
+    refetchInterval: 10000,
+  });
+
   const startSession = useMutation({
     mutationFn: () => apiRequest("POST", "/api/command-center/start"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/command-center/state"] });
+      startCrew.mutate();
       toast({ title: "Command Center activated" });
+    },
+  });
+
+  const startCrew = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/live-crew/session/start", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/live-crew/state"] });
+    },
+  });
+
+  const endCrew = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/live-crew/session/end"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/live-crew/state"] });
     },
   });
 
@@ -476,6 +790,7 @@ export default function LiveCommandCenter() {
     mutationFn: () => apiRequest("POST", "/api/command-center/end"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/command-center/state"] });
+      endCrew.mutate();
       toast({ title: "Command Center session ended" });
     },
   });
@@ -564,6 +879,42 @@ export default function LiveCommandCenter() {
         <WhatsRunningPanel data={panels.whatsRunning} />
         <DecisionTheaterPanel actions={ccState.panels?.aiActions?.recentActions || []} />
       </div>
+
+      {crewState?.active && (
+        <>
+          <div className="flex items-center gap-2 mt-6 mb-2">
+            <Users className="h-5 w-5 text-blue-400" />
+            <h3 className="text-base font-semibold">Live Production Crew</h3>
+            <Badge className="bg-blue-500/20 text-blue-400 text-[10px]">
+              {(crewState.roles || []).length} Roles Active
+            </Badge>
+          </div>
+
+          {crewState.scores && Object.keys(crewState.scores).length > 0 && (
+            <div className="flex flex-wrap gap-3 justify-center bg-muted/20 rounded-lg p-3" data-testid="crew-scores-bar">
+              <ScoreBadge score={crewState.scores.communityHealthScore || 0} label="Community" />
+              <ScoreBadge score={crewState.scores.engagementQualityScore || 0} label="Engagement" />
+              <ScoreBadge score={crewState.scores.moderationConfidenceScore || 0} label="Moderation" />
+              <ScoreBadge score={crewState.scores.seoQualityScore || 0} label="SEO" />
+              <ScoreBadge score={crewState.scores.thumbnailPerformanceScore || 0} label="Thumbnails" />
+              <ScoreBadge score={crewState.scores.interruptQualityScore || 0} label="Interrupts" />
+              <ScoreBadge score={crewState.scores.commerceTimingScore || 0} label="Commerce" />
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="crew-panels">
+            <CrewCommunityPanel data={crewState.panels?.community} />
+            <CrewModerationPanel data={crewState.panels?.moderation} />
+            <CrewSeoPanel data={crewState.panels?.seo} />
+            <CrewThumbnailPanel data={crewState.panels?.thumbnails} />
+            <CrewMomentPanel data={crewState.panels?.moments} />
+            <CrewCtaPanel data={crewState.panels?.commerce} />
+            <CrewInterruptPanel data={crewState.panels?.interrupts} />
+            <CrewIntentPanel data={crewState.panels?.intentClusters} />
+            <CrewEngagementPanel data={crewState.panels?.engagementPrompts} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
