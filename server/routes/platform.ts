@@ -1221,7 +1221,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/oauth/bounce-redirect", (req, res) => {
     const token = req.body?.t;
     if (!token || !pendingBounceTokens.has(token)) {
-      return res.redirect("/channels?error=" + encodeURIComponent("Session expired. Please try connecting again."));
+      return res.redirect("/?error=" + encodeURIComponent("Session expired. Please try connecting again."));
     }
     const { authUrl } = pendingBounceTokens.get(token)!;
     pendingBounceTokens.delete(token);
@@ -1234,7 +1234,7 @@ export async function registerPlatformRoutes(app: Express) {
     const state = req.query.state as string | undefined;
 
     if (!code) {
-      return res.redirect(`/channels?error=${encodeURIComponent("Missing authorization code. Please try again.")}`);
+      return res.redirect(`/?error=${encodeURIComponent("Missing authorization code. Please try again.")}`);
     }
 
     let userId: string | null = null;
@@ -1251,12 +1251,12 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     if (!userId) {
-      return res.redirect(`/channels?error=${encodeURIComponent("Session expired. Please log in and try again.")}`);
+      return res.redirect(`/?error=${encodeURIComponent("Session expired. Please log in and try again.")}`);
     }
 
     const config = OAUTH_CONFIGS[platform];
     if (!config) {
-      return res.redirect(`/channels?error=${encodeURIComponent(`Unknown platform: ${platform}`)}`);
+      return res.redirect(`/?error=${encodeURIComponent(`Unknown platform: ${platform}`)}`);
     }
 
     const clientId = process.env[config.clientIdEnv]!;
@@ -1295,7 +1295,7 @@ export async function registerPlatformRoutes(app: Express) {
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
         console.error(`[OAuth ${platform}] Token exchange failed:`, errText);
-        return res.redirect(`/channels?error=${encodeURIComponent(`Failed to connect ${config.label}. Please try again.`)}`);
+        return res.redirect(`/?error=${encodeURIComponent(`Failed to connect ${config.label}. Please try again.`)}`);
       }
 
       const tokenData = await tokenRes.json() as any;
@@ -1444,10 +1444,10 @@ export async function registerPlatformRoutes(app: Express) {
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform });
 
-      res.redirect(`/channels?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
+      res.redirect(`/?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
       console.error(`[OAuth ${platform}] Callback error:`, error);
-      res.redirect(`/channels?error=${encodeURIComponent(`Failed to connect ${config.label}: ${error.message}`)}`);
+      res.redirect(`/?error=${encodeURIComponent(`Failed to connect ${config.label}: ${error.message}`)}`);
     }
   });
 

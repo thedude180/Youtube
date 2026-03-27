@@ -500,7 +500,7 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
             <p className="text-sm">Click "Connect YouTube" below to link your new channel to CreatorOS. We'll use your existing Google login to find your channel.</p>
           </div>
           <div className="flex gap-3">
-            <Button data-testid="button-connect-youtube" onClick={() => { window.location.href = "/api/auth/youtube/connect"; }}>
+            <Button data-testid="button-connect-youtube" onClick={() => { window.location.href = "/api/youtube/auth"; }}>
               <Youtube className="h-4 w-4 mr-2" />
               Connect YouTube Channel
             </Button>

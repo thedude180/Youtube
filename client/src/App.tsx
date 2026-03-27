@@ -606,6 +606,19 @@ function AppContent() {
       toast({ title: "YouTube Connection Failed", description: decodeURIComponent(ytError), variant: "destructive" });
       window.history.replaceState({}, "", cleanUrl);
     }
+    const connected = params.get("connected");
+    if (connected) {
+      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      const platform = connected.charAt(0).toUpperCase() + connected.slice(1);
+      toast({ title: `${platform} Connected`, description: channelName ? `${channelName} linked successfully.` : `Your ${platform} channel is now connected.` });
+      window.history.replaceState({}, "", cleanUrl);
+    }
+    const genericError = params.get("error");
+    if (genericError && !ytError) {
+      toast({ title: "Connection Error", description: decodeURIComponent(genericError), variant: "destructive" });
+      window.history.replaceState({}, "", cleanUrl);
+    }
   }, []);
 
   const completeOnboarding = useCallback(async () => {
