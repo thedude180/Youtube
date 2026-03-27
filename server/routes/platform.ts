@@ -135,20 +135,20 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     if (!code) {
-      return res.redirect("/channels?error=" + encodeURIComponent("Missing authorization code from Google. Please try connecting again."));
+      return res.redirect("/?yt_error=" + encodeURIComponent("Missing authorization code from Google. Please try connecting again."));
     }
     if (!userId) {
-      return res.redirect("/channels?error=" + encodeURIComponent("Session expired. Please log in and try connecting YouTube again."));
+      return res.redirect("/?yt_error=" + encodeURIComponent("Session expired. Please log in and try connecting YouTube again."));
     }
     try {
       const result = await handleCallback(code, userId);
       delete (req.session as any).youtubeOAuthUserId;
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform: "youtube" });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform: "youtube" });
-      res.redirect(`/channels?connected=youtube&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
+      res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
     } catch (error: any) {
       console.error("YouTube OAuth callback error:", error);
-      res.redirect(`/channels?error=${encodeURIComponent(error.message)}`);
+      res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
     }
   });
 

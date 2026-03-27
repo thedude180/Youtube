@@ -572,6 +572,23 @@ function AppContent() {
     }
   }, [isAuthenticated, user, needsOnboarding]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ytConnected = params.get("yt_connected");
+    const ytError = params.get("yt_error");
+    const channelName = params.get("channel");
+    if (ytConnected) {
+      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, "", cleanUrl);
+    }
+    if (ytError) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, "", cleanUrl);
+    }
+  }, []);
+
   const completeOnboarding = useCallback(async () => {
     if (user?.id) {
       localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
