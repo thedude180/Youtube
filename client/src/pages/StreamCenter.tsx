@@ -7,6 +7,7 @@ import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 const StreamUpgradesSection = lazy(() => import("./stream/StreamUpgradesSection"));
 const LiveOpsIntelligenceTab = lazy(() => import("./stream/LiveOpsIntelligenceTab"));
 const DistributionIntelligenceTab = lazy(() => import("./stream/DistributionIntelligenceTab"));
+const LiveCommandCenter = lazy(() => import("./stream/LiveCommandCenter"));
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1821,6 +1822,12 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+      </CollapsibleToolbox>
+
+      <CollapsibleToolbox title="Live Command Center" toolCount={9}>
+        <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+          <LiveCommandCenter />
+        </Suspense>
       </CollapsibleToolbox>
 
       <CollapsibleToolbox title="Live Ops Intelligence" toolCount={4}>

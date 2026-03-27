@@ -7717,3 +7717,161 @@ export const liveReconciliationDriftRecords = pgTable("live_reconciliation_drift
   index("lrdr_severity_idx").on(t.severity),
 ]);
 export type LiveReconciliationDriftRecord = typeof liveReconciliationDriftRecords.$inferSelect;
+
+export const liveCommandCenterSessions = pgTable("live_command_center_sessions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  multistreamSessionId: integer("multistream_session_id"),
+  status: text("status").notNull().default("active"),
+  clarityScore: real("clarity_score").default(1),
+  opsHealthScore: real("ops_health_score").default(1),
+  destStabilityScore: real("dest_stability_score").default(1),
+  monetizationTimingScore: real("monetization_timing_score").default(1),
+  trustPressureScore: real("trust_pressure_score").default(0),
+  recoveryReadinessScore: real("recovery_readiness_score").default(1),
+  activePanels: jsonb("active_panels").$type<string[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+}, (t) => [
+  index("lcc_sess_user_idx").on(t.userId),
+  index("lcc_sess_status_idx").on(t.status),
+]);
+export type LiveCommandCenterSession = typeof liveCommandCenterSessions.$inferSelect;
+
+export const liveCommandCenterActions = pgTable("live_command_center_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveCommandCenterSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  targetType: text("target_type"),
+  targetId: text("target_id"),
+  panel: text("panel").notNull(),
+  approvalClass: text("approval_class").default("green"),
+  approved: boolean("approved").default(true),
+  reason: text("reason"),
+  result: jsonb("result").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  executedAt: timestamp("executed_at").defaultNow(),
+}, (t) => [
+  index("lcca_session_idx").on(t.sessionId),
+  index("lcca_user_idx").on(t.userId),
+  index("lcca_type_idx").on(t.actionType),
+]);
+export type LiveCommandCenterAction = typeof liveCommandCenterActions.$inferSelect;
+
+export const liveCommandCenterPanelStates = pgTable("live_command_center_panel_states", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => liveCommandCenterSessions.id, { onDelete: "cascade" }),
+  panel: text("panel").notNull(),
+  status: text("status").notNull().default("healthy"),
+  signalCount: integer("signal_count").default(0),
+  alertCount: integer("alert_count").default(0),
+  lastSignal: jsonb("last_signal").$type<Record<string, any>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("lccps_session_idx").on(t.sessionId),
+  index("lccps_panel_idx").on(t.panel),
+]);
+export type LiveCommandCenterPanelState = typeof liveCommandCenterPanelStates.$inferSelect;
+
+export const liveChatAggregates = pgTable("live_chat_aggregates", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  platform: text("platform").notNull(),
+  windowStart: timestamp("window_start").notNull(),
+  windowEnd: timestamp("window_end").notNull(),
+  messageCount: integer("message_count").default(0),
+  uniqueUsers: integer("unique_users").default(0),
+  sentimentScore: real("sentiment_score").default(0),
+  topQuestions: jsonb("top_questions").$type<string[]>().default([]),
+  topEmotes: jsonb("top_emotes").$type<string[]>().default([]),
+  moderationAlerts: integer("moderation_alerts").default(0),
+  languageBreakdown: jsonb("language_breakdown").$type<Record<string, number>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lca_session_idx").on(t.sessionId),
+  index("lca_platform_idx").on(t.platform),
+  index("lca_window_idx").on(t.windowStart),
+]);
+export type LiveChatAggregate = typeof liveChatAggregates.$inferSelect;
+
+export const liveCommerceSignals = pgTable("live_commerce_signals", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  userId: text("user_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  platform: text("platform"),
+  triggerMoment: text("trigger_moment"),
+  opportunity: text("opportunity"),
+  confidence: real("confidence").default(0),
+  ctaFatigueRisk: real("cta_fatigue_risk").default(0),
+  sponsorSafe: boolean("sponsor_safe").default(true),
+  revenueIntent: real("revenue_intent").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+}, (t) => [
+  index("lcoms_session_idx").on(t.sessionId),
+  index("lcoms_type_idx").on(t.signalType),
+  index("lcoms_detected_idx").on(t.detectedAt),
+]);
+export type LiveCommerceSignal = typeof liveCommerceSignals.$inferSelect;
+
+export const liveTrustBudgetEvents = pgTable("live_trust_budget_events", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  userId: text("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  budgetBefore: real("budget_before").default(100),
+  budgetAfter: real("budget_after").default(100),
+  cost: real("cost").default(0),
+  source: text("source"),
+  reason: text("reason"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  occurredAt: timestamp("occurred_at").defaultNow(),
+}, (t) => [
+  index("ltbe_session_idx").on(t.sessionId),
+  index("ltbe_user_idx").on(t.userId),
+  index("ltbe_occurred_idx").on(t.occurredAt),
+]);
+export type LiveTrustBudgetEvent = typeof liveTrustBudgetEvents.$inferSelect;
+
+export const liveMetadataUpdateReasons = pgTable("live_metadata_update_reasons", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  destinationId: integer("destination_id"),
+  platform: text("platform").notNull(),
+  field: text("field").notNull(),
+  previousValue: text("previous_value"),
+  newValue: text("new_value"),
+  reason: text("reason").notNull(),
+  signalSource: text("signal_source"),
+  approved: boolean("approved").default(true),
+  appliedAt: timestamp("applied_at").defaultNow(),
+}, (t) => [
+  index("lmur_session_idx").on(t.sessionId),
+  index("lmur_platform_idx").on(t.platform),
+]);
+export type LiveMetadataUpdateReason = typeof liveMetadataUpdateReasons.$inferSelect;
+
+export const liveRecoveryActions = pgTable("live_recovery_actions", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id"),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  targetPlatform: text("target_platform"),
+  targetDestinationId: integer("target_destination_id"),
+  status: text("status").notNull().default("pending"),
+  approvalRequired: boolean("approval_required").default(false),
+  approved: boolean("approved"),
+  result: jsonb("result").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("lra_session_idx").on(t.sessionId),
+  index("lra_user_idx").on(t.userId),
+  index("lra_status_idx").on(t.status),
+]);
+export type LiveRecoveryAction = typeof liveRecoveryActions.$inferSelect;

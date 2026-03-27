@@ -40,6 +40,7 @@ import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerTestAuthRoutes } from "./routes/test-auth";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
 import { registerMultistreamRoutes } from "./routes/multistream";
+import { registerCommandCenterRoutes } from "./routes/command-center";
 import { registerKernelRoutes } from "./routes/kernel";
 import { registerContentCoreRoutes } from "./routes/content-core";
 import { registerLiveOpsRoutes } from "./routes/live-ops";
@@ -346,6 +347,7 @@ export async function registerRoutes(
   registerStreamAgentRoutes(app);
   registerCopyrightGuardianRoutes(app);
   registerMultistreamRoutes(app);
+  registerCommandCenterRoutes(app);
   registerKernelOpsRoutes(app);
   registerTestAuthRoutes(app);
   registerKernelRoutes(app);
