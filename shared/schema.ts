@@ -7523,3 +7523,197 @@ export const metricRollups = pgTable("metric_rollups", {
   uniqueIndex("mr_metric_period_unique").on(t.metricName, t.periodStart, t.periodEnd),
 ]);
 export type MetricRollup = typeof metricRollups.$inferSelect;
+
+export const liveOriginEvents = pgTable("live_origin_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourcePlatform: text("source_platform").notNull(),
+  sourceStreamId: text("source_stream_id").notNull(),
+  sourceChannelId: text("source_channel_id"),
+  eventType: text("event_type").notNull(),
+  electedAsSource: boolean("elected_as_source").default(false),
+  duplicateSuppressed: boolean("duplicate_suppressed").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+  processedAt: timestamp("processed_at"),
+}, (t) => [
+  index("lorig_user_idx").on(t.userId),
+  index("lorig_source_idx").on(t.sourcePlatform, t.sourceStreamId),
+  index("lorig_detected_idx").on(t.detectedAt),
+]);
+export type LiveOriginEvent = typeof liveOriginEvents.$inferSelect;
+
+export const multistreamSessions = pgTable("multistream_sessions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  originEventId: integer("origin_event_id").references(() => liveOriginEvents.id),
+  sourcePlatform: text("source_platform").notNull(),
+  sourceStreamId: text("source_stream_id").notNull(),
+  status: text("status").notNull().default("initializing"),
+  destinationCount: integer("destination_count").default(0),
+  launchedDestinations: integer("launched_destinations").default(0),
+  failedDestinations: integer("failed_destinations").default(0),
+  readinessScore: real("readiness_score").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+}, (t) => [
+  index("ms_user_idx").on(t.userId),
+  index("ms_status_idx").on(t.status),
+  index("ms_started_idx").on(t.startedAt),
+]);
+export type MultistreamSession = typeof multistreamSessions.$inferSelect;
+
+export const multistreamDestinations = pgTable("multistream_destinations", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => multistreamSessions.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  channelId: text("channel_id"),
+  streamKey: text("stream_key"),
+  ingestUrl: text("ingest_url"),
+  status: text("status").notNull().default("pending"),
+  launchOrder: integer("launch_order").default(0),
+  retryCount: integer("retry_count").default(0),
+  maxRetries: integer("max_retries").default(3),
+  failureReason: text("failure_reason"),
+  platformStreamId: text("platform_stream_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  eligibleAt: timestamp("eligible_at"),
+  launchedAt: timestamp("launched_at"),
+  stoppedAt: timestamp("stopped_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("md_session_idx").on(t.sessionId),
+  index("md_platform_idx").on(t.platform),
+  index("md_status_idx").on(t.status),
+]);
+export type MultistreamDestination = typeof multistreamDestinations.$inferSelect;
+
+export const liveDestinationStateHistory = pgTable("live_destination_state_history", {
+  id: serial("id").primaryKey(),
+  destinationId: integer("destination_id").references(() => multistreamDestinations.id, { onDelete: "cascade" }),
+  previousState: text("previous_state"),
+  newState: text("new_state").notNull(),
+  reason: text("reason"),
+  triggeredBy: text("triggered_by"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  changedAt: timestamp("changed_at").defaultNow(),
+}, (t) => [
+  index("ldsh_dest_idx").on(t.destinationId),
+  index("ldsh_changed_idx").on(t.changedAt),
+]);
+export type LiveDestinationStateHistoryRecord = typeof liveDestinationStateHistory.$inferSelect;
+
+export const livePublishAttempts = pgTable("live_publish_attempts", {
+  id: serial("id").primaryKey(),
+  destinationId: integer("destination_id").references(() => multistreamDestinations.id, { onDelete: "cascade" }),
+  sessionId: integer("session_id").references(() => multistreamSessions.id),
+  platform: text("platform").notNull(),
+  action: text("action").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  success: boolean("success").default(false),
+  responseCode: integer("response_code"),
+  errorMessage: text("error_message"),
+  latencyMs: integer("latency_ms"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  attemptedAt: timestamp("attempted_at").defaultNow(),
+}, (t) => [
+  index("lpa_dest_idx").on(t.destinationId),
+  index("lpa_session_idx").on(t.sessionId),
+  index("lpa_idempotency_idx").on(t.idempotencyKey),
+  index("lpa_attempted_idx").on(t.attemptedAt),
+]);
+export type LivePublishAttempt = typeof livePublishAttempts.$inferSelect;
+
+export const liveCapabilitySnapshots = pgTable("live_capability_snapshots", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  channelId: text("channel_id"),
+  capability: text("capability").notNull(),
+  supported: boolean("supported").default(false),
+  status: text("status").notNull().default("unknown"),
+  streamKeyConfigured: boolean("stream_key_configured").default(false),
+  partnerRestrictions: jsonb("partner_restrictions").$type<string[]>().default([]),
+  geoRestrictions: jsonb("geo_restrictions").$type<string[]>().default([]),
+  featureSupport: jsonb("feature_support").$type<Record<string, boolean>>().default({}),
+  snapshotAt: timestamp("snapshot_at").defaultNow(),
+}, (t) => [
+  index("lcs_platform_idx").on(t.platform),
+  index("lcs_capability_idx").on(t.capability),
+  index("lcs_snapshot_idx").on(t.snapshotAt),
+]);
+export type LiveCapabilitySnapshot = typeof liveCapabilitySnapshots.$inferSelect;
+
+export const liveMetadataVariants = pgTable("live_metadata_variants", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => multistreamSessions.id, { onDelete: "cascade" }),
+  destinationId: integer("destination_id").references(() => multistreamDestinations.id),
+  platform: text("platform").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  hashtags: jsonb("hashtags").$type<string[]>().default([]),
+  orientation: text("orientation").default("horizontal"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (t) => [
+  index("lmv_session_idx").on(t.sessionId),
+  index("lmv_platform_idx").on(t.platform),
+]);
+export type LiveMetadataVariant = typeof liveMetadataVariants.$inferSelect;
+
+export const liveThumbnailVariants = pgTable("live_thumbnail_variants", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => multistreamSessions.id, { onDelete: "cascade" }),
+  destinationId: integer("destination_id").references(() => multistreamDestinations.id),
+  platform: text("platform").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  resolution: text("resolution"),
+  aspectRatio: text("aspect_ratio"),
+  variant: text("variant").default("primary"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (t) => [
+  index("ltv_session_idx").on(t.sessionId),
+  index("ltv_platform_idx").on(t.platform),
+]);
+export type LiveThumbnailVariant = typeof liveThumbnailVariants.$inferSelect;
+
+export const liveReconciliationRuns = pgTable("live_reconciliation_runs", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => multistreamSessions.id),
+  runType: text("run_type").notNull().default("periodic"),
+  destinationsChecked: integer("destinations_checked").default(0),
+  driftsDetected: integer("drifts_detected").default(0),
+  repairsAttempted: integer("repairs_attempted").default(0),
+  repairsSucceeded: integer("repairs_succeeded").default(0),
+  overallHealth: real("overall_health").default(1),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("lrr_session_idx").on(t.sessionId),
+  index("lrr_started_idx").on(t.startedAt),
+]);
+export type LiveReconciliationRun = typeof liveReconciliationRuns.$inferSelect;
+
+export const liveReconciliationDriftRecords = pgTable("live_reconciliation_drift_records", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").references(() => liveReconciliationRuns.id, { onDelete: "cascade" }),
+  destinationId: integer("destination_id").references(() => multistreamDestinations.id),
+  platform: text("platform").notNull(),
+  driftType: text("drift_type").notNull(),
+  internalState: text("internal_state"),
+  platformState: text("platform_state"),
+  severity: text("severity").notNull().default("low"),
+  repairAction: text("repair_action"),
+  repairResult: text("repair_result"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  detectedAt: timestamp("detected_at").defaultNow(),
+}, (t) => [
+  index("lrdr_run_idx").on(t.runId),
+  index("lrdr_dest_idx").on(t.destinationId),
+  index("lrdr_severity_idx").on(t.severity),
+]);
+export type LiveReconciliationDriftRecord = typeof liveReconciliationDriftRecords.$inferSelect;
