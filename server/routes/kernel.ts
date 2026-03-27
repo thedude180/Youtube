@@ -39,6 +39,11 @@ import { checkTrustBudget, getTrustBudgetSummary } from "../kernel/trust-budget"
 import { probeCapability, getCapabilityStatus, checkCapabilityBeforeWrite } from "../kernel/capability-probe";
 import { detectJurisdiction, getSupportedJurisdictions } from "../adapters/payment";
 import { detectLocale, getSupportedLocales } from "../adapters/localization";
+import { seedDefaultConnections, getAllConnections, getHealthReport, runFabricHealthCheck } from "../kernel/connection-fabric";
+import { seedCoreReconciliationCheckers, runAllReconciliations, runReconciliation, getRegisteredDomains } from "../kernel/state-reconciliation";
+import { evaluateRegionalPolicy, getAllRegions, detectRegionFromLocale } from "../kernel/regional-policy";
+import { validateAgentUIPayload, REGISTERED_AGENTS } from "../kernel/agent-ui-contract";
+import { getAvailableChains, getChainModels } from "../kernel/model-fallback-chain";
 
 function getUserId(req: Request): string | null {
   return (req as any).user?.id || (req as any).user?.claims?.sub || null;
@@ -120,6 +125,8 @@ async function seedDefaultPlaybooks() {
 
 export function registerKernelRoutes(app: Express) {
   seedDefaultPlaybooks();
+  seedDefaultConnections();
+  seedCoreReconciliationCheckers();
   app.get("/api/kernel/agent-ui-payloads", async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -799,6 +806,123 @@ export function registerKernelRoutes(app: Express) {
         .where(eq(playbookActivationEvents.id, activationId));
 
       res.json({ status: "deactivated" });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/kernel/connection-fabric", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    res.json(getAllConnections());
+  });
+
+  app.get("/api/kernel/connection-fabric/health", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const report = await runFabricHealthCheck(userId);
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/kernel/reconciliation", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const reports = await runAllReconciliations(userId);
+      res.json({ reports, domains: getRegisteredDomains() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/kernel/reconciliation/:domain", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const report = await runReconciliation(req.params.domain);
+      res.json(report);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/kernel/regional-policy/:region", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const categories = req.query.categories ? String(req.query.categories).split(",") : undefined;
+    res.json(evaluateRegionalPolicy(req.params.region, categories));
+  });
+
+  app.get("/api/kernel/regional-policy", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const locale = String(req.query.locale || "en-US");
+    const region = detectRegionFromLocale(locale);
+    res.json({ regions: getAllRegions(), detectedRegion: region, policies: evaluateRegionalPolicy(region) });
+  });
+
+  app.post("/api/kernel/agent-ui-contract/validate", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const result = validateAgentUIPayload(req.body.payload);
+    res.json(result);
+  });
+
+  app.get("/api/kernel/agent-ui-contract/agents", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    res.json(REGISTERED_AGENTS);
+  });
+
+  app.get("/api/kernel/fallback-chains", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const chains = getAvailableChains();
+    const details = chains.map((name) => ({ name, models: getChainModels(name) }));
+    res.json(details);
+  });
+
+  app.get("/api/kernel/running-now", async (req: Request, res: Response) => {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    try {
+      const { jobLeases } = await import("@shared/schema");
+      const activeJobs = await db
+        .select()
+        .from(jobLeases)
+        .where(eq(jobLeases.status, "active"))
+        .orderBy(desc(jobLeases.acquiredAt))
+        .limit(20);
+
+      const { sql: sqlTag } = await import("drizzle-orm");
+      const [counts] = await db
+        .select({
+          active: sqlTag<number>`count(*) filter (where ${jobLeases.status} = 'active')`,
+          queued: sqlTag<number>`count(*) filter (where ${jobLeases.status} = 'queued')`,
+          completed: sqlTag<number>`count(*) filter (where ${jobLeases.status} = 'completed')`,
+        })
+        .from(jobLeases);
+
+      res.json({
+        activeJobs: activeJobs.map((j) => ({
+          id: j.id,
+          name: j.jobId,
+          jobType: j.jobId,
+          status: j.status,
+          acquiredAt: j.acquiredAt,
+          workerNode: j.workerName,
+        })),
+        summary: {
+          active: Number(counts?.active || 0),
+          queued: Number(counts?.queued || 0),
+          completed: Number(counts?.completed || 0),
+        },
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

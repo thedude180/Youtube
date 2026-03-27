@@ -180,6 +180,8 @@ export async function executeRoutedAICall(
   };
 }
 
+export { executeWithFallbackChain, resolveChainForTask, getAvailableChains } from "../kernel/model-fallback-chain";
+
 export function getModelPricing(): Record<string, { inputPer1k: number; outputPer1k: number }> {
   return { ...MODEL_PRICING };
 }

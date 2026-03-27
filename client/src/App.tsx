@@ -53,6 +53,7 @@ const Notifications = lazyRetry(() => import("@/pages/Notifications"));
 const Landing     = lazyRetry(() => import("@/pages/Landing"));
 const Onboarding  = lazyRetry(() => import("@/pages/Onboarding"));
 const Pricing     = lazyRetry(() => import("@/pages/Pricing"));
+const FounderConsole = lazyRetry(() => import("@/pages/FounderConsole"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -98,6 +99,7 @@ const PAGE_META: Record<string, { title: string; description: string }> = {
   "/settings":    { title: "Settings", description: "Channel connection, brand voice and account preferences." },
   "/notifications": { title: "Notifications", description: "Critical alerts from your AI team." },
   "/pricing":     { title: "Pricing",  description: "Choose your plan." },
+  "/founder":     { title: "Founder Console", description: "Your business at a glance — key metrics, connections, and system health." },
   "/privacy":     { title: "Privacy Policy",  description: "How CreatorOS handles your data." },
   "/terms":       { title: "Terms of Service", description: "Terms and conditions." },
   "/data-disclosure": { title: "Data Disclosure", description: "Data collection and third-party sharing." },
@@ -149,6 +151,7 @@ function Router() {
       <Route path="/settings/:tab">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/notifications">{() => <SectionErrorBoundary fallbackTitle="Notifications failed to load"><Notifications /></SectionErrorBoundary>}</Route>
       <Route path="/pricing">{() => <SectionErrorBoundary fallbackTitle="Pricing failed to load"><Pricing /></SectionErrorBoundary>}</Route>
+      <Route path="/founder">{() => <SectionErrorBoundary fallbackTitle="Founder Console failed to load"><FounderConsole /></SectionErrorBoundary>}</Route>
       <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>
       <Route path="/terms">{() => <SectionErrorBoundary fallbackTitle="Terms of Service failed to load"><TermsOfService /></SectionErrorBoundary>}</Route>
       <Route path="/data-disclosure">{() => <SectionErrorBoundary fallbackTitle="Data Disclosure failed to load"><DataDisclosure /></SectionErrorBoundary>}</Route>
