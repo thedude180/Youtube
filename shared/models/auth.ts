@@ -36,6 +36,17 @@ export const TIER_LABELS: Record<SubscriptionTier, string> = {
 };
 
 export const ADMIN_EMAIL = "thedude180@gmail.com";
+
+export const CHANNEL_LAUNCH_STATES = [
+  "pre_channel",
+  "channel_created_not_connected",
+  "channel_connected_no_uploads",
+  "launch_active",
+  "pre_monetization",
+  "monetization_eligible",
+  "monetization_active",
+] as const;
+export type ChannelLaunchState = (typeof CHANNEL_LAUNCH_STATES)[number];
 export const SUPPORT_EMAIL = "support@etgaming247.com";
 
 // User storage table.
@@ -58,6 +69,7 @@ export const users = pgTable("users", {
   notifyPhone: boolean("notify_phone").default(false),
   autopilotActive: boolean("autopilot_active").default(true),
   onboardingCompleted: timestamp("onboarding_completed"),
+  channelLaunchState: varchar("channel_launch_state"),
   userPreferences: jsonb("user_preferences").$type<{
     wellness?: {
       mood?: number;

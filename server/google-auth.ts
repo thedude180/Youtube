@@ -158,6 +158,15 @@ export function setupGoogleAuth(app: Express) {
           } catch (initErr) {
             console.error("[GoogleAuth] Post-login init failed:", initErr);
           }
+
+          if (ytResult && !ytResult.hasChannel) {
+            try {
+              const { initPreChannelState } = await import("./services/channel-launch-service");
+              await initPreChannelState(user.claims.sub);
+            } catch (launchErr) {
+              console.error("[GoogleAuth] Pre-channel init failed:", launchErr);
+            }
+          }
         }
 
         req.session.save((saveErr) => {

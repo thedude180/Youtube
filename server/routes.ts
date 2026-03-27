@@ -45,6 +45,7 @@ import { registerKernelOpsRoutes } from "./routes/kernel-ops";
 import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { registerResilienceObservabilityRoutes, registerCorrelationMiddleware, getRequestCorrelationId } from "./routes/resilience-observability";
 import { registerLearningGovernanceRoutes } from "./routes/learning-governance";
+import { registerChannelLaunchRoutes } from "./routes/channel-launch";
 import { registerOpsHealthRoutes } from "./routes/ops-health";
 import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
 import { getUserId } from "./routes/helpers";
@@ -341,6 +342,7 @@ export async function registerRoutes(
   registerTrustGovernanceRoutes(app);
   registerResilienceObservabilityRoutes(app);
   registerLearningGovernanceRoutes(app);
+  registerChannelLaunchRoutes(app);
   registerOpsHealthRoutes(app);
   registerPhase7IntelligenceRoutes(app);
 

@@ -52,6 +52,7 @@ const Money       = lazyRetry(() => import("@/pages/Money"));
 const Notifications = lazyRetry(() => import("@/pages/Notifications"));
 const Landing     = lazyRetry(() => import("@/pages/Landing"));
 const Onboarding  = lazyRetry(() => import("@/pages/Onboarding"));
+const PreChannelLaunch = lazyRetry(() => import("@/pages/PreChannelLaunch"));
 const Pricing     = lazyRetry(() => import("@/pages/Pricing"));
 const FounderConsole = lazyRetry(() => import("@/pages/FounderConsole"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
@@ -511,6 +512,7 @@ function AppContent() {
   const { i18n } = useTranslation();
   const [location, setLocation] = useLocation();
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
+  const [needsPreChannelLaunch, setNeedsPreChannelLaunch] = useState(false);
 
   useEffect(() => {
     const lang = supportedLanguages.find((l) => l.code === i18n.language);
@@ -547,7 +549,11 @@ function AppContent() {
         clearTimeout(safetyTimer);
         const hasOnboarded = profile?.onboardingCompleted;
         const hasChannels = Array.isArray(channels) && channels.length > 0;
-        if (hasOnboarded || hasChannels) {
+        const launchState = profile?.channelLaunchState;
+        if (launchState && ["pre_channel", "channel_created_not_connected"].includes(launchState)) {
+          setNeedsPreChannelLaunch(true);
+          setNeedsOnboarding(true);
+        } else if (hasOnboarded || hasChannels) {
           localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
           setNeedsOnboarding(false);
           if (location === "/onboarding") setLocation("/");
@@ -587,11 +593,12 @@ function AppContent() {
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytNoChannel) {
+      setNeedsPreChannelLaunch(true);
+      setNeedsOnboarding(true);
       toast({
-        title: "No YouTube Channel Found",
-        description: "Your Google account doesn't have a YouTube channel yet. Create one at youtube.com, then come back and connect.",
-        variant: "destructive",
-        duration: 10000,
+        title: "Let's Build Your Channel",
+        description: "No YouTube channel found — we'll help you create one from scratch!",
+        duration: 8000,
       });
       window.history.replaceState({}, "", cleanUrl);
     }
@@ -632,6 +639,9 @@ function AppContent() {
   const publicRoutes = ["/pricing", "/privacy", "/terms", "/data-disclosure"];
   if (needsOnboarding || normalizedPath === "/onboarding") {
     if (publicRoutes.some(r => normalizedPath === r)) return <AuthenticatedApp />;
+    if (needsPreChannelLaunch) {
+      return <Suspense fallback={loader}><PreChannelLaunch onComplete={completeOnboarding} /></Suspense>;
+    }
     return <Suspense fallback={loader}><Onboarding onComplete={completeOnboarding} /></Suspense>;
   }
 

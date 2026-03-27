@@ -4,9 +4,139 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-export { sessions, users, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL } from "./models/auth";
-export type { User, UpsertUser, SubscriptionTier, UserRole } from "./models/auth";
+export { sessions, users, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL, CHANNEL_LAUNCH_STATES } from "./models/auth";
+export type { User, UpsertUser, SubscriptionTier, UserRole, ChannelLaunchState } from "./models/auth";
 export { conversations, messages } from "./models/chat";
+
+export const channelLaunchStates = pgTable("channel_launch_states", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  state: varchar("state").notNull().default("pre_channel"),
+  stateData: jsonb("state_data").$type<Record<string, any>>().default({}),
+  channelIdentity: jsonb("channel_identity").$type<{ name?: string; niche?: string; category?: string; description?: string }>().default({}),
+  brandBasics: jsonb("brand_basics").$type<{ profileDone?: boolean; bannerDone?: boolean; aboutDone?: boolean; thumbnailStyle?: string }>().default({}),
+  launchReadinessScore: integer("launch_readiness_score").default(0),
+  firstPublishReadinessScore: integer("first_publish_readiness_score").default(0),
+  monetizationReadinessScore: integer("monetization_readiness_score").default(0),
+  beginnerMomentumScore: integer("beginner_momentum_score").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("cls_user_idx").on(t.userId),
+  index("cls_state_idx").on(t.state),
+]);
+
+export const launchMissions = pgTable("launch_missions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  step: integer("step").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  status: varchar("status").notNull().default("pending"),
+  stepData: jsonb("step_data").$type<Record<string, any>>().default({}),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lm_user_idx").on(t.userId),
+  index("lm_step_idx").on(t.step),
+  index("lm_status_idx").on(t.status),
+]);
+
+export const firstVideoPlans = pgTable("first_video_plans", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  videoNumber: integer("video_number").notNull(),
+  title: varchar("title"),
+  concept: text("concept"),
+  thumbnailIdea: text("thumbnail_idea"),
+  tags: text("tags").array(),
+  status: varchar("status").notNull().default("planned"),
+  aiGenerated: boolean("ai_generated").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("fvp_user_idx").on(t.userId),
+]);
+
+export const firstTenVideoRoadmaps = pgTable("first_ten_video_roadmaps", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  videoNumber: integer("video_number").notNull(),
+  title: varchar("title"),
+  concept: text("concept"),
+  publishOrder: integer("publish_order"),
+  estimatedDuration: varchar("estimated_duration"),
+  contentPillar: varchar("content_pillar"),
+  status: varchar("status").notNull().default("planned"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ftvr_user_idx").on(t.userId),
+]);
+
+export const brandSetupTasks = pgTable("brand_setup_tasks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  taskType: varchar("task_type").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  status: varchar("status").notNull().default("pending"),
+  result: jsonb("result").$type<Record<string, any>>().default({}),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("bst_user_idx").on(t.userId),
+  index("bst_type_idx").on(t.taskType),
+]);
+
+export const monetizationReadinessSnapshots = pgTable("monetization_readiness_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  stage: integer("stage").notNull().default(0),
+  stageName: varchar("stage_name").notNull().default("Pre-Channel"),
+  subscriberCount: integer("subscriber_count").default(0),
+  watchHours: real("watch_hours").default(0),
+  eligibilityProgress: jsonb("eligibility_progress").$type<Record<string, any>>().default({}),
+  nonPlatformRevenuePaths: jsonb("non_platform_revenue_paths").$type<string[]>().default([]),
+  region: varchar("region"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("mrs_user_idx").on(t.userId),
+  index("mrs_stage_idx").on(t.stage),
+]);
+
+export const beginnerProgressMilestones = pgTable("beginner_progress_milestones", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  milestoneKey: varchar("milestone_key").notNull(),
+  title: varchar("title").notNull(),
+  description: text("description"),
+  achieved: boolean("achieved").default(false),
+  achievedAt: timestamp("achieved_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("bpm_user_idx").on(t.userId),
+  index("bpm_key_idx").on(t.milestoneKey),
+]);
+
+export const onboardingSessions = pgTable("onboarding_sessions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  sessionType: varchar("session_type").notNull().default("standard"),
+  currentStep: integer("current_step").notNull().default(1),
+  totalSteps: integer("total_steps").notNull().default(10),
+  stepData: jsonb("step_data").$type<Record<string, any>>().default({}),
+  completed: boolean("completed").default(false),
+  completedAt: timestamp("completed_at"),
+  resumable: boolean("resumable").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("os_user_idx").on(t.userId),
+  index("os_type_idx").on(t.sessionType),
+]);
 
 export const PLATFORMS = [
   "youtube",
