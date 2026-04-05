@@ -52,7 +52,7 @@ export async function scanForMerchOpportunities(userId: string) {
   }));
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a merch strategist for content creators. Analyze this creator's top-performing content and identify merch-worthy moments, catchphrases, and concepts.
@@ -148,7 +148,7 @@ export async function generateDesignBrief(ideaId: number) {
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a merch design director. Create a detailed design brief for this merch concept.
@@ -240,7 +240,7 @@ export async function estimateDemand(ideaId: number) {
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a merch demand forecasting expert. Estimate the market demand for this merch concept.

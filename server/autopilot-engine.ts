@@ -180,7 +180,7 @@ async function getCreatorTone(userId: string): Promise<string> {
 async function generateWithAI(prompt: string, systemMsg: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },
@@ -436,7 +436,7 @@ async function generateFullThrottleDistribution(
         isVideoDelivery,
         angle: "ai-selected",
         style: "human",
-        aiModel: "gpt-5-mini",
+        aiModel: "gpt-4o-mini",
         humanScore: result.stealthScore,
         uniquenessScore: result.uniquenessScore,
         fingerprint: result.fingerprint,
@@ -499,7 +499,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
     scheduledAt,
     metadata: {
       style: "human",
-      aiModel: "gpt-5-mini",
+      aiModel: "gpt-4o-mini",
       humanScore: result.stealthScore,
       uniquenessScore: result.uniquenessScore,
       fingerprint: result.fingerprint,
@@ -567,7 +567,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
           streamId,
           isLiveAnnouncement: true,
           style: "human",
-          aiModel: "gpt-5-mini",
+          aiModel: "gpt-4o-mini",
           humanScore: result.stealthScore,
           uniquenessScore: result.uniquenessScore,
           fingerprint: result.fingerprint,

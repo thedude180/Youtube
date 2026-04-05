@@ -12,7 +12,7 @@ export async function createMigrationCampaign(
   targetPlatform: string
 ) {
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
@@ -115,7 +115,7 @@ export async function generateCrossPromotionContent(
   const funnelSteps = campaign.funnelSteps as Record<string, any>[];
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",

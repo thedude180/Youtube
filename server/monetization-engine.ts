@@ -52,7 +52,7 @@ Best practices:
 - Avoid placing ads right before the payoff/climax`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,
@@ -135,7 +135,7 @@ Generate forecast as JSON:
 }`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,
@@ -359,7 +359,7 @@ Generate invoice details as JSON:
 Split the deal value across the deliverables proportionally. Include any applicable usage rights or licensing fees as separate line items.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,
@@ -453,7 +453,7 @@ Analyze this deal as JSON:
 }`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,

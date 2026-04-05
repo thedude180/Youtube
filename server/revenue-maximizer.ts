@@ -44,7 +44,7 @@ export async function analyzeRevenueStreams(userId: string) {
   const verificationRate = totalAmount > 0 ? (totalVerified / totalAmount) * 100 : 0;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a creator revenue optimization expert. Analyze this creator's revenue data and suggest optimizations for each revenue stream.
@@ -170,7 +170,7 @@ export async function optimizeSponsorshipRate(userId: string, modelType: string)
   const marketAvg = MARKET_AVERAGES[modelType] || { rate: 0, unit: "unknown" };
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a creator monetization expert. Calculate the optimal rate for this revenue stream.
@@ -270,7 +270,7 @@ export async function generateRevenueReport(userId: string) {
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{
       role: "user",
       content: `You are a creator business analyst. Generate a comprehensive revenue report for this creator.

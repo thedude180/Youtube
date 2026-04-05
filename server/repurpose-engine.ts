@@ -73,7 +73,7 @@ Requirements:
 - Email sequences should have 3-5 emails`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,
@@ -192,7 +192,7 @@ Suggest B-roll as JSON:
 Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and production value.`;
 
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 16000,

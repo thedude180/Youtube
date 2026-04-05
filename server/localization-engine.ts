@@ -70,7 +70,7 @@ export async function processLocalizationJob(jobId: number) {
     : "";
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",

@@ -29,7 +29,7 @@ export async function generateLiveSuggestion(
   const recentTypes = recentSuggestions.map((s) => s.suggestionType);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
@@ -145,7 +145,7 @@ export async function generateStreamRecap(userId: string, streamId: number) {
       : 0;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",

@@ -117,7 +117,7 @@ export async function evaluateExperiment(
   let aiResult: Record<string, any>;
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",

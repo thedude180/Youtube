@@ -54,13 +54,13 @@ export function getCacheStats(): { hits: number; misses: number; size: number; h
 }
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-5-mini": { input: 0.001, output: 0.003 },
+  "gpt-4o-mini": { input: 0.001, output: 0.003 },
   "gpt-4o": { input: 0.005, output: 0.015 },
   "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
 };
 
 function calculateCost(model: string, promptTokens: number, completionTokens: number): number {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING["gpt-5-mini"];
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING["gpt-4o-mini"];
   return (promptTokens / 1000) * pricing.input + (completionTokens / 1000) * pricing.output;
 }
 
@@ -192,7 +192,7 @@ export async function executeWithFallback<T>(
     const result = await breaker.execute(primaryFn);
     const latencyMs = Date.now() - start;
     modelFailures.set("primary", 0);
-    trackAiUsage(userId, "gpt-5-mini", endpoint, 0, 0, latencyMs, false, true).catch(() => {});
+    trackAiUsage(userId, "gpt-4o-mini", endpoint, 0, 0, latencyMs, false, true).catch(() => {});
     return { result, usedFallback: false, latencyMs };
   } catch (primaryError) {
     console.warn(`[AI Hardening] Primary model failed for ${endpoint}, falling back:`, (primaryError as Error).message);
@@ -206,7 +206,7 @@ export async function executeWithFallback<T>(
     } catch (fallbackError) {
       const latencyMs = Date.now() - start;
       modelFailures.set("fallback", (modelFailures.get("fallback") || 0) + 1);
-      trackAiUsage(userId, "gpt-5-mini", endpoint, 0, 0, latencyMs, false, false).catch(() => {});
+      trackAiUsage(userId, "gpt-4o-mini", endpoint, 0, 0, latencyMs, false, false).catch(() => {});
       throw fallbackError;
     }
   }
@@ -216,7 +216,7 @@ export function getModelHealth(): Record<string, { status: string; consecutiveFa
   const breaker = getBreaker("OpenAI API");
   const breakerStatus = breaker.getStatus();
   return {
-    "gpt-5-mini": {
+    "gpt-4o-mini": {
       status: breakerStatus,
       consecutiveFailures: modelFailures.get("primary") || 0,
     },

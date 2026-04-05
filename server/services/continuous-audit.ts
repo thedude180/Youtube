@@ -89,7 +89,7 @@ class ContinuousAudit {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini", // Falling back to gpt-4o-mini as gpt-5-mini doesn't exist yet
+            model: "gpt-4o-mini", // Falling back to gpt-4o-mini as gpt-4o-mini doesn't exist yet
             messages: [
               {
                 role: "system",

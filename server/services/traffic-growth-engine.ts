@@ -123,7 +123,7 @@ Respond with JSON:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     max_completion_tokens: 12000,
@@ -261,7 +261,7 @@ Respond with JSON:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [{ role: "user", content: relevancePrompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,

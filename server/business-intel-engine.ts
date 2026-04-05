@@ -20,7 +20,7 @@ export async function generateTaxEstimate(userId: string, quarter: string, year:
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",
@@ -153,7 +153,7 @@ export async function analyzeTeamNeeds(userId: string) {
   const totalRevenue = revenue.reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",
@@ -249,7 +249,7 @@ export async function generateHiringRoadmap(userId: string) {
   const totalRevenue = revenue.reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",

@@ -456,7 +456,7 @@ Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 async function generateWithAI(prompt: string, systemMsg: string): Promise<string> {
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },

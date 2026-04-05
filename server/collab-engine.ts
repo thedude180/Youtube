@@ -10,7 +10,7 @@ export async function findCollabCandidates(userId: string, platform?: string) {
   const platformFilter = platform || "any";
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
@@ -91,7 +91,7 @@ export async function generateOutreachDraft(candidateId: number) {
   const formats = candidate.suggestedFormats as string[];
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",
@@ -160,7 +160,7 @@ export async function suggestCollabFormats(userId: string, candidateId: number) 
   if (!candidate) throw new Error("Candidate not found");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       {
         role: "user",
