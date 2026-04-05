@@ -8508,3 +8508,52 @@ export const deliverabilityRecords = pgTable("deliverability_records", {
   index("dr_user_idx").on(t.userId),
   index("dr_contact_idx").on(t.contactId),
 ]);
+
+export const checkoutSessions = pgTable("checkout_sessions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  ctaId: integer("cta_id"),
+  offerType: text("offer_type").notNull(),
+  amount: real("amount").notNull(),
+  currency: text("currency").default("USD"),
+  status: text("status").default("pending"),
+  customerEmail: text("customer_email"),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cs_user_idx").on(t.userId),
+]);
+
+export const sponsorInvoices = pgTable("sponsor_invoices", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  dealId: text("deal_id").notNull(),
+  brandName: text("brand_name").notNull(),
+  amount: real("amount").notNull(),
+  currency: text("currency").default("USD"),
+  status: text("status").default("draft"),
+  issuedAt: timestamp("issued_at"),
+  dueAt: timestamp("due_at"),
+  paidAt: timestamp("paid_at"),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("si_user_idx").on(t.userId),
+  index("si_deal_idx").on(t.dealId),
+]);
+
+export const operatorBriefs = pgTable("operator_briefs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  briefType: text("brief_type").notNull(),
+  summary: text("summary").notNull(),
+  nextBestMove: text("next_best_move").notNull(),
+  topActions: jsonb("top_actions").$type<string[]>().default([]),
+  telemetrySnapshot: jsonb("telemetry_snapshot").$type<Record<string, any>>().default({}),
+  generatedAt: timestamp("generated_at").defaultNow(),
+}, (t) => [
+  index("ob_user_idx").on(t.userId),
+]);
