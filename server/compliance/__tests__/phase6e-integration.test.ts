@@ -6,6 +6,8 @@ import {
   narrativePromises,
   licensingExchangeAssets,
   signalContradictions,
+  trustBudgetRecords,
+  trustBudgetPeriods,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -408,6 +410,13 @@ describe("Phase 6E: Learning Governance & Signal Intelligence", () => {
   });
 
   describe("End-to-End Governance Flow", () => {
+    beforeAll(async () => {
+      await db.delete(trustBudgetPeriods).where(eq(trustBudgetPeriods.userId, TEST_USER));
+      await db.delete(trustBudgetRecords).where(eq(trustBudgetRecords.userId, TEST_USER));
+      const { exitSafeMode } = await import("../../services/resilience-observability");
+      exitSafeMode();
+    });
+
     it("should enforce governance across the full signal lifecycle", async () => {
       const {
         ingestLearningSignal,

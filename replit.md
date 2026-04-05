@@ -44,7 +44,7 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 | Test | `npx vitest run` |
 | DB push | `npm run db:push` |
 | Server bundle | `dist/index.cjs` (4.5MB) |
-| Tests | 927/929 passing (2 pre-existing phase6e failures) |
+| Tests | 929/929 passing (all green) |
 
 ## Codebase Scale
 - 400+ database tables (including v15.2.a17 resolution intelligence tables)
