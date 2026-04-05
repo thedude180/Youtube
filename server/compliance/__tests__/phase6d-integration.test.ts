@@ -6,6 +6,7 @@ import {
   capabilityDegradationPlaybooks,
   playbookActivationEvents,
   domainEvents,
+  approvalMatrixRules,
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
@@ -17,6 +18,14 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   beforeAll(async () => {
     const { seedApprovalMatrix } = await import("../../services/trust-governance");
     await seedApprovalMatrix();
+    await db.insert(approvalMatrixRules).values({
+      actionClass: "content_draft",
+      bandClass: "GREEN",
+      defaultState: "auto-approved",
+      approver: "system",
+      confidenceThreshold: null,
+      description: "Draft content actions (test)",
+    }).onConflictDoNothing();
   });
   describe("Safe Mode Controls", () => {
     it("should enter and exit global safe mode", async () => {
