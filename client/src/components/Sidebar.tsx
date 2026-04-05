@@ -9,7 +9,6 @@ import {
   Settings,
   LogOut,
   Zap,
-  Building2,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,7 +27,6 @@ const NAV_ITEMS = [
   { href: "/content", label: "Content",  icon: Video },
   { href: "/stream",  label: "Live",     icon: Radio },
   { href: "/money",   label: "Revenue",  icon: DollarSign },
-  { href: "/founder", label: "Founder",  icon: Building2 },
   { href: "/settings",label: "Settings", icon: Settings },
 ];
 

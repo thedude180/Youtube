@@ -49,12 +49,10 @@ const Content     = lazyRetry(() => import("@/pages/Content"));
 const Settings    = lazyRetry(() => import("@/pages/Settings"));
 const StreamCenter = lazyRetry(() => import("@/pages/StreamCenter"));
 const Money       = lazyRetry(() => import("@/pages/Money"));
-const Notifications = lazyRetry(() => import("@/pages/Notifications"));
 const Landing     = lazyRetry(() => import("@/pages/Landing"));
 const Onboarding  = lazyRetry(() => import("@/pages/Onboarding"));
 const PreChannelLaunch = lazyRetry(() => import("@/pages/PreChannelLaunch"));
 const Pricing     = lazyRetry(() => import("@/pages/Pricing"));
-const FounderConsole = lazyRetry(() => import("@/pages/FounderConsole"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -150,9 +148,9 @@ function Router() {
       <Route path="/money/:tab">{() => <SectionErrorBoundary fallbackTitle="Revenue failed to load"><Money /></SectionErrorBoundary>}</Route>
       <Route path="/settings">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/settings/:tab">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
-      <Route path="/notifications">{() => <SectionErrorBoundary fallbackTitle="Notifications failed to load"><Notifications /></SectionErrorBoundary>}</Route>
+      <Route path="/notifications">{() => <Redirect to="/" />}</Route>
       <Route path="/pricing">{() => <SectionErrorBoundary fallbackTitle="Pricing failed to load"><Pricing /></SectionErrorBoundary>}</Route>
-      <Route path="/founder">{() => <SectionErrorBoundary fallbackTitle="Founder Console failed to load"><FounderConsole /></SectionErrorBoundary>}</Route>
+      <Route path="/founder">{() => <Redirect to="/" />}</Route>
       <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>
       <Route path="/terms">{() => <SectionErrorBoundary fallbackTitle="Terms of Service failed to load"><TermsOfService /></SectionErrorBoundary>}</Route>
       <Route path="/data-disclosure">{() => <SectionErrorBoundary fallbackTitle="Data Disclosure failed to load"><DataDisclosure /></SectionErrorBoundary>}</Route>

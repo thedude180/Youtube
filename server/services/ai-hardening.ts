@@ -54,9 +54,8 @@ export function getCacheStats(): { hits: number; misses: number; size: number; h
 }
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-4o-mini": { input: 0.001, output: 0.003 },
-  "gpt-4o": { input: 0.005, output: 0.015 },
   "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+  "gpt-4o": { input: 0.005, output: 0.015 },
 };
 
 function calculateCost(model: string, promptTokens: number, completionTokens: number): number {

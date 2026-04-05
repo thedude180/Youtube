@@ -8252,3 +8252,168 @@ export const liveEngagementPrompts = pgTable("live_engagement_prompts", {
   index("lep_type_idx").on(t.promptType),
   index("lep_status_idx").on(t.status),
 ]);
+
+export const scoreRegistry = pgTable("score_registry", {
+  id: serial("id").primaryKey(),
+  scoreKey: text("score_key").notNull().unique(),
+  ownerSystem: text("owner_system").notNull(),
+  scoreType: text("score_type").notNull().default("descriptive"),
+  formulaVersion: text("formula_version").notNull().default("1.0"),
+  inputSources: jsonb("input_sources").$type<string[]>().default([]),
+  confidencePolicy: text("confidence_policy").default("standard"),
+  decayPolicy: text("decay_policy").default("none"),
+  displayPolicy: text("display_policy").default("visible"),
+  gatingUsage: text("gating_usage"),
+  arbitrationPriority: integer("arbitration_priority").default(0),
+  updateCadence: text("update_cadence").default("on-demand"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type ScoreRegistryRecord = typeof scoreRegistry.$inferSelect;
+
+export const sourcePackRegistry = pgTable("source_pack_registry", {
+  id: serial("id").primaryKey(),
+  packKey: text("pack_key").notNull().unique(),
+  ownerSystem: text("owner_system").notNull(),
+  allowedSourceClasses: jsonb("allowed_source_classes").$type<string[]>().default([]),
+  trustRanking: jsonb("trust_ranking").$type<Record<string, number>>().default({}),
+  freshnessRuleDays: integer("freshness_rule_days").default(30),
+  contradictionHandling: text("contradiction_handling").default("flag"),
+  fallbackBehavior: text("fallback_behavior").default("degrade"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SourcePackRegistryRecord = typeof sourcePackRegistry.$inferSelect;
+
+export const sourcePackMembers = pgTable("source_pack_members", {
+  id: serial("id").primaryKey(),
+  packId: integer("pack_id").notNull(),
+  sourceClass: text("source_class").notNull(),
+  sourceUri: text("source_uri"),
+  trustScore: real("trust_score").default(0.5),
+  lastVerifiedAt: timestamp("last_verified_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SourcePackMember = typeof sourcePackMembers.$inferSelect;
+
+export const canonicalEntities = pgTable("canonical_entities", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").notNull(),
+  canonicalName: text("canonical_name").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("ce_type_idx").on(t.entityType),
+]);
+export type CanonicalEntity = typeof canonicalEntities.$inferSelect;
+
+export const entityAliases = pgTable("entity_aliases", {
+  id: serial("id").primaryKey(),
+  canonicalId: integer("canonical_id").notNull(),
+  aliasValue: text("alias_value").notNull(),
+  aliasSource: text("alias_source").notNull(),
+  confidence: real("confidence").default(1.0),
+  verified: boolean("verified").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ea_canonical_idx").on(t.canonicalId),
+]);
+export type EntityAlias = typeof entityAliases.$inferSelect;
+
+export const entityMergeEvents = pgTable("entity_merge_events", {
+  id: serial("id").primaryKey(),
+  sourceEntityId: integer("source_entity_id").notNull(),
+  targetEntityId: integer("target_entity_id").notNull(),
+  mergedBy: text("merged_by").notNull(),
+  reason: text("reason"),
+  reversible: boolean("reversible").default(true),
+  reversed: boolean("reversed").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type EntityMergeEvent = typeof entityMergeEvents.$inferSelect;
+
+export const recommendationConflicts = pgTable("recommendation_conflicts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  conflictType: text("conflict_type").notNull(),
+  systemA: text("system_a").notNull(),
+  systemB: text("system_b").notNull(),
+  recommendationA: jsonb("recommendation_a").$type<Record<string, any>>().default({}),
+  recommendationB: jsonb("recommendation_b").$type<Record<string, any>>().default({}),
+  resolution: text("resolution"),
+  resolvedBy: text("resolved_by"),
+  status: text("status").notNull().default("open"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+}, (t) => [
+  index("rc_user_idx").on(t.userId),
+  index("rc_status_idx").on(t.status),
+]);
+export type RecommendationConflict = typeof recommendationConflicts.$inferSelect;
+
+export const recommendationArbitrationRecords = pgTable("recommendation_arbitration_records", {
+  id: serial("id").primaryKey(),
+  conflictId: integer("conflict_id").notNull(),
+  userId: text("user_id").notNull(),
+  winningSystem: text("winning_system").notNull(),
+  arbitrationRule: text("arbitration_rule").notNull(),
+  evidenceFreshness: integer("evidence_freshness_days"),
+  trustWeight: real("trust_weight"),
+  businessValue: real("business_value"),
+  finalRecommendation: jsonb("final_recommendation").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("rar_conflict_idx").on(t.conflictId),
+  index("rar_user_idx").on(t.userId),
+]);
+export type RecommendationArbitrationRecord = typeof recommendationArbitrationRecords.$inferSelect;
+
+export const goldenDatasets = pgTable("golden_datasets", {
+  id: serial("id").primaryKey(),
+  datasetKey: text("dataset_key").notNull().unique(),
+  domain: text("domain").notNull(),
+  version: text("version").notNull().default("1.0"),
+  dataPoints: integer("data_points").default(0),
+  dataset: jsonb("dataset").$type<Record<string, any>[]>().default([]),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type GoldenDataset = typeof goldenDatasets.$inferSelect;
+
+export const replayEvalRuns = pgTable("replay_eval_runs", {
+  id: serial("id").primaryKey(),
+  datasetId: integer("dataset_id").notNull(),
+  domain: text("domain").notNull(),
+  status: text("status").notNull().default("pending"),
+  totalCases: integer("total_cases").default(0),
+  passedCases: integer("passed_cases").default(0),
+  failedCases: integer("failed_cases").default(0),
+  result: jsonb("result").$type<Record<string, any>>().default({}),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+export type ReplayEvalRun = typeof replayEvalRuns.$inferSelect;
+
+export const replayEvalArtifacts = pgTable("replay_eval_artifacts", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull(),
+  caseIndex: integer("case_index").notNull(),
+  input: jsonb("input").$type<Record<string, any>>().default({}),
+  expectedOutput: jsonb("expected_output").$type<Record<string, any>>().default({}),
+  actualOutput: jsonb("actual_output").$type<Record<string, any>>().default({}),
+  passed: boolean("passed").default(false),
+  diff: jsonb("diff").$type<Record<string, any>>(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("rea_run_idx").on(t.runId),
+]);
