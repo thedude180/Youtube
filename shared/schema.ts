@@ -8417,3 +8417,94 @@ export const replayEvalArtifacts = pgTable("replay_eval_artifacts", {
 }, (t) => [
   index("rea_run_idx").on(t.runId),
 ]);
+
+export const ownedContacts = pgTable("owned_contacts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  email: text("email").notNull(),
+  source: text("source").notNull(),
+  capturedAt: timestamp("captured_at").defaultNow(),
+  consentGiven: boolean("consent_given").default(false),
+  consentMethod: text("consent_method"),
+  segmentId: text("segment_id"),
+  status: text("status").default("active"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("oc_user_idx").on(t.userId),
+  index("oc_email_idx").on(t.email),
+]);
+
+export const sequenceEnrollments = pgTable("sequence_enrollments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contactId: integer("contact_id").notNull(),
+  sequenceName: text("sequence_name").notNull(),
+  step: integer("step").default(0),
+  status: text("status").default("enrolled"),
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
+  lastStepAt: timestamp("last_step_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("se_user_idx").on(t.userId),
+  index("se_contact_idx").on(t.contactId),
+]);
+
+export const contentCtaAttachments = pgTable("content_cta_attachments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id").notNull(),
+  ctaType: text("cta_type").notNull(),
+  ctaText: text("cta_text").notNull(),
+  ctaUrl: text("cta_url"),
+  position: text("position").default("end"),
+  offerId: integer("offer_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("cca_user_idx").on(t.userId),
+  index("cca_content_idx").on(t.contentId),
+]);
+
+export const offerRecommendations = pgTable("offer_recommendations", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id"),
+  offerType: text("offer_type").notNull(),
+  offerName: text("offer_name").notNull(),
+  reasoning: text("reasoning").notNull(),
+  confidence: real("confidence").default(0),
+  signals: jsonb("signals").$type<Record<string, any>>().default({}),
+  accepted: boolean("accepted"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("or_user_idx").on(t.userId),
+]);
+
+export const packagingInsights = pgTable("packaging_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id").notNull(),
+  platform: text("platform").notNull(),
+  insightType: text("insight_type").notNull(),
+  insight: text("insight").notNull(),
+  impactedRecommendation: text("impacted_recommendation"),
+  appliedAt: timestamp("applied_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("pi_user_idx").on(t.userId),
+]);
+
+export const deliverabilityRecords = pgTable("deliverability_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contactId: integer("contact_id").notNull(),
+  channel: text("channel").notNull(),
+  status: text("status").notNull(),
+  bounceType: text("bounce_type"),
+  suppressedAt: timestamp("suppressed_at"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("dr_user_idx").on(t.userId),
+  index("dr_contact_idx").on(t.contactId),
+]);
