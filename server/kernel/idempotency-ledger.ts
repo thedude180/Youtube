@@ -44,6 +44,10 @@ export function isIdempotent(key: string, operationHash: string): boolean {
   return record.operationHash === operationHash && record.expiresAt > new Date();
 }
 
+export function clearIdempotencyLedger(): void {
+  ledger.clear();
+}
+
 export function cleanExpired(): number {
   const now = new Date();
   let cleaned = 0;
