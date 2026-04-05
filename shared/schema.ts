@@ -8557,3 +8557,245 @@ export const operatorBriefs = pgTable("operator_briefs", {
 }, (t) => [
   index("ob_user_idx").on(t.userId),
 ]);
+
+export const sourceQualityProfiles = pgTable("source_quality_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id"),
+  sessionId: text("session_id").notNull(),
+  sourceResolution: text("source_resolution").notNull(),
+  sourceFps: real("source_fps").notNull(),
+  sourceAspectRatio: text("source_aspect_ratio").notNull().default("16:9"),
+  hdrDetected: boolean("hdr_detected").default(false),
+  motionIntensity: real("motion_intensity").default(0.5),
+  compressionArtifactScore: real("compression_artifact_score").default(0),
+  textLegibilityRisk: real("text_legibility_risk").default(0),
+  sceneComplexity: real("scene_complexity").default(0.5),
+  nativeVsWeakClassification: text("native_vs_weak_classification").notNull().default("native"),
+  upscaleEligibilityScore: real("upscale_eligibility_score").default(0),
+  archiveMasterRecommendation: text("archive_master_recommendation"),
+  liveLadderRecommendation: jsonb("live_ladder_recommendation").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("sqp_user_idx").on(t.userId),
+  index("sqp_session_idx").on(t.sessionId),
+]);
+
+export const insertSourceQualityProfileSchema = createInsertSchema(sourceQualityProfiles).omit({ id: true, createdAt: true });
+export type InsertSourceQualityProfile = z.infer<typeof insertSourceQualityProfileSchema>;
+export type SourceQualityProfile = typeof sourceQualityProfiles.$inferSelect;
+
+export const platformResolutionProfiles = pgTable("platform_resolution_profiles", {
+  id: serial("id").primaryKey(),
+  platform: text("platform").notNull(),
+  region: text("region").default("global"),
+  maxResolution: text("max_resolution").notNull().default("1080p"),
+  maxFps: real("max_fps").default(60),
+  supportedCodecs: jsonb("supported_codecs").$type<string[]>().default(["h264"]),
+  bitrateCeiling: integer("bitrate_ceiling").default(6000),
+  aspectRatioPreferences: jsonb("aspect_ratio_preferences").$type<string[]>().default(["16:9"]),
+  latencyModeConstraints: jsonb("latency_mode_constraints").$type<Record<string, any>>().default({}),
+  partnerRestrictions: jsonb("partner_restrictions").$type<Record<string, any>>().default({}),
+  destinationPackagingRules: jsonb("destination_packaging_rules").$type<Record<string, any>>().default({}),
+  verifiedAt: timestamp("verified_at").defaultNow(),
+  stale: boolean("stale").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("prp_platform_idx").on(t.platform),
+  index("prp_region_idx").on(t.region),
+]);
+
+export const insertPlatformResolutionProfileSchema = createInsertSchema(platformResolutionProfiles).omit({ id: true, createdAt: true });
+export type InsertPlatformResolutionProfile = z.infer<typeof insertPlatformResolutionProfileSchema>;
+export type PlatformResolutionProfile = typeof platformResolutionProfiles.$inferSelect;
+
+export const liveOutputLadders = pgTable("live_output_ladders", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  destinationPlatform: text("destination_platform").notNull(),
+  outputResolution: text("output_resolution").notNull(),
+  outputFps: real("output_fps").notNull(),
+  bitrate: integer("bitrate").notNull(),
+  codec: text("codec").notNull().default("h264"),
+  latencyMode: text("latency_mode").notNull().default("normal"),
+  nativeOrEnhanced: text("native_or_enhanced").notNull().default("native"),
+  aspectRatio: text("aspect_ratio").notNull().default("16:9"),
+  capabilitySnapshotRef: text("capability_snapshot_ref"),
+  resourceHeadroomScore: real("resource_headroom_score").default(1.0),
+  qualityConfidence: real("quality_confidence").default(1.0),
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lol_user_idx").on(t.userId),
+  index("lol_session_idx").on(t.sessionId),
+  index("lol_dest_idx").on(t.destinationPlatform),
+]);
+
+export const insertLiveOutputLadderSchema = createInsertSchema(liveOutputLadders).omit({ id: true, createdAt: true });
+export type InsertLiveOutputLadder = z.infer<typeof insertLiveOutputLadderSchema>;
+export type LiveOutputLadder = typeof liveOutputLadders.$inferSelect;
+
+export const liveQualitySnapshots = pgTable("live_quality_snapshots", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  droppedFrames: integer("dropped_frames").default(0),
+  encoderLagMs: real("encoder_lag_ms").default(0),
+  bandwidthPressure: real("bandwidth_pressure").default(0),
+  gpuPressure: real("gpu_pressure").default(0),
+  cpuPressure: real("cpu_pressure").default(0),
+  upscaleActive: boolean("upscale_active").default(false),
+  currentOutputResolution: text("current_output_resolution"),
+  governorState: text("governor_state").notNull().default("nominal"),
+  snapshotAt: timestamp("snapshot_at").defaultNow(),
+}, (t) => [
+  index("lqs_user_idx").on(t.userId),
+  index("lqs_session_idx").on(t.sessionId),
+]);
+
+export const insertLiveQualitySnapshotSchema = createInsertSchema(liveQualitySnapshots).omit({ id: true, snapshotAt: true });
+export type InsertLiveQualitySnapshot = z.infer<typeof insertLiveQualitySnapshotSchema>;
+export type LiveQualitySnapshot = typeof liveQualitySnapshots.$inferSelect;
+
+export const liveUpscaleActions = pgTable("live_upscale_actions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  sourceResolution: text("source_resolution").notNull(),
+  targetResolution: text("target_resolution").notNull(),
+  upscaleMethod: text("upscale_method").notNull().default("super-resolution"),
+  gpuHeadroom: real("gpu_headroom").default(0),
+  cpuHeadroom: real("cpu_headroom").default(0),
+  latencyImpactMs: real("latency_impact_ms").default(0),
+  qualityConfidence: real("quality_confidence").default(0),
+  activated: boolean("activated").default(false),
+  deactivatedReason: text("deactivated_reason"),
+  rollbackRef: text("rollback_ref"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lua_user_idx").on(t.userId),
+  index("lua_session_idx").on(t.sessionId),
+]);
+
+export const insertLiveUpscaleActionSchema = createInsertSchema(liveUpscaleActions).omit({ id: true, createdAt: true });
+export type InsertLiveUpscaleAction = z.infer<typeof insertLiveUpscaleActionSchema>;
+export type LiveUpscaleAction = typeof liveUpscaleActions.$inferSelect;
+
+export const liveQualityGovernorEvents = pgTable("live_quality_governor_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  eventType: text("event_type").notNull(),
+  previousState: text("previous_state"),
+  newState: text("new_state").notNull(),
+  reason: text("reason").notNull(),
+  metrics: jsonb("metrics").$type<Record<string, any>>().default({}),
+  rollbackAvailable: boolean("rollback_available").default(true),
+  auditRef: text("audit_ref"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lqge_user_idx").on(t.userId),
+  index("lqge_session_idx").on(t.sessionId),
+]);
+
+export const insertLiveQualityGovernorEventSchema = createInsertSchema(liveQualityGovernorEvents).omit({ id: true, createdAt: true });
+export type InsertLiveQualityGovernorEvent = z.infer<typeof insertLiveQualityGovernorEventSchema>;
+export type LiveQualityGovernorEvent = typeof liveQualityGovernorEvents.$inferSelect;
+
+export const destinationOutputProfiles = pgTable("destination_output_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  destinationPlatform: text("destination_platform").notNull(),
+  preferredResolution: text("preferred_resolution").default("1080p"),
+  preferredFps: real("preferred_fps").default(60),
+  preferredBitrate: integer("preferred_bitrate").default(6000),
+  preferredCodec: text("preferred_codec").default("h264"),
+  qualityPosture: text("quality_posture").notNull().default("balanced"),
+  allowUpscale: boolean("allow_upscale").default(true),
+  latencyPriority: text("latency_priority").notNull().default("balanced"),
+  overrides: jsonb("overrides").$type<Record<string, any>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("dop_user_idx").on(t.userId),
+  index("dop_dest_idx").on(t.destinationPlatform),
+]);
+
+export const insertDestinationOutputProfileSchema = createInsertSchema(destinationOutputProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDestinationOutputProfile = z.infer<typeof insertDestinationOutputProfileSchema>;
+export type DestinationOutputProfile = typeof destinationOutputProfiles.$inferSelect;
+
+export const archiveMasterRecords = pgTable("archive_master_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  channelId: integer("channel_id"),
+  masterResolution: text("master_resolution").notNull(),
+  masterFps: real("master_fps").notNull(),
+  masterCodec: text("master_codec").notNull().default("h264"),
+  masterBitrate: integer("master_bitrate"),
+  nativeOrEnhanced: text("native_or_enhanced").notNull().default("native"),
+  filePath: text("file_path"),
+  durationSeconds: real("duration_seconds"),
+  suitableForReplay: boolean("suitable_for_replay").default(true),
+  suitableForClips: boolean("suitable_for_clips").default(true),
+  suitableForRemaster: boolean("suitable_for_remaster").default(true),
+  provenanceRef: text("provenance_ref"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("amr_user_idx").on(t.userId),
+  index("amr_session_idx").on(t.sessionId),
+]);
+
+export const insertArchiveMasterRecordSchema = createInsertSchema(archiveMasterRecords).omit({ id: true, createdAt: true });
+export type InsertArchiveMasterRecord = z.infer<typeof insertArchiveMasterRecordSchema>;
+export type ArchiveMasterRecord = typeof archiveMasterRecords.$inferSelect;
+
+export const qualityDecisionTraces = pgTable("quality_decision_traces", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  destinationPlatform: text("destination_platform"),
+  sourceResolution: text("source_resolution").notNull(),
+  outputResolution: text("output_resolution").notNull(),
+  nativeOrEnhanced: text("native_or_enhanced").notNull(),
+  latencyMode: text("latency_mode"),
+  platformConstraintsUsed: jsonb("platform_constraints_used").$type<Record<string, any>>().default({}),
+  bandwidthFactor: real("bandwidth_factor"),
+  headroomFactor: real("headroom_factor"),
+  confidence: real("confidence").default(1.0),
+  riskLevel: text("risk_level").notNull().default("low"),
+  rollbackPath: text("rollback_path"),
+  decisionReason: text("decision_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("qdt_user_idx").on(t.userId),
+  index("qdt_session_idx").on(t.sessionId),
+]);
+
+export const insertQualityDecisionTraceSchema = createInsertSchema(qualityDecisionTraces).omit({ id: true, createdAt: true });
+export type InsertQualityDecisionTrace = z.infer<typeof insertQualityDecisionTraceSchema>;
+export type QualityDecisionTrace = typeof qualityDecisionTraces.$inferSelect;
+
+export const qualityReconciliationRecords = pgTable("quality_reconciliation_records", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  intendedResolution: text("intended_resolution").notNull(),
+  actualResolution: text("actual_resolution").notNull(),
+  intendedBitrate: integer("intended_bitrate"),
+  actualBitrate: integer("actual_bitrate"),
+  qualityMatch: boolean("quality_match").default(true),
+  drift: real("drift").default(0),
+  driftReason: text("drift_reason"),
+  reconciliationAction: text("reconciliation_action"),
+  reconciliatedAt: timestamp("reconciliated_at").defaultNow(),
+}, (t) => [
+  index("qrr_user_idx").on(t.userId),
+  index("qrr_session_idx").on(t.sessionId),
+]);
+
+export const insertQualityReconciliationRecordSchema = createInsertSchema(qualityReconciliationRecords).omit({ id: true, reconciliatedAt: true });
+export type InsertQualityReconciliationRecord = z.infer<typeof insertQualityReconciliationRecordSchema>;
+export type QualityReconciliationRecord = typeof qualityReconciliationRecords.$inferSelect;

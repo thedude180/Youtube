@@ -13,6 +13,10 @@ import {
   Users, Megaphone, Image, Clapperboard, Bell,
   Search, MessageCircle, ShieldAlert, Tag
 } from "lucide-react";
+import {
+  SourceQualityCard, DestinationQualityStates, LiveUpscaleStateCard,
+  QualityGovernorCard, ArchiveMasterCard
+} from "@/components/resolution-intelligence";
 
 function ScoreBadge({ score, label }: { score: number; label: string }) {
   const color = score >= 0.8 ? "bg-emerald-500/20 text-emerald-400" :
@@ -877,8 +881,18 @@ export default function LiveCommandCenter() {
         <TrustRiskPanel data={panels.trustRisk} />
         <RecoveryExceptionPanel data={panels.recovery} onAction={handleAction} />
         <WhatsRunningPanel data={panels.whatsRunning} />
+        <SourceQualityCard sessionId={ccState.sessionId} />
+        <LiveUpscaleStateCard sessionId={ccState.sessionId} />
+        <QualityGovernorCard sessionId={ccState.sessionId} />
         <DecisionTheaterPanel actions={ccState.panels?.aiActions?.recentActions || []} />
       </div>
+
+      {ccState.sessionId && (
+        <div className="space-y-3" data-testid="resolution-intelligence-section">
+          <DestinationQualityStates sessionId={ccState.sessionId} />
+          <ArchiveMasterCard sessionId={ccState.sessionId} />
+        </div>
+      )}
 
       {crewState?.active && (
         <>

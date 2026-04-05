@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
   Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, Loader2, X,
+  Activity,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -171,6 +172,56 @@ function TaskResultModal({ task, onClose }: { task: any; onClose: () => void }) 
   );
 }
 
+function StreamQualityBrief() {
+  const { data: streams } = useQuery<any>({
+    queryKey: ["/api/stream/command-center"],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+
+  const sessionId = (streams as any)?.sessionId;
+  const { data: qualityState } = useQuery<any>({
+    queryKey: ["/api/resolution/quality-state", sessionId],
+    enabled: !!sessionId,
+    refetchInterval: 15_000,
+  });
+
+  if (!sessionId || !qualityState?.sourceProfile) return null;
+
+  const source = qualityState.sourceProfile;
+  const snap = qualityState.latestSnapshot;
+  const governorState = snap?.governorState || "nominal";
+  const events = qualityState.recentGovernorEvents || [];
+
+  const stateColor: Record<string, string> = {
+    nominal: "text-emerald-400",
+    caution: "text-amber-400",
+    degraded: "text-orange-400",
+    emergency: "text-red-400",
+  };
+
+  return (
+    <div className="lg:col-span-3 mb-4" data-testid="stream-quality-brief">
+      <Card className="p-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Activity className="h-4 w-4 text-blue-400" />
+          <span className="text-xs font-medium">Stream Quality:</span>
+          <span className="text-xs">{source.sourceResolution}@{source.sourceFps}fps</span>
+          <Badge variant="outline" className="text-[10px]">{source.nativeVsWeakClassification}</Badge>
+          <span className={`text-xs font-medium ${stateColor[governorState] || ""}`}>
+            Governor: {governorState}
+          </span>
+          {events.length > 0 && (
+            <span className="text-[10px] text-amber-400">
+              {events.length} quality intervention{events.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 export default function TeamDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -334,6 +385,8 @@ export default function TeamDashboard() {
               </div>
             )}
           </div>
+
+          <StreamQualityBrief />
 
           <div className="lg:col-span-1">
             <div className="flex items-center justify-between mb-3">

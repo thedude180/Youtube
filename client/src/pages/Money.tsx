@@ -97,6 +97,31 @@ const IRS_CATEGORIES = [
 /* GoalsTab extracted to ./money/GoalsTab.tsx */
 /* SponsorsTab extracted to ./money/SponsorsTab.tsx */
 
+function QualityRevenueHook() {
+  const { data: streams } = useQuery<any>({
+    queryKey: ["/api/stream/command-center"],
+    staleTime: 60_000,
+  });
+  const sessionId = (streams as any)?.sessionId;
+  const { data: qualityState } = useQuery<any>({
+    queryKey: ["/api/resolution/quality-state", sessionId],
+    enabled: !!sessionId,
+  });
+  if (!qualityState?.archiveMaster) return null;
+  const archive = qualityState.archiveMaster;
+  const ladders = qualityState.outputLadders || [];
+  const hasEnhanced = ladders.some((l: any) => l.nativeOrEnhanced === "enhanced");
+  if (!hasEnhanced && archive.suitableForReplay) return null;
+  return (
+    <div className="text-xs text-muted-foreground bg-muted/10 rounded-lg p-3 mb-3 flex items-center gap-2" data-testid="quality-revenue-hook">
+      <Zap className="h-3 w-3 text-blue-400 shrink-0" />
+      {hasEnhanced
+        ? "Enhanced stream quality may improve replay ad rates and clip export value."
+        : "Archive master quality impacts replay monetization and sponsorship proof availability."}
+    </div>
+  );
+}
+
 export default function Money() {
   const { t } = useTranslation();
   usePageTitle(t("money.title"));
@@ -294,6 +319,8 @@ export default function Money() {
           </div>
         </div>
       </div>
+
+      <QualityRevenueHook />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabKey)}>
         <TabsList data-testid="tab-bar">

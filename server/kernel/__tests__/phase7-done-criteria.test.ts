@@ -1,8 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 
 const TEST_USER = "phase7-done-criteria-user";
 
 describe("Phase 7 Done Criteria", () => {
+  beforeAll(async () => {
+    const { exitSafeMode } = await import("../../services/resilience-observability");
+    if (typeof exitSafeMode === "function") {
+      exitSafeMode();
+    }
+    const { db } = await import("../../db");
+    const { trustBudgetPeriods } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    await db.delete(trustBudgetPeriods).where(eq(trustBudgetPeriods.userId, TEST_USER));
+  });
   it("criterion 1: predictions measurably improve over time", async () => {
     const { predictPerformance, getOracleRecommendation } = await import("../../content/pre-creation-oracle");
     const { recordLearningSignal, assessLearningMaturity } = await import("../../kernel/learning-maturity-system");

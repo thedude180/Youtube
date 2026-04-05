@@ -17,7 +17,7 @@ import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
-  Sparkles, Shield,
+  Sparkles, Shield, Monitor,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
@@ -318,6 +318,15 @@ function LibraryTab() {
                           )}
                           {publishedAt && (
                             <LiveTimestamp date={publishedAt} data-testid={`timestamp-video-${video.id}`} />
+                          )}
+                          {video.metadata?.resolution && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5" data-testid={`quality-info-${video.id}`}>
+                              <Monitor className="h-2.5 w-2.5" />
+                              {video.metadata.resolution}
+                              {video.metadata.nativeOrEnhanced === "enhanced" && (
+                                <Badge variant="outline" className="text-[9px] h-3.5 px-1 ml-0.5">Enhanced</Badge>
+                              )}
+                            </span>
                           )}
                         </div>
                       </div>

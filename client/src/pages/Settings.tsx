@@ -8,6 +8,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound,
   CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
 } from "lucide-react";
+import { QualitySettingsPanel } from "@/components/resolution-intelligence";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -681,6 +682,8 @@ function GeneralTab() {
           </div>
         </CardContent>
       </Card>
+
+      <QualitySettingsPanel />
     </div>
   );
 }

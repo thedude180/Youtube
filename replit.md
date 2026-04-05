@@ -29,7 +29,7 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 | File | Purpose |
 |---|---|
 | `CREATOROS_MASTER_PROMPT_v15.md` | Active build directive |
-| `shared/schema.ts` | 390 database tables (8,254 lines) |
+| `shared/schema.ts` | 400+ database tables (8,900+ lines) |
 | `server/kernel/index.ts` | Secure Kernel — command routing, receipts, approval |
 | `server/routes.ts` | API route registration |
 | `server/index.ts` | Server entrypoint |
@@ -44,10 +44,10 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 | Test | `npx vitest run` |
 | DB push | `npm run db:push` |
 | Server bundle | `dist/index.cjs` (4.5MB) |
-| Tests | 825/825 passing |
+| Tests | 927/929 passing (2 pre-existing phase6e failures) |
 
 ## Codebase Scale
-- 390 database tables
+- 400+ database tables (including v15.2.a17 resolution intelligence tables)
 - 47 root-level engine files + 106 service files + 41 kernel files
 - 154,939 server lines + 61,451 client lines
 - Engine overlap clusters identified for merge (see `.local/phase0-audit-report.md`)
