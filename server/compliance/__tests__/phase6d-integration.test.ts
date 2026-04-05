@@ -7,12 +7,17 @@ import {
   playbookActivationEvents,
   domainEvents,
   approvalMatrixRules,
+  trustBudgetRecords,
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import crypto from "crypto";
 
 const TEST_USER = "test-phase6d-user";
 const HMAC_SECRET = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET || "creatoros-kernel-hmac-secret";
+
+async function resetTestUserBudget() {
+  await db.delete(trustBudgetRecords).where(eq(trustBudgetRecords.userId, TEST_USER)).catch(() => {});
+}
 
 describe("Phase 6D: Resilience & Observability Hardening", () => {
   beforeAll(async () => {
@@ -26,6 +31,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       confidenceThreshold: null,
       description: "Draft content actions (test)",
     }).onConflictDoNothing();
+    await resetTestUserBudget();
   });
   describe("Safe Mode Controls", () => {
     it("should enter and exit global safe mode", async () => {
@@ -388,6 +394,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
     let validReceiptId: number;
 
     beforeAll(async () => {
+      await resetTestUserBudget();
       const payload = { video: "test-vid" };
       const result = { published: true };
       const execKey = `tamper-test-${Date.now()}`;
@@ -586,6 +593,8 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   });
 
   describe("Kernel Integration: Safe Mode + Blast Radius + Metrics", () => {
+    beforeAll(resetTestUserBudget);
+
     it("should block kernel commands when global safe mode is active", async () => {
       const { enterSafeMode, exitSafeMode } = await import("../../services/resilience-observability");
       const { registerCommand, routeCommand } = await import("../../kernel/index");
@@ -664,6 +673,8 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   });
 
   describe("Blast Radius Context in Handlers", () => {
+    beforeAll(resetTestUserBudget);
+
     it("should pass blast radius context to command handlers", async () => {
       const { registerCommand, routeCommand } = await import("../../kernel/index");
 
@@ -722,6 +733,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   });
 
   describe("Correlation ID Propagation", () => {
+    beforeAll(resetTestUserBudget);
     it("should include correlationId in kernel command result and domain events", async () => {
       const { registerCommand, routeCommand } = await import("../../kernel/index");
       registerCommand("notification_send", async () => ({ notified: true }));
@@ -928,6 +940,7 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
   });
 
   describe("Rollback via Approval Matrix", () => {
+    beforeAll(resetTestUserBudget);
     it("should route rollback through approval matrix (GREEN-band action approves)", async () => {
       const { executeRollback } = await import("../../services/resilience-observability");
       const execKey = `approval-rollback-test-${Date.now()}`;

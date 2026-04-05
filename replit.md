@@ -1,73 +1,72 @@
-# CreatorOS - AI YouTube Business Team
+# CreatorOS — AI-Powered Media Business Operating System
 
 ## Overview
-CreatorOS is an autonomous AI-powered YouTube business that deploys a team of 20 specialized AI agents to manage and grow a creator's channel 24/7. These agents handle tasks such as scriptwriting, thumbnail production, SEO optimization, community management, revenue tracking, live stream pipeline management, content catalog mining, and maximizing concurrent viewers. The project aims to provide a simple UI where users can observe and approve the autonomous team's work, focusing on business vision, market potential, and project ambitions to revolutionize content creation.
+CreatorOS is an autonomous AI-powered media business operating system built first for YouTube gaming channels (no-commentary PS5 gaming), designed to expand into a multi-channel, multi-brand creator business platform. It runs the full business loop: idea → package → publish → repurpose → capture audience → monetize → attribute revenue → recommend next move.
 
-## User Preferences
-- Dark mode, clean and simple — agents are the star of the show
-- 5 pages only: Team (home), Content, Live, Revenue, Settings
-- Exception-only notifications (AI handles everything silently)
-- No complexity — no empire scores, no mission control, no legal/tax dashboards
-- Everything runs autonomously in the background; user just observes and approves
+## Active Build Directive
+**CREATOROS_MASTER_PROMPT_v15.md** (unified, single-source) — saved in repo root.
+Admin: thedude180@gmail.com / etgaming247.com
 
-## System Architecture
-CreatorOS is a full-stack application built with an Express.js backend and a React/Vite frontend, all centered around a multi-tenant PostgreSQL database.
+## Current Phase
+**Phase 0 COMPLETE** — Audit & Stabilization done. Phase 1 (Foundation / Operating Core) is next.
 
-### Frontend
-- **Technology**: React + Vite, Tailwind CSS, shadcn/ui.
-- **UI/UX Decisions**: Dark theme, 5 core pages (Team, Content, Live, Revenue, Settings) with persistent sidebar and mobile navigation. Features include a notification bell, floating AI chat, command palette, keyboard shortcuts, and PWA support.
+## Architecture
+- **Frontend**: React + Vite + TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Express.js + TypeScript, Drizzle ORM, PostgreSQL
+- **AI**: gpt-4o-mini via Replit AI integrations (OpenAI + Anthropic available)
+- **Auth**: Replit OAuth
+- **Deployment**: Replit-native, port 5000
 
-### Backend
-- **Technology**: Express.js with Drizzle ORM and PostgreSQL.
-- **Architecture**: Domain-based route modularization.
-- **Security**: Robust security measures including Helmet, rate limiting, CSRF protection, API key authentication, subscription tier enforcement, and an AI Security Sentinel for prompt injection and replay attack prevention.
-- **AI Integration**: Leverages OpenAI (gpt-5-mini) and Anthropic (Claude Opus/Sonnet/Haiku), with intelligent routing based on task requirements.
-- **Core AI Engines & Features**:
-    - **AI Team Engine**: Orchestrates 20 specialized AI agents for tasks like scriptwriting, SEO, community management, and revenue tracking.
-    - **Growth Journey System**: AI-generated daily actions and personalized roadmaps.
-    - **Competitive Edge Suite**: VOD optimizer, Autopilot (7-phase pipeline), Creator DNA & Brand Voice, Cross-Platform Analytics, A/B Testing, Sponsorship Marketplace.
-    - **Content Loop Engine**: Manages content generation and scheduling, including auto-clip, smart scheduling, AI comment responder, and content recycling.
-    - **Smart Edit Engine**: Autonomous highlight reel generation using audio energy analysis, scene change detection, FFmpeg for editing, and AI-optimized metadata for YouTube upload.
-    - **Performance Feedback Engine**: Analyzes video performance using YouTube Analytics API for continuous learning.
-    - **Livestream Growth Agent**: Automates SEO-optimized title updates and social media pushes for live viewers.
-    - **Conversational AI Co-Pilot**: Context-aware AI assistant with tool-calling capabilities.
-    - **Content Automation System**: Includes YouTube Upload Watcher, Historical Content Sweep, and Content Consistency Agent.
-- **Secure Kernel**: Implements CQRS command routing with an approval matrix, idempotency, HMAC-signed receipts, DLQ routing, feature flag gating, and webhook verification. Includes inter-agent communication, agent performance evaluation, audience trust management, and runtime platform integration verification.
-- **Advanced Governance & Resilience**:
-    - **Platform Policy Tracker**: Monitors and enforces compliance across 7 platforms.
-    - **Policy Intelligence & Compliance Hardening**: Service modules for policy change detection, AI disclosure intelligence, creator credibility scoring, and unified pre-flight checks.
-    - **Revenue Reconciliation & Attribution**: Manages revenue reconciliation lifecycle (verified, estimated, disputed, etc.) and content-to-revenue attribution.
-    - **Exception Desk & Anomaly Hardening**: Unified exception aggregation, anomaly detection, system health integration, and prompt toxicity monitoring.
-    - **Trust & Governance Hardening**: Comprehensive trust budget management, approval matrix, tenant isolation, channel immune system (dislike bomb, spam detection), and community trust loop.
-    - **Resilience & Observability Hardening**: Safe mode controls, rollback capabilities, blast radius limiting, self-healing validation, correlation ID middleware, performance metrics, dependency health tracking, and feature sunset system.
-    - **Operational Hardening & Audit Intelligence**: Financial audit trail, internal rate limiter, adaptive resource governor, granular circuit breaker, and ops health API.
-    - **Automated Recovery & Background Task Resilience**: Cron heartbeat monitor, automated playbook execution, concurrency-aware job retries, persistent metric rollups, and webhook provider circuit breakers.
-    - **Learning Governance & Signal Intelligence**: Signal decay engine, learning maturity score, learning governance enforcement, narrative promise tracker, override learning integration, and contradiction detection.
-- **Advanced Learning / Full Intelligence**: Event-sourced Creator Intelligence Graph, Experiment Engine, Learning Maturity System, Research Swarm, Skill Promotions, Agent Evaluations, Predictive Content Promotion, Audience Soul Model, Temporal Graph Queries, Adaptive Operating Layer, and a robust Recovery Mode.
-- **Native Multistream Fabric**: First-party multistream broadcasting subsystem for source detection, broadcast orchestration, relay/re-encode, reliability guarding, and platform-specific packaging.
-- **Unified Live Command Center**: Operator-grade live control surface for monitoring broadcast state, metadata, AI actions, community intelligence, commerce, trust/risk, recovery, and decision traceability.
-- **Live Production Crew**: A governed team of coordinated live agents handling roles such as Live Director, Community Host, Moderation Captain, Live SEO Producer, Thumbnail Producer, Moment Producer, Commerce & CTA Producer, Platform Packaging Producer, and Clip & Replay Handoff Producer, including a Creator Interrupt Router.
-- **Pre-Channel Launch Mode**: Guided launch experience for new users, offering a 7-state lifecycle and a 10-step mission system for channel identity, content planning, brand setup, and monetization readiness.
+## 5-Page Rule (strict)
+Only 5 pages allowed: **Team** (`/`), **Content** (`/content`), **Live** (`/stream`), **Revenue** (`/money`), **Settings** (`/settings`)
+- Pre-auth pages (Landing, Legal, Pricing) are acceptable auxiliary routes
+- Notifications, FounderConsole, Onboarding, PreChannelLaunch pages violate the rule — scheduled for removal/merge
 
-### Authentication & Authorization
-- **Authentication**: Replit Auth (OIDC-based).
-- **OAuth**: Universal OAuth for 23 platforms with auto token refresh.
-- **Subscription & Access**: Multi-tier subscription model with role-based access.
+## UI Philosophy
+Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/tax dashboards, no enterprise clutter. Complexity stays underneath.
 
-### Notification & Feedback Systems
-- **Notification Engine**: Exception-only model for critical alerts.
-- **AI Feedback Processor**: Analyzes user feedback for continuous improvement.
+## Key Files
+| File | Purpose |
+|---|---|
+| `CREATOROS_MASTER_PROMPT_v15.md` | Active build directive |
+| `shared/schema.ts` | 390 database tables (8,254 lines) |
+| `server/kernel/index.ts` | Secure Kernel — command routing, receipts, approval |
+| `server/routes.ts` | API route registration |
+| `server/index.ts` | Server entrypoint |
+| `client/src/App.tsx` | Frontend router & page registration |
+| `.local/phase0-audit-report.md` | Full Phase 0 audit with merge/remove/defer decisions |
 
-## External Dependencies
-- **Replit Auth**: User authentication.
-- **OpenAI API**: AI-driven functionalities.
-- **Anthropic API**: AI-driven functionalities (Claude models).
-- **Gmail API**: Email notifications.
-- **i18next**: Internationalization.
-- **PostgreSQL**: Primary database.
-- **YouTube Data API v3**: YouTube integration.
-- **Stripe**: Payment processing and subscription management.
-- **node-cron**: Background task scheduling.
-- **tweetnacl**: Cryptographic library for security.
-- **sharp**: Image processing.
-- **web-push**: VAPID-based web push notifications.
+## Repo Contract
+| Item | Value |
+|---|---|
+| Package manager | npm |
+| Build | `npm run build` |
+| Test | `npx vitest run` |
+| DB push | `npm run db:push` |
+| Server bundle | `dist/index.cjs` (4.5MB) |
+| Tests | 825/825 passing |
+
+## Codebase Scale
+- 390 database tables
+- 47 root-level engine files + 106 service files + 41 kernel files
+- 154,939 server lines + 61,451 client lines
+- Engine overlap clusters identified for merge (see `.local/phase0-audit-report.md`)
+
+## Engine Overlap Summary
+~107 engine/service files identified, target ~30 after consolidation:
+- **Content cluster**: 13 files → 3-4 (catalog-content-engine primary)
+- **Optimization cluster**: 7 files → 2 (performance-feedback primary)
+- **Security cluster**: 11 files → 3 (security-engine + policy-preflight + rights-disclosure)
+- **Growth cluster**: 7 files → 2 (livestream-growth primary)
+- **Live cluster**: 13 files → 5 (live-detection + multistream + stream-lifecycle + reconciliation + clip-highlighter)
+- **Money cluster**: 10 files → 3 (revenue-sync + brand-partnerships + stripe-hardening)
+- **Healing cluster**: 9 files → 2 (resilience-observability + circuit-breaker)
+- **Learning/AI cluster**: 13 files → 4 (ai-model-router + ai-queue + creator-memory + ai-disclosure)
+
+## Bugs Fixed in Phase 0
+1. gpt-5-mini → gpt-4o-mini (37 files)
+2. deleteChannel() SQL array cast
+3. videos.userId column reference (3 engines, 10 occurrences)
+4. Keyword engine float→integer crash
+5. Collab engine null candidates crash
+6. 11 failing tests (trust budget exhaustion + missing approval rule)
