@@ -290,6 +290,18 @@ export const PLATFORM_INFO: Record<Platform, {
     strategyDescription: "Growing free-speech video platform. Upload long-form content and live stream to reach audiences seeking alternative platforms. Revenue share available.",
     setupSteps: ["Create an account at rumble.com", "Go to your Rumble Studio dashboard", "Find your API key or stream key in Settings", "Paste it below"],
   },
+  x: {
+    label: "X (Twitter)",
+    color: "#000000",
+    maxResolution: "1080p30",
+    maxBitrate: "4 Mbps",
+    rtmpUrlTemplate: "",
+    category: "social",
+    connectionType: "manual",
+    signupUrl: "https://x.com/i/flow/signup",
+    strategyDescription: "The real-time conversation platform. Share clips, engage with the gaming community, and drive traffic to your content through viral moments and discussions.",
+    setupSteps: ["Create or log into your X account at x.com", "Go to Settings and enable creator features", "Copy your profile handle", "Paste it below"],
+  },
 };
 
 export const AI_AGENTS = [
