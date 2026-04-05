@@ -46,6 +46,58 @@ export function optimizeSubtitles(segments: SubtitleSegment[]): {
   return { optimized, changes };
 }
 
+export interface SubtitleGapReport {
+  totalDuration: number;
+  coveredDuration: number;
+  coveragePercent: number;
+  gaps: { startTime: number; endTime: number; durationSeconds: number }[];
+  languages: string[];
+  missingLanguages: string[];
+}
+
+export function analyzeSubtitleGaps(
+  segments: SubtitleSegment[],
+  totalDuration: number,
+  targetLanguages: string[] = ["en"],
+): SubtitleGapReport {
+  const sorted = [...segments].sort((a, b) => a.startTime - b.startTime);
+  const gaps: SubtitleGapReport["gaps"] = [];
+  const languages = [...new Set(segments.map(s => s.language))];
+  const missingLanguages = targetLanguages.filter(l => !languages.includes(l));
+
+  let coveredDuration = 0;
+  let lastEnd = 0;
+
+  for (const seg of sorted) {
+    if (seg.startTime > lastEnd + 1) {
+      gaps.push({
+        startTime: lastEnd,
+        endTime: seg.startTime,
+        durationSeconds: seg.startTime - lastEnd,
+      });
+    }
+    coveredDuration += seg.endTime - seg.startTime;
+    lastEnd = Math.max(lastEnd, seg.endTime);
+  }
+
+  if (lastEnd < totalDuration - 1) {
+    gaps.push({
+      startTime: lastEnd,
+      endTime: totalDuration,
+      durationSeconds: totalDuration - lastEnd,
+    });
+  }
+
+  return {
+    totalDuration,
+    coveredDuration: Math.min(coveredDuration, totalDuration),
+    coveragePercent: totalDuration > 0 ? Math.round((Math.min(coveredDuration, totalDuration) / totalDuration) * 100) : 0,
+    gaps,
+    languages,
+    missingLanguages,
+  };
+}
+
 export function formatSRT(segments: SubtitleSegment[]): string {
   return segments.map((s, i) => {
     const formatTime = (t: number) => {
