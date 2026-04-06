@@ -97,6 +97,81 @@ const IRS_CATEGORIES = [
 /* GoalsTab extracted to ./money/GoalsTab.tsx */
 /* SponsorsTab extracted to ./money/SponsorsTab.tsx */
 
+function RevenueAdvisorWidget() {
+  const { user } = useAuth();
+  const [insight, setInsight] = useState<{ advice?: string; projectedLift?: string; confidence?: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const cacheKey = `ai_rev_advisor_${user?.id || "anon"}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.ts < 600_000) { setInsight(parsed.data); setLoading(false); return; }
+      } catch {}
+    }
+    setLoading(true);
+    apiRequest("POST", "/api/ai/financial-insights", {})
+      .then(r => r.json())
+      .then(d => {
+        const mapped = { advice: d?.insight || d?.advice || d?.summary || null, projectedLift: d?.projectedLift || null, confidence: d?.confidence || null };
+        setInsight(mapped);
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data: mapped, ts: Date.now() }));
+      })
+      .catch(() => setInsight(null))
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  if (loading) return (
+    <div className="card-empire rounded-xl p-4 mb-4 border border-emerald-500/20 bg-emerald-500/5" data-testid="widget-revenue-advisor">
+      <div className="flex items-center gap-3">
+        <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+        <span className="text-xs text-emerald-400">Analyzing your revenue data...</span>
+      </div>
+    </div>
+  );
+  if (!insight?.advice) return null;
+
+  return (
+    <div className="card-empire rounded-xl p-4 mb-4 border border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden" data-testid="widget-revenue-advisor">
+      <div className="absolute top-0 right-0 p-2 opacity-10">
+        <Sparkles className="w-12 h-12 text-emerald-400" />
+      </div>
+      <div className="flex items-start gap-3 relative">
+        <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+          <Zap className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold text-emerald-400 mb-1 flex items-center gap-2">
+            AI REVENUE ADVISOR
+            <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/30 text-emerald-400">LIVE</Badge>
+          </h3>
+          <p className="text-xs text-emerald-100/80 leading-relaxed max-w-2xl">
+            {insight.advice}
+          </p>
+          {(insight.projectedLift || insight.confidence) && (
+            <div className="flex gap-4 mt-3">
+              {insight.projectedLift && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Projected Lift</span>
+                  <span className="text-sm font-bold text-emerald-400">{insight.projectedLift}</span>
+                </div>
+              )}
+              {insight.confidence && (
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Confidence</span>
+                  <span className="text-sm font-bold text-emerald-400">{insight.confidence}%</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QualityRevenueHook() {
   const { data: streams } = useQuery<any>({
     queryKey: ["/api/stream/command-center"],
@@ -289,36 +364,7 @@ export default function Money() {
         </div>
       </div>
 
-      {/* AI Revenue Advisor - T007 */}
-      <div className="card-empire rounded-xl p-4 mb-4 border border-emerald-500/20 bg-emerald-500/5 relative overflow-hidden" data-testid="widget-revenue-advisor">
-        <div className="absolute top-0 right-0 p-2 opacity-10">
-          <Sparkles className="w-12 h-12 text-emerald-400" />
-        </div>
-        <div className="flex items-start gap-3 relative">
-          <div className="mt-1 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
-            <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-emerald-400 mb-1 flex items-center gap-2">
-              AI REVENUE ADVISOR
-              <Badge variant="outline" className="text-[8px] h-4 border-emerald-500/30 text-emerald-400">OPTIMIZING</Badge>
-            </h3>
-            <p className="text-xs text-emerald-100/80 leading-relaxed max-w-2xl">
-              "Your RPM on YouTube is 12% lower than the niche average. I recommend shifting your call-to-action to your membership site in the first 2 minutes of your next 3 videos to capture high-intent viewers."
-            </p>
-            <div className="flex gap-4 mt-3">
-              <div className="flex flex-col">
-                <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Projected Lift</span>
-                <span className="text-sm font-bold text-emerald-400">+$1,420/mo</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] text-emerald-400/60 uppercase font-mono">Confidence</span>
-                <span className="text-sm font-bold text-emerald-400">94%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <RevenueAdvisorWidget />
 
       <QualityRevenueHook />
 

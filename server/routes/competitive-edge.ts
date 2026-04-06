@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt, asc } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, asc, isNotNull } from "drizzle-orm";
 import { experiments, creatorDnaProfiles, sponsorshipDeals, copyrightClaims, usageMetrics, videos, channels, autopilotQueue, notifications, videoUpdateHistory, users, TEAM_ROLES } from "@shared/schema";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
@@ -128,9 +128,16 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
         .from(autopilotQueue).where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed"))).orderBy(desc(autopilotQueue.createdAt)).limit(10);
       const total = totalRow?.count || 0;
       const success = (completedRow?.count || 0) + (publishedRow?.count || 0);
+      const [avgTimeRow] = await db.select({
+        avg: sql<number>`round(extract(epoch from avg(${autopilotQueue.publishedAt} - ${autopilotQueue.createdAt}))::numeric, 1)`
+      }).from(autopilotQueue).where(
+        and(eq(autopilotQueue.userId, userId), isNotNull(autopilotQueue.publishedAt))
+      );
+      const avgSec = avgTimeRow?.avg;
+      const avgProcessingTime = avgSec != null ? (avgSec < 60 ? `${avgSec}s` : `${Math.round(avgSec / 60)}m`) : null;
       res.json({
         totalProcessed: total, successRate: total > 0 ? Math.round((success / total) * 100) : 0,
-        avgProcessingTime: "~2.5s",
+        avgProcessingTime,
         contentByPlatform: Object.fromEntries(platformCounts.map(p => [p.platform || "unknown", p.count])),
         recentErrors,
       });
@@ -303,7 +310,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
       const total = totalRow?.count || 0;
       const completed = completedRow?.count || 0;
       const withWinner = withWinnerRow?.count || 0;
-      res.json({ totalExperiments: total, completedExperiments: completed, winRate: completed > 0 ? Math.round((withWinner / completed) * 100) : 0, avgImprovement: "~12%" });
+      res.json({ totalExperiments: total, completedExperiments: completed, winRate: completed > 0 ? Math.round((withWinner / completed) * 100) : 0, avgImprovement: null });
     } catch (err: any) {
       logger.error("AB testing stats error", { error: err.message });
       res.status(500).json({ error: "Failed to fetch AB testing stats" });

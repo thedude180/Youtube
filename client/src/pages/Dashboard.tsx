@@ -289,7 +289,7 @@ export default function TeamDashboard() {
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-semibold text-foreground leading-none">Your AI Team</h1>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            {agentsLoading ? "Checking team…" : `${activeCount} of 14 agents active right now`}
+            {agentsLoading ? "Checking team…" : `${activeCount} of ${AGENT_ROSTER.length} agents active right now`}
           </p>
         </div>
         {stats?.isLive && (
@@ -366,7 +366,7 @@ export default function TeamDashboard() {
 
             {agentsLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {[...Array(14)].map((_, i) => <Skeleton key={i} className="h-[76px] rounded-lg" />)}
+                {[...Array(AGENT_ROSTER.length)].map((_, i) => <Skeleton key={i} className="h-[76px] rounded-lg" />)}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
