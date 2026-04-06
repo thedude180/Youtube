@@ -68,6 +68,8 @@ import {
   type VideoUpdateHistory, type InsertVideoUpdateHistory,
   type TeamMember, type InsertTeamMember,
   type TeamActivityLogEntry, type InsertTeamActivityLog,
+  studioVideos,
+  type StudioVideo, type InsertStudioVideo,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 
@@ -326,6 +328,12 @@ export interface IStorage {
   deleteTeamMember(id: number): Promise<void>;
   getTeamActivityLog(ownerId: string, limit?: number): Promise<TeamActivityLogEntry[]>;
   createTeamActivity(entry: InsertTeamActivityLog): Promise<TeamActivityLogEntry>;
+
+  getStudioVideos(userId: string): Promise<StudioVideo[]>;
+  getStudioVideo(id: number): Promise<StudioVideo | undefined>;
+  createStudioVideo(v: InsertStudioVideo): Promise<StudioVideo>;
+  updateStudioVideo(id: number, updates: Partial<InsertStudioVideo>): Promise<StudioVideo>;
+  deleteStudioVideo(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1666,6 +1674,34 @@ export class DatabaseStorage implements IStorage {
   async createTeamActivity(entry: InsertTeamActivityLog): Promise<TeamActivityLogEntry> {
     const [created] = await db.insert(teamActivityLog).values(entry).returning();
     return created;
+  }
+
+  async getStudioVideos(userId: string): Promise<StudioVideo[]> {
+    return await db.select().from(studioVideos)
+      .where(eq(studioVideos.userId, userId))
+      .orderBy(desc(studioVideos.createdAt));
+  }
+
+  async getStudioVideo(id: number): Promise<StudioVideo | undefined> {
+    const [video] = await db.select().from(studioVideos).where(eq(studioVideos.id, id));
+    return video;
+  }
+
+  async createStudioVideo(v: InsertStudioVideo): Promise<StudioVideo> {
+    const [created] = await db.insert(studioVideos).values(v).returning();
+    return created;
+  }
+
+  async updateStudioVideo(id: number, updates: Partial<InsertStudioVideo>): Promise<StudioVideo> {
+    const [updated] = await db.update(studioVideos)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(studioVideos.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteStudioVideo(id: number): Promise<void> {
+    await db.delete(studioVideos).where(eq(studioVideos.id, id));
   }
 }
 

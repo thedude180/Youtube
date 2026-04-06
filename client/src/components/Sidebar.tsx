@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Zap,
+  Film,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/button";
 const NAV_ITEMS = [
   { href: "/",        label: "Team",     icon: Users },
   { href: "/content", label: "Content",  icon: Video },
+  { href: "/studio",  label: "Studio",   icon: Film },
   { href: "/stream",  label: "Live",     icon: Radio },
   { href: "/money",   label: "Revenue",  icon: DollarSign },
   { href: "/settings",label: "Settings", icon: Settings },

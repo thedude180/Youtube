@@ -78,6 +78,13 @@
       "when": 1774557929366,
       "tag": "0010_careless_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1775458661694,
+      "tag": "0011_round_blur",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo, Suspense } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useTabMemory } from "@/hooks/use-tab-memory";
 import { useVideos } from "@/hooks/use-videos";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -150,6 +150,41 @@ export default function Content() {
 }
 
 const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short" };
+
+function StudioButton({ videoId }: { videoId: number }) {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/studio/videos/import", { videoId });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Imported to Studio" });
+      navigate("/studio");
+    },
+    onError: (err: Error) => {
+      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={(e) => { e.stopPropagation(); importMutation.mutate(); }}
+      disabled={importMutation.isPending}
+      aria-label="Open in Studio"
+      data-testid={`button-studio-${videoId}`}
+    >
+      {importMutation.isPending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Film className="h-3.5 w-3.5" />
+      )}
+    </Button>
+  );
+}
 
 function LibraryTab() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -333,6 +368,7 @@ function LibraryTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <StudioButton videoId={video.id} />
                       {youtubeId && (
                         <a
                           href={`https://www.youtube.com/watch?v=${youtubeId}`}

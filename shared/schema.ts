@@ -1045,6 +1045,51 @@ export const videoVersions = pgTable("video_versions", {
   userIdIdx: index("video_versions_user_id_idx").on(table.userId),
 }));
 
+export const studioVideos = pgTable("studio_videos", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: integer("video_id").references(() => videos.id),
+  youtubeId: text("youtube_id"),
+  title: text("title").notNull(),
+  description: text("description"),
+  filePath: text("file_path"),
+  fileSize: integer("file_size"),
+  thumbnailUrl: text("thumbnail_url"),
+  duration: text("duration"),
+  status: text("status").notNull().default("pending"),
+  metadata: jsonb("metadata").$type<{
+    tags?: string[];
+    categoryId?: string;
+    privacyStatus?: string;
+    channelId?: number;
+    sourceUrl?: string;
+    downloadProgress?: number;
+    customThumbnail?: string;
+    thumbnailPrompt?: string;
+    thumbnailOptions?: Array<{ url: string; prompt: string; predictedCtr?: number }>;
+    endScreen?: {
+      enabled: boolean;
+      elements: Array<{
+        type: "video" | "playlist" | "subscribe" | "channel" | "link";
+        position: string;
+        timing: string;
+        text?: string;
+        enabled: boolean;
+      }>;
+    };
+    publishProgress?: number;
+    publishStatus?: string;
+    publishedYoutubeId?: string;
+    seoScore?: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  studioVideos_userId_idx: index("studio_videos_user_id_idx").on(table.userId),
+  studioVideos_status_idx: index("studio_videos_status_idx").on(table.status),
+  studioVideos_youtubeId_idx: index("studio_videos_youtube_id_idx").on(table.youtubeId),
+}));
+
 export const streamChatMessages = pgTable("stream_chat_messages", {
   id: serial("id").primaryKey(),
   streamId: integer("stream_id").references(() => streams.id).notNull(),
@@ -2190,6 +2235,7 @@ export const insertLinkedChannelSchema = createInsertSchema(linkedChannels).omit
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true, invitedAt: true, joinedAt: true, removedAt: true, lastActiveAt: true });
 export const insertAiAgentTaskSchema = createInsertSchema(aiAgentTasks).omit({ id: true, startedAt: true, completedAt: true, createdAt: true });
 export const insertTeamActivityLogSchema = createInsertSchema(teamActivityLog).omit({ id: true, createdAt: true });
+export const insertStudioVideoSchema = createInsertSchema(studioVideos).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === SELECT TYPES ===
 export type Channel = typeof channels.$inferSelect;
@@ -2219,6 +2265,7 @@ export type ContentIdea = typeof contentIdeas.$inferSelect;
 export type CreatorMemoryEntry = typeof creatorMemory.$inferSelect;
 export type ContentClip = typeof contentClips.$inferSelect;
 export type VideoVersion = typeof videoVersions.$inferSelect;
+export type StudioVideo = typeof studioVideos.$inferSelect;
 export type StreamChatMessage = typeof streamChatMessages.$inferSelect;
 export type ChatTopic = typeof chatTopics.$inferSelect;
 export type SponsorshipDeal = typeof sponsorshipDeals.$inferSelect;
@@ -2301,6 +2348,7 @@ export type InsertContentIdea = z.infer<typeof insertContentIdeaSchema>;
 export type InsertCreatorMemory = z.infer<typeof insertCreatorMemorySchema>;
 export type InsertContentClip = z.infer<typeof insertContentClipSchema>;
 export type InsertVideoVersion = z.infer<typeof insertVideoVersionSchema>;
+export type InsertStudioVideo = z.infer<typeof insertStudioVideoSchema>;
 export type InsertStreamChatMessage = z.infer<typeof insertStreamChatMessageSchema>;
 export type InsertChatTopic = z.infer<typeof insertChatTopicSchema>;
 export type InsertSponsorshipDeal = z.infer<typeof insertSponsorshipDealSchema>;
