@@ -3,11 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { apiRequest } from "@/lib/queryClient";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
+import { useStreamState } from "@/hooks/use-stream-state";
 
 const StreamUpgradesSection = lazy(() => import("./stream/StreamUpgradesSection"));
 const LiveOpsIntelligenceTab = lazy(() => import("./stream/LiveOpsIntelligenceTab"));
 const DistributionIntelligenceTab = lazy(() => import("./stream/DistributionIntelligenceTab"));
 const LiveCommandCenter = lazy(() => import("./stream/LiveCommandCenter"));
+const StreamIdleView = lazy(() => import("./stream/StreamIdleView"));
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,6 +40,8 @@ export default function StreamCenter() {
   usePageTitle(t("streaming.title"));
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { mode: streamMode } = useStreamState();
+  const isActiveMode = streamMode === "prep" || streamMode === "live";
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [showAddDest, setShowAddDest] = useState(false);
   const [platformConnecting, setPlatformConnecting] = useState<string | null>(null);
@@ -174,6 +178,7 @@ export default function StreamCenter() {
   const [aiChatUnifierLoading, setAiChatUnifierLoading] = useState(false);
 
   useEffect(() => {
+    if (!isActiveMode) { setAiStreamRecsLoading(false); return; }
     const cached = sessionStorage.getItem("aiStreamRecs");
     if (cached) {
       try {
@@ -198,9 +203,10 @@ export default function StreamCenter() {
         setAiStreamRecsLoading(false);
       }
     })();
-  }, []);
+  }, [isActiveMode]);
 
   useEffect(() => {
+    if (!isActiveMode) { setAiChatBotLoading(false); return; }
     const cached = sessionStorage.getItem("aiChatBotConfig");
     if (cached) {
       try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChatBot(e.data); setAiChatBotLoading(false); return; } else { sessionStorage.removeItem("aiChatBotConfig"); } } catch {}
@@ -213,9 +219,10 @@ export default function StreamCenter() {
         sessionStorage.setItem("aiChatBotConfig", JSON.stringify({ data, ts: Date.now() }));
       } catch { setAiChatBot(null);  } finally { setAiChatBotLoading(false); }
     })();
-  }, []);
+  }, [isActiveMode]);
 
   useEffect(() => {
+    if (!isActiveMode) { setAiChecklistLoading(false); return; }
     const cached = sessionStorage.getItem("aiStreamChecklist");
     if (cached) {
       try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChecklist(e.data); setAiChecklistLoading(false); return; } else { sessionStorage.removeItem("aiStreamChecklist"); } } catch {}
@@ -228,9 +235,10 @@ export default function StreamCenter() {
         sessionStorage.setItem("aiStreamChecklist", JSON.stringify({ data, ts: Date.now() }));
       } catch { setAiChecklist(null);  } finally { setAiChecklistLoading(false); }
     })();
-  }, []);
+  }, [isActiveMode]);
 
   useEffect(() => {
+    if (!isActiveMode) { setAiRaidLoading(false); return; }
     const cached = sessionStorage.getItem("aiRaidStrategy");
     if (cached) {
       try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRaid(e.data); setAiRaidLoading(false); return; } else { sessionStorage.removeItem("aiRaidStrategy"); } } catch {}
@@ -243,386 +251,386 @@ export default function StreamCenter() {
         sessionStorage.setItem("aiRaidStrategy", JSON.stringify({ data, ts: Date.now() }));
       } catch { setAiRaid(null);  } finally { setAiRaidLoading(false); }
     })();
-  }, []);
+  }, [isActiveMode]);
 
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_titles");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamTitles(e.data); return; } else { sessionStorage.removeItem("ai_stream_titles"); } } catch {} }
     setAiStreamTitlesLoading(true);
     apiRequest("POST", "/api/ai/stream-titles", {}).then(r => r.json()).then(d => { setAiStreamTitles(d); sessionStorage.setItem("ai_stream_titles", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamTitlesLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_schedule");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSchedule(e.data); return; } else { sessionStorage.removeItem("ai_stream_schedule"); } } catch {} }
     setAiStreamScheduleLoading(true);
     apiRequest("POST", "/api/ai/stream-schedule", {}).then(r => r.json()).then(d => { setAiStreamSchedule(d); sessionStorage.setItem("ai_stream_schedule", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamScheduleLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_overlays");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamOverlays(e.data); return; } else { sessionStorage.removeItem("ai_stream_overlays"); } } catch {} }
     setAiStreamOverlaysLoading(true);
     apiRequest("POST", "/api/ai/stream-overlays", {}).then(r => r.json()).then(d => { setAiStreamOverlays(d); sessionStorage.setItem("ai_stream_overlays", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamOverlaysLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_alerts");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAlerts(e.data); return; } else { sessionStorage.removeItem("ai_stream_alerts"); } } catch {} }
     setAiStreamAlertsLoading(true);
     apiRequest("POST", "/api/ai/stream-alerts", {}).then(r => r.json()).then(d => { setAiStreamAlerts(d); sessionStorage.setItem("ai_stream_alerts", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamAlertsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_mod");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamMod(e.data); return; } else { sessionStorage.removeItem("ai_stream_mod"); } } catch {} }
     setAiStreamModLoading(true);
     apiRequest("POST", "/api/ai/stream-moderation", {}).then(r => r.json()).then(d => { setAiStreamMod(d); sessionStorage.setItem("ai_stream_mod", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamModLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_interact");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamInteract(e.data); return; } else { sessionStorage.removeItem("ai_stream_interact"); } } catch {} }
     setAiStreamInteractLoading(true);
     apiRequest("POST", "/api/ai/stream-interactions", {}).then(r => r.json()).then(d => { setAiStreamInteract(d); sessionStorage.setItem("ai_stream_interact", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamInteractLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_rev");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRev(e.data); return; } else { sessionStorage.removeItem("ai_stream_rev"); } } catch {} }
     setAiStreamRevLoading(true);
     apiRequest("POST", "/api/ai/stream-revenue", {}).then(r => r.json()).then(d => { setAiStreamRev(d); sessionStorage.setItem("ai_stream_rev", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamRevLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_clips");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamClips(e.data); return; } else { sessionStorage.removeItem("ai_stream_clips"); } } catch {} }
     setAiStreamClipsLoading(true);
     apiRequest("POST", "/api/ai/stream-clips", {}).then(r => r.json()).then(d => { setAiStreamClips(d); sessionStorage.setItem("ai_stream_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamClipsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_cats");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCats(e.data); return; } else { sessionStorage.removeItem("ai_stream_cats"); } } catch {} }
     setAiStreamCatsLoading(true);
     apiRequest("POST", "/api/ai/stream-categories", {}).then(r => r.json()).then(d => { setAiStreamCats(d); sessionStorage.setItem("ai_stream_cats", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCatsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_panels");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamPanels(e.data); return; } else { sessionStorage.removeItem("ai_stream_panels"); } } catch {} }
     setAiStreamPanelsLoading(true);
     apiRequest("POST", "/api/ai/stream-panels", {}).then(r => r.json()).then(d => { setAiStreamPanels(d); sessionStorage.setItem("ai_stream_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamPanelsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_emotes");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamEmotes(e.data); return; } else { sessionStorage.removeItem("ai_stream_emotes"); } } catch {} }
     setAiStreamEmotesLoading(true);
     apiRequest("POST", "/api/ai/stream-emotes", {}).then(r => r.json()).then(d => { setAiStreamEmotes(d); sessionStorage.setItem("ai_stream_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamEmotesLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_sub_goals");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamSubGoals(e.data); return; } else { sessionStorage.removeItem("ai_stream_sub_goals"); } } catch {} }
     setAiStreamSubGoalsLoading(true);
     apiRequest("POST", "/api/ai/stream-sub-goals", {}).then(r => r.json()).then(d => { setAiStreamSubGoals(d); sessionStorage.setItem("ai_stream_sub_goals", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamSubGoalsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_network");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamNetwork(e.data); return; } else { sessionStorage.removeItem("ai_stream_network"); } } catch {} }
     setAiStreamNetworkLoading(true);
     apiRequest("POST", "/api/ai/stream-networking", {}).then(r => r.json()).then(d => { setAiStreamNetwork(d); sessionStorage.setItem("ai_stream_network", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamNetworkLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_analytics_exp");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamAnalyticsExp(e.data); return; } else { sessionStorage.removeItem("ai_stream_analytics_exp"); } } catch {} }
     setAiStreamAnalyticsExpLoading(true);
     apiRequest("POST", "/api/ai/stream-analytics-explainer", {}).then(r => r.json()).then(d => { setAiStreamAnalyticsExp(d); sessionStorage.setItem("ai_stream_analytics_exp", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamAnalyticsExpLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_multi_stream");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiMultiStream(e.data); return; } else { sessionStorage.removeItem("ai_multi_stream"); } } catch {} }
     setAiMultiStreamLoading(true);
     apiRequest("POST", "/api/ai/multi-stream", {}).then(r => r.json()).then(d => { setAiMultiStream(d); sessionStorage.setItem("ai_multi_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiMultiStreamLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_backup");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBackup(e.data); return; } else { sessionStorage.removeItem("ai_stream_backup"); } } catch {} }
     setAiStreamBackupLoading(true);
     apiRequest("POST", "/api/ai/stream-backup", {}).then(r => r.json()).then(d => { setAiStreamBackup(d); sessionStorage.setItem("ai_stream_backup", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamBackupLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_community");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCommunity(e.data); return; } else { sessionStorage.removeItem("ai_stream_community"); } } catch {} }
     setAiStreamCommunityLoading(true);
     apiRequest("POST", "/api/ai/stream-community", {}).then(r => r.json()).then(d => { setAiStreamCommunity(d); sessionStorage.setItem("ai_stream_community", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCommunityLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_branding");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamBranding(e.data); return; } else { sessionStorage.removeItem("ai_stream_branding"); } } catch {} }
     setAiStreamBrandingLoading(true);
     apiRequest("POST", "/api/ai/stream-branding", {}).then(r => r.json()).then(d => { setAiStreamBranding(d); sessionStorage.setItem("ai_stream_branding", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamBrandingLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_calendar");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamCalendar(e.data); return; } else { sessionStorage.removeItem("ai_stream_calendar"); } } catch {} }
     setAiStreamCalendarLoading(true);
     apiRequest("POST", "/api/ai/stream-content-calendar", {}).then(r => r.json()).then(d => { setAiStreamCalendar(d); sessionStorage.setItem("ai_stream_calendar", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamCalendarLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_growth");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamGrowth(e.data); return; } else { sessionStorage.removeItem("ai_stream_growth"); } } catch {} }
     setAiStreamGrowthLoading(true);
     apiRequest("POST", "/api/ai/stream-growth", {}).then(r => r.json()).then(d => { setAiStreamGrowth(d); sessionStorage.setItem("ai_stream_growth", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamGrowthLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_studio");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTStudio(e.data); return; } else { sessionStorage.removeItem("ai_yt_studio"); } } catch {} }
     setAiYTStudioLoading(true);
     apiRequest("POST", "/api/ai/yt-studio", {}).then(r => r.json()).then(d => { setAiYTStudio(d); sessionStorage.setItem("ai_yt_studio", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTStudioLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_shorts_algo");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTShortsAlgo(e.data); return; } else { sessionStorage.removeItem("ai_yt_shorts_algo"); } } catch {} }
     setAiYTShortsAlgoLoading(true);
     apiRequest("POST", "/api/ai/yt-shorts-algo", {}).then(r => r.json()).then(d => { setAiYTShortsAlgo(d); sessionStorage.setItem("ai_yt_shorts_algo", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTShortsAlgoLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_comments");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTComments(e.data); return; } else { sessionStorage.removeItem("ai_yt_comments"); } } catch {} }
     setAiYTCommentsLoading(true);
     apiRequest("POST", "/api/ai/yt-comments", {}).then(r => r.json()).then(d => { setAiYTComments(d); sessionStorage.setItem("ai_yt_comments", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTCommentsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_playlists");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPlaylists(e.data); return; } else { sessionStorage.removeItem("ai_yt_playlists"); } } catch {} }
     setAiYTPlaylistsLoading(true);
     apiRequest("POST", "/api/ai/yt-playlists", {}).then(r => r.json()).then(d => { setAiYTPlaylists(d); sessionStorage.setItem("ai_yt_playlists", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTPlaylistsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_premiere");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTPremiere(e.data); return; } else { sessionStorage.removeItem("ai_yt_premiere"); } } catch {} }
     setAiYTPremiereLoading(true);
     apiRequest("POST", "/api/ai/yt-premiere", {}).then(r => r.json()).then(d => { setAiYTPremiere(d); sessionStorage.setItem("ai_yt_premiere", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTPremiereLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_membership");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTMembership(e.data); return; } else { sessionStorage.removeItem("ai_yt_membership"); } } catch {} }
     setAiYTMembershipLoading(true);
     apiRequest("POST", "/api/ai/yt-membership", {}).then(r => r.json()).then(d => { setAiYTMembership(d); sessionStorage.setItem("ai_yt_membership", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTMembershipLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_super_thanks");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTSuperThanks(e.data); return; } else { sessionStorage.removeItem("ai_yt_super_thanks"); } } catch {} }
     setAiYTSuperThanksLoading(true);
     apiRequest("POST", "/api/ai/yt-super-thanks", {}).then(r => r.json()).then(d => { setAiYTSuperThanks(d); sessionStorage.setItem("ai_yt_super_thanks", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTSuperThanksLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_handle");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHandle(e.data); return; } else { sessionStorage.removeItem("ai_yt_handle"); } } catch {} }
     setAiYTHandleLoading(true);
     apiRequest("POST", "/api/ai/yt-handle", {}).then(r => r.json()).then(d => { setAiYTHandle(d); sessionStorage.setItem("ai_yt_handle", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTHandleLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_channel_pg");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTChannelPg(e.data); return; } else { sessionStorage.removeItem("ai_yt_channel_pg"); } } catch {} }
     setAiYTChannelPgLoading(true);
     apiRequest("POST", "/api/ai/yt-channel-page", {}).then(r => r.json()).then(d => { setAiYTChannelPg(d); sessionStorage.setItem("ai_yt_channel_pg", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTChannelPgLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_yt_hashtags");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiYTHashtags(e.data); return; } else { sessionStorage.removeItem("ai_yt_hashtags"); } } catch {} }
     setAiYTHashtagsLoading(true);
     apiRequest("POST", "/api/ai/yt-hashtags", {}).then(r => r.json()).then(d => { setAiYTHashtags(d); sessionStorage.setItem("ai_yt_hashtags", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiYTHashtagsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_emotes");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwEmotes(e.data); return; } else { sessionStorage.removeItem("ai_tw_emotes"); } } catch {} }
     setAiTwEmotesLoading(true);
     apiRequest("POST", "/api/ai/twitch-emotes", {}).then(r => r.json()).then(d => { setAiTwEmotes(d); sessionStorage.setItem("ai_tw_emotes", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwEmotesLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_bits");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwBits(e.data); return; } else { sessionStorage.removeItem("ai_tw_bits"); } } catch {} }
     setAiTwBitsLoading(true);
     apiRequest("POST", "/api/ai/twitch-bits", {}).then(r => r.json()).then(d => { setAiTwBits(d); sessionStorage.setItem("ai_tw_bits", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwBitsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_raids");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwRaids(e.data); return; } else { sessionStorage.removeItem("ai_tw_raids"); } } catch {} }
     setAiTwRaidsLoading(true);
     apiRequest("POST", "/api/ai/twitch-raids", {}).then(r => r.json()).then(d => { setAiTwRaids(d); sessionStorage.setItem("ai_tw_raids", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwRaidsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_points");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPoints(e.data); return; } else { sessionStorage.removeItem("ai_tw_points"); } } catch {} }
     setAiTwPointsLoading(true);
     apiRequest("POST", "/api/ai/twitch-points", {}).then(r => r.json()).then(d => { setAiTwPoints(d); sessionStorage.setItem("ai_tw_points", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPointsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_predictions");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPredictions(e.data); return; } else { sessionStorage.removeItem("ai_tw_predictions"); } } catch {} }
     setAiTwPredictionsLoading(true);
     apiRequest("POST", "/api/ai/twitch-predictions", {}).then(r => r.json()).then(d => { setAiTwPredictions(d); sessionStorage.setItem("ai_tw_predictions", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPredictionsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_hype_train");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwHypeTrain(e.data); return; } else { sessionStorage.removeItem("ai_tw_hype_train"); } } catch {} }
     setAiTwHypeTrainLoading(true);
     apiRequest("POST", "/api/ai/twitch-hype-train", {}).then(r => r.json()).then(d => { setAiTwHypeTrain(d); sessionStorage.setItem("ai_tw_hype_train", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwHypeTrainLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_clips");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwClips(e.data); return; } else { sessionStorage.removeItem("ai_tw_clips"); } } catch {} }
     setAiTwClipsLoading(true);
     apiRequest("POST", "/api/ai/twitch-clips", {}).then(r => r.json()).then(d => { setAiTwClips(d); sessionStorage.setItem("ai_tw_clips", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwClipsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_vods");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwVODs(e.data); return; } else { sessionStorage.removeItem("ai_tw_vods"); } } catch {} }
     setAiTwVODsLoading(true);
     apiRequest("POST", "/api/ai/twitch-vods", {}).then(r => r.json()).then(d => { setAiTwVODs(d); sessionStorage.setItem("ai_tw_vods", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwVODsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_tw_panels");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTwPanels(e.data); return; } else { sessionStorage.removeItem("ai_tw_panels"); } } catch {} }
     setAiTwPanelsLoading(true);
     apiRequest("POST", "/api/ai/twitch-panels", {}).then(r => r.json()).then(d => { setAiTwPanels(d); sessionStorage.setItem("ai_tw_panels", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTwPanelsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_kick_stream");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickStream(e.data); return; } else { sessionStorage.removeItem("ai_kick_stream"); } } catch {} }
     setAiKickStreamLoading(true);
     apiRequest("POST", "/api/ai/kick-stream", {}).then(r => r.json()).then(d => { setAiKickStream(d); sessionStorage.setItem("ai_kick_stream", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickStreamLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_kick_money");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickMoney(e.data); return; } else { sessionStorage.removeItem("ai_kick_money"); } } catch {} }
     setAiKickMoneyLoading(true);
     apiRequest("POST", "/api/ai/kick-monetization", {}).then(r => r.json()).then(d => { setAiKickMoney(d); sessionStorage.setItem("ai_kick_money", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickMoneyLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_kick_comm");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickComm(e.data); return; } else { sessionStorage.removeItem("ai_kick_comm"); } } catch {} }
     setAiKickCommLoading(true);
     apiRequest("POST", "/api/ai/kick-community", {}).then(r => r.json()).then(d => { setAiKickComm(d); sessionStorage.setItem("ai_kick_comm", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickCommLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_kick_diff");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDiff(e.data); return; } else { sessionStorage.removeItem("ai_kick_diff"); } } catch {} }
     setAiKickDiffLoading(true);
     apiRequest("POST", "/api/ai/kick-differentiator", {}).then(r => r.json()).then(d => { setAiKickDiff(d); sessionStorage.setItem("ai_kick_diff", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickDiffLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_kick_disc");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiKickDisc(e.data); return; } else { sessionStorage.removeItem("ai_kick_disc"); } } catch {} }
     setAiKickDiscLoading(true);
     apiRequest("POST", "/api/ai/kick-discovery", {}).then(r => r.json()).then(d => { setAiKickDisc(d); sessionStorage.setItem("ai_kick_disc", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiKickDiscLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_router");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamRouter(e.data); return; } else { sessionStorage.removeItem("ai_stream_router"); } } catch {} }
     setAiStreamRouterLoading(true);
     apiRequest("POST", "/api/ai/stream-router", {}).then(r => r.json()).then(d => { setAiStreamRouter(d); sessionStorage.setItem("ai_stream_router", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamRouterLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_deck");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamDeck(e.data); return; } else { sessionStorage.removeItem("ai_stream_deck"); } } catch {} }
     setAiStreamDeckLoading(true);
     apiRequest("POST", "/api/ai/stream-deck", {}).then(r => r.json()).then(d => { setAiStreamDeck(d); sessionStorage.setItem("ai_stream_deck", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamDeckLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_obs_opt");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOBSOpt(e.data); return; } else { sessionStorage.removeItem("ai_obs_opt"); } } catch {} }
     setAiOBSOptLoading(true);
     apiRequest("POST", "/api/ai/obs-optimizer", {}).then(r => r.json()).then(d => { setAiOBSOpt(d); sessionStorage.setItem("ai_obs_opt", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOBSOptLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_labs");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamLabs(e.data); return; } else { sessionStorage.removeItem("ai_stream_labs"); } } catch {} }
     setAiStreamLabsLoading(true);
     apiRequest("POST", "/api/ai/streamlabs", {}).then(r => r.json()).then(d => { setAiStreamLabs(d); sessionStorage.setItem("ai_stream_labs", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamLabsLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_stream_elem");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiStreamElem(e.data); return; } else { sessionStorage.removeItem("ai_stream_elem"); } } catch {} }
     setAiStreamElemLoading(true);
     apiRequest("POST", "/api/ai/stream-elements", {}).then(r => r.json()).then(d => { setAiStreamElem(d); sessionStorage.setItem("ai_stream_elem", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiStreamElemLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_overlay_designer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiOverlayDesigner(e.data); return; } else { sessionStorage.removeItem("ai_overlay_designer"); } } catch {} }
     setAiOverlayDesignerLoading(true);
     apiRequest("POST", "/api/ai/stream-overlay-designer", {}).then(r => r.json()).then(d => { setAiOverlayDesigner(d); sessionStorage.setItem("ai_overlay_designer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiOverlayDesignerLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_raid_optimizer");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiRaidOptimizer(e.data); return; } else { sessionStorage.removeItem("ai_raid_optimizer"); } } catch {} }
     setAiRaidOptimizerLoading(true);
     apiRequest("POST", "/api/ai/raid-target-optimizer", {}).then(r => r.json()).then(d => { setAiRaidOptimizer(d); sessionStorage.setItem("ai_raid_optimizer", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiRaidOptimizerLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_highlight_clipper");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiHighlightClipper(e.data); return; } else { sessionStorage.removeItem("ai_highlight_clipper"); } } catch {} }
     setAiHighlightClipperLoading(true);
     apiRequest("POST", "/api/ai/stream-highlight-clipper", {}).then(r => r.json()).then(d => { setAiHighlightClipper(d); sessionStorage.setItem("ai_highlight_clipper", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiHighlightClipperLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_donation_goal");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDonationGoal(e.data); return; } else { sessionStorage.removeItem("ai_donation_goal"); } } catch {} }
     setAiDonationGoalLoading(true);
     apiRequest("POST", "/api/ai/donation-goal-strategist", {}).then(r => r.json()).then(d => { setAiDonationGoal(d); sessionStorage.setItem("ai_donation_goal", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDonationGoalLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
   useEffect(() => {
-    if (!aiToolsOpen) return;
+    if (!aiToolsOpen || !isActiveMode) return;
     const cached = sessionStorage.getItem("ai_chat_unifier");
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiChatUnifier(e.data); return; } else { sessionStorage.removeItem("ai_chat_unifier"); } } catch {} }
     setAiChatUnifierLoading(true);
     apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
-  }, [aiToolsOpen]);
+  }, [aiToolsOpen, isActiveMode]);
 
   const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"], refetchInterval: 30_000, staleTime: 20_000 });
   const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"], refetchInterval: 30_000, staleTime: 20_000 });
@@ -891,9 +899,21 @@ export default function StreamCenter() {
         )}
       </div>
 
+      {streamMode === "idle" && (
+        <Suspense fallback={<Skeleton className="h-48 w-full rounded-2xl" />}>
+          <StreamIdleView
+            streamAgent={streamAgent}
+            connectedChannels={connectedChannels}
+            destinations={destinations}
+            lastStreamTitle={pastStreams[0]?.title}
+            lastStreamDate={pastStreams[0]?.endedAt ? new Date(pastStreams[0].endedAt).toLocaleDateString() : undefined}
+          />
+        </Suspense>
+      )}
+
       <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
-      {/* Stream Center Hero */}
-      <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
+      {/* Stream Center Hero - shown in prep and live modes */}
+      {isActiveMode && <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -908,10 +928,12 @@ export default function StreamCenter() {
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <h1 data-testid="text-page-title" className="text-xl font-display font-extrabold holographic-text">Stream Center</h1>
-                {ytLiveStatus?.broadcasts?.length > 0 ? (
-                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold animate-pulse">● LIVE NOW</Badge>
+                {streamMode === "live" ? (
+                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold animate-pulse" data-testid="badge-stream-mode">● LIVE</Badge>
+                ) : streamMode === "prep" ? (
+                  <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-bold" data-testid="badge-stream-mode">● PREP</Badge>
                 ) : (
-                  <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]">● STANDBY</Badge>
+                  <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]" data-testid="badge-stream-mode">● STANDBY</Badge>
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">AI managing {destinations?.length || 0} destinations · Multi-platform autopilot active</p>
@@ -932,10 +954,10 @@ export default function StreamCenter() {
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ─── Unedited Streams ─── */}
-      {uneditedVods.length > 0 && (
+      {streamMode === "live" && uneditedVods.length > 0 && (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4" data-testid="section-unedited-vods">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1005,8 +1027,8 @@ export default function StreamCenter() {
         </div>
       )}
 
-      {/* ─── Multi-Stream Relay Engine ─── */}
-      <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="multistream-relay-card">
+      {/* ─── Multi-Stream Relay Engine (live mode only) ─── */}
+      {streamMode === "live" && <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="multistream-relay-card">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -1103,7 +1125,7 @@ export default function StreamCenter() {
             </span>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ─── Streaming Platform Connection Hub ─── */}
       <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="platform-connection-hub">
@@ -1339,7 +1361,7 @@ export default function StreamCenter() {
         </div>
       </div>
 
-      <CollapsibleToolbox title="AI Advisor & Reports" toolCount={5}>
+      {isActiveMode && <CollapsibleToolbox title="AI Advisor & Reports" toolCount={5}>
       <Card data-testid="card-ai-stream-recs" className="card-empire border-0 relative overflow-hidden">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2 relative">
@@ -1822,33 +1844,33 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      <CollapsibleToolbox title="Live Command Center" toolCount={9}>
+      {streamMode === "live" && <CollapsibleToolbox title="Live Command Center" toolCount={9}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
           <LiveCommandCenter />
         </Suspense>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      <CollapsibleToolbox title="Live Ops Intelligence" toolCount={4}>
+      {streamMode === "live" && <CollapsibleToolbox title="Live Ops Intelligence" toolCount={4}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
           <LiveOpsIntelligenceTab />
         </Suspense>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      <CollapsibleToolbox title="Distribution Intelligence" toolCount={9}>
+      {isActiveMode && <CollapsibleToolbox title="Distribution Intelligence" toolCount={9}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
           <DistributionIntelligenceTab />
         </Suspense>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      <CollapsibleToolbox title="Stream Upgrades" toolCount={5}>
+      {isActiveMode && <CollapsibleToolbox title="Stream Upgrades" toolCount={5}>
         <Suspense fallback={<Skeleton className="h-48 w-full" />}>
           <StreamUpgradesSection />
         </Suspense>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      <CollapsibleToolbox title="AI Stream Tools" toolCount={100} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
+      {isActiveMode && <CollapsibleToolbox title="AI Stream Tools" toolCount={100} open={aiToolsOpen} onOpenChange={setAiToolsOpen}>
       <div className="space-y-3">
 
       <div className="border rounded-md overflow-visible">
@@ -2801,11 +2823,11 @@ export default function StreamCenter() {
       </div>
 
       </div>
-      </CollapsibleToolbox>
+      </CollapsibleToolbox>}
 
-      {liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
+      {streamMode === "live" && liveStream && <LiveBanner stream={liveStream} onEnd={() => endStream.mutate(liveStream.id)} isEnding={endStream.isPending} />}
 
-      {liveStream && <LiveChatPanel streamId={liveStream.id} />}
+      {streamMode === "live" && liveStream && <LiveChatPanel streamId={liveStream.id} />}
 
       <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />
 
