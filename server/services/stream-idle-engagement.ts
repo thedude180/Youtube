@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { channels, streams, liveCommunityActions } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { channels, streams, liveCommunityActions, videos, sponsorshipDeals } from "@shared/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { getAuthenticatedClient } from "../youtube";
 import { google } from "googleapis";
 import { getOpenAIClient } from "../lib/openai";
@@ -43,6 +43,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "reaction_prompt",
       "guess_what_happens",
       "rate_the_moment",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   walkthrough: {
@@ -55,6 +57,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "poll",
       "hidden_secret_tease",
       "trivia",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   competitive: {
@@ -67,6 +71,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "poll",
       "reaction_prompt",
       "clutch_or_choke",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   horror: {
@@ -79,6 +85,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "poll",
       "guess_what_happens",
       "atmosphere_check",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   chill: {
@@ -91,6 +99,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "poll",
       "what_are_you_playing",
       "chill_trivia",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   exploration: {
@@ -103,6 +113,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "poll",
       "hidden_area_guess",
       "trivia",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
   default: {
@@ -115,6 +127,8 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
       "trivia",
       "reaction_prompt",
       "hype_check",
+      "video_promo",
+      "sponsor_shoutout",
     ],
   },
 };
@@ -253,12 +267,59 @@ async function checkChatActivity(session: IdleSession): Promise<void> {
   }
 }
 
+async function fetchRecentVideos(userId: string): Promise<{ title: string; youtubeId: string }[]> {
+  try {
+    const recent = await db.select({ title: videos.title, youtubeId: videos.youtubeId })
+      .from(videos)
+      .where(eq(videos.userId, userId))
+      .orderBy(desc(videos.createdAt))
+      .limit(10);
+    return recent.filter(v => v.youtubeId) as { title: string; youtubeId: string }[];
+  } catch { return []; }
+}
+
+async function fetchActiveSponsors(userId: string): Promise<{ brandName: string; notes: string | null }[]> {
+  try {
+    const active = await db.select({ brandName: sponsorshipDeals.brandName, notes: sponsorshipDeals.notes })
+      .from(sponsorshipDeals)
+      .where(and(
+        eq(sponsorshipDeals.userId, userId),
+        inArray(sponsorshipDeals.status, ["active", "in_progress"]),
+      ))
+      .limit(5);
+    return active;
+  } catch { return []; }
+}
+
 async function generateEngagementMessage(session: IdleSession): Promise<string | null> {
   const config = CATEGORY_CONFIGS[session.category];
 
   const availableStyles = config.engagementStyles.filter(s => !session.usedStyles.has(s));
   const stylePool = availableStyles.length > 0 ? availableStyles : config.engagementStyles;
-  const chosenStyle = stylePool[Math.floor(Math.random() * stylePool.length)];
+  let chosenStyle = stylePool[Math.floor(Math.random() * stylePool.length)];
+
+  let contextExtra = "";
+
+  if (chosenStyle === "video_promo") {
+    const vids = await fetchRecentVideos(session.userId);
+    if (vids.length === 0) {
+      chosenStyle = stylePool.find(s => s !== "video_promo" && s !== "sponsor_shoutout") || "game_question";
+    } else {
+      const pick = vids[Math.floor(Math.random() * Math.min(vids.length, 5))];
+      contextExtra = `\nVideo to promote: "${pick.title}" — link: https://youtu.be/${pick.youtubeId}`;
+    }
+  }
+
+  if (chosenStyle === "sponsor_shoutout") {
+    const sponsors = await fetchActiveSponsors(session.userId);
+    if (sponsors.length === 0) {
+      chosenStyle = stylePool.find(s => s !== "video_promo" && s !== "sponsor_shoutout") || "game_question";
+    } else {
+      const pick = sponsors[Math.floor(Math.random() * sponsors.length)];
+      contextExtra = `\nSponsor to mention: ${pick.brandName}${pick.notes ? ` — context: ${pick.notes.slice(0, 100)}` : ""}`;
+    }
+  }
+
   session.usedStyles.add(chosenStyle);
   if (session.usedStyles.size >= config.engagementStyles.length) {
     session.usedStyles.clear();
@@ -296,6 +357,8 @@ async function generateEngagementMessage(session: IdleSession): Promise<string |
     discovery_prompt: "Ask viewers if they've found any cool hidden spots in this game",
     rate_the_view: "Ask viewers to rate the current scenery/view in the game",
     hidden_area_guess: "Ask if viewers think there's a hidden area nearby",
+    video_promo: "Naturally recommend one of the channel's own YouTube videos to viewers — mention the title and include the link. Make it feel like a genuine recommendation, not an ad.",
+    sponsor_shoutout: "Give a casual, genuine shoutout to the sponsor brand. Weave it naturally into the stream vibe — don't make it sound scripted or forced. Keep it brief and authentic.",
   };
 
   const styleDesc = styleDescriptions[chosenStyle] || "Generate an engaging chat message";
@@ -309,15 +372,18 @@ ${categoryPrompts[session.category]}
 Chat has been quiet for a few minutes. Generate ONE engaging message to revive chat activity.
 
 Style: ${chosenStyle} — ${styleDesc}
+${contextExtra}
 
 Rules:
-- Maximum 180 characters
+- Maximum 180 characters (200 absolute max for video promo with links)
 - Casual gaming energy, use emojis sparingly (1-2 max)
 - Must feel natural, not forced or bot-like
 - Don't mention that chat is quiet or dead
 - Make viewers WANT to respond
-- No hashtags, no links
+- No hashtags
 - If it's a poll, format options on the same line with emoji indicators
+- For video promos: include the YouTube link naturally at the end
+- For sponsor shoutouts: keep it casual and genuine, 1-2 sentences max
 
 Message:`
   );
