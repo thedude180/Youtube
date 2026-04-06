@@ -136,12 +136,12 @@ export function registerClipRoutes(app: Express) {
     if (!userId) return;
     try {
       const allClips = await storage.getContentClips(userId);
-      const pendingClips = allClips.filter((c) => c.status === "pending");
+      const pendingClips = allClips.filter((c) => c.status === "pending" || c.status === "ai_ready");
 
       if (pendingClips.length === 0) {
         return res.json({
           success: true,
-          message: "No pending clips to schedule. Run the clip pipeline first.",
+          message: "No ready clips to schedule. Run the clip pipeline first.",
           scheduled: 0,
         });
       }
@@ -389,7 +389,7 @@ export function registerClipRoutes(app: Express) {
             ),
           );
 
-        const pending = allClips.filter((c) => c.status === "pending").length;
+        const pending = allClips.filter((c) => c.status === "pending" || c.status === "ai_ready").length;
         const scheduledCount = allClips.filter((c) => c.status === "scheduled").length;
         const published = allClips.filter((c) => c.status === "published").length;
         const avgScore =

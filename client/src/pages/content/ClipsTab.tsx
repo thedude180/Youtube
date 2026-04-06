@@ -370,9 +370,9 @@ export default function ClipsTab() {
                               <span className="text-sm font-medium truncate">{clip.title}</span>
                               <Badge
                                 variant={clip.status === "scheduled" ? "default" : clip.status === "published" ? "secondary" : "outline"}
-                                className="text-xs shrink-0"
+                                className={`text-xs shrink-0 ${clip.status === "ai_ready" ? "border-green-500/50 text-green-400" : ""}`}
                               >
-                                {clip.status}
+                                {clip.status === "ai_ready" ? "AI Ready" : clip.status}
                               </Badge>
                             </div>
                             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
@@ -391,7 +391,7 @@ export default function ClipsTab() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            {clip.status === "pending" && (
+                            {(clip.status === "pending" || clip.status === "ai_ready") && (
                               <Button
                                 size="icon"
                                 variant="ghost"

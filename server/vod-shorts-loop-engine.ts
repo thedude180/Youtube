@@ -273,14 +273,16 @@ async function runShortsExtraction(userId: string): Promise<any> {
       const shorts = extraction.shorts || [];
 
       for (const short of shorts) {
+        const startT = Math.max(0, short.startTimeSec || 0);
+        const endT = Math.max(startT + 3, short.endTimeSec || 60);
         await db.insert(contentClips).values({
           userId,
           sourceVideoId: video.id,
           title: short.title || `Short from ${video.title}`,
           clipType: "short",
-          status: "pending",
-          startTime: short.startTimeSec || 0,
-          endTime: short.endTimeSec || 60,
+          status: "ai_ready",
+          startTime: startT,
+          endTime: endT,
           metadata: { hookLine: short.hookLine, viralScore: short.viralScore, platform: short.platform, autoExtracted: true },
         });
         shortsCreated++;
@@ -295,7 +297,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
 
 async function runCrossPlatformDistribution(userId: string): Promise<any> {
   const pendingClips = await db.select().from(contentClips)
-    .where(and(eq(contentClips.userId, userId), eq(contentClips.status, "pending"), eq(contentClips.clipType, "short")))
+    .where(and(eq(contentClips.userId, userId), inArray(contentClips.status, ["pending", "ai_ready"]), eq(contentClips.clipType, "short")))
     .limit(5);
 
   const connectedPlatforms = await db.select({ platform: channels.platform })

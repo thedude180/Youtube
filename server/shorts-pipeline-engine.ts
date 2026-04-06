@@ -4,6 +4,7 @@ import { db } from "./db";
 import { pipelineRuns, clipViralityScores, contentClips } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
+import { fetchYouTubeTranscript } from "./youtube";
 
 const openai = getOpenAIClient();
 
@@ -209,6 +210,19 @@ export async function extractClipsFromVideo(
 
   const retentionContext = await getRetentionBeatsPromptContext(userId);
 
+  let transcriptSection = "";
+  const youtubeId = video.youtubeId || (video.metadata as any)?.youtubeId;
+  if (youtubeId) {
+    try {
+      const transcript = await fetchYouTubeTranscript(youtubeId);
+      if (transcript) {
+        const lines = transcript.split("\n");
+        const truncated = lines.length > 300 ? lines.slice(0, 300).join("\n") + "\n... [truncated]" : transcript;
+        transcriptSection = `\nTranscript (timestamped):\n${truncated}\n\nIMPORTANT: Use the transcript timestamps to identify EXACT clip start/end times. Pick moments where the spoken content is most engaging, surprising, or valuable.\n`;
+      }
+    } catch {}
+  }
+
   const prompt = `You are a viral shorts/clips extraction expert using proven retention science. Analyze this video and identify 3-8 clip-worthy moments that would perform well as short-form content on TikTok, YouTube Shorts, and Instagram Reels.
 
 Video Title: "${video.title}"
@@ -218,6 +232,7 @@ Views: ${views}
 Tags: ${tags}
 Type: ${video.type}
 Platform: ${video.platform || "youtube"}
+${transcriptSection}
 ${retentionContext}
 
 Apply retention beats to every clip — hook in frame 1, escalation by second 5, payoff before the clip ends.
@@ -285,21 +300,28 @@ TikTok-specific optimization (for clips targeting tiktok):
     const createdClips: any[] = [];
 
     for (const clip of clips) {
+      const rawStart = Number(clip.startTime) || 0;
+      const rawEnd = Number(clip.endTime) || 30;
+      const startTime = Math.max(0, rawStart);
+      const endTime = rawEnd > startTime ? rawEnd : startTime + 30;
+
       const created = await storage.createContentClip({
         userId,
         sourceVideoId: videoId,
         title: clip.title || "Untitled Clip",
         description: clip.description || "",
-        startTime: clip.startTime ?? 0,
-        endTime: clip.endTime ?? 30,
+        startTime,
+        endTime,
         targetPlatform: clip.targetPlatform || "tiktok",
-        status: "pending",
-        optimizationScore: clip.viralScore ?? 50,
+        status: "ai_ready",
+        optimizationScore: Math.min(100, Math.max(0, clip.viralScore ?? 50)),
         metadata: {
           tags: clip.tags || [],
           thumbnailPrompt: clip.thumbnailPrompt || "",
           format: clip.format || "vertical",
           aspectRatio: clip.aspectRatio || "9:16",
+          hook: clip.hook || "",
+          hasTranscript: !!transcriptSection,
         },
       });
 

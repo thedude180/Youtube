@@ -775,6 +775,73 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
   }
 }
 
+const TRANSCRIPT_TIMEOUT_MS = 15_000;
+
+export async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const ac1 = new AbortController();
+    const t1 = setTimeout(() => ac1.abort(), TRANSCRIPT_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(watchUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept-Language": "en-US,en;q=0.9" },
+        signal: ac1.signal,
+      });
+    } finally { clearTimeout(t1); }
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const captionMatch = html.match(/"captions":\s*(\{.*?"playerCaptionsTracklistRenderer".*?\})\s*,\s*"videoDetails"/s);
+    if (!captionMatch) return null;
+
+    let captionData: any;
+    try {
+      captionData = JSON.parse(captionMatch[1]);
+    } catch {
+      return null;
+    }
+
+    const tracks = captionData?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!Array.isArray(tracks) || tracks.length === 0) return null;
+
+    const enTrack = tracks.find((t: any) => t.languageCode === "en") ||
+                    tracks.find((t: any) => t.languageCode?.startsWith("en")) ||
+                    tracks[0];
+    if (!enTrack?.baseUrl) return null;
+
+    const ac2 = new AbortController();
+    const t2 = setTimeout(() => ac2.abort(), TRANSCRIPT_TIMEOUT_MS);
+    let captionRes: Response;
+    try {
+      captionRes = await fetch(enTrack.baseUrl + "&fmt=srv3", {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        signal: ac2.signal,
+      });
+    } finally { clearTimeout(t2); }
+    if (!captionRes.ok) return null;
+    const xml = await captionRes.text();
+
+    const segments: string[] = [];
+    const textMatches = xml.matchAll(/<text[^>]*start="([^"]*)"[^>]*dur="([^"]*)"[^>]*>([\s\S]*?)<\/text>/g);
+    for (const m of textMatches) {
+      const startSec = parseFloat(m[1]);
+      const text = m[3].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<[^>]+>/g, "").trim();
+      if (text) {
+        const mins = Math.floor(startSec / 60);
+        const secs = Math.floor(startSec % 60);
+        segments.push(`[${mins}:${String(secs).padStart(2, "0")}] ${text}`);
+      }
+    }
+
+    if (segments.length === 0) return null;
+    return segments.join("\n");
+  } catch (err: any) {
+    console.error(`[YouTube] Transcript fetch failed for ${videoId}:`, err.message);
+    return null;
+  }
+}
+
 function parseDuration(iso: string): number {
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!match) return 0;

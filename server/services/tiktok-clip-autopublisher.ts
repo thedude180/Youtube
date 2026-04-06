@@ -48,15 +48,15 @@ async function publishPendingClips(userId: string): Promise<void> {
   const pending = allClips.filter(
     (c: any) =>
       (c.targetPlatform === "tiktok" || c.platform === "tiktok") &&
-      c.status === "pending"
+      (c.status === "pending" || c.status === "ai_ready")
   ).slice(0, MAX_CLIPS_PER_RUN);
 
   if (pending.length === 0) {
-    logger.info(`[${userId}] No pending TikTok clips`);
+    logger.info(`[${userId}] No ready TikTok clips`);
     return;
   }
 
-  logger.info(`[${userId}] Publishing ${pending.length} pending TikTok clip(s)`);
+  logger.info(`[${userId}] Publishing ${pending.length} ready TikTok clip(s)`);
 
   const { publishClipToTikTok } = await import("../tiktok-publisher");
 

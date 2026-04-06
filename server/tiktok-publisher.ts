@@ -386,7 +386,7 @@ export async function publishVideoToTikTok(
     const matchingClip = clips.find(c =>
       c.sourceVideoId === sourceVideoId &&
       c.targetPlatform === "tiktok" &&
-      c.status === "pending"
+      (c.status === "pending" || c.status === "ai_ready")
     );
 
     if (matchingClip) {
