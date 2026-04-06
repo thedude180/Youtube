@@ -649,11 +649,13 @@ export default function StreamCenter() {
   const { data: multistreamStatus, refetch: refetchMultistream } = useQuery<any>({
     queryKey: ["/api/multistream/status"],
     refetchInterval: 8_000,
+    enabled: isActiveMode,
   });
 
   const { data: relayDestData } = useQuery<any>({
     queryKey: ["/api/multistream/destinations"],
     refetchInterval: 30_000,
+    enabled: isActiveMode,
   });
   const relayDests: any[] = relayDestData?.destinations ?? [];
 
@@ -661,6 +663,7 @@ export default function StreamCenter() {
     queryKey: ["/api/stream/unedited-vods"],
     refetchInterval: 5 * 60_000,
     staleTime: 2 * 60_000,
+    enabled: isActiveMode,
   });
 
   const markUploadedMutation = useMutation({
