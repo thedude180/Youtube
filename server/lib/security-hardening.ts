@@ -174,10 +174,12 @@ export function idempotencyGuard() {
   const seen = new Map<string, { timestamp: number; response: any }>();
 
   setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of Array.from(seen)) {
-      if (now - entry.timestamp > 300000) seen.delete(key);
-    }
+    try {
+      const now = Date.now();
+      for (const [key, entry] of Array.from(seen)) {
+        if (now - entry.timestamp > 300000) seen.delete(key);
+      }
+    } catch {}
   }, 60000);
 
   return (req: Request, res: Response, next: NextFunction) => {

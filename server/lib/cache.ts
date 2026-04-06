@@ -14,7 +14,7 @@ export class SimpleCache {
   constructor(maxSize = 100) {
     this.maxSize = maxSize;
     import("../services/cleanup-coordinator").then(m => m.registerCleanup("simpleCache", () => this.cleanup(), 60_000)).catch(() => {
-      setInterval(() => this.cleanup(), 60_000);
+      setInterval(() => { try { this.cleanup(); } catch {} }, 60_000);
     });
   }
 

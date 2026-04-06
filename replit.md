@@ -88,10 +88,10 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 - Platform connections show "configured: true" but no channels linked until user actually completes OAuth flow — this is expected startup state.
 
 ## Bugs Fixed in Deep Audit (Post-Phase 0)
-1. **max_completion_tokens exceeding model limit**: 14 files had values of 40,000-60,000 (gpt-4o-mini max: 16,384). Reduced to 16,000.
-2. **Deprecated max_tokens → max_completion_tokens**: Migrated 25 files (all OpenAI calls) to modern parameter name. Claude calls correctly kept as max_tokens.
-3. **channels.title → channels.channelName**: Fixed 2 services (live-raid-scout, live-revenue-activator) referencing non-existent column.
-4. **Unprotected async routes**: Wrapped 9 bare async handlers in automation.ts with try/catch.
+1. **max_completion_tokens exceeding model limit**: 16 files total had values 16,384-60,000 (gpt-4o-mini max: 16,384). All reduced to 16,000.
+2. **Deprecated max_tokens → max_completion_tokens**: Migrated 25+ files (all OpenAI calls) to modern parameter name. Claude calls correctly kept as max_tokens.
+3. **channels.title → channels.channelName**: Fixed 3 services (live-raid-scout, live-revenue-activator, ai-team-engine getChannelContext).
+4. **Unprotected async routes**: Wrapped 9 bare handlers in automation.ts + 40+ in settings.ts with asyncHandler.
 5. **AI call error handling**: Added try/catch to executeAgentTask (ai-team-engine) and runEngineWithAI (autonomy-controller).
 6. **Thumbnail compression order**: Auto-thumbnail now compresses BEFORE checking 2MB limit.
 7. **Job queue deduplication**: Returns -1 instead of throwing on duplicate dedupe_key.
@@ -99,6 +99,15 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 9. **Stripe init**: Downgraded expected "connection not found" from error to warning.
 10. **Database indexes**: Added 8 missing indexes on status/platform columns (community_posts, content_ideas, growth_strategies, revenue_sync_log, platform_health).
 11. **Frontend loading states**: Added skeleton states to ContentStatsStrip and StreamQualityBrief.
+12. **Background timer safety**: Added try/catch to cache cleanup interval and idempotency guard cleanup interval.
+
+## Architecture Audit Findings (Verified Safe)
+- **Global async route protection**: `createAsyncSafeApp()` in security-hardening.ts wraps ALL Express route handlers with try/catch automatically. Individual asyncHandler wrapping is belt-and-suspenders.
+- **Global error handler**: `globalErrorHandler` middleware at end of route chain catches any errors that slip through.
+- **contentId text columns**: Intentionally text (stores external YouTube video IDs like "dQw4w9WgXcQ"), NOT internal integer FKs.
+- **streamDetectionLog.videoId text**: Same — stores external YouTube video ID strings.
+- **Background intervals in index.ts**: Tracked in `backgroundIntervals` array, cleared during shutdown sequence.
+- **Cron jobs**: All managed by automation-engine.ts with `withCronLock` + `selfHealingCore` wrapper.
 
 ## Bugs Fixed in Phase 0
 1. gpt-5-mini → gpt-4o-mini (37 files)

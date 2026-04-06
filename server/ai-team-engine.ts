@@ -1251,7 +1251,7 @@ async function getChannelContext(ownerId: string): Promise<string> {
 
   let ctx = "";
   if (channel) {
-    ctx += `Channel: ${channel.title || "Unnamed"}, Subscribers: ${channel.subscriberCount || 0}, Views: ${channel.viewCount || 0}. `;
+    ctx += `Channel: ${channel.channelName || "Unnamed"}, Subscribers: ${channel.subscriberCount || 0}, Views: ${channel.viewCount || 0}. `;
   }
   if (recentVideos.length > 0) {
     ctx += `Recent videos: ${recentVideos.map(v => `"${v.title}" (${v.viewCount || 0} views, ${v.likeCount || 0} likes)`).join("; ")}. `;

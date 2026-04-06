@@ -27,14 +27,14 @@ export function registerSettingsRoutes(app: Express) {
   const deleteRateLimit = rateLimitEndpoint(10, 60000);
   const bulkRateLimit = rateLimitEndpoint(5, 60000);
 
-  app.get("/api/settings/wellness", async (req, res) => {
+  app.get("/api/settings/wellness", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const user = await storage.getUser(userId);
     res.json(user?.userPreferences?.wellness || {});
-  });
+  }));
 
-  app.post("/api/settings/wellness", writeRateLimit, async (req, res) => {
+  app.post("/api/settings/wellness", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -58,16 +58,16 @@ export function registerSettingsRoutes(app: Express) {
     
     await storage.updateUserProfile(userId, { userPreferences: updatedPrefs } as any);
     res.json(updatedPrefs.wellness);
-  });
+  }));
 
-  app.get("/api/settings/accessibility", async (req, res) => {
+  app.get("/api/settings/accessibility", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const user = await storage.getUser(userId);
     res.json(user?.userPreferences?.accessibility || {});
-  });
+  }));
 
-  app.post("/api/settings/accessibility", writeRateLimit, async (req, res) => {
+  app.post("/api/settings/accessibility", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -94,18 +94,18 @@ export function registerSettingsRoutes(app: Express) {
 
     await storage.updateUserProfile(userId, { userPreferences: updatedPrefs } as any);
     res.json(updatedPrefs.accessibility);
-  });
+  }));
 
-  app.get("/api/notifications", async (req, res) => {
+  app.get("/api/notifications", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const notifications = await cached(`notifications:${userId}`, 5, async () => {
       return storage.getNotifications(userId);
     });
     res.json(notifications);
-  });
+  }));
 
-  app.get("/api/notifications/unread-count", async (req, res) => {
+  app.get("/api/notifications/unread-count", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const result = await cached(`notifications-unread:${userId}`, 5, async () => {
@@ -113,48 +113,48 @@ export function registerSettingsRoutes(app: Express) {
       return { count };
     });
     res.json(result);
-  });
+  }));
 
-  app.post("/api/notifications/:id/read", writeRateLimit, async (req, res) => {
+  app.post("/api/notifications/:id/read", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     await storage.markRead(id);
     res.json({ success: true });
-  });
+  }));
 
-  app.post("/api/notifications/read-all", writeRateLimit, async (req, res) => {
+  app.post("/api/notifications/read-all", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
     res.json({ success: true });
-  });
+  }));
 
-  app.post("/api/notifications/mark-all-read", writeRateLimit, async (req, res) => {
+  app.post("/api/notifications/mark-all-read", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
     res.json({ success: true });
-  });
+  }));
 
-  app.delete("/api/notifications/:id", writeRateLimit, async (req, res) => {
+  app.delete("/api/notifications/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     await storage.deleteNotification(id, userId);
     res.json({ success: true });
-  });
+  }));
 
-  app.delete("/api/notifications", writeRateLimit, async (req, res) => {
+  app.delete("/api/notifications", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.deleteAllRead(userId);
     res.json({ success: true });
-  });
+  }));
 
-  app.get("/api/notifications/preferences", async (req, res) => {
+  app.get("/api/notifications/preferences", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -173,9 +173,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (err) {
       res.status(500).json({ error: "Failed to get notification preferences" });
     }
-  });
+  }));
 
-  app.put("/api/notifications/preferences", writeRateLimit, async (req, res) => {
+  app.put("/api/notifications/preferences", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -198,9 +198,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (err) {
       res.status(500).json({ error: "Failed to update notification preferences" });
     }
-  });
+  }));
 
-  app.post("/api/notifications/test-discord-webhook", writeRateLimit, async (req, res) => {
+  app.post("/api/notifications/test-discord-webhook", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -230,9 +230,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (err: any) {
       res.status(500).json({ success: false, error: "Failed to test Discord webhook" });
     }
-  });
+  }));
 
-  app.post("/api/style-scan/:channelId", writeRateLimit, async (req, res) => {
+  app.post("/api/style-scan/:channelId", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Style Scanner");
     if (!userId) return;
     try {
@@ -252,31 +252,31 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Style scan error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/creator-memory", async (req, res) => {
+  app.get("/api/creator-memory", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "ultimate", "Creator Memory");
     if (!userId) return;
     const memoryType = req.query.type as string | undefined;
     const memories = await storage.getCreatorMemory(userId, memoryType);
     res.json(memories);
-  });
+  }));
 
-  app.get("/api/learning-insights", async (req, res) => {
+  app.get("/api/learning-insights", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const insights = await storage.getLearningInsights(userId);
     res.json(insights);
-  });
+  }));
 
-  app.get("/api/brand-assets", async (req, res) => {
+  app.get("/api/brand-assets", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const assets = await storage.getBrandAssets(userId);
     res.json(assets);
-  });
+  }));
 
-  app.post("/api/brand-assets", writeRateLimit, async (req, res) => {
+  app.post("/api/brand-assets", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -292,9 +292,9 @@ export function registerSettingsRoutes(app: Express) {
     }
     const asset = await storage.createBrandAsset({ ...parsed.data, userId } as any);
     res.status(201).json(asset);
-  });
+  }));
 
-  app.put("/api/brand-assets/:id", writeRateLimit, async (req, res) => {
+  app.put("/api/brand-assets/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -312,9 +312,9 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const asset = await storage.updateBrandAsset(id, parsed.data);
     res.json(asset);
-  });
+  }));
 
-  app.delete("/api/brand-assets/:id", deleteRateLimit, async (req, res) => {
+  app.delete("/api/brand-assets/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -323,16 +323,16 @@ export function registerSettingsRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteBrandAsset(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get("/api/competitors", async (req, res) => {
+  app.get("/api/competitors", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const competitors = await storage.getCompetitorTracks(userId);
     res.json(competitors);
-  });
+  }));
 
-  app.post("/api/competitors", writeRateLimit, async (req, res) => {
+  app.post("/api/competitors", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -348,9 +348,9 @@ export function registerSettingsRoutes(app: Express) {
     }
     const competitor = await storage.createCompetitorTrack({ ...parsed.data, userId } as any);
     res.status(201).json(competitor);
-  });
+  }));
 
-  app.put("/api/competitors/:id", writeRateLimit, async (req, res) => {
+  app.put("/api/competitors/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -368,9 +368,9 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const competitor = await storage.updateCompetitorTrack(id, parsed.data);
     res.json(competitor);
-  });
+  }));
 
-  app.delete("/api/competitors/:id", deleteRateLimit, async (req, res) => {
+  app.delete("/api/competitors/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -379,16 +379,16 @@ export function registerSettingsRoutes(app: Express) {
     if (!existing) return res.status(404).json({ error: "Not found" });
     await storage.deleteCompetitorTrack(id);
     res.sendStatus(204);
-  });
+  }));
 
-  app.get("/api/knowledge", async (req, res) => {
+  app.get("/api/knowledge", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const milestones = await storage.getKnowledgeMilestones(userId);
     res.json(milestones);
-  });
+  }));
 
-  app.post("/api/knowledge", writeRateLimit, async (req, res) => {
+  app.post("/api/knowledge", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -404,9 +404,9 @@ export function registerSettingsRoutes(app: Express) {
     }
     const milestone = await storage.createKnowledgeMilestone({ ...parsed.data, userId } as any);
     res.status(201).json(milestone);
-  });
+  }));
 
-  app.put("/api/knowledge/:id", writeRateLimit, async (req, res) => {
+  app.put("/api/knowledge/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
@@ -424,9 +424,9 @@ export function registerSettingsRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const milestone = await storage.updateKnowledgeMilestone(id, parsed.data);
     res.json(milestone);
-  });
+  }));
 
-  app.get("/api/learning/briefing", async (req, res) => {
+  app.get("/api/learning/briefing", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -436,9 +436,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/learning/health-score", async (req, res) => {
+  app.get("/api/learning/health-score", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -448,9 +448,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/learning/action-items", async (req, res) => {
+  app.get("/api/learning/action-items", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -460,9 +460,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/learning/agent-scorecard", writeRateLimit, async (req, res) => {
+  app.post("/api/learning/agent-scorecard", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -478,9 +478,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/learning/growth-predictions", async (req, res) => {
+  app.get("/api/learning/growth-predictions", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -490,9 +490,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/learning/content-dna", async (req, res) => {
+  app.get("/api/learning/content-dna", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -502,9 +502,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/learning/skill-progress", async (req, res) => {
+  app.get("/api/learning/skill-progress", asyncHandler(async (req, res) => {
     const gate = EMPIRE_TIER_GATES["skill-progress"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
@@ -523,9 +523,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/learning/youtube-research", writeRateLimit, async (req, res) => {
+  app.post("/api/learning/youtube-research", writeRateLimit, asyncHandler(async (req, res) => {
     const gate = EMPIRE_TIER_GATES["youtube-research"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
@@ -541,9 +541,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/learning/analyze-video", writeRateLimit, async (req, res) => {
+  app.post("/api/learning/analyze-video", writeRateLimit, asyncHandler(async (req, res) => {
     const gate = EMPIRE_TIER_GATES["analyze-video"];
     const userId = await requireTier(req, res, gate.minTier, gate.label);
     if (!userId) return;
@@ -559,9 +559,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/growth-programs", async (req, res) => {
+  app.get("/api/growth-programs", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -572,9 +572,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Growth programs error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/recommendations", writeRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/recommendations", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Growth Programs");
     if (!userId) return;
     try {
@@ -584,9 +584,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Growth recommendations error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put("/api/growth-programs/:id/metrics", writeRateLimit, async (req, res) => {
+  app.put("/api/growth-programs/:id/metrics", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -607,9 +607,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Update metrics error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/:id/auto-apply", writeRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/:id/auto-apply", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({ enabled: z.boolean() });
@@ -625,9 +625,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Auto-apply toggle error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/:id/application-status", writeRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/:id/application-status", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const schema = z.object({
@@ -645,9 +645,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Application status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/:id/generate-guide", writeRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/:id/generate-guide", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -671,9 +671,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Guide generation error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/enable-all-auto-apply", bulkRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/enable-all-auto-apply", bulkRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -686,9 +686,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Enable all auto-apply error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/growth-programs/:id/activate-monetization", writeRateLimit, async (req, res) => {
+  app.post("/api/growth-programs/:id/activate-monetization", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -701,9 +701,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Activate monetization error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/growth-programs/compliance", async (req, res) => {
+  app.get("/api/growth-programs/compliance", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -713,9 +713,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Compliance check error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/settings/preset", async (req, res) => {
+  app.get("/api/settings/preset", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -728,9 +728,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch {
       res.json({ preset: "normal" });
     }
-  });
+  }));
 
-  app.post("/api/settings/preset", writeRateLimit, async (req, res) => {
+  app.post("/api/settings/preset", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -747,11 +747,11 @@ export function registerSettingsRoutes(app: Express) {
       if (err?.issues) return res.status(400).json({ error: "Invalid preset value" });
       res.status(500).json({ error: "Failed to save preset" });
     }
-  });
+  }));
 
   const exportRateLimit = new Map<string, number>();
 
-  app.post("/api/settings/export-data", async (req, res) => {
+  app.post("/api/settings/export-data", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -790,9 +790,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Data export error:", e);
       res.status(500).json({ error: "Failed to export data. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/settings/request-deletion", deleteRateLimit, async (req, res) => {
+  app.post("/api/settings/request-deletion", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -818,9 +818,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("Deletion request error:", e);
       res.status(500).json({ error: "Failed to process deletion request. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/business-details", async (req, res) => {
+  app.get("/api/business-details", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -829,9 +829,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/business-details", writeRateLimit, async (req, res) => {
+  app.post("/api/business-details", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -856,9 +856,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.put("/api/business-details/steps", writeRateLimit, async (req, res) => {
+  app.put("/api/business-details/steps", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -873,9 +873,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.get("/api/wellness", async (req, res) => {
+  app.get("/api/wellness", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -884,9 +884,9 @@ export function registerSettingsRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
-  app.post("/api/wellness", writeRateLimit, async (req, res) => {
+  app.post("/api/wellness", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -908,11 +908,11 @@ export function registerSettingsRoutes(app: Express) {
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
-  });
+  }));
 
   const CHECKLIST_STEP_IDS = ['connect_youtube', 'connect_platform', 'set_niche', 'enable_autopilot', 'first_content'];
 
-  app.get("/api/onboarding/checklist", async (req, res) => {
+  app.get("/api/onboarding/checklist", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
@@ -966,9 +966,9 @@ export function registerSettingsRoutes(app: Express) {
       console.error("[Onboarding] Checklist fetch error:", error);
       res.status(500).json({ message: "Failed to fetch checklist" });
     }
-  });
+  }));
 
-  app.post("/api/onboarding/checklist/:stepId/complete", writeRateLimit, async (req, res) => {
+  app.post("/api/onboarding/checklist/:stepId/complete", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const { stepId } = req.params;
@@ -996,7 +996,7 @@ export function registerSettingsRoutes(app: Express) {
       console.error("[Onboarding] Step complete error:", error);
       res.status(500).json({ message: "Failed to mark step complete" });
     }
-  });
+  }));
 
   app.get("/api/agents/status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);

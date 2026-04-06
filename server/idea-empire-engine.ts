@@ -33,7 +33,7 @@ async function aiGenerate(prompt: string): Promise<any> {
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16384,
+    max_completion_tokens: 16000,
   });
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI");
