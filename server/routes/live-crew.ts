@@ -35,7 +35,7 @@ import {
 const router = Router();
 
 function getUserId(req: Request): string | null {
-  return (req as any).user?.id || (req as any).userId || null;
+  return (req as any).user?.claims?.sub || (req as any).user?.id || (req as any).userId || null;
 }
 
 router.post("/session/start", async (req: Request, res: Response) => {

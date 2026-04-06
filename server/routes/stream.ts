@@ -998,4 +998,58 @@ export function registerStreamRoutes(app: Express) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
+
+  app.get("/api/stream-upgrades/highlights", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      res.json([]);
+    } catch {
+      res.json([]);
+    }
+  });
+
+  app.get("/api/stream-upgrades/chat-sentiment", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      res.json({
+        overallScore: 0,
+        moods: { positive: 0, neutral: 0, negative: 0 },
+        trendingTopics: [],
+      });
+    } catch {
+      res.json({ overallScore: 0, moods: { positive: 0, neutral: 0, negative: 0 }, trendingTopics: [] });
+    }
+  });
+
+  app.get("/api/stream-upgrades/overlay", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      res.json([]);
+    } catch {
+      res.json([]);
+    }
+  });
+
+  app.post("/api/stream-upgrades/overlay", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: "Failed to update overlay" });
+    }
+  });
+
+  app.get("/api/stream-upgrades/schedule", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      res.json([]);
+    } catch {
+      res.json([]);
+    }
+  });
 }

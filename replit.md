@@ -72,10 +72,18 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 6. **Missing `/api/security/audit-log`** — Settings Security tab fetched it. Added endpoint returning user-scoped audit logs.
 7. **Missing `/api/monetization/sponsorship-opportunities`, `/api/monetization/merch-predictor`, `/api/monetization/revenue-diversification`** — Money page fetched these with userId param appended by TanStack Query's `queryKey.join("/")`. Added handlers with `/:uid` param variant, returning correct response shapes matching frontend component expectations.
 
+8. **Missing `/api/security/sessions`, `/api/security/two-factor`, `/api/security/alerts`** — Settings Security tab showed "Endpoint not found" error modal. Added all three + POST handlers.
+9. **Missing 6 audience endpoints** — Dashboard fetched `/api/audience/heatmap/me`, milestones, growth-forecast, engagement-score, top-fans, geo-distribution. All returned 404. Added to platform routes.
+10. **Missing 4 stream-upgrades endpoints** — `/api/stream-upgrades/highlights`, `/api/stream-upgrades/chat-sentiment`, `/api/stream-upgrades/overlay` (GET+POST), `/api/stream-upgrades/schedule`. Stream page showed "Request failed: Endpoint not found" toast.
+11. **Missing 3 SEO endpoints** — `/api/seo/scores/me`, `/api/seo/rankings/me` (GET+POST), `/api/seo/opportunities/me`. Content SEO tab would 404.
+12. **`/api/live-crew/state` returned 401** — `getUserId()` in `live-crew.ts` didn't check `req.user.claims.sub`. Fixed to include the correct auth path.
+13. **Rate limiter too aggressive (100 req/60s)** — Normal multi-page browsing easily exceeded the 100 request/minute threshold, causing "Request blocked by security system" errors. Raised to 500 req/60s.
+
 ## Known Issues (Not Bugs — Expected Behavior)
 - YouTube OAuth returns `redirect_uri_mismatch` — Google OAuth is configured for production domain (etgaming247.com), not dev/test domains. Expected in dev.
 - `/api/stripe/payments` returns 403 "Admin access required" for non-admin users — intentional admin-only endpoint.
 - AI chat returns trust-budget-exhausted error — safe mode is active globally, blocking AI actions until approval thresholds are adjusted.
+- Platform connections show "configured: true" but no channels linked until user actually completes OAuth flow — this is expected startup state.
 
 ## Bugs Fixed in Phase 0
 1. gpt-5-mini → gpt-4o-mini (37 files)

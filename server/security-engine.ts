@@ -14,7 +14,7 @@ registerMap("ipRequestMap", ipRequestMap, 500);
 
 const BRUTE_FORCE_THRESHOLD = 5;
 const BRUTE_FORCE_WINDOW_MS = 5 * 60 * 1000;
-const RATE_ABUSE_THRESHOLD = 100;
+const RATE_ABUSE_THRESHOLD = 500;
 const RATE_ABUSE_WINDOW_MS = 60 * 1000;
 const BLOCKED_IP_THRESHOLD = 10;
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
