@@ -339,7 +339,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: `You are a sponsorship matching AI. Find 5 brand sponsor matches for a creator with ${totalSubs} subscribers across ${platforms.join(", ")}. Niche: ${niches.join(", ") || "general"}. Return JSON: {"matches":[{"brand":"name","fitScore":0-100,"estimatedValue":number,"contactInfo":"email or site","reasoning":"why they match"}]}` }],
-        response_format: { type: "json_object" }, max_tokens: 800, temperature: 0.7,
+        response_format: { type: "json_object" }, max_completion_tokens: 800, temperature: 0.7,
       });
       const content = completion.choices[0]?.message?.content;
       let parsed = { matches: [] };

@@ -118,7 +118,7 @@ export class CommunityAutoManager {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 300
+        max_completion_tokens: 300
       });
 
       const content = response.choices[0].message.content?.trim();
@@ -252,7 +252,7 @@ export class CommunityAutoManager {
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        max_tokens: 300
+        max_completion_tokens: 300
       });
 
       const pollData = JSON.parse(response.choices[0].message.content || "{}");

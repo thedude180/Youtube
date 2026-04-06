@@ -140,7 +140,7 @@ export async function executeRoutedAICall(
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
       model: routing.model,
-      max_tokens: routing.maxTokens,
+      max_completion_tokens: routing.maxTokens,
       temperature: routing.temperature,
       messages: [
         { role: "system", content: systemPrompt },

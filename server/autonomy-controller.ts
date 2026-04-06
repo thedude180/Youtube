@@ -113,15 +113,20 @@ async function runEngineWithAI(engineName: string, userId: string): Promise<{ ac
 
   const prompt = enginePrompts[engineName] || "Analyze creator status. Return JSON: {status, recommendations:[], actionsToTake:[]}";
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You are an autonomous AI engine for a content creator platform. Analyze and make decisions to optimize growth, engagement, and revenue. Always respond with valid JSON only." },
-      { role: "user", content: prompt }
-    ],
-    response_format: { type: "json_object" },
-    max_tokens: 500,
-  });
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are an autonomous AI engine for a content creator platform. Analyze and make decisions to optimize growth, engagement, and revenue. Always respond with valid JSON only." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 500,
+    });
+  } catch (aiErr: any) {
+    throw new Error(`AI call failed for engine ${engineName}: ${aiErr.message}`);
+  }
 
   const resultText = response.choices[0]?.message?.content || "{}";
   let result: any;

@@ -199,7 +199,7 @@ Only include rules that are DIFFERENT from or NOT IN the existing rules. If all 
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 2000,
+        max_completion_tokens: 2000,
       });
 
       const content = response.choices?.[0]?.message?.content;

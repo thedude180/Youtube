@@ -85,7 +85,7 @@ async function callModel(
   const client = getOpenAIClient();
   const response = await client.chat.completions.create({
     model: entry.model,
-    max_tokens: maxTokens,
+    max_completion_tokens: maxTokens,
     temperature,
     messages: [
       { role: "system", content: systemPrompt },

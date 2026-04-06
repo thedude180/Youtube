@@ -101,7 +101,7 @@ Response: just the prompt, no extra text, under 15 words.`;
     const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 40,
+      max_completion_tokens: 40,
     });
     return res.choices[0]?.message?.content?.trim() || "Ask chat a question!";
   } catch {

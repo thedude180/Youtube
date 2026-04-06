@@ -176,7 +176,7 @@ async function runAICopyrightReview(
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
-    max_tokens: 800,
+    max_completion_tokens: 800,
     temperature: 0.1,
     messages: [
       {

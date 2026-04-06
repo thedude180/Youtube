@@ -137,7 +137,7 @@ async function detectGameName(title: string, description: string): Promise<strin
         { role: "system", content: "Extract the PS5 game name from this video title and description. Return ONLY the game name as a plain string. If unknown, return 'Gaming'." },
         { role: "user", content: `Title: ${title}\nDescription: ${(description || "").slice(0, 300)}` },
       ],
-      max_tokens: 30,
+      max_completion_tokens: 30,
     });
     const game = resp.choices[0]?.message?.content?.trim() || "Gaming";
     return game.replace(/['"]/g, "").slice(0, 60);
@@ -196,7 +196,7 @@ Return ONLY valid JSON array:
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_tokens: 800,
+      max_completion_tokens: 800,
     });
 
     const content = resp.choices[0]?.message?.content || "{}";
@@ -351,7 +351,7 @@ Return JSON: {"title": "...", "description": "...", "tags": ["..."]}`;
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_tokens: 600,
+      max_completion_tokens: 600,
     });
     const data = JSON.parse(resp.choices[0]?.message?.content || "{}");
     const chapterBlock = "\n\nCHAPTERS:\n" + chapterLines.join("\n");

@@ -586,6 +586,7 @@ export const growthStrategies = pgTable("growth_strategies", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   channelIdIdx: index("growth_strategies_channel_id_idx").on(table.channelId),
+  statusIdx: index("growth_strategies_status_idx").on(table.status),
 }));
 
 export const aiAgentActivities = pgTable("ai_agent_activities", {
@@ -729,6 +730,8 @@ export const revenueSyncLog = pgTable("revenue_sync_log", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("revenue_sync_log_user_id_idx").on(table.userId),
+  platformIdx: index("revenue_sync_log_platform_idx").on(table.platform),
+  statusIdx: index("revenue_sync_log_status_idx").on(table.status),
 }));
 
 export const communityPosts = pgTable("community_posts", {
@@ -750,6 +753,8 @@ export const communityPosts = pgTable("community_posts", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("community_posts_user_id_idx").on(table.userId),
+  platformIdx: index("community_posts_platform_idx").on(table.platform),
+  statusIdx: index("community_posts_status_idx").on(table.status),
 }));
 
 // === NEW TABLES ===
@@ -974,6 +979,7 @@ export const contentIdeas = pgTable("content_ideas", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("content_ideas_user_id_idx").on(table.userId),
+  statusIdx: index("content_ideas_status_idx").on(table.status),
 }));
 
 export const creatorMemory = pgTable("creator_memory", {
@@ -1109,6 +1115,8 @@ export const platformHealth = pgTable("platform_health", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("platform_health_user_id_idx").on(table.userId),
+  platformIdx: index("platform_health_platform_idx").on(table.platform),
+  statusIdx: index("platform_health_status_idx").on(table.status),
 }));
 
 export const collaborationLeads = pgTable("collaboration_leads", {

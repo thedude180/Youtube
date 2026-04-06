@@ -87,6 +87,19 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 - AI chat returns trust-budget-exhausted error — safe mode is active globally, blocking AI actions until approval thresholds are adjusted.
 - Platform connections show "configured: true" but no channels linked until user actually completes OAuth flow — this is expected startup state.
 
+## Bugs Fixed in Deep Audit (Post-Phase 0)
+1. **max_completion_tokens exceeding model limit**: 14 files had values of 40,000-60,000 (gpt-4o-mini max: 16,384). Reduced to 16,000.
+2. **Deprecated max_tokens → max_completion_tokens**: Migrated 25 files (all OpenAI calls) to modern parameter name. Claude calls correctly kept as max_tokens.
+3. **channels.title → channels.channelName**: Fixed 2 services (live-raid-scout, live-revenue-activator) referencing non-existent column.
+4. **Unprotected async routes**: Wrapped 9 bare async handlers in automation.ts with try/catch.
+5. **AI call error handling**: Added try/catch to executeAgentTask (ai-team-engine) and runEngineWithAI (autonomy-controller).
+6. **Thumbnail compression order**: Auto-thumbnail now compresses BEFORE checking 2MB limit.
+7. **Job queue deduplication**: Returns -1 instead of throwing on duplicate dedupe_key.
+8. **deleteChannel cascade**: Fixed cannibalization_alerts (uses video_id_1/video_id_2, not video_id).
+9. **Stripe init**: Downgraded expected "connection not found" from error to warning.
+10. **Database indexes**: Added 8 missing indexes on status/platform columns (community_posts, content_ideas, growth_strategies, revenue_sync_log, platform_health).
+11. **Frontend loading states**: Added skeleton states to ContentStatsStrip and StreamQualityBrief.
+
 ## Bugs Fixed in Phase 0
 1. gpt-5-mini → gpt-4o-mini (37 files)
 2. deleteChannel() SQL array cast

@@ -385,7 +385,7 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
         { role: "system", content: systemPrompt },
         { role: "user", content: contextMessage },
       ],
-      max_tokens: 120,
+      max_completion_tokens: 120,
       temperature: 0.8,
     });
 

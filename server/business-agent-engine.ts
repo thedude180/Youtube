@@ -156,7 +156,7 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
         { role: "system", content: agentConfig.systemPrompt },
         { role: "user", content: "Run your autonomous business audit scan now and report your findings." },
       ],
-      max_tokens: 150,
+      max_completion_tokens: 150,
       temperature: 0.8,
     });
 

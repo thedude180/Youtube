@@ -186,7 +186,7 @@ export const streamOperator = {
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: promptWithVoice }],
-        max_tokens: 100,
+        max_completion_tokens: 100,
       });
 
       const replyText = aiResponse.choices[0].message.content?.slice(0, 200) || "";
@@ -266,7 +266,7 @@ export const streamOperator = {
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: promptWithVoice }],
-        max_tokens: 100,
+        max_completion_tokens: 100,
       });
 
       const finalMessage = aiResponse.choices[0].message.content?.slice(0, 200) || engagementMessage;
@@ -350,7 +350,7 @@ export const streamOperator = {
     const aiRes = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: promptWithVoice }],
-      max_tokens: 80,
+      max_completion_tokens: 80,
     });
 
     const message = aiRes.choices[0].message.content?.slice(0, 150) || `🎮 Still live after ${durationMin} minutes! Come join the stream!`;

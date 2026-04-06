@@ -47,7 +47,7 @@ Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16
         },
       ],
 // AUDIT FIX: Use max_tokens (standard Chat Completions parameter)
-      max_tokens: 300,
+      max_completion_tokens: 300,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {

@@ -159,7 +159,7 @@ export function registerLegalTaxRoutes(app: Express) {
           },
           { role: "user", content: message },
         ],
-        max_tokens: 800,
+        max_completion_tokens: 800,
         temperature: 0.7,
       });
 

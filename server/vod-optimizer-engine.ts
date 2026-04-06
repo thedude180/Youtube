@@ -122,7 +122,7 @@ Return ONLY valid JSON array matching this structure:
         }
       ],
       temperature: 0.8,
-      max_tokens: 3000,
+      max_completion_tokens: 3000,
     });
 
     const text = response.choices[0]?.message?.content?.trim() || "";

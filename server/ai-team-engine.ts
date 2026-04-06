@@ -1482,19 +1482,25 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     : "";
 
   const openai = getOpenAIClient();
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: agentConfig.systemPrompt },
-      {
-        role: "user",
-        content: `CHANNEL CONTEXT:\n${channelCtx}${teamCtx}${parentResult}\n\nYOUR TASK:\nTitle: ${task.title}\nType: ${task.taskType}\nAdditional Details: ${JSON.stringify(task.payload || {})}\n\nExecute this task at the highest possible level. Apply your full expertise. If your work should be followed up by a specific colleague (e.g., your research needs a script, your script needs SEO optimization), specify the handoff. Do not hand off if the task is self-contained.`
-      }
-    ],
-    temperature: 0.7,
-    max_tokens: 1500,
-    response_format: { type: "json_object" }
-  });
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: agentConfig.systemPrompt },
+        {
+          role: "user",
+          content: `CHANNEL CONTEXT:\n${channelCtx}${teamCtx}${parentResult}\n\nYOUR TASK:\nTitle: ${task.title}\nType: ${task.taskType}\nAdditional Details: ${JSON.stringify(task.payload || {})}\n\nExecute this task at the highest possible level. Apply your full expertise. If your work should be followed up by a specific colleague (e.g., your research needs a script, your script needs SEO optimization), specify the handoff. Do not hand off if the task is self-contained.`
+        }
+      ],
+      temperature: 0.7,
+      max_completion_tokens: 1500,
+      response_format: { type: "json_object" }
+    });
+  } catch (aiErr: any) {
+    console.error(`[ai-team] Agent ${task.agentRole} AI call failed:`, aiErr.message);
+    return { result: { action: task.taskType, output: `AI call failed: ${aiErr.message}`, error: true } };
+  }
 
   const content = response.choices[0]?.message?.content || "{}";
   let parsed: any;

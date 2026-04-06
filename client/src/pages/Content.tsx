@@ -36,7 +36,7 @@ const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntelligenceTab"));
 
 function ContentStatsStrip() {
-  const { data: videos } = useVideos();
+  const { data: videos, isLoading } = useVideos();
   const stats = useMemo(() => {
     if (!videos) return null;
     const vods = videos.filter(v => v.type === "vod").length;
@@ -46,6 +46,7 @@ function ContentStatsStrip() {
     return { total: videos.length, vods, shorts, published, totalViews };
   }, [videos]);
 
+  if (isLoading) return <Skeleton className="h-12 w-full rounded-xl mb-4" />;
   if (!stats) return null;
   const items = [
     { icon: Film, label: "Total Videos", value: stats.total.toLocaleString(), color: "text-primary" },

@@ -48,7 +48,7 @@ Return a JSON object where keys are platform names and values are the generated 
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
       });
 
       const captions = JSON.parse(response.choices[0].message.content || "{}");

@@ -172,19 +172,20 @@ function TaskResultModal({ task, onClose }: { task: any; onClose: () => void }) 
 }
 
 function StreamQualityBrief() {
-  const { data: streams } = useQuery<any>({
+  const { data: streams, isLoading: streamsLoading } = useQuery<any>({
     queryKey: ["/api/stream/command-center"],
     refetchInterval: 30_000,
     staleTime: 20_000,
   });
 
   const sessionId = (streams as any)?.sessionId;
-  const { data: qualityState } = useQuery<any>({
+  const { data: qualityState, isLoading: qualityLoading } = useQuery<any>({
     queryKey: ["/api/resolution/quality-state", sessionId],
     enabled: !!sessionId,
     refetchInterval: 15_000,
   });
 
+  if (streamsLoading) return null;
   if (!sessionId || !qualityState?.sourceProfile) return null;
 
   const source = qualityState.sourceProfile;
@@ -254,14 +255,14 @@ export default function TeamDashboard() {
     staleTime: 20_000,
   });
 
-  const { data: activities } = useQuery<any[]>({
+  const { data: activities, isLoading: activitiesLoading } = useQuery<any[]>({
     queryKey: ["/api/agents/activities"],
     queryFn: () => fetch("/api/agents/activities?limit=40").then(r => r.json()),
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
 
-  const { data: channels } = useQuery<any[]>({
+  const { data: channels, isLoading: channelsLoading } = useQuery<any[]>({
     queryKey: ["/api/channels"],
     refetchInterval: 5 * 60_000,
     staleTime: 4 * 60_000,

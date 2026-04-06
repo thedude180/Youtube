@@ -98,7 +98,7 @@ async function generateFullFix(
 
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_tokens: 1200,
+      max_completion_tokens: 1200,
       temperature: 0.3,
       messages: [
         {

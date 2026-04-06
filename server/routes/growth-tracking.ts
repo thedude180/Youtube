@@ -356,7 +356,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 1200,
+          max_completion_tokens: 1200,
           temperature: 0.7,
           response_format: { type: "json_object" },
         });
@@ -509,7 +509,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
 Their next milestone is ${nextMilestone.label} (${nextMilestone.threshold} subscribers, currently at ${totalSubs}).
 Return JSON: {"actions":[{"action":"specific action","priority":"high|medium|low","category":"content|seo|engagement|growth|optimization","impact":"expected impact"}]}`
           }],
-          max_tokens: 600,
+          max_completion_tokens: 600,
           temperature: 0.8,
           response_format: { type: "json_object" },
         });
@@ -630,7 +630,7 @@ Return ONLY valid JSON.`;
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 900,
+          max_completion_tokens: 900,
           temperature: 0.85,
           response_format: { type: "json_object" },
         });

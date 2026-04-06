@@ -374,7 +374,7 @@ export class DatabaseStorage implements IStorage {
         const videoIds = channelVideos.map(v => v.id);
         const videoIdArray = sql`ARRAY[${sql.join(videoIds.map(vid => sql`${vid}`), sql`, `)}]::int[]`;
         const tables = [
-          'playlist_items', 'ab_tests', 'cannibalization_alerts', 'comment_responses',
+          'playlist_items', 'ab_tests', 'comment_responses',
           'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
           'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
           'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
@@ -382,6 +382,7 @@ export class DatabaseStorage implements IStorage {
         for (const table of tables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
         }
+        await tx.execute(sql`DELETE FROM cannibalization_alerts WHERE video_id_1 = ANY(${videoIdArray}) OR video_id_2 = ANY(${videoIdArray})`);
         const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
         for (const table of srcTables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIdArray})`);
