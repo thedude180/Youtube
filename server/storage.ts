@@ -427,15 +427,19 @@ export class DatabaseStorage implements IStorage {
   async deleteVideo(id: number): Promise<void> {
     await db.transaction(async (tx) => {
       const tables = [
-        'playlist_items', 'ab_tests', 'cannibalization_alerts', 'comment_responses',
+        'playlist_items', 'ab_tests', 'comment_responses',
         'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
         'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
         'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
+        'schedule_items', 'content_kanban', 'compounding_jobs', 'copyright_claims',
+        'youtube_push_backlog', 'video_update_history', 'ab_test_results',
       ];
       for (const table of tables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ${id}`);
       }
-      const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
+      await tx.execute(sql`DELETE FROM cannibalization_alerts WHERE video_id_1 = ${id} OR video_id_2 = ${id}`);
+      const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
+        'content_atoms', 'clip_queue_items', 'moment_genome_classifications'];
       for (const table of srcTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ${id}`);
       }

@@ -14,14 +14,28 @@ export async function recordHeartbeat(engineName: string, status: "running" | "i
         lastError: error ?? (status === "error" ? existing[0].lastError : null),
       }).where(eq(engineHeartbeats.engineName, engineName));
     } else {
-      await db.insert(engineHeartbeats).values({
-        engineName,
-        status,
-        lastRunAt: new Date(),
-        lastDurationMs: durationMs,
-        failureCount: status === "error" ? 1 : 0,
-        lastError: error,
-      });
+      try {
+        await db.insert(engineHeartbeats).values({
+          engineName,
+          status,
+          lastRunAt: new Date(),
+          lastDurationMs: durationMs,
+          failureCount: status === "error" ? 1 : 0,
+          lastError: error,
+        });
+      } catch (insertErr: any) {
+        if (insertErr?.code === "23505") {
+          await db.update(engineHeartbeats).set({
+            status,
+            lastRunAt: new Date(),
+            lastDurationMs: durationMs,
+            failureCount: status === "error" ? 1 : 0,
+            lastError: error,
+          }).where(eq(engineHeartbeats.engineName, engineName));
+        } else {
+          throw insertErr;
+        }
+      }
     }
   } catch (e) {
     console.error(`[Heartbeat] Failed to record for ${engineName}:`, e);

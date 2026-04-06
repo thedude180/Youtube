@@ -128,7 +128,14 @@ Respond with JSON:
         lastAnalyzedAt: new Date(),
       }).where(eq(keywordInsights.id, existing[0].id));
     } else {
-      await db.insert(keywordInsights).values(data);
+      try {
+        await db.insert(keywordInsights).values(data);
+      } catch (e: any) {
+        if (e?.code === "23505") {
+          await db.update(keywordInsights).set({ ...data, lastAnalyzedAt: new Date() })
+            .where(and(eq(keywordInsights.userId, userId), sql`LOWER(${keywordInsights.keyword}) = LOWER(${data.keyword})`));
+        } else { throw e; }
+      }
     }
   }
 
@@ -141,20 +148,24 @@ Respond with JSON:
       .limit(1);
 
     if (existing.length === 0) {
-      await db.insert(keywordInsights).values({
-        userId,
-        keyword: opp.keyword,
-        source: "youtube",
-        score: 40,
-        totalViews: 0,
-        totalVideos: 0,
-        trend: "rising",
-        category: "opportunity",
-        metadata: {
-          relatedKeywords: [],
-          lastPerformanceCheck: new Date().toISOString(),
-        },
-      });
+      try {
+        await db.insert(keywordInsights).values({
+          userId,
+          keyword: opp.keyword,
+          source: "youtube",
+          score: 40,
+          totalViews: 0,
+          totalVideos: 0,
+          trend: "rising",
+          category: "opportunity",
+          metadata: {
+            relatedKeywords: [],
+            lastPerformanceCheck: new Date().toISOString(),
+          },
+        });
+      } catch (e: any) {
+        if (e?.code !== "23505") throw e;
+      }
     }
   }
 
