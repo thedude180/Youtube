@@ -219,7 +219,7 @@ async function startRaidSession(
 ): Promise<void> {
   if (activeSessions.has(userId)) return;
 
-  const [ch] = await db.select({ id: channels.id, title: channels.title })
+  const [ch] = await db.select({ id: channels.id, channelName: channels.channelName })
     .from(channels)
     .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
     .limit(1);
@@ -229,7 +229,7 @@ async function startRaidSession(
   const session: RaidSession = {
     userId,
     channelDbId: ch.id,
-    channelName: ch.title || "PS5 Gaming Channel",
+    channelName: ch.channelName || "PS5 Gaming Channel",
     streamTitle,
     startedAt: new Date(),
     raidList: [],

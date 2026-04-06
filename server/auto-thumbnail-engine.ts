@@ -89,24 +89,8 @@ async function generateAndUploadThumbnail(
       return false;
     }
 
-    // Pre-flight size check — YouTube rejects images > 2 MB (2097152 bytes)
-    const YOUTUBE_THUMBNAIL_LIMIT = 2_000_000; // 2 MB with margin
-    if (imageBuffer.length > YOUTUBE_THUMBNAIL_LIMIT) {
-      logger.warn("Generated thumbnail exceeds YouTube 2 MB limit — permanently skipping", { videoDbId, size: imageBuffer.length });
-      try {
-        const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
-        const existMeta = (row?.metadata as any) || {};
-        // AUDIT FIX: Do not mark autoThumbnailGenerated=true on failure — only set on confirmed successful upload
-        await db.update(videos).set({
-          metadata: { ...existMeta, autoThumbnailFailed: "image_too_large", autoThumbnailRetryAt: null },
-        }).where(eq(videos.id, videoDbId));
-      } catch {}
-      return false;
-    }
-
     const { setYouTubeThumbnail } = await import("./youtube");
     
-    // Convert to JPEG using sharp for better compatibility and smaller size
     let finalBuffer = imageBuffer;
     let finalMimeType = "image/jpeg";
     try {
@@ -116,8 +100,8 @@ async function generateAndUploadThumbnail(
         .resize(1280, 720, { fit: "cover", position: "center" })
         .jpeg({ quality })
         .toBuffer();
-      while (finalBuffer.length > 1.9 * 1024 * 1024 && quality > 50) {
-        quality -= 8;
+      while (finalBuffer.length > 1.9 * 1024 * 1024 && quality > 30) {
+        quality -= 10;
         finalBuffer = await sharp(imageBuffer)
           .resize(1280, 720, { fit: "cover", position: "center" })
           .jpeg({ quality })
@@ -130,7 +114,20 @@ async function generateAndUploadThumbnail(
       });
     } catch (sharpErr) {
       logger.warn("Sharp conversion failed, falling back to original buffer", { error: String(sharpErr) });
-      finalMimeType = "image/png"; // Fallback if sharp fails
+      finalMimeType = "image/png";
+    }
+
+    const YOUTUBE_THUMBNAIL_LIMIT = 2_000_000;
+    if (finalBuffer.length > YOUTUBE_THUMBNAIL_LIMIT) {
+      logger.warn("Thumbnail still exceeds 2 MB after compression — skipping", { videoDbId, size: finalBuffer.length });
+      try {
+        const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
+        const existMeta = (row?.metadata as any) || {};
+        await db.update(videos).set({
+          metadata: { ...existMeta, autoThumbnailFailed: "image_too_large", autoThumbnailRetryAt: null },
+        }).where(eq(videos.id, videoDbId));
+      } catch {}
+      return false;
     }
 
     await setYouTubeThumbnail(channelId, youtubeId, finalBuffer, finalMimeType);

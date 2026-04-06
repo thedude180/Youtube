@@ -324,7 +324,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       model: "gpt-4o-mini",
       messages,
       tools: toolDefinitions,
-      max_completion_tokens: 60000
+      max_completion_tokens: 16000
     });
 
     const choice = completion.choices[0];
@@ -356,7 +356,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       const followUp = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: toolMessages,
-        max_completion_tokens: 60000
+        max_completion_tokens: 16000
       });
 
       const responseContent = followUp.choices[0]?.message?.content || "I processed your request but couldn't generate a response.";

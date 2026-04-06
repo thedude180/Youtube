@@ -80,6 +80,10 @@ class IntelligentJobQueue {
 
       return inserted.id;
     } catch (err: any) {
+      if (err.message?.includes("dedupe_key_unique")) {
+        logger.info(`[JobQueue] Duplicate job skipped: ${opts.type} (dedupeKey already exists)`);
+        return -1;
+      }
       logger.error(`[JobQueue] Failed to enqueue job: ${err.message}`);
       throw err;
     }
