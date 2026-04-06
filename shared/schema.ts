@@ -4246,6 +4246,7 @@ export const complianceChecks = pgTable("compliance_checks", {
   checkedAt: timestamp("checked_at").defaultNow(),
 }, (table) => [
   index("compliance_checks_user_idx").on(table.userId),
+  index("compliance_checks_channel_idx").on(table.channelId),
 ]);
 
 export type ComplianceCheck = typeof complianceChecks.$inferSelect;
@@ -4261,6 +4262,8 @@ export const copyrightClaims = pgTable("copyright_claims", {
   resolvedAt: timestamp("resolved_at"),
 }, (table) => [
   index("copyright_claims_user_idx").on(table.userId),
+  index("copyright_claims_channel_idx").on(table.channelId),
+  index("copyright_claims_video_idx").on(table.videoId),
 ]);
 
 export type CopyrightClaim = typeof copyrightClaims.$inferSelect;
@@ -4290,6 +4293,7 @@ export const disclosureRequirements = pgTable("disclosure_requirements", {
   checkedAt: timestamp("checked_at").defaultNow(),
 }, (table) => [
   index("disclosure_req_user_idx").on(table.userId),
+  index("disclosure_req_channel_idx").on(table.channelId),
 ]);
 
 export type DisclosureRequirement = typeof disclosureRequirements.$inferSelect;
@@ -4592,7 +4596,7 @@ export const engineHeartbeats = pgTable("engine_heartbeats", {
   lastError: text("last_error"),
   metadata: jsonb("metadata"),
 }, (table) => [
-  index("heartbeat_engine_idx").on(table.engineName),
+  uniqueIndex("heartbeat_engine_unique_idx").on(table.engineName),
 ]);
 
 export const insertEngineHeartbeatSchema = createInsertSchema(engineHeartbeats).omit({ id: true });

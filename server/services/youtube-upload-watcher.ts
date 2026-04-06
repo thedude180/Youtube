@@ -47,7 +47,7 @@ async function getAuthenticatedYouTube(channel: any) {
     if (tokens.refresh_token) updates.refreshToken = tokens.refresh_token;
     if (tokens.expiry_date) updates.tokenExpiresAt = new Date(tokens.expiry_date);
     if (Object.keys(updates).length > 0) {
-      try { await storage.updateChannel(channel.id, updates); } catch {}
+      try { await storage.updateChannel(channel.id, updates); } catch (e) { logger.warn(`[UploadWatcher] Failed to save refreshed token for channel ${channel.id}:`, e); }
     }
   });
   return google.youtube({ version: "v3", auth: oauth2Client });
