@@ -1574,4 +1574,123 @@ export async function registerPlatformRoutes(app: Express) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
+
+  const audienceStubHandler = (handler: (userId: string) => any) => {
+    return async (req: any, res: any) => {
+      try {
+        const userId = requireAuth(req, res);
+        if (!userId) return;
+        res.json(handler(userId));
+      } catch {
+        res.json({});
+      }
+    };
+  };
+
+  app.get("/api/audience/heatmap/:uid", audienceStubHandler(() => ({
+    heatmapData: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => ({
+      day,
+      hours: Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        activity: Math.floor(Math.random() * 100),
+        viewers: Math.floor(Math.random() * 500),
+        engagement: Math.floor(Math.random() * 100),
+      })),
+    })),
+    peakTime: { day: "Saturday", hour: 20 },
+    totalDataPoints: 168,
+  })));
+
+  app.get("/api/audience/heatmap", audienceStubHandler(() => ({
+    heatmapData: [],
+    peakTime: { day: "Saturday", hour: 20 },
+    totalDataPoints: 0,
+  })));
+
+  app.get("/api/audience/milestones/:uid", audienceStubHandler(() => ({
+    currentSubscribers: 0,
+    achievedMilestones: [],
+    nextMilestone: 100,
+    progress: 0,
+    estimatedDaysToNext: 30,
+    dailyGrowthRate: 0,
+    growthTrend: "stable",
+  })));
+
+  app.get("/api/audience/milestones", audienceStubHandler(() => ({
+    currentSubscribers: 0,
+    achievedMilestones: [],
+    nextMilestone: 100,
+    progress: 0,
+    estimatedDaysToNext: 30,
+    dailyGrowthRate: 0,
+    growthTrend: "stable",
+  })));
+
+  app.get("/api/audience/growth-forecast/:uid", audienceStubHandler(() => ({
+    currentSubscribers: 0,
+    monthlyGrowthRate: 0,
+    forecast: [],
+    yearEndPrediction: 0,
+    bestCaseScenario: 0,
+    worstCaseScenario: 0,
+    accelerators: ["Consistent upload schedule", "SEO optimization", "Community engagement"],
+  })));
+
+  app.get("/api/audience/growth-forecast", audienceStubHandler(() => ({
+    currentSubscribers: 0,
+    monthlyGrowthRate: 0,
+    forecast: [],
+    yearEndPrediction: 0,
+    bestCaseScenario: 0,
+    worstCaseScenario: 0,
+    accelerators: [],
+  })));
+
+  app.get("/api/audience/engagement-score/:uid", audienceStubHandler(() => ({
+    overallScore: 0,
+    components: {
+      likeRate: 0,
+      commentRate: 0,
+      shareRate: 0,
+      saveRate: 0,
+      avgWatchPercentage: 0,
+      subscriberConversion: 0,
+    },
+    nicheAverage: 4.2,
+    percentile: 0,
+    trend: "stable",
+  })));
+
+  app.get("/api/audience/engagement-score", audienceStubHandler(() => ({
+    overallScore: 0,
+    components: { likeRate: 0, commentRate: 0, shareRate: 0, saveRate: 0, avgWatchPercentage: 0, subscriberConversion: 0 },
+    nicheAverage: 4.2,
+    percentile: 0,
+    trend: "stable",
+  })));
+
+  app.get("/api/audience/top-fans/:uid", audienceStubHandler(() => ({
+    topFans: [],
+    totalSuperfans: 0,
+    superfanGrowthRate: 0,
+  })));
+
+  app.get("/api/audience/top-fans", audienceStubHandler(() => ({
+    topFans: [],
+    totalSuperfans: 0,
+    superfanGrowthRate: 0,
+  })));
+
+  app.get("/api/audience/geo-distribution/:uid", audienceStubHandler(() => ({
+    distribution: [],
+    primaryLanguage: "en",
+    internationalPercentage: 0,
+  })));
+
+  app.get("/api/audience/geo-distribution", audienceStubHandler(() => ({
+    distribution: [],
+    primaryLanguage: "en",
+    internationalPercentage: 0,
+  })));
 }
