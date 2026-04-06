@@ -34,6 +34,37 @@ import {
   getStaleVideos,
 } from "../backlog-engine";
 
+function generateEndScreen(videoTitle: string) {
+  return {
+    enabled: true,
+    elements: [
+      {
+        type: "video" as const,
+        position: "bottom-left",
+        timing: "last 20 seconds",
+        text: "Watch Next",
+      },
+      {
+        type: "playlist" as const,
+        position: "bottom-right",
+        timing: "last 20 seconds",
+        text: `More ${videoTitle.split(/[-–—|]/)[0]?.trim() || "Gaming"}`,
+      },
+      {
+        type: "subscribe" as const,
+        position: "top-right",
+        timing: "last 15 seconds",
+        text: "Subscribe for more no-commentary gameplay",
+      },
+    ],
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function isShortType(type: string): boolean {
+  return type === "short" || type === "short_video";
+}
+
 export function registerContentRoutes(app: Express) {
   const contentRateLimit = rateLimitEndpoint(10, 60000);
   const writeRateLimit = rateLimitEndpoint(30, 60000);
@@ -245,12 +276,18 @@ export function registerContentRoutes(app: Express) {
       const input = api.videos.create.input.parse(req.body);
       // Force userId to authenticated user to prevent IDOR
       (input as any).userId = userId;
+      if (!isShortType(input.type)) {
+        const existingMeta = (input as any).metadata || {};
+        if (!existingMeta.endScreen) {
+          (input as any).metadata = { ...existingMeta, endScreen: generateEndScreen(input.title) };
+        }
+      }
       const video = await storage.createVideo(input);
       await storage.createAuditLog({
         userId,
         action: "video_created",
         target: video.title,
-        details: { type: video.type, status: video.status },
+        details: { type: video.type, status: video.status, endScreenAdded: !isShortType(video.type) },
         riskLevel: "low",
       });
       sendSSEEvent(userId, "content-update", { type: "video" });
@@ -437,6 +474,15 @@ export function registerContentRoutes(app: Express) {
       if (existingVideo.channelId) {
         const channel = await storage.getChannel(existingVideo.channelId);
         if (!channel || channel.userId !== userId) return res.status(404).json({ error: "Not found" });
+      }
+      const resolvedType = parsed.data.type || existingVideo.type;
+      if (!isShortType(resolvedType)) {
+        const existingMeta = (existingVideo.metadata as any) || {};
+        const incomingMeta = parsed.data.metadata || {};
+        if (!existingMeta.endScreen && !incomingMeta.endScreen) {
+          const title = parsed.data.title || existingVideo.title;
+          parsed.data.metadata = { ...incomingMeta, endScreen: generateEndScreen(title) };
+        }
       }
       const video = await storage.updateVideo(vidId, parsed.data as any);
       await storage.createAuditLog({

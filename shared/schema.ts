@@ -402,6 +402,16 @@ export const videos = pgTable("videos", {
     publishedAt?: string;
     duration?: string;
     privacyStatus?: string;
+    endScreen?: {
+      enabled: boolean;
+      elements: Array<{
+        type: "video" | "playlist" | "subscribe" | "channel" | "link";
+        position: string;
+        timing: string;
+        text?: string;
+      }>;
+      generatedAt?: string;
+    };
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
