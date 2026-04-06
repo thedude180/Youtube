@@ -39,7 +39,7 @@ import CookieConsent from "@/components/CookieConsent";
 import { CreatorModeProvider } from "@/hooks/use-creator-mode";
 import { LiveStreamBanner } from "@/components/LiveStreamBanner";
 import { PlatformReconnectBanner } from "@/components/PlatformReconnectBanner";
-import { DemoModeBanner } from "@/components/DemoModeBanner";
+
 
 const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
 const FloatingChat    = lazyRetry(() => import("@/components/FloatingChat"));
@@ -476,7 +476,6 @@ function AuthenticatedApp() {
               {!isFocusMode && <NotificationBell />}
             </div>
           </header>
-          {!isFocusMode && <DemoModeBanner />}
           {!isFocusMode && <HealthRibbon />}
           <LiveStreamBanner />
           {!isFocusMode && <PlatformReconnectBanner />}

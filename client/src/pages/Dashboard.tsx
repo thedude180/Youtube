@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FirstLiveMission } from "@/components/FirstLiveMission";
 import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
-import { DemoLabel } from "@/components/DemoModeBanner";
+
 
 const AGENT_ROSTER = [
   { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",        initials: "JB", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
@@ -87,8 +87,8 @@ function AgentCard({ agent, liveData }: { agent: typeof AGENT_ROSTER[number]; li
   );
 }
 
-function StatCard({ icon: Icon, label, value, sub, color, isDemo }: {
-  icon: any; label: string; value: string | number; sub?: string; color: string; isDemo?: boolean;
+function StatCard({ icon: Icon, label, value, sub, color }: {
+  icon: any; label: string; value: string | number; sub?: string; color: string;
 }) {
   return (
     <div className={`rounded-xl p-4 border flex items-center gap-3 ${color}`} data-testid={`stat-${label.toLowerCase().replace(/\s/g,"-")}`}>
@@ -96,7 +96,6 @@ function StatCard({ icon: Icon, label, value, sub, color, isDemo }: {
       <div className="min-w-0">
         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
           {label}
-          {isDemo && <DemoLabel label="SIMULATED" />}
         </div>
         <div className="text-xl font-bold text-foreground font-mono leading-none">{value}</div>
         {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
@@ -268,11 +267,6 @@ export default function TeamDashboard() {
     staleTime: 4 * 60_000,
   });
 
-  const { data: demoMode } = useQuery<{ isDemo: boolean }>({
-    queryKey: ["/api/kernel/demo-mode"],
-    staleTime: 60_000,
-  });
-  const isDemo = demoMode?.isDemo ?? false;
 
   const expiredPlatforms = (channels || [])
     .filter((ch: any) => ch.connectionStatus === "expired")
@@ -348,10 +342,10 @@ export default function TeamDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon={Users}      label="Subscribers"    value={fmt(stats?.subscriberCount)}  sub="YouTube"      color="border-purple-500/20 bg-purple-500/5" isDemo={isDemo} />
-            <StatCard icon={Eye}        label="Views this month" value={fmt(stats?.monthlyViews)}   sub="30 days"      color="border-blue-500/20 bg-blue-500/5" isDemo={isDemo} />
-            <StatCard icon={DollarSign} label="Revenue"        value={`$${stats?.monthlyRevenue != null ? Number(stats.monthlyRevenue).toFixed(0) : "—"}`} sub="this month" color="border-emerald-500/20 bg-emerald-500/5" isDemo={isDemo} />
-            <StatCard icon={Video}      label="Videos posted"  value={stats?.videosPosted ?? "—"}   sub="this month"   color="border-yellow-500/20 bg-yellow-500/5" isDemo={isDemo} />
+            <StatCard icon={Users}      label="Subscribers"    value={fmt(stats?.subscriberCount)}  sub="YouTube"      color="border-purple-500/20 bg-purple-500/5" />
+            <StatCard icon={Eye}        label="Views this month" value={fmt(stats?.monthlyViews)}   sub="30 days"      color="border-blue-500/20 bg-blue-500/5" />
+            <StatCard icon={DollarSign} label="Revenue"        value={`$${stats?.monthlyRevenue != null ? Number(stats.monthlyRevenue).toFixed(0) : "—"}`} sub="this month" color="border-emerald-500/20 bg-emerald-500/5" />
+            <StatCard icon={Video}      label="Videos posted"  value={stats?.videosPosted ?? "—"}   sub="this month"   color="border-yellow-500/20 bg-yellow-500/5" />
           </div>
         )}
 
