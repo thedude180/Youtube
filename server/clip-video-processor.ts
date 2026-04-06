@@ -22,6 +22,29 @@ if (!fs.existsSync(CLIP_DIR)) {
 
 const activeDownloads = new Map<string, Promise<string>>();
 
+const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number }>();
+const PERMANENT_FAIL_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+export function markPermanentlyFailed(youtubeId: string, reason: string): void {
+  permanentlyFailedIds.set(youtubeId, { reason, failedAt: Date.now() });
+  if (permanentlyFailedIds.size > 500) {
+    const cutoff = Date.now() - PERMANENT_FAIL_EXPIRY_MS;
+    for (const [k, v] of permanentlyFailedIds) {
+      if (v.failedAt < cutoff) permanentlyFailedIds.delete(k);
+    }
+  }
+}
+
+export function isPermanentlyFailed(youtubeId: string): string | null {
+  const entry = permanentlyFailedIds.get(youtubeId);
+  if (!entry) return null;
+  if (Date.now() - entry.failedAt > PERMANENT_FAIL_EXPIRY_MS) {
+    permanentlyFailedIds.delete(youtubeId);
+    return null;
+  }
+  return entry.reason;
+}
+
 function getYouTubeUrl(youtubeId: string): string {
   return `https://www.youtube.com/watch?v=${youtubeId}`;
 }
@@ -276,6 +299,11 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
   } catch {}
 
 
+  const failReason = isPermanentlyFailed(youtubeId);
+  if (failReason) {
+    throw new Error(`Video permanently failed (cached): ${failReason} (${youtubeId})`);
+  }
+
   const existing = activeDownloads.get(youtubeId);
   if (existing) return existing;
 
@@ -289,7 +317,12 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
 
       const availability = await checkVideoAvailability(youtubeId, accessToken);
       if (!availability.available) {
-        throw new Error(`Video unavailable: ${availability.reason || "Video is private, deleted, or age-restricted"} (${youtubeId})`);
+        const reason = `Video unavailable: ${availability.reason || "Video is private, deleted, or age-restricted"} (${youtubeId})`;
+        const isIrreversible = availability.reason?.includes("removed") || availability.reason?.includes("deleted") || availability.reason?.includes("terminated");
+        if (accessToken || isIrreversible) {
+          markPermanentlyFailed(youtubeId, reason);
+        }
+        throw new Error(reason);
       }
 
       if (fs.existsSync(outputPath)) {
@@ -314,7 +347,9 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
       // Differentiate: if we had an OAuth token and still failed → permanent.
       // If no token → retryable (might work once the creator's channel is connected).
       if (accessToken) {
-        throw new Error(`Video permanently inaccessible even with authentication (${youtubeId}). The video may be geo-blocked, live-only, or have DRM.`);
+        const reason = `Video permanently inaccessible even with authentication (${youtubeId}). The video may be geo-blocked, live-only, or have DRM.`;
+        markPermanentlyFailed(youtubeId, reason);
+        throw new Error(reason);
       }
       throw new Error(`All download methods failed for ${youtubeId}. Both ytdl-core and yt-dlp could not download this video. Will retry when credentials are available.`);
     } finally {

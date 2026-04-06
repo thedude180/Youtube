@@ -41,7 +41,28 @@ export function onAgentEvent(type: AgentEventType, handler: AgentEventHandler): 
   subscribers.set(type, existing);
 }
 
+const recentDedupeKeys = new Map<string, number>();
+const DEDUPE_WINDOW_MS = 5 * 60_000;
+
 export function fireAgentEvent(type: AgentEventType, userId: string, payload?: Record<string, any>): void {
+  const dedupeTypes = new Set<AgentEventType>(["stream.started", "stream.ended"]);
+  const stableId = payload?.videoId || payload?.streamId;
+  if (dedupeTypes.has(type) && stableId) {
+    const dedupeKey = `${type}:${userId}:${stableId}`;
+    const lastFired = recentDedupeKeys.get(dedupeKey);
+    if (lastFired && Date.now() - lastFired < DEDUPE_WINDOW_MS) {
+      logger.info(`Event deduplicated: ${type} for user ${userId.slice(0, 8)} (id: ${stableId})`);
+      return;
+    }
+    recentDedupeKeys.set(dedupeKey, Date.now());
+    if (recentDedupeKeys.size > 200) {
+      const cutoff = Date.now() - DEDUPE_WINDOW_MS;
+      for (const [k, v] of recentDedupeKeys) {
+        if (v < cutoff) recentDedupeKeys.delete(k);
+      }
+    }
+  }
+
   const event: AgentEvent = { type, userId, payload, firedAt: new Date() };
 
   recentEvents.unshift(event);

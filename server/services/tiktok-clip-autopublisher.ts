@@ -94,6 +94,17 @@ async function publishPendingClips(userId: string): Promise<void> {
     } catch (err: any) {
       state.lastError = err.message;
       logger.warn(`[${userId}] Clip ${clip.id} threw: ${err.message}`);
+
+      const isPermanent = err.message?.includes("permanently inaccessible") ||
+        err.message?.includes("permanently failed (cached)") ||
+        (err.message?.includes("Video unavailable") && !err.message?.includes("Will retry"));
+      if (isPermanent) {
+        await db
+          .update(contentClips)
+          .set({ status: "failed" } as any)
+          .where(and(eq(contentClips.id, clip.id), eq(contentClips.userId, userId)));
+        logger.info(`[${userId}] Clip ${clip.id} permanently failed — marked as failed`);
+      }
     }
   }
 }

@@ -1052,12 +1052,14 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
 export async function flushQueueToAsap(): Promise<number> {
   try {
     const now = new Date();
+    const maxFutureWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const futurePosts = await db
       .select({ id: autopilotQueue.id })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.status, "scheduled"),
         sql`${autopilotQueue.scheduledAt} > NOW()`,
+        sql`${autopilotQueue.scheduledAt} < ${maxFutureWindow}`,
       ));
 
     if (futurePosts.length === 0) return 0;
