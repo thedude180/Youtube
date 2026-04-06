@@ -75,7 +75,7 @@ export function useStreamState(): StreamStateInfo {
   const hasUpcomingStream = useMemo(() => {
     const now = Date.now();
     const hasNearPlanned = plannedStreams.some((s) => {
-      if (!s.scheduledFor) return true;
+      if (!s.scheduledFor) return false;
       const diff = new Date(s.scheduledFor).getTime() - now;
       return diff > 0 && diff < PREP_WINDOW_MS;
     });

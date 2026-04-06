@@ -1,16 +1,31 @@
-import { Radio, Calendar, Wifi, WifiOff, Sparkles, Clock } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Radio, Calendar, Wifi, Sparkles, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PLATFORM_INFO, type Platform } from "@shared/schema";
 import type { Channel, StreamDestination } from "@shared/schema";
 import { PlatformIcon } from "@/components/PlatformIcon";
+import { useLocation } from "wouter";
+
+interface StreamAgentStatus {
+  enabled?: boolean;
+  isLive?: boolean;
+  platform?: string;
+  streamTitle?: string;
+  viewerCount?: number;
+  chatMessagesHandled?: number;
+  chatSentiment?: string;
+  postStreamPhase?: string;
+  actionsLog?: Array<{ action: string; detail?: string; time: string }>;
+  videoId?: string;
+}
 
 interface StreamIdleViewProps {
-  streamAgent: any;
+  streamAgent: StreamAgentStatus | undefined;
   connectedChannels: Channel[];
   destinations: StreamDestination[];
   lastStreamTitle?: string;
   lastStreamDate?: string;
+  onScheduleStream?: () => void;
 }
 
 export default function StreamIdleView({
@@ -19,7 +34,9 @@ export default function StreamIdleView({
   destinations,
   lastStreamTitle,
   lastStreamDate,
+  onScheduleStream,
 }: StreamIdleViewProps) {
+  const [, setLocation] = useLocation();
   const activeDests = destinations.filter((d) => d.enabled);
   const connectedPlatforms = new Set([
     ...connectedChannels.map((c) => c.platform),
@@ -38,7 +55,7 @@ export default function StreamIdleView({
             Stream Center — Standby
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            No upcoming streams scheduled. When you go live or add a stream to your calendar, this page comes alive with planning tools and real-time controls.
+            No upcoming streams scheduled. Schedule a stream or go live — the page activates automatically with planning tools and real-time controls.
           </p>
 
           {lastStreamTitle && (
@@ -71,14 +88,26 @@ export default function StreamIdleView({
             </div>
           </div>
 
-          <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
-            <div className="flex items-center gap-2 mb-2 justify-center">
-              <Calendar className="w-4 h-4 text-primary" />
-              <p className="text-sm font-semibold text-foreground">Ready when you are</p>
+          <div className="space-y-3">
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={onScheduleStream}
+              data-testid="button-schedule-stream"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Schedule a Stream
+            </Button>
+
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
+              <div className="flex items-center gap-2 mb-2 justify-center">
+                <Calendar className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Auto-detection active</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Just start streaming on YouTube, Twitch, or Kick — CreatorOS detects your stream within 30 seconds and activates the full live dashboard automatically.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Just start streaming on YouTube, Twitch, or Kick — CreatorOS detects your stream within 30 seconds and activates the full live dashboard automatically. No setup needed.
-            </p>
           </div>
         </div>
       </div>

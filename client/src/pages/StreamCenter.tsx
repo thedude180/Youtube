@@ -907,6 +907,7 @@ export default function StreamCenter() {
             destinations={destinations}
             lastStreamTitle={pastStreams[0]?.title}
             lastStreamDate={pastStreams[0]?.endedAt ? new Date(pastStreams[0].endedAt).toLocaleDateString() : undefined}
+            onScheduleStream={() => setShowAddDest(true)}
           />
         </Suspense>
       )}
@@ -1127,8 +1128,8 @@ export default function StreamCenter() {
         </div>
       </div>}
 
-      {/* ─── Streaming Platform Connection Hub ─── */}
-      <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="platform-connection-hub">
+      {/* ─── Streaming Platform Connection Hub (prep/live only) ─── */}
+      {isActiveMode && <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="platform-connection-hub">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -1316,9 +1317,9 @@ export default function StreamCenter() {
             </DialogContent>
           </Dialog>
         </div>
-      </div>
+      </div>}
 
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      {isActiveMode && <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Dialog open={showAddDest} onOpenChange={setShowAddDest}>
             <DialogTrigger asChild>
@@ -1359,7 +1360,7 @@ export default function StreamCenter() {
             </Badge>
           )}
         </div>
-      </div>
+      </div>}
 
       {isActiveMode && <CollapsibleToolbox title="AI Advisor & Reports" toolCount={5}>
       <Card data-testid="card-ai-stream-recs" className="card-empire border-0 relative overflow-hidden">
@@ -2829,9 +2830,9 @@ export default function StreamCenter() {
 
       {streamMode === "live" && liveStream && <LiveChatPanel streamId={liveStream.id} />}
 
-      <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />
+      {isActiveMode && <MultiPlatformStatus channels={connectedChannels} destinations={destinations} />}
 
-      <Card data-testid="card-youtube-detection">
+      {isActiveMode && <Card data-testid="card-youtube-detection">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
@@ -2889,9 +2890,9 @@ export default function StreamCenter() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <div className="space-y-3">
+      {isActiveMode && <div className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Destinations ({destinations.filter(d => d.enabled).length} active)</h2>
         {destinations.length === 0 ? (
           <Card>
@@ -2939,9 +2940,9 @@ export default function StreamCenter() {
             </div>
           </Card>
         )}
-      </div>
+      </div>}
 
-      {pastStreams.length > 0 && (
+      {isActiveMode && pastStreams.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Past Streams</h2>
           {pastStreams.map(stream => (
@@ -2979,7 +2980,7 @@ export default function StreamCenter() {
         </div>
       )}
 
-      {!streamsLoading && streamList.length === 0 && (
+      {isActiveMode && !streamsLoading && streamList.length === 0 && (
         <EmptyState
           icon={Radio}
           type="streams"
