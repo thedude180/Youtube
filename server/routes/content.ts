@@ -33,6 +33,46 @@ import {
   autoScheduleOptimizedContent,
   getStaleVideos,
 } from "../backlog-engine";
+import { packageForAllPlatforms } from "../distribution/cross-platform-packaging";
+import { VIDEO_PLATFORMS, type Platform } from "@shared/schema";
+
+async function generatePlatformOptimizations(
+  userId: string,
+  videoTitle: string,
+  videoDescription: string,
+  videoTags: string[],
+  videoPlatform: string,
+  videoType: string,
+): Promise<Record<string, any>> {
+  const targetPlatforms = VIDEO_PLATFORMS.filter(p => p !== videoPlatform);
+  if (targetPlatforms.length === 0) return {};
+
+  try {
+    const packaged = await packageForAllPlatforms(
+      userId,
+      { title: videoTitle, description: videoDescription || "", tags: videoTags || [] },
+      targetPlatforms,
+    );
+    const result: Record<string, any> = {};
+    for (const pkg of packaged) {
+      result[pkg.platform] = {
+        title: pkg.title,
+        description: pkg.description,
+        tags: pkg.tags,
+        format: pkg.format,
+        aspectRatio: pkg.aspectRatio,
+        contentTypeLabel: pkg.contentTypeLabel,
+        maxDurationSeconds: pkg.maxDurationSeconds,
+        platformNotes: pkg.platformNotes,
+        optimizedAt: new Date().toISOString(),
+      };
+    }
+    return result;
+  } catch (err) {
+    console.error("[cross-platform-optimization] Failed:", err);
+    return {};
+  }
+}
 
 function generateEndScreen(videoTitle: string) {
   return {
@@ -544,6 +584,18 @@ export function registerContentRoutes(app: Express) {
         platform: video.platform || undefined,
       }, userId);
 
+      const optimizedTags = suggestions.suggestedTags || video.metadata?.tags || [];
+      const optimizedDesc = suggestions.descriptionTemplate || video.description || "";
+
+      const platformOptimizations = await generatePlatformOptimizations(
+        userId,
+        video.title,
+        optimizedDesc,
+        optimizedTags,
+        video.platform || "youtube",
+        video.type,
+      );
+
       const newMetadata = {
         ...video.metadata,
         seoScore: suggestions.seoScore || 0,
@@ -554,7 +606,11 @@ export function registerContentRoutes(app: Express) {
           seoRecommendations: suggestions.seoRecommendations || [],
           complianceNotes: suggestions.complianceNotes || [],
         },
-        tags: suggestions.suggestedTags || video.metadata?.tags || [],
+        tags: optimizedTags,
+        platformOptimizations: {
+          ...(video.metadata?.platformOptimizations || {}),
+          ...platformOptimizations,
+        },
       };
 
       await storage.updateVideo(videoId, { metadata: newMetadata });
@@ -562,11 +618,11 @@ export function registerContentRoutes(app: Express) {
         userId,
         action: "ai_metadata_generated",
         target: video.title,
-        details: { seoScore: suggestions.seoScore },
+        details: { seoScore: suggestions.seoScore, platformsOptimized: Object.keys(platformOptimizations) },
         riskLevel: "low",
       });
 
-      res.json({ success: true, suggestions });
+      res.json({ success: true, suggestions, platformOptimizations });
     } catch (error: any) {
       console.error("AI metadata generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
@@ -937,6 +993,18 @@ export function registerContentRoutes(app: Express) {
               platform: video.platform || undefined,
             });
 
+            const optimizedTags = suggestions.suggestedTags || video.metadata?.tags || [];
+            const optimizedDesc = suggestions.descriptionTemplate || video.description || "";
+
+            const platformOpts = await generatePlatformOptimizations(
+              userId,
+              video.title,
+              optimizedDesc,
+              optimizedTags,
+              video.platform || "youtube",
+              video.type,
+            );
+
             const newMetadata = {
               ...video.metadata,
               seoScore: suggestions.seoScore || 0,
@@ -947,9 +1015,13 @@ export function registerContentRoutes(app: Express) {
                 seoRecommendations: suggestions.seoRecommendations || [],
                 complianceNotes: suggestions.complianceNotes || [],
               },
-              tags: suggestions.suggestedTags || video.metadata?.tags || [],
+              tags: optimizedTags,
               aiOptimized: true,
               aiOptimizedAt: new Date().toISOString(),
+              platformOptimizations: {
+                ...(video.metadata?.platformOptimizations || {}),
+                ...platformOpts,
+              },
             };
 
             await storage.updateVideo(video.id, { metadata: newMetadata });

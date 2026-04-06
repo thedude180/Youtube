@@ -412,6 +412,17 @@ export const videos = pgTable("videos", {
       }>;
       generatedAt?: string;
     };
+    platformOptimizations?: Record<string, {
+      title: string;
+      description: string;
+      tags: string[];
+      format: string;
+      aspectRatio: string;
+      contentTypeLabel: string;
+      maxDurationSeconds: number | null;
+      platformNotes: string[];
+      optimizedAt: string;
+    }>;
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
