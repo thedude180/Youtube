@@ -1982,6 +1982,50 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
+  app.post("/api/content/optimize-shorts-crossplatform", bulkRateLimit, asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const allVideos: any[] = [];
+      let page = 1;
+      while (true) {
+        const batch = await storage.getVideosByUser(userId, page, 100);
+        if (batch.length === 0) break;
+        allVideos.push(...batch);
+        if (batch.length < 100) break;
+        page++;
+      }
+      const shorts = allVideos.filter(v =>
+        v.type === "short" || v.type === "short_video"
+      );
+
+      if (shorts.length === 0) {
+        return res.json({ success: true, message: "No shorts found to optimize", optimized: 0, platforms: [] });
+      }
+
+      const { optimizeShortsForAllPlatforms } = await import("../youtube");
+      const result = await optimizeShortsForAllPlatforms(userId, shorts);
+
+      await storage.createAuditLog({
+        userId,
+        action: "shorts_crossplatform_optimized",
+        target: `${result.optimized} shorts`,
+        details: { totalShorts: shorts.length, optimized: result.optimized, platforms: result.platforms },
+        riskLevel: "low",
+      });
+
+      res.json({
+        success: true,
+        totalShorts: shorts.length,
+        optimized: result.optimized,
+        platforms: result.platforms,
+      });
+    } catch (e: any) {
+      console.error("Shorts cross-platform optimization error:", e);
+      res.status(500).json({ error: "Failed to optimize shorts for other platforms" });
+    }
+  }));
+
   app.post("/api/content/create-approval", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

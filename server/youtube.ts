@@ -545,6 +545,66 @@ export async function setYouTubeThumbnail(
   return response.data;
 }
 
+export async function optimizeShortsForAllPlatforms(userId: string, shorts: any[]): Promise<{ optimized: number; platforms: string[] }> {
+  const { packageForAllPlatforms } = await import("./distribution/cross-platform-packaging");
+  const { PLATFORM_CAPABILITIES } = await import("@shared/schema");
+
+  const shortFormPlatforms = Object.entries(PLATFORM_CAPABILITIES)
+    .filter(([, caps]) => caps.supports.includes("short_video"))
+    .map(([p]) => p)
+    .filter(p => p !== "youtube");
+
+  if (shortFormPlatforms.length === 0) return { optimized: 0, platforms: [] };
+
+  let optimized = 0;
+  for (const short of shorts) {
+    try {
+      const meta = short.metadata || {};
+      if (meta.platformOptimizations && Object.keys(meta.platformOptimizations).length > 0) {
+        const existingPlatforms = Object.keys(meta.platformOptimizations);
+        if (shortFormPlatforms.every(p => existingPlatforms.includes(p))) continue;
+      }
+
+      const packaged = await packageForAllPlatforms(
+        userId,
+        {
+          title: short.title,
+          description: short.description || "",
+          tags: meta.tags || [],
+          durationSeconds: meta.duration ? parseDuration(meta.duration) : undefined,
+          game: meta.gameName || undefined,
+        },
+        shortFormPlatforms,
+      );
+
+      const platformOpts: Record<string, any> = meta.platformOptimizations || {};
+      for (const pkg of packaged) {
+        platformOpts[pkg.platform] = {
+          title: pkg.title,
+          description: pkg.description,
+          tags: pkg.tags,
+          format: pkg.format,
+          aspectRatio: pkg.aspectRatio,
+          contentTypeLabel: pkg.contentTypeLabel,
+          maxDurationSeconds: pkg.maxDurationSeconds,
+          platformNotes: pkg.platformNotes,
+          optimizedAt: new Date().toISOString(),
+        };
+      }
+
+      await storage.updateVideo(short.id, {
+        metadata: { ...meta, platformOptimizations: platformOpts },
+      });
+      optimized++;
+    } catch (err) {
+      console.error(`[Shorts] Failed to optimize short ${short.id} for other platforms:`, err);
+    }
+  }
+
+  console.log(`[Shorts] Cross-platform optimized ${optimized}/${shorts.length} shorts for: ${shortFormPlatforms.join(", ")}`);
+  return { optimized, platforms: shortFormPlatforms };
+}
+
 export async function syncYouTubeVideosToLibrary(channelId: number, userId: string): Promise<{ synced: any[]; newVideos: any[] }> {
   const ytVideos = await fetchYouTubeVideos(channelId);
   const existingVideos = await storage.getVideosByUser(userId);
@@ -583,6 +643,13 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
     });
     synced.push(video);
     newVideos.push(video);
+  }
+
+  const newShorts = newVideos.filter(v => v.type === "short");
+  if (newShorts.length > 0) {
+    optimizeShortsForAllPlatforms(userId, newShorts).catch(err =>
+      console.error("[YouTube] Shorts cross-platform optimization failed:", err)
+    );
   }
 
   await storage.updateChannel(channelId, { lastSyncAt: new Date() });
