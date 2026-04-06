@@ -1,10 +1,15 @@
+import { useState } from "react";
 import { Radio, Calendar, Wifi, Sparkles, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PLATFORM_INFO, type Platform } from "@shared/schema";
 import type { Channel, StreamDestination } from "@shared/schema";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { useLocation } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface StreamAgentStatus {
   enabled?: boolean;
@@ -25,7 +30,6 @@ interface StreamIdleViewProps {
   destinations: StreamDestination[];
   lastStreamTitle?: string;
   lastStreamDate?: string;
-  onScheduleStream?: () => void;
 }
 
 export default function StreamIdleView({
@@ -34,14 +38,42 @@ export default function StreamIdleView({
   destinations,
   lastStreamTitle,
   lastStreamDate,
-  onScheduleStream,
 }: StreamIdleViewProps) {
-  const [, setLocation] = useLocation();
   const activeDests = destinations.filter((d) => d.enabled);
   const connectedPlatforms = new Set([
     ...connectedChannels.map((c) => c.platform),
     ...destinations.filter((d) => d.streamKey).map((d) => d.platform),
   ]);
+
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
+  const { toast } = useToast();
+
+  const createStream = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/streams", {
+        title: title || "Untitled Stream",
+        scheduledFor: new Date(scheduledFor).toISOString(),
+        status: "planned",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Stream scheduled", description: "Your stream has been scheduled. The page will activate when it's within 24 hours." });
+      queryClient.invalidateQueries({ queryKey: ["/api/streams"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stream-upgrades/schedule"] });
+      setScheduleOpen(false);
+      setTitle("");
+      setScheduledFor("");
+    },
+    onError: () => {
+      toast({ title: "Failed to schedule", description: "Could not create the scheduled stream. Please try again.", variant: "destructive" });
+    },
+  });
+
+  const now = new Date();
+  const minDatetime = new Date(now.getTime() + 5 * 60 * 1000).toISOString().slice(0, 16);
 
   return (
     <div className="space-y-4" data-testid="stream-idle-view">
@@ -89,15 +121,52 @@ export default function StreamIdleView({
           </div>
 
           <div className="space-y-3">
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={onScheduleStream}
-              data-testid="button-schedule-stream"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Schedule a Stream
-            </Button>
+            <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  data-testid="button-schedule-stream"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Schedule a Stream
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Schedule a Stream</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-2">
+                  <div>
+                    <label className="text-sm font-medium">Stream Title</label>
+                    <Input
+                      data-testid="input-schedule-title"
+                      placeholder="e.g., God of War Ragnarok — Full Playthrough Part 3"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Scheduled Date & Time</label>
+                    <Input
+                      data-testid="input-schedule-datetime"
+                      type="datetime-local"
+                      min={minDatetime}
+                      value={scheduledFor}
+                      onChange={(e) => setScheduledFor(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    data-testid="button-confirm-schedule"
+                    className="w-full"
+                    disabled={!scheduledFor || createStream.isPending}
+                    onClick={() => createStream.mutate()}
+                  >
+                    {createStream.isPending ? "Scheduling..." : "Schedule Stream"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             <div className="rounded-xl bg-primary/5 border border-primary/20 p-4">
               <div className="flex items-center gap-2 mb-2 justify-center">

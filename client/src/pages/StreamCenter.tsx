@@ -907,7 +907,6 @@ export default function StreamCenter() {
             destinations={destinations}
             lastStreamTitle={pastStreams[0]?.title}
             lastStreamDate={pastStreams[0]?.endedAt ? new Date(pastStreams[0].endedAt).toLocaleDateString() : undefined}
-            onScheduleStream={() => setShowAddDest(true)}
           />
         </Suspense>
       )}
