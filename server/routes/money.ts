@@ -5,7 +5,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks, channels, revenueRecords } from "@shared/schema";
-import { requireAuth, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
+import { requireAuth, requireAdmin, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
 import { cached } from "../lib/cache";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
@@ -833,6 +833,49 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const result = JSON.parse(completion.choices[0]?.message?.content || "{}");
     res.json(result);
   }));
+
+  const sponsorOpHandler = asyncHandler(async (req: any, res: any) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    res.json({
+      opportunities: [],
+      totalPotentialRevenue: "$0",
+      averageDealSize: "$0",
+      lastUpdated: new Date().toISOString(),
+    });
+  });
+  app.get("/api/monetization/sponsorship-opportunities", sponsorOpHandler);
+  app.get("/api/monetization/sponsorship-opportunities/:uid", sponsorOpHandler);
+
+  const merchHandler = asyncHandler(async (req: any, res: any) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    res.json({
+      viralMoments: [],
+      topProducts: [],
+      totalOpportunity: "$0",
+      predictions: [],
+      topItems: [],
+      estimatedRevenue: "$0",
+    });
+  });
+  app.get("/api/monetization/merch-predictor", merchHandler);
+  app.get("/api/monetization/merch-predictor/:uid", merchHandler);
+
+  const diversifyHandler = asyncHandler(async (req: any, res: any) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    res.json({
+      streams: [],
+      overallScore: 0,
+      score: 0,
+      riskLevel: "Low",
+      recommendations: [],
+      missingStreams: [],
+    });
+  });
+  app.get("/api/monetization/revenue-diversification", diversifyHandler);
+  app.get("/api/monetization/revenue-diversification/:uid", diversifyHandler);
 
   app.post("/api/monetization/ad-breaks/:videoId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);

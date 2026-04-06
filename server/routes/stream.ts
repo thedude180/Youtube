@@ -111,6 +111,19 @@ export function registerStreamRoutes(app: Express) {
     res.sendStatus(204);
   }));
 
+  app.get("/api/stream/command-center", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const streamList = await storage.getStreams(userId);
+    const activeStream = streamList.find((s: any) => s.status === "live" || s.status === "starting");
+    res.json({
+      sessionId: activeStream?.id || null,
+      status: activeStream?.status || "offline",
+      activeStream: activeStream || null,
+      totalStreams: streamList.length,
+    });
+  }));
+
   app.get(api.streams.list.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

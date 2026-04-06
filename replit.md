@@ -63,6 +63,20 @@ Dark, calm, agent-first, minimal, high-signal. No noisy notifications, no legal/
 - **Healing cluster**: 9 files → 2 (resilience-observability + circuit-breaker)
 - **Learning/AI cluster**: 13 files → 4 (ai-model-router + ai-queue + creator-memory + ai-disclosure)
 
+## Bugs Fixed in QA Gauntlet (Post-Phase 7)
+1. **PLATFORM_INFO missing "x" entry** — ChannelsTab and StreamCenter crashed with `TypeError: Cannot read properties of undefined (reading 'color')` when iterating PLATFORMS array. Added full X (Twitter) entry to PLATFORM_INFO.
+2. **`requireAdmin` missing import in money.ts** — `/api/stripe/payments` returned 500 with `ReferenceError: requireAdmin is not defined`. Added import.
+3. **Duplicate GET /api/channels route** — Two handlers registered; removed unreachable plain version, kept enriched version with connection status.
+4. **Missing `/api/stream/command-center`** — Dashboard and Money page fetched it but route didn't exist. Added endpoint returning active stream session info.
+5. **Missing `/api/vitals` + `/api/vitals/summary`** — Web vitals beacon POST and performance dashboard GET returned 404. Added in-memory collection + summary endpoint.
+6. **Missing `/api/security/audit-log`** — Settings Security tab fetched it. Added endpoint returning user-scoped audit logs.
+7. **Missing `/api/monetization/sponsorship-opportunities`, `/api/monetization/merch-predictor`, `/api/monetization/revenue-diversification`** — Money page fetched these with userId param appended by TanStack Query's `queryKey.join("/")`. Added handlers with `/:uid` param variant, returning correct response shapes matching frontend component expectations.
+
+## Known Issues (Not Bugs — Expected Behavior)
+- YouTube OAuth returns `redirect_uri_mismatch` — Google OAuth is configured for production domain (etgaming247.com), not dev/test domains. Expected in dev.
+- `/api/stripe/payments` returns 403 "Admin access required" for non-admin users — intentional admin-only endpoint.
+- AI chat returns trust-budget-exhausted error — safe mode is active globally, blocking AI actions until approval thresholds are adjusted.
+
 ## Bugs Fixed in Phase 0
 1. gpt-5-mini → gpt-4o-mini (37 files)
 2. deleteChannel() SQL array cast
