@@ -101,7 +101,7 @@ async function aiExtractShorts(video: any): Promise<Array<{ title: string; start
         role: "user",
         content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${video.views || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral moments.`,
       }],
-      max_completion_tokens: 40000,
+      max_completion_tokens: 16000,
       response_format: { type: "json_object" },
     });
     const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");

@@ -167,7 +167,12 @@ async function initStripe() {
       })
       .catch((err: any) => logger.error('Error syncing Stripe data', { error: String(err) }));
   } catch (error) {
-    logger.error('Failed to initialize Stripe', { error: String(error) });
+    const errStr = String(error);
+    if (errStr.includes('connection not found') || errStr.includes('credentials fetch failed')) {
+      logger.warn('Stripe not configured — skipping initialization (connect Stripe integration to enable payments)');
+    } else {
+      logger.error('Failed to initialize Stripe', { error: errStr });
+    }
   }
 }
 

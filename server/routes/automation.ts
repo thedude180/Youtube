@@ -29,36 +29,46 @@ export async function registerAutomationRoutes(app: Express) {
   app.get(api.agents.activities.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const agentId = req.query.agentId as string | undefined;
-    const activities = await storage.getAgentActivities(userId, agentId, 100);
-    res.json(activities);
+    try {
+      const agentId = req.query.agentId as string | undefined;
+      const activities = await storage.getAgentActivities(userId, agentId, 100);
+      res.json(activities);
+    } catch (err: any) {
+      console.error("[Automation] Activities error:", err);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
   });
 
   app.get(api.agents.status.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const activities = await storage.getAgentActivities(userId, undefined, 200);
-    const agentStatus = AI_AGENTS.map(agent => {
-      const agentActs = activities.filter(a => a.agentId === agent.id);
-      const lastActivity = agentActs[0];
-      const todayCount = agentActs.filter(a => {
-        const d = a.createdAt ? new Date(a.createdAt) : new Date(0);
-        const today = new Date(); today.setHours(0,0,0,0);
-        return d >= today;
-      }).length;
-      return {
-        ...agent,
-        status: todayCount > 0 ? 'active' : 'idle',
-        lastActivity: lastActivity ? {
-          action: lastActivity.action,
-          target: lastActivity.target,
-          time: lastActivity.createdAt,
-        } : null,
-        todayActions: todayCount,
-        totalActions: agentActs.length,
-      };
-    });
-    res.json(agentStatus);
+    try {
+      const activities = await storage.getAgentActivities(userId, undefined, 200);
+      const agentStatus = AI_AGENTS.map(agent => {
+        const agentActs = activities.filter(a => a.agentId === agent.id);
+        const lastActivity = agentActs[0];
+        const todayCount = agentActs.filter(a => {
+          const d = a.createdAt ? new Date(a.createdAt) : new Date(0);
+          const today = new Date(); today.setHours(0,0,0,0);
+          return d >= today;
+        }).length;
+        return {
+          ...agent,
+          status: todayCount > 0 ? 'active' : 'idle',
+          lastActivity: lastActivity ? {
+            action: lastActivity.action,
+            target: lastActivity.target,
+            time: lastActivity.createdAt,
+          } : null,
+          todayActions: todayCount,
+          totalActions: agentActs.length,
+        };
+      });
+      res.json(agentStatus);
+    } catch (err: any) {
+      console.error("[Automation] Status error:", err);
+      res.status(500).json({ error: "Failed to fetch agent status" });
+    }
   });
 
   app.post(api.agents.trigger.path, async (req, res) => {
@@ -118,8 +128,13 @@ export async function registerAutomationRoutes(app: Express) {
   app.get(api.automation.rules.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const rules = await storage.getAutomationRules(userId);
-    res.json(rules);
+    try {
+      const rules = await storage.getAutomationRules(userId);
+      res.json(rules);
+    } catch (err: any) {
+      console.error("[Automation] Rules list error:", err);
+      res.status(500).json({ error: "Failed to fetch rules" });
+    }
   });
 
   app.post(api.automation.createRule.path, async (req, res) => {
@@ -164,8 +179,13 @@ export async function registerAutomationRoutes(app: Express) {
     const parsed = updateRuleSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const { name, agentId, trigger, enabled, actions } = parsed.data;
-    const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
-    res.json(rule);
+    try {
+      const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
+      res.json(rule);
+    } catch (err: any) {
+      console.error("[Automation] Update rule error:", err);
+      res.status(500).json({ error: "Failed to update rule" });
+    }
   });
 
   app.delete(api.automation.deleteRule.path, async (req, res) => {
@@ -173,19 +193,29 @@ export async function registerAutomationRoutes(app: Express) {
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
-    const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
-    if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteAutomationRule(id);
-    res.sendStatus(204);
+    try {
+      const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      await storage.deleteAutomationRule(id);
+      res.sendStatus(204);
+    } catch (err: any) {
+      console.error("[Automation] Delete rule error:", err);
+      res.status(500).json({ error: "Failed to delete rule" });
+    }
   });
 
   app.get(api.schedule.list.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const from = req.query.from ? new Date(req.query.from as string) : undefined;
-    const to = req.query.to ? new Date(req.query.to as string) : undefined;
-    const items = await storage.getScheduleItems(userId, from, to);
-    res.json(items);
+    try {
+      const from = req.query.from ? new Date(req.query.from as string) : undefined;
+      const to = req.query.to ? new Date(req.query.to as string) : undefined;
+      const items = await storage.getScheduleItems(userId, from, to);
+      res.json(items);
+    } catch (err: any) {
+      console.error("[Automation] Schedule list error:", err);
+      res.status(500).json({ error: "Failed to fetch schedule" });
+    }
   });
 
   app.post(api.schedule.create.path, async (req, res) => {
@@ -237,8 +267,13 @@ export async function registerAutomationRoutes(app: Express) {
     const parsed = updateScheduleSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const { title, scheduledAt, platform, type, status, metadata } = parsed.data;
-    const item = await storage.updateScheduleItem(id, { title, scheduledAt, platform, type, status, metadata });
-    res.json(item);
+    try {
+      const item = await storage.updateScheduleItem(id, { title, scheduledAt, platform, type, status, metadata });
+      res.json(item);
+    } catch (err: any) {
+      console.error("[Automation] Schedule update error:", err);
+      res.status(500).json({ error: "Failed to update schedule item" });
+    }
   });
 
   app.patch("/api/schedule/:id", async (req, res) => {
@@ -246,20 +281,25 @@ export async function registerAutomationRoutes(app: Express) {
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
-    const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
-    if (!existing) return res.status(404).json({ error: "Not found" });
-    const patchSchema = z.object({
-      scheduledAt: z.string().optional(),
-      title: z.string().min(1).max(500).optional(),
-      platform: z.string().max(50).optional(),
-      type: z.string().max(50).optional(),
-      status: z.string().max(50).optional(),
-      metadata: z.record(z.unknown()).optional(),
-    });
-    const parsed = patchSchema.safeParse(req.body || {});
-    if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const item = await storage.updateScheduleItem(id, parsed.data);
-    res.json(item);
+    try {
+      const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      const patchSchema = z.object({
+        scheduledAt: z.string().optional(),
+        title: z.string().min(1).max(500).optional(),
+        platform: z.string().max(50).optional(),
+        type: z.string().max(50).optional(),
+        status: z.string().max(50).optional(),
+        metadata: z.record(z.unknown()).optional(),
+      });
+      const parsed = patchSchema.safeParse(req.body || {});
+      if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      const item = await storage.updateScheduleItem(id, parsed.data);
+      res.json(item);
+    } catch (err: any) {
+      console.error("[Automation] Schedule patch error:", err);
+      res.status(500).json({ error: "Failed to update schedule item" });
+    }
   });
 
   app.delete(api.schedule.delete.path, async (req, res) => {
@@ -267,10 +307,15 @@ export async function registerAutomationRoutes(app: Express) {
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
-    const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
-    if (!existing) return res.status(404).json({ error: "Not found" });
-    await storage.deleteScheduleItem(id);
-    res.sendStatus(204);
+    try {
+      const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
+      if (!existing) return res.status(404).json({ error: "Not found" });
+      await storage.deleteScheduleItem(id);
+      res.sendStatus(204);
+    } catch (err: any) {
+      console.error("[Automation] Schedule delete error:", err);
+      res.status(500).json({ error: "Failed to delete schedule item" });
+    }
   });
 
   app.get("/api/automation/status", async (req: any, res) => {
