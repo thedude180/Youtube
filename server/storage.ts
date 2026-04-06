@@ -1266,9 +1266,16 @@ export class DatabaseStorage implements IStorage {
     const channelStats = await db.select({
       subscriberCount: sql<number>`coalesce(sum(subscriber_count), 0)`,
       totalViews: sql<number>`coalesce(sum(view_count), 0)`,
+      channelVideoCount: sql<number>`coalesce(sum(video_count), 0)`,
     }).from(channels).where(eq(channels.userId, userId));
     const subscriberCount = Number(channelStats[0]?.subscriberCount || 0);
     const totalViews = Number(channelStats[0]?.totalViews || 0);
+    const channelVideoCount = Number(channelStats[0]?.channelVideoCount || 0);
+
+    const totalShortsRow = (await db.select({ count: sql<number>`count(*)` }).from(videos).where(
+      and(eq(videos.type, 'short'), inArray(videos.channelId, userChannelIds))
+    ))[0].count;
+    const totalShorts = Number(totalShortsRow);
 
     let isLive = false;
     try {
@@ -1295,6 +1302,8 @@ export class DatabaseStorage implements IStorage {
       watchHours: null,
       avgViewDuration: null,
       isLive,
+      channelVideoCount,
+      totalShorts,
     };
   }
   async getAiResults(userId: string, featureKey?: string): Promise<AiResult[]> {

@@ -439,8 +439,10 @@ export default function TeamDashboard() {
                 <RefreshCw className={`h-4 w-4 ${syncChannelsMutation.isPending ? "animate-spin" : ""}`} />
               </Button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <PerfMetric label="Total Views"       value={fmt(stats?.totalViews)}       />
+              <PerfMetric label="Channel Videos"    value={fmt(stats?.channelVideoCount)} />
+              <PerfMetric label="Shorts"            value={fmt(stats?.totalShorts)}       />
               <PerfMetric label="Total Videos"      value={fmt(stats?.totalVideos)}      />
               <PerfMetric label="Watch Hours"       value={stats?.watchHours != null ? `${Number(stats.watchHours).toFixed(0)}h` : "—"} />
               <PerfMetric label="Avg View Duration" value={stats?.avgViewDuration != null ? `${Number(stats.avgViewDuration).toFixed(0)}s` : "—"} />

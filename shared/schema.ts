@@ -2382,6 +2382,8 @@ export type StatsResponse = {
   watchHours: number | null;
   avgViewDuration: number | null;
   isLive: boolean;
+  channelVideoCount: number;
+  totalShorts: number;
 };
 
 // === ACCESS CODES (Affiliate Program) ===
