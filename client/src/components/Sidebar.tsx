@@ -32,7 +32,7 @@ const NAV_ITEMS = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logoutMutation } = useAuth();
+  const { user, logout, isLoggingOut } = useAuth();
 
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
@@ -138,7 +138,8 @@ export function AppSidebar() {
             variant="ghost"
             size="icon"
             className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={() => logoutMutation.mutate()}
+            onClick={() => logout()}
+            disabled={isLoggingOut}
             data-testid="button-logout"
           >
             <LogOut className="h-3.5 w-3.5" />
