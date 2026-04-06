@@ -6,6 +6,7 @@ import { cronJobs, aiResults, aiChains, webhookEvents, channels } from "@shared/
 import { eq } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import { withCronLock } from "./lib/cron-lock";
+import { logger } from "./lib/logger";
 import {
   aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
   aiMultiLangSeo, aiDubbingScriptGenerator, aiCulturalAdaptation,

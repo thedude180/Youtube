@@ -369,6 +369,16 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChannel(id: number): Promise<void> {
     await db.transaction(async (tx) => {
+      const channelTables = [
+        'compliance_records', 'growth_strategies', 'channel_baseline_snapshots',
+        'platform_health', 'compliance_checks', 'copyright_claims',
+        'disclosure_requirements', 'youtube_push_backlog',
+        'creator_credibility_scores', 'channel_immune_events',
+        'source_quality_profiles', 'archive_master_records',
+      ];
+      for (const table of channelTables) {
+        await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
+      }
       const channelVideos = await tx.select({ id: videos.id }).from(videos).where(eq(videos.channelId, id));
       if (channelVideos.length > 0) {
         const videoIds = channelVideos.map(v => v.id);
@@ -378,12 +388,15 @@ export class DatabaseStorage implements IStorage {
           'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
           'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
           'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
+          'schedule_items', 'content_kanban', 'compounding_jobs',
+          'video_update_history', 'ab_test_results',
         ];
         for (const table of tables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
         }
         await tx.execute(sql`DELETE FROM cannibalization_alerts WHERE video_id_1 = ANY(${videoIdArray}) OR video_id_2 = ANY(${videoIdArray})`);
-        const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts'];
+        const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
+          'content_atoms', 'clip_queue_items', 'moment_genome_classifications'];
         for (const table of srcTables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIdArray})`);
         }
