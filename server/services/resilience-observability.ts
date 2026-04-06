@@ -77,6 +77,7 @@ export function getSafeModeState(): SafeModeState {
 
 async function persistSafeModeState(): Promise<void> {
   try {
+    await db.delete(securityEvents).where(eq(securityEvents.eventType, "safe_mode_state_snapshot"));
     await db.insert(securityEvents).values({
       eventType: "safe_mode_state_snapshot",
       severity: "info",

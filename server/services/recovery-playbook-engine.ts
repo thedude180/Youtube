@@ -83,7 +83,6 @@ const DEFAULT_PLAYBOOKS: RecoveryPlaybook[] = [
     name: "Trust Decline Recovery",
     triggerCategories: ["trust_decline", "trust_violation"],
     actions: [
-      { type: "safe_mode_toggle", description: "Enter safe mode globally", params: { action: "enter", reason: "trust decline detected" } },
       { type: "escalate", description: "Escalate to admin attention" },
     ],
     cooldownMs: 900_000,

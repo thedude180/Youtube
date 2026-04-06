@@ -152,7 +152,17 @@ export async function registerRoutes(
     "/resilience": "channel_settings_change",
   };
 
-  const GOVERNANCE_EXEMPT_PATHS = ["/api/login", "/api/logout", "/api/auth", "/api/callback", "/api/test-auth"];
+  const GOVERNANCE_EXEMPT_PATHS = [
+    "/api/login", "/api/logout", "/api/auth", "/api/callback", "/api/test-auth",
+    "/api/__test",
+    "/api/resilience/safe-mode/exit",
+    "/api/resilience/safe-mode/enter",
+    "/api/kernel/trust-budget/reset",
+    "/api/kernel/onboarding",
+    "/api/kernel/demo-mode",
+    "/api/vitals",
+    "/api/feedback",
+  ];
 
   app.use("/api", async (req: any, res, next) => {
     if (req.method === "GET" || req.method === "OPTIONS" || req.method === "HEAD") return next();

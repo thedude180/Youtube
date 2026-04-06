@@ -271,12 +271,22 @@ export function registerKernelRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
-    const { category } = req.body;
-    if (!category) return res.status(400).json({ error: "category required" });
+    const userEmail = (req as any).user?.claims?.email || (req as any).user?.email;
+    if (userEmail !== "thedude180@gmail.com") {
+      return res.status(403).json({ error: "Admin only — trust budget reset restricted" });
+    }
 
     try {
-      const status = await checkTrustBudget(userId, category, 0);
-      res.json(status);
+      const { trustBudgetPeriods, trustBudgetRecords } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const { db } = await import("../db");
+      await db.update(trustBudgetPeriods)
+        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 })
+        .where(eq(trustBudgetPeriods.userId, userId));
+      await db.update(trustBudgetRecords)
+        .set({ budgetRemaining: 100, totalDeducted: 0, violationCount: 0 })
+        .where(eq(trustBudgetRecords.userId, userId));
+      res.json({ success: true, message: "Trust budget reset for all agents (periods + records)" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
