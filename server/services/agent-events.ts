@@ -78,10 +78,34 @@ export async function wireAgentCoordination(): Promise<void> {
   logger.info("Wiring agent coordination event handlers");
 
   // ── PRE-STREAM PIPELINE ─────────────────────────────────────────────────
-  // When stream.started fires → start the autonomous stream operator + announce
   onAgentEvent("stream.started", async (event) => {
     const { videoId, gameTitle, liveChatId, title } = event.payload || {};
     logger.info(`stream.started for ${event.userId.slice(0, 8)} — launching pre-stream pipeline`);
+
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { startRecording } = await import("./stream-recorder");
+          const result = await startRecording(event.userId, videoId);
+          if (result.success) {
+            logger.info(`Stream recording started for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
+          } else {
+            logger.warn(`Stream recording failed to start: ${result.error}`);
+            setTimeout(async () => {
+              try {
+                const { startRecording: retry } = await import("./stream-recorder");
+                const retryResult = await retry(event.userId, videoId);
+                logger.info(`Stream recording retry: ${retryResult.success ? "started" : retryResult.error}`);
+              } catch (err: any) {
+                logger.warn(`Stream recording retry failed: ${err.message}`);
+              }
+            }, 60_000);
+          }
+        } catch (err: any) {
+          logger.warn(`Stream recorder startup failed: ${err.message}`);
+        }
+      }, 10_000);
+    }
 
     // 1. Immediately start the stream operator (if liveChatId available)
     if (liveChatId) {
@@ -137,7 +161,22 @@ export async function wireAgentCoordination(): Promise<void> {
     const videoId = event.payload?.videoId;
     const gameTitle = event.payload?.gameTitle || "Gaming Stream";
 
-    // 1. Immediately trigger upload watcher scan
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { stopRecording } = await import("./stream-recorder");
+          const recordingPath = await stopRecording(event.userId, videoId);
+          if (recordingPath) {
+            logger.info(`Stream recording saved for ${event.userId.slice(0, 8)} — ${recordingPath}`);
+          } else {
+            logger.warn(`No recording file available for ${videoId}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Stream recording stop failed: ${err.message}`);
+        }
+      }, 5_000);
+    }
+
     setTimeout(async () => {
       try {
         const { scanUserNow } = await import("./youtube-upload-watcher");

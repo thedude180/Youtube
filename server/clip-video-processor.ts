@@ -266,6 +266,16 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
     }
   }
 
+  try {
+    const { getRecordingPath } = await import("./services/stream-recorder");
+    const recordingPath = getRecordingPath(youtubeId);
+    if (recordingPath) {
+      logger.info("Using local stream recording as source", { youtubeId, path: recordingPath });
+      return recordingPath;
+    }
+  } catch {}
+
+
   const existing = activeDownloads.get(youtubeId);
   if (existing) return existing;
 
