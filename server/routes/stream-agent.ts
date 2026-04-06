@@ -6,12 +6,15 @@ import {
   stopStreamAgent,
   getStreamAgentStatus,
 } from "../services/stream-agent";
+import { getIdleSessionStatus, stopIdleSession } from "../services/stream-idle-engagement";
 
 export function registerStreamAgentRoutes(app: Express): void {
   app.get("/api/stream-agent/status", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
-      res.json(getStreamAgentStatus(userId));
+      const agentStatus = getStreamAgentStatus(userId);
+      const idleEngagement = getIdleSessionStatus(userId);
+      res.json({ ...agentStatus, idleEngagement });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -31,6 +34,7 @@ export function registerStreamAgentRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       stopStreamAgent(userId);
+      stopIdleSession(userId);
       res.json({ stopped: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

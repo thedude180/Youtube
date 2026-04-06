@@ -851,6 +851,44 @@ export default function StreamCenter() {
               </div>
             )}
 
+            {streamAgent?.isLive && streamAgent?.idleEngagement?.active && (
+              <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 mb-4" data-testid="section-idle-engagement">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Idle Engagement</p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground bg-muted/30 rounded-full px-2 py-0.5" data-testid="text-idle-category">
+                    {streamAgent.idleEngagement.category?.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-foreground" data-testid="text-idle-engagement-count">
+                      {streamAgent.idleEngagement.engagementCount}/{streamAgent.idleEngagement.maxPerStream}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">Engagements</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-foreground" data-testid="text-idle-last-activity">
+                      {streamAgent.idleEngagement.lastActivityAgo != null
+                        ? streamAgent.idleEngagement.lastActivityAgo < 60
+                          ? `${streamAgent.idleEngagement.lastActivityAgo}s`
+                          : `${Math.round(streamAgent.idleEngagement.lastActivityAgo / 60)}m`
+                        : '--'}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">Last activity</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-foreground" data-testid="text-idle-chat-rate">
+                      {streamAgent.idleEngagement.recentMessageRate ?? 0}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">Chat/2min</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {((streamAgent?.actionsLog as any[]) || []).length > 0 && (
               <div className="rounded-xl bg-muted/10 border border-border/20 p-3" data-testid="section-action-log">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono mb-2">Agent Activity</p>

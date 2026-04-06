@@ -1162,6 +1162,7 @@ httpServer.listen(
     delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
     delay(285_000, () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(err => logger.error("Livestream Growth Agent init failed", { error: String(err) })));
     delay(287_000, () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(err => logger.error("Live Chat Agent init failed", { error: String(err) })));
+    delay(288_000, () => import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(err => logger.error("Idle Engagement init failed", { error: String(err) })));
     delay(289_000, () => import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(err => logger.error("Live Clip Highlighter init failed", { error: String(err) })));
     delay(291_000, () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(err => logger.error("Live Raid Scout init failed", { error: String(err) })));
     delay(293_000, () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(err => logger.error("Live Revenue Activator init failed", { error: String(err) })));
