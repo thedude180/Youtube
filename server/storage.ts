@@ -260,7 +260,7 @@ export interface IStorage {
   createKnowledgeMilestone(m: InsertKnowledgeMilestone): Promise<KnowledgeMilestone>;
   updateKnowledgeMilestone(id: number, updates: Partial<InsertKnowledgeMilestone>): Promise<KnowledgeMilestone>;
 
-  getStats(): Promise<StatsResponse>;
+  getStats(userId: string): Promise<StatsResponse>;
 
   getAiResults(userId: string, featureKey?: string): Promise<AiResult[]>;
   getLatestAiResult(userId: string, featureKey: string): Promise<AiResult | undefined>;
@@ -1214,22 +1214,37 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getStats(): Promise<StatsResponse> {
-    const totalVideos = (await db.select({ count: sql<number>`count(*)` }).from(videos))[0].count;
+  async getStats(userId: string): Promise<StatsResponse> {
+    const userChannelIds = db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId));
+
+    const totalVideos = (await db.select({ count: sql<number>`count(*)` }).from(videos).where(inArray(videos.channelId, userChannelIds)))[0].count;
     const activeJobs = (await db.select({ count: sql<number>`count(*)` }).from(jobs).where(eq(jobs.status, 'processing')))[0].count;
     const activeStrats = (await db.select({ count: sql<number>`count(*)` }).from(growthStrategies).where(eq(growthStrategies.status, 'in_progress')))[0].count;
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const uploadedToday = (await db.select({ count: sql<number>`count(*)` }).from(videos).where(
-      and(eq(videos.status, 'uploaded'), sql`${videos.publishedAt} >= ${todayStart}`)
+      and(eq(videos.status, 'uploaded'), sql`${videos.publishedAt} >= ${todayStart}`, inArray(videos.channelId, userChannelIds))
+    ))[0].count;
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const videosPosted = (await db.select({ count: sql<number>`count(*)` }).from(videos).where(
+      and(
+        inArray(videos.channelId, userChannelIds),
+        sql`${videos.publishedAt} >= ${thirtyDaysAgo}`,
+        inArray(videos.status, ['uploaded', 'published', 'optimized'])
+      )
     ))[0].count;
 
     const complianceAll = await db.select().from(complianceRecords);
     const passCount = complianceAll.filter(c => c.status === 'pass').length;
     const complianceScore = complianceAll.length > 0 ? Math.round((passCount / complianceAll.length) * 100) : 100;
 
-    const scheduled = await db.select().from(videos).where(eq(videos.status, 'scheduled')).orderBy(videos.scheduledTime).limit(1);
+    const scheduled = await db.select().from(videos).where(
+      and(eq(videos.status, 'scheduled'), inArray(videos.channelId, userChannelIds))
+    ).orderBy(videos.scheduledTime).limit(1);
 
     const riskScore = Math.max(0, Math.min(100,
       (Number(activeJobs) > 5 ? 30 : Number(activeJobs) * 5) +
@@ -1237,14 +1252,29 @@ export class DatabaseStorage implements IStorage {
       (Number(uploadedToday) > 3 ? 20 : 0)
     ));
 
-    const allRevenue = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(revenueRecords);
+    const allRevenue = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(revenueRecords).where(eq(revenueRecords.userId, userId));
     const totalRevenue = Number(allRevenue[0]?.total || 0);
+
+    const monthlyRevenueRow = await db.select({ total: sql<number>`coalesce(sum(amount), 0)` }).from(revenueRecords).where(
+      and(eq(revenueRecords.userId, userId), sql`${revenueRecords.createdAt} >= ${thirtyDaysAgo}`)
+    );
+    const monthlyRevenue = Number(monthlyRevenueRow[0]?.total || 0);
 
     const agentCount = (await db.select({ count: sql<number>`count(distinct agent_id)` }).from(aiAgentActivities))[0].count;
     const scheduledCount = (await db.select({ count: sql<number>`count(*)` }).from(scheduleItems).where(eq(scheduleItems.status, 'scheduled')))[0].count;
 
-    const subCountRow = await db.select({ total: sql<number>`coalesce(sum(subscriber_count), 0)` }).from(channels);
-    const subscriberCount = Number(subCountRow[0]?.total || 0);
+    const channelStats = await db.select({
+      subscriberCount: sql<number>`coalesce(sum(subscriber_count), 0)`,
+      totalViews: sql<number>`coalesce(sum(view_count), 0)`,
+    }).from(channels).where(eq(channels.userId, userId));
+    const subscriberCount = Number(channelStats[0]?.subscriberCount || 0);
+    const totalViews = Number(channelStats[0]?.totalViews || 0);
+
+    let isLive = false;
+    try {
+      const { getStreamAgentStatus } = await import("./services/stream-agent");
+      isLive = getStreamAgentStatus(userId)?.isLive ?? false;
+    } catch {}
 
     return {
       totalVideos: Number(totalVideos),
@@ -1258,6 +1288,13 @@ export class DatabaseStorage implements IStorage {
       activeAgents: Number(agentCount),
       scheduledItems: Number(scheduledCount),
       subscriberCount,
+      monthlyViews: totalViews,
+      monthlyRevenue,
+      videosPosted: Number(videosPosted),
+      totalViews,
+      watchHours: null,
+      avgViewDuration: null,
+      isLive,
     };
   }
   async getAiResults(userId: string, featureKey?: string): Promise<AiResult[]> {

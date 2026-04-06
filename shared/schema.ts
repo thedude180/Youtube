@@ -2375,6 +2375,13 @@ export type StatsResponse = {
   activeAgents: number;
   scheduledItems: number;
   subscriberCount: number;
+  monthlyViews: number;
+  monthlyRevenue: number;
+  videosPosted: number;
+  totalViews: number;
+  watchHours: number | null;
+  avgViewDuration: number | null;
+  isLive: boolean;
 };
 
 // === ACCESS CODES (Affiliate Program) ===

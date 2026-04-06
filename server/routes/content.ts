@@ -663,7 +663,7 @@ export function registerContentRoutes(app: Express) {
   app.get(api.dashboard.stats.path, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const stats = await storage.getStats();
+    const stats = await storage.getStats(userId);
     res.json(stats);
   }));
 
