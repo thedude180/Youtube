@@ -137,11 +137,50 @@ const YT_DLP_BIN = (() => {
 })();
 
 const YT_DLP_FORMAT_STRATEGIES = [
-  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
+  "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160][ext=mp4]/best[height<=2160]",
+  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[height<=1080]",
   "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
   "best[ext=mp4]/best",
   "best",
 ];
+
+export interface VideoResolution {
+  width: number;
+  height: number;
+  fps: number;
+}
+
+export async function probeVideoResolution(filePath: string): Promise<VideoResolution> {
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v", "quiet",
+      "-select_streams", "v:0",
+      "-show_entries", "stream=width,height,r_frame_rate",
+      "-of", "json",
+      filePath,
+    ], { timeout: 30_000 });
+
+    const data = JSON.parse(stdout);
+    const stream = data.streams?.[0];
+    const width = Number(stream?.width) || 1920;
+    const height = Number(stream?.height) || 1080;
+    const fpsStr = stream?.r_frame_rate || "30/1";
+    const [num, den] = fpsStr.split("/").map(Number);
+    const fps = den ? Math.round(num / den) : 30;
+
+    return { width, height, fps };
+  } catch (err) {
+    logger.warn("ffprobe resolution probe failed, assuming 1080p", { error: String(err).substring(0, 200) });
+    return { width: 1920, height: 1080, fps: 30 };
+  }
+}
+
+export function buildUpscaleFilter(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): string {
+  if (sourceWidth >= targetWidth && sourceHeight >= targetHeight) {
+    return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`;
+  }
+  return `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`;
+}
 
 /**
  * Looks up the YouTube OAuth access token for the given userId.

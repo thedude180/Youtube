@@ -252,10 +252,8 @@ describe("Resolution Intelligence — v15.2.a17", () => {
     it("should recommend upscale for VOD when source quality is good", () => {
       const source = profileSourceQuality({ resolution: "1080p", fps: 60 });
       const rec = getExportQualityRecommendation(source, "vod");
-      expect(rec.recommendedResolution).toBeDefined();
-      if (rec.upscaleRecommended) {
-        expect(rec.recommendedResolution).toBe("1440p");
-      }
+      expect(rec.recommendedResolution).toBe("2160p");
+      expect(rec.upscaleRecommended).toBe(true);
     });
 
     it("should keep native resolution for shorts and clips", () => {

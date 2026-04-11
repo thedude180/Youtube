@@ -660,23 +660,33 @@ export function getExportQualityRecommendation(source: SourceAnalysis, assetType
     };
   }
 
-  if (source.upscaleEligibilityScore > 0.6 && source.nativeVsWeakClassification === "native") {
-    const target = oneStepUp(source.sourceResolution);
-    if (target) {
+  if (source.upscaleEligibilityScore > 0.4 && source.nativeVsWeakClassification === "native") {
+    const srcIdx = resolutionIndex(source.sourceResolution);
+    const targetIdx = resolutionIndex("2160p");
+    if (srcIdx >= 0 && srcIdx < targetIdx) {
       return {
-        recommendedResolution: target,
-        recommendedFps: source.sourceFps,
+        recommendedResolution: "2160p",
+        recommendedFps: Math.min(source.sourceFps, 60),
         upscaleRecommended: true,
-        reason: `VOD export can benefit from upscale to ${target} (source quality is good, eligibility: ${(source.upscaleEligibilityScore * 100).toFixed(0)}%)`,
+        reason: `VOD export upscaled to 4K (2160p) via lanczos — source ${source.sourceResolution} quality is good (eligibility: ${(source.upscaleEligibilityScore * 100).toFixed(0)}%)`,
       };
     }
+  }
+
+  if (resolutionIndex(source.sourceResolution) >= resolutionIndex("2160p")) {
+    return {
+      recommendedResolution: "2160p",
+      recommendedFps: Math.min(source.sourceFps, 60),
+      upscaleRecommended: false,
+      reason: "Source is already 4K — native resolution preserved",
+    };
   }
 
   return {
     recommendedResolution: source.sourceResolution,
     recommendedFps: source.sourceFps,
     upscaleRecommended: false,
-    reason: "Native resolution is the best practical output for this source",
+    reason: "Source quality too low for reliable 4K upscale — native resolution preserved",
   };
 }
 

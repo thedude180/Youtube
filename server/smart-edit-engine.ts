@@ -8,7 +8,7 @@ import { videos, channels, autopilotQueue, aiAgentTasks } from "@shared/schema";
 import { eq, and, desc, gte, or, sql, inArray } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
-import { downloadSourceVideo } from "./clip-video-processor";
+import { downloadSourceVideo, probeVideoResolution, buildUpscaleFilter } from "./clip-video-processor";
 import { uploadVideoToYouTube } from "./youtube";
 import { generateThumbnailForNewVideo } from "./auto-thumbnail-engine";
 import { recordLearningEvent, getLearningContext } from "./learning-engine";
@@ -234,6 +234,10 @@ async function cutSegmentForReel(
   const outputPath = path.join(REEL_DIR, `reel_seg_${index}_${Date.now()}.mp4`);
   const duration = endTime - startTime;
 
+  const source = await probeVideoResolution(sourcePath);
+  const scaleFilter = buildUpscaleFilter(source.width, source.height, 3840, 2160);
+  const outputFps = Math.min(source.fps || 60, 60);
+
   await execFileAsync(FFMPEG_BIN, [
     "-y",
     "-ss", String(startTime),
@@ -241,12 +245,12 @@ async function cutSegmentForReel(
     "-t", String(duration),
     "-c:v", "libx264",
     "-preset", "fast",
-    "-crf", "22",
+    "-crf", "18",
     "-c:a", "aac",
     "-b:a", "192k",
     "-movflags", "+faststart",
-    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black",
-    "-r", "30",
+    "-vf", scaleFilter,
+    "-r", String(outputFps),
     "-ar", "44100",
     outputPath,
   ], { timeout: FFMPEG_TIMEOUT });
@@ -291,7 +295,7 @@ async function addChannelBranding(videoPath: string, channelName: string, output
   const fontExists = fs.existsSync(fontFile);
   const fontSpec = fontExists ? `fontfile=${fontFile}:` : "";
 
-  const drawtext = `drawtext=${fontSpec}text='${safeName}':x=(w-text_w-20):y=(h-text_h-20):fontsize=36:fontcolor=white@0.75:shadowcolor=black@0.5:shadowx=2:shadowy=2`;
+  const drawtext = `drawtext=${fontSpec}text='${safeName}':x=(w-text_w-40):y=(h-text_h-40):fontsize=64:fontcolor=white@0.75:shadowcolor=black@0.5:shadowx=3:shadowy=3`;
 
   try {
     await execFileAsync(FFMPEG_BIN, [
@@ -300,7 +304,7 @@ async function addChannelBranding(videoPath: string, channelName: string, output
       "-vf", drawtext,
       "-c:v", "libx264",
       "-preset", "fast",
-      "-crf", "22",
+      "-crf", "18",
       "-c:a", "copy",
       "-movflags", "+faststart",
       outputPath,
