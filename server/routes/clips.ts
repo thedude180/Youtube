@@ -9,6 +9,8 @@ import {
   startShortsPipeline,
   getShortsPipelineStatus,
   extractClipsFromVideo,
+  extractAndOptimizeFromUrl,
+  parseYouTubeVideoId,
 } from "../shorts-pipeline-engine";
 import {
   getAudienceDrivenTime,
@@ -102,6 +104,151 @@ export function registerClipRoutes(app: Express) {
       console.error("[Clips] Run pipeline error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to start clip pipeline" });
+    }
+  }));
+
+  app.post("/api/clips/from-url", asyncHandler(async (req: any, res) => {
+    const userId = await requireTier(req, res, "pro", "Clip Extraction");
+    if (!userId) return;
+    try {
+      const urlSchema = z.object({
+        url: z.string().min(1).max(500),
+        autoSchedule: z.boolean().optional().default(true),
+      });
+      const parsed = urlSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+
+      const videoId = parseYouTubeVideoId(parsed.data.url);
+      if (!videoId) {
+        return res.status(400).json({
+          error: "Invalid YouTube URL. Paste a YouTube share link like youtu.be/xxx or youtube.com/watch?v=xxx",
+        });
+      }
+
+      const result = await extractAndOptimizeFromUrl(userId, parsed.data.url);
+
+      if (result.clipsAlreadyExisted) {
+        return res.json({
+          success: true,
+          message: `"${result.video.title}" was already processed — ${result.clips.length} clips exist. Check the backlog below to manage them.`,
+          video: {
+            id: result.video.id,
+            title: result.video.title,
+            youtubeId: (result.video.metadata as any)?.youtubeId,
+            thumbnailUrl: result.video.thumbnailUrl,
+          },
+          clips: result.clips.map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            description: c.description,
+            startTime: c.startTime,
+            endTime: c.endTime,
+            targetPlatform: c.targetPlatform,
+            optimizationScore: c.optimizationScore,
+            hook: (c.metadata as any)?.hook,
+            tags: (c.metadata as any)?.tags,
+            seoOptimized: (c.metadata as any)?.seoOptimized ?? false,
+          })),
+          scheduled: 0,
+          seoOptimized: false,
+          alreadyExisted: true,
+        });
+      }
+
+      let scheduledCount = 0;
+      if (parsed.data.autoSchedule && result.clips.length > 0) {
+        const now = new Date();
+        const batchValues: any[] = [];
+
+        for (let i = 0; i < result.clips.length; i++) {
+          const clip = result.clips[i];
+
+          let scheduledAt: Date;
+          try {
+            scheduledAt = await getAudienceDrivenTime({
+              platform: "youtube",
+              userId,
+              contentType: "new-video",
+              urgency: "low",
+            });
+          } catch {
+            scheduledAt = new Date(now);
+            scheduledAt.setHours(12 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60));
+          }
+
+          const dayOffset = Math.floor(i / 2) + 1;
+          scheduledAt.setDate(now.getDate() + dayOffset);
+          const microDelay = addHumanMicroDelay();
+          const halfDayJitter = Math.floor(Math.random() * 4 * 60 * 60 * 1000);
+          const finalTime = new Date(scheduledAt.getTime() + microDelay + halfDayJitter);
+
+          batchValues.push({
+            userId,
+            sourceVideoId: result.video.id,
+            type: "auto-clip",
+            targetPlatform: "youtube",
+            content: clip.title,
+            caption: clip.description || clip.title,
+            status: "scheduled",
+            scheduledAt: finalTime,
+            metadata: {
+              clipId: clip.id,
+              clipStart: clip.startTime,
+              clipEnd: clip.endTime,
+              style: "human",
+              schedulingMethod: "from-url-pipeline",
+              aiModel: "auto-clip",
+              humanScore: 0.95,
+              viralScore: clip.optimizationScore,
+              seoOptimized: true,
+              hashtags: (clip.metadata as any)?.tags || [],
+            },
+          });
+        }
+
+        if (batchValues.length > 0) {
+          await db.insert(autopilotQueue).values(batchValues as any);
+
+          const clipIds = batchValues.map(v => v.metadata.clipId as number);
+          await db.update(contentClips)
+            .set({ status: "scheduled" })
+            .where(and(eq(contentClips.userId, userId), inArray(contentClips.id, clipIds)));
+
+          scheduledCount = batchValues.length;
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Extracted ${result.clips.length} SEO-optimized shorts from "${result.video.title}"${scheduledCount > 0 ? `. ${scheduledCount} scheduled for staggered upload over the next ${Math.ceil(result.clips.length / 2)} days.` : "."}`,
+        video: {
+          id: result.video.id,
+          title: result.video.title,
+          youtubeId: (result.video.metadata as any)?.youtubeId,
+          thumbnailUrl: result.video.thumbnailUrl,
+        },
+        clips: result.clips.map((c: any) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          startTime: c.startTime,
+          endTime: c.endTime,
+          targetPlatform: c.targetPlatform,
+          optimizationScore: c.optimizationScore,
+          hook: (c.metadata as any)?.hook,
+          tags: (c.metadata as any)?.tags,
+          seoOptimized: (c.metadata as any)?.seoOptimized ?? false,
+        })),
+        scheduled: scheduledCount,
+        seoOptimized: result.seoOptimized,
+        alreadyExisted: result.alreadyExisted,
+      });
+    } catch (err: any) {
+      console.error("[Clips] From-URL error:", err);
+      if (!res.headersSent)
+        res.status(500).json({ error: err.message || "Failed to extract shorts from URL" });
     }
   }));
 

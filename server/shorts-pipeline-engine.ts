@@ -1,10 +1,11 @@
 import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
-import { pipelineRuns, clipViralityScores, contentClips } from "@shared/schema";
+import { pipelineRuns, clipViralityScores, contentClips, videos } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { fetchYouTubeTranscript } from "./youtube";
+import { google } from "googleapis";
 
 const openai = getOpenAIClient();
 
@@ -591,6 +592,276 @@ Create a compilation plan as JSON:
       compilationPlan: "Top clips selected by viral score. Arrange in descending engagement order.",
     };
   }
+}
+
+const ALLOWED_YT_HOSTS = new Set([
+  "youtube.com", "www.youtube.com", "m.youtube.com",
+  "youtu.be", "www.youtu.be",
+  "youtube-nocookie.com", "www.youtube-nocookie.com",
+]);
+
+export function parseYouTubeVideoId(url: string): string | null {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+
+  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  if (!ALLOWED_YT_HOSTS.has(host)) return null;
+
+  if (host === "youtu.be" || host === "www.youtu.be") {
+    const id = parsed.pathname.slice(1).split(/[/?#]/)[0];
+    return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
+  }
+
+  const vParam = parsed.searchParams.get("v");
+  if (vParam && /^[a-zA-Z0-9_-]{11}$/.test(vParam)) return vParam;
+
+  const pathPatterns = [/\/(?:shorts|embed|v|live)\/([a-zA-Z0-9_-]{11})/];
+  for (const pattern of pathPatterns) {
+    const match = parsed.pathname.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return null;
+}
+
+export async function ingestVideoFromYouTubeUrl(
+  userId: string,
+  youtubeId: string,
+): Promise<{ video: any; alreadyExisted: boolean }> {
+  const existingVideos = await storage.getVideosByUser(userId);
+  const existing = existingVideos.find(
+    (v: any) => (v.metadata as any)?.youtubeId === youtubeId,
+  );
+  if (existing) return { video: existing, alreadyExisted: true };
+
+  let title = `YouTube Video ${youtubeId}`;
+  let description = "";
+  let tags: string[] = [];
+  let duration = "unknown";
+  let categoryId = "20";
+  let thumbnailUrl = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;
+  let viewCount = 0;
+  let likeCount = 0;
+  let commentCount = 0;
+  let channelTitle = "";
+
+  try {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    let videoData: any = null;
+
+    if (apiKey) {
+      const yt = google.youtube({ version: "v3", auth: apiKey });
+      const resp = await yt.videos.list({
+        part: ["snippet", "contentDetails", "statistics"],
+        id: [youtubeId],
+      });
+      videoData = resp.data.items?.[0];
+    }
+
+    if (!videoData) {
+      const userChannels = await storage.getChannelsByUser(userId);
+      const ytChannel = userChannels.find(
+        (c: any) => c.platform === "youtube" && c.accessToken,
+      );
+      if (ytChannel) {
+        const { getAuthenticatedClient } = await import("./youtube");
+        const { oauth2Client } = await getAuthenticatedClient(ytChannel.id);
+        const yt = google.youtube({ version: "v3", auth: oauth2Client });
+        const resp = await yt.videos.list({
+          part: ["snippet", "contentDetails", "statistics"],
+          id: [youtubeId],
+        });
+        videoData = resp.data.items?.[0];
+      }
+    }
+
+    if (videoData) {
+      const snippet = videoData.snippet || {};
+      const stats = videoData.statistics || {};
+      const cd = videoData.contentDetails || {};
+      title = snippet.title || title;
+      description = snippet.description || "";
+      tags = snippet.tags || [];
+      categoryId = snippet.categoryId || "20";
+      channelTitle = snippet.channelTitle || "";
+      thumbnailUrl = snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || thumbnailUrl;
+      duration = cd.duration || "unknown";
+      viewCount = parseInt(stats.viewCount || "0", 10);
+      likeCount = parseInt(stats.likeCount || "0", 10);
+      commentCount = parseInt(stats.commentCount || "0", 10);
+    }
+  } catch (err: any) {
+    console.error(`[shorts-pipeline] Failed to fetch YouTube metadata for ${youtubeId}:`, err.message);
+  }
+
+  const userChannels = await storage.getChannelsByUser(userId);
+  const ytChannel = userChannels.find((c: any) => c.platform === "youtube");
+  const channelId = ytChannel?.id ?? null;
+
+  const video = await storage.createVideo({
+    channelId,
+    title,
+    description,
+    type: "video",
+    status: "ingested",
+    platform: "youtube",
+    thumbnailUrl,
+    metadata: {
+      youtubeId,
+      tags,
+      categoryId,
+      channelTitle,
+      duration,
+      stats: { views: viewCount, likes: likeCount, comments: commentCount, ctr: 0 },
+      viewCount,
+      likeCount,
+      commentCount,
+      importedFromUrl: true,
+      importedAt: new Date().toISOString(),
+    } as any,
+  });
+
+  return { video, alreadyExisted: false };
+}
+
+export async function optimizeClipsSEO(
+  clips: any[],
+  sourceVideo: any,
+): Promise<any[]> {
+  if (clips.length === 0) return clips;
+
+  const clipSummary = clips.map((c, i) => ({
+    index: i,
+    title: c.title,
+    description: c.description || "",
+    tags: (c.metadata as any)?.tags || [],
+    platform: c.targetPlatform,
+    hook: (c.metadata as any)?.hook || "",
+    duration: `${Math.round((c.endTime || 0) - (c.startTime || 0))}s`,
+  }));
+
+  const prompt = `You are a YouTube Shorts SEO specialist for a PS5 no-commentary gaming channel. Optimize these clip titles, descriptions, and tags for maximum YouTube Shorts discoverability.
+
+Source Video: "${sourceVideo.title}"
+Channel Niche: PS5 Gaming, No Commentary
+
+Clips to optimize:
+${JSON.stringify(clipSummary, null, 2)}
+
+SEO Rules (STRICT):
+- Titles must be DESCRIPTIVE and SPECIFIC — tell viewers exactly what happens
+- NO clickbait patterns: no "YOU WON'T BELIEVE", "INSANE", "OMG", "WATCH TILL THE END", ALL CAPS shock phrases
+- DO use strong keywords: game name, specific action, result (e.g., "Elden Ring - Malenia First Try No Hit Run")
+- Keep titles under 70 characters so they don't get truncated
+- Include the game name in every title
+- Descriptions: 2-3 sentences, keyword-rich, include the game name and what happens
+- Tags: 8-12 relevant tags per clip mixing broad (PS5, gaming, shorts) with specific (game name, boss name, moment type)
+- Add 3-5 hashtags at end of description: #Shorts plus niche tags (NO #fyp or generic trending tags)
+- Hooks should create genuine curiosity about what happens, not fake tension
+
+Return as JSON:
+{
+  "optimized": [
+    {
+      "index": 0,
+      "title": "optimized title",
+      "description": "optimized description with hashtags",
+      "tags": ["tag1", "tag2"],
+      "hook": "improved hook text"
+    }
+  ]
+}`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 16000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return clips;
+
+    const parsed = JSON.parse(content);
+    const optimized = parsed.optimized || [];
+
+    for (const opt of optimized) {
+      const clip = clips[opt.index];
+      if (!clip) continue;
+
+      const updates: any = {};
+      if (opt.title) updates.title = opt.title;
+      if (opt.description) updates.description = opt.description;
+
+      const existingMeta = (clip.metadata as any) || {};
+      const newMeta = {
+        ...existingMeta,
+        tags: opt.tags || existingMeta.tags || [],
+        hook: opt.hook || existingMeta.hook || "",
+        seoOptimized: true,
+        seoOptimizedAt: new Date().toISOString(),
+      };
+      updates.metadata = newMeta;
+
+      if (Object.keys(updates).length > 0) {
+        await storage.updateContentClip(clip.id, updates);
+        Object.assign(clip, updates);
+      }
+    }
+
+    return clips;
+  } catch (err: any) {
+    console.error(`[shorts-pipeline] SEO optimization failed:`, err.message);
+    return clips;
+  }
+}
+
+export async function extractAndOptimizeFromUrl(
+  userId: string,
+  youtubeUrl: string,
+): Promise<{
+  video: any;
+  clips: any[];
+  seoOptimized: boolean;
+  alreadyExisted: boolean;
+  clipsAlreadyExisted: boolean;
+}> {
+  const videoId = parseYouTubeVideoId(youtubeUrl);
+  if (!videoId) {
+    throw new Error("Invalid YouTube URL. Supported formats: youtu.be/xxx, youtube.com/watch?v=xxx, youtube.com/shorts/xxx");
+  }
+
+  const { video, alreadyExisted } = await ingestVideoFromYouTubeUrl(userId, videoId);
+
+  const existingClips = await storage.getContentClips(userId, video.id);
+  if (existingClips.length > 0) {
+    return { video, clips: existingClips, seoOptimized: false, alreadyExisted, clipsAlreadyExisted: true };
+  }
+
+  const clips = await extractClipsFromVideo(userId, video.id);
+
+  let seoOptimized = false;
+  if (clips.length > 0) {
+    try {
+      await optimizeClipsSEO(clips, video);
+      const anyOptimized = clips.some((c: any) => (c.metadata as any)?.seoOptimized);
+      seoOptimized = anyOptimized;
+    } catch {
+      seoOptimized = false;
+    }
+  }
+
+  return { video, clips, seoOptimized, alreadyExisted, clipsAlreadyExisted: false };
 }
 
 export async function trackClipPerformance(

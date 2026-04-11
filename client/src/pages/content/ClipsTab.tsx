@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import {
   Scissors, Play, CalendarClock, Trash2, Loader2,
-  Zap, TrendingUp, Clock, Video, BarChart3,
+  Zap, TrendingUp, Clock, Video, BarChart3, Link2, Search, CheckCircle2,
 } from "lucide-react";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import {
@@ -72,9 +73,30 @@ function viralScoreColor(score: number | null): string {
   return "text-red-400";
 }
 
+interface FromUrlResult {
+  video: { id: number; title: string; youtubeId: string; thumbnailUrl: string };
+  clips: Array<{
+    id: number;
+    title: string;
+    description: string;
+    startTime: number;
+    endTime: number;
+    targetPlatform: string;
+    optimizationScore: number;
+    hook: string;
+    tags: string[];
+    seoOptimized: boolean;
+  }>;
+  scheduled: number;
+  seoOptimized: boolean;
+  message: string;
+}
+
 export default function ClipsTab() {
   const { toast } = useToast();
   const [expandedVideo, setExpandedVideo] = useState<number | null>(null);
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [lastUrlResult, setLastUrlResult] = useState<FromUrlResult | null>(null);
 
   const medPoll = useAdaptiveInterval(5000);
   const slowPoll = useAdaptiveInterval(10000);
@@ -144,6 +166,28 @@ export default function ClipsTab() {
       toast({ title: "Clip removed" });
       queryClient.invalidateQueries({ queryKey: ["/api/clips/backlog"] });
       queryClient.invalidateQueries({ queryKey: ["/api/clips/stats"] });
+    },
+  });
+
+  const fromUrlMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await apiRequest("POST", "/api/clips/from-url", { url, autoSchedule: true });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: data.message || "Shorts extracted!" });
+      setLastUrlResult(data);
+      setYoutubeUrl("");
+      queryClient.invalidateQueries({ queryKey: ["/api/clips/backlog"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clips/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clips/pipeline-status"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to extract shorts",
+        description: err?.message || "Check the URL and try again",
+        variant: "destructive",
+      });
     },
   });
 
@@ -220,6 +264,83 @@ export default function ClipsTab() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-purple-400" />
+            Extract Shorts from YouTube URL
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Paste YouTube link (youtu.be/xxx or youtube.com/watch?v=xxx)"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && youtubeUrl.trim() && !fromUrlMutation.isPending) {
+                  fromUrlMutation.mutate(youtubeUrl.trim());
+                }
+              }}
+              disabled={fromUrlMutation.isPending}
+              className="flex-1"
+              data-testid="input-youtube-url"
+            />
+            <Button
+              onClick={() => fromUrlMutation.mutate(youtubeUrl.trim())}
+              disabled={!youtubeUrl.trim() || fromUrlMutation.isPending}
+              data-testid="button-extract-from-url"
+            >
+              {fromUrlMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 mr-1" />
+              )}
+              {fromUrlMutation.isPending ? "Extracting..." : "Extract Shorts"}
+            </Button>
+          </div>
+          {fromUrlMutation.isPending && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Analyzing video, extracting clips, optimizing SEO, and scheduling uploads...
+            </p>
+          )}
+          {lastUrlResult && (
+            <div className="mt-3 p-3 rounded-md bg-muted/30 space-y-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-400" />
+                <span className="text-sm font-medium">{lastUrlResult.video.title}</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                <span>{lastUrlResult.clips.length} shorts extracted</span>
+                {lastUrlResult.seoOptimized && (
+                  <Badge variant="secondary" className="text-xs">SEO Optimized</Badge>
+                )}
+                {lastUrlResult.scheduled > 0 && (
+                  <Badge variant="default" className="text-xs">{lastUrlResult.scheduled} scheduled</Badge>
+                )}
+              </div>
+              {lastUrlResult.clips.length > 0 && (
+                <div className="space-y-1 mt-1">
+                  {lastUrlResult.clips.slice(0, 4).map((clip) => (
+                    <div key={clip.id} className="flex items-center justify-between text-xs">
+                      <span className="truncate flex-1 mr-2">{clip.title}</span>
+                      <span className={viralScoreColor(clip.optimizationScore)}>
+                        {clip.optimizationScore}
+                      </span>
+                    </div>
+                  ))}
+                  {lastUrlResult.clips.length > 4 && (
+                    <p className="text-xs text-muted-foreground">
+                      +{lastUrlResult.clips.length - 4} more clips
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
