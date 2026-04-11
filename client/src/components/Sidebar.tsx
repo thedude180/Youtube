@@ -57,24 +57,24 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="border-r border-border/50" data-testid="sidebar">
-      <SidebarHeader className="px-4 py-4 border-b border-border/30">
+    <Sidebar className="border-r border-border/40" data-testid="sidebar">
+      <SidebarHeader className="px-4 py-4 border-b border-border/20">
         <Link href="/">
-          <div className="flex items-center gap-2.5 cursor-pointer" data-testid="link-sidebar-logo">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
-              <Zap className="h-4 w-4 text-primary" />
+          <div className="flex items-center gap-2.5 cursor-pointer group" data-testid="link-sidebar-logo">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/25 to-purple-600/20 border border-primary/25 flex items-center justify-center flex-shrink-0 group-hover:border-primary/40 transition-colors">
+              <Zap className="h-4 w-4 text-primary drop-shadow-sm" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-bold text-foreground leading-none">CreatorOS</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">AI YouTube Team</div>
+              <div className="text-sm font-bold text-foreground leading-none tracking-tight">CreatorOS</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5 tracking-wide">AI YouTube Team</div>
             </div>
           </div>
         </Link>
 
         {activeAgents > 0 && (
-          <div className="mt-3 flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20" data-testid="badge-agents-active">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-            <span className="text-[11px] text-emerald-400 font-medium">
+          <div className="mt-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/8 border border-emerald-500/15" data-testid="badge-agents-active">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0 shadow-[0_0_4px_hsl(142_70%_50%/0.5)]" />
+            <span className="text-[11px] text-emerald-400 font-medium tracking-wide">
               {activeAgents}/{totalAgents} agents working
             </span>
           </div>
@@ -103,22 +103,22 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="px-3 py-3 border-t border-border/30">
+      <SidebarFooter className="px-3 py-3 border-t border-border/20">
         {stats && (
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <div className="text-center p-2 rounded-lg bg-muted/20 border border-border/20" data-testid="stat-subscribers">
-              <div className="text-xs font-bold text-foreground font-mono">
+            <div className="text-center p-2 rounded-lg bg-muted/15 border border-border/15" data-testid="stat-subscribers">
+              <div className="text-xs font-bold text-foreground font-mono tabular-nums tracking-tight">
                 {stats.subscriberCount >= 1000
                   ? `${(stats.subscriberCount / 1000).toFixed(1)}K`
                   : stats.subscriberCount ?? "—"}
               </div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">Subs</div>
+              <div className="text-[9px] text-muted-foreground mt-0.5 tracking-wide uppercase">Subs</div>
             </div>
-            <div className="text-center p-2 rounded-lg bg-muted/20 border border-border/20" data-testid="stat-revenue">
-              <div className="text-xs font-bold text-foreground font-mono">
+            <div className="text-center p-2 rounded-lg bg-muted/15 border border-border/15" data-testid="stat-revenue">
+              <div className="text-xs font-bold text-foreground font-mono tabular-nums tracking-tight">
                 ${stats.monthlyRevenue != null ? Number(stats.monthlyRevenue).toFixed(0) : "—"}
               </div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">This month</div>
+              <div className="text-[9px] text-muted-foreground mt-0.5 tracking-wide uppercase">This month</div>
             </div>
           </div>
         )}

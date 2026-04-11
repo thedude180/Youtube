@@ -447,14 +447,14 @@ function AuthenticatedApp() {
         <RouteAnnouncer />
         {!isFocusMode && <AppSidebar />}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/30 bg-background/60 backdrop-blur-2xl shrink-0 transition-all duration-300 ${isFocusMode ? "h-10" : "h-12"}`}>
+          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/20 bg-background/50 backdrop-blur-3xl backdrop-saturate-[1.8] shrink-0 transition-all duration-300 ${isFocusMode ? "h-10" : "h-12"}`} style={{ boxShadow: '0 1px 0 0 hsl(var(--border) / 0.08), 0 4px 16px -4px hsl(0 0% 0% / 0.06)' }}>
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {!isFocusMode && <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />}
               {!isFocusMode && (
                 <div className="hidden md:flex items-center gap-2.5">
-                  <div className="h-6 w-6 rounded-md bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-                    <Zap className="h-3 w-3 text-primary-foreground relative z-10" />
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-primary via-purple-500 to-indigo-600 flex items-center justify-center relative overflow-hidden shadow-4k-glow">
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/25 to-transparent" />
+                    <Zap className="h-3 w-3 text-primary-foreground relative z-10 drop-shadow-sm" />
                   </div>
                   <span data-testid="text-header-app-name" className="font-display font-bold text-sm tracking-tight">
                     Creator<span className="text-primary">OS</span>

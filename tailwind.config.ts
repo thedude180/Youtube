@@ -6,9 +6,14 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        lg: ".625rem", /* 10px */
+        md: ".4375rem", /* 7px */
+        sm: ".25rem", /* 4px */
+      },
+      boxShadow: {
+        "4k": "0 0 0 0.5px hsl(var(--border) / 0.4), 0 1px 2px hsl(0 0% 0% / 0.06), 0 6px 24px -4px hsl(0 0% 0% / 0.1)",
+        "4k-lg": "0 0 0 0.5px hsl(var(--border) / 0.3), 0 2px 4px hsl(0 0% 0% / 0.06), 0 12px 48px -8px hsl(0 0% 0% / 0.15), inset 0 0.5px 0 hsl(0 0% 100% / 0.05)",
+        "4k-glow": "0 0 0 0.5px hsl(var(--primary) / 0.1), 0 4px 20px -4px hsl(var(--primary) / 0.2), 0 0 60px -12px hsl(var(--primary) / 0.1)",
       },
       colors: {
         // Flat / base colors (regular buttons)
