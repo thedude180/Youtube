@@ -513,6 +513,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       platform: "youtube",
       status: "published",
       metadata: {
+        youtubeId: newYoutubeId,
         youtubeVideoId: newYoutubeId,
         tags: metadata.tags,
         isHighlightReel: true,

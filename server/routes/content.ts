@@ -2066,6 +2066,152 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
+  app.post("/api/content/from-url", writeRateLimit, asyncHandler(async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const urlSchema = z.object({
+        url: z.string().min(1).max(500),
+        autoSchedule: z.boolean().optional().default(true),
+      });
+      const parsed = urlSchema.safeParse(req.body || {});
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+
+      const { parseYouTubeVideoId, ingestVideoFromYouTubeUrl } = await import("../shorts-pipeline-engine");
+      const ytId = parseYouTubeVideoId(parsed.data.url);
+      if (!ytId) {
+        return res.status(400).json({
+          error: "Invalid YouTube URL. Paste a YouTube share link like youtu.be/xxx or youtube.com/watch?v=xxx",
+        });
+      }
+
+      const { video, alreadyExisted } = await ingestVideoFromYouTubeUrl(userId, ytId);
+      const meta = video.metadata as any;
+      const durationRaw = meta?.duration || "";
+      let durationSec = 0;
+      if (typeof durationRaw === "number") {
+        durationSec = durationRaw;
+      } else if (typeof durationRaw === "string" && durationRaw.startsWith("PT")) {
+        const hMatch = durationRaw.match(/(\d+)H/);
+        const mMatch = durationRaw.match(/(\d+)M/);
+        const sMatch = durationRaw.match(/(\d+)S/);
+        durationSec = (parseInt(hMatch?.[1] || "0") * 3600)
+          + (parseInt(mMatch?.[1] || "0") * 60)
+          + parseInt(sMatch?.[1] || "0");
+      }
+
+      if (durationSec > 0 && durationSec < 900) {
+        return res.status(400).json({
+          error: `This video is ${Math.round(durationSec / 60)} minutes long. The long-form pipeline requires videos over 15 minutes. Use the Shorts pipeline instead for shorter content.`,
+          videoId: video.id,
+          duration: durationSec,
+        });
+      }
+
+      if (durationSec > 0 && !meta?.durationSec) {
+        await db.update(videos)
+          .set({ metadata: { ...meta, durationSec, duration: durationSec } as any })
+          .where(eq(videos.id, video.id));
+      }
+
+      const existingSmartEdits = await db.select({ id: autopilotQueue.id, status: autopilotQueue.status })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.type, "smart-edit"),
+          eq(autopilotQueue.sourceVideoId, video.id),
+        ))
+        .orderBy(desc(autopilotQueue.id))
+        .limit(1);
+
+      const activeJob = existingSmartEdits.find(j => j.status === "pending" || j.status === "processing" || j.status === "done");
+      if (activeJob) {
+        return res.json({
+          success: true,
+          alreadyExisted: true,
+          message: `"${video.title}" is already ${activeJob.status === "done" ? "processed" : "queued for processing"}.`,
+          video: { id: video.id, title: video.title, youtubeId: ytId, thumbnailUrl: video.thumbnailUrl },
+          smartEditJobId: activeJob.id,
+          smartEditStatus: activeJob.status,
+          durationSec,
+        });
+      }
+
+      const { queueVideoForSmartEdit, processSmartEditQueue } = await import("../smart-edit-engine");
+      const jobId = await queueVideoForSmartEdit(userId, video.id);
+
+      if (jobId) {
+        const correlationId = (req as any).correlationId;
+        processSmartEditQueue(userId, correlationId).catch(() => undefined);
+      }
+
+      const { vodSEOOptimizer } = await import("../services/vod-seo-optimizer");
+      vodSEOOptimizer.optimize(userId, video.id).catch(() => undefined);
+
+      const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
+      generateThumbnailForNewVideo(userId, video.id).catch(() => undefined);
+
+      let scheduledAt: Date | null = null;
+      if (parsed.data.autoSchedule) {
+        try {
+          const { getAudienceDrivenTime, addHumanMicroDelay } = await import("../human-behavior-engine");
+          scheduledAt = await getAudienceDrivenTime({
+            platform: "youtube",
+            userId,
+            contentType: "new-video",
+            urgency: "low",
+          });
+          const dayOffset = 1 + Math.floor(Math.random() * 2);
+          scheduledAt.setDate(scheduledAt.getDate() + dayOffset);
+          const microDelay = addHumanMicroDelay();
+          const jitter = Math.floor(Math.random() * 2 * 60 * 60 * 1000);
+          scheduledAt = new Date(scheduledAt.getTime() + microDelay + jitter);
+        } catch {
+          scheduledAt = new Date();
+          scheduledAt.setDate(scheduledAt.getDate() + 1);
+          scheduledAt.setHours(12 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60));
+        }
+
+        await db.insert(autopilotQueue).values({
+          userId,
+          type: "vod-schedule",
+          targetPlatform: "youtube",
+          content: `Scheduled VOD upload: ${video.title}`,
+          status: "scheduled",
+          sourceVideoId: video.id,
+          scheduledAt,
+          metadata: {
+            youtubeId: ytId,
+            schedulingMethod: "from-url-pipeline",
+            style: "human",
+            humanScore: 0.95,
+          } as any,
+        }).catch(() => undefined);
+      }
+
+      res.json({
+        success: true,
+        alreadyExisted: false,
+        message: `"${video.title}" ingested and queued for AI smart editing, SEO optimization, and thumbnail generation.${scheduledAt ? ` Scheduled for ${scheduledAt.toLocaleDateString()}.` : ""}`,
+        video: { id: video.id, title: video.title, youtubeId: ytId, thumbnailUrl: video.thumbnailUrl },
+        smartEditJobId: jobId,
+        durationSec,
+        scheduledAt: scheduledAt?.toISOString() || null,
+        pipeline: {
+          smartEdit: jobId ? "queued" : (durationSec === 0 ? "pending-duration" : "skipped"),
+          seoOptimization: "running",
+          thumbnailGeneration: "running",
+          scheduling: scheduledAt ? "scheduled" : "manual",
+        },
+      });
+    } catch (e: any) {
+      console.error("[content/from-url] Error:", e.message);
+      res.status(500).json({ error: "Failed to process video URL" });
+    }
+  }));
+
   app.post("/api/content/videos/:id/smart-edit", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

@@ -1,15 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAdaptiveInterval } from "@/hooks/use-smart-polling";
 import { safeArray } from "@/lib/safe-data";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import {
   ExternalLink, CheckCircle2, FileText, Hash, Type,
   Loader2, ArrowRight, Clock, Copy, Search, Zap,
   Send, RefreshCw, Scissors, Image, Sparkles, Film,
-  ChevronDown, ChevronUp, Filter,
+  ChevronDown, ChevronUp, Filter, Link, Upload,
 } from "lucide-react";
 import { SiYoutube } from "react-icons/si";
 import { formatDistanceToNow } from "date-fns";
@@ -601,8 +603,144 @@ function UpdatedVideosTab() {
         </Card>
       )}
 
+      <VodUrlInputCard />
       <SmartEditPanel />
     </div>
+  );
+}
+
+interface VodUrlResult {
+  success: boolean;
+  message: string;
+  alreadyExisted: boolean;
+  video?: { id: number; title: string; youtubeId: string; thumbnailUrl: string };
+  smartEditJobId?: number;
+  smartEditStatus?: string;
+  durationSec?: number;
+  scheduledAt?: string;
+  pipeline?: {
+    smartEdit: string;
+    seoOptimization: string;
+    thumbnailGeneration: string;
+    scheduling: string;
+  };
+}
+
+function VodUrlInputCard() {
+  const [url, setUrl] = useState("");
+  const [result, setResult] = useState<VodUrlResult | null>(null);
+  const { toast } = useToast();
+
+  const submitMutation = useMutation({
+    mutationFn: async (videoUrl: string) => {
+      const res = await apiRequest("POST", "/api/content/from-url", { url: videoUrl });
+      return res.json() as Promise<VodUrlResult>;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setUrl("");
+      queryClient.invalidateQueries({ queryKey: ["/api/content/smart-edit/jobs"] });
+      toast({
+        title: data.alreadyExisted ? "Already processed" : "VOD pipeline started",
+        description: data.message,
+      });
+    },
+    onError: (err: any) => {
+      const msg = err?.message || "Failed to process URL";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    setResult(null);
+    submitMutation.mutate(url.trim());
+  };
+
+  return (
+    <Card className="border-primary/20 bg-card/60" data-testid="card-vod-url-input">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Upload className="h-3.5 w-3.5 text-primary" />
+          </div>
+          Long-Form VOD Pipeline
+          <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 ml-auto">AI Editor</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Paste a YouTube link for any video over 15 minutes. CreatorOS will auto-edit highlight reels, optimize SEO, generate a thumbnail, and schedule the upload.
+        </p>
+        <form onSubmit={handleSubmit} className="flex gap-2" data-testid="form-vod-url">
+          <div className="relative flex-1">
+            <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="https://youtu.be/... or youtube.com/watch?v=..."
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="pl-9 h-9 text-sm"
+              disabled={submitMutation.isPending}
+              data-testid="input-vod-url"
+            />
+          </div>
+          <Button
+            type="submit"
+            size="sm"
+            className="h-9 px-4"
+            disabled={submitMutation.isPending || !url.trim()}
+            data-testid="button-submit-vod-url"
+          >
+            {submitMutation.isPending ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Processing…</>
+            ) : (
+              <><Film className="h-3.5 w-3.5 mr-1.5" />Process VOD</>
+            )}
+          </Button>
+        </form>
+
+        {result && result.success && (
+          <div className="rounded-xl border border-border/40 bg-card/40 p-3 space-y-2" data-testid="vod-url-result">
+            <div className="flex items-start gap-3">
+              {result.video?.thumbnailUrl && (
+                <img
+                  src={result.video.thumbnailUrl}
+                  alt=""
+                  className="w-20 h-12 rounded-md object-cover shrink-0"
+                  data-testid="img-vod-thumbnail"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" data-testid="text-vod-title">{result.video?.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{result.message}</p>
+              </div>
+              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+            </div>
+            {result.pipeline && !result.alreadyExisted && (
+              <div className="flex flex-wrap gap-1.5 mt-2" data-testid="vod-pipeline-status">
+                {Object.entries(result.pipeline).map(([step, status]) => (
+                  <Badge
+                    key={step}
+                    variant="outline"
+                    className={`text-[10px] ${status === "queued" || status === "running" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" : status === "scheduled" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-muted text-muted-foreground border-border/30"}`}
+                    data-testid={`badge-pipeline-${step}`}
+                  >
+                    {step === "smartEdit" ? "Smart Edit" : step === "seoOptimization" ? "SEO" : step === "thumbnailGeneration" ? "Thumbnail" : "Schedule"}: {status}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {result.scheduledAt && (
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Scheduled: {new Date(result.scheduledAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
