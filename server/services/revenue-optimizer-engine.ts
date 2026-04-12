@@ -68,13 +68,14 @@ async function optimizeRevenueForUser(userId: string): Promise<void> {
 
   const gamePerformance: Record<string, { totalViews: number; count: number; avgWatchTime: number; titles: string[] }> = {};
   for (const v of recentVideos) {
-    const game = v.gameTitle || v.title?.split(" ")[0] || "unknown";
+    const meta = (v.metadata as any) || {};
+    const game = meta.gameName || v.title?.split(" ")[0] || "unknown";
     if (!gamePerformance[game]) {
       gamePerformance[game] = { totalViews: 0, count: 0, avgWatchTime: 0, titles: [] };
     }
-    gamePerformance[game].totalViews += v.viewCount || 0;
+    gamePerformance[game].totalViews += meta.viewCount || 0;
     gamePerformance[game].count++;
-    gamePerformance[game].avgWatchTime += v.averageViewDuration || 0;
+    gamePerformance[game].avgWatchTime += meta.stats?.avgWatchTime || 0;
     gamePerformance[game].titles.push(v.title || "");
   }
 

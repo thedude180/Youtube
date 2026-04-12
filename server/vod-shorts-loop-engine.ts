@@ -81,7 +81,7 @@ async function updatePhase(runId: number, phaseName: string, update: Partial<Pha
 async function runContentScan(userId: string): Promise<any> {
   const allVideos = await getUserVideos(userId, desc(videos.createdAt));
 
-  const totalViews = allVideos.reduce((sum, v) => sum + (v.views || 0), 0);
+  const totalViews = allVideos.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0);
   const avgViews = totalViews / Math.max(allVideos.length, 1);
   const avgCtr = allVideos.reduce((sum, v) => {
     const meta = (v.metadata as any) || {};
@@ -107,13 +107,13 @@ async function runContentScan(userId: string): Promise<any> {
 }
 
 async function runDecayDetection(userId: string): Promise<any> {
-  const allVideos = await getUserVideos(userId, asc(videos.views));
+  const allVideos = await getUserVideos(userId, desc(videos.createdAt));
 
   if (allVideos.length === 0) return { decaying: 0, reason: "no_videos" };
 
-  const avgViews = allVideos.reduce((sum, v) => sum + (v.views || 0), 0) / allVideos.length;
+  const avgViews = allVideos.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0) / allVideos.length;
   const decayingVideos = allVideos.filter(v => {
-    const views = v.views || 0;
+    const views = (v.metadata as any)?.viewCount || 0;
     const meta = (v.metadata as any) || {};
     const isOld = v.createdAt && (Date.now() - new Date(v.createdAt).getTime()) > 30 * 86400000;
     const isUnderperforming = views < avgViews * 0.5;
@@ -126,17 +126,17 @@ async function runDecayDetection(userId: string): Promise<any> {
     decaying: decayingVideos.length,
     totalScanned: allVideos.length,
     avgViews: Math.round(avgViews),
-    decayingIds: decayingVideos.slice(0, 10).map(v => ({ id: v.id, title: v.title, views: v.views })),
+    decayingIds: decayingVideos.slice(0, 10).map(v => ({ id: v.id, title: v.title, views: (v.metadata as any)?.viewCount || 0 })),
   };
 }
 
 async function runTitleOptimization(userId: string): Promise<any> {
-  const allVideos = await getUserVideos(userId, asc(videos.views), 10);
+  const allVideos = await getUserVideos(userId, desc(videos.createdAt), 10);
 
   if (allVideos.length === 0) return { optimized: 0, reason: "no_videos" };
 
-  const avgViews = allVideos.reduce((sum, v) => sum + (v.views || 0), 0) / allVideos.length;
-  const underperformers = allVideos.filter(v => (v.views || 0) < avgViews * 0.7);
+  const avgViews = allVideos.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0) / allVideos.length;
+  const underperformers = allVideos.filter(v => ((v.metadata as any)?.viewCount || 0) < avgViews * 0.7);
 
   let optimized = 0;
   for (const video of underperformers.slice(0, 5)) {
@@ -148,7 +148,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
           content: `You are the world's #1 YouTube title optimization AI. Generate 3 A/B test title variants that maximize CTR. Use power words, numbers, curiosity gaps, and emotional triggers. Return JSON: {variants: [{title, strategy, expectedCtrLift}], analysis: string}.`
         }, {
           role: "user",
-          content: `Current title: "${video.title}" (${video.views || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
+          content: `Current title: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
         }],
         max_completion_tokens: 16000,
         response_format: { type: "json_object" },
@@ -213,7 +213,7 @@ async function runDescriptionSeo(userId: string): Promise<any> {
 }
 
 async function runThumbnailRefresh(userId: string): Promise<any> {
-  const allVideos = await getUserVideos(userId, asc(videos.views), 5);
+  const allVideos = await getUserVideos(userId, desc(videos.createdAt), 5);
 
   let refreshed = 0;
   for (const video of allVideos) {
@@ -228,7 +228,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
           content: `You are a world-class thumbnail design AI. Analyze this video and suggest 3 thumbnail concepts that maximize CTR. Consider: bold text overlays, expressive faces, bright colors, contrast, curiosity elements. Return JSON: {concepts: [{description, textOverlay, colorScheme, emotionalTrigger, expectedCtrLift}]}.`
         }, {
           role: "user",
-          content: `Video: "${video.title}" (${video.views || 0} views). Current thumbnail: ${video.thumbnail || "none"}. Design concepts for maximum CTR.`
+          content: `Video: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Current thumbnail: ${video.thumbnailUrl || "none"}. Design concepts for maximum CTR.`
         }],
         max_completion_tokens: 16000,
         response_format: { type: "json_object" },
@@ -250,10 +250,10 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
 }
 
 async function runShortsExtraction(userId: string): Promise<any> {
-  const allVideos = await getUserVideos(userId, desc(videos.views), 10);
+  const allVideos = await getUserVideos(userId, desc(videos.createdAt), 10);
 
   const existingClips = await db.select().from(contentClips)
-    .where(and(eq(contentClips.userId, userId), eq(contentClips.clipType, "short")));
+    .where(and(eq(contentClips.userId, userId), eq(contentClips.targetPlatform, "youtube-shorts")));
 
   const processedVideoIds = new Set(existingClips.map(c => c.sourceVideoId).filter(Boolean));
   const unprocessed = allVideos.filter(v => !processedVideoIds.has(v.id));
@@ -268,7 +268,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           content: `You are a viral Shorts/TikTok AI expert. Identify the top 3 most viral-worthy moments from this video for YouTube Shorts. Each should be 15-60 seconds, start with a strong hook, and end with a cliffhanger or punchline. Return JSON: {shorts: [{title, hookLine, startTimeSec, endTimeSec, viralScore, platform: "youtube-shorts"|"tiktok"|"reels"}]}.`
         }, {
           role: "user",
-          content: `Video: "${video.title}" (${video.duration || 600}s, ${video.views || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral Short clips.`
+          content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral Short clips.`
         }],
         max_completion_tokens: 16000,
         response_format: { type: "json_object" },
@@ -284,7 +284,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           userId,
           sourceVideoId: video.id,
           title: short.title || `Short from ${video.title}`,
-          clipType: "short",
+          targetPlatform: "youtube-shorts",
           status: "ai_ready",
           startTime: startT,
           endTime: endT,
@@ -302,7 +302,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
 
 async function runCrossPlatformDistribution(userId: string): Promise<any> {
   const pendingClips = await db.select().from(contentClips)
-    .where(and(eq(contentClips.userId, userId), inArray(contentClips.status, ["pending", "ai_ready"]), eq(contentClips.clipType, "short")))
+    .where(and(eq(contentClips.userId, userId), inArray(contentClips.status, ["pending", "ai_ready"]), eq(contentClips.targetPlatform, "youtube-shorts")))
     .limit(5);
 
   const connectedPlatforms = await db.select({ platform: channels.platform })
@@ -346,7 +346,7 @@ async function runVodPerformanceVerification(userId: string): Promise<any> {
   for (const video of optimizedVideos) {
     const meta = (video.metadata as any) || {};
     const preOptViews = meta.preOptimizationViews || 0;
-    const currentViews = video.views || 0;
+    const currentViews = (video.metadata as any)?.viewCount || 0;
     if (currentViews > preOptViews) improved++;
     else declined++;
   }

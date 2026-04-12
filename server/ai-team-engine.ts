@@ -1254,7 +1254,7 @@ async function getChannelContext(ownerId: string): Promise<string> {
     ctx += `Channel: ${channel.channelName || "Unnamed"}, Subscribers: ${channel.subscriberCount || 0}, Views: ${channel.viewCount || 0}. `;
   }
   if (recentVideos.length > 0) {
-    ctx += `Recent videos: ${recentVideos.map(v => `"${v.title}" (${v.viewCount || 0} views, ${v.likeCount || 0} likes)`).join("; ")}. `;
+    ctx += `Recent videos: ${recentVideos.map(v => { const m = (v.metadata as any) || {}; return `"${v.title}" (${m.viewCount || 0} views, ${m.likeCount || 0} likes)`; }).join("; ")}. `;
   }
   if (playlists.length > 0) {
     ctx += `\nPlaylists (${playlists.length} total): ${playlists.map(p =>

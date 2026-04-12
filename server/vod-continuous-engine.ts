@@ -79,7 +79,7 @@ async function aiEditVideo(video: any): Promise<{ title: string; description: st
         content: `You are the world's #1 YouTube content editor. Given a video, produce an optimized title, SEO description, tags, and thumbnail concept that maximise CTR and watch time. Return JSON: { title: string, description: string, tags: string[], thumbnailConcept: string }.`,
       }, {
         role: "user",
-        content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 400)}". Views: ${video.views || 0}. Duration: ${(video.metadata as any)?.duration || "unknown"}. Edit for maximum performance.`,
+        content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 400)}". Views: ${(video.metadata as any)?.viewCount || 0}. Duration: ${(video.metadata as any)?.duration || "unknown"}. Edit for maximum performance.`,
       }],
       max_completion_tokens: 6000,
       response_format: { type: "json_object" },
@@ -99,7 +99,7 @@ async function aiExtractShorts(video: any): Promise<Array<{ title: string; start
         content: `You are a viral Shorts/TikTok extraction AI. Identify 3 viral-worthy moments from this video. Each must be 15-59 seconds, start with a strong hook, end with a cliffhanger or punchline. Return JSON: { shorts: [{ title, startSec, endSec, hook, viralScore }] }.`,
       }, {
         role: "user",
-        content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${video.views || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral moments.`,
+        content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral moments.`,
       }],
       max_completion_tokens: 16000,
       response_format: { type: "json_object" },
@@ -186,7 +186,7 @@ async function runCycle(userId: string) {
       const processedVideoIds = new Set(
         (await db.select({ sourceVideoId: contentClips.sourceVideoId })
           .from(contentClips)
-          .where(and(eq(contentClips.userId, userId), eq(contentClips.clipType, "short"))))
+          .where(and(eq(contentClips.userId, userId), eq(contentClips.targetPlatform, "youtube-shorts"))))
           .map(c => c.sourceVideoId).filter(Boolean)
       );
 
@@ -206,7 +206,7 @@ async function runCycle(userId: string) {
             userId,
             sourceVideoId: video.id,
             title: short.title || `Short from ${video.title}`,
-            clipType: "short",
+            targetPlatform: "youtube-shorts",
             status: "pending",
             startTime: short.startSec || 0,
             endTime: short.endSec || 59,

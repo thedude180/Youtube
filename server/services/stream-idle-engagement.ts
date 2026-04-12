@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { channels, streams, liveCommunityActions, videos, sponsorshipDeals } from "@shared/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getAuthenticatedClient } from "../youtube";
 import { google } from "googleapis";
 import { getOpenAIClient } from "../lib/openai";
@@ -272,12 +272,14 @@ async function fetchRecentVideos(userId: string): Promise<{ title: string; youtu
     const userChannels = await db.select({ id: channels.id }).from(channels)
       .where(eq(channels.userId, userId)).limit(20);
     if (userChannels.length === 0) return [];
-    const recent = await db.select({ title: videos.title, youtubeId: videos.youtubeId })
+    const recent = await db.select({ title: videos.title, metadata: videos.metadata })
       .from(videos)
       .where(inArray(videos.channelId, userChannels.map(c => c.id)))
       .orderBy(desc(videos.createdAt))
       .limit(10);
-    return recent.filter(v => v.youtubeId) as { title: string; youtubeId: string }[];
+    return recent
+      .filter(v => (v.metadata as any)?.youtubeId)
+      .map(v => ({ title: v.title, youtubeId: (v.metadata as any)?.youtubeId })) as { title: string; youtubeId: string }[];
   } catch { return []; }
 }
 

@@ -325,17 +325,18 @@ async function executeAutonomousAction(userId: string, action: any): Promise<voi
       const underperformers = await db.select().from(videos)
         .where(and(
           inArray(videos.channelId, channelIds),
-          gt(videos.viewCount, 0),
+          sql`(${videos.metadata}->>'viewCount')::int > 0`,
         ))
-        .orderBy(asc(videos.viewCount))
+        .orderBy(sql`(${videos.metadata}->>'viewCount')::int ASC`)
         .limit(3);
 
       for (const video of underperformers) {
         const meta = (video.metadata as any) || {};
+        const viewCount = meta.viewCount || 0;
         const aiResult = await executeRoutedAICall(
           { taskType: "autonomous_optimize", userId, priority: "medium" },
           `You are autonomously optimizing a video for maximum growth. Be bold but data-informed.`,
-          `Video: "${video.title}"\nViews: ${video.viewCount}\nGame: ${meta.gameName || "Unknown"}\nAction: ${action.actionType}\n\nReturn JSON: {"optimized": "the improved ${action.actionType.replace("optimize_", "")}", "reason": "why this is better"}`
+          `Video: "${video.title}"\nViews: ${viewCount}\nGame: ${meta.gameName || "Unknown"}\nAction: ${action.actionType}\n\nReturn JSON: {"optimized": "the improved ${action.actionType.replace("optimize_", "")}", "reason": "why this is better"}`
         );
 
         const result = safeParseJSON(aiResult.content, {} as any);

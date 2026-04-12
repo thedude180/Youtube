@@ -70,7 +70,7 @@ async function processAttributionForUser(userId: string): Promise<void> {
   for (const loop of pendingLoops) {
     try {
       const videoData = await db.select().from(videos)
-        .where(eq(videos.youtubeId, loop.contentId))
+        .where(sql`${videos.metadata}->>'youtubeId' = ${loop.contentId}`)
         .limit(1);
 
       const video = videoData[0];
@@ -81,9 +81,10 @@ async function processAttributionForUser(userId: string): Promise<void> {
         continue;
       }
 
-      const actualViews = video.viewCount || 0;
-      const actualCtr = typeof video.ctr === "number" ? video.ctr : null;
-      const actualRetention = typeof video.averageViewPercentage === "number" ? video.averageViewPercentage : null;
+      const meta = (video.metadata as any) || {};
+      const actualViews = meta.viewCount || 0;
+      const actualCtr = typeof meta.stats?.ctr === "number" ? meta.stats.ctr : null;
+      const actualRetention = typeof meta.stats?.avgWatchTime === "number" ? meta.stats.avgWatchTime : null;
 
       let performanceScore = 50;
       if (loop.predictedViews && loop.predictedViews > 0) {

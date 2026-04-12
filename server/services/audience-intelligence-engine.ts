@@ -61,12 +61,13 @@ async function analyzeAudienceForUser(userId: string): Promise<void> {
   const engagementSignals: Array<{ title: string; likes: number; comments: number; views: number; retention: number }> = [];
 
   for (const v of recentVideos) {
+    const meta = (v.metadata as any) || {};
     engagementSignals.push({
       title: v.title || "Unknown",
-      likes: v.likeCount || 0,
-      comments: v.commentCount || 0,
-      views: v.viewCount || 0,
-      retention: v.averageViewPercentage || 0,
+      likes: meta.likeCount || meta.stats?.likes || 0,
+      comments: meta.commentCount || meta.stats?.comments || 0,
+      views: meta.viewCount || meta.stats?.views || 0,
+      retention: meta.stats?.avgWatchTime || 0,
     });
   }
 

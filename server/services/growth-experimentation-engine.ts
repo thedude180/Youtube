@@ -224,9 +224,9 @@ async function designNewExperiments(userId: string): Promise<void> {
 
     const channelStats = userChannels.length > 0
       ? await db.select({
-          totalViews: sql<number>`coalesce(sum(${videos.viewCount}), 0)`,
+          totalViews: sql<number>`coalesce(sum((${videos.metadata}->>'viewCount')::int), 0)`,
           videoCount: sql<number>`count(*)`,
-          avgViews: sql<number>`coalesce(avg(${videos.viewCount}), 0)`,
+          avgViews: sql<number>`coalesce(avg((${videos.metadata}->>'viewCount')::int), 0)`,
         }).from(videos).where(eq(videos.channelId, userChannels[0].id))
       : [{ totalViews: 0, videoCount: 0, avgViews: 0 }];
 

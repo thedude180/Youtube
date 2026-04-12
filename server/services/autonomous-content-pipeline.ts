@@ -45,12 +45,12 @@ export async function runFullContentOptimization(userId: string, videoId: number
     const principleBlock = principles.map(p => `• [${p.category}] ${p.principle}`).join("\n");
 
     const channelVideos = await db.select().from(videos)
-      .where(and(eq(videos.channelId, v.channelId!), gt(videos.viewCount, 0)))
-      .orderBy(desc(videos.viewCount))
+      .where(and(eq(videos.channelId, v.channelId!), sql`(${videos.metadata}->>'viewCount')::int > 0`))
+      .orderBy(sql`(${videos.metadata}->>'viewCount')::int DESC`)
       .limit(5);
 
     const topPerformers = channelVideos.map(cv =>
-      `"${cv.title}" — ${cv.viewCount} views`
+      `"${cv.title}" — ${(cv.metadata as any)?.viewCount || 0} views`
     ).join("\n");
 
     const gameName = meta.gameName || "Gaming";
@@ -246,8 +246,8 @@ export async function runPerformanceFeedbackLoop(userId: string): Promise<void> 
       if (!video) continue;
 
       const before = (action.beforeSnapshot as any) || {};
-      const currentViews = video.viewCount || 0;
       const meta = (video.metadata as any) || {};
+      const currentViews = meta.viewCount || 0;
 
       const improvement = {
         viewsAfterOptimization: currentViews,

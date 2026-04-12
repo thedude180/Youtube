@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { db } from "../db";
 import { studioVideos, streams, videos, channels } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getRecordingPath } from "./stream-recorder";
 
@@ -94,7 +94,7 @@ export async function createEditCopyFromStream(
 
     let linkedVideoId: number | undefined;
     const [existingVideo] = await db.select().from(videos)
-      .where(eq(videos.youtubeId, streamVideoId))
+      .where(sql`${videos.metadata}->>'youtubeId' = ${streamVideoId}`)
       .limit(1);
     if (existingVideo) {
       linkedVideoId = existingVideo.id;
@@ -168,7 +168,7 @@ async function createStudioPlaceholder(
   let linkedVideoId: number | undefined;
   let resolvedTitle = options?.streamTitle || "Livestream Recording";
   const [existingVideo] = await db.select().from(videos)
-    .where(eq(videos.youtubeId, streamVideoId))
+    .where(sql`${videos.metadata}->>'youtubeId' = ${streamVideoId}`)
     .limit(1);
   if (existingVideo) {
     linkedVideoId = existingVideo.id;

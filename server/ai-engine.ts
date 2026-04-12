@@ -7063,14 +7063,14 @@ export async function aiLearningPathBuilder(data: { goal?: string; current?: str
       const channelIdList = userChannelIds.map(c => c.id);
       const { inArray } = await import("drizzle-orm");
       const recentVideos = channelIdList.length > 0
-        ? await db.select({ title: videos.title, viewCount: videos.viewCount, publishedAt: videos.publishedAt })
+        ? await db.select({ title: videos.title, metadata: videos.metadata, publishedAt: videos.publishedAt })
             .from(videos).where(inArray(videos.channelId, channelIdList)).orderBy(desc(videos.publishedAt)).limit(5)
         : [];
       if (userChannels.length > 0) {
         creatorCtx += `\nCreator's platforms: ${userChannels.map(c => `${c.platform} (${(c.subscriberCount || 0).toLocaleString()} subs)`).join(", ")}`;
       }
       if (recentVideos.length > 0) {
-        creatorCtx += `\nRecent content: ${recentVideos.map(v => `"${v.title}" (${v.viewCount || 0} views)`).join(", ")}`;
+        creatorCtx += `\nRecent content: ${recentVideos.map(v => `"${v.title}" (${(v.metadata as any)?.viewCount || 0} views)`).join(", ")}`;
       }
     } catch {}
   }

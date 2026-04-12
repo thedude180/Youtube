@@ -203,9 +203,9 @@ async function reflectOnSelf(userId: string, userChannels: any[], trigger: strin
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        totalViews: sql<number>`coalesce(sum(${videos.viewCount}::bigint), 0)`,
+        totalViews: sql<number>`coalesce(sum((${videos.metadata}->>'viewCount')::int), 0)`,
         videoCount: count(),
-        avgViews: sql<number>`coalesce(avg(${videos.viewCount}::real), 0)`,
+        avgViews: sql<number>`coalesce(avg((${videos.metadata}->>'viewCount')::int), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));
       channelStats.push({ name: ch.channelName || ch.id, ...stats });
     }
@@ -477,9 +477,9 @@ async function setNewGoals(userId: string, userChannels: any[]): Promise<void> {
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        avgViews: sql<number>`coalesce(avg(${videos.viewCount}::real), 0)`,
+        avgViews: sql<number>`coalesce(avg((${videos.metadata}->>'viewCount')::int), 0)`,
         videoCount: count(),
-        maxViews: sql<number>`coalesce(max(${videos.viewCount}), 0)`,
+        maxViews: sql<number>`coalesce(max((${videos.metadata}->>'viewCount')::int), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));
       channelStats.push({ name: ch.channelName || ch.id, ...stats });
     }
@@ -698,14 +698,14 @@ async function analyzeCrossChannelPerformance(userId: string, userChannels: any[
     const topVideos = await db.select().from(videos)
       .where(and(
         eq(videos.channelId, channel.id),
-        gt(videos.viewCount, 0)
+        sql`(${videos.metadata}->>'viewCount')::int > 0`,
       ))
-      .orderBy(desc(videos.viewCount))
+      .orderBy(sql`(${videos.metadata}->>'viewCount')::int DESC`)
       .limit(5);
 
     if (topVideos.length === 0) continue;
 
-    const avgViews = topVideos.reduce((sum, v) => sum + (v.viewCount || 0), 0) / topVideos.length;
+    const avgViews = topVideos.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0) / topVideos.length;
     const topTitles = topVideos.map(v => v.title).join(" | ");
     const topGames = [...new Set(topVideos.map(v => (v.metadata as any)?.gameName).filter(Boolean))];
 
@@ -751,14 +751,14 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
     .where(and(
       inArray(videos.channelId, channelIds),
       lt(videos.publishedAt, sevenDaysAgo),
-      gt(videos.viewCount, 0),
+      sql`(${videos.metadata}->>'viewCount')::int > 0`,
     ))
-    .orderBy(asc(videos.viewCount))
+    .orderBy(sql`(${videos.metadata}->>'viewCount')::int ASC`)
     .limit(BACK_CATALOG_BATCH);
 
   if (underperformers.length === 0) return;
 
-  const avgViews = underperformers.reduce((sum, v) => sum + (v.viewCount || 0), 0) / underperformers.length;
+  const avgViews = underperformers.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0) / underperformers.length;
 
   const strategies = await db.select().from(discoveredStrategies)
     .where(and(
@@ -781,7 +781,7 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
       const aiResult = await executeRoutedAICall(
         { taskType: "catalog_improvement", userId, priority: "low" },
         "You are looking at an underperforming video in your catalog and it BOTHERS you. Like a chef who sees a dish that could be better, you can't leave it alone. Think about what specific changes would give this video new life.",
-        `Video: "${video.title}" (${video.viewCount} views, ${video.type})\nGame: ${meta.gameName || "Unknown"}\nDescription: ${(video.description || "").slice(0, 200)}\n\nProven strategies available:\n${strategyContext || "None yet — use best practices."}\n\nReturn JSON: {"improvements": [{"area": "title|description|tags|thumbnail", "current": "current state", "suggested": "improvement", "expectedImpact": "low|medium|high"}], "repurposeIdeas": ["idea1", "idea2"]}`
+        `Video: "${video.title}" (${meta.viewCount || 0} views, ${video.type})\nGame: ${meta.gameName || "Unknown"}\nDescription: ${(video.description || "").slice(0, 200)}\n\nProven strategies available:\n${strategyContext || "None yet — use best practices."}\n\nReturn JSON: {"improvements": [{"area": "title|description|tags|thumbnail", "current": "current state", "suggested": "improvement", "expectedImpact": "low|medium|high"}], "repurposeIdeas": ["idea1", "idea2"]}`
       );
 
       const result = safeParseJSON(aiResult.content, {} as any);
@@ -801,7 +801,7 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
           userId,
           improvementType: "back_catalog_review",
           area: "content_optimization",
-          beforeState: `"${video.title}" — ${video.viewCount} views`,
+          beforeState: `"${video.title}" — ${meta.viewCount || 0} views`,
           afterState: `${improvements.length} improvements identified`,
           triggerEvent: "scheduled_sweep",
           engineSource: "self-improvement-engine",
@@ -864,13 +864,13 @@ async function analyzeAndLearnFromContent(userId: string, videoId: number): Prom
   const channelVideos = await db.select().from(videos)
     .where(and(
       eq(videos.channelId, video.channelId!),
-      gt(videos.viewCount, 0)
+      sql`(${videos.metadata}->>'viewCount')::int > 0`,
     ))
-    .orderBy(desc(videos.viewCount))
+    .orderBy(sql`(${videos.metadata}->>'viewCount')::int DESC`)
     .limit(10);
 
   const channelAvgViews = channelVideos.length > 0
-    ? channelVideos.reduce((sum, v) => sum + (v.viewCount || 0), 0) / channelVideos.length
+    ? channelVideos.reduce((sum, v) => sum + ((v.metadata as any)?.viewCount || 0), 0) / channelVideos.length
     : 0;
 
   const topTitlePatterns = channelVideos.slice(0, 3).map(v => v.title).join(" | ");
@@ -973,7 +973,7 @@ async function identifyBackCatalogOpportunities(userId: string, newVideoId: numb
 
   if (sameGameVideos.length === 0) return;
 
-  const catalogTitles = sameGameVideos.map(v => `"${v.title}" (${v.viewCount} views)`).join("\n");
+  const catalogTitles = sameGameVideos.map(v => `"${v.title}" (${(v.metadata as any)?.viewCount || 0} views)`).join("\n");
 
   try {
     const aiResult = await executeRoutedAICall(

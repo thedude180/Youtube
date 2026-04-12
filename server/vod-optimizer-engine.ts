@@ -66,7 +66,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
     const meta = v.metadata as any;
     const contentCtx = detectContentContext(v.title, v.description, meta?.contentCategory, meta);
     const topicLabel = contentCtx.topicName ? ` | Topic: ${contentCtx.topicName}` : "";
-    return `${i + 1}. Title: "${v.title}" | Views: ${v.viewCount || 0} | Likes: ${v.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(v.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${topicLabel}`;
+    return `${i + 1}. Title: "${v.title}" | Views: ${meta?.viewCount || 0} | Likes: ${meta?.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(meta?.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${topicLabel}`;
   }).join("\n");
 
   const topicNames = [...Array.from(new Set(vods.map(v => {
