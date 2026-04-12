@@ -104,6 +104,13 @@ async function spinFlywheelForUser(userId: string): Promise<void> {
     .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
   if (userChannels.length === 0) return;
 
+  try {
+    const { runPerformanceFeedbackLoop } = await import("./autonomous-content-pipeline");
+    await runPerformanceFeedbackLoop(userId);
+  } catch (err) {
+    logger.warn("Performance feedback loop failed", { userId, error: String(err).slice(0, 100) });
+  }
+
   const lastFlywheel = await db.select().from(growthFlywheel)
     .where(eq(growthFlywheel.userId, userId))
     .orderBy(desc(growthFlywheel.createdAt))

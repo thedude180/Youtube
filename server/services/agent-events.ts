@@ -352,6 +352,22 @@ export async function wireAgentCoordination(): Promise<void> {
         }
       }, 5 * 60_000);
     }
+
+    // 11. Autonomous Content Pipeline (T+7min) — apply all learned knowledge to optimize content
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const parsed = parseInt(String(videoId), 10);
+          if (!isNaN(parsed)) {
+            const { runFullContentOptimization } = await import("./autonomous-content-pipeline");
+            await runFullContentOptimization(event.userId, parsed);
+            logger.info(`Autonomous content pipeline complete for ${event.userId.slice(0, 8)}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Autonomous content pipeline failed: ${err.message}`);
+        }
+      }, 7 * 60_000);
+    }
   });
 
   // When a new upload is detected → run consistency check + self-improvement
@@ -377,6 +393,19 @@ export async function wireAgentCoordination(): Promise<void> {
           logger.warn(`Upload self-improvement cascade failed: ${err.message}`);
         }
       }, 3 * 60_000);
+
+      setTimeout(async () => {
+        try {
+          const parsed = parseInt(String(videoId), 10);
+          if (!isNaN(parsed)) {
+            const { runFullContentOptimization } = await import("./autonomous-content-pipeline");
+            await runFullContentOptimization(event.userId, parsed);
+            logger.info(`Autonomous content pipeline (upload) complete for ${event.userId.slice(0, 8)}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Upload autonomous pipeline failed: ${err.message}`);
+        }
+      }, 5 * 60_000);
     }
   });
 

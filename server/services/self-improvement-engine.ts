@@ -90,6 +90,11 @@ async function runUserImprovementCycle(userId: string): Promise<void> {
 
   await scanWebForStrategies(userId);
 
+  try {
+    const { invalidateKnowledgeCache } = await import("./knowledge-context-builder");
+    invalidateKnowledgeCache(userId);
+  } catch {}
+
   await analyzeCrossChannelPerformance(userId, userChannels);
 
   await sweepBackCatalog(userId, userChannels);

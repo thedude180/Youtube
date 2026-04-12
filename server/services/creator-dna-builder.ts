@@ -132,11 +132,11 @@ export const creatorDNABuilder = new CreatorDNABuilder();
  */
 export async function withCreatorVoice(userId: string, basePrompt: string): Promise<string> {
   const profile = await creatorDNABuilder.getDNA(userId);
-  if (!profile) return basePrompt;
 
-  const dna = creatorDNABuilder.buildDNAFromProfile(profile);
-  
-  const voiceBlock = `
+  let voiceBlock = "";
+  if (profile) {
+    const dna = creatorDNABuilder.buildDNAFromProfile(profile);
+    voiceBlock = `
 ---
 CREATOR PERSONALITY DNA (Apply this voice to ALL generated content):
 - Tone/Style: ${JSON.stringify(dna.styleVector)}
@@ -149,6 +149,13 @@ CREATOR PERSONALITY DNA (Apply this voice to ALL generated content):
 - Maturity/Vibe Score: ${dna.maturityScore}
 ---
 `;
+  }
 
-  return `${basePrompt}\n\n${voiceBlock}`;
+  let knowledgeBlock = "";
+  try {
+    const { buildKnowledgeContext } = await import("./knowledge-context-builder");
+    knowledgeBlock = await buildKnowledgeContext(userId);
+  } catch {}
+
+  return `${basePrompt}\n\n${voiceBlock}${knowledgeBlock}`;
 }
