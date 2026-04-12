@@ -368,6 +368,17 @@ export async function wireAgentCoordination(): Promise<void> {
         }
       }, 7 * 60_000);
     }
+
+    // 12. Smart Content Distributor (T+12min) — redistribute all queued content to avoid platform flagging
+    setTimeout(async () => {
+      try {
+        const { runContentDistribution } = await import("./smart-content-distributor");
+        await runContentDistribution();
+        logger.info(`Content distribution (post-stream) complete for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Content distribution failed: ${err.message}`);
+      }
+    }, 12 * 60_000);
   });
 
   // When a new upload is detected → run consistency check + self-improvement
@@ -407,6 +418,16 @@ export async function wireAgentCoordination(): Promise<void> {
         }
       }, 5 * 60_000);
     }
+
+    setTimeout(async () => {
+      try {
+        const { runContentDistribution } = await import("./smart-content-distributor");
+        await runContentDistribution();
+        logger.info(`Content distribution (post-upload) complete for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Upload content distribution failed: ${err.message}`);
+      }
+    }, 8 * 60_000);
   });
 
   // When empire is activated → start stream agent if not already running

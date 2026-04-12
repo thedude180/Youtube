@@ -1001,4 +1001,84 @@ export function registerAutopilotRoutes(app: Express) {
       res.status(500).json({ error: "Failed to get stream exhaust status" });
     }
   });
+
+  app.get("/api/autopilot/distribution-status", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const now = new Date();
+      const sevenDays = new Date(now.getTime() + 7 * 86400_000);
+
+      const scheduled = await db.select({
+        platform: autopilotQueue.targetPlatform,
+        type: autopilotQueue.type,
+        scheduledAt: autopilotQueue.scheduledAt,
+        status: autopilotQueue.status,
+        caption: autopilotQueue.caption,
+      }).from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "scheduled"),
+          gte(autopilotQueue.scheduledAt, now),
+          lte(autopilotQueue.scheduledAt, sevenDays),
+        ))
+        .orderBy(autopilotQueue.scheduledAt)
+        .limit(100);
+
+      const byDay: Record<string, Record<string, number>> = {};
+      for (const item of scheduled) {
+        const dayKey = item.scheduledAt ? new Date(item.scheduledAt).toISOString().split("T")[0] : "";
+        if (!dayKey) continue;
+        if (!byDay[dayKey]) byDay[dayKey] = {};
+        byDay[dayKey][item.platform] = (byDay[dayKey][item.platform] || 0) + 1;
+      }
+
+      const platformLimits: Record<string, number> = {
+        youtube: 4, tiktok: 3, x: 5, discord: 2, instagram: 2,
+      };
+
+      const warnings: string[] = [];
+      for (const [day, platforms] of Object.entries(byDay)) {
+        for (const [platform, count] of Object.entries(platforms)) {
+          const limit = platformLimits[platform] || 3;
+          if (count > limit) {
+            warnings.push(`${day}: ${platform} has ${count} items (limit: ${limit})`);
+          }
+        }
+      }
+
+      res.json({
+        scheduledItems: scheduled.length,
+        byDay,
+        platformLimits,
+        warnings,
+        nextItems: scheduled.slice(0, 10).map(i => ({
+          platform: i.platform,
+          type: i.type,
+          scheduledAt: i.scheduledAt,
+          title: (i.caption || "").substring(0, 60),
+        })),
+      });
+    } catch (err) {
+      console.error("[Autopilot] Distribution status error:", err);
+      res.status(500).json({ error: "Failed to get distribution status" });
+    }
+  });
+
+  app.post("/api/autopilot/redistribute", async (req: Request, res: Response) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { runContentDistribution } = await import("../services/smart-content-distributor");
+      const result = await runContentDistribution();
+      res.json({
+        success: true,
+        ...result,
+        message: `Redistributed ${result.itemsRedistributed} items across ${result.daysSpanned} days, resolved ${result.conflictsResolved} scheduling conflicts`,
+      });
+    } catch (err) {
+      console.error("[Autopilot] Redistribute error:", err);
+      res.status(500).json({ error: "Failed to redistribute content" });
+    }
+  });
 }

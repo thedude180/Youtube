@@ -1277,6 +1277,24 @@ httpServer.listen(
       }).catch(err => logger.error("Growth Flywheel Engine init failed", { error: String(err) }));
     });
 
+    delay(610_000, () => {
+      import("./services/tos-compliance-monitor").then(m => {
+        m.startTOSComplianceMonitor();
+      }).catch(err => logger.error("TOS Compliance Monitor init failed", { error: String(err) }));
+    });
+
+    delay(630_000, () => {
+      import("./services/media-command-center").then(m => {
+        m.startMediaCommandCenter();
+      }).catch(err => logger.error("Media Command Center init failed", { error: String(err) }));
+    });
+
+    delay(650_000, () => {
+      import("./services/smart-content-distributor").then(m => {
+        m.startSmartContentDistributor();
+      }).catch(err => logger.error("Smart Content Distributor init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
