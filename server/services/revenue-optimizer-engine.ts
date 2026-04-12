@@ -120,14 +120,11 @@ Output JSON with revenue optimization recommendations:
   "confidence": 50-100
 }`;
 
-    const aiResult = await executeRoutedAICall({
-      task: "revenue_optimization",
-      systemPrompt: "You optimize content strategy for maximum revenue. Return valid JSON only.",
-      userPrompt: analysisPrompt,
-      userId,
-      maxTokens: 800,
-      responseFormat: "json",
-    });
+    const aiResult = await executeRoutedAICall(
+      { taskType: "revenue_optimization", userId, priority: "medium" },
+      "You optimize content strategy for maximum revenue. Return valid JSON only.",
+      analysisPrompt
+    );
 
     const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
     let parsed: any;

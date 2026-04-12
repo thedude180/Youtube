@@ -127,14 +127,11 @@ Output JSON with cross-domain transfers:
   "universalPrinciple": "one overarching principle that works across all domains"
 }`;
 
-    const aiResult = await executeRoutedAICall({
-      task: "empire_intelligence",
-      systemPrompt: "You find transferable patterns between domains. Return valid JSON only.",
-      userPrompt: transferPrompt,
-      userId,
-      maxTokens: 1000,
-      responseFormat: "json",
-    });
+    const aiResult = await executeRoutedAICall(
+      { taskType: "empire_intelligence", userId, priority: "low" },
+      "You find transferable patterns between domains. Return valid JSON only.",
+      transferPrompt
+    );
 
     const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
     let parsed: any;

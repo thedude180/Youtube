@@ -113,14 +113,11 @@ Output JSON:
   "canArchive": [list of insight IDs that are fully captured by the principles]
 }`;
 
-        const aiResult = await executeRoutedAICall({
-          task: "memory_compression",
-          systemPrompt: "You compress multiple insights into fewer, stronger principles. Return valid JSON only.",
-          userPrompt: compressionPrompt,
-          userId,
-          maxTokens: 800,
-          responseFormat: "json",
-        });
+        const aiResult = await executeRoutedAICall(
+          { taskType: "memory_compression", userId, priority: "low" },
+          "You compress multiple insights into fewer, stronger principles. Return valid JSON only.",
+          compressionPrompt
+        );
 
         const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
         let parsed: any;

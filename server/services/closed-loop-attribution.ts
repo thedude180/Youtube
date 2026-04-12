@@ -114,13 +114,11 @@ ${masterWisdom}
 
 In 1-2 sentences, what is THE key lesson from this result? Should the strategy be reinforced or adjusted? Be brutally honest.`;
 
-        const aiResult = await executeRoutedAICall({
-          task: "performance_attribution",
-          systemPrompt: "You extract precise, actionable lessons from content performance data. No fluff.",
-          userPrompt: prompt,
-          userId,
-          maxTokens: 200,
-        });
+        const aiResult = await executeRoutedAICall(
+          { taskType: "performance_attribution", userId, priority: "low" },
+          "You extract precise, actionable lessons from content performance data. No fluff.",
+          prompt
+        );
         lessonLearned = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
       } catch {
         lessonLearned = `Score ${performanceScore}/100. Views: ${actualViews} (predicted: ${loop.predictedViews || "?"}).`;

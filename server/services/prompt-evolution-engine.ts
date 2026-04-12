@@ -107,14 +107,11 @@ Analyze this prompt and suggest a SPECIFIC improvement. Output JSON:
   "expectedImpact": "what this change should improve"
 }`;
 
-      const aiResult = await executeRoutedAICall({
-        task: "prompt_evolution",
-        systemPrompt: "You evolve AI prompts based on real performance data. Return valid JSON only.",
-        userPrompt: evolutionPrompt,
-        userId,
-        maxTokens: 1500,
-        responseFormat: "json",
-      });
+      const aiResult = await executeRoutedAICall(
+        { taskType: "prompt_evolution", userId, priority: "low" },
+        "You evolve AI prompts based on real performance data. Return valid JSON only.",
+        evolutionPrompt
+      );
 
       const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
       let parsed: any;

@@ -101,14 +101,11 @@ Analyze audience behavior patterns. Output JSON:
   "confidence": 50-100
 }`;
 
-    const aiResult = await executeRoutedAICall({
-      task: "audience_analysis",
-      systemPrompt: "You analyze audience engagement patterns to drive content strategy. Return valid JSON only.",
-      userPrompt: analysisPrompt,
-      userId,
-      maxTokens: 800,
-      responseFormat: "json",
-    });
+    const aiResult = await executeRoutedAICall(
+      { taskType: "audience_analysis", userId, priority: "medium" },
+      "You analyze audience engagement patterns to drive content strategy. Return valid JSON only.",
+      analysisPrompt
+    );
 
     const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
     let parsed: any;

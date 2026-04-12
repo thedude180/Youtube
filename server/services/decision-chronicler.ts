@@ -147,13 +147,11 @@ Activity summary:
 
 Write a brief, human-readable journal entry.`;
 
-      const aiResult = await executeRoutedAICall({
-        task: "decision_summary",
-        systemPrompt: "You write concise, factual decision journal entries. No fluff.",
-        userPrompt: summaryPrompt,
-        userId,
-        maxTokens: 200,
-      });
+      const aiResult = await executeRoutedAICall(
+        { taskType: "decision_summary", userId, priority: "low" },
+        "You write concise, factual decision journal entries. No fluff.",
+        summaryPrompt
+      );
 
       const summary = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
 
