@@ -114,10 +114,14 @@ export function registerAudienceEngineRoutes(app: Express) {
         const { sendGmail } = await import("../services/gmail-client");
         for (const r of recipients) {
           try {
-            await sendGmail({ to: r.email, subject, body });
+            const ok = await sendGmail(r.email, subject, body);
             const { recordDeliverability } = await import("../business/audience-ownership-engine");
-            await recordDeliverability(userId, r.id, "email", "delivered");
-            sentCount++;
+            if (ok) {
+              await recordDeliverability(userId, r.id, "email", "delivered");
+              sentCount++;
+            } else {
+              await recordDeliverability(userId, r.id, "email", "bounced", "soft", "Send returned false");
+            }
           } catch (emailErr: any) {
             const { recordDeliverability } = await import("../business/audience-ownership-engine");
             await recordDeliverability(userId, r.id, "email", "bounced", "soft", emailErr.message);
@@ -273,6 +277,114 @@ export function registerAudienceEngineRoutes(app: Express) {
     }
   });
 
+  app.get("/api/content/:contentId/lead-magnets", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db } = await import("../db");
+      const { leadMagnets } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const magnets = await db.select().from(leadMagnets)
+        .where(and(eq(leadMagnets.userId, userId), eq(leadMagnets.contentId, req.params.contentId)));
+      res.json({ leadMagnets: magnets });
+    } catch (err: any) {
+      res.json({ leadMagnets: [] });
+    }
+  });
+
+  app.post("/api/content/lead-magnet", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { name, type, contentId, description, downloadUrl, ctaAttachmentId } = req.body;
+      if (!name || !type) return res.status(400).json({ error: "name and type required" });
+      const { db } = await import("../db");
+      const { leadMagnets } = await import("@shared/schema");
+      const [magnet] = await db.insert(leadMagnets).values({
+        userId, name, type, contentId: contentId || null, description: description || null,
+        downloadUrl: downloadUrl || null, ctaAttachmentId: ctaAttachmentId || null,
+      }).returning();
+      res.json(magnet);
+    } catch (err: any) {
+      logger.warn("Failed to create lead magnet", { error: err.message });
+      res.status(500).json({ error: "Failed to create lead magnet" });
+    }
+  });
+
+  app.get("/api/lead-magnets", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db } = await import("../db");
+      const { leadMagnets } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const magnets = await db.select().from(leadMagnets)
+        .where(eq(leadMagnets.userId, userId))
+        .orderBy(desc(leadMagnets.createdAt))
+        .limit(50);
+      res.json({ leadMagnets: magnets });
+    } catch (err: any) {
+      res.json({ leadMagnets: [] });
+    }
+  });
+
+  app.get("/api/production/kanban", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db } = await import("../db");
+      const { productionKanban } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const items = await db.select().from(productionKanban)
+        .where(eq(productionKanban.userId, userId))
+        .orderBy(desc(productionKanban.createdAt))
+        .limit(200);
+      res.json(items);
+    } catch (err: any) {
+      res.json([]);
+    }
+  });
+
+  app.post("/api/production/kanban", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { title, stage, priority, platform, description, dueDate } = req.body;
+      if (!title) return res.status(400).json({ error: "title required" });
+      const { db } = await import("../db");
+      const { productionKanban } = await import("@shared/schema");
+      const [item] = await db.insert(productionKanban).values({
+        userId, title, stage: stage || "idea", priority: priority || "medium",
+        platform: platform || "youtube", description: description || null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+      }).returning();
+      res.json(item);
+    } catch (err: any) {
+      logger.warn("Failed to create kanban item", { error: err.message });
+      res.status(500).json({ error: "Failed to create kanban item" });
+    }
+  });
+
+  app.patch("/api/production/kanban/:id/stage", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { stage } = req.body;
+      if (!stage) return res.status(400).json({ error: "stage required" });
+      const { db } = await import("../db");
+      const { productionKanban } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const [updated] = await db.update(productionKanban)
+        .set({ stage, updatedAt: new Date() })
+        .where(and(eq(productionKanban.id, Number(req.params.id)), eq(productionKanban.userId, userId)))
+        .returning();
+      if (!updated) return res.status(404).json({ error: "Item not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to update stage" });
+    }
+  });
+
   app.post("/api/checkout/create-product-link", async (req, res) => {
     try {
       const userId = getUserId(req, res);
@@ -281,7 +393,8 @@ export function registerAudienceEngineRoutes(app: Express) {
       if (!productName || !priceInCents) return res.status(400).json({ error: "productName and priceInCents required" });
 
       try {
-        const stripe = (await import("../stripeClient")).default;
+        const { getUncachableStripeClient } = await import("../stripeClient");
+        const stripe = await getUncachableStripeClient();
         if (!stripe) return res.json({ error: "Stripe not configured", link: null });
 
         const product = await stripe.products.create({

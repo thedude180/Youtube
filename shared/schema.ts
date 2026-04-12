@@ -8901,3 +8901,46 @@ export const qualityReconciliationRecords = pgTable("quality_reconciliation_reco
 export const insertQualityReconciliationRecordSchema = createInsertSchema(qualityReconciliationRecords).omit({ id: true, reconciliatedAt: true });
 export type InsertQualityReconciliationRecord = z.infer<typeof insertQualityReconciliationRecordSchema>;
 export type QualityReconciliationRecord = typeof qualityReconciliationRecords.$inferSelect;
+
+export const leadMagnets = pgTable("lead_magnets", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  contentId: text("content_id"),
+  description: text("description"),
+  downloadUrl: text("download_url"),
+  ctaAttachmentId: integer("cta_attachment_id"),
+  status: text("status").default("active"),
+  captureCount: integer("capture_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("lmag_user_idx").on(t.userId),
+  index("lmag_content_idx").on(t.contentId),
+]);
+
+export const insertLeadMagnetSchema = createInsertSchema(leadMagnets).omit({ id: true, createdAt: true, captureCount: true });
+export type InsertLeadMagnet = z.infer<typeof insertLeadMagnetSchema>;
+export type LeadMagnet = typeof leadMagnets.$inferSelect;
+
+export const productionKanban = pgTable("production_kanban", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  stage: text("stage").notNull().default("idea"),
+  priority: text("priority").notNull().default("medium"),
+  platform: text("platform").notNull().default("youtube"),
+  description: text("description"),
+  dueDate: timestamp("due_date"),
+  videoId: integer("video_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("pk_user_idx").on(t.userId),
+  index("pk_stage_idx").on(t.stage),
+]);
+
+export const insertProductionKanbanSchema = createInsertSchema(productionKanban).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertProductionKanban = z.infer<typeof insertProductionKanbanSchema>;
+export type ProductionKanban = typeof productionKanban.$inferSelect;
