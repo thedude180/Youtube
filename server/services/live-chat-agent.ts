@@ -1,7 +1,6 @@
 /**
- * Kai Nakamura — Live Chat Commander
- * Reads live chat every 2 minutes, answers questions in the streamer's voice,
- * welcomes new subs/members, and posts hype messages during key moments.
+ * Live Chat Agent — responds in chat like a real human, researches answers to questions.
+ * No AI-sounding responses. No emojis overload. Just genuine, knowledgeable conversation.
  */
 import { google } from "googleapis";
 import { db } from "../db";
@@ -12,7 +11,6 @@ import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
-import { withCreatorVoice } from "./creator-dna-builder";
 
 const logger = {
   info: (msg: string) => console.log(`[live-chat-agent] ${msg}`),
@@ -27,10 +25,12 @@ interface ChatSession {
   liveChatId: string;
   channelDbId: number;
   streamTitle: string;
+  gameName: string;
   respondedMessageIds: Set<string>;
   messagesHandled: number;
   timer: ReturnType<typeof setInterval> | null;
   lastPageToken: string | undefined;
+  recentContext: string[];
 }
 
 const activeSessions = new Map<string, ChatSession>();
@@ -76,8 +76,61 @@ async function postChatMessage(yt: any, liveChatId: string, message: string): Pr
   }
 }
 
+async function researchQuestion(question: string, gameName: string): Promise<string> {
+  let webContext = "";
+
+  try {
+    const searchQuery = `${question} ${gameName} PS5`;
+    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&format=json&srlimit=3&utf8=1`;
+    const resp = await fetch(wikiUrl, {
+      signal: AbortSignal.timeout(8000),
+      headers: { "User-Agent": "CreatorOS/1.0 (live-chat-research)" },
+    });
+
+    if (resp.ok) {
+      const data = await resp.json() as any;
+      const results = data?.query?.search || [];
+      webContext = results.map((r: any) =>
+        `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
+      ).join("\n");
+    }
+  } catch {}
+
+  if (!webContext) {
+    try {
+      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(question + " " + gameName)}&format=json&no_html=1&skip_disambig=1`;
+      const resp = await fetch(ddgUrl, {
+        signal: AbortSignal.timeout(8000),
+        headers: { "User-Agent": "CreatorOS/1.0 (live-chat-research)" },
+      });
+      if (resp.ok) {
+        const data = await resp.json() as any;
+        const abstract = data?.AbstractText || data?.Abstract || "";
+        const related = (data?.RelatedTopics || []).slice(0, 3).map((t: any) => t.Text || "").filter(Boolean).join("\n");
+        webContext = `${abstract}\n${related}`.trim();
+      }
+    } catch {}
+  }
+
+  return webContext;
+}
+
+function isQuestion(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+  return text.includes("?") ||
+    lower.startsWith("what ") || lower.startsWith("how ") ||
+    lower.startsWith("why ") || lower.startsWith("when ") ||
+    lower.startsWith("where ") || lower.startsWith("who ") ||
+    lower.startsWith("is ") || lower.startsWith("are ") ||
+    lower.startsWith("can ") || lower.startsWith("do ") ||
+    lower.startsWith("does ") || lower.startsWith("will ") ||
+    lower.startsWith("has ") || lower.startsWith("have ") ||
+    lower.startsWith("should ") || lower.startsWith("which ") ||
+    lower.startsWith("anyone know") || lower.includes("does anyone");
+}
+
 async function processChatCycle(session: ChatSession): Promise<void> {
-  const { userId, liveChatId, channelDbId, streamTitle, respondedMessageIds } = session;
+  const { userId, liveChatId, channelDbId, streamTitle, gameName, respondedMessageIds } = session;
 
   try {
     const yt = await getYouTubeClient(channelDbId);
@@ -108,10 +161,31 @@ async function processChatCycle(session: ChatSession): Promise<void> {
       respondedMessageIds.add(ev.id);
       const author = ev.snippet?.authorDetails?.displayName || ev.authorDetails?.displayName || "someone";
       const type = ev.snippet?.type || "";
-      let shoutout = "";
-      if (type === "newSponsorEvent") shoutout = `🎉 HUGE welcome to ${author} for joining the channel! You're officially part of the squad! 🙌`;
-      else if (type === "memberMilestoneChatEvent") shoutout = `🔥 Shoutout to ${author} — loyal member, love having you here! 💪`;
-      else if (type === "superChatEvent") shoutout = `💛 ${author} just dropped a Super Chat! That's INSANE, thank you so much! You're a legend!`;
+
+      const aiRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_completion_tokens: 80,
+        temperature: 0.9,
+        messages: [{
+          role: "user",
+          content: `You are a chill gamer hanging out in a live stream chat for "${streamTitle}" (${gameName}, PS5, no commentary).
+
+${author} just ${type === "newSponsorEvent" ? "became a channel member" : type === "superChatEvent" ? "sent a Super Chat" : "hit a membership milestone"}.
+
+Write a SHORT, casual thank you. Sound like a real person — not a bot. No excessive caps, no emoji spam, no "INSANE" or "LEGEND" cringe. Just genuine appreciation like a friend would say it. Keep it to 1 sentence, under 120 characters.
+
+Examples of good responses:
+- "yo ${author} welcome aboard, good to have you here"
+- "appreciate that ${author}, for real"  
+- "ayyy ${author} thanks for the support, means a lot"
+
+Bad responses (DO NOT do this):
+- "HUGE welcome to ${author}!! You're OFFICIALLY part of the squad!! 🙌🎉💪"
+- "That's INSANE, thank you so much! You're a LEGEND!"`,
+        }],
+      });
+
+      const shoutout = aiRes.choices[0]?.message?.content?.trim();
       if (shoutout) {
         await postChatMessage(yt, liveChatId, shoutout);
         session.messagesHandled++;
@@ -120,40 +194,83 @@ async function processChatCycle(session: ChatSession): Promise<void> {
 
     const questions = newMessages.filter(m => {
       const text = m.snippet?.textMessageDetails?.messageText || "";
-      return text.includes("?") && text.length > 5 && text.length < 200;
+      return isQuestion(text) && text.length > 5 && text.length < 300;
     }).slice(0, 3);
 
+    const chattyMessages = newMessages.filter(m => {
+      const text = m.snippet?.textMessageDetails?.messageText || "";
+      return !isQuestion(text) && text.length > 10 && text.length < 200;
+    });
+
+    session.recentContext = chattyMessages.slice(-5).map(m =>
+      `${m.authorDetails?.displayName || "viewer"}: ${m.snippet?.textMessageDetails?.messageText || ""}`
+    );
+
     if (questions.length > 0) {
-      const qTexts = questions.map(q => {
+      for (const q of questions) {
+        if (!q.id) continue;
+        respondedMessageIds.add(q.id);
+
+        const questionText = q.snippet?.textMessageDetails?.messageText || "";
         const author = q.authorDetails?.displayName || "viewer";
-        const text = q.snippet?.textMessageDetails?.messageText || "";
-        return `${author} asks: "${text}"`;
-      }).join("\n");
 
-      const systemMsg = await withCreatorVoice(
-        userId,
-        `You are a live chat assistant for a PS5 gaming streamer named after their channel. The stream is: "${streamTitle}".
-Respond to these viewer questions in 1-2 short sentences each, in the streamer's casual gaming voice.
-Keep each answer under 180 characters. Be friendly and engaging. Don't repeat usernames in every answer.
+        let researchContext = "";
+        try {
+          researchContext = await researchQuestion(questionText, gameName);
+        } catch {}
 
-Questions:
-${qTexts}
+        const recentChat = session.recentContext.slice(-3).join("\n");
 
-Return a single chat message that addresses these questions naturally (not a list, just a natural response).`
-      );
+        const aiRes = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          max_completion_tokens: 150,
+          temperature: 0.85,
+          messages: [{
+            role: "user",
+            content: `You are a knowledgeable gamer chatting in a live stream for "${streamTitle}" (${gameName}, PS5, no commentary channel).
 
-      const aiRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_completion_tokens: 150,
-        messages: [{ role: "user", content: systemMsg }],
-      });
+${author} asked: "${questionText}"
 
-      const reply = aiRes.choices[0]?.message?.content?.trim();
-      if (reply && reply.length > 0) {
-        await postChatMessage(yt, liveChatId, reply);
-        session.messagesHandled++;
-        for (const q of questions) { if (q.id) respondedMessageIds.add(q.id); }
+${researchContext ? `RESEARCH (use this to give an accurate answer):\n${researchContext.substring(0, 800)}\n` : ""}
+${recentChat ? `Recent chat context:\n${recentChat}\n` : ""}
+
+RULES — you MUST follow these:
+1. Sound like a REAL PERSON chatting, not an AI assistant
+2. Use casual language — contractions, lowercase is fine, occasional slang
+3. If you found research, work the answer in naturally — don't say "according to my research"
+4. If you genuinely don't know, say so honestly — "not sure tbh" or "i think..." — never make stuff up
+5. Keep it SHORT — 1-2 sentences max, under 180 characters
+6. Don't start with the person's name every time, mix it up
+7. No emoji spam. One emoji max if it fits naturally
+8. Match the energy of the chat — if people are hyped, be hyped. If chill, be chill
+9. Never say "great question" or "that's a good point" — just answer
+10. You can disagree, have opinions, joke around — be a person
+
+Examples of good responses:
+- "nah pretty sure that boss is weak to fire, try pyromancy"
+- "yeah the ps5 version runs at 60fps, looks way better than ps4"
+- "honestly not sure about that one, someone else might know"
+- "lol yeah that part got me too, the trick is to dodge left"
+
+Bad responses (NEVER do this):
+- "Great question! The boss you're referring to..."
+- "That's a fantastic point! Let me explain..."
+- "According to research, the optimal strategy is..."`,
+          }],
+        });
+
+        const reply = aiRes.choices[0]?.message?.content?.trim();
+        if (reply && reply.length > 0) {
+          await postChatMessage(yt, liveChatId, reply);
+          session.messagesHandled++;
+        }
+
+        await new Promise(r => setTimeout(r, 3000));
       }
+    }
+
+    for (const m of newMessages) {
+      if (m.id) respondedMessageIds.add(m.id);
     }
 
     if (respondedMessageIds.size > 500) {
@@ -171,8 +288,8 @@ Return a single chat message that addresses these questions naturally (not a lis
         target: "Live chat",
         status: "completed",
         details: {
-          description: `Kai responded to questions and hyped ${session.messagesHandled} chat moments`,
-          impact: "Increased chat activity and viewer retention",
+          description: `Responded to ${session.messagesHandled} chat moments naturally`,
+          impact: "Genuine chat engagement and viewer retention",
           metrics: { messagesHandled: session.messagesHandled },
         },
       });
@@ -188,7 +305,7 @@ Return a single chat message that addresses these questions naturally (not a lis
   }
 }
 
-async function startChatSession(userId: string, channelDbId: number, streamTitle: string): Promise<void> {
+async function startChatSession(userId: string, channelDbId: number, streamTitle: string, gameName?: string): Promise<void> {
   if (activeSessions.has(userId)) return;
 
   const liveChatId = await getLiveChatId(channelDbId);
@@ -202,10 +319,12 @@ async function startChatSession(userId: string, channelDbId: number, streamTitle
     liveChatId,
     channelDbId,
     streamTitle,
+    gameName: gameName || "PS5 Gameplay",
     respondedMessageIds: new Set(),
     messagesHandled: 0,
     timer: null,
     lastPageToken: undefined,
+    recentContext: [],
   };
 
   activeSessions.set(userId, session);
@@ -224,7 +343,7 @@ async function startChatSession(userId: string, channelDbId: number, streamTitle
     action: "chat_session_started",
     target: streamTitle,
     status: "completed",
-    details: { description: `Kai Nakamura activated — monitoring live chat for ${streamTitle}` },
+    details: { description: `Live chat agent activated for ${streamTitle}` },
   });
 }
 
@@ -244,6 +363,7 @@ export function initLiveChatAgent(): void {
     const { userId, payload } = event;
     if (!userId) return;
     const streamTitle = payload?.streamTitle || payload?.title || "Live Stream";
+    const gameName = payload?.gameTitle || payload?.gameName || "PS5 Gameplay";
 
     setTimeout(async () => {
       try {
@@ -251,7 +371,7 @@ export function initLiveChatAgent(): void {
           .from(channels)
           .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
           .limit(1);
-        if (ch) await startChatSession(userId, ch.id, streamTitle);
+        if (ch) await startChatSession(userId, ch.id, streamTitle, gameName);
       } catch (err: any) {
         logger.warn(`[${userId}] Chat agent start failed: ${err.message}`);
       }
@@ -262,5 +382,5 @@ export function initLiveChatAgent(): void {
     stopChatSession(event.userId);
   });
 
-  logger.info("Live Chat Agent (Kai Nakamura) event listeners registered");
+  logger.info("Live Chat Agent event listeners registered");
 }
