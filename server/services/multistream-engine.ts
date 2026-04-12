@@ -10,18 +10,12 @@ const PLATFORM_RTMP: Record<string, string> = {
   kick:    "rtmps://fa723fc1b171.global-contribute.live-video.net/app",
   twitch:  "rtmp://live.twitch.tv/app",
   rumble:  "rtmp://live.rumble.com/live",
-  tiktok:  "rtmp://push.tiktok.com/live",
-  youtube: "rtmp://a.rtmp.youtube.com/live2",
-  x:       "rtmp://va.pscp.tv:80/x",
-  linkedin: "rtmp://live.linkedin.com/live",
 };
 
 const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
   kick:   { urlKey: "KICK_STREAM_URL",   keyKey: "KICK_STREAM_KEY" },
   rumble: { urlKey: "RUMBLE_STREAM_URL", keyKey: "RUMBLE_STREAM_KEY" },
   twitch: { keyKey: "TWITCH_STREAM_KEY" },
-  tiktok: { urlKey: "TIKTOK_STREAM_URL", keyKey: "TIKTOK_STREAM_KEY" },
-  x:      { urlKey: "X_STREAM_URL", keyKey: "X_STREAM_KEY" },
 };
 
 const MAX_RELAY_RETRIES = 5;
