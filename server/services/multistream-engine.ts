@@ -18,6 +18,20 @@ const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
   twitch: { keyKey: "TWITCH_STREAM_KEY" },
 };
 
+const PLATFORM_REQUIRED_PATH: Record<string, string> = {
+  kick: "/app",
+};
+
+function normalizeRtmpUrl(platform: string, url: string): string {
+  const requiredPath = PLATFORM_REQUIRED_PATH[platform];
+  if (!requiredPath) return url.replace(/\/+$/, "");
+  const cleaned = url.replace(/\/+$/, "");
+  if (!cleaned.endsWith(requiredPath)) {
+    return cleaned + requiredPath;
+  }
+  return cleaned;
+}
+
 const MAX_RELAY_RETRIES = 5;
 const RETRY_DELAY_MS = 15_000;
 const HEALTH_CHECK_INTERVAL_MS = 60_000;
@@ -95,8 +109,9 @@ async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
   for (const d of dbDests) {
     if (!d.enabled) continue;
     if (!d.streamKey && !d.rtmpUrl) continue;
-    const baseUrl = d.rtmpUrl || PLATFORM_RTMP[d.platform] || "";
-    if (!baseUrl) continue;
+    const rawUrl = d.rtmpUrl || PLATFORM_RTMP[d.platform] || "";
+    if (!rawUrl) continue;
+    const baseUrl = normalizeRtmpUrl(d.platform, rawUrl);
     const fullUrl = d.streamKey ? `${baseUrl}/${d.streamKey}` : baseUrl;
     dests.push({
       platform: d.platform,
@@ -114,8 +129,9 @@ async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
     if (alreadyAdded) continue;
     const streamKey = process.env[envCfg.keyKey];
     if (!streamKey) continue;
-    const baseUrl = (envCfg.urlKey ? process.env[envCfg.urlKey] : null) || PLATFORM_RTMP[platform] || "";
-    if (!baseUrl) continue;
+    const rawUrl = (envCfg.urlKey ? process.env[envCfg.urlKey] : null) || PLATFORM_RTMP[platform] || "";
+    if (!rawUrl) continue;
+    const baseUrl = normalizeRtmpUrl(platform, rawUrl);
     const fullUrl = `${baseUrl}/${streamKey}`;
     dests.push({
       platform,
