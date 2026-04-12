@@ -247,6 +247,19 @@ export async function wireAgentCoordination(): Promise<void> {
       }, 15 * 60_000);
     }
 
+    // 4b. Auto-Thumbnail for the VOD (T+10min)
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
+          await generateThumbnailForNewVideo(event.userId, videoId);
+          logger.info(`Autonomous thumbnail generated for VOD ${videoId} user ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Autonomous thumbnail generation failed: ${err.message}`);
+        }
+      }, 10 * 60_000);
+    }
+
     // 5. Multi-Platform Distribution (T+20min)
     // Distribution often depends on clips being ready, but can also distribute VOD link
     setTimeout(async () => {

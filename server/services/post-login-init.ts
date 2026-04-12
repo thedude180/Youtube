@@ -75,10 +75,23 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       const val = tokenRefreshResult.value;
       results.connectedPlatforms = String(val.count);
       results.tokenRefresh = val.tokenResult;
-      // Auto-enable autopilot if channels connected
+      // Auto-enable autopilot + autonomous mode if channels connected
       if (val.count > 0 && !user.autopilotActive) {
         await storage.updateUserProfile(userId, { autopilotActive: true }).catch(() => {});
         results.autopilotAutoEnabled = "true";
+      }
+      if (val.count > 0) {
+        try {
+          const { userAutonomousSettings } = await import("@shared/schema");
+          await db.insert(userAutonomousSettings).values({
+            userId,
+            autonomousMode: true,
+            requireApproval: false,
+          }).onConflictDoNothing();
+          results.autonomousMode = "enabled";
+        } catch (e) {
+          results.autonomousMode = "error";
+        }
       }
     } else {
       console.error(`[PostLoginInit] Token refresh failed for ${userId}:`, tokenRefreshResult.reason);
@@ -140,6 +153,17 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     results.automationRules = "evaluated";
     results.liveDetection = "scheduled";
 
+    setTimeout(async () => {
+      try {
+        const { startUploadWatcher } = await import("./youtube-upload-watcher");
+        await startUploadWatcher(userId);
+        results.uploadWatcher = "started";
+      } catch (e) {
+        console.error(`[PostLoginInit] Upload watcher start failed for ${userId}:`, e);
+        results.uploadWatcher = "error";
+      }
+    }, 5000);
+
     // Phase 5: Agent session (must be last — needs everything else initialized)
     try {
       const { startUserAgentSession } = await import("./agent-orchestrator");
@@ -169,6 +193,21 @@ export async function initializePostOnboarding(userId: string, niche?: string): 
     await storage.updateUserProfile(userId, updateData);
   } catch (err) {
     console.error(`[PostLoginInit] Profile update failed for ${userId}:`, err);
+  }
+
+  try {
+    const { db } = await import("../db");
+    const { userAutonomousSettings } = await import("@shared/schema");
+    await db.insert(userAutonomousSettings).values({
+      userId,
+      autonomousMode: true,
+      requireApproval: false,
+    }).onConflictDoUpdate({
+      target: userAutonomousSettings.userId,
+      set: { autonomousMode: true, requireApproval: false, updatedAt: new Date() },
+    });
+  } catch (err) {
+    console.error(`[PostLoginInit] Autonomous mode activation failed for ${userId}:`, err);
   }
 
   await initializeUserSystems(userId);
