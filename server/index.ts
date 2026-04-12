@@ -1295,6 +1295,12 @@ httpServer.listen(
       }).catch(err => logger.error("Smart Content Distributor init failed", { error: String(err) }));
     });
 
+    delay(670_000, () => {
+      import("./services/empire-brain").then(m => {
+        m.startEmpireBrain();
+      }).catch(err => logger.error("Empire Brain init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.

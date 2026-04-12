@@ -9237,3 +9237,118 @@ export const contentExperiments = pgTable("content_experiments", {
 export const insertContentExperimentSchema = createInsertSchema(contentExperiments).omit({ id: true, createdAt: true });
 export type InsertContentExperiment = z.infer<typeof insertContentExperimentSchema>;
 export type ContentExperiment = typeof contentExperiments.$inferSelect;
+
+export const businessProfiles = pgTable("business_profiles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  industry: text("industry").notNull(),
+  businessType: text("business_type").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("active"),
+  config: jsonb("config").$type<Record<string, any>>().default({}),
+  platforms: text("platforms").array().default([]),
+  revenueStreams: text("revenue_streams").array().default([]),
+  kpis: jsonb("kpis").$type<Record<string, any>>().default({}),
+  aiPersonality: jsonb("ai_personality").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bp_user_idx").on(t.userId),
+  index("bp_industry_idx").on(t.industry),
+  index("bp_status_idx").on(t.status),
+]);
+
+export const insertBusinessProfileSchema = createInsertSchema(businessProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertBusinessProfile = z.infer<typeof insertBusinessProfileSchema>;
+export type BusinessProfile = typeof businessProfiles.$inferSelect;
+
+export const industryPlaybooks = pgTable("industry_playbooks", {
+  id: serial("id").primaryKey(),
+  industry: text("industry").notNull(),
+  businessType: text("business_type").notNull(),
+  playbookName: text("playbook_name").notNull(),
+  strategies: jsonb("strategies").$type<any[]>().default([]),
+  automationRules: jsonb("automation_rules").$type<any[]>().default([]),
+  platformConfig: jsonb("platform_config").$type<Record<string, any>>().default({}),
+  kpiDefinitions: jsonb("kpi_definitions").$type<any[]>().default([]),
+  contentTemplates: jsonb("content_templates").$type<any[]>().default([]),
+  complianceRulesRef: jsonb("compliance_rules_ref").$type<any[]>().default([]),
+  effectiveness: integer("effectiveness").default(0),
+  isActive: boolean("is_active").default(true),
+  learnedFrom: text("learned_from"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("ip_industry_idx").on(t.industry),
+  index("ip_type_idx").on(t.businessType),
+]);
+
+export const insertIndustryPlaybookSchema = createInsertSchema(industryPlaybooks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertIndustryPlaybook = z.infer<typeof insertIndustryPlaybookSchema>;
+export type IndustryPlaybook = typeof industryPlaybooks.$inferSelect;
+
+export const businessOperations = pgTable("business_operations", {
+  id: serial("id").primaryKey(),
+  businessId: integer("business_id").notNull(),
+  userId: text("user_id").notNull(),
+  operationType: text("operation_type").notNull(),
+  status: text("status").notNull().default("pending"),
+  input: jsonb("input").$type<Record<string, any>>().default({}),
+  output: jsonb("output").$type<Record<string, any>>().default({}),
+  metrics: jsonb("metrics").$type<Record<string, any>>().default({}),
+  automatedBy: text("automated_by"),
+  executedAt: timestamp("executed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("bo_business_idx").on(t.businessId),
+  index("bo_user_idx").on(t.userId),
+  index("bo_type_idx").on(t.operationType),
+  index("bo_status_idx").on(t.status),
+]);
+
+export const insertBusinessOperationSchema = createInsertSchema(businessOperations).omit({ id: true, createdAt: true });
+export type InsertBusinessOperation = z.infer<typeof insertBusinessOperationSchema>;
+export type BusinessOperation = typeof businessOperations.$inferSelect;
+
+export const crossBusinessInsights = pgTable("cross_business_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceBusinessId: integer("source_business_id").notNull(),
+  targetBusinessId: integer("target_business_id"),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  insight: text("insight").notNull(),
+  transferability: integer("transferability").default(50),
+  applied: boolean("applied").default(false),
+  impactScore: integer("impact_score").default(0),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  appliedAt: timestamp("applied_at"),
+}, (t) => [
+  index("cbi_user_idx").on(t.userId),
+  index("cbi_source_idx").on(t.sourceBusinessId),
+  index("cbi_type_idx").on(t.insightType),
+]);
+
+export const insertCrossBusinessInsightSchema = createInsertSchema(crossBusinessInsights).omit({ id: true, createdAt: true, appliedAt: true });
+export type InsertCrossBusinessInsight = z.infer<typeof insertCrossBusinessInsightSchema>;
+export type CrossBusinessInsight = typeof crossBusinessInsights.$inferSelect;
+
+export const empireMetrics = pgTable("empire_metrics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  period: text("period").notNull(),
+  totalRevenue: real("total_revenue").default(0),
+  totalAudience: integer("total_audience").default(0),
+  totalContent: integer("total_content").default(0),
+  businessCount: integer("business_count").default(0),
+  healthScore: integer("health_score").default(0),
+  growthRate: real("growth_rate").default(0),
+  breakdown: jsonb("breakdown").$type<Record<string, any>>().default({}),
+  aiActions: integer("ai_actions").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("em_user_idx").on(t.userId),
+  index("em_period_idx").on(t.period),
+]);
