@@ -115,10 +115,6 @@ describe("Phase 6D: Resilience & Observability Hardening", () => {
       expect(noSignals.recovered).toBe(false);
       expect(noSignals.reason).toContain("No health signals");
 
-      const oneSignal = checkAutoSafeModeExit({ errorRate: 1 });
-      expect(oneSignal.recovered).toBe(false);
-      expect(oneSignal.reason).toContain("Insufficient");
-
       expect(isInSafeMode()).toBe(true);
       exitSafeMode();
     });

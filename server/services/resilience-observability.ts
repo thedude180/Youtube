@@ -104,6 +104,17 @@ export async function restoreSafeModeState(): Promise<void> {
       const details = latest.details as any;
       if (details?.state) {
         const restored = details.state as SafeModeState;
+
+        if (restored.global && restored.reason && restored.reason.includes("Memory usage")) {
+          const memUsage = process.memoryUsage();
+          const heapPercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+          if (heapPercent < safeModeThresholds.memoryUsagePercent) {
+            logger.info(`Safe mode restore SKIPPED — memory now healthy (${heapPercent}% < ${safeModeThresholds.memoryUsagePercent}% threshold). Clearing stale snapshot.`);
+            await db.delete(securityEvents).where(eq(securityEvents.eventType, "safe_mode_state_snapshot")).catch(() => {});
+            return;
+          }
+        }
+
         safeModeState.global = restored.global || false;
         safeModeState.engines = restored.engines || {};
         safeModeState.enteredAt = restored.enteredAt || null;
@@ -201,13 +212,13 @@ export function checkAutoSafeModeExit(signals: {
   }
 
   const signalCount = [hasErrorSignal, hasJobsSignal, hasMemSignal].filter(Boolean).length;
-  if (signalCount < 2) {
-    return { recovered: false, reason: `Insufficient health signals (${signalCount}/3) — need at least 2 for auto-recovery` };
+  if (signalCount < 1) {
+    return { recovered: false, reason: `No health signals provided — cannot verify recovery` };
   }
 
   const belowError = !hasErrorSignal || signals.errorRate! < safeModeThresholds.errorRatePerMinute * 0.5;
   const belowJobs = !hasJobsSignal || signals.failedJobsPercent! < safeModeThresholds.failedJobsPercent * 0.5;
-  const belowMem = !hasMemSignal || signals.memoryUsagePercent! < safeModeThresholds.memoryUsagePercent * 0.8;
+  const belowMem = !hasMemSignal || signals.memoryUsagePercent! < safeModeThresholds.memoryUsagePercent * 0.95;
 
   if (belowError && belowJobs && belowMem) {
     exitSafeMode();
