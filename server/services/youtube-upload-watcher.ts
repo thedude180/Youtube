@@ -302,6 +302,66 @@ export function getAllUploadWatcherStatuses(): { userId: string; status: ReturnT
   return Array.from(watcherSessions.keys()).map(uid => ({ userId: uid, status: getUploadWatcherStatus(uid) }));
 }
 
+async function backfillCatalogEditing(userId: string): Promise<void> {
+  try {
+    const allVideos = await storage.getVideosByUser(userId);
+    const { db } = await import("../db");
+    const { autopilotQueue } = await import("@shared/schema");
+    const { eq, and, or } = await import("drizzle-orm");
+
+    const existingSmartEditJobs = await db.select({
+      sourceVideoId: autopilotQueue.sourceVideoId,
+    }).from(autopilotQueue).where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.type, "smart-edit"),
+      or(
+        eq(autopilotQueue.status, "pending"),
+        eq(autopilotQueue.status, "processing"),
+        eq(autopilotQueue.status, "completed"),
+      ),
+    ));
+    const processedVideoIds = new Set(existingSmartEditJobs.map(j => j.sourceVideoId).filter(Boolean));
+
+    const needsProcessing = allVideos.filter((v: any) => {
+      if (processedVideoIds.has(v.id)) return false;
+      const meta = v.metadata as any;
+      const durationSec = meta?.durationSec || parseDurationToSeconds(meta?.duration || null);
+      if (durationSec > 0 && durationSec < 60) return false;
+      if (v.type === "short" || v.type === "clip") return false;
+      if (meta?.isShort) return false;
+      return true;
+    });
+
+    if (!needsProcessing.length) {
+      logger.info(`[${userId}] Catalog backfill: all ${allVideos.length} videos already processed`);
+      return;
+    }
+
+    logger.info(`[${userId}] Catalog backfill: ${needsProcessing.length} videos need full editing pipeline (of ${allVideos.length} total)`);
+
+    const userChannels = await storage.getChannelsByUser(userId);
+    const ytChannel = userChannels.find((c: any) => c.platform === "youtube" && c.accessToken);
+    const channelId = ytChannel?.id || 0;
+
+    for (let i = 0; i < needsProcessing.length; i++) {
+      const video = needsProcessing[i];
+      try {
+        await runFullEditingPipeline(userId, video.id, channelId);
+        logger.info(`[${userId}] Backfill ${i + 1}/${needsProcessing.length}: processed "${video.title}" (${video.id})`);
+      } catch (err: any) {
+        logger.warn(`[${userId}] Backfill failed for video ${video.id}: ${err.message?.substring(0, 200)}`);
+      }
+      if (i < needsProcessing.length - 1) {
+        await new Promise(r => setTimeout(r, 15_000));
+      }
+    }
+
+    logger.info(`[${userId}] Catalog backfill complete — ${needsProcessing.length} videos queued for editing`);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Catalog backfill error: ${err.message}`);
+  }
+}
+
 export async function bootstrapUploadWatchers(): Promise<void> {
   try {
     const allUsers = await storage.getAllUsers();
@@ -315,6 +375,7 @@ export async function bootstrapUploadWatchers(): Promise<void> {
           const hasYouTube = userChannels.some((c: any) => c.platform === "youtube" && c.accessToken);
           if (hasYouTube) {
             await startUploadWatcher(user.id);
+            setTimeout(() => backfillCatalogEditing(user.id).catch(() => undefined), 60_000);
           }
         } catch (err: any) {
           logger.warn(`[upload-watcher] Bootstrap failed for ${user.id}: ${err.message}`);
