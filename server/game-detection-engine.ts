@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { videos, users, aiAgentTasks, autopilotQueue } from "@shared/schema";
-import { eq, and, sql, isNotNull } from "drizzle-orm";
+import { videos, users, channels, aiAgentTasks, autopilotQueue } from "@shared/schema";
+import { eq, and, sql, isNotNull, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { detectGameFromFrames } from "./smart-edit-engine";
 import { downloadSourceVideo } from "./clip-video-processor";
@@ -39,8 +39,13 @@ export async function runGameDetectionCycle(): Promise<void> {
 }
 
 async function processUserCatalog(userId: string): Promise<void> {
+  const userChannels = await db.select({ id: channels.id }).from(channels)
+    .where(eq(channels.userId, userId)).limit(20);
+  if (userChannels.length === 0) return;
+
+  const channelIds = userChannels.map(c => c.id);
   const userVideos = await db.select().from(videos)
-    .where(eq(videos.userId, userId))
+    .where(inArray(videos.channelId, channelIds))
     .limit(200);
 
   const needsDetection = userVideos.filter(v => {

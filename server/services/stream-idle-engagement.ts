@@ -269,9 +269,12 @@ async function checkChatActivity(session: IdleSession): Promise<void> {
 
 async function fetchRecentVideos(userId: string): Promise<{ title: string; youtubeId: string }[]> {
   try {
+    const userChannels = await db.select({ id: channels.id }).from(channels)
+      .where(eq(channels.userId, userId)).limit(20);
+    if (userChannels.length === 0) return [];
     const recent = await db.select({ title: videos.title, youtubeId: videos.youtubeId })
       .from(videos)
-      .where(eq(videos.userId, userId))
+      .where(inArray(videos.channelId, userChannels.map(c => c.id)))
       .orderBy(desc(videos.createdAt))
       .limit(10);
     return recent.filter(v => v.youtubeId) as { title: string; youtubeId: string }[];
