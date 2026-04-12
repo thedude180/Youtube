@@ -50,6 +50,7 @@ import { registerOpsHealthRoutes } from "./routes/ops-health";
 import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
 import { registerResolutionIntelligenceRoutes } from "./routes/resolution-intelligence";
 import { registerStudioRoutes } from "./routes/studio";
+import { registerAudienceEngineRoutes } from "./routes/audience-engine";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -359,6 +360,7 @@ export async function registerRoutes(
   registerPhase7IntelligenceRoutes(app);
   registerResolutionIntelligenceRoutes(app);
   registerStudioRoutes(app);
+  registerAudienceEngineRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));

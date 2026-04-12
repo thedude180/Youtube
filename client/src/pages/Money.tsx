@@ -54,7 +54,7 @@ const LazyBusinessIntelligenceTab = lazy(() => import("./money/BusinessIntellige
 
 type AIResponse = any;
 
-type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify" | "business-intel";
+type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify" | "business-intel" | "checkout" | "missions";
 
 const ventureTypes = ["All", "Merch", "Courses", "Membership", "Affiliate", "Consulting", "Podcast", "SaaS", "Events", "Licensing"] as const;
 
@@ -193,6 +193,137 @@ function QualityRevenueHook() {
       {hasEnhanced
         ? "Enhanced stream quality may improve replay ad rates and clip export value."
         : "Archive master quality impacts replay monetization and sponsorship proof availability."}
+    </div>
+  );
+}
+
+function CheckoutTab() {
+  const [productName, setProductName] = useState("");
+  const [price, setPrice] = useState("");
+  const [description, setDescription] = useState("");
+  const [productType, setProductType] = useState("digital_product");
+  const { toast } = useToast();
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/checkout/create-product-link", {
+        productName,
+        priceInCents: Math.round(parseFloat(price) * 100),
+        description: description || undefined,
+        type: productType,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.link) {
+        toast({ title: "Product created!", description: `Payment link: ${data.link}` });
+        setProductName("");
+        setPrice("");
+        setDescription("");
+      } else {
+        toast({ title: "Stripe not configured", description: data.error || "Connect Stripe in Settings to create products.", variant: "destructive" });
+      }
+    },
+    onError: () => toast({ title: "Failed", description: "Could not create product.", variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4" data-testid="section-checkout">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-primary" />
+            Create Audience Product
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Product Name</Label>
+              <Input data-testid="input-product-name" value={productName} onChange={e => setProductName(e.target.value)} placeholder="Gaming Guide eBook" />
+            </div>
+            <div>
+              <Label className="text-xs">Price (USD)</Label>
+              <Input data-testid="input-product-price" type="number" step="0.01" min="0.50" value={price} onChange={e => setPrice(e.target.value)} placeholder="9.99" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Description (optional)</Label>
+            <Textarea data-testid="input-product-description" value={description} onChange={e => setDescription(e.target.value)} placeholder="What your audience gets..." rows={2} />
+          </div>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Label className="text-xs">Type</Label>
+              <Select value={productType} onValueChange={setProductType}>
+                <SelectTrigger data-testid="select-product-type"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="digital_product">Digital Product</SelectItem>
+                  <SelectItem value="membership">Membership (monthly)</SelectItem>
+                  <SelectItem value="course">Course</SelectItem>
+                  <SelectItem value="coaching">Coaching</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button data-testid="button-create-product" onClick={() => createMutation.mutate()} disabled={!productName || !price || createMutation.isPending}>
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Create & Get Link
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MissionsTab() {
+  const { data, isLoading } = useQuery<{
+    missions: Array<{ id: string; name: string; completed: boolean; milestone: string; current: number; target: number }>;
+    completedCount: number;
+    totalMissions: number;
+    readinessScore: number;
+  }>({
+    queryKey: ["/api/monetization/missions"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4" data-testid="section-missions">
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-amber-400" />
+              Monetization Missions
+            </CardTitle>
+            <Badge variant="secondary" className="text-xs">{data.readinessScore}% Ready</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Progress value={data.readinessScore} className="h-2 mb-4" />
+          <div className="space-y-3">
+            {data.missions.map((m) => (
+              <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30" data-testid={`mission-row-${m.id}`}>
+                {m.completed ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm ${m.completed ? "line-through text-muted-foreground" : ""}`}>{m.name}</p>
+                  <p className="text-xs text-muted-foreground">{m.current}/{m.target} — {m.milestone}</p>
+                </div>
+                <Badge variant={m.completed ? "default" : "outline"} className="text-[10px] shrink-0">
+                  {m.completed ? "Done" : `${Math.round((m.current / m.target) * 100)}%`}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -402,6 +533,12 @@ export default function Money() {
           </TabsTrigger>
           <TabsTrigger value="business-intel" data-testid="tab-business-intel">
             <Brain className="h-3.5 w-3.5 mr-1.5" />Business Intel
+          </TabsTrigger>
+          <TabsTrigger value="checkout" data-testid="tab-checkout">
+            <CreditCard className="h-3.5 w-3.5 mr-1.5" />Checkout
+          </TabsTrigger>
+          <TabsTrigger value="missions" data-testid="tab-missions">
+            <Target className="h-3.5 w-3.5 mr-1.5" />Missions
           </TabsTrigger>
         </TabsList>
 
@@ -847,6 +984,14 @@ export default function Money() {
               <LazyBusinessIntelligenceTab />
             </Suspense>
           </UpgradeTabGate>
+        </TabsContent>
+
+        <TabsContent value="checkout" className="mt-2">
+          <CheckoutTab />
+        </TabsContent>
+
+        <TabsContent value="missions" className="mt-2">
+          <MissionsTab />
         </TabsContent>
       </Tabs>
 

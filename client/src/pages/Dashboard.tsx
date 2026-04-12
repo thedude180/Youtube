@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FirstLiveMission } from "@/components/FirstLiveMission";
 import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
+import DailyBriefingSection from "./dashboard/DailyBriefingSection";
+import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 
 
 const AGENT_ROSTER = [
@@ -268,6 +270,24 @@ export default function TeamDashboard() {
     staleTime: 4 * 60_000,
   });
 
+  const { data: operatorBrief } = useQuery<any>({
+    queryKey: ["/api/operator/brief"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 3 * 60_000,
+  });
+
+  const { data: sponsorData } = useQuery<any>({
+    queryKey: ["/api/monetization/sponsorship-opportunities"],
+    refetchInterval: 10 * 60_000,
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: missions } = useQuery<any>({
+    queryKey: ["/api/monetization/missions"],
+    refetchInterval: 10 * 60_000,
+    staleTime: 5 * 60_000,
+  });
+
 
   const expiredPlatforms = (channels || [])
     .filter((ch: any) => ch.connectionStatus === "expired")
@@ -350,6 +370,77 @@ export default function TeamDashboard() {
           </div>
         )}
 
+        <DailyBriefingSection briefing={operatorBrief} />
+
+        {operatorBrief?.topActions?.length > 0 && (
+          <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-top-actions">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Top 3 Actions
+            </h2>
+            <div className="space-y-2">
+              {operatorBrief.topActions.slice(0, 3).map((action: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-sm" data-testid={`text-top-action-${i}`}>
+                  <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${action.priority === "high" ? "bg-red-400" : action.priority === "medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
+                  <span className="text-muted-foreground">{action.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {operatorBrief?.blockers?.length > 0 && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4" data-testid="card-blockers">
+            <h2 className="text-sm font-semibold text-destructive flex items-center gap-2 mb-3">
+              <AlertTriangle className="h-4 w-4" />
+              Blockers
+            </h2>
+            <div className="space-y-2">
+              {operatorBrief.blockers.map((b: string, i: number) => (
+                <div key={i} className="text-sm text-muted-foreground flex items-start gap-2" data-testid={`text-blocker-${i}`}>
+                  <AlertCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                  {b}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {sponsorData?.opportunities?.length > 0 && (
+            <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-sponsor-pipeline">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+                <DollarSign className="h-4 w-4 text-emerald-400" />
+                Sponsor Pipeline
+              </h2>
+              <div className="space-y-2">
+                {sponsorData.opportunities.slice(0, 3).map((s: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-sm" data-testid={`text-sponsor-${i}`}>
+                    <span className="text-muted-foreground truncate">{s.brandName || s.name || "Brand"}</span>
+                    <Badge variant="outline" className="text-[10px]">{s.fitLevel || s.status || "prospect"}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {missions?.missions?.length > 0 && (
+            <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-monetization-missions">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-amber-400" />
+                Monetization Readiness ({missions.readinessScore}%)
+              </h2>
+              <div className="space-y-1.5">
+                {missions.missions.slice(0, 4).map((m: any) => (
+                  <div key={m.id} className="flex items-center gap-2 text-sm" data-testid={`mission-${m.id}`}>
+                    {m.completed ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" /> : <Clock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />}
+                    <span className={m.completed ? "text-muted-foreground line-through" : "text-muted-foreground"}>{m.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="flex items-center justify-between mb-3">
@@ -413,6 +504,8 @@ export default function TeamDashboard() {
             </div>
           </div>
         </div>
+
+        <AudienceGrowthSection />
 
         <AgentUIPayloadCard />
 

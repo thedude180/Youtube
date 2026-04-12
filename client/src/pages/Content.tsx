@@ -28,12 +28,14 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "intelligence";
+type ContentTab = "library" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
 const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntelligenceTab"));
+const ContentRevenueTab = lazyRetry(() => import("./content/ContentRevenueTab"));
+const CTAPlannerTab = lazyRetry(() => import("./content/CTAPlannerTab"));
 
 function ContentStatsStrip() {
   const { data: videos, isLoading } = useVideos();
@@ -86,7 +88,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "intelligence"];
+  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "intelligence", "revenue", "cta"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -118,6 +120,12 @@ export default function Content() {
             <TabsTrigger value="intelligence" data-testid="tab-intelligence" aria-label="Content intelligence tab">
               <Shield className="h-3.5 w-3.5 mr-1.5" />Intelligence
             </TabsTrigger>
+            <TabsTrigger value="revenue" data-testid="tab-revenue" aria-label="Revenue attribution tab">
+              <BarChart2 className="h-3.5 w-3.5 mr-1.5" />Revenue
+            </TabsTrigger>
+            <TabsTrigger value="cta" data-testid="tab-cta" aria-label="CTA planner tab">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />CTAs
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -144,12 +152,154 @@ export default function Content() {
             <ContentIntelligenceTab />
           </Suspense>
         </TabsContent>
+        <TabsContent value="revenue" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <ContentRevenueTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="cta" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <CTAPlannerTab />
+          </Suspense>
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
 const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short" };
+
+function BeatMapButton({ videoId }: { videoId: number }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/content", videoId, "beat-map"],
+    queryFn: () => fetch(`/api/content/${videoId}/beat-map`).then(r => r.json()),
+    enabled: open,
+  });
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        aria-label="View retention beat map"
+        data-testid={`button-beatmap-${videoId}`}
+      >
+        <BarChart2 className="h-3.5 w-3.5" />
+      </Button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
+          <div className="bg-card border rounded-xl p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} data-testid={`dialog-beatmap-${videoId}`}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-primary" />
+                Retention Beat Map
+              </h3>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)} data-testid="button-close-beatmap">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            {isLoading ? <Skeleton className="h-32 w-full" /> : data?.analysis ? (
+              <div className="space-y-3">
+                {data.title && <p className="text-xs text-muted-foreground">{data.title}</p>}
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge variant="outline">{data.videoType}</Badge>
+                  <span className="text-muted-foreground">{Math.round((data.durationSec || 0) / 60)}min</span>
+                </div>
+                {data.analysis.retentionCurve && (
+                  <div className="flex items-end gap-0.5 h-16" data-testid="chart-retention-curve">
+                    {data.analysis.retentionCurve.map((val: number, i: number) => (
+                      <div key={i} className="flex-1 rounded-t-sm bg-primary/60 min-h-[2px]" style={{ height: `${Math.max(5, val * 100)}%` }} title={`Segment ${i + 1}: ${Math.round(val * 100)}%`} />
+                    ))}
+                  </div>
+                )}
+                {data.analysis.insights?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium">Insights</p>
+                    {data.analysis.insights.map((insight: string, i: number) => (
+                      <p key={i} className="text-xs text-muted-foreground" data-testid={`text-insight-${i}`}>{insight}</p>
+                    ))}
+                  </div>
+                )}
+                {data.analysis.recommendations?.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium">Recommendations</p>
+                    {data.analysis.recommendations.map((rec: string, i: number) => (
+                      <p key={i} className="text-xs text-muted-foreground" data-testid={`text-recommendation-${i}`}>{rec}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No beat map data available for this video.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function OfferRecButton({ videoId }: { videoId: number }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery<{ recommendations: any[] }>({
+    queryKey: ["/api/content", videoId, "offer-recommendations"],
+    queryFn: () => fetch(`/api/content/${videoId}/offer-recommendations`).then(r => r.json()),
+    enabled: open,
+  });
+  const { toast } = useToast();
+  const genMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/content/${videoId}/offer-recommendation`, { signals: {} });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Offer recommendation generated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/content", videoId, "offer-recommendations"] });
+    },
+  });
+
+  return (
+    <>
+      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setOpen(true); }} aria-label="Offer recommendations" data-testid={`button-offers-${videoId}`}>
+        <Sparkles className="h-3.5 w-3.5" />
+      </Button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOpen(false)}>
+          <div className="bg-card border rounded-xl p-5 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} data-testid={`dialog-offers-${videoId}`}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                Offer Recommendations
+              </h3>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)} data-testid="button-close-offers">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <Button variant="outline" size="sm" className="mb-3" onClick={() => genMutation.mutate()} disabled={genMutation.isPending} data-testid="button-generate-offer">
+              {genMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+              Generate Recommendation
+            </Button>
+            {isLoading ? <Skeleton className="h-20 w-full" /> : data?.recommendations?.length ? (
+              <div className="space-y-2">
+                {data.recommendations.map((r: any, i: number) => (
+                  <div key={r.id || i} className="p-2.5 rounded-lg bg-muted/30" data-testid={`offer-rec-${i}`}>
+                    <p className="text-sm font-medium">{r.offerType || "Offer"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{r.rationale || r.description || "AI-generated recommendation"}</p>
+                    {r.suggestedPrice && <p className="text-xs text-emerald-400 mt-1">${r.suggestedPrice}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No recommendations yet. Click generate above.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function StudioButton({ videoId }: { videoId: number }) {
   const [, navigate] = useLocation();
@@ -368,6 +518,8 @@ function LibraryTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <OfferRecButton videoId={video.id} />
+                      <BeatMapButton videoId={video.id} />
                       <StudioButton videoId={video.id} />
                       {youtubeId && (
                         <a
