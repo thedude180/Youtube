@@ -1121,32 +1121,32 @@ httpServer.listen(
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(() => {});
       import("./auto-thumbnail-engine").then(async m => {
         await m.runAutoThumbnailGeneration().catch(() => {});
-        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(() => {}), 4 * 60 * 60_000);
+        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(() => {}), 60 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
       import("./marketer-engine").then(async m => {
         await m.runMarketingCycleForAllUsers().catch(() => {});
-        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(() => {}), 6 * 60 * 60_000);
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(() => {}), 90 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
       import("./daily-content-engine").then(async m => {
         await m.runDailyContentGeneration().catch(() => {});
-        const iv = setInterval(() => m.runDailyContentGeneration().catch(() => {}), 12 * 60 * 60_000);
+        const iv = setInterval(() => m.runDailyContentGeneration().catch(() => {}), 3 * 60 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
       import("./playlist-manager").then(async m => {
         await m.runPlaylistOrganizationForAllUsers().catch(() => {});
-        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(() => {}), 24 * 60 * 60_000);
+        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(() => {}), 6 * 60 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
       import("./vod-optimizer-engine").then(async m => {
         await m.runVodOptimizationCycle().catch(() => {});
-        const iv = setInterval(() => m.runVodOptimizationCycle().catch(() => {}), 8 * 60 * 60_000);
+        const iv = setInterval(() => m.runVodOptimizationCycle().catch(() => {}), 2 * 60 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
       import("./token-refresh").then(async m => {
         await m.keepAliveAllTokens().catch(() => {});
-        const iv = setInterval(() => m.keepAliveAllTokens().catch(() => {}), 24 * 60 * 60_000);
+        const iv = setInterval(() => m.keepAliveAllTokens().catch(() => {}), 12 * 60 * 60_000);
         backgroundIntervals.push(iv);
       }).catch(() => {});
     });

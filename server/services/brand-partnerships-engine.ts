@@ -3,7 +3,7 @@ import { sponsorshipScores, mediaKits, brandDeals, collabMatches, brandSafetyChe
 import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 
-const SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
 

@@ -2,7 +2,7 @@ import { db } from "../db";
 import { learningPaths, coachingTips, creatorInsights, skillMilestones, videos, channels, users } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 
-const SCAN_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const SCAN_INTERVAL_MS = 3 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
 let scanCount = 0;

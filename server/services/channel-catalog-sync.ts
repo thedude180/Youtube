@@ -8,7 +8,7 @@ import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("catalog-sync");
 
-const SYNC_INTERVAL_MS = 4 * 3600_000;
+const SYNC_INTERVAL_MS = 60 * 60_000;
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 
 function parseDurationToSeconds(isoDuration: string | null | undefined): number {

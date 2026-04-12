@@ -10,7 +10,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("empire-brain");
 
-const EMPIRE_CYCLE_MS = 6 * 3600_000;
+const EMPIRE_CYCLE_MS = 90 * 60_000;
 let empireInterval: ReturnType<typeof setInterval> | null = null;
 
 const INDUSTRY_REGISTRY: Record<string, {

@@ -3,7 +3,7 @@ import { audienceSegments, churnRiskScores, reengagementCampaigns, fanMilestones
 import { eq, and, desc, gte } from "drizzle-orm";
 import { storage } from "../storage";
 
-const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SCAN_INTERVAL_MS = 90 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
 

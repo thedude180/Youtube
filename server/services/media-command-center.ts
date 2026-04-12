@@ -7,7 +7,7 @@ import { getAdaptiveRule, getAllAdaptiveRules } from "./tos-compliance-monitor";
 
 const logger = createLogger("media-command");
 
-const COMMAND_INTERVAL = 4 * 3600_000;
+const COMMAND_INTERVAL = 60 * 60_000;
 let commandInterval: ReturnType<typeof setInterval> | null = null;
 
 interface ChannelHealthReport {

@@ -57,7 +57,7 @@ interface GuardianState {
 
 const guardianStates = new Map<string, GuardianState>();
 
-const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SCAN_INTERVAL_MS = 90 * 60 * 1000;
 const VIDEO_RATE_LIMIT_MS = 12_000;
 const AUTO_FIX_MAX_RISK = "medium";
 const RISK_RANK: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };

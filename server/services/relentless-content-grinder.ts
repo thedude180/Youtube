@@ -8,7 +8,7 @@ import { storage } from "../storage";
 
 const logger = createLogger("content-grinder");
 
-const GRIND_INTERVAL_MS = 3 * 3600_000;
+const GRIND_INTERVAL_MS = 45 * 60_000;
 let grindInterval: ReturnType<typeof setInterval> | null = null;
 
 interface GrindState {

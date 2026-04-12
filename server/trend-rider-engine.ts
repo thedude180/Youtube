@@ -11,7 +11,7 @@ const logger = {
   error: (msg: string, meta?: any) => console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "error", module: "trend-rider", message: msg, ...meta })),
 };
 
-const TREND_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+const TREND_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const TREND_PEAK_WINDOW_DAYS = 14;
 const TREND_COOLDOWN_DAYS = 7;
 const CONTENT_MIX_RAMP_DOWN_STEPS = [0.75, 0.5, 0.25, 0.0];

@@ -10,7 +10,7 @@ import * as fs from "fs";
 
 const logger = createLogger("game-detection-engine");
 
-const CYCLE_INTERVAL_MS = 6 * 60 * 60_000;
+const CYCLE_INTERVAL_MS = 60 * 60_000;
 const BATCH_SIZE = 10;
 const DELAY_BETWEEN_VIDEOS_MS = 15_000;
 

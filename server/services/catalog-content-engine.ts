@@ -10,7 +10,7 @@ import { recordHeartbeat } from "./engine-heartbeat";
 const logger = createLogger("catalog-content-engine");
 const openai = getOpenAIClient();
 
-const ENGINE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const ENGINE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_OPPORTUNITIES_PER_CYCLE = 8;
 
 const userTimers = new Map<string, ReturnType<typeof setTimeout>>();

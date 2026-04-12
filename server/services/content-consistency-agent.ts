@@ -38,7 +38,7 @@ interface VideoRecommendation {
 const agentSessions = new Map<string, ConsistencyAgentState>();
 const pendingRecommendations = new Map<string, VideoRecommendation[]>();
 
-const RUN_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const RUN_INTERVAL_MS = 60 * 60 * 1000;
 const LOOK_AHEAD_DAYS = 14;
 const LOOK_BACK_DAYS = 90;
 const SEO_TITLE_MIN_LEN = 30;

@@ -11,9 +11,9 @@ import { recordLearningEvent } from "../learning-engine";
 
 const logger = createLogger("growth-flywheel");
 
-const FLYWHEEL_CYCLE_MS = 2 * 60 * 60_000;
-const MEMORY_CONSOLIDATION_MS = 12 * 60 * 60_000;
-const COMPETITIVE_SCAN_MS = 4 * 60 * 60_000;
+const FLYWHEEL_CYCLE_MS = 30 * 60_000;
+const MEMORY_CONSOLIDATION_MS = 2 * 60 * 60_000;
+const COMPETITIVE_SCAN_MS = 60 * 60_000;
 const AUTO_APPROVE_THRESHOLD = 85;
 
 const FLYWHEEL_PHASES = [

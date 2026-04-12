@@ -9,7 +9,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("knowledge-context");
 
-const CACHE_TTL = 15 * 60_000;
+const CACHE_TTL = 5 * 60_000;
 const knowledgeCache = new Map<string, { context: string; timestamp: number }>();
 
 export async function buildKnowledgeContext(userId: string): Promise<string> {

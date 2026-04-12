@@ -7,7 +7,7 @@ import { storage } from "../storage";
 
 const logger = createLogger("infinite-evolution");
 
-const EVOLUTION_CYCLE_MS = 4 * 3600_000;
+const EVOLUTION_CYCLE_MS = 60 * 60_000;
 let evolutionInterval: ReturnType<typeof setInterval> | null = null;
 
 const SYSTEM_DOMAINS = [

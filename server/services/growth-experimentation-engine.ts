@@ -6,7 +6,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("growth-experiments");
 
-const EXPERIMENT_CYCLE_MS = 3 * 3600_000;
+const EXPERIMENT_CYCLE_MS = 45 * 60_000;
 let experimentInterval: ReturnType<typeof setInterval> | null = null;
 
 const EXPERIMENT_TYPES = [

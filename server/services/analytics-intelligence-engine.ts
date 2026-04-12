@@ -3,7 +3,7 @@ import { unifiedMetrics, trendForecasts, competitorSnapshots, algorithmHealth, p
 import { eq, and, desc, sql, sum } from "drizzle-orm";
 import { storage } from "../storage";
 
-const SCAN_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const SCAN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
 let totalScansCompleted = 0;

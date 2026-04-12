@@ -11,7 +11,7 @@ import { recordLearningEvent } from "../learning-engine";
 
 const logger = createLogger("self-improvement-engine");
 
-const IMPROVEMENT_CYCLE_MS = 3 * 60 * 60_000;
+const IMPROVEMENT_CYCLE_MS = 45 * 60_000;
 const BACK_CATALOG_BATCH = 20;
 const CURIOSITY_BATCH = 5;
 

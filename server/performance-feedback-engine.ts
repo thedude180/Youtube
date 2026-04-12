@@ -174,7 +174,7 @@ export function startPerformanceFeedbackEngine(): void {
     processPerformanceChecks().catch(err =>
       logger.warn("Scheduled performance check failed", { error: String(err).substring(0, 200) })
     );
-  }, 60 * 60_000);
+  }, 20 * 60_000);
 }
 
 export function stopPerformanceFeedbackEngine(): void {

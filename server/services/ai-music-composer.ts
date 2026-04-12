@@ -6,7 +6,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("ai-music-composer");
 
-const COMPOSITION_CYCLE_MS = 6 * 3600_000;
+const COMPOSITION_CYCLE_MS = 90 * 60_000;
 let composerInterval: ReturnType<typeof setInterval> | null = null;
 
 const GAMING_MUSIC_GENRES = [

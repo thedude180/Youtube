@@ -6,7 +6,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("thumbnail-intelligence");
 
-const RESEARCH_CACHE_HOURS = 72;
+const RESEARCH_CACHE_HOURS = 24;
 const MAX_REFERENCES_PER_QUERY = 8;
 
 const THUMBNAIL_RESEARCH_QUERIES = [

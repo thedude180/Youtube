@@ -6,7 +6,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("content-originality");
 
-const RESEARCH_CACHE_HOURS = 48;
+const RESEARCH_CACHE_HOURS = 12;
 
 async function searchWeb(query: string): Promise<Array<{ url: string; title: string; snippet: string }>> {
   const sources: Array<{ url: string; title: string; snippet: string }> = [];

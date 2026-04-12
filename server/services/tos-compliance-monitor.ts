@@ -6,7 +6,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("tos-monitor");
 
-const MONITOR_INTERVAL = 6 * 3600_000;
+const MONITOR_INTERVAL = 90 * 60_000;
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
 let lastCheckTime = 0;
 
