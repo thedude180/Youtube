@@ -7,6 +7,7 @@ export interface HandoffChecklist {
   learningRecorded: boolean;
   socialPosted: boolean;
   replayQueued: boolean;
+  editCopyCreated: boolean;
 }
 
 const handoffStates = new Map<string, {
@@ -26,6 +27,7 @@ export function initiateHandoff(userId: string, streamId: string): HandoffCheckl
     learningRecorded: false,
     socialPosted: false,
     replayQueued: false,
+    editCopyCreated: false,
   };
 
   handoffStates.set(`${userId}:${streamId}`, {
@@ -46,7 +48,7 @@ export function updateHandoff(userId: string, streamId: string, updates: Partial
   Object.assign(state.checklist, updates);
 
   const cl = state.checklist;
-  if (cl.vodProcessed && cl.thumbnailGenerated && cl.seoOptimized && cl.highlightsExtracted && cl.learningRecorded) {
+  if (cl.vodProcessed && cl.thumbnailGenerated && cl.seoOptimized && cl.highlightsExtracted && cl.learningRecorded && cl.editCopyCreated) {
     state.completedAt = new Date();
   }
 
@@ -64,7 +66,7 @@ export function getHandoffStatus(userId: string, streamId: string): {
   if (!state) return null;
 
   const cl = state.checklist;
-  const items = [cl.vodProcessed, cl.thumbnailGenerated, cl.seoOptimized, cl.highlightsExtracted, cl.learningRecorded, cl.socialPosted, cl.replayQueued];
+  const items = [cl.vodProcessed, cl.thumbnailGenerated, cl.seoOptimized, cl.highlightsExtracted, cl.learningRecorded, cl.socialPosted, cl.replayQueued, cl.editCopyCreated];
   const done = items.filter(Boolean).length;
 
   return {
@@ -85,5 +87,6 @@ export function getHandoffChecklist(): string[] {
     "Learning signal recording (performance baseline)",
     "Social media post (stream recap announcement)",
     "Replay queue (VOD → content atom pipeline)",
+    "Edit copy created (stream recording → studio for editing)",
   ];
 }

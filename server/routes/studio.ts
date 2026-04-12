@@ -64,6 +64,14 @@ export function registerStudioRoutes(app: Express) {
     res.json(studioVids);
   }));
 
+  app.get("/api/studio/edit-copies", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { getEditCopiesForUser } = await import("../services/stream-vod-copier");
+    const copies = await getEditCopiesForUser(userId);
+    res.json(copies);
+  }));
+
   app.get("/api/studio/videos/:id", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

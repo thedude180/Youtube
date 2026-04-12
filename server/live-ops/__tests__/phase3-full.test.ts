@@ -242,7 +242,7 @@ describe("Post-Stream Handoff", () => {
 
   it("returns checklist items", () => {
     const items = getHandoffChecklist();
-    expect(items.length).toBe(7);
+    expect(items.length).toBe(8);
     expect(items[0]).toContain("VOD");
   });
 });

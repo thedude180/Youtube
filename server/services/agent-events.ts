@@ -311,6 +311,27 @@ export async function wireAgentCoordination(): Promise<void> {
           } else {
             logger.warn(`No recording file available for ${videoId}`);
           }
+
+          setTimeout(async () => {
+            try {
+              const { createEditCopyFromStream } = await import("./stream-vod-copier");
+              const copyResult = await createEditCopyFromStream(event.userId, videoId, {
+                streamTitle: event.payload?.title || gameTitle,
+                gameTitle,
+              });
+              if (copyResult.success) {
+                logger.info(`Edit copy created for stream ${videoId} — studio ID ${copyResult.studioVideoId}`);
+                try {
+                  const { updateHandoff } = await import("../live-ops/post-stream-handoff");
+                  updateHandoff(event.userId, videoId, { editCopyCreated: true });
+                } catch {}
+              } else {
+                logger.warn(`Edit copy failed for ${videoId}: ${copyResult.error}`);
+              }
+            } catch (err: any) {
+              logger.warn(`Stream edit copy failed: ${err.message}`);
+            }
+          }, 10_000);
         } catch (err: any) {
           logger.warn(`Stream recording stop failed: ${err.message}`);
         }
