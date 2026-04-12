@@ -375,7 +375,7 @@ export function startGrowthExperiments(): void {
     runExperimentCycle().catch(err =>
       logger.warn("Initial experiment cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, 600_000);
+  }, 120_000);
 
   experimentInterval = setInterval(() => {
     runExperimentCycle().catch(err =>

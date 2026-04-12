@@ -318,7 +318,7 @@ export function startMusicComposer(): void {
     runCompositionCycle().catch(err =>
       logger.warn("Initial composition cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, 600_000);
+  }, 120_000);
 
   composerInterval = setInterval(() => {
     runCompositionCycle().catch(err =>

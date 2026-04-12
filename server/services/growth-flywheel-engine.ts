@@ -73,7 +73,7 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runCompetitiveIntelScan().catch(err =>
       logger.error("Competitive intel scan failed", { error: String(err).slice(0, 200) })
     );
-  }, 600_000);
+  }, 120_000);
 
   competitiveTimer = setInterval(() => {
     runCompetitiveIntelScan().catch(err =>

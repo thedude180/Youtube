@@ -48,7 +48,7 @@ export function initSelfImprovementEngine(): ReturnType<typeof setInterval> {
     runImprovementCycle().catch(err =>
       logger.error("Initial improvement cycle failed", { error: String(err).slice(0, 200) })
     );
-  }, 600_000);
+  }, 120_000);
 
   improvementTimer = setInterval(() => {
     runImprovementCycle().catch(err =>

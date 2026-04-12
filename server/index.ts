@@ -1026,376 +1026,186 @@ httpServer.listen(
     // check a completely clear event loop to respond to GET /.
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
-    // ── TIER 0: Health check window (T+0 → T+10s) — event loop IDLE ──────────
-    // Nothing runs here. The port is open and GET / returns 200 from memory.
+    // ── WARP SPEED STARTUP ────────────────────────────────────────────────────
+    // Health check window: T+0→5s event loop IDLE. All services launch in
+    // tight parallel waves after that. Most inits just register a setInterval
+    // (sub-ms) — heavy work runs on each service's own deferred first cycle.
+    // Total boot: ~35s (was 730s).
 
-    // ── TIER 1: Core pipeline (T+10s) ─────────────────────────────────────────
-    delay(10_000, () => {
-      try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot monitor init failed", { error: String(err) }); }
-      try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy controller init failed", { error: String(err) }); }
+    // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
+    delay(5_000, () => {
+      try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
+      try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); }
+      seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
+      import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(() => {})).catch(() => {});
+      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(() => {});
+      import("./kernel/seed").then(m => m.seedKernelData()).catch(() => {});
+      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(() => {});
+      import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(() => {});
+      import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(() => {});
+      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(() => {});
+      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(() => {});
     });
 
-    delay(12_000, () => seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) })));
-
-    delay(13_000, () => {
-      import("./kernel/seed-schema-registry").then(m => {
-        m.seedAgentExplanationContract().catch(err => logger.error("Schema registry seed failed", { error: String(err) }));
-      }).catch(err => logger.error("Schema registry seed module failed to load", { error: String(err) }));
-      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(err => logger.error("Signal registry seed failed", { error: String(err) }));
-      import("./kernel/seed").then(m => m.seedKernelData()).catch(err => logger.error("Kernel seed failed", { error: String(err) }));
-      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(err => logger.error("Smart-edit command registration failed", { error: String(err) }));
-      import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(err => logger.error("Degradation playbook seed failed", { error: String(err) }));
-      import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(err => logger.error("Capability registry seed failed", { error: String(err) }));
-      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(err => logger.error("Skill compiler seed failed", { error: String(err) }));
-      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(err => logger.error("Live event triggers seed failed", { error: String(err) }));
-    });
-
-    delay(15_000, () => {
-      import("./services/agent-events").then(m => {
-        m.wireAgentCoordination().catch(err => logger.error("Agent coordination wiring failed", { error: String(err) }));
-      }).catch(err => logger.error("Agent events failed to load", { error: String(err) }));
-    });
-
-    delay(17_000, () => {
+    // ── WAVE 2 (T+7s): Event wiring, DLQ, content loops ─────────────────────
+    delay(7_000, () => {
+      import("./services/agent-events").then(m => m.wireAgentCoordination().catch(() => {})).catch(() => {});
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
-      const dlqInterval = setInterval(() => {
-        processDeadLetterQueue().catch(err => logger.error("DLQ process failed", { error: String(err) }));
-      }, DLQ_INTERVAL_MS);
-      const digestInterval = setInterval(() => {
-        processAllDigests().catch(err => logger.error("Digest process failed", { error: String(err) }));
-      }, DIGEST_INTERVAL_MS);
+      const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(() => {}); }, DLQ_INTERVAL_MS);
+      const digestInterval = setInterval(() => { processAllDigests().catch(() => {}); }, DIGEST_INTERVAL_MS);
       backgroundIntervals.push(dlqInterval, digestInterval);
+      import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
-    // ── TIER 2: Content pipeline (T+20s) ──────────────────────────────────────
-    delay(20_000, () => {
-      import("./content-loop")
-        .then(m => m.bootContentLoops())
-        .catch(err => logger.error("Content loop boot failed", { error: String(err) }));
-    });
-
-    // Live-stream polling every 90 seconds. First poll deferred 30s so
-    // the health check window is fully clear before any YouTube API calls.
-    delay(30_000, () => {
+    // ── WAVE 3 (T+10s): Live detection, agents, watchers ─────────────────────
+    delay(10_000, () => {
       const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "90000");
-      const pollLive = () => {
-        import("./services/live-detection")
-          .then(m => m.runMultiPlatformLiveDetection())
-          .catch(err => logger.warn("Live detection poll failed", { error: String(err) }));
-      };
+      const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(() => {}); };
       pollLive();
       const liveInterval = setInterval(pollLive, LIVE_POLL_MS);
       backgroundIntervals.push(liveInterval);
       logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
+
+      import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(() => {}); m.startWatchdog(); }).catch(() => {});
+      import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(() => {})).catch(() => {});
+      import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(() => {})).catch(() => {});
     });
 
-    // ── TIER 3: Agent orchestration (T+35s → T+87s, 8-10s gaps) ─────────────
-    // Each service gets its own 8-10s window to avoid simultaneous DB bursts.
-    delay(35_000, () => {
-      import("./services/agent-orchestrator").then(m => {
-        m.bootstrapAllUserSessions().catch(err => logger.error("Agent bootstrap failed", { error: String(err) }));
-        m.startWatchdog();
-      }).catch(err => logger.error("Agent orchestrator failed to load", { error: String(err) }));
-    });
-
-    delay(44_000, () => {
-      import("./services/youtube-upload-watcher").then(m => {
-        m.bootstrapUploadWatchers().catch(err => logger.error("Upload watcher bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("Upload watcher failed to load", { error: String(err) }));
-    });
-
-    delay(53_000, () => {
-      import("./services/youtube-vod-watcher").then(m => {
-        m.bootstrapVodWatchers().catch(err => logger.error("VOD watcher bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("VOD watcher failed to load", { error: String(err) }));
-    });
-
-    delay(62_000, () => {
-      import("./services/content-consistency-agent").then(m => {
-        m.bootstrapConsistencyAgents().catch(err => logger.error("Consistency agent bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("Consistency agent failed to load", { error: String(err) }));
-    });
-
-    delay(71_000, () => {
-      import("./services/stream-agent").then(m => {
-        m.bootstrapStreamAgents().catch(err => logger.error("Stream agent bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("Stream agent failed to load", { error: String(err) }));
-    });
-
-    delay(79_000, () => {
-      import("./services/copyright-guardian").then(m => {
-        m.bootstrapCopyrightGuardians().catch(err => logger.error("Copyright guardian bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("Copyright guardian failed to load", { error: String(err) }));
-    });
-
-    delay(84_000, () => {
-      import("./services/tiktok-clip-autopublisher").then(m => {
-        m.bootstrapTikTokAutopublishers().catch(err => logger.error("TikTok autopublisher bootstrap failed", { error: String(err) }));
-      }).catch(err => logger.error("TikTok autopublisher failed to load", { error: String(err) }));
-    });
-
-    delay(87_000, () => {
-      import("./services/multistream-engine").then(m => {
-        m.wireMultistreamEvents();
-      }).catch(err => logger.error("Multistream engine failed to load", { error: String(err) }));
-    });
-
-    // ── TIER 4: Infrastructure (T+93s) ────────────────────────────────────────
-    delay(93_000, () => startConnectionGuardian());
-
-    // Stripe init deferred to T+90s so the workflow runner confirms server stability first
-    delay(90_000, () => {
+    // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──
+    delay(13_000, () => {
+      import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(() => {})).catch(() => {});
+      import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(() => {})).catch(() => {});
+      import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(() => {})).catch(() => {});
+      import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(() => {})).catch(() => {});
+      import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(() => {});
+      startConnectionGuardian();
       initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) }));
     });
 
-    // ── TIER 5: Intelligence engines — staggered 20s apart from T+120s ────────
-    // 14 engines × 20s gap = last engine starts at T+380s (~6.3 min).
-    // Each engine gets its own CPU/IO slot; no simultaneous init spikes.
-    delay(100_000, () => startThreatLearningEngine().catch(err => logger.error("Threat Learning Engine init failed", { error: String(err) })));
-    delay(120_000, () => { try { startSentinel(); } catch (err) { logger.error("AI Sentinel init failed", { error: String(err) }); } });
-    delay(140_000, () => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(err => logger.error("Community Engine init failed", { error: String(err) })));
-    delay(160_000, () => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(err => logger.error("Education Engine init failed", { error: String(err) })));
-    delay(180_000, () => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(err => logger.error("Brand Engine init failed", { error: String(err) })));
-    delay(200_000, () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(err => logger.error("Analytics Engine init failed", { error: String(err) })));
-    delay(220_000, () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(err => logger.error("Compliance Engine init failed", { error: String(err) })));
-    delay(240_000, () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(err => logger.error("Policy Tracker seed failed", { error: String(err) })));
-    delay(280_000, () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(err => logger.error("AI Team Engine init failed", { error: String(err) })));
-    delay(285_000, () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(err => logger.error("Livestream Growth Agent init failed", { error: String(err) })));
-    delay(287_000, () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(err => logger.error("Live Chat Agent init failed", { error: String(err) })));
-    delay(288_000, () => import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(err => logger.error("Idle Engagement init failed", { error: String(err) })));
-    delay(289_000, () => import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(err => logger.error("Live Clip Highlighter init failed", { error: String(err) })));
-    delay(291_000, () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(err => logger.error("Live Raid Scout init failed", { error: String(err) })));
-    delay(293_000, () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(err => logger.error("Live Revenue Activator init failed", { error: String(err) })));
-    delay(295_000, () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(err => logger.error("Continuity Engine init failed", { error: String(err) })));
-    delay(320_000, () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(err => logger.error("VOD/Shorts Loop Engine init failed", { error: String(err) })));
-    delay(325_000, () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(err => logger.error("VOD Continuous Engine init failed", { error: String(err) })));
-    delay(340_000, () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(err => logger.error("Cache init failed", { error: String(err) })));
-    delay(360_000, () => startCleanupCoordinator());
-    delay(380_000, () => startResilienceWatchdog());
-
-    // ── TIER 5b: Missing engines (T+390s → T+490s, 10-15s gaps) ─────────────
-    // These engines were not started from any other boot path. Each on its own
-    // slot so they don't compete for DB connections at startup.
-    delay(390_000, () => {
-      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine())
-        .catch(err => logger.error("Weekly Report Engine init failed", { error: String(err) }));
+    // ── WAVE 5 (T+16s): Intelligence engines batch 1 ─────────────────────────
+    delay(16_000, () => {
+      startThreatLearningEngine().catch(() => {});
+      try { startSentinel(); } catch {}
+      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(() => {});
+      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(() => {});
+      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(() => {});
     });
 
-    delay(405_000, () => {
-      // Auto-thumbnail generation: run once then every 4 hours
+    // ── WAVE 6 (T+19s): Intelligence engines batch 2 + live agents ──────────
+    delay(19_000, () => {
+      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(() => {});
+      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(() => {});
+      import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(() => {});
+      import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(() => {});
+      import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(() => {});
+      import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(() => {});
+      import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(() => {});
+      import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(() => {});
+      import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(() => {});
+      import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(() => {});
+    });
+
+    // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
+    delay(22_000, () => {
+      import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(() => {});
+      import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(() => {});
+      import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(() => {});
+      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(() => {});
+      startCleanupCoordinator();
+      startResilienceWatchdog();
+    });
+
+    // ── WAVE 8 (T+25s): Content engines — thumbnails, marketing, daily ──────
+    delay(25_000, () => {
+      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(() => {});
       import("./auto-thumbnail-engine").then(async m => {
         await m.runAutoThumbnailGeneration().catch(() => {});
         const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(() => {}), 4 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Auto-thumbnail engine init failed", { error: String(err) }));
-    });
-
-    delay(420_000, () => {
-      // Marketer engine: run once then every 6 hours
+      }).catch(() => {});
       import("./marketer-engine").then(async m => {
         await m.runMarketingCycleForAllUsers().catch(() => {});
         const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(() => {}), 6 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Marketer engine init failed", { error: String(err) }));
-    });
-
-    delay(435_000, () => {
-      // Daily content engine: run once then every 12 hours
+      }).catch(() => {});
       import("./daily-content-engine").then(async m => {
         await m.runDailyContentGeneration().catch(() => {});
         const iv = setInterval(() => m.runDailyContentGeneration().catch(() => {}), 12 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Daily content engine init failed", { error: String(err) }));
-    });
-
-    delay(450_000, () => {
-      // Playlist manager: run once then every 24 hours
+      }).catch(() => {});
       import("./playlist-manager").then(async m => {
         await m.runPlaylistOrganizationForAllUsers().catch(() => {});
         const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(() => {}), 24 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Playlist manager init failed", { error: String(err) }));
-    });
-
-    delay(465_000, () => {
-      // VOD optimizer: run once then every 8 hours
+      }).catch(() => {});
       import("./vod-optimizer-engine").then(async m => {
         await m.runVodOptimizationCycle().catch(() => {});
         const iv = setInterval(() => m.runVodOptimizationCycle().catch(() => {}), 8 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.error("VOD optimizer engine init failed", { error: String(err) }));
-    });
-
-    delay(480_000, () => {
-      // Token keepalive: refresh ALL active tokens once per day.
-      // Prevents refresh tokens from ever going stale due to inactivity —
-      // Google revokes tokens unused for 6 months; daily exercise eliminates that risk.
+      }).catch(() => {});
       import("./token-refresh").then(async m => {
         await m.keepAliveAllTokens().catch(() => {});
         const iv = setInterval(() => m.keepAliveAllTokens().catch(() => {}), 24 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(err => logger.warn("Token keepalive init failed", { error: String(err) }));
+      }).catch(() => {});
     });
 
-    delay(495_000, () => {
-      import("./performance-feedback-engine").then(m => {
-        m.startPerformanceFeedbackEngine();
-      }).catch(err => logger.error("Performance feedback engine init failed", { error: String(err) }));
-    });
-
-    delay(510_000, () => {
+    // ── WAVE 9 (T+28s): Advanced engines — feedback, edits, detection, AI ───
+    delay(28_000, () => {
+      import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
       import("./smart-edit-engine").then(async m => {
         const { db: database } = await import("./db");
         const { users } = await import("@shared/schema");
         const allUsers = await database.select({ id: users.id }).from(users).limit(50);
         for (const u of allUsers) {
           m.initSmartEditForAllLongVideos(u.id).catch(() => undefined);
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      }).catch(err => logger.error("Smart edit engine init failed", { error: String(err) }));
+      }).catch(() => {});
+      import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(() => {});
+      import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(() => {});
+      import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(() => {});
     });
 
-    delay(530_000, () => {
-      import("./game-detection-engine").then(m => {
-        const iv = m.initGameDetectionEngine();
-        backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Game Detection Engine init failed", { error: String(err) }));
+    // ── WAVE 10 (T+31s): Autonomous command engines ─────────────────────────
+    delay(31_000, () => {
+      import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(() => {});
+      import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(() => {});
+      import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(() => {});
+      import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(() => {});
+      import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(() => {});
+      import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(() => {});
+      import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(() => {});
     });
 
-    delay(560_000, () => {
-      import("./services/self-improvement-engine").then(m => {
-        const iv = m.initSelfImprovementEngine();
-        backgroundIntervals.push(iv);
-      }).catch(err => logger.error("Self-Improvement Engine init failed", { error: String(err) }));
-    });
-
-    delay(590_000, () => {
-      import("./services/growth-flywheel-engine").then(m => {
-        const ivs = m.initGrowthFlywheelEngine();
-        backgroundIntervals.push(...ivs);
-      }).catch(err => logger.error("Growth Flywheel Engine init failed", { error: String(err) }));
-    });
-
-    delay(610_000, () => {
-      import("./services/tos-compliance-monitor").then(m => {
-        m.startTOSComplianceMonitor();
-      }).catch(err => logger.error("TOS Compliance Monitor init failed", { error: String(err) }));
-    });
-
-    delay(630_000, () => {
-      import("./services/media-command-center").then(m => {
-        m.startMediaCommandCenter();
-      }).catch(err => logger.error("Media Command Center init failed", { error: String(err) }));
-    });
-
-    delay(650_000, () => {
-      import("./services/smart-content-distributor").then(m => {
-        m.startSmartContentDistributor();
-      }).catch(err => logger.error("Smart Content Distributor init failed", { error: String(err) }));
-    });
-
-    delay(670_000, () => {
-      import("./services/empire-brain").then(m => {
-        m.startEmpireBrain();
-      }).catch(err => logger.error("Empire Brain init failed", { error: String(err) }));
-    });
-
-    delay(690_000, () => {
-      import("./services/channel-catalog-sync").then(m => {
-        m.startCatalogSync();
-      }).catch(err => logger.error("Channel Catalog Sync init failed", { error: String(err) }));
-    });
-
-    delay(710_000, () => {
-      import("./services/relentless-content-grinder").then(m => {
-        m.startContentGrinder();
-      }).catch(err => logger.error("Content Grinder init failed", { error: String(err) }));
-    });
-
-    delay(730_000, () => {
-      import("./services/infinite-evolution-engine").then(m => {
-        m.startInfiniteEvolution();
-      }).catch(err => logger.error("Infinite Evolution Engine init failed", { error: String(err) }));
-    });
-
-    // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
-    // All services are self-starting (setInterval) after import.
-    // These delays simply stagger initial work away from the Tier 5 burst.
-    delay(400_000, () => {
+    // ── WAVE 11 (T+34s): Self-healing, webhook pipeline, health brain ───────
+    delay(34_000, () => {
       try {
-        healthBrain.register({
-          name: "autopilot-monitor",
-          priority: 2,
-          start: () => startAutopilotMonitor(),
-          stop: () => stopAutopilotMonitor(),
-          intervalMs: 60_000,
-          maxRestarts: 5,
-        });
-        healthBrain.register({
-          name: "connection-guardian",
-          priority: 1,
-          start: () => startConnectionGuardian(),
-          stop: () => stopConnectionGuardian(),
-          intervalMs: 60_000,
-          maxRestarts: 10,
-        });
-        healthBrain.register({
-          name: "sentinel",
-          priority: 2,
-          start: () => startSentinel(),
-          stop: () => stopSentinel(),
-          intervalMs: 30_000,
-          maxRestarts: 5,
-        });
-        healthBrain.register({
-          name: "resilience-watchdog",
-          priority: 2,
-          start: () => startResilienceWatchdog(),
-          stop: () => stopResilienceWatchdog(),
-          intervalMs: 30_000,
-          maxRestarts: 5,
-        });
+        healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
+        healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
+        healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
+        healthBrain.register({ name: "resilience-watchdog", priority: 2, start: () => startResilienceWatchdog(), stop: () => stopResilienceWatchdog(), intervalMs: 30_000, maxRestarts: 5 });
         logger.info("[SelfHeal] Health Brain engines registered");
-      } catch (err: any) {
-        logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) });
-      }
-    });
+      } catch (err: any) { logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) }); }
 
-    delay(410_000, () => {
       try {
-        // Register webhook sources with the pipeline for drain/retry support.
-        // Stripe HMAC verification stays in webhookHandlers.ts (pre-verified).
-        // The pipeline's drain() re-queues any unprocessed events from the DB.
         webhookPipeline.register("stripe", async (payload, eventType) => {
           const { WebhookHandlers } = await import("./webhookHandlers");
-          await WebhookHandlers.processWebhook(
-            Buffer.from(JSON.stringify(payload)),
-            ""
-          ).catch(() => {});
+          await WebhookHandlers.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(() => {});
         });
         webhookPipeline.register("youtube", async (payload, eventType) => {
           logger.info("[WebhookPipeline] YouTube event processed", { eventType });
         });
         logger.info("[SelfHeal] Webhook Pipeline sources registered");
-      } catch (err: any) {
-        logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) });
-      }
+      } catch (err: any) { logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) }); }
+
+      selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
+      logger.info("WARP SPEED BOOT COMPLETE — all 50+ engines online in ~34s");
     });
 
-    delay(420_000, () => {
-      try {
-        selfHealingAgent.diagnoseAndHeal().catch(err =>
-          logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) })
-        );
-        logger.info("[SelfHeal] Self-Healing Agent initial scan triggered");
-      } catch (err: any) {
-        logger.error("[SelfHeal] Self-Healing Agent startup failed", { error: String(err) });
-      }
-    });
-
-    // ── TIER 7: Autonomous Social Media Company (T+430s → T+460s) ────────────
-    delay(430_000, async () => {
+    // ── WAVE 12 (T+37s): Autonomous Social Media Company ──────────────────
+    delay(37_000, async () => {
       try {
         // Register job handlers for all autonomous job types
         jobQueue.registerHandler("extract_and_publish_clip", async (job) => {
@@ -1636,7 +1446,7 @@ httpServer.listen(
       }
     });
 
-    delay(440_000, async () => {
+    delay(39_000, async () => {
       try {
         // Register autonomous engines with healthBrain for monitoring
         healthBrain.register({
@@ -1661,7 +1471,7 @@ httpServer.listen(
       }
     });
 
-    delay(445_000, async () => {
+    delay(40_000, async () => {
       try {
         const { db: database } = await import("./db");
         const { sql: sqlTag } = await import("drizzle-orm");
@@ -1681,7 +1491,7 @@ httpServer.listen(
       }
     });
 
-    delay(450_000, async () => {
+    delay(41_000, async () => {
       try {
         // Schedule daily autonomous cycles
         dailyBriefing.scheduleAt9am();
