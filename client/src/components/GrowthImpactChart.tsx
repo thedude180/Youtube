@@ -133,7 +133,8 @@ export default function GrowthImpactChart() {
     chartData: any[];
     summary: { viewsLift: number; subsLift: number; totalOptimizations: number; dataPoints: number };
   }>({
-    queryKey: [`/api/growth/impact?range=${range}`],
+    queryKey: ["/api/growth/impact", range],
+    queryFn: async () => { const r = await fetch(`/api/growth/impact?range=${range}`, { credentials: "include" }); if (!r.ok) throw new Error(`${r.status}`); return r.json(); },
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
