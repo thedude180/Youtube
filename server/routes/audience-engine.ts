@@ -583,4 +583,96 @@ export function registerAudienceEngineRoutes(app: Express) {
       res.json([]);
     }
   });
+
+  app.get("/api/self-improvement/reflections", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { selfReflectionJournal } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const reflections = await database.select().from(selfReflectionJournal)
+        .where(eq(selfReflectionJournal.userId, userId))
+        .orderBy(desc(selfReflectionJournal.createdAt))
+        .limit(50);
+      res.json(reflections);
+    } catch (err: any) {
+      logger.error("Reflections fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/self-improvement/goals", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { improvementGoals } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const goals = await database.select().from(improvementGoals)
+        .where(eq(improvementGoals.userId, userId))
+        .orderBy(desc(improvementGoals.createdAt))
+        .limit(50);
+      res.json(goals);
+    } catch (err: any) {
+      logger.error("Goals fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/self-improvement/curiosity", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { curiosityQueue } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const questions = await database.select().from(curiosityQueue)
+        .where(eq(curiosityQueue.userId, userId))
+        .orderBy(desc(curiosityQueue.createdAt))
+        .limit(50);
+      res.json(questions);
+    } catch (err: any) {
+      logger.error("Curiosity queue fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/self-improvement/mind", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { getImprovementStats } = await import("../services/self-improvement-engine");
+      const { db: database } = await import("../db");
+      const { selfReflectionJournal, improvementGoals, curiosityQueue } = await import("@shared/schema");
+      const { eq, desc, and } = await import("drizzle-orm");
+
+      const stats = await getImprovementStats(userId);
+
+      const recentReflections = await database.select().from(selfReflectionJournal)
+        .where(eq(selfReflectionJournal.userId, userId))
+        .orderBy(desc(selfReflectionJournal.createdAt))
+        .limit(5);
+
+      const activeGoals = await database.select().from(improvementGoals)
+        .where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active")))
+        .orderBy(desc(improvementGoals.createdAt))
+        .limit(5);
+
+      const pendingCuriosity = await database.select().from(curiosityQueue)
+        .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "queued")))
+        .orderBy(desc(curiosityQueue.priority))
+        .limit(5);
+
+      res.json({
+        ...stats,
+        recentReflections,
+        activeGoals,
+        pendingCuriosity,
+      });
+    } catch (err: any) {
+      logger.error("Mind state fetch failed", { error: err.message });
+      res.json({ error: "Mind unavailable" });
+    }
+  });
 }

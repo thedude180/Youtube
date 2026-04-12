@@ -9012,6 +9012,82 @@ export const insertSystemImprovementSchema = createInsertSchema(systemImprovemen
 export type InsertSystemImprovement = z.infer<typeof insertSystemImprovementSchema>;
 export type SystemImprovement = typeof systemImprovements.$inferSelect;
 
+export const selfReflectionJournal = pgTable("self_reflection_journal", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  reflectionType: text("reflection_type").notNull(),
+  mood: text("mood").notNull().default("neutral"),
+  selfAssessment: text("self_assessment").notNull(),
+  blindSpotsIdentified: text("blind_spots_identified").array(),
+  strengthsRecognized: text("strengths_recognized").array(),
+  weaknessesAdmitted: text("weaknesses_admitted").array(),
+  emotionalState: text("emotional_state"),
+  innerMonologue: text("inner_monologue"),
+  triggerEvent: text("trigger_event"),
+  confidenceLevel: integer("confidence_level").notNull().default(50),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("srj_user_idx").on(t.userId),
+  index("srj_type_idx").on(t.reflectionType),
+]);
+
+export const insertSelfReflectionSchema = createInsertSchema(selfReflectionJournal).omit({ id: true, createdAt: true });
+export type InsertSelfReflection = z.infer<typeof insertSelfReflectionSchema>;
+export type SelfReflection = typeof selfReflectionJournal.$inferSelect;
+
+export const improvementGoals = pgTable("improvement_goals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  goalType: text("goal_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  targetMetric: text("target_metric").notNull(),
+  currentValue: real("current_value").notNull().default(0),
+  targetValue: real("target_value").notNull(),
+  unit: text("unit").notNull().default(""),
+  deadline: timestamp("deadline"),
+  status: text("status").notNull().default("active"),
+  progress: real("progress").notNull().default(0),
+  milestones: jsonb("milestones").$type<Array<{ label: string; value: number; reached: boolean; reachedAt?: string }>>(),
+  strategyIds: integer("strategy_ids").array(),
+  reflectionOnProgress: text("reflection_on_progress"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("ig_user_idx").on(t.userId),
+  index("ig_status_idx").on(t.status),
+  index("ig_type_idx").on(t.goalType),
+]);
+
+export const insertImprovementGoalSchema = createInsertSchema(improvementGoals).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export type InsertImprovementGoal = z.infer<typeof insertImprovementGoalSchema>;
+export type ImprovementGoal = typeof improvementGoals.$inferSelect;
+
+export const curiosityQueue = pgTable("curiosity_queue", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  question: text("question").notNull(),
+  context: text("context"),
+  origin: text("origin").notNull(),
+  priority: integer("priority").notNull().default(5),
+  status: text("status").notNull().default("queued"),
+  answer: text("answer"),
+  discoveredInsights: text("discovered_insights").array(),
+  ledToStrategies: integer("led_to_strategies").array(),
+  exploredAt: timestamp("explored_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cq_user_idx").on(t.userId),
+  index("cq_status_idx").on(t.status),
+  index("cq_priority_idx").on(t.priority),
+]);
+
+export const insertCuriosityQueueSchema = createInsertSchema(curiosityQueue).omit({ id: true, createdAt: true, exploredAt: true });
+export type InsertCuriosityQueue = z.infer<typeof insertCuriosityQueueSchema>;
+export type CuriosityQueue = typeof curiosityQueue.$inferSelect;
+
 export const crossChannelInsights = pgTable("cross_channel_insights", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
