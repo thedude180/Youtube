@@ -1100,6 +1100,7 @@ httpServer.listen(
       import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(() => {});
       import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(() => {});
       import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(() => {});
+      import("./services/chat-bridge").then(m => m.initChatBridge()).catch(() => {});
       import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(() => {});
       import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(() => {});
       import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(() => {});

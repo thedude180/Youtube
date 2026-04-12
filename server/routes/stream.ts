@@ -13,6 +13,7 @@ import {
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
+import { getChatBridgeStatus } from "../services/chat-bridge";
 import { createPipelineForStream } from "./pipeline";
 import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
@@ -702,6 +703,17 @@ export function registerStreamRoutes(app: Express) {
     }
   }));
 
+  app.get("/api/chat-bridge/status", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const status = getChatBridgeStatus(userId);
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ message: "An internal error occurred. Please try again." });
+    }
+  }));
+
   app.get("/api/streams/:id/chat", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -709,6 +721,8 @@ export function registerStreamRoutes(app: Express) {
       const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
+      const [stream] = await db.select({ userId: streams.userId }).from(streams).where(eq(streams.id, id));
+      if (!stream || stream.userId !== userId) return res.status(403).json({ message: "Access denied" });
       const messages = await getLiveChatFeed(id, limit);
       res.json(messages);
     } catch (error: any) {
@@ -722,6 +736,8 @@ export function registerStreamRoutes(app: Express) {
     try {
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
+      const [stream] = await db.select({ userId: streams.userId }).from(streams).where(eq(streams.id, id));
+      if (!stream || stream.userId !== userId) return res.status(403).json({ message: "Access denied" });
       const stats = await getLiveChatStats(id);
       res.json(stats);
     } catch (error: any) {
@@ -745,6 +761,8 @@ export function registerStreamRoutes(app: Express) {
     try {
       const id = parseNumericId(req.params.id, res);
       if (id === null) return;
+      const [stream] = await db.select({ userId: streams.userId }).from(streams).where(eq(streams.id, id));
+      if (!stream || stream.userId !== userId) return res.status(403).json({ message: "Access denied" });
       const result = await processLiveChatMessage(
         userId,
         id,
