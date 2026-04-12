@@ -91,6 +91,98 @@ function hoursFromNow(n: number): Date {
   return new Date(Date.now() + n * 3_600_000);
 }
 
+async function optimizeLiveStreamSEO(userId: string, videoId: string | number, gameName: string, currentTitle: string): Promise<void> {
+  const { getOpenAIClient } = await import("../lib/openai");
+  const openai = getOpenAIClient();
+
+  let thumbnailContext = "";
+  try {
+    const { getThumbnailContext } = await import("./thumbnail-intelligence");
+    thumbnailContext = await getThumbnailContext(userId, gameName);
+  } catch {}
+
+  const resp = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "user",
+      content: `You are a YouTube live stream SEO expert for a NO COMMENTARY PS5 gaming channel. Optimize the live stream metadata to maximize discoverability and click-through rate.
+
+GAME: ${gameName}
+CURRENT TITLE: "${currentTitle}"
+STREAM TYPE: Live gameplay, no commentary, PS5
+
+${thumbnailContext ? `THUMBNAIL INTELLIGENCE (from web research):\n${thumbnailContext.substring(0, 1500)}\n\nUse these visual insights to inform the description — reference the visual experience viewers will get.` : ""}
+
+RULES:
+- Title must create curiosity WITHOUT being clickbait — accurately represent the stream
+- Description first 2 lines must hook viewers (visible in search results)
+- Include relevant timestamps placeholder for key moments
+- Tags must mix broad gaming terms + specific game terms + trending keywords
+- For no-commentary channels: emphasize the cinematic, immersive, ASMR-like quality
+
+Return JSON:
+{
+  "optimizedTitle": "string — max 100 chars, high-CTR but honest",
+  "optimizedDescription": "string — SEO-optimized, first 2 lines are hooks, max 2000 chars",
+  "tags": ["array of 15-20 tags"],
+  "categoryId": "20"
+}`,
+    }],
+    response_format: { type: "json_object" },
+    max_completion_tokens: 1500,
+    temperature: 0.7,
+  });
+
+  const content = resp.choices[0]?.message?.content || "{}";
+  const parsed = JSON.parse(content);
+
+  if (!parsed.optimizedTitle) return;
+
+  try {
+    const numericId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
+    if (!isNaN(numericId)) {
+      const { storage } = await import("../storage");
+      const video = await storage.getVideo(numericId);
+      if (video) {
+        await storage.updateVideo(numericId, {
+          title: parsed.optimizedTitle,
+          description: parsed.optimizedDescription || video.description,
+          metadata: {
+            ...video.metadata,
+            tags: parsed.tags || [],
+            aiOptimized: true,
+            aiOptimizedAt: new Date().toISOString(),
+            liveStreamSEO: true,
+            thumbnailIntelligenceUsed: !!thumbnailContext,
+          },
+        });
+      }
+    }
+  } catch {}
+
+  try {
+    const { db: agentDb } = await import("../db");
+    const { channels: chTable } = await import("@shared/schema");
+    const { eq: agentEq, and: agentAnd } = await import("drizzle-orm");
+    const [ch] = await agentDb.select({ id: chTable.id }).from(chTable)
+      .where(agentAnd(agentEq(chTable.userId, userId), agentEq(chTable.platform, "youtube")))
+      .limit(1);
+    if (ch) {
+      const youtubeId = typeof videoId === "string" && videoId.length === 11 ? videoId : null;
+      if (youtubeId) {
+        const { updateYouTubeVideo } = await import("../youtube");
+        await updateYouTubeVideo(ch.id, youtubeId, {
+          title: parsed.optimizedTitle,
+          description: parsed.optimizedDescription,
+          tags: parsed.tags,
+        });
+      }
+    }
+  } catch {}
+
+  logger.info(`Live stream SEO applied: "${parsed.optimizedTitle}"`, { userId: userId.slice(0, 8) });
+}
+
 /**
  * Wire all cross-agent reactions. Call once at startup.
  * This is where the "god level" coordination lives.
@@ -139,6 +231,33 @@ export async function wireAgentCoordination(): Promise<void> {
           logger.warn(`Stream operator startup failed: ${err.message}`);
         }
       }, 0);
+    }
+
+    // 1b. T+5s: Pre-research thumbnail intelligence for the game being streamed
+    if (gameTitle) {
+      setTimeout(async () => {
+        try {
+          const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
+          const intel = await researchThumbnailsForGame(event.userId, gameTitle);
+          if (intel) {
+            logger.info(`Pre-stream thumbnail intelligence cached for "${gameTitle}" — ${intel.references.length} references — ${event.userId.slice(0, 8)}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Pre-stream thumbnail research failed: ${err.message}`);
+        }
+      }, 5_000);
+    }
+
+    // 1c. T+30s: Optimize live stream SEO (title, description, tags) with viral patterns
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          await optimizeLiveStreamSEO(event.userId, videoId, gameTitle || "PS5 Gameplay", title || "");
+          logger.info(`Live stream SEO optimized for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Live stream SEO optimization failed: ${err.message}`);
+        }
+      }, 30_000);
     }
 
     // 2. T+1min: Community post announcing the stream
@@ -247,13 +366,17 @@ export async function wireAgentCoordination(): Promise<void> {
       }, 15 * 60_000);
     }
 
-    // 4b. Auto-Thumbnail for the VOD (T+10min)
+    // 4b. Auto-Thumbnail for the VOD (T+10min) — with web-researched intelligence
     if (videoId) {
       setTimeout(async () => {
         try {
+          try {
+            const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
+            await researchThumbnailsForGame(event.userId, gameTitle || "PS5 Gameplay");
+          } catch {}
           const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
           await generateThumbnailForNewVideo(event.userId, videoId);
-          logger.info(`Autonomous thumbnail generated for VOD ${videoId} user ${event.userId.slice(0, 8)}`);
+          logger.info(`Research-backed thumbnail generated for VOD ${videoId} user ${event.userId.slice(0, 8)}`);
         } catch (err: any) {
           logger.warn(`Autonomous thumbnail generation failed: ${err.message}`);
         }
@@ -381,9 +504,11 @@ export async function wireAgentCoordination(): Promise<void> {
     }, 12 * 60_000);
   });
 
-  // When a new upload is detected → run consistency check + self-improvement
+  // When a new upload is detected → run consistency check + self-improvement + thumbnail intelligence + SEO
   onAgentEvent("upload.detected", async (event) => {
     logger.info(`New upload for ${event.userId.slice(0, 8)} — scheduling consistency audit + self-improvement`);
+    const gameTitle = event.payload?.gameTitle || "PS5 Gameplay";
+
     setTimeout(async () => {
       try {
         const { runConsistencyCheckForUser } = await import("./content-consistency-agent");
@@ -417,6 +542,38 @@ export async function wireAgentCoordination(): Promise<void> {
           logger.warn(`Upload autonomous pipeline failed: ${err.message}`);
         }
       }, 5 * 60_000);
+
+      // T+4min: Research thumbnails for this game + generate research-backed thumbnail
+      setTimeout(async () => {
+        try {
+          try {
+            const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
+            await researchThumbnailsForGame(event.userId, gameTitle);
+          } catch {}
+          const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
+          await generateThumbnailForNewVideo(event.userId, videoId);
+          logger.info(`Research-backed thumbnail generated for upload ${videoId} — ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Upload thumbnail generation failed: ${err.message}`);
+        }
+      }, 4 * 60_000);
+
+      // T+6min: Viral SEO optimization with thumbnail intelligence context
+      setTimeout(async () => {
+        try {
+          const parsed = parseInt(String(videoId), 10);
+          if (!isNaN(parsed)) {
+            const { storage } = await import("../storage");
+            const video = await storage.getVideo(parsed);
+            if (video) {
+              await optimizeLiveStreamSEO(event.userId, parsed, gameTitle, video.title || "");
+              logger.info(`Upload SEO optimized with intelligence for ${event.userId.slice(0, 8)}`);
+            }
+          }
+        } catch (err: any) {
+          logger.warn(`Upload SEO optimization failed: ${err.message}`);
+        }
+      }, 6 * 60_000);
     }
 
     setTimeout(async () => {
