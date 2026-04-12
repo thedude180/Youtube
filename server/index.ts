@@ -1270,6 +1270,13 @@ httpServer.listen(
       }).catch(err => logger.error("Self-Improvement Engine init failed", { error: String(err) }));
     });
 
+    delay(590_000, () => {
+      import("./services/growth-flywheel-engine").then(m => {
+        const ivs = m.initGrowthFlywheelEngine();
+        backgroundIntervals.push(...ivs);
+      }).catch(err => logger.error("Growth Flywheel Engine init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.

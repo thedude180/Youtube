@@ -675,4 +675,129 @@ export function registerAudienceEngineRoutes(app: Express) {
       res.json({ error: "Mind unavailable" });
     }
   });
+
+  app.get("/api/growth-flywheel/stats", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { getFlywheelStats } = await import("../services/growth-flywheel-engine");
+      const stats = await getFlywheelStats(userId);
+      res.json(stats);
+    } catch (err: any) {
+      logger.error("Flywheel stats failed", { error: err.message });
+      res.json({ flywheelCycles: 0, currentMomentum: 0, autonomousActions: { total: 0, executed: 0, pending: 0 }, corePrinciples: 0, competitiveFindings: 0, topPrinciples: [] });
+    }
+  });
+
+  app.get("/api/growth-flywheel/actions", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { autonomousActions } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const actions = await database.select().from(autonomousActions)
+        .where(eq(autonomousActions.userId, userId))
+        .orderBy(desc(autonomousActions.createdAt))
+        .limit(50);
+      res.json(actions);
+    } catch (err: any) {
+      logger.error("Actions fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/growth-flywheel/principles", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { memoryConsolidation } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const principles = await database.select().from(memoryConsolidation)
+        .where(eq(memoryConsolidation.userId, userId))
+        .orderBy(desc(memoryConsolidation.confidenceScore))
+        .limit(50);
+      res.json(principles);
+    } catch (err: any) {
+      logger.error("Principles fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/growth-flywheel/competitive", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { competitiveIntelligence } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const intel = await database.select().from(competitiveIntelligence)
+        .where(eq(competitiveIntelligence.userId, userId))
+        .orderBy(desc(competitiveIntelligence.createdAt))
+        .limit(50);
+      res.json(intel);
+    } catch (err: any) {
+      logger.error("Competitive intel fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/growth-flywheel/cycles", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { growthFlywheel } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const cycles = await database.select().from(growthFlywheel)
+        .where(eq(growthFlywheel.userId, userId))
+        .orderBy(desc(growthFlywheel.createdAt))
+        .limit(60);
+      res.json(cycles);
+    } catch (err: any) {
+      logger.error("Flywheel cycles fetch failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/growth-flywheel/full-state", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { getFlywheelStats } = await import("../services/growth-flywheel-engine");
+      const { getImprovementStats } = await import("../services/self-improvement-engine");
+      const { db: database } = await import("../db");
+      const { selfReflectionJournal, improvementGoals, curiosityQueue, autonomousActions, competitiveIntelligence, memoryConsolidation } = await import("@shared/schema");
+      const { eq, desc, and } = await import("drizzle-orm");
+
+      const [flywheelStats, mindStats] = await Promise.all([
+        getFlywheelStats(userId),
+        getImprovementStats(userId),
+      ]);
+
+      const [recentReflections, activeGoals, pendingCuriosity, recentActions, recentIntel, topPrinciples] = await Promise.all([
+        database.select().from(selfReflectionJournal).where(eq(selfReflectionJournal.userId, userId)).orderBy(desc(selfReflectionJournal.createdAt)).limit(3),
+        database.select().from(improvementGoals).where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active"))).orderBy(desc(improvementGoals.createdAt)).limit(5),
+        database.select().from(curiosityQueue).where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "queued"))).orderBy(desc(curiosityQueue.priority)).limit(5),
+        database.select().from(autonomousActions).where(eq(autonomousActions.userId, userId)).orderBy(desc(autonomousActions.createdAt)).limit(5),
+        database.select().from(competitiveIntelligence).where(eq(competitiveIntelligence.userId, userId)).orderBy(desc(competitiveIntelligence.createdAt)).limit(5),
+        database.select().from(memoryConsolidation).where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true))).orderBy(desc(memoryConsolidation.confidenceScore)).limit(5),
+      ]);
+
+      res.json({
+        flywheel: flywheelStats,
+        mind: mindStats,
+        recentReflections,
+        activeGoals,
+        pendingCuriosity,
+        recentActions,
+        recentIntel,
+        topPrinciples,
+      });
+    } catch (err: any) {
+      logger.error("Full state fetch failed", { error: err.message });
+      res.json({ error: "State unavailable" });
+    }
+  });
 }

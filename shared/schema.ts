@@ -9088,6 +9088,112 @@ export const insertCuriosityQueueSchema = createInsertSchema(curiosityQueue).omi
 export type InsertCuriosityQueue = z.infer<typeof insertCuriosityQueueSchema>;
 export type CuriosityQueue = typeof curiosityQueue.$inferSelect;
 
+export const growthFlywheel = pgTable("growth_flywheel", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  flywheelPhase: text("flywheel_phase").notNull(),
+  inputAction: text("input_action").notNull(),
+  outputAction: text("output_action").notNull(),
+  compoundingFactor: real("compounding_factor").notNull().default(1.0),
+  cycleNumber: integer("cycle_number").notNull().default(1),
+  energyLevel: integer("energy_level").notNull().default(50),
+  momentum: real("momentum").notNull().default(0),
+  chainedFrom: integer("chained_from"),
+  chainedTo: integer("chained_to"),
+  executionStatus: text("execution_status").notNull().default("pending"),
+  result: text("result"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  executedAt: timestamp("executed_at"),
+}, (t) => [
+  index("gf_user_idx").on(t.userId),
+  index("gf_phase_idx").on(t.flywheelPhase),
+  index("gf_status_idx").on(t.executionStatus),
+]);
+
+export const insertGrowthFlywheelSchema = createInsertSchema(growthFlywheel).omit({ id: true, createdAt: true, executedAt: true });
+export type InsertGrowthFlywheel = z.infer<typeof insertGrowthFlywheelSchema>;
+export type GrowthFlywheel = typeof growthFlywheel.$inferSelect;
+
+export const autonomousActions = pgTable("autonomous_actions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  actionType: text("action_type").notNull(),
+  targetEntity: text("target_entity").notNull(),
+  targetId: text("target_id"),
+  beforeSnapshot: jsonb("before_snapshot"),
+  afterSnapshot: jsonb("after_snapshot"),
+  reasoning: text("reasoning").notNull(),
+  confidenceScore: integer("confidence_score").notNull().default(50),
+  status: text("status").notNull().default("pending"),
+  approvalRequired: boolean("approval_required").notNull().default(true),
+  autoApproved: boolean("auto_approved").notNull().default(false),
+  executedAt: timestamp("executed_at"),
+  rolledBackAt: timestamp("rolled_back_at"),
+  impactMeasured: jsonb("impact_measured"),
+  strategyId: integer("strategy_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("aa_user_idx").on(t.userId),
+  index("aa_status_idx").on(t.status),
+  index("aa_type_idx").on(t.actionType),
+]);
+
+export const insertAutonomousActionSchema = createInsertSchema(autonomousActions).omit({ id: true, createdAt: true, executedAt: true, rolledBackAt: true });
+export type InsertAutonomousAction = z.infer<typeof insertAutonomousActionSchema>;
+export type AutonomousAction = typeof autonomousActions.$inferSelect;
+
+export const memoryConsolidation = pgTable("memory_consolidation", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  consolidationType: text("consolidation_type").notNull(),
+  rawMemoryCount: integer("raw_memory_count").notNull().default(0),
+  corePrinciple: text("core_principle").notNull(),
+  evidenceSummary: text("evidence_summary").notNull(),
+  confidenceScore: integer("confidence_score").notNull().default(50),
+  timesReinforced: integer("times_reinforced").notNull().default(1),
+  timesContradicted: integer("times_contradicted").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  supersededBy: integer("superseded_by"),
+  sourceInsightIds: integer("source_insight_ids").array(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastReinforcedAt: timestamp("last_reinforced_at"),
+}, (t) => [
+  index("mc_user_idx").on(t.userId),
+  index("mc_type_idx").on(t.consolidationType),
+  index("mc_active_idx").on(t.isActive),
+]);
+
+export const insertMemoryConsolidationSchema = createInsertSchema(memoryConsolidation).omit({ id: true, createdAt: true, lastReinforcedAt: true });
+export type InsertMemoryConsolidation = z.infer<typeof insertMemoryConsolidationSchema>;
+export type MemoryConsolidation = typeof memoryConsolidation.$inferSelect;
+
+export const competitiveIntelligence = pgTable("competitive_intelligence", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceName: text("source_name"),
+  insightCategory: text("insight_category").notNull(),
+  finding: text("finding").notNull(),
+  applicability: text("applicability").notNull(),
+  implementationDifficulty: text("implementation_difficulty").notNull().default("medium"),
+  potentialImpact: text("potential_impact").notNull().default("medium"),
+  status: text("status").notNull().default("discovered"),
+  adoptedAsStrategy: boolean("adopted_as_strategy").notNull().default(false),
+  strategyId: integer("strategy_id"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("comp_intel_user_idx").on(t.userId),
+  index("comp_intel_category_idx").on(t.insightCategory),
+  index("comp_intel_status_idx").on(t.status),
+]);
+
+export const insertCompetitiveIntelligenceSchema = createInsertSchema(competitiveIntelligence).omit({ id: true, createdAt: true });
+export type InsertCompetitiveIntelligence = z.infer<typeof insertCompetitiveIntelligenceSchema>;
+export type CompetitiveIntelligence = typeof competitiveIntelligence.$inferSelect;
+
 export const crossChannelInsights = pgTable("cross_channel_insights", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
