@@ -26,10 +26,15 @@ export class VODSEOOptimizer {
       logger.info(`[VODSEOOptimizer] Optimizing metadata for video ${videoId}: ${video.title}`);
 
       // 2. Prepare AI Prompt
+      const gameName = video.metadata?.gameName;
+      const gameContext = gameName && gameName !== "Unknown" && gameName !== "Gaming"
+        ? `Game/Category: ${gameName}\n\nCRITICAL: The detected game is "${gameName}". The optimized title and description MUST reference "${gameName}" — do NOT substitute a different game name.`
+        : `Game/Category: Unknown\n\nThe game has not been confidently identified. Do NOT guess or fabricate a game name. Use generic gaming terms instead.`;
+
       const basePrompt = `You are an SEO expert for YouTube. Optimize the following video metadata:
 Current Title: ${video.title}
 Current Description: ${video.description || "None"}
-Game/Category: ${video.metadata?.gameName || "Unknown"}
+${gameContext}
 
 Return a JSON object with:
 1. "optimizedTitle": Catchy, high-CTR title (max 100 chars)

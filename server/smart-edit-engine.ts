@@ -180,9 +180,16 @@ export async function detectGameFromFrames(videoPath: string, title: string, des
         messages: [
           {
             role: "system",
-            content: `You are a PS5 game identification expert. Analyze the gameplay screenshots and identify the EXACT game being played. Use visual cues: HUD elements, art style, character models, environments, UI layout, health bars, minimaps, and any on-screen text.
+            content: `You are a PS5 game identification expert. Analyze the gameplay screenshots and identify the EXACT game being played.
 
-Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of War Ragnarok", "Spider-Man 2"). If you cannot confidently identify the game, return "Unknown".`,
+IDENTIFICATION RULES:
+1. Focus on DEFINITIVE visual evidence: HUD elements, unique UI layouts, character models, game-specific environments, health bars, minimaps, weapon wheels, and on-screen text/logos.
+2. Do NOT guess based on generic elements like "urban environment" or "two characters fighting" — many games share similar settings.
+3. If you see a specific game logo, loading screen text, or unique HUD element, use that as primary evidence.
+4. If the video title or description mentions a specific game name, cross-reference with the visual evidence. If visuals contradict the title, trust the visuals.
+5. If you cannot identify the game with HIGH CONFIDENCE (80%+), return "Unknown". It is much better to return "Unknown" than to guess wrong.
+
+Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of War Ragnarok", "Battlefield 6", "Spider-Man 2"). Never return a game name unless you are confident the visuals match that specific game.`,
           },
           {
             role: "user",
@@ -215,15 +222,17 @@ async function detectGameNameFromText(title: string, description: string): Promi
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: "Extract the PS5 game name from this video title and description. Return ONLY the game name as a plain string. If unknown, return 'Gaming'." },
+        { role: "system", content: `Extract the PS5 game name ONLY if it is explicitly mentioned in the title or description. Do NOT guess or infer a game that is not clearly named. If the game name is not clearly stated in the text, return exactly "Unknown". Return ONLY the official game name as a plain string.` },
         { role: "user", content: `Title: ${title}\nDescription: ${(description || "").slice(0, 300)}` },
       ],
       max_completion_tokens: 30,
     });
-    const game = resp.choices[0]?.message?.content?.trim() || "Gaming";
-    return game.replace(/['"]/g, "").slice(0, 60);
+    const game = resp.choices[0]?.message?.content?.trim() || "Unknown";
+    const cleaned = game.replace(/['"]/g, "").slice(0, 60);
+    if (!cleaned || cleaned === "Unknown" || cleaned.length < 2) return "Unknown";
+    return cleaned;
   } catch {
-    return "Gaming";
+    return "Unknown";
   }
 }
 

@@ -306,6 +306,11 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
     let enrichedTitle = video.title;
     let enrichedDescription = video.description || "";
 
+    const detectedGame = meta.gameName;
+    if (detectedGame && detectedGame !== "Unknown" && detectedGame !== "Gaming") {
+      enrichedDescription = `Game: ${detectedGame}. ${enrichedDescription}`;
+    }
+
     if (meta.sourceVideoId) {
       const [sourceVideo] = await db.select().from(videos).where(eq(videos.id, meta.sourceVideoId));
       if (sourceVideo) {
