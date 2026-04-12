@@ -188,7 +188,14 @@ async function runDescriptionSeo(userId: string): Promise<any> {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are a YouTube SEO master. Optimize this video description for maximum search ranking. Include: keyword-rich first 2 lines, timestamps if applicable, relevant hashtags, call-to-action, and social links placeholder. Return JSON: {optimizedDescription, keywords: string[], hashtags: string[], seoScore: number}.`
+          content: `You are a YouTube SEO master. Optimize this video description for maximum search ranking. Include: keyword-rich first 2 lines, timestamps if applicable, relevant hashtags, call-to-action, and social links placeholder.
+
+CRITICAL YOUTUBE POLICY REQUIREMENTS (April 2026):
+1. AI DISCLOSURE: You MUST include at the end of the description: "AI Disclosure: AI tools were used to assist in editing, optimization, and/or description generation for this content."
+2. NO-COMMENTARY ELIGIBILITY: For no-commentary gameplay, include transformative elements: chapter timestamps, gameplay tips/analysis, curated highlight notes, or game context/lore.
+3. Keep upload scheduling advice conservative (max 3 videos + 6 shorts per day).
+
+Return JSON: {optimizedDescription, keywords: string[], hashtags: string[], seoScore: number}.`
         }, {
           role: "user",
           content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 500)}". Optimize for YouTube search.`
@@ -198,6 +205,11 @@ async function runDescriptionSeo(userId: string): Promise<any> {
       });
 
       const seo = JSON.parse(response.choices[0]?.message?.content || "{}");
+
+      const AI_DISCLOSURE_FOOTER = "\n\n---\nAI Disclosure: AI tools were used to assist in editing, optimization, and/or description generation for this content.";
+      if (seo.optimizedDescription && !seo.optimizedDescription.toLowerCase().includes("ai disclosure")) {
+        seo.optimizedDescription = seo.optimizedDescription.trimEnd() + AI_DISCLOSURE_FOOTER;
+      }
 
       await db.update(videos).set({
         metadata: { ...meta, descriptionSeoOptimized: true, seoData: seo, seoOptimizedAt: new Date().toISOString() },

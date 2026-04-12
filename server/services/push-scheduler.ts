@@ -48,10 +48,12 @@ registerCleanup("pushScheduler", cleanupPushMaps, 5 * 60 * 1000);
 export function stopPushCleanup(): void {}
 
 const YOUTUBE_UPDATE_LIMITS = {
-  maxUpdatesPerHour: 15,
-  maxUpdatesPerDay: 50,
-  minGapBetweenUpdatesMs: 45_000,
-  maxGapBetweenUpdatesMs: 600_000,
+  maxUpdatesPerHour: 6,
+  maxUpdatesPerDay: 20,
+  minGapBetweenUpdatesMs: 120_000,
+  maxGapBetweenUpdatesMs: 900_000,
+  maxNewUploadsPerDay: 3,
+  maxShortsPerDay: 6,
 };
 
 function gaussianRandom(mean: number, stddev: number): number {

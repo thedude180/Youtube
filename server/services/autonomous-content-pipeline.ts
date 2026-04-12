@@ -76,17 +76,25 @@ ${vodStrategies || "No proven strategies yet — use best practices"}
 CORE PRINCIPLES:
 ${principleBlock || "No principles yet — use industry best practices"}
 
-Generate the BEST possible version of this content. Apply every insight you have. Return JSON:
+Generate the BEST possible version of this content. Apply every insight you have.
+
+CRITICAL YOUTUBE POLICY REQUIREMENTS (April 2026):
+1. AI DISCLOSURE: ALL AI-assisted content must be labeled. Since this description is AI-generated, you MUST include the following line at the bottom of the description: "AI Disclosure: AI tools were used to assist in editing, optimization, and/or description generation for this content."
+2. NO-COMMENTARY ELIGIBILITY: For no-commentary gameplay, YouTube now requires transformative elements for monetization. You MUST include at least 2 of these in the description: chapter timestamps, strategic gameplay analysis/tips, curated highlight callouts, game-specific context/lore, or performance commentary notes.
+3. UPLOAD LIMITS: Automated uploads are now limited — do not suggest rapid posting schedules.
+
+Return JSON:
 {
   "optimizedTitle": "title that maximizes CTR using proven patterns (max 100 chars)",
-  "optimizedDescription": "SEO-rich description with hooks, keywords, timestamps placeholder (max 2000 chars)",
+  "optimizedDescription": "SEO-rich description with hooks, keywords, timestamps placeholder, transformative gameplay context, AND AI disclosure footer (max 2000 chars)",
   "optimizedTags": ["15-20 highly targeted tags"],
   "thumbnailConcept": "specific visual concept for maximum CTR thumbnail",
   "shortsIdeas": ["3 viral shorts clip ideas from this content"],
-  "schedulingAdvice": "best time/day to publish based on patterns",
+  "schedulingAdvice": "best time/day to publish based on patterns (respect max 3 videos + 6 shorts per day limit)",
   "crossPromotionIdeas": ["2 ways to cross-promote with existing content"],
   "seoKeywords": ["5 primary search keywords to target"],
   "strategiesApplied": ["list of strategies used in this optimization"],
+  "transformativeElements": ["list of transformative elements included for no-commentary compliance"],
   "confidenceScore": 0-100
 }`
     );
@@ -95,6 +103,11 @@ Generate the BEST possible version of this content. Apply every insight you have
     if (!result.optimizedTitle) {
       logger.warn("Autonomous pipeline returned empty result", { videoId });
       return;
+    }
+
+    const AI_DISCLOSURE_FOOTER = "\n\n---\nAI Disclosure: AI tools were used to assist in editing, optimization, and/or description generation for this content.";
+    if (result.optimizedDescription && !result.optimizedDescription.toLowerCase().includes("ai disclosure")) {
+      result.optimizedDescription = result.optimizedDescription.trimEnd() + AI_DISCLOSURE_FOOTER;
     }
 
     const beforeSnapshot = {
@@ -108,6 +121,7 @@ Generate the BEST possible version of this content. Apply every insight you have
         ...meta,
         autonomousPipelineCompleted: true,
         autonomousPipelineAt: new Date().toISOString(),
+        hasAiContent: true,
         pendingOptimizedTitle: result.optimizedTitle,
         pendingOptimizedDescription: result.optimizedDescription,
         pendingOptimizedTags: result.optimizedTags || [],
@@ -117,6 +131,7 @@ Generate the BEST possible version of this content. Apply every insight you have
         crossPromotionIdeas: result.crossPromotionIdeas || [],
         seoKeywords: result.seoKeywords || [],
         strategiesApplied: result.strategiesApplied || [],
+        transformativeElements: result.transformativeElements || [],
         autonomousConfidence: result.confidenceScore || 50,
       },
     }).where(eq(videos.id, videoId));
@@ -132,6 +147,7 @@ Generate the BEST possible version of this content. Apply every insight you have
           autonomousPipelineAt: new Date().toISOString(),
           tags: result.optimizedTags || meta.tags || [],
           aiOptimized: true,
+          hasAiContent: true,
           aiOptimizedAt: new Date().toISOString(),
           thumbnailConcept: result.thumbnailConcept,
           shortsIdeas: result.shortsIdeas || [],
@@ -139,6 +155,7 @@ Generate the BEST possible version of this content. Apply every insight you have
           crossPromotionIdeas: result.crossPromotionIdeas || [],
           seoKeywords: result.seoKeywords || [],
           strategiesApplied: result.strategiesApplied || [],
+          transformativeElements: result.transformativeElements || [],
           autonomousConfidence: result.confidenceScore || 50,
           previousTitle: v.title,
           previousDescription: v.description,
