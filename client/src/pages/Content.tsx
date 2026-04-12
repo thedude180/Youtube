@@ -41,7 +41,7 @@ function ContentStatsStrip() {
   const { data: videos, isLoading } = useVideos();
   const stats = useMemo(() => {
     if (!videos) return null;
-    const vods = videos.filter(v => v.type === "vod").length;
+    const vods = videos.filter(v => v.type === "vod" || v.type === "video" || v.type === "long" || v.type === "stream_vod" || v.type === "live_replay" || v.type === "regular_upload").length;
     const shorts = videos.filter(v => v.type === "short").length;
     const published = videos.filter(v => v.status === "published").length;
     const totalViews = videos.reduce((sum, v) => sum + (Number(v.metadata?.viewCount) || 0), 0);
@@ -167,7 +167,8 @@ export default function Content() {
   );
 }
 
-const TYPE_LABEL: Record<string, string> = { vod: "VOD", short: "Short" };
+const TYPE_LABEL: Record<string, string> = { vod: "VOD", video: "VOD", long: "VOD", stream_vod: "VOD", live_replay: "VOD", regular_upload: "VOD", short: "Short" };
+const isVodType = (t: string) => t === "vod" || t === "video" || t === "long" || t === "stream_vod" || t === "live_replay" || t === "regular_upload";
 
 function BeatMapButton({ videoId }: { videoId: number }) {
   const [open, setOpen] = useState(false);
@@ -347,7 +348,9 @@ function LibraryTab() {
   const filtered = useMemo(() => {
     if (!videos) return [];
     let list = videos;
-    if (typeFilter !== "all") list = list.filter(v => v.type === typeFilter);
+    if (typeFilter === "vod") list = list.filter(v => isVodType(v.type));
+    else if (typeFilter === "short") list = list.filter(v => v.type === "short");
+    else if (typeFilter !== "all") list = list.filter(v => v.type === typeFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(v => v.title?.toLowerCase().includes(q));

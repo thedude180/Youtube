@@ -24,7 +24,8 @@ function GovernanceSummaryCard() {
 
   if (!data) return null;
 
-  const immunityColor = data.channelImmunity >= 0.8 ? "text-emerald-400" : data.channelImmunity >= 0.5 ? "text-amber-400" : "text-red-400";
+  const immunity = data.channelImmunity ?? 0;
+  const immunityColor = immunity >= 0.8 ? "text-emerald-400" : immunity >= 0.5 ? "text-amber-400" : "text-red-400";
 
   return (
     <Card className="card-empire" data-testid="card-governance-summary">
@@ -39,14 +40,14 @@ function GovernanceSummaryCard() {
           <div className="space-y-1" data-testid="stat-channel-immunity">
             <div className="text-xs text-muted-foreground">Channel Immunity</div>
             <div className={`text-xl font-bold ${immunityColor}`}>
-              {(data.channelImmunity * 100).toFixed(0)}%
+              {(immunity * 100).toFixed(0)}%
             </div>
           </div>
           <div className="space-y-1" data-testid="stat-eval-violations">
             <div className="text-xs text-muted-foreground">Eval Violations</div>
             <div className="text-xl font-bold flex items-center gap-1">
-              {data.evalViolations}
-              {data.evalViolations === 0 ? (
+              {data.evalViolations ?? 0}
+              {(data.evalViolations ?? 0) === 0 ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               ) : (
                 <AlertTriangle className="h-4 w-4 text-amber-400" />

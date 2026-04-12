@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type StatusType = "ingested" | "processing" | "ready" | "scheduled" | "uploaded" | "failed" | "completed" | "pending";
+type StatusType = "ingested" | "processing" | "ready" | "scheduled" | "uploaded" | "published" | "failed" | "completed" | "pending";
 
 const variants: Record<StatusType, string> = {
   ingested: "bg-blue-500/15 text-blue-500 border-blue-500/20",
@@ -8,6 +8,7 @@ const variants: Record<StatusType, string> = {
   ready: "bg-purple-500/15 text-purple-500 border-purple-500/20",
   scheduled: "bg-cyan-500/15 text-cyan-500 border-cyan-500/20",
   uploaded: "bg-green-500/15 text-green-500 border-green-500/20",
+  published: "bg-emerald-500/15 text-emerald-500 border-emerald-500/20",
   completed: "bg-green-500/15 text-green-500 border-green-500/20",
   failed: "bg-red-500/15 text-red-500 border-red-500/20",
   pending: "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",
@@ -18,7 +19,8 @@ const labels: Record<StatusType, string> = {
   processing: "Processing",
   ready: "Ready",
   scheduled: "Scheduled",
-  uploaded: "Published",
+  uploaded: "Uploaded",
+  published: "Published",
   completed: "Done",
   failed: "Failed",
   pending: "Pending",

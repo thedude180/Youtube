@@ -20,14 +20,15 @@ interface RevenueData {
   unattributed: number;
 }
 
-function formatCurrency(n: number) {
-  return `$${n.toFixed(2)}`;
+function formatCurrency(n: number | null | undefined) {
+  return `$${(n ?? 0).toFixed(2)}`;
 }
 
-function formatViews(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
+function formatViews(n: number | null | undefined) {
+  const v = n ?? 0;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return v.toString();
 }
 
 export default function ContentRevenueTab() {
@@ -110,7 +111,7 @@ export default function ContentRevenueTab() {
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-sm font-bold text-emerald-400" data-testid={`text-video-revenue-${v.videoId}`}>{formatCurrency(v.attributedRevenue)}</p>
-                  <p className="text-[10px] text-muted-foreground">${v.revenuePerView.toFixed(4)}/view</p>
+                  <p className="text-[10px] text-muted-foreground">${(v.revenuePerView ?? 0).toFixed(4)}/view</p>
                 </div>
               </div>
             ))}
