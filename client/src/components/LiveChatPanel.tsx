@@ -186,8 +186,8 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {["youtube", "twitch", "kick"].map((platform) => {
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {["youtube", "twitch", "kick", "discord"].map((platform) => {
               const info = bridge?.platforms?.[platform] || {};
               const isConnected = info.connected || (platform === "youtube" && bridge?.active);
               return (
@@ -362,7 +362,7 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1">
-                {["youtube", "twitch", "kick"].map(p => (
+                {["youtube", "twitch", "kick", "discord"].map(p => (
                   <Badge
                     key={p}
                     variant={simulatePlatform === p ? "default" : "outline"}
