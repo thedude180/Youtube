@@ -8579,7 +8579,7 @@ export const offerRecommendations = pgTable("offer_recommendations", {
   accepted: boolean("accepted"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("or_user_idx").on(t.userId),
+  index("ofrec_user_idx").on(t.userId),
 ]);
 
 export const packagingInsights = pgTable("packaging_insights", {
@@ -9525,6 +9525,66 @@ export const crossEngineTeachings = pgTable("cross_engine_teachings", {
   index("cet_source_idx").on(t.sourceEngine),
   index("cet_target_idx").on(t.targetEngine),
 ]);
+
+export const engineIntervalConfigs = pgTable("engine_interval_configs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  engineName: text("engine_name").notNull(),
+  currentIntervalMs: integer("current_interval_ms").notNull(),
+  defaultIntervalMs: integer("default_interval_ms").notNull(),
+  minIntervalMs: integer("min_interval_ms").notNull().default(60000),
+  maxIntervalMs: integer("max_interval_ms").notNull().default(7200000),
+  outputQualityScore: integer("output_quality_score").default(50),
+  outputVolumeLastCycle: integer("output_volume_last_cycle").default(0),
+  wastedCycles: integer("wasted_cycles").default(0),
+  productiveCycles: integer("productive_cycles").default(0),
+  lastTunedAt: timestamp("last_tuned_at"),
+  tuningReason: text("tuning_reason"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("eic_user_idx").on(t.userId),
+  index("eic_engine_idx").on(t.engineName),
+  uniqueIndex("eic_user_engine_idx").on(t.userId, t.engineName),
+]);
+
+export const insertEngineIntervalConfigSchema = createInsertSchema(engineIntervalConfigs).omit({ id: true, createdAt: true, updatedAt: true, lastTunedAt: true });
+export type InsertEngineIntervalConfig = z.infer<typeof insertEngineIntervalConfigSchema>;
+export type EngineIntervalConfig = typeof engineIntervalConfigs.$inferSelect;
+
+export const contentPerformanceLoops = pgTable("content_performance_loops", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentId: text("content_id").notNull(),
+  platform: text("platform").notNull(),
+  publishedAt: timestamp("published_at").notNull(),
+  checkScheduledAt: timestamp("check_scheduled_at").notNull(),
+  checkCompletedAt: timestamp("check_completed_at"),
+  status: text("status").notNull().default("pending"),
+  predictedViews: integer("predicted_views"),
+  actualViews: integer("actual_views"),
+  predictedCtr: real("predicted_ctr"),
+  actualCtr: real("actual_ctr"),
+  predictedRetention: real("predicted_retention"),
+  actualRetention: real("actual_retention"),
+  strategyUsed: text("strategy_used"),
+  strategyId: integer("strategy_id"),
+  performanceScore: integer("performance_score"),
+  attributionComplete: boolean("attribution_complete").default(false),
+  lessonLearned: text("lesson_learned"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cpl_user_idx").on(t.userId),
+  index("cpl_status_idx").on(t.status),
+  index("cpl_platform_idx").on(t.platform),
+  index("cpl_check_idx").on(t.checkScheduledAt),
+]);
+
+export const insertContentPerformanceLoopSchema = createInsertSchema(contentPerformanceLoops).omit({ id: true, createdAt: true, checkCompletedAt: true });
+export type InsertContentPerformanceLoop = z.infer<typeof insertContentPerformanceLoopSchema>;
+export type ContentPerformanceLoop = typeof contentPerformanceLoops.$inferSelect;
 
 export const originalityResearch = pgTable("originality_research", {
   id: serial("id").primaryKey(),

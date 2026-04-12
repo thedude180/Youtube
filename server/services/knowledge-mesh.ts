@@ -32,6 +32,16 @@ const ENGINE_REGISTRY = [
   { name: "content-originality", domains: ["unique-angles", "research", "differentiation"] },
   { name: "thumbnail-intelligence", domains: ["visual-design", "ctr-optimization", "color-psychology"] },
   { name: "music-composer", domains: ["audio-branding", "mood-matching", "copyright-safety"] },
+  { name: "engine-interval-tuner", domains: ["meta-optimization", "interval-tuning", "resource-allocation", "efficiency"] },
+  { name: "closed-loop-attribution", domains: ["performance-scoring", "strategy-validation", "content-results", "attribution"] },
+  { name: "prompt-evolution", domains: ["prompt-engineering", "ai-quality", "output-improvement", "template-evolution"] },
+  { name: "revenue-optimizer", domains: ["rpm-optimization", "monetization", "content-revenue", "game-selection"] },
+  { name: "audience-intelligence", domains: ["audience-behavior", "engagement-patterns", "content-gaps", "sentiment"] },
+  { name: "predictive-guardian", domains: ["failure-prevention", "health-prediction", "proactive-healing", "system-stability"] },
+  { name: "empire-intelligence", domains: ["cross-domain-transfer", "universal-principles", "business-scaling"] },
+  { name: "memory-architect", domains: ["knowledge-compression", "memory-management", "forgetting", "consolidation"] },
+  { name: "autonomous-experimenter", domains: ["hypothesis-testing", "a-b-testing", "experiment-design", "validation"] },
+  { name: "decision-chronicler", domains: ["decision-audit", "transparency", "accountability", "reasoning-trail"] },
 ] as const;
 
 const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
@@ -67,6 +77,45 @@ const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
   { from: "trend-rider", to: "media-command", relevance: "trending topics influence optimal posting times and platform selection" },
   { from: "performance-feedback", to: "content-grinder", relevance: "video performance feedback shapes which clips get distributed to which platforms" },
   { from: "performance-feedback", to: "analytics-intelligence", relevance: "individual video performance validates or challenges analytics forecasts" },
+
+  { from: "closed-loop-attribution", to: "self-improvement", relevance: "strategy scores from real results drive honest self-assessment" },
+  { from: "closed-loop-attribution", to: "growth-flywheel", relevance: "content performance scores guide flywheel momentum calculations" },
+  { from: "closed-loop-attribution", to: "prompt-evolution", relevance: "attribution results show which prompts produce winning content" },
+  { from: "closed-loop-attribution", to: "revenue-optimizer", relevance: "performance data reveals which content generates real revenue" },
+  { from: "closed-loop-attribution", to: "autonomous-experimenter", relevance: "attribution scores validate or invalidate experiment hypotheses" },
+
+  { from: "prompt-evolution", to: "content-grinder", relevance: "evolved prompts improve content extraction and caption quality" },
+  { from: "prompt-evolution", to: "self-improvement", relevance: "prompt improvements feed back into strategy evolution" },
+  { from: "prompt-evolution", to: "infinite-evolution", relevance: "prompt quality scores inform system domain audits" },
+
+  { from: "revenue-optimizer", to: "content-grinder", relevance: "revenue data shifts which games and content types get prioritized" },
+  { from: "revenue-optimizer", to: "media-command", relevance: "RPM insights guide scheduling and platform allocation" },
+  { from: "revenue-optimizer", to: "empire-brain", relevance: "revenue optimization data feeds empire-level business strategy" },
+
+  { from: "audience-intelligence", to: "content-grinder", relevance: "audience preferences shape content extraction priorities" },
+  { from: "audience-intelligence", to: "self-improvement", relevance: "audience feedback grounds self-assessment in real viewer reactions" },
+  { from: "audience-intelligence", to: "trend-rider", relevance: "audience demand signals identify which trends to ride" },
+  { from: "audience-intelligence", to: "growth-flywheel", relevance: "engagement patterns inform flywheel growth strategies" },
+
+  { from: "engine-interval-tuner", to: "predictive-guardian", relevance: "engine slowdowns signal potential systemic health issues" },
+  { from: "engine-interval-tuner", to: "infinite-evolution", relevance: "interval efficiency data informs automation domain scoring" },
+
+  { from: "predictive-guardian", to: "self-improvement", relevance: "predicted threats inform proactive strategy adjustments" },
+  { from: "predictive-guardian", to: "engine-interval-tuner", relevance: "health predictions guide which engines to speed up or slow down" },
+
+  { from: "empire-intelligence", to: "self-improvement", relevance: "cross-domain patterns expand strategy discovery beyond current domain" },
+  { from: "empire-intelligence", to: "growth-flywheel", relevance: "universal principles from other domains accelerate growth" },
+  { from: "empire-intelligence", to: "autonomous-experimenter", relevance: "cross-domain patterns suggest new experiment hypotheses" },
+
+  { from: "memory-architect", to: "self-improvement", relevance: "compressed core principles provide cleaner foundation for reflection" },
+  { from: "memory-architect", to: "infinite-evolution", relevance: "memory health status informs system efficiency scoring" },
+
+  { from: "autonomous-experimenter", to: "self-improvement", relevance: "experiment results validate or kill strategies with hard evidence" },
+  { from: "autonomous-experimenter", to: "growth-flywheel", relevance: "proven experiments become flywheel growth tactics" },
+  { from: "autonomous-experimenter", to: "prompt-evolution", relevance: "experiment results guide which prompt variations work best" },
+
+  { from: "decision-chronicler", to: "self-improvement", relevance: "decision patterns reveal blind spots in autonomous reasoning" },
+  { from: "decision-chronicler", to: "infinite-evolution", relevance: "decision quality trends inform overall system health scoring" },
 ];
 
 function ensureMeshUserRegistered(userId: string) {
