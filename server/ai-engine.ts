@@ -1,5 +1,6 @@
 import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
+import { detectGameFromLearned } from "./services/web-game-lookup";
 
 const openai = getOpenAIClient();
 
@@ -228,6 +229,8 @@ function detectGameName(text: string): string | null {
   for (const [game, patterns] of Object.entries(KNOWN_GAMES)) {
     if (patterns.some(p => text.includes(p))) return game;
   }
+  const learned = detectGameFromLearned(text);
+  if (learned) return learned;
   return null;
 }
 

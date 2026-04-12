@@ -1,9 +1,119 @@
 import { createLogger } from "../lib/logger";
+import { db } from "../db";
+import { discoveredGames } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 
 const logger = createLogger("web-game-lookup");
 
 const gameCache = new Map<string, { name: string | null; timestamp: number }>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const learnedGames = new Map<string, string[]>();
+let learnedGamesLoaded = false;
+
+export async function loadLearnedGames(): Promise<void> {
+  try {
+    const rows = await db.select().from(discoveredGames);
+    learnedGames.clear();
+    for (const row of rows) {
+      learnedGames.set(row.officialName, row.searchPatterns);
+    }
+    learnedGamesLoaded = true;
+    logger.info("Loaded discovered games from DB", { count: rows.length });
+  } catch (err) {
+    logger.warn("Failed to load discovered games from DB", { error: String(err).slice(0, 200) });
+  }
+}
+
+export function getLearnedGames(): Map<string, string[]> {
+  return learnedGames;
+}
+
+function generateSearchPatterns(gameName: string): string[] {
+  const patterns: string[] = [];
+  const lower = gameName.toLowerCase();
+  patterns.push(lower);
+
+  const noColon = lower.replace(/:/g, "");
+  if (noColon !== lower) patterns.push(noColon);
+
+  const noPunctuation = lower.replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  if (noPunctuation !== lower && noPunctuation !== noColon) patterns.push(noPunctuation);
+
+  const romanNumerals: Record<string, string> = {
+    " ii": " 2", " iii": " 3", " iv": " 4", " v": " 5",
+    " vi": " 6", " vii": " 7", " viii": " 8", " ix": " 9", " x": " 10",
+    " xi": " 11", " xii": " 12", " xiii": " 13", " xiv": " 14",
+    " xv": " 15", " xvi": " 16",
+  };
+  for (const [roman, arabic] of Object.entries(romanNumerals)) {
+    if (lower.endsWith(roman) || lower.includes(roman + " ") || lower.includes(roman + ":")) {
+      patterns.push(lower.replace(roman, arabic));
+    }
+  }
+
+  const words = lower.split(/\s+/);
+  if (words.length >= 3) {
+    const acronym = words.map(w => w[0]).join("");
+    if (acronym.length >= 3) patterns.push(acronym);
+  }
+
+  const numberMatch = lower.match(/^(.+?)\s*(\d+)$/);
+  if (numberMatch) {
+    const [, base, num] = numberMatch;
+    const abbreviations: Record<string, string[]> = {
+      "battlefield": ["bf"],
+      "call of duty": ["cod"],
+      "final fantasy": ["ff"],
+      "resident evil": ["re"],
+      "gran turismo": ["gt"],
+      "street fighter": ["sf"],
+      "mortal kombat": ["mk"],
+      "rainbow six": ["r6"],
+    };
+    const abbr = abbreviations[base.trim()];
+    if (abbr) {
+      for (const a of abbr) patterns.push(`${a}${num}`);
+    }
+  }
+
+  return [...new Set(patterns)].filter(p => p.length >= 2);
+}
+
+async function persistDiscoveredGame(gameName: string, source: string): Promise<void> {
+  try {
+    const patterns = generateSearchPatterns(gameName);
+    const existing = await db.select().from(discoveredGames)
+      .where(eq(discoveredGames.officialName, gameName))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.update(discoveredGames).set({
+        timesDetected: sql`${discoveredGames.timesDetected} + 1`,
+        lastDetectedAt: new Date(),
+      }).where(eq(discoveredGames.officialName, gameName));
+    } else {
+      await db.insert(discoveredGames).values({
+        officialName: gameName,
+        searchPatterns: patterns,
+        source,
+      });
+      logger.info("New game persisted to discovered_games", { gameName, patterns, source });
+    }
+
+    learnedGames.set(gameName, patterns);
+  } catch (err) {
+    logger.warn("Failed to persist discovered game", { gameName, error: String(err).slice(0, 200) });
+  }
+}
+
+export function detectGameFromLearned(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const [game, patterns] of learnedGames.entries()) {
+    if (patterns.some(p => lower.includes(p))) return game;
+  }
+  return null;
+}
 
 function getCachedResult(key: string): string | null | undefined {
   const entry = gameCache.get(key);
@@ -24,7 +134,18 @@ function setCachedResult(key: string, name: string | null): void {
 }
 
 export async function lookupGameFromWeb(searchText: string): Promise<string | null> {
-  const cacheKey = searchText.toLowerCase().trim().slice(0, 100);
+  if (!learnedGamesLoaded) {
+    await loadLearnedGames();
+  }
+
+  const lower = searchText.toLowerCase();
+  const learnedMatch = detectGameFromLearned(lower);
+  if (learnedMatch) {
+    await persistDiscoveredGame(learnedMatch, "learned-cache");
+    return learnedMatch;
+  }
+
+  const cacheKey = lower.trim().slice(0, 100);
   const cached = getCachedResult(cacheKey);
   if (cached !== undefined) return cached;
 
@@ -39,6 +160,7 @@ export async function lookupGameFromWeb(searchText: string): Promise<string | nu
     if (wikiResult) {
       logger.info("Game identified via web lookup", { query: keywords, result: wikiResult });
       setCachedResult(cacheKey, wikiResult);
+      await persistDiscoveredGame(wikiResult, "wikipedia");
       return wikiResult;
     }
 
@@ -46,6 +168,7 @@ export async function lookupGameFromWeb(searchText: string): Promise<string | nu
     if (ddgResult) {
       logger.info("Game identified via DuckDuckGo", { query: keywords, result: ddgResult });
       setCachedResult(cacheKey, ddgResult);
+      await persistDiscoveredGame(ddgResult, "duckduckgo");
       return ddgResult;
     }
 

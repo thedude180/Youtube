@@ -8944,3 +8944,22 @@ export const productionKanban = pgTable("production_kanban", {
 export const insertProductionKanbanSchema = createInsertSchema(productionKanban).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertProductionKanban = z.infer<typeof insertProductionKanbanSchema>;
 export type ProductionKanban = typeof productionKanban.$inferSelect;
+
+export const discoveredGames = pgTable("discovered_games", {
+  id: serial("id").primaryKey(),
+  officialName: text("official_name").notNull().unique(),
+  searchPatterns: text("search_patterns").array().notNull(),
+  source: text("source").notNull().default("web-lookup"),
+  platform: text("platform").default("ps5"),
+  genre: text("genre"),
+  publisher: text("publisher"),
+  timesDetected: integer("times_detected").notNull().default(1),
+  firstDetectedAt: timestamp("first_detected_at").defaultNow(),
+  lastDetectedAt: timestamp("last_detected_at").defaultNow(),
+}, (t) => [
+  index("dg_name_idx").on(t.officialName),
+]);
+
+export const insertDiscoveredGameSchema = createInsertSchema(discoveredGames).omit({ id: true, firstDetectedAt: true, lastDetectedAt: true });
+export type InsertDiscoveredGame = z.infer<typeof insertDiscoveredGameSchema>;
+export type DiscoveredGame = typeof discoveredGames.$inferSelect;

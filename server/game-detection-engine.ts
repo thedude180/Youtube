@@ -5,7 +5,7 @@ import { createLogger } from "./lib/logger";
 import { detectGameFromFrames } from "./smart-edit-engine";
 import { downloadSourceVideo } from "./clip-video-processor";
 import { generateVideoMetadata } from "./ai-engine";
-import { lookupGameFromWeb } from "./services/web-game-lookup";
+import { lookupGameFromWeb, loadLearnedGames } from "./services/web-game-lookup";
 import * as fs from "fs";
 
 const logger = createLogger("game-detection-engine");
@@ -194,6 +194,10 @@ let engineTimer: ReturnType<typeof setInterval> | null = null;
 
 export function initGameDetectionEngine(): ReturnType<typeof setInterval> {
   logger.info("Game Detection Engine initialized — will run every 6 hours");
+
+  loadLearnedGames().catch(err =>
+    logger.warn("Failed to preload learned games", { error: String(err).substring(0, 200) })
+  );
 
   runGameDetectionCycle().catch(err =>
     logger.error("Initial game detection cycle failed", { error: String(err).substring(0, 200) })
