@@ -1255,6 +1255,13 @@ httpServer.listen(
       }).catch(err => logger.error("Smart edit engine init failed", { error: String(err) }));
     });
 
+    delay(530_000, () => {
+      import("./game-detection-engine").then(m => {
+        const iv = m.initGameDetectionEngine();
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Game Detection Engine init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
