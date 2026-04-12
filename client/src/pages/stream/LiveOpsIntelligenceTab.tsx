@@ -29,7 +29,7 @@ function ErrorCard({ title, icon }: { title: string; icon: React.ReactNode }) {
 function LiveOpsSummaryCard() {
   const { data, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/live-ops/summary"],
-    refetchInterval: 15000,
+    refetchInterval: 2 * 60_000,
   });
 
   if (isLoading) {
@@ -91,7 +91,7 @@ function LiveOpsSummaryCard() {
 function TrustBudgetCard() {
   const { data, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/live-ops/trust"],
-    refetchInterval: 10000,
+    refetchInterval: 60_000,
   });
 
   if (isLoading) {

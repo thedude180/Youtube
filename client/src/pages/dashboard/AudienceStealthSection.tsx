@@ -16,7 +16,7 @@ function formatHour(h: number | null): string {
 }
 
 export default function AudienceStealthSection() {
-  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/audience-analytics"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/audience-analytics"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   if (isLoading) {
     return (

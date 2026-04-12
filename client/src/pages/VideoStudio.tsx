@@ -826,14 +826,14 @@ export default function VideoStudio() {
 
   const { data: studioVideos = [], isLoading } = useQuery<StudioVideo[]>({
     queryKey: ["/api/studio/videos"],
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
     staleTime: 5_000,
   });
 
   const { data: selectedVideo } = useQuery<StudioVideo>({
     queryKey: ["/api/studio/videos", selectedId],
     enabled: !!selectedId,
-    refetchInterval: 5_000,
+    refetchInterval: 60_000,
   });
 
   const deleteMutation = useMutation({

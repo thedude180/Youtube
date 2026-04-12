@@ -37,11 +37,11 @@ export default function RevenueTab() {
   const [aiPLReportLoading, setAiPLReportLoading] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
-  const { data: rawRevenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawRevenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const revenueRecords = safeArray(rawRevenueRecords);
-  const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const syncMutation = useMutation({
     mutationFn: async () => {

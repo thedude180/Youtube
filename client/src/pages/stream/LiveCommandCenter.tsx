@@ -759,12 +759,12 @@ export default function LiveCommandCenter() {
 
   const { data: ccState, isLoading, isError } = useQuery<any>({
     queryKey: ["/api/command-center/state"],
-    refetchInterval: 10000,
+    refetchInterval: 60_000,
   });
 
   const { data: crewState } = useQuery<any>({
     queryKey: ["/api/live-crew/state"],
-    refetchInterval: 10000,
+    refetchInterval: 60_000,
   });
 
   const startSession = useMutation({

@@ -42,13 +42,13 @@ function AutomationTab() {
   const [tzSearch, setTzSearch] = useState("");
   const [showNotifSection, setShowNotifSection] = useState(false);
 
-  const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: rawCronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: status, isLoading: statusLoading } = useQuery<any>({ queryKey: ["/api/automation/status"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: rawCronJobsData } = useQuery<any[]>({ queryKey: ["/api/automation/cron-jobs"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const cronJobsData = safeArray(rawCronJobsData);
-  const { data: chainsData } = useQuery<any>({ queryKey: ["/api/automation/chains"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: rulesData } = useQuery<any>({ queryKey: ["/api/automation/rules"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: chainsData } = useQuery<any>({ queryKey: ["/api/automation/chains"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: rulesData } = useQuery<any>({ queryKey: ["/api/automation/rules"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: notifsData } = useQuery<any>({ queryKey: ["/api/automation/notifications"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: rawWebhookData } = useQuery<any[]>({ queryKey: ["/api/automation/webhook-events"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const webhookData = safeArray(rawWebhookData);
   const { data: notifPrefs } = useQuery<any>({ queryKey: ["/api/notification-ops/preferences"], staleTime: 60_000 });
   const currentTimezone: string = notifPrefs?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

@@ -63,9 +63,9 @@ export function LiveChatPanel({ streamId }: { streamId: number }) {
   const [simulateMessage, setSimulateMessage] = useState("");
   const [simulatePlatform, setSimulatePlatform] = useState("youtube");
 
-  const fastPoll = useAdaptiveInterval(3000);
-  const medPoll = useAdaptiveInterval(5000);
-  const slowPoll = useAdaptiveInterval(10000);
+  const fastPoll = useAdaptiveInterval(15_000);
+  const medPoll = useAdaptiveInterval(30_000);
+  const slowPoll = useAdaptiveInterval(60_000);
 
   const chatQuery = useQuery<ChatMessage[]>({
     queryKey: ["/api/streams", streamId, "chat"],

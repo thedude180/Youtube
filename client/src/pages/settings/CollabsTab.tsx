@@ -122,7 +122,7 @@ function CollabsTab() {
     ));
   };
 
-  const { data: rawLeads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawLeads, isLoading } = useQuery<any[]>({ queryKey: ['/api/collaboration-leads'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const leads = safeArray(rawLeads);
 
   const createMutation = useMutation({

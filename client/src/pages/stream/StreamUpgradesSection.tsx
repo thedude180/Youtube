@@ -62,7 +62,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function HighlightsSection() {
   const { data, isLoading, error } = useQuery<Highlight[]>({
     queryKey: ["/api/stream-upgrades/highlights"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
 
@@ -137,7 +137,7 @@ function HighlightsSection() {
 function ChatSentimentSection() {
   const { data, isLoading, error } = useQuery<ChatSentiment>({
     queryKey: ["/api/stream-upgrades/chat-sentiment"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
 
@@ -237,7 +237,7 @@ function OverlaysSection() {
   const { toast } = useToast();
   const { data, isLoading, error } = useQuery<Overlay[]>({
     queryKey: ["/api/stream-upgrades/overlay"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
 
@@ -400,7 +400,7 @@ function RaidPlannerSection() {
 function ScheduleSection() {
   const { data, isLoading, error } = useQuery<ScheduleSlot[]>({
     queryKey: ["/api/stream-upgrades/schedule"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
 

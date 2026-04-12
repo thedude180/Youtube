@@ -26,7 +26,7 @@ function formatRevenue(n: number | undefined): string {
 }
 
 export default function CrossPlatformAnalytics() {
-  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/analytics/cross-platform"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   if (isLoading) {
     return (

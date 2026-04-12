@@ -54,7 +54,7 @@ const sections: JobSection[] = [
 ];
 
 export default function BackgroundJobsDashboard() {
-  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/health/jobs"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/health/jobs"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const toggleSection = (key: string) => {

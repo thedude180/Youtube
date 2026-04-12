@@ -131,7 +131,7 @@ function OpportunityCard({ opp, index }: { opp: any; index: number }) {
 }
 
 export default function OpportunitiesTab() {
-  const { data, isLoading, error } = useQuery<any>({ queryKey: ["/api/revenue/opportunities"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data, isLoading, error } = useQuery<any>({ queryKey: ["/api/revenue/opportunities"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   if (isLoading) {
     return (

@@ -37,7 +37,7 @@ export function NotificationBell() {
   const [filter, setFilter] = useState<SeverityFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [, setLocation] = useLocation();
-  const pollInterval = useAdaptiveInterval(30000);
+  const pollInterval = useAdaptiveInterval(120_000);
 
   const { data: unreadData } = useQuery<UnreadCount>({
     queryKey: ["/api/notifications/unread-count"],

@@ -336,13 +336,13 @@ function MissionControlSkeleton() {
 export default function MissionControl() {
   const { data: healthData, isLoading: healthLoading } = useQuery<HealthData>({
     queryKey: ["/api/system/health"],
-    refetchInterval: 15000,
+    refetchInterval: 2 * 60_000,
     staleTime: 10000,
   });
 
   const { data: enginesData, isLoading: enginesLoading } = useQuery<any>({
     queryKey: ["/api/health/engines"],
-    refetchInterval: 15000,
+    refetchInterval: 2 * 60_000,
     staleTime: 10000,
   });
 

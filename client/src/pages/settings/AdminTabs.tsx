@@ -107,7 +107,7 @@ function AdminCodesTab() {
   const [tier, setTier] = useState("ultimate");
   const [maxUses, setMaxUses] = useState("1");
 
-  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawCodes, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/access-codes"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const codes = safeArray(rawCodes);
 
   const createMutation = useMutation({
@@ -208,7 +208,7 @@ function AdminCodesTab() {
 
 function AdminUsersTab() {
   const { toast } = useToast();
-  const { data: rawAllUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawAllUsers, isLoading } = useQuery<any[]>({ queryKey: ["/api/admin/users"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const allUsers = safeArray(rawAllUsers);
 
   const updateTierMutation = useMutation({
@@ -275,7 +275,7 @@ function AdminUsersTab() {
 function AdminSystemHealthTab() {
   const { data, isLoading, refetch, isFetching } = useQuery<any>({
     queryKey: ["/api/admin/system-health"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const { data: verifyData } = useQuery<any>({

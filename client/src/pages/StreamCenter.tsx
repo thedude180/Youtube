@@ -632,10 +632,10 @@ export default function StreamCenter() {
     apiRequest("POST", "/api/ai/multi-stream-chat-unifier", {}).then(r => r.json()).then(d => { setAiChatUnifier(d); sessionStorage.setItem("ai_chat_unifier", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiChatUnifierLoading(false));
   }, [aiToolsOpen, isActiveMode]);
 
-  const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"], refetchInterval: 30_000, staleTime: 20_000 });
-  const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"], refetchInterval: 30_000, staleTime: 20_000 });
-  const ytLivePoll = useAdaptiveInterval(30000);
+  const { data: destinations = [], error: destError } = useQuery<StreamDestination[]>({ queryKey: ["/api/stream-destinations"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const ytLivePoll = useAdaptiveInterval(120_000);
   const { data: ytLiveStatus } = useQuery<any>({
     queryKey: ["/api/youtube/live-status"],
     refetchInterval: ytLivePoll,
@@ -643,18 +643,18 @@ export default function StreamCenter() {
 
   const { data: streamAgent, refetch: refetchAgent } = useQuery<any>({
     queryKey: ["/api/stream-agent/status"],
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
   });
 
   const { data: multistreamStatus, refetch: refetchMultistream } = useQuery<any>({
     queryKey: ["/api/multistream/status"],
-    refetchInterval: 8_000,
+    refetchInterval: 60_000,
     enabled: isActiveMode,
   });
 
   const { data: relayDestData } = useQuery<any>({
     queryKey: ["/api/multistream/destinations"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     enabled: isActiveMode,
   });
   const relayDests: any[] = relayDestData?.destinations ?? [];
@@ -3095,7 +3095,7 @@ function MultiPlatformStatus({ channels, destinations }: { channels: Channel[]; 
 
 function LiveBanner({ stream, onEnd, isEnding }: { stream: Stream; onEnd: () => void; isEnding: boolean }) {
   const [elapsed, setElapsed] = useState("");
-  const automationPoll = useAdaptiveInterval(5000);
+  const automationPoll = useAdaptiveInterval(60_000);
 
   const { data: automationData } = useQuery<{ jobs: any[]; tasks: any[] }>({
     queryKey: ["/api/streams", stream.id, "automation"],

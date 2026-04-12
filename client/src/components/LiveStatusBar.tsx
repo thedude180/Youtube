@@ -29,20 +29,20 @@ interface LiveStreamHealth {
 export default function LiveStatusBar() {
   const { data: health } = useQuery<SystemHealth>({
     queryKey: ["/api/system/health"],
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
   });
 
   const { data: liveHealth } = useQuery<LiveStreamHealth>({
     queryKey: ["/api/verification/live-health"],
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
   });
 
   const { data: queueData } = useQuery<{ pending: number; processing: number; published: number }>({
     queryKey: ["/api/autopilot/stats"],
-    refetchInterval: 30_000,
-    staleTime: 20_000,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
   });
 
   const score = health?.overallScore ?? 0;

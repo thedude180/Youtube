@@ -71,7 +71,7 @@ const priorityIcons = [Radio, TrendingUp, Upload, Eye];
 export default function PriorityCommandCenter() {
   const { data, isLoading } = useQuery<PriorityDashboard>({
     queryKey: ["/api/priority/status"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const { data: exhaustData } = useQuery<StreamExhaustData>({

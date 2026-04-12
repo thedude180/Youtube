@@ -30,8 +30,8 @@ const PHASES = [
 export default function PipelineStatus() {
   const { data: status } = useQuery<LoopStatus>({
     queryKey: ["/api/content-loop/status"],
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 2 * 60_000,
+    staleTime: 60_000,
   });
 
   if (!status) return null;

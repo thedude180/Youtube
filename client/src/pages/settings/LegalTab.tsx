@@ -182,7 +182,7 @@ const COUNTRIES: { code: string; name: string; entityTypes: string[]; steps: { s
 
 function BusinessStructureSection() {
   const { toast } = useToast();
-  const { data: bizDetails, isLoading: bizLoading } = useQuery<any>({ queryKey: ["/api/business-details"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: bizDetails, isLoading: bizLoading } = useQuery<any>({ queryKey: ["/api/business-details"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const [selectedCountry, setSelectedCountry] = useState("");
   const [hasBusiness, setHasBusiness] = useState<boolean | null>(null);
@@ -585,9 +585,9 @@ function BusinessStructureSection() {
 
 function LegalTab() {
   const { toast } = useToast();
-  const { data: rawVentures } = useQuery<any[]>({ queryKey: ['/api/ventures'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawVentures } = useQuery<any[]>({ queryKey: ['/api/ventures'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const ventures = safeArray(rawVentures);
-  const { data: rawTaxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawTaxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const taxEstimates = safeArray(rawTaxEstimates);
 
   const [completedSteps, setCompletedSteps] = useState<string[]>(() => {

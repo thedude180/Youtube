@@ -94,7 +94,7 @@ export default function SponsorsTab() {
     }
   }, [aiToolsOpen]);
 
-  const { data: rawDeals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawDeals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const deals = safeArray(rawDeals);
 
   const createMutation = useMutation({

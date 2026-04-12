@@ -381,7 +381,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 function UpdatedVideosTab() {
-  const pollInterval = useAdaptiveInterval(10000);
+  const pollInterval = useAdaptiveInterval(60_000);
   const [filter, setFilter] = useState<FilterType>("all");
   const [showAllSeo, setShowAllSeo] = useState(false);
   const [showAllContent, setShowAllContent] = useState(false);

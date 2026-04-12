@@ -338,21 +338,24 @@ export default function Money() {
 
   const { data: sponsorData } = useQuery({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
-    enabled: !!userId 
+    enabled: !!userId,
+    staleTime: 10 * 60_000,
   });
   const { data: merchData } = useQuery({ 
     queryKey: ["/api/monetization/merch-predictor", userId],
-    enabled: !!userId 
+    enabled: !!userId && (activeTab === "merch-intel" || activeTab === "revenue"),
+    staleTime: 10 * 60_000,
   });
   const { data: diversifyData } = useQuery({ 
     queryKey: ["/api/monetization/revenue-diversification", userId],
-    enabled: !!userId 
+    enabled: !!userId && (activeTab === "diversify" || activeTab === "revenue"),
+    staleTime: 10 * 60_000,
   });
 
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
 
-  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 60_000, staleTime: 30_000 });
+  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const payments = safeArray(rawPayments);
 
   const createPaymentMutation = useMutation({

@@ -57,7 +57,7 @@ function formatTimestamp(ts: string | undefined): string {
 }
 
 export default function HealthMonitor() {
-  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/health/engines"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data, isLoading } = useQuery<any>({ queryKey: ["/api/health/engines"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   if (isLoading) {
     return (

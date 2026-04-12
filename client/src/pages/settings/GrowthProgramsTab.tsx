@@ -136,7 +136,7 @@ export default function GrowthProgramsTab() {
 
   const { data: rawPrograms, isLoading } = useQuery<GrowthProgram[]>({
     queryKey: ["/api/growth-programs"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
   const programs = safeArray<GrowthProgram>(rawPrograms);

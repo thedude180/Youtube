@@ -71,7 +71,7 @@ function StatusDot({ state }: { state: SystemState }) {
 export function SystemPulseHUD() {
   const { data, isLoading } = useQuery<PulseData>({
     queryKey: ["/api/admin/system-pulse"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   if (isLoading || !data) {

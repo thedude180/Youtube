@@ -81,12 +81,12 @@ function groupByTimePeriod(items: ActivityItem[]) {
 export default memo(function AIProofOfWork() {
   const { data: activitiesData } = useQuery<any[]>({
     queryKey: ["/api/agents/activities"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const { data: notificationsData } = useQuery<Notification[]>({
     queryKey: ["/api/notifications"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const allItems = useMemo(() => {

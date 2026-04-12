@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 function SecurityOverviewSection() {
-  const { data: dashboard, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/dashboard"], refetchInterval: 30_000, staleTime: 20_000, retry: false });
+  const { data: dashboard, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/dashboard"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, retry: false });
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-security-overview" />;
   if (isError || !dashboard) return null;
@@ -59,7 +59,7 @@ function SecurityOverviewSection() {
 }
 
 function BlockedIPsSection() {
-  const { data: rawIps, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/blocked-ips"], refetchInterval: 30_000, staleTime: 20_000, retry: false });
+  const { data: rawIps, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/blocked-ips"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, retry: false });
   const ips = Array.isArray(rawIps) ? rawIps : [];
 
   if (isLoading) return <Skeleton className="h-20" data-testid="skeleton-blocked-ips" />;
@@ -101,7 +101,7 @@ function BlockedIPsSection() {
 }
 
 function SecurityEventsSection() {
-  const { data: rawEvents, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/events"], refetchInterval: 30_000, staleTime: 20_000, retry: false });
+  const { data: rawEvents, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/events"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, retry: false });
   const events = Array.isArray(rawEvents) ? rawEvents : [];
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-events" />;
@@ -160,7 +160,7 @@ function SecurityEventsSection() {
 }
 
 function CircuitBreakersSection() {
-  const { data: breakers, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/circuit-breakers"], refetchInterval: 30_000, staleTime: 20_000, retry: false });
+  const { data: breakers, isLoading, isError } = useQuery<any>({ queryKey: ["/api/security/circuit-breakers"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, retry: false });
 
   if (isLoading) return <Skeleton className="h-24" data-testid="skeleton-breakers" />;
   if (isError || !breakers) return null;
@@ -214,7 +214,7 @@ function ApiKeysSection() {
   const { toast } = useToast();
   const [newKeyName, setNewKeyName] = useState("");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
-  const { data: rawKeys, isLoading } = useQuery<any>({ queryKey: ["/api/keys"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawKeys, isLoading } = useQuery<any>({ queryKey: ["/api/keys"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const keys = Array.isArray(rawKeys) ? rawKeys : [];
 
   const createMutation = useMutation({
@@ -330,7 +330,7 @@ function ApiKeysSection() {
 }
 
 function AuditLogSection() {
-  const { data: rawLogs, isLoading } = useQuery<any>({ queryKey: ["/api/security/audit-log"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawLogs, isLoading } = useQuery<any>({ queryKey: ["/api/security/audit-log"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const logs = Array.isArray(rawLogs) ? rawLogs : [];
 
   if (isLoading) return <Skeleton className="h-32" data-testid="skeleton-audit-log" />;
@@ -394,7 +394,7 @@ function AuditLogSection() {
 
 function ActiveSessionsSection() {
   const { toast } = useToast();
-  const { data: rawSessions, isLoading } = useQuery<any>({ queryKey: ["/api/security/sessions"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawSessions, isLoading } = useQuery<any>({ queryKey: ["/api/security/sessions"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const sessions = Array.isArray(rawSessions) ? rawSessions : rawSessions?.activeSessions || [];
 
   const terminateMutation = useMutation({
@@ -472,7 +472,7 @@ function ActiveSessionsSection() {
 
 function TwoFactorSection() {
   const { toast } = useToast();
-  const { data: twoFactor, isLoading } = useQuery<any>({ queryKey: ["/api/security/two-factor"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: twoFactor, isLoading } = useQuery<any>({ queryKey: ["/api/security/two-factor"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const toggleMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
@@ -540,7 +540,7 @@ function TwoFactorSection() {
 }
 
 function SecurityAlertsSection() {
-  const { data: rawAlerts, isLoading } = useQuery<any>({ queryKey: ["/api/security/alerts"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawAlerts, isLoading } = useQuery<any>({ queryKey: ["/api/security/alerts"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const alerts = Array.isArray(rawAlerts) ? rawAlerts : rawAlerts?.alerts || [];
 
   if (isLoading) return <Skeleton className="h-28" data-testid="skeleton-alerts" />;

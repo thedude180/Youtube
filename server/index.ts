@@ -478,7 +478,7 @@ app.get("/api/system/live", (req: Request, res: Response) => {
     }
   };
 
-  const interval = setInterval(sendStatus, 10000);
+  const interval = setInterval(sendStatus, 30000);
   sendStatus();
 
   req.on('close', () => {

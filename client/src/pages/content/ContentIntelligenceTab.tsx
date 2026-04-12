@@ -139,7 +139,7 @@ function BrandProfileCard() {
 function DecisionFeedCard() {
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/content-core/decisions"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   if (isLoading) {

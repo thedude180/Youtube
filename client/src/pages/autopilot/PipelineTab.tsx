@@ -506,8 +506,8 @@ interface BacklogStatus {
 export default function PipelineTab() {
   const { toast } = useToast();
   const [newTitle, setNewTitle] = useState("");
-  const medPoll = useAdaptiveInterval(5000);
-  const fastPoll = useAdaptiveInterval(5000);
+  const medPoll = useAdaptiveInterval(60_000);
+  const fastPoll = useAdaptiveInterval(60_000);
   const backlogStatusQuery = useQuery<BacklogStatus>({
     queryKey: ["/api/backlog/status"],
     refetchInterval: medPoll,

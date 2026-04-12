@@ -165,12 +165,12 @@ export default function ContentVerification() {
 
   const { data: dashboard, isLoading } = useQuery<VerificationDashboard>({
     queryKey: ["/api/verification/dashboard"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const { data: liveHealth } = useQuery<LiveHealth>({
     queryKey: ["/api/verification/live-health"],
-    refetchInterval: 15000,
+    refetchInterval: 2 * 60_000,
   });
 
   const verifyMutation = useMutation({

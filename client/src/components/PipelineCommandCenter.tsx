@@ -225,7 +225,7 @@ function ActivePipelineCard({ pipeline }: { pipeline: ActivePipeline }) {
 }
 
 export default function PipelineCommandCenter() {
-  const pollInterval = useAdaptiveInterval(5000);
+  const pollInterval = useAdaptiveInterval(60_000);
   const { data, isLoading } = useQuery<CommandCenterData>({
     queryKey: ["/api/pipelines/command-center"],
     refetchInterval: pollInterval,

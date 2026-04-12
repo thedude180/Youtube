@@ -99,7 +99,7 @@ function CalendarTab() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
   const { data: calendarData, isLoading, error: calendarError } =
-    useQuery<any[]>({ queryKey: ["/api/calendar/uploads"], refetchInterval: 30_000, staleTime: 20_000 });
+    useQuery<any[]>({ queryKey: ["/api/calendar/uploads"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const uploads = useMemo<UploadEntry[]>(() => {
     if (!calendarData) return [];

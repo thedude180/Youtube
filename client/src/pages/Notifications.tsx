@@ -73,7 +73,7 @@ export default function Notifications() {
 
   const { data: rawNotifications, isLoading, error } = useQuery<Notification[]>({
     queryKey: ['/api/notifications'],
-    refetchInterval: 15_000,
+    refetchInterval: 2 * 60_000,
     staleTime: 10_000,
   });
   const notifications = safeArray<Notification>(rawNotifications);

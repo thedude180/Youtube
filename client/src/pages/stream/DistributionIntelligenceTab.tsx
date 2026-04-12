@@ -44,7 +44,7 @@ function DistributionSummaryCard() {
     globalSafety: number;
   }>({
     queryKey: ["/api/distribution/summary"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   if (isLoading) return <LoadingCard title="Distribution Summary" />;
@@ -103,7 +103,7 @@ function PlatformHealthCard() {
     stats: { totalEvents: number; byPlatform: Record<string, number> };
   }>({
     queryKey: ["/api/distribution/stats"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   if (isLoading) return <LoadingCard title="Platform Health" />;

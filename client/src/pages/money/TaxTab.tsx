@@ -61,9 +61,9 @@ export default function TaxTab() {
   const [selectedState, setSelectedState] = useState("");
   const [analysisResult, setAnalysisResult] = useState<AIResponse>(null);
 
-  const { data: rawTaxEstimates, isLoading: taxLoading, error: taxError } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawTaxEstimates, isLoading: taxLoading, error: taxError } = useQuery<any[]>({ queryKey: ['/api/tax-estimates', '?year=2026'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const taxEstimates = safeArray(rawTaxEstimates);
-  const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const totalRevenue = revenueSummary?.total || 0;
   const entityRec = getEntityRecommendation(totalRevenue);

@@ -69,7 +69,7 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
 
 export default function AccessibilityTab() {
   const { toast } = useToast();
-  const { data: prefs, isLoading } = useQuery<AccessibilityPrefs>({ queryKey: ["/api/settings/accessibility"], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: prefs, isLoading } = useQuery<AccessibilityPrefs>({ queryKey: ["/api/settings/accessibility"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const [local, setLocal] = useState<AccessibilityPrefs>(DEFAULT_PREFS);
   const [dirty, setDirty] = useState(false);

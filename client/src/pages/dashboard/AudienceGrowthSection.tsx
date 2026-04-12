@@ -131,7 +131,7 @@ function tierColor(tier: string): string {
 function HeatmapCard() {
   const { data, isLoading } = useQuery<HeatmapData>({
     queryKey: ["/api/audience/heatmap", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-48 w-full" />;
@@ -198,7 +198,7 @@ function HeatmapCard() {
 function MilestoneCard() {
   const { data, isLoading } = useQuery<MilestoneData>({
     queryKey: ["/api/audience/milestones", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
@@ -263,7 +263,7 @@ function MilestoneCard() {
 function ForecastCard() {
   const { data, isLoading } = useQuery<ForecastData>({
     queryKey: ["/api/audience/growth-forecast", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
@@ -329,7 +329,7 @@ function ForecastCard() {
 function EngagementCard() {
   const { data, isLoading } = useQuery<EngagementData>({
     queryKey: ["/api/audience/engagement-score", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
@@ -423,7 +423,7 @@ function EngagementCard() {
 function TopFansCard() {
   const { data, isLoading } = useQuery<TopFansData>({
     queryKey: ["/api/audience/top-fans", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
@@ -479,7 +479,7 @@ function TopFansCard() {
 function GeoCard() {
   const { data, isLoading } = useQuery<GeoData>({
     queryKey: ["/api/audience/geo-distribution", "me"],
-    refetchInterval: 30_000, staleTime: 20_000,
+    refetchInterval: 5 * 60_000, staleTime: 3 * 60_000,
   });
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;

@@ -35,7 +35,7 @@ export function useStreamState(): StreamStateInfo {
 
   const { data: streamList = [] } = useQuery<Stream[]>({
     queryKey: ["/api/streams"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
     enabled: !!user,
   });

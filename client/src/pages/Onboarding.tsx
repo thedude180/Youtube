@@ -1441,13 +1441,13 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
 
   const { data: linkedChannels = [], isLoading } = useQuery<LinkedChannel[]>({
     queryKey: ["/api/linked-channels"],
-    refetchInterval: 15_000,
+    refetchInterval: 2 * 60_000,
     staleTime: 10_000,
   });
 
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
-    refetchInterval: 30_000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20_000,
   });
 

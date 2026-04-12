@@ -85,7 +85,7 @@ export function FirstLiveMission({ onComplete }: { onComplete?: () => void }) {
   const { data: onboardingData } = useQuery<OnboardingState>({
     queryKey: ["/api/kernel/onboarding"],
     staleTime: 30000,
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
   });
 
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>(() => {

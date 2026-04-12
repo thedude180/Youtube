@@ -62,8 +62,8 @@ function formatLastSync(ts: string | null): string {
 export default memo(function PlatformHealthCards() {
   const { data: channels, isLoading } = useQuery<ChannelInfo[]>({
     queryKey: ["/api/channels"],
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 5 * 60_000,
+    staleTime: 3 * 60_000,
   });
 
   if (isLoading) {

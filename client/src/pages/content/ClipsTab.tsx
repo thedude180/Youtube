@@ -98,8 +98,8 @@ export default function ClipsTab() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [lastUrlResult, setLastUrlResult] = useState<FromUrlResult | null>(null);
 
-  const medPoll = useAdaptiveInterval(5000);
-  const slowPoll = useAdaptiveInterval(10000);
+  const medPoll = useAdaptiveInterval(60_000);
+  const slowPoll = useAdaptiveInterval(60_000);
 
   const statsQuery = useQuery<ClipStats>({
     queryKey: ["/api/clips/stats"],

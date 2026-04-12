@@ -84,9 +84,9 @@ export default function ExpensesTab() {
   const [taxDeductible, setTaxDeductible] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
 
-  const { data: rawExpenses, isLoading: expensesLoading, error: expensesError } = useQuery<any[]>({ queryKey: ['/api/expenses'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: rawExpenses, isLoading: expensesLoading, error: expensesError } = useQuery<any[]>({ queryKey: ['/api/expenses'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const expenses = safeArray(rawExpenses);
-  const { data: expenseSummary } = useQuery<any>({ queryKey: ['/api/expenses/summary'], refetchInterval: 30_000, staleTime: 20_000 });
+  const { data: expenseSummary } = useQuery<any>({ queryKey: ['/api/expenses/summary'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
 
   const createExpenseMutation = useMutation({
     mutationFn: async (data: any) => {

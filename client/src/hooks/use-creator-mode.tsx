@@ -53,14 +53,14 @@ export function CreatorModeProvider({ children }: { children: React.ReactNode })
 
   const { data: ytLiveStatus } = useQuery<any>({
     queryKey: ["/api/youtube/live-status"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
     enabled: !!user,
     staleTime: 20000,
   });
 
   const { data: activeStream } = useQuery<any>({
     queryKey: ["/api/stream-pipeline/active"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
     enabled: !!user,
     staleTime: 20000,
   });

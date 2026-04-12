@@ -29,7 +29,7 @@ function StatusDot({ status }: { status: "green" | "yellow" | "red" }) {
 export function HealthRibbon() {
   const { data: health } = useQuery<HealthResponse>({
     queryKey: ["/api/system/health"],
-    refetchInterval: 30000,
+    refetchInterval: 3 * 60_000,
     staleTime: 20000,
   });
 
