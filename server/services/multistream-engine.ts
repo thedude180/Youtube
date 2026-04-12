@@ -1,14 +1,10 @@
 import { spawn, type ChildProcess } from "child_process";
-import { storage } from "../storage";
 import { db } from "../db";
 import { streamDestinations } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
 
-const logger = {
-  info: (msg: string) => console.log(`[multistream] ${msg}`),
-  warn: (msg: string) => console.warn(`[multistream] WARN ${msg}`),
-  error: (msg: string) => console.error(`[multistream] ERROR ${msg}`),
-};
+const logger = createLogger("multistream");
 
 const PLATFORM_RTMP: Record<string, string> = {
   kick:    "rtmps://fa723fc1b171.global-contribute.live-video.net/app",
@@ -16,6 +12,8 @@ const PLATFORM_RTMP: Record<string, string> = {
   rumble:  "rtmp://live.rumble.com/live",
   tiktok:  "rtmp://push.tiktok.com/live",
   youtube: "rtmp://a.rtmp.youtube.com/live2",
+  x:       "rtmp://va.pscp.tv:80/x",
+  linkedin: "rtmp://live.linkedin.com/live",
 };
 
 const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
@@ -23,7 +21,14 @@ const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
   rumble: { urlKey: "RUMBLE_STREAM_URL", keyKey: "RUMBLE_STREAM_KEY" },
   twitch: { keyKey: "TWITCH_STREAM_KEY" },
   tiktok: { urlKey: "TIKTOK_STREAM_URL", keyKey: "TIKTOK_STREAM_KEY" },
+  x:      { urlKey: "X_STREAM_URL", keyKey: "X_STREAM_KEY" },
 };
+
+const MAX_RELAY_RETRIES = 5;
+const RETRY_DELAY_MS = 15_000;
+const HEALTH_CHECK_INTERVAL_MS = 60_000;
+const HLS_RETRY_DELAY_MS = 10_000;
+const HLS_MAX_RETRIES = 6;
 
 interface DestinationStatus {
   platform: string;
@@ -31,6 +36,8 @@ interface DestinationStatus {
   rtmpUrl: string;
   active: boolean;
   error: string | null;
+  connectedAt: Date | null;
+  lastDataAt: Date | null;
 }
 
 interface RelayState {
@@ -45,6 +52,9 @@ interface RelayState {
   error: string | null;
   bytesSent: number;
   autoStarted: boolean;
+  retryCount: number;
+  healthTimer: ReturnType<typeof setInterval> | null;
+  intentionalStop: boolean;
 }
 
 const relayStates = new Map<string, RelayState>();
@@ -64,9 +74,24 @@ async function getYouTubeHLSUrl(videoId: string): Promise<string | null> {
     if (!match) return null;
     return match[1].replace(/\\u0026/g, "&").replace(/\\\//g, "/");
   } catch (err: any) {
-    logger.warn(`Failed to get HLS URL for ${videoId}: ${err.message}`);
+    logger.warn(`Failed to get HLS URL for ${videoId}`, { error: err.message });
     return null;
   }
+}
+
+async function getHLSWithRetry(videoId: string, userId: string): Promise<string | null> {
+  for (let attempt = 1; attempt <= HLS_MAX_RETRIES; attempt++) {
+    const hlsUrl = await getYouTubeHLSUrl(videoId);
+    if (hlsUrl) {
+      logger.info(`HLS URL obtained on attempt ${attempt}`, { userId: userId.slice(0, 8), videoId });
+      return hlsUrl;
+    }
+    if (attempt < HLS_MAX_RETRIES) {
+      logger.info(`HLS not ready, retry ${attempt}/${HLS_MAX_RETRIES} in ${HLS_RETRY_DELAY_MS / 1000}s`, { userId: userId.slice(0, 8), videoId });
+      await new Promise(r => setTimeout(r, HLS_RETRY_DELAY_MS));
+    }
+  }
+  return null;
 }
 
 async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
@@ -74,11 +99,20 @@ async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
 
   const dbDests = await db.select().from(streamDestinations).where(eq(streamDestinations.userId, userId));
   for (const d of dbDests) {
+    if (!d.enabled) continue;
     if (!d.streamKey && !d.rtmpUrl) continue;
     const baseUrl = d.rtmpUrl || PLATFORM_RTMP[d.platform] || "";
     if (!baseUrl) continue;
     const fullUrl = d.streamKey ? `${baseUrl}/${d.streamKey}` : baseUrl;
-    dests.push({ platform: d.platform, label: d.label || d.platform, rtmpUrl: fullUrl, active: false, error: null });
+    dests.push({
+      platform: d.platform,
+      label: d.label || d.platform,
+      rtmpUrl: fullUrl,
+      active: false,
+      error: null,
+      connectedAt: null,
+      lastDataAt: null,
+    });
   }
 
   for (const [platform, envCfg] of Object.entries(ENV_KEYS)) {
@@ -89,7 +123,15 @@ async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
     const baseUrl = (envCfg.urlKey ? process.env[envCfg.urlKey] : null) || PLATFORM_RTMP[platform] || "";
     if (!baseUrl) continue;
     const fullUrl = `${baseUrl}/${streamKey}`;
-    dests.push({ platform, label: platform.charAt(0).toUpperCase() + platform.slice(1), rtmpUrl: fullUrl, active: false, error: null });
+    dests.push({
+      platform,
+      label: platform.charAt(0).toUpperCase() + platform.slice(1),
+      rtmpUrl: fullUrl,
+      active: false,
+      error: null,
+      connectedAt: null,
+      lastDataAt: null,
+    });
   }
 
   return dests;
@@ -98,6 +140,9 @@ async function buildDestinations(userId: string): Promise<DestinationStatus[]> {
 function buildFFmpegArgs(hlsUrl: string, destinations: DestinationStatus[]): string[] {
   const args: string[] = [
     "-re",
+    "-reconnect", "1",
+    "-reconnect_streamed", "1",
+    "-reconnect_delay_max", "10",
     "-i", hlsUrl,
     "-probesize", "10M",
     "-analyzeduration", "5M",
@@ -110,11 +155,159 @@ function buildFFmpegArgs(hlsUrl: string, destinations: DestinationStatus[]): str
       "-b:a", "128k",
       "-ar", "44100",
       "-f", "flv",
+      "-flvflags", "no_duration_filesize",
       dest.rtmpUrl,
     );
   }
 
   return args;
+}
+
+function startHealthMonitor(state: RelayState): void {
+  if (state.healthTimer) clearInterval(state.healthTimer);
+
+  state.healthTimer = setInterval(() => {
+    if (!state.relaying || state.intentionalStop) {
+      if (state.healthTimer) clearInterval(state.healthTimer);
+      state.healthTimer = null;
+      return;
+    }
+
+    const now = Date.now();
+    for (const dest of state.destinations) {
+      if (dest.active && dest.lastDataAt) {
+        const silenceSec = (now - dest.lastDataAt.getTime()) / 1000;
+        if (silenceSec > 120) {
+          logger.warn(`Destination ${dest.label} silent for ${Math.round(silenceSec)}s`, {
+            userId: state.userId.slice(0, 8),
+            platform: dest.platform,
+          });
+          dest.error = `No data for ${Math.round(silenceSec)}s`;
+        }
+      }
+    }
+
+    if (state.proc && state.proc.exitCode !== null && !state.intentionalStop) {
+      logger.warn(`Relay process died unexpectedly, attempting reconnect`, {
+        userId: state.userId.slice(0, 8),
+        exitCode: state.proc.exitCode,
+        retryCount: state.retryCount,
+      });
+      attemptReconnect(state);
+    }
+  }, HEALTH_CHECK_INTERVAL_MS);
+}
+
+async function attemptReconnect(state: RelayState): Promise<void> {
+  if (state.intentionalStop || state.retryCount >= MAX_RELAY_RETRIES) {
+    logger.warn(`Max relay retries (${MAX_RELAY_RETRIES}) reached — giving up`, {
+      userId: state.userId.slice(0, 8),
+      videoId: state.videoId,
+    });
+    state.relaying = false;
+    state.error = `Relay failed after ${MAX_RELAY_RETRIES} retries`;
+    if (state.healthTimer) { clearInterval(state.healthTimer); state.healthTimer = null; }
+    return;
+  }
+
+  state.retryCount++;
+  logger.info(`Relay reconnect attempt ${state.retryCount}/${MAX_RELAY_RETRIES}`, {
+    userId: state.userId.slice(0, 8),
+    videoId: state.videoId,
+  });
+
+  await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+
+  if (state.intentionalStop) return;
+
+  const hlsUrl = await getYouTubeHLSUrl(state.videoId);
+  if (!hlsUrl) {
+    logger.warn(`HLS URL not available on reconnect — stream may have ended`, { userId: state.userId.slice(0, 8) });
+    state.relaying = false;
+    state.error = "HLS unavailable on reconnect — stream may have ended";
+    if (state.healthTimer) { clearInterval(state.healthTimer); state.healthTimer = null; }
+    return;
+  }
+
+  state.hlsUrl = hlsUrl;
+  for (const d of state.destinations) {
+    d.active = false;
+    d.error = null;
+  }
+
+  const args = buildFFmpegArgs(hlsUrl, state.destinations);
+  try {
+    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    state.proc = proc;
+    wireFFmpegEvents(state, proc);
+    logger.info(`Relay reconnected (PID ${proc.pid})`, {
+      userId: state.userId.slice(0, 8),
+      destinations: state.destinations.map(d => d.label),
+    });
+  } catch (err: any) {
+    logger.error(`Reconnect spawn failed: ${err.message}`, { userId: state.userId.slice(0, 8) });
+    attemptReconnect(state);
+  }
+}
+
+function wireFFmpegEvents(state: RelayState, proc: ChildProcess): void {
+  proc.stderr?.on("data", (chunk: Buffer) => {
+    const line = chunk.toString();
+    state.bytesSent += chunk.length;
+    const isProgress = line.includes("frame=") || line.includes("speed=") || line.includes("bitrate=");
+    if (isProgress) {
+      const now = new Date();
+      for (const dest of state.destinations) {
+        if (!dest.connectedAt) dest.connectedAt = now;
+        dest.active = true;
+        dest.error = null;
+        dest.lastDataAt = now;
+      }
+    } else {
+      const lowerLine = line.toLowerCase();
+      const isConnError = lowerLine.includes("connection refused") ||
+        lowerLine.includes("connection timed out") ||
+        lowerLine.includes("broken pipe") ||
+        lowerLine.includes("no route to host") ||
+        lowerLine.includes("connection reset");
+      if (isConnError) {
+        for (const dest of state.destinations) {
+          if (!dest.active) dest.error = line.trim().slice(0, 120);
+        }
+      }
+    }
+  });
+
+  proc.on("exit", (code, signal) => {
+    logger.info(`FFmpeg relay exited`, {
+      userId: state.userId.slice(0, 8),
+      code,
+      signal,
+      intentional: state.intentionalStop,
+    });
+    state.proc = null;
+    if (state.intentionalStop) {
+      state.relaying = false;
+      state.stoppedAt = new Date();
+    } else if (code !== 0 && code !== null) {
+      state.error = `FFmpeg exited with code ${code}`;
+      attemptReconnect(state);
+    } else {
+      state.relaying = false;
+      state.stoppedAt = new Date();
+    }
+  });
+
+  proc.on("error", (err) => {
+    logger.error(`FFmpeg spawn error: ${err.message}`, { userId: state.userId.slice(0, 8) });
+    state.proc = null;
+    if (!state.intentionalStop) {
+      attemptReconnect(state);
+    } else {
+      state.relaying = false;
+      state.error = err.message;
+    }
+  });
 }
 
 export async function startMultistream(userId: string, videoId: string, autoStarted = false): Promise<{ started: boolean; message: string; destinations?: string[] }> {
@@ -125,19 +318,23 @@ export async function startMultistream(userId: string, videoId: string, autoStar
 
   const destinations = await buildDestinations(userId);
   if (destinations.length === 0) {
-    return { started: false, message: "No stream destinations configured. Add Kick, Rumble, or Twitch stream keys in Settings." };
+    return { started: false, message: "No stream destinations configured. Add stream keys for Kick, Twitch, TikTok, etc. in Settings." };
   }
 
-  logger.info(`[${userId}] Getting HLS URL for video ${videoId}`);
-  const hlsUrl = await getYouTubeHLSUrl(videoId);
+  logger.info(`Getting HLS URL for multistream relay`, { userId: userId.slice(0, 8), videoId });
+  const hlsUrl = await getHLSWithRetry(videoId, userId);
   if (!hlsUrl) {
-    return { started: false, message: "Could not get HLS stream URL from YouTube. Stream must be public and live." };
+    return { started: false, message: "Could not get HLS stream URL from YouTube after retries. Stream must be public and live." };
   }
-  logger.info(`[${userId}] HLS URL obtained — starting relay to ${destinations.length} platform(s)`);
+  logger.info(`HLS URL obtained — starting relay to ${destinations.length} platform(s)`, {
+    userId: userId.slice(0, 8),
+    platforms: destinations.map(d => d.platform),
+  });
 
   const state: RelayState = {
     userId, videoId, proc: null, startedAt: new Date(), stoppedAt: null,
-    relaying: true, destinations, hlsUrl, error: null, bytesSent: 0, autoStarted,
+    relaying: true, destinations, hlsUrl, error: null, bytesSent: 0,
+    autoStarted, retryCount: 0, healthTimer: null, intentionalStop: false,
   };
   relayStates.set(userId, state);
 
@@ -148,54 +345,20 @@ export async function startMultistream(userId: string, videoId: string, autoStar
     state.proc = proc;
 
     const destNames = destinations.map(d => d.label).join(", ");
-    logger.info(`[${userId}] FFmpeg relay started (PID ${proc.pid}) → ${destNames}`);
+    logger.info(`FFmpeg relay started (PID ${proc.pid}) → ${destNames}`, { userId: userId.slice(0, 8) });
 
-    proc.stderr?.on("data", (chunk: Buffer) => {
-      const line = chunk.toString();
-      state.bytesSent += chunk.length;
-      const isProgress = line.includes("frame=") || line.includes("speed=") || line.includes("bitrate=");
-      if (isProgress) {
-        for (const dest of state.destinations) {
-          dest.active = true;
-          dest.error = null;
-        }
-      } else {
-        const lowerLine = line.toLowerCase();
-        const isConnError = lowerLine.includes("connection refused") || lowerLine.includes("connection timed out") || lowerLine.includes("broken pipe") || lowerLine.includes("no route to host");
-        if (isConnError) {
-          for (const dest of state.destinations) {
-            if (!dest.active) dest.error = line.trim().slice(0, 100);
-          }
-        }
-      }
-    });
-
-    proc.on("exit", (code, signal) => {
-      logger.info(`[${userId}] FFmpeg relay exited — code: ${code}, signal: ${signal}`);
-      state.relaying = false;
-      state.stoppedAt = new Date();
-      state.proc = null;
-      if (code !== 0 && code !== null) {
-        state.error = `FFmpeg exited with code ${code}`;
-      }
-    });
-
-    proc.on("error", (err) => {
-      logger.error(`[${userId}] FFmpeg spawn error: ${err.message}`);
-      state.relaying = false;
-      state.error = err.message;
-      state.proc = null;
-    });
+    wireFFmpegEvents(state, proc);
+    startHealthMonitor(state);
 
     return {
       started: true,
-      message: `Relay started to ${destinations.length} platform(s)`,
+      message: `Relay started to ${destinations.length} platform(s): ${destNames}`,
       destinations: destinations.map(d => d.label),
     };
   } catch (err: any) {
     state.relaying = false;
     state.error = err.message;
-    logger.error(`[${userId}] Failed to spawn FFmpeg: ${err.message}`);
+    logger.error(`Failed to spawn FFmpeg: ${err.message}`, { userId: userId.slice(0, 8) });
     return { started: false, message: `Failed to start FFmpeg: ${err.message}` };
   }
 }
@@ -203,19 +366,47 @@ export async function startMultistream(userId: string, videoId: string, autoStar
 export function stopMultistream(userId: string): void {
   const state = relayStates.get(userId);
   if (!state) return;
+
+  state.intentionalStop = true;
+
+  if (state.healthTimer) {
+    clearInterval(state.healthTimer);
+    state.healthTimer = null;
+  }
+
   if (state.proc) {
     state.proc.kill("SIGTERM");
-    setTimeout(() => { if (state.proc) state.proc.kill("SIGKILL"); }, 3000);
+    setTimeout(() => { if (state.proc) state.proc.kill("SIGKILL"); }, 5000);
   }
   state.relaying = false;
   state.stoppedAt = new Date();
-  logger.info(`[${userId}] Relay stopped`);
+
+  const duration = state.startedAt
+    ? Math.round((Date.now() - state.startedAt.getTime()) / 1000)
+    : 0;
+  const activeDests = state.destinations.filter(d => d.active).map(d => d.label);
+
+  logger.info(`Relay stopped`, {
+    userId: userId.slice(0, 8),
+    duration: `${duration}s`,
+    activePlatforms: activeDests,
+    bytesSent: state.bytesSent,
+  });
 }
 
 export function getMultistreamStatus(userId: string) {
   const state = relayStates.get(userId);
   if (!state) {
-    return { relaying: false, videoId: null, destinations: [], startedAt: null, stoppedAt: null, error: null, autoStarted: false };
+    return {
+      relaying: false,
+      videoId: null,
+      destinations: [],
+      startedAt: null,
+      stoppedAt: null,
+      error: null,
+      autoStarted: false,
+      retryCount: 0,
+    };
   }
   return {
     relaying: state.relaying,
@@ -225,11 +416,14 @@ export function getMultistreamStatus(userId: string) {
       label: d.label,
       active: d.active,
       error: d.error,
+      connectedAt: d.connectedAt?.toISOString() ?? null,
+      lastDataAt: d.lastDataAt?.toISOString() ?? null,
     })),
     startedAt: state.startedAt?.toISOString() ?? null,
     stoppedAt: state.stoppedAt?.toISOString() ?? null,
     error: state.error,
     autoStarted: state.autoStarted,
+    retryCount: state.retryCount,
   };
 }
 
@@ -274,30 +468,33 @@ export function wireMultistreamEvents(): void {
       const { userId, payload } = event;
       const videoId = payload?.videoId || payload?.broadcastId;
       if (!videoId || videoId.startsWith("rss_live") || videoId.startsWith("live_")) {
-        logger.info(`[${userId}] stream.started event — no valid videoId, skipping auto-relay`);
+        logger.info(`stream.started — no valid videoId, skipping auto-relay`, { userId: userId.slice(0, 8) });
         return;
       }
       const existing = relayStates.get(userId);
       if (existing?.relaying) return;
 
-      logger.info(`[${userId}] stream.started → auto-starting relay for video ${videoId}`);
+      logger.info(`stream.started → auto-starting multistream relay`, {
+        userId: userId.slice(0, 8),
+        videoId,
+      });
       const result = await startMultistream(userId, videoId, true);
       if (result.started) {
-        logger.info(`[${userId}] Auto-relay started → ${result.destinations?.join(", ")}`);
+        logger.info(`Auto-relay live → ${result.destinations?.join(", ")}`, { userId: userId.slice(0, 8) });
       } else {
-        logger.info(`[${userId}] Auto-relay skipped: ${result.message}`);
+        logger.info(`Auto-relay skipped: ${result.message}`, { userId: userId.slice(0, 8) });
       }
     });
 
     onAgentEvent("stream.ended", (event) => {
       const { userId } = event;
       const state = relayStates.get(userId);
-      if (state?.relaying && state.autoStarted) {
-        logger.info(`[${userId}] stream.ended → stopping auto-relay`);
+      if (state?.relaying) {
+        logger.info(`stream.ended → stopping multistream relay`, { userId: userId.slice(0, 8) });
         stopMultistream(userId);
       }
     });
 
-    logger.info("Multistream event wiring complete — auto-relay on stream.started");
+    logger.info("Multistream event wiring complete — auto-relay on stream.started, auto-stop on stream.ended");
   }).catch(() => {});
 }

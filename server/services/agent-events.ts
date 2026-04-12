@@ -193,7 +193,7 @@ export async function wireAgentCoordination(): Promise<void> {
   // ── PRE-STREAM PIPELINE ─────────────────────────────────────────────────
   onAgentEvent("stream.started", async (event) => {
     const { videoId, gameTitle, liveChatId, title } = event.payload || {};
-    logger.info(`stream.started for ${event.userId.slice(0, 8)} — launching pre-stream pipeline`);
+    logger.info(`stream.started for ${event.userId.slice(0, 8)} — launching pre-stream pipeline + multistream + recording`);
 
     if (videoId) {
       setTimeout(async () => {
@@ -203,7 +203,7 @@ export async function wireAgentCoordination(): Promise<void> {
           if (result.success) {
             logger.info(`Stream recording started for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
           } else {
-            logger.warn(`Stream recording failed to start: ${result.error}`);
+            logger.warn(`Stream recording failed to start: ${result.error} — will retry in 30s`);
             setTimeout(async () => {
               try {
                 const { startRecording: retry } = await import("./stream-recorder");
@@ -212,12 +212,12 @@ export async function wireAgentCoordination(): Promise<void> {
               } catch (err: any) {
                 logger.warn(`Stream recording retry failed: ${err.message}`);
               }
-            }, 60_000);
+            }, 30_000);
           }
         } catch (err: any) {
           logger.warn(`Stream recorder startup failed: ${err.message}`);
         }
-      }, 10_000);
+      }, 5_000);
     }
 
     // 1. Immediately start the stream operator (if liveChatId available)
@@ -296,10 +296,18 @@ export async function wireAgentCoordination(): Promise<void> {
 
   // When a stream ends → immediately scan for new uploads + run consistency
   onAgentEvent("stream.ended", async (event) => {
-    logger.info(`Stream ended for ${event.userId.slice(0, 8)} — triggering upload scan + consistency check`);
+    logger.info(`Stream ended for ${event.userId.slice(0, 8)} — stopping relay + saving recording + creating edit copy`);
 
     const videoId = event.payload?.videoId;
     const gameTitle = event.payload?.gameTitle || "Gaming Stream";
+
+    try {
+      const { stopMultistream } = await import("./multistream-engine");
+      stopMultistream(event.userId);
+      logger.info(`Multistream relay stopped for ${event.userId.slice(0, 8)}`);
+    } catch (err: any) {
+      logger.warn(`Multistream stop failed: ${err.message}`);
+    }
 
     if (videoId) {
       setTimeout(async () => {
@@ -320,7 +328,7 @@ export async function wireAgentCoordination(): Promise<void> {
                 gameTitle,
               });
               if (copyResult.success) {
-                logger.info(`Edit copy created for stream ${videoId} — studio ID ${copyResult.studioVideoId}`);
+                logger.info(`Edit copy ready for editing software — stream ${videoId} → studio ID ${copyResult.studioVideoId} at ${copyResult.filePath}`);
                 try {
                   const { updateHandoff } = await import("../live-ops/post-stream-handoff");
                   updateHandoff(event.userId, videoId, { editCopyCreated: true });
