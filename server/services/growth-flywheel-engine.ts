@@ -8,6 +8,7 @@ import { eq, and, desc, gte, sql, lt, ne } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
+import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("growth-flywheel");
 
@@ -15,6 +16,38 @@ const FLYWHEEL_CYCLE_MS = 30 * 60_000;
 const MEMORY_CONSOLIDATION_MS = 2 * 60 * 60_000;
 const COMPETITIVE_SCAN_MS = 60 * 60_000;
 const AUTO_APPROVE_THRESHOLD = 85;
+
+const fwStore = createEngineStore("growth-flywheel", 5 * 60_000);
+
+function ensureFwUserRegistered(userId: string) {
+  registerUserQueries(fwStore, userId, {
+    channels: () => db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"))),
+    flywheel_last: () => db.select().from(growthFlywheel)
+      .where(eq(growthFlywheel.userId, userId))
+      .orderBy(desc(growthFlywheel.createdAt)).limit(1),
+    principles_active: () => db.select().from(memoryConsolidation)
+      .where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true)))
+      .orderBy(desc(memoryConsolidation.confidenceScore)).limit(10),
+    strategies_top: () => db.select().from(discoveredStrategies)
+      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
+      .orderBy(desc(discoveredStrategies.effectiveness)).limit(10),
+    actions_recent: () => db.select().from(autonomousActions)
+      .where(and(eq(autonomousActions.userId, userId), eq(autonomousActions.status, "executed")))
+      .orderBy(desc(autonomousActions.executedAt)).limit(10),
+    reflections_recent: () => db.select().from(selfReflectionJournal)
+      .where(eq(selfReflectionJournal.userId, userId))
+      .orderBy(desc(selfReflectionJournal.createdAt)).limit(20),
+    improvements_recent: () => db.select().from(systemImprovements)
+      .where(eq(systemImprovements.userId, userId))
+      .orderBy(desc(systemImprovements.createdAt)).limit(30),
+    curiosity_explored: () => db.select().from(curiosityQueue)
+      .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "explored")))
+      .orderBy(desc(curiosityQueue.exploredAt)).limit(15),
+    principles_all: () => db.select().from(memoryConsolidation)
+      .where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true))).limit(20),
+  });
+}
 
 const FLYWHEEL_PHASES = [
   "observe",
@@ -100,8 +133,8 @@ async function runFlywheelCycle(): Promise<void> {
 }
 
 async function spinFlywheelForUser(userId: string): Promise<void> {
-  const userChannels = await db.select().from(channels)
-    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+  ensureFwUserRegistered(userId);
+  const userChannels = await getUserData(fwStore, userId, "channels");
   if (userChannels.length === 0) return;
 
   try {
@@ -118,16 +151,13 @@ async function spinFlywheelForUser(userId: string): Promise<void> {
     logger.warn("Duration experiment measurement failed", { userId, error: String(err).slice(0, 100) });
   }
 
-  const lastFlywheel = await db.select().from(growthFlywheel)
-    .where(eq(growthFlywheel.userId, userId))
-    .orderBy(desc(growthFlywheel.createdAt))
-    .limit(1);
+  const lastFlywheel = await getUserData<any>(fwStore, userId, "flywheel_last");
 
   const currentCycle = (lastFlywheel[0]?.cycleNumber || 0) + 1;
   const lastMomentum = lastFlywheel[0]?.momentum || 0;
 
   const channelStats = [];
-  for (const ch of userChannels.slice(0, 3)) {
+  for (const ch of (userChannels as any[]).slice(0, 3)) {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
     const [recent] = await db.select({
       videoCount: sql<number>`count(*)`,
@@ -137,20 +167,11 @@ async function spinFlywheelForUser(userId: string): Promise<void> {
     channelStats.push({ channelId: ch.id, name: ch.channelName || ch.id, ...recent });
   }
 
-  const activePrinciples = await db.select().from(memoryConsolidation)
-    .where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true)))
-    .orderBy(desc(memoryConsolidation.confidenceScore))
-    .limit(5);
+  const activePrinciples = (await getUserData<any>(fwStore, userId, "principles_active")).slice(0, 5);
 
-  const topStrategies = await db.select().from(discoveredStrategies)
-    .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
-    .orderBy(desc(discoveredStrategies.effectiveness))
-    .limit(5);
+  const topStrategies = (await getUserData<any>(fwStore, userId, "strategies_top")).slice(0, 5);
 
-  const recentActions = await db.select().from(autonomousActions)
-    .where(and(eq(autonomousActions.userId, userId), eq(autonomousActions.status, "executed")))
-    .orderBy(desc(autonomousActions.executedAt))
-    .limit(5);
+  const recentActions = (await getUserData<any>(fwStore, userId, "actions_recent")).slice(0, 5);
 
   const principleContext = activePrinciples.map(p => `• ${p.corePrinciple} (${p.confidenceScore}% confidence, reinforced ${p.timesReinforced}x)`).join("\n");
   const strategyContext = topStrategies.map(s => `• ${s.title}: ${s.effectiveness}% effective`).join("\n");
@@ -263,6 +284,9 @@ Return JSON: {
       engineSource: "growth-flywheel",
     });
 
+    invalidateUserData(fwStore, userId, "flywheel_last");
+    invalidateUserData(fwStore, userId, "actions_recent");
+    invalidateUserData(fwStore, userId, "improvements_recent");
     logger.info("Flywheel cycle complete", { userId, cycle: currentCycle, momentum: newMomentum, compound: compoundingFactor });
   } catch (err) {
     logger.warn("Flywheel spin failed", { userId, error: String(err).slice(0, 200) });
@@ -362,24 +386,14 @@ async function runMemoryConsolidation(): Promise<void> {
 }
 
 async function consolidateMemoryForUser(userId: string): Promise<void> {
-  const recentReflections = await db.select().from(selfReflectionJournal)
-    .where(eq(selfReflectionJournal.userId, userId))
-    .orderBy(desc(selfReflectionJournal.createdAt))
-    .limit(20);
+  ensureFwUserRegistered(userId);
+  const recentReflections = await getUserData<any>(fwStore, userId, "reflections_recent");
 
-  const recentImprovements = await db.select().from(systemImprovements)
-    .where(eq(systemImprovements.userId, userId))
-    .orderBy(desc(systemImprovements.createdAt))
-    .limit(30);
+  const recentImprovements = await getUserData<any>(fwStore, userId, "improvements_recent");
 
-  const exploredCuriosity = await db.select().from(curiosityQueue)
-    .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "explored")))
-    .orderBy(desc(curiosityQueue.exploredAt))
-    .limit(15);
+  const exploredCuriosity = await getUserData<any>(fwStore, userId, "curiosity_explored");
 
-  const existingPrinciples = await db.select().from(memoryConsolidation)
-    .where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true)))
-    .limit(20);
+  const existingPrinciples = await getUserData<any>(fwStore, userId, "principles_all");
 
   if (recentReflections.length === 0 && recentImprovements.length === 0) return;
 
@@ -495,6 +509,9 @@ Return JSON: {
       });
     }
 
+    invalidateUserData(fwStore, userId, "principles_active");
+    invalidateUserData(fwStore, userId, "principles_all");
+    invalidateUserData(fwStore, userId, "reflections_recent");
     logger.info("Memory consolidation complete", { userId, newPrinciples: result.newPrinciples?.length || 0 });
   } catch (err) {
     logger.warn("Memory consolidation AI failed", { userId, error: String(err).slice(0, 200) });
@@ -517,13 +534,11 @@ async function runCompetitiveIntelScan(): Promise<void> {
 }
 
 async function scanCompetitiveIntelForUser(userId: string): Promise<void> {
+  ensureFwUserRegistered(userId);
   const topicIndex = Math.floor((Date.now() / COMPETITIVE_SCAN_MS) % COMPETITIVE_SCAN_TOPICS.length);
   const topic = COMPETITIVE_SCAN_TOPICS[topicIndex];
 
-  const activePrinciples = await db.select().from(memoryConsolidation)
-    .where(and(eq(memoryConsolidation.userId, userId), eq(memoryConsolidation.isActive, true)))
-    .orderBy(desc(memoryConsolidation.confidenceScore))
-    .limit(3);
+  const activePrinciples = (await getUserData<any>(fwStore, userId, "principles_active")).slice(0, 3);
 
   const principleFilter = activePrinciples.map(p => p.corePrinciple).join("; ");
 
@@ -648,6 +663,7 @@ Return JSON: {
       });
     }
 
+    invalidateUserData(fwStore, userId, "strategies_top");
     logger.info("Competitive intel scan complete", { userId, topic, findings: findings.length });
   } catch (err) {
     logger.warn("Competitive intel scan failed", { userId, error: String(err).slice(0, 200) });

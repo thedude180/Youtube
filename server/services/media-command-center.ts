@@ -4,11 +4,24 @@ import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { getAdaptiveRule, getAllAdaptiveRules } from "./tos-compliance-monitor";
+import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("media-command");
 
 const COMMAND_INTERVAL = 60 * 60_000;
 let commandInterval: ReturnType<typeof setInterval> | null = null;
+
+const mcStore = createEngineStore("media-command", 10 * 60_000);
+
+function ensureMcUserRegistered(userId: string) {
+  registerUserQueries(mcStore, userId, {
+    channels: () => db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"))),
+    strategies_active: () => db.select().from(discoveredStrategies)
+      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
+      .orderBy(desc(discoveredStrategies.effectiveness)).limit(10),
+  });
+}
 
 interface ChannelHealthReport {
   score: number;
@@ -48,8 +61,8 @@ export async function runMediaCommandCycle(): Promise<void> {
 }
 
 async function runCommandCycleForUser(userId: string): Promise<void> {
-  const userChannels = await db.select().from(channels)
-    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+  ensureMcUserRegistered(userId);
+  const userChannels = await getUserData<any>(mcStore, userId, "channels");
   if (userChannels.length === 0) return;
 
   const health = await assessChannelHealth(userId);

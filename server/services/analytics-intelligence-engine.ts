@@ -2,11 +2,20 @@ import { db } from "../db";
 import { unifiedMetrics, trendForecasts, competitorSnapshots, algorithmHealth, performanceBenchmarks, videos, channels, users } from "@shared/schema";
 import { eq, and, desc, sql, sum } from "drizzle-orm";
 import { storage } from "../storage";
+import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 
 const SCAN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
 let totalScansCompleted = 0;
+
+const analyticsStore = createEngineStore("analytics-intelligence", 10 * 60_000);
+
+function ensureAnalyticsUserRegistered(userId: string) {
+  registerUserQueries(analyticsStore, userId, {
+    channels: () => db.select().from(channels).where(eq(channels.userId, userId)),
+  });
+}
 
 const NICHE_BENCHMARKS: Record<string, {
   avgViews: number;
@@ -83,7 +92,8 @@ const NICHE_BENCHMARKS: Record<string, {
 
 export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
   try {
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    ensureAnalyticsUserRegistered(userId);
+    const userChannels = await getUserData<any>(analyticsStore, userId, "channels");
     if (userChannels.length === 0) return;
 
     const now = new Date();
@@ -190,7 +200,8 @@ export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
 
 async function generateTrendForecasts(userId: string): Promise<void> {
   try {
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    ensureAnalyticsUserRegistered(userId);
+    const userChannels = await getUserData<any>(analyticsStore, userId, "channels");
     if (userChannels.length === 0) return;
 
     for (const channel of userChannels) {
@@ -289,7 +300,8 @@ async function trackCompetitors(userId: string): Promise<void> {
     const niche = (user?.contentNiche || "entertainment").toLowerCase();
     const benchmarks = NICHE_BENCHMARKS[niche] || NICHE_BENCHMARKS["entertainment"];
 
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    ensureAnalyticsUserRegistered(userId);
+    const userChannels = await getUserData<any>(analyticsStore, userId, "channels");
     const platforms = userChannels.map(c => c.platform);
     const targetPlatforms = platforms.length > 0 ? platforms : ["youtube"];
 
@@ -328,7 +340,8 @@ async function trackCompetitors(userId: string): Promise<void> {
 
 export async function computeAlgorithmHealth(userId: string): Promise<void> {
   try {
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    ensureAnalyticsUserRegistered(userId);
+    const userChannels = await getUserData<any>(analyticsStore, userId, "channels");
     if (userChannels.length === 0) return;
 
     for (const channel of userChannels) {
@@ -440,7 +453,8 @@ export async function generatePerformanceBenchmarks(userId: string): Promise<voi
     const niche = (user?.contentNiche || "entertainment").toLowerCase();
     const benchmarks = NICHE_BENCHMARKS[niche] || NICHE_BENCHMARKS["entertainment"];
 
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    ensureAnalyticsUserRegistered(userId);
+    const userChannels = await getUserData<any>(analyticsStore, userId, "channels");
     if (userChannels.length === 0) return;
 
     let totalUserViews = 0;

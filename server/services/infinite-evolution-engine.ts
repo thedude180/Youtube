@@ -4,11 +4,28 @@ import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
+import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("infinite-evolution");
 
 const EVOLUTION_CYCLE_MS = 60 * 60_000;
 let evolutionInterval: ReturnType<typeof setInterval> | null = null;
+
+const evoStore = createEngineStore("infinite-evolution", 10 * 60_000);
+
+function ensureEvoUserRegistered(userId: string) {
+  registerUserQueries(evoStore, userId, {
+    improvements_30d: () => db.select().from(systemImprovements)
+      .where(and(
+        eq(systemImprovements.userId, userId),
+        gte(systemImprovements.createdAt, new Date(Date.now() - 30 * 86400_000)),
+      )).limit(200),
+    strategies_active: () => db.select().from(discoveredStrategies)
+      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true))).limit(50),
+    channels: () => db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"))),
+  });
+}
 
 const SYSTEM_DOMAINS = [
   {
@@ -120,33 +137,22 @@ interface SystemAudit {
 }
 
 async function auditAllSystems(userId: string): Promise<SystemAudit[]> {
+  ensureEvoUserRegistered(userId);
   const audits: SystemAudit[] = [];
 
+  const allImprovements = await getUserData<any>(evoStore, userId, "improvements_30d");
+  const allStrategies = await getUserData<any>(evoStore, userId, "strategies_active");
+
   for (const domain of SYSTEM_DOMAINS) {
-    const improvements = await db.select({ id: systemImprovements.id }).from(systemImprovements)
-      .where(and(
-        eq(systemImprovements.userId, userId),
-        eq(systemImprovements.area, domain.name),
-        gte(systemImprovements.createdAt, new Date(Date.now() - 30 * 86400_000)),
-      ));
+    const improvements = allImprovements.filter((i: any) => i.area === domain.name);
+    const strategies = allStrategies.filter((s: any) => s.category === domain.name);
 
-    const strategies = await db.select({ id: discoveredStrategies.id }).from(discoveredStrategies)
-      .where(and(
-        eq(discoveredStrategies.userId, userId),
-        eq(discoveredStrategies.category, domain.name),
-        eq(discoveredStrategies.isActive, true),
-      ));
+    const domainImprovementsSorted = improvements.sort((a: any, b: any) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const lastImprovement = domainImprovementsSorted[0];
 
-    const lastImprovement = await db.select({ createdAt: systemImprovements.createdAt }).from(systemImprovements)
-      .where(and(
-        eq(systemImprovements.userId, userId),
-        eq(systemImprovements.area, domain.name),
-      ))
-      .orderBy(desc(systemImprovements.createdAt))
-      .limit(1);
-
-    const daysSinceImprovement = lastImprovement[0]?.createdAt
-      ? Math.floor((Date.now() - new Date(lastImprovement[0].createdAt).getTime()) / 86400_000)
+    const daysSinceImprovement = lastImprovement?.createdAt
+      ? Math.floor((Date.now() - new Date(lastImprovement.createdAt).getTime()) / 86400_000)
       : 999;
 
     const recencyPenalty = Math.min(30, daysSinceImprovement * 2);
@@ -163,7 +169,7 @@ async function auditAllSystems(userId: string): Promise<SystemAudit[]> {
       score,
       recentImprovements: improvements.length,
       activeStrategies: strategies.length,
-      lastImprovedAt: lastImprovement[0]?.createdAt?.toISOString() || null,
+      lastImprovedAt: lastImprovement?.createdAt?.toISOString?.() || (lastImprovement?.createdAt ? String(lastImprovement.createdAt) : null),
       weaknesses: [],
     });
   }

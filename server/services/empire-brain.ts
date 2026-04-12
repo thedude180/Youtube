@@ -7,11 +7,30 @@ import {
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
+import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("empire-brain");
 
 const EMPIRE_CYCLE_MS = 90 * 60_000;
 let empireInterval: ReturnType<typeof setInterval> | null = null;
+
+const empireStore = createEngineStore("empire-brain", 10 * 60_000);
+
+function ensureEmpireUserRegistered(userId: string) {
+  registerUserQueries(empireStore, userId, {
+    businesses: () => db.select().from(businessProfiles).where(eq(businessProfiles.userId, userId)),
+    channels: () => db.select().from(channels).where(eq(channels.userId, userId)),
+    operations_recent: () => db.select().from(businessOperations)
+      .where(eq(businessOperations.userId, userId))
+      .orderBy(desc(businessOperations.createdAt)).limit(20),
+    insights: () => db.select().from(crossBusinessInsights)
+      .where(eq(crossBusinessInsights.userId, userId))
+      .orderBy(desc(crossBusinessInsights.createdAt)).limit(20),
+    metrics: () => db.select().from(empireMetrics)
+      .where(eq(empireMetrics.userId, userId))
+      .orderBy(desc(empireMetrics.createdAt)).limit(10),
+  });
+}
 
 const INDUSTRY_REGISTRY: Record<string, {
   label: string;
@@ -197,8 +216,9 @@ export async function runEmpireCycle(): Promise<void> {
 }
 
 async function runEmpireCycleForUser(userId: string): Promise<void> {
-  const businesses = await db.select().from(businessProfiles)
-    .where(and(eq(businessProfiles.userId, userId), eq(businessProfiles.status, "active")));
+  ensureEmpireUserRegistered(userId);
+  const allBiz = await getUserData<any>(empireStore, userId, "businesses");
+  const businesses = allBiz.filter((b: any) => b.status === "active");
 
   if (businesses.length === 0) return;
 

@@ -3,11 +3,29 @@ import { contentExperiments, videos, channels, systemImprovements, discoveredStr
 import { eq, and, desc, gte, count, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
+import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("growth-experiments");
 
 const EXPERIMENT_CYCLE_MS = 45 * 60_000;
 let experimentInterval: ReturnType<typeof setInterval> | null = null;
+
+const expStore = createEngineStore("growth-experiments", 5 * 60_000);
+
+function ensureExpUserRegistered(userId: string) {
+  registerUserQueries(expStore, userId, {
+    channels: () => db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"))),
+    experiments_running: () => db.select().from(contentExperiments)
+      .where(and(eq(contentExperiments.userId, userId), eq(contentExperiments.status, "running"))).limit(10),
+    experiments_completed: () => db.select().from(contentExperiments)
+      .where(and(eq(contentExperiments.userId, userId), eq(contentExperiments.status, "completed")))
+      .orderBy(desc(contentExperiments.endedAt)).limit(10),
+    strategies_active: () => db.select().from(discoveredStrategies)
+      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
+      .orderBy(desc(discoveredStrategies.effectiveness)).limit(10),
+  });
+}
 
 const EXPERIMENT_TYPES = [
   {
@@ -84,12 +102,8 @@ export async function runExperimentCycle(): Promise<void> {
 }
 
 async function evaluateRunningExperiments(userId: string): Promise<void> {
-  const running = await db.select().from(contentExperiments)
-    .where(and(
-      eq(contentExperiments.userId, userId),
-      eq(contentExperiments.status, "running"),
-    ))
-    .limit(10);
+  ensureExpUserRegistered(userId);
+  const running = await getUserData<any>(expStore, userId, "experiments_running");
 
   for (const experiment of running) {
     const startedAt = experiment.startedAt || experiment.createdAt;
@@ -98,9 +112,7 @@ async function evaluateRunningExperiments(userId: string): Promise<void> {
     const ageHours = (Date.now() - new Date(startedAt).getTime()) / 3600_000;
     if (ageHours < 24) continue;
 
-    const userChannels = await db.select().from(channels)
-      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
-      .limit(1);
+    const userChannels = await getUserData<any>(expStore, userId, "channels");
 
     if (userChannels.length === 0) continue;
 
@@ -187,25 +199,14 @@ Return JSON:
 }
 
 async function designNewExperiments(userId: string): Promise<void> {
-  const runningCount = await db.select({ total: count() }).from(contentExperiments)
-    .where(and(
-      eq(contentExperiments.userId, userId),
-      eq(contentExperiments.status, "running"),
-    ));
+  ensureExpUserRegistered(userId);
+  const runningExps = await getUserData<any>(expStore, userId, "experiments_running");
 
-  if ((runningCount[0]?.total || 0) >= 3) return;
+  if (runningExps.length >= 3) return;
 
-  const recentCompleted = await db.select().from(contentExperiments)
-    .where(and(
-      eq(contentExperiments.userId, userId),
-      eq(contentExperiments.status, "completed"),
-    ))
-    .orderBy(desc(contentExperiments.createdAt))
-    .limit(5);
+  const recentCompleted = (await getUserData<any>(expStore, userId, "experiments_completed")).slice(0, 5);
 
-  const recentTypes = new Set(recentCompleted.map(e => e.experimentType));
-  const runningExps = await db.select().from(contentExperiments)
-    .where(and(eq(contentExperiments.userId, userId), eq(contentExperiments.status, "running")));
+  const recentTypes = new Set(recentCompleted.map((e: any) => e.experimentType));
   for (const e of runningExps) recentTypes.add(e.experimentType);
 
   const available = EXPERIMENT_TYPES.filter(t => !recentTypes.has(t.type));
@@ -216,9 +217,7 @@ async function designNewExperiments(userId: string): Promise<void> {
   const openai = getOpenAIClient();
 
   try {
-    const userChannels = await db.select().from(channels)
-      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
-      .limit(1);
+    const userChannels = await getUserData<any>(expStore, userId, "channels");
 
     const channelStats = userChannels.length > 0
       ? await db.select({
@@ -290,6 +289,7 @@ Return JSON:
         },
       });
 
+      invalidateUserData(expStore, userId, "experiments_running");
       logger.info(`[${userId.substring(0, 8)}] New experiment launched: "${selected.type}" — ${parsed.hypothesis}`);
     }
   } catch (err: any) {
@@ -298,14 +298,8 @@ Return JSON:
 }
 
 async function applyWinningStrategies(userId: string): Promise<void> {
-  const unapplied = await db.select().from(contentExperiments)
-    .where(and(
-      eq(contentExperiments.userId, userId),
-      eq(contentExperiments.status, "completed"),
-      eq(contentExperiments.appliedGlobally, false),
-    ))
-    .orderBy(desc(contentExperiments.createdAt))
-    .limit(5);
+  const unapplied = (await getUserData<any>(expStore, userId, "experiments_completed"))
+    .filter((e: any) => !e.appliedGlobally).slice(0, 5);
 
   for (const experiment of unapplied) {
     if (!experiment.winnerVariant || experiment.winnerVariant === "inconclusive" || experiment.winnerVariant === "tie") continue;
@@ -332,6 +326,8 @@ async function applyWinningStrategies(userId: string): Promise<void> {
 
     await db.update(contentExperiments).set({ appliedGlobally: true }).where(eq(contentExperiments.id, experiment.id));
 
+    invalidateUserData(expStore, userId, "experiments_completed");
+    invalidateUserData(expStore, userId, "strategies_active");
     logger.info(`[${userId.substring(0, 8)}] Winning strategy applied: ${experiment.experimentType} (${confidence}% confidence)`);
   }
 }

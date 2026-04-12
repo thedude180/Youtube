@@ -8,12 +8,36 @@ import { eq, and, desc, gte, sql, inArray, lt, asc, ne } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
+import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 
 const logger = createLogger("self-improvement-engine");
 
 const IMPROVEMENT_CYCLE_MS = 45 * 60_000;
 const BACK_CATALOG_BATCH = 20;
 const CURIOSITY_BATCH = 5;
+
+const siStore = createEngineStore("self-improvement", 5 * 60_000);
+
+function ensureUserRegistered(userId: string) {
+  registerUserQueries(siStore, userId, {
+    channels: () => db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube"))),
+    strategies_active: () => db.select().from(discoveredStrategies)
+      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
+      .orderBy(desc(discoveredStrategies.effectiveness)).limit(20),
+    improvements_recent: () => db.select().from(systemImprovements)
+      .where(eq(systemImprovements.userId, userId))
+      .orderBy(desc(systemImprovements.createdAt)).limit(20),
+    goals_active: () => db.select().from(improvementGoals)
+      .where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active"))).limit(10),
+    reflection_latest: () => db.select().from(selfReflectionJournal)
+      .where(eq(selfReflectionJournal.userId, userId))
+      .orderBy(desc(selfReflectionJournal.createdAt)).limit(1),
+    curiosity_queued: () => db.select().from(curiosityQueue)
+      .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "queued")))
+      .orderBy(desc(curiosityQueue.priority)).limit(10),
+  });
+}
 
 const PERSONALITY = {
   name: "CreatorOS Mind",
@@ -80,8 +104,8 @@ export async function runImprovementCycle(): Promise<void> {
 }
 
 async function runUserImprovementCycle(userId: string): Promise<void> {
-  const userChannels = await db.select().from(channels)
-    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+  ensureUserRegistered(userId);
+  const userChannels = await getUserData(siStore, userId, "channels");
   if (userChannels.length === 0) return;
 
   await reflectOnSelf(userId, userChannels, "scheduled_cycle");
@@ -132,8 +156,8 @@ export async function onNewContentDetected(userId: string, videoIdOrExternalId: 
       videoId = videoIdOrExternalId;
     }
 
-    const userChannels = await db.select().from(channels)
-      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+    ensureUserRegistered(userId);
+    const userChannels = await getUserData(siStore, userId, "channels");
 
     await analyzeAndLearnFromContent(userId, videoId);
 
@@ -166,24 +190,13 @@ export async function onNewContentDetected(userId: string, videoIdOrExternalId: 
 
 async function reflectOnSelf(userId: string, userChannels: any[], trigger: string): Promise<void> {
   try {
-    const recentImprovements = await db.select().from(systemImprovements)
-      .where(eq(systemImprovements.userId, userId))
-      .orderBy(desc(systemImprovements.createdAt))
-      .limit(10);
+    const recentImprovements = (await getUserData(siStore, userId, "improvements_recent")).slice(0, 10);
 
-    const activeGoals = await db.select().from(improvementGoals)
-      .where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active")))
-      .limit(5);
+    const activeGoals = (await getUserData(siStore, userId, "goals_active")).slice(0, 5);
 
-    const recentStrategies = await db.select().from(discoveredStrategies)
-      .where(and(eq(discoveredStrategies.userId, userId), eq(discoveredStrategies.isActive, true)))
-      .orderBy(desc(discoveredStrategies.effectiveness))
-      .limit(10);
+    const recentStrategies = (await getUserData(siStore, userId, "strategies_active")).slice(0, 10);
 
-    const lastReflection = await db.select().from(selfReflectionJournal)
-      .where(eq(selfReflectionJournal.userId, userId))
-      .orderBy(desc(selfReflectionJournal.createdAt))
-      .limit(1);
+    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
 
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
@@ -269,6 +282,8 @@ Return JSON: {
       metadata: { urgentAction: result.urgentAction, channelStats } as any,
     });
 
+    invalidateUserData(siStore, userId, "reflection_latest");
+
     logger.info("Self-reflection recorded", {
       userId,
       mood: result.mood,
@@ -282,14 +297,9 @@ Return JSON: {
 
 async function generateCuriosity(userId: string, userChannels: any[]): Promise<void> {
   try {
-    const lastReflection = await db.select().from(selfReflectionJournal)
-      .where(eq(selfReflectionJournal.userId, userId))
-      .orderBy(desc(selfReflectionJournal.createdAt))
-      .limit(1);
+    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
 
-    const existingQuestions = await db.select({ question: curiosityQueue.question }).from(curiosityQueue)
-      .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "queued")))
-      .limit(10);
+    const existingQuestions = await getUserData<any>(siStore, userId, "curiosity_queued");
 
     const blindSpots = lastReflection[0]?.blindSpotsIdentified || [];
     const weaknesses = lastReflection[0]?.weaknessesAdmitted || [];
@@ -325,6 +335,7 @@ Generate 2-3 genuinely curious questions I should explore. Each should be specif
       }
     }
 
+    invalidateUserData(siStore, userId, "curiosity_queued");
     logger.info("Curiosity generated", { userId, newQuestions: questions?.length || 0 });
   } catch (err) {
     logger.warn("Curiosity generation failed", { error: String(err).slice(0, 200) });
@@ -333,10 +344,7 @@ Generate 2-3 genuinely curious questions I should explore. Each should be specif
 
 async function pursueCuriosity(userId: string): Promise<void> {
   try {
-    const questions = await db.select().from(curiosityQueue)
-      .where(and(eq(curiosityQueue.userId, userId), eq(curiosityQueue.status, "queued")))
-      .orderBy(desc(curiosityQueue.priority))
-      .limit(CURIOSITY_BATCH);
+    const questions = (await getUserData<any>(siStore, userId, "curiosity_queued")).slice(0, CURIOSITY_BATCH);
 
     if (questions.length === 0) return;
 
@@ -421,6 +429,8 @@ Answer the question thoroughly. Then identify any strategies or insights that co
       }
     }
 
+    invalidateUserData(siStore, userId, "curiosity_queued");
+    invalidateUserData(siStore, userId, "strategies_active");
     logger.info("Curiosity pursuit complete", { userId, explored: questions.length });
   } catch (err) {
     logger.warn("Curiosity pursuit failed", { error: String(err).slice(0, 200) });
@@ -429,15 +439,11 @@ Answer the question thoroughly. Then identify any strategies or insights that co
 
 async function setNewGoals(userId: string, userChannels: any[]): Promise<void> {
   try {
-    const activeGoals = await db.select().from(improvementGoals)
-      .where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active")));
+    const activeGoals = await getUserData<any>(siStore, userId, "goals_active");
 
     if (activeGoals.length >= 5) return;
 
-    const lastReflection = await db.select().from(selfReflectionJournal)
-      .where(eq(selfReflectionJournal.userId, userId))
-      .orderBy(desc(selfReflectionJournal.createdAt))
-      .limit(1);
+    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
 
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
@@ -482,6 +488,7 @@ Return JSON array of 1-2 goals: [{"goalType": "views|retention|seo|thumbnails|sh
       }
     }
 
+    invalidateUserData(siStore, userId, "goals_active");
     logger.info("Goals set", { userId, newGoals: goals?.length || 0, existingGoals: activeGoals.length });
   } catch (err) {
     logger.warn("Goal setting failed", { error: String(err).slice(0, 200) });
@@ -490,15 +497,11 @@ Return JSON array of 1-2 goals: [{"goalType": "views|retention|seo|thumbnails|sh
 
 async function reviewGoalProgress(userId: string): Promise<void> {
   try {
-    const activeGoals = await db.select().from(improvementGoals)
-      .where(and(eq(improvementGoals.userId, userId), eq(improvementGoals.status, "active")));
+    const activeGoals = await getUserData<any>(siStore, userId, "goals_active");
 
     if (activeGoals.length === 0) return;
 
-    const recentImprovements = await db.select().from(systemImprovements)
-      .where(eq(systemImprovements.userId, userId))
-      .orderBy(desc(systemImprovements.createdAt))
-      .limit(20);
+    const recentImprovements = await getUserData<any>(siStore, userId, "improvements_recent");
 
     for (const goal of activeGoals) {
       const relevantImprovements = recentImprovements.filter(i => {
@@ -580,6 +583,8 @@ Estimate updated progress and reflect. Return JSON: {"newProgress": 0-100, "newC
       }
     }
 
+    invalidateUserData(siStore, userId, "goals_active");
+    invalidateUserData(siStore, userId, "improvements_recent");
     logger.info("Goal progress reviewed", { userId, goalsReviewed: activeGoals.length });
   } catch (err) {
     logger.warn("Goal progress review failed", { error: String(err).slice(0, 200) });
@@ -610,10 +615,7 @@ async function scanWebForStrategies(userId: string): Promise<void> {
       ).join("\n");
     }
 
-    const lastReflection = await db.select().from(selfReflectionJournal)
-      .where(eq(selfReflectionJournal.userId, userId))
-      .orderBy(desc(selfReflectionJournal.createdAt))
-      .limit(1);
+    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
 
     const currentMood = lastReflection[0]?.mood || "curious";
     const currentWeaknesses = lastReflection[0]?.weaknessesAdmitted || [];
@@ -649,6 +651,7 @@ async function scanWebForStrategies(userId: string): Promise<void> {
       logger.debug("Strategy parse failed — skipping", { topic });
     }
 
+    invalidateUserData(siStore, userId, "strategies_active");
     logger.info("Web strategy scan complete", { topic, userId });
   } catch (err) {
     logger.warn("Web strategy scan failed", { topic, error: String(err).slice(0, 200) });
@@ -815,6 +818,7 @@ async function evolveStrategies(userId: string): Promise<void> {
         innerMonologue: `I kept trying "${strategy.title}" but it's not working. Time to cut my losses and focus energy elsewhere. A smart person knows when to quit a bad approach.`,
       });
 
+      invalidateUserData(siStore, userId, "strategies_active");
       logger.info("Strategy deactivated — low effectiveness", { title: strategy.title, successRate });
     }
   }
@@ -841,12 +845,9 @@ async function analyzeAndLearnFromContent(userId: string, videoId: number): Prom
   const topTitlePatterns = channelVideos.slice(0, 3).map(v => v.title).join(" | ");
   const topGames = [...new Set(channelVideos.map(v => (v.metadata as any)?.gameName).filter(Boolean))];
 
-  const activeStrategies = await db.select().from(discoveredStrategies)
-    .where(eq(discoveredStrategies.isActive, true))
-    .orderBy(desc(discoveredStrategies.effectiveness))
-    .limit(5);
+  const activeStrategies = (await getUserData<any>(siStore, userId, "strategies_active")).slice(0, 5);
 
-  const strategyList = activeStrategies.map(s => `${s.title} (${s.effectiveness}% effective)`).join(", ");
+  const strategyList = activeStrategies.map((s: any) => `${s.title} (${s.effectiveness}% effective)`).join(", ");
 
   try {
     const aiResult = await executeRoutedAICall(
