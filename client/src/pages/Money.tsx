@@ -338,7 +338,7 @@ export default function Money() {
 
   const { data: sponsorData } = useQuery({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
-    enabled: !!userId,
+    enabled: !!userId && (activeTab === "sponsors" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
   const { data: merchData } = useQuery({ 
@@ -355,7 +355,7 @@ export default function Money() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
 
-  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
+  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, enabled: activeTab === "checkout" || activeTab === "revenue" });
   const payments = safeArray(rawPayments);
 
   const createPaymentMutation = useMutation({

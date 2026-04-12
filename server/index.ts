@@ -354,6 +354,7 @@ app.use("/api", (req: Request, res: Response, next: NextFunction) => {
 });
 
 const authRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+registerMap("authRateLimitMap", authRateLimitMap, 500);
 const AUTH_RATE_LIMIT = 20;
 const AUTH_RATE_WINDOW = 60_000;
 

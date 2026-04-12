@@ -45,7 +45,7 @@ export function AppSidebar() {
   const { data: agentStatus } = useQuery<any[]>({
     queryKey: ["/api/agents/status"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   const activeAgents = agentStatus?.filter((a: any) => a.status === "active").length ?? 0;

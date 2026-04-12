@@ -27,6 +27,11 @@ interface PipelineSession {
 
 const sessions = new Map<string, PipelineSession>();
 
+try {
+  const { registerMap } = require("./services/resilience-core");
+  registerMap("shorts-pipeline-sessions", sessions, 50);
+} catch {}
+
 export async function startShortsPipeline(
   userId: string,
   mode: "full" | "new-only" = "full"

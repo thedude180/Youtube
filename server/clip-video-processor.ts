@@ -23,6 +23,13 @@ if (!fs.existsSync(CLIP_DIR)) {
 const activeDownloads = new Map<string, Promise<string>>();
 
 const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number }>();
+
+try {
+  const { registerMap } = require("./services/resilience-core");
+  registerMap("clip-activeDownloads", activeDownloads, 50);
+  registerMap("clip-permanentlyFailedIds", permanentlyFailedIds, 200);
+} catch {}
+
 const PERMANENT_FAIL_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 export function markPermanentlyFailed(youtubeId: string, reason: string): void {

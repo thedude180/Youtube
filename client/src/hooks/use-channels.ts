@@ -7,7 +7,7 @@ export function useChannels() {
   return useQuery<Channel[]>({
     queryKey: ['/api/channels'],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 }
 

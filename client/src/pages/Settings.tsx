@@ -74,7 +74,7 @@ function GeneralTab() {
   const { data: oauthStatus } = useQuery<Record<string, { hasOAuth: boolean; configured: boolean }>>({
     queryKey: ["/api/oauth/status"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
   const { t, i18n } = useTranslation();
   const { toast } = useToast();

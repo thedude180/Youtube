@@ -93,7 +93,7 @@ export default function SmartEditPanel() {
     refetchInterval: (query) => {
       const jobs = safeArray<SmartEditJob>(query.state.data);
       const hasActive = jobs.some(j => j.status === "pending" || j.status === "processing");
-      return hasActive ? 8000 : 30000;
+      return hasActive ? 60_000 : 3 * 60_000;
     },
   });
 

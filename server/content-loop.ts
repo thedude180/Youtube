@@ -20,6 +20,12 @@ interface UserLoopState {
 const userLoops = new Map<string, UserLoopState>();
 const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+try {
+  const { registerMap } = require("./services/resilience-core");
+  registerMap("content-userLoops", userLoops, 50);
+  registerMap("content-activeTimers", activeTimers, 50);
+} catch {}
+
 const MIN_DELAY_MS = 15_000;
 const MAX_DELAY_MS = 5 * 60_000;
 const IDLE_CHECK_MS = 5 * 60_000;

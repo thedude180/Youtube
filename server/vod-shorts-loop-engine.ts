@@ -55,6 +55,11 @@ function createFreshPhases(): PhaseState[] {
 
 const activeLoops = new Map<string, { runId: number; phase: VodPhase; abortController: AbortController }>();
 
+try {
+  const { registerMap } = require("./services/resilience-core");
+  registerMap("vod-shorts-activeLoops", activeLoops, 20);
+} catch {}
+
 async function updatePhase(runId: number, phaseName: string, update: Partial<PhaseState>, userId: string) {
   const [run] = await db.select().from(vodShortsLoopRuns).where(eq(vodShortsLoopRuns.id, runId));
   if (!run) return;

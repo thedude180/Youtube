@@ -56,7 +56,7 @@ interface SafeModeThresholds {
 const safeModeThresholds: SafeModeThresholds = {
   errorRatePerMinute: 20,
   failedJobsPercent: 50,
-  memoryUsagePercent: 90,
+  memoryUsagePercent: 97,
 };
 
 export function getSafeModeThresholds(): SafeModeThresholds {

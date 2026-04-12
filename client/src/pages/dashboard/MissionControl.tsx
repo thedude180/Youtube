@@ -337,13 +337,13 @@ export default function MissionControl() {
   const { data: healthData, isLoading: healthLoading } = useQuery<HealthData>({
     queryKey: ["/api/system/health"],
     refetchInterval: 2 * 60_000,
-    staleTime: 10000,
+    staleTime: 60_000,
   });
 
   const { data: enginesData, isLoading: enginesLoading } = useQuery<any>({
     queryKey: ["/api/health/engines"],
     refetchInterval: 2 * 60_000,
-    staleTime: 10000,
+    staleTime: 60_000,
   });
 
   if (healthLoading && enginesLoading) {

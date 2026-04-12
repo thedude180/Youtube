@@ -30,7 +30,7 @@ export function HealthRibbon() {
   const { data: health } = useQuery<HealthResponse>({
     queryKey: ["/api/system/health"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20000,
+    staleTime: 60_000,
   });
 
   const dbStatus = health?.database?.status === "healthy" ? "green" : health?.database ? "red" : "yellow";

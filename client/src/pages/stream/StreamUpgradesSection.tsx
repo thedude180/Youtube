@@ -63,7 +63,7 @@ function HighlightsSection() {
   const { data, isLoading, error } = useQuery<Highlight[]>({
     queryKey: ["/api/stream-upgrades/highlights"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   return (
@@ -138,7 +138,7 @@ function ChatSentimentSection() {
   const { data, isLoading, error } = useQuery<ChatSentiment>({
     queryKey: ["/api/stream-upgrades/chat-sentiment"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   const moods = data?.moods;
@@ -238,7 +238,7 @@ function OverlaysSection() {
   const { data, isLoading, error } = useQuery<Overlay[]>({
     queryKey: ["/api/stream-upgrades/overlay"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   const toggleMutation = useMutation({
@@ -401,7 +401,7 @@ function ScheduleSection() {
   const { data, isLoading, error } = useQuery<ScheduleSlot[]>({
     queryKey: ["/api/stream-upgrades/schedule"],
     refetchInterval: 3 * 60_000,
-    staleTime: 20_000,
+    staleTime: 60_000,
   });
 
   const slotsByDay = DAYS.reduce<Record<string, ScheduleSlot[]>>((acc, day) => {

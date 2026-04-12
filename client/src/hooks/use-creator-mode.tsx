@@ -55,14 +55,14 @@ export function CreatorModeProvider({ children }: { children: React.ReactNode })
     queryKey: ["/api/youtube/live-status"],
     refetchInterval: 3 * 60_000,
     enabled: !!user,
-    staleTime: 20000,
+    staleTime: 60_000,
   });
 
   const { data: activeStream } = useQuery<any>({
     queryKey: ["/api/stream-pipeline/active"],
     refetchInterval: 3 * 60_000,
     enabled: !!user,
-    staleTime: 20000,
+    staleTime: 60_000,
   });
 
   const isLive = !!(ytLiveStatus?.connected && ytLiveStatus?.liveStreamId) || !!(activeStream?.id && activeStream?.status === "running");

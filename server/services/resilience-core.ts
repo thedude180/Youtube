@@ -214,7 +214,7 @@ export function startResilienceWatchdog(): void {
   // from watchdog-start, not from module-load — prevents a false-positive "stall"
   // that would otherwise show the full startup time as a stall.
   lastHealthCheckMs = Date.now();
-  watchdogInterval = setInterval(runWatchdog, 30_000);
+  watchdogInterval = setInterval(runWatchdog, 60_000);
 }
 
 export function stopResilienceWatchdog(): void {

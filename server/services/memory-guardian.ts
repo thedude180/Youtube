@@ -142,7 +142,7 @@ setInterval(() => {
   } catch (e) {
     console.error("[MemoryGuardian] Error in tick:", e);
   }
-}, 15_000);
+}, 60_000);
 
 export function getMemoryStats() {
   return memoryGuardian.getStats();
