@@ -9395,3 +9395,33 @@ export const videoCatalogLinks = pgTable("video_catalog_links", {
 export const insertVideoCatalogLinkSchema = createInsertSchema(videoCatalogLinks).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertVideoCatalogLink = z.infer<typeof insertVideoCatalogLinkSchema>;
 export type VideoCatalogLink = typeof videoCatalogLinks.$inferSelect;
+
+export const thumbnailIntelligence = pgTable("thumbnail_intelligence", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  gameName: text("game_name").notNull(),
+  researchQuery: text("research_query").notNull(),
+  referenceImages: jsonb("reference_images").$type<Array<{ url: string; title: string; source: string }>>().default([]),
+  patterns: jsonb("patterns").$type<{
+    colorSchemes: string[];
+    compositions: string[];
+    emotionalTriggers: string[];
+    textOverlayStyles: string[];
+    commonElements: string[];
+    avoidPatterns: string[];
+  }>(),
+  bestPractices: text("best_practices"),
+  gamingNicheInsights: text("gaming_niche_insights"),
+  ctrTactics: text("ctr_tactics"),
+  antiClickbaitGuidelines: text("anti_clickbait_guidelines"),
+  effectivenessScore: integer("effectiveness_score").default(50),
+  timesUsed: integer("times_used").default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("ti_user_idx").on(t.userId),
+  index("ti_game_idx").on(t.gameName),
+]);

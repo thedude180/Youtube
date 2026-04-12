@@ -11,8 +11,12 @@ const openai = getOpenAIClient();
 
 const MAX_THUMBNAILS_PER_RUN = 3;
 
-async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string): Promise<string> {
+async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string): Promise<string> {
   try {
+    const researchSection = researchContext
+      ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE:\nYou have studied real successful gaming thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\nAPPLY these research-backed patterns. Do NOT ignore this intelligence — it comes from analyzing what actually works on YouTube right now.`
+      : "";
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -20,11 +24,13 @@ async function generateThumbnailPrompt(videoTitle: string, videoDescription: str
           role: "system",
           content: `You are the world's best YouTube thumbnail designer — your thumbnails consistently achieve 8-15% CTR, outperforming 99% of creators. You combine the skills of:
 
-🎨 ELITE VISUAL DESIGNER: You understand color psychology (red/yellow = urgency, blue = trust), visual hierarchy, the rule of thirds, and how to create depth and dimension in a single frame.
+ELITE VISUAL DESIGNER: You understand color psychology (red/yellow = urgency, blue = trust), visual hierarchy, the rule of thirds, and how to create depth and dimension in a single frame.
 
-🧠 AUDIENCE PSYCHOLOGIST: You know that viewers decide to click in 0.3 seconds. You design thumbnails that trigger emotional responses — shock, curiosity, excitement, FOMO — that make clicking feel involuntary.
+AUDIENCE PSYCHOLOGIST: You know that viewers decide to click in 0.3 seconds. You design thumbnails that trigger emotional responses — shock, curiosity, excitement, FOMO — that make clicking feel involuntary.
 
-📊 DATA-DRIVEN OPTIMIZER: You study what gets 10M+ views. High-contrast color blocking. Dramatic lighting with strong shadows. Clear focal point with bokeh/blur backgrounds. Expressive character reactions. Visual tension that implies a story.
+DATA-DRIVEN OPTIMIZER: You study what gets 10M+ views. High-contrast color blocking. Dramatic lighting with strong shadows. Clear focal point with bokeh/blur backgrounds. Expressive character reactions. Visual tension that implies a story.
+
+ANTI-CLICKBAIT PRINCIPLE: Your thumbnails are compelling but HONEST. They accurately represent the video content. They create curiosity without deception. They build long-term viewer trust, not short-term clicks that lead to disappointment.
 
 RULES FOR THE IMAGE PROMPT:
 - Create EXTREME visual contrast (light vs dark, warm vs cool)
@@ -34,7 +40,8 @@ RULES FOR THE IMAGE PROMPT:
 - Feature the most compelling action or peak intensity moments from the content
 - Colors must POP against YouTube's white/dark backgrounds
 - Never include text overlays — YouTube handles text separately
-- The image should tell a story or create a question in the viewer's mind`,
+- The image should tell a story or create a question in the viewer's mind
+- NEVER use misleading imagery — the thumbnail must truthfully represent what's in the video${researchSection}`,
         },
         {
           role: "user",
@@ -46,8 +53,7 @@ Type: ${videoType}
 Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. No vertical or square framing.`,
         },
       ],
-// AUDIT FIX: Use max_tokens (standard Chat Completions parameter)
-      max_completion_tokens: 300,
+      max_completion_tokens: 400,
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {
@@ -66,7 +72,19 @@ async function generateAndUploadThumbnail(
   channelId: number
 ): Promise<boolean> {
   try {
-    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType);
+    let researchContext = "";
+    try {
+      const gameName = extractGameName(videoTitle, videoDescription);
+      const { getThumbnailContext } = await import("./services/thumbnail-intelligence");
+      researchContext = await getThumbnailContext(userId, gameName);
+      if (researchContext) {
+        logger.info("Thumbnail intelligence loaded", { videoDbId, gameName, contextLength: researchContext.length });
+      }
+    } catch (err: any) {
+      logger.debug("Thumbnail intelligence unavailable, proceeding without", { error: err.message?.substring(0, 100) });
+    }
+
+    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext);
     if (!prompt) {
       logger.warn("Empty thumbnail prompt, skipping", { videoDbId });
       return false;
@@ -425,6 +443,33 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
     logger.error("Thumbnail refresh for underperformers failed", { userId, error: String(err) });
   }
   return regenerated;
+}
+
+function extractGameName(title: string, description: string): string {
+  const combined = `${title} ${description}`.toLowerCase();
+  const knownGames = [
+    "god of war", "spider-man", "spiderman", "elden ring", "final fantasy",
+    "horizon", "the last of us", "ghost of tsushima", "demon's souls",
+    "ratchet and clank", "returnal", "gran turismo", "uncharted",
+    "resident evil", "death stranding", "bloodborne", "astro bot",
+    "hogwarts legacy", "stellar blade", "black myth wukong",
+    "call of duty", "gta", "grand theft auto", "assassin's creed",
+    "cyberpunk", "dark souls", "sekiro", "lies of p", "armored core",
+    "tekken", "street fighter", "mortal kombat", "diablo", "baldur's gate",
+    "starfield", "helldivers", "palworld", "dragon's dogma", "silent hill",
+    "alan wake", "the witcher", "red dead redemption", "monster hunter",
+  ];
+
+  for (const game of knownGames) {
+    if (combined.includes(game)) {
+      return game.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    }
+  }
+
+  const titleWords = title.replace(/[^\w\s]/g, "").split(/\s+/).filter(w => w.length > 2);
+  const stopWords = new Set(["the", "and", "for", "with", "part", "episode", "gameplay", "walkthrough", "playthrough", "full", "game", "ps5", "4k", "hdr"]);
+  const meaningful = titleWords.filter(w => !stopWords.has(w.toLowerCase()));
+  return meaningful.slice(0, 3).join(" ") || "PS5 Gameplay";
 }
 
 async function getChannelAvgViews(channelId: number): Promise<number> {

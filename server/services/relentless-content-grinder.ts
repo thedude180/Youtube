@@ -354,6 +354,16 @@ async function viralThumbnailRedesign(userId: string, video: any): Promise<boole
   if (viewCount > 1000 && ctr > 6) return false;
 
   try {
+    let researchNote = "";
+    try {
+      const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+      const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
+      const intel = await researchThumbnailsForGame(userId, gameName);
+      if (intel) {
+        researchNote = `Web-researched: ${intel.references.length} reference thumbnails studied`;
+      }
+    } catch {}
+
     const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
     await generateThumbnailForNewVideo(userId, video.id);
 
@@ -365,6 +375,8 @@ async function viralThumbnailRedesign(userId: string, video: any): Promise<boole
         thumbnailRedesignReason: viewCount > 0 && ctr < 5
           ? `Low CTR (${ctr}%) — redesigning for higher click-through`
           : "Proactive thumbnail optimization for virality",
+        thumbnailResearchUsed: !!researchNote,
+        thumbnailResearchNote: researchNote || undefined,
       },
     });
 
