@@ -914,10 +914,10 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
 
     const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
-    // Pass userId so downloadSourceVideo can use the creator's OAuth token —
-    // authenticated requests bypass YouTube's server-side bot detection.
+    const startSec = meta.segmentStartSec ?? startMin * 60;
+    const endSec = meta.segmentEndSec ?? endMin * 60;
     const sourcePath = await downloadSourceVideo(youtubeSourceId, post.userId);
-    const clipPath = await cutClipFromVideo(sourcePath, startMin * 60, endMin * 60, post.id);
+    const clipPath = await cutClipFromVideo(sourcePath, startSec, endSec, post.id);
 
     const { uploadVideoToYouTube } = await import("./youtube");
     const { isMonetizationUnlocked } = await import("./services/monetization-check");
@@ -1040,6 +1040,123 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     return { success: false, error: "YouTube upload returned no result" };
   } catch (err: any) {
     logger.error("Stream clip publish failed", { postId: post.id, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
+  try {
+    const sourceYoutubeId = meta.sourceYoutubeId;
+    const startSec = meta.segmentStartSec ?? (meta.segmentStartMin ?? 0) * 60;
+    const endSec = meta.segmentEndSec ?? (meta.segmentEndMin ?? 0) * 60;
+    const isShort = meta.contentType === "youtube-short";
+    const gameName = meta.gameName || "PS5 Gameplay";
+
+    if (!sourceYoutubeId || endSec <= startSec) {
+      return { success: false, error: "Missing sourceYoutubeId or invalid timestamps" };
+    }
+
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find(c => c.accessToken);
+    if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
+
+    const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
+    const sourcePath = await downloadSourceVideo(sourceYoutubeId, post.userId);
+    const clipPath = await cutClipFromVideo(sourcePath, startSec, endSec, post.id);
+
+    let title = (post.caption || `${gameName} Gameplay`).substring(0, isShort ? 95 : 100);
+    let description = post.content || "";
+    const tags: string[] = meta.tags || [];
+
+    const { copyrightCheckAndFix } = await import("./services/copyright-check");
+    const copyCheck = await copyrightCheckAndFix(description, title, "youtube", meta);
+    if (!copyCheck.approved) {
+      cleanupClipFile(clipPath);
+      return { success: false, error: `Copyright blocked: ${copyCheck.issues[0]?.description || "Risk detected"}` };
+    }
+    if (copyCheck.wasRewritten) {
+      title = (copyCheck.caption || title).substring(0, isShort ? 95 : 100);
+      description = copyCheck.content || description;
+    }
+
+    const { uploadVideoToYouTube } = await import("./youtube");
+    const { isMonetizationUnlocked } = await import("./services/monetization-check");
+    const monetizationEnabled = await isMonetizationUnlocked(post.userId, "youtube");
+
+    const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
+      title,
+      description,
+      tags,
+      categoryId: meta.categoryId || "20",
+      privacyStatus: "public",
+      videoFilePath: clipPath,
+      enableMonetization: monetizationEnabled,
+    });
+
+    cleanupClipFile(clipPath);
+
+    if (uploadResult?.youtubeId) {
+      logger.info("Maximizer clip uploaded", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort, gameName });
+
+      try {
+        const clipVideo = await storage.createVideo({
+          channelId: ytChannel.id,
+          title,
+          thumbnailUrl: "",
+          type: isShort ? "short" : "long",
+          status: "published",
+          platform: "youtube",
+          description,
+          metadata: {
+            youtubeId: uploadResult.youtubeId,
+            contentType: isShort ? "youtube-short" : "long-form-compilation",
+            tags,
+            durationSec: endSec - startSec,
+            publishedAt: new Date().toISOString(),
+            sourceVideoId: post.sourceVideoId,
+            gameName,
+            noCommentary: true,
+            maximizerGenerated: true,
+            experimentalDuration: meta.experimentalDuration,
+          } as any,
+        });
+
+        const { assignSingleVideoToPlaylist } = await import("./playlist-manager");
+        assignSingleVideoToPlaylist(post.userId, clipVideo.id, ytChannel.id).catch(() => {});
+
+        const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
+        generateThumbnailForNewVideo(post.userId, clipVideo.id).catch(() => {});
+
+        import("./publish-verifier").then(({ verifyVideoUpload }) => {
+          verifyVideoUpload(clipVideo.id, post.userId, uploadResult.youtubeId, "content_maximizer").catch(() => {});
+        });
+
+        const { contentExperiments } = await import("@shared/schema");
+        await db.update(contentExperiments).set({
+          resultVideoYoutubeId: uploadResult.youtubeId,
+          resultVideoDbId: clipVideo.id,
+          status: "published",
+        }).where(and(
+          eq(contentExperiments.userId, post.userId),
+          eq(contentExperiments.sourceVideoId, post.sourceVideoId || 0),
+          eq(contentExperiments.durationSec, meta.experimentalDuration || (endSec - startSec)),
+          eq(contentExperiments.status, "pending"),
+        )).catch(() => undefined);
+      } catch (err) {
+        logger.warn("Failed to create maximizer clip video record", { error: String(err).substring(0, 200) });
+      }
+
+      return {
+        success: true,
+        postId: uploadResult.youtubeId,
+        postUrl: `https://www.youtube.com/watch?v=${uploadResult.youtubeId}`,
+      };
+    }
+
+    return { success: false, error: "YouTube upload returned no result" };
+  } catch (err: any) {
+    logger.error("Maximizer clip publish failed", { postId: post.id, error: err.message?.substring(0, 300) });
     return { success: false, error: err.message };
   }
 }
@@ -1266,7 +1383,9 @@ export async function processScheduledPosts() {
 
       let result: any;
 
-      if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.sourceStreamId && meta.segmentStartMin != null) {
+      if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.maximizerGenerated && meta.sourceYoutubeId) {
+        result = await handleMaximizerClipPublish(post, meta);
+      } else if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.sourceStreamId && meta.segmentStartMin != null) {
         result = await handleStreamClipPublish(post, meta);
       } else {
         result = await publishToplatform(

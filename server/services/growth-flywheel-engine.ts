@@ -111,6 +111,13 @@ async function spinFlywheelForUser(userId: string): Promise<void> {
     logger.warn("Performance feedback loop failed", { userId, error: String(err).slice(0, 100) });
   }
 
+  try {
+    const { measureExperimentResults } = await import("./content-maximizer");
+    await measureExperimentResults(userId);
+  } catch (err) {
+    logger.warn("Duration experiment measurement failed", { userId, error: String(err).slice(0, 100) });
+  }
+
   const lastFlywheel = await db.select().from(growthFlywheel)
     .where(eq(growthFlywheel.userId, userId))
     .orderBy(desc(growthFlywheel.createdAt))

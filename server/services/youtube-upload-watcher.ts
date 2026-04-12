@@ -96,6 +96,16 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
     logger.warn(`[${userId}] SEO optimization failed for video ${videoId}: ${err.message}`);
   }
 
+  if (durationSec >= 3600) {
+    try {
+      const { maximizeContentFromVideo } = await import("./content-maximizer");
+      const result = await maximizeContentFromVideo(userId, videoId);
+      logger.info(`[${userId}] Content maximizer: ${result.shortsQueued} shorts + ${result.longFormsQueued} long-forms queued, ${result.experimentsCreated} experiments`);
+    } catch (err: any) {
+      logger.warn(`[${userId}] Content maximizer failed for video ${videoId}: ${err.message}`);
+    }
+  }
+
   try {
     const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
     generateThumbnailForNewVideo(userId, videoId).catch(() => undefined);

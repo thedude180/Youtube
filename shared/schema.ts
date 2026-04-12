@@ -9210,3 +9210,30 @@ export const crossChannelInsights = pgTable("cross_channel_insights", {
   index("cci_user_idx").on(t.userId),
   index("cci_type_idx").on(t.insightType),
 ]);
+
+export const contentExperiments = pgTable("content_experiments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  experimentType: text("experiment_type").notNull(),
+  contentType: text("content_type").notNull(),
+  durationSec: integer("duration_sec").notNull(),
+  sourceVideoId: integer("source_video_id"),
+  resultVideoYoutubeId: text("result_video_youtube_id"),
+  resultVideoDbId: integer("result_video_db_id"),
+  status: text("status").notNull().default("pending"),
+  views: integer("views").default(0),
+  averageViewDuration: integer("average_view_duration").default(0),
+  retentionPercent: integer("retention_percent").default(0),
+  likes: integer("likes").default(0),
+  measuredAt: timestamp("measured_at"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("content_exp_user_idx").on(t.userId),
+  index("content_exp_type_idx").on(t.experimentType),
+  index("content_exp_status_idx").on(t.status),
+]);
+
+export const insertContentExperimentSchema = createInsertSchema(contentExperiments).omit({ id: true, createdAt: true });
+export type InsertContentExperiment = z.infer<typeof insertContentExperimentSchema>;
+export type ContentExperiment = typeof contentExperiments.$inferSelect;
