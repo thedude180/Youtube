@@ -18,6 +18,7 @@ import { sendAgentMessage } from "./kernel/interop";
 import { runEval } from "./kernel/eval";
 import { checkTrustBudget, type TrustBudgetResult } from "./kernel/trust-budget";
 import { probeCapability } from "./kernel/capability-probe";
+import { lookupGameFromWeb } from "./services/web-game-lookup";
 
 const logger = createLogger("smart-edit-engine");
 const execFileAsync = promisify(execFile);
@@ -218,6 +219,14 @@ Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of
 }
 
 async function detectGameNameFromText(title: string, description: string): Promise<string> {
+  const combined = `${title} ${description || ""}`;
+
+  const webGame = await lookupGameFromWeb(combined);
+  if (webGame) {
+    logger.info("Game identified from web lookup before AI", { webGame, title });
+    return webGame;
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",

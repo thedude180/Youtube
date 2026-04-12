@@ -5,6 +5,7 @@ import { createLogger } from "./lib/logger";
 import { detectGameFromFrames } from "./smart-edit-engine";
 import { downloadSourceVideo } from "./clip-video-processor";
 import { generateVideoMetadata } from "./ai-engine";
+import { lookupGameFromWeb } from "./services/web-game-lookup";
 import * as fs from "fs";
 
 const logger = createLogger("game-detection-engine");
@@ -50,7 +51,9 @@ async function processUserCatalog(userId: string): Promise<void> {
 
   const needsDetection = userVideos.filter(v => {
     const meta = (v.metadata || {}) as any;
-    return !meta.gameDetectionMethod || meta.gameDetectionMethod !== "vision";
+    if (!meta.gameDetectionMethod) return true;
+    if (meta.gameDetectionMethod === "vision" || meta.gameDetectionMethod === "web-lookup") return false;
+    return true;
   });
 
   if (needsDetection.length === 0) {
@@ -83,27 +86,41 @@ async function processUserCatalog(userId: string): Promise<void> {
       }
 
       let sourcePath: string | null = null;
+      let newGame: string;
+      const oldGame = meta?.gameName || "Unknown";
+
       try {
         sourcePath = await downloadSourceVideo(youtubeVideoId, userId);
       } catch {
-        processed++;
-        errors++;
-        await sleep(DELAY_BETWEEN_VIDEOS_MS);
-        continue;
+        logger.info("Video download failed, using web lookup for game detection", { videoId: video.id });
       }
 
-      const oldGame = meta?.gameName || "Unknown";
-      const newGame = await detectGameFromFrames(
-        sourcePath,
-        video.title || "",
-        video.description || "",
-      );
+      if (sourcePath) {
+        newGame = await detectGameFromFrames(
+          sourcePath,
+          video.title || "",
+          video.description || "",
+        );
+      } else {
+        const webGame = await lookupGameFromWeb(`${video.title || ""} ${video.description || ""}`);
+        if (webGame) {
+          newGame = webGame;
+          logger.info("Game identified via web lookup (no video download)", { videoId: video.id, game: webGame });
+        } else {
+          newGame = "Unknown";
+          processed++;
+          errors++;
+          await sleep(DELAY_BETWEEN_VIDEOS_MS);
+          continue;
+        }
+      }
 
+      const detectionMethod = sourcePath ? "vision" : "web-lookup";
       await db.update(videos).set({
         metadata: {
           ...meta,
           gameName: newGame,
-          gameDetectionMethod: "vision",
+          gameDetectionMethod: detectionMethod,
           previousGameName: oldGame !== newGame ? oldGame : meta.previousGameName,
           gameDetectedAt: new Date().toISOString(),
         },
