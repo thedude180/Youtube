@@ -9425,3 +9425,49 @@ export const thumbnailIntelligence = pgTable("thumbnail_intelligence", {
   index("ti_user_idx").on(t.userId),
   index("ti_game_idx").on(t.gameName),
 ]);
+
+export const aiMusicTracks = pgTable("ai_music_tracks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  genre: text("genre").notNull(),
+  mood: text("mood").notNull(),
+  gameName: text("game_name"),
+  durationSec: integer("duration_sec").default(60),
+  inspirationSources: jsonb("inspiration_sources").$type<Array<{ title: string; artist: string; style: string; source: string }>>().default([]),
+  compositionPrompt: text("composition_prompt"),
+  musicalElements: jsonb("musical_elements").$type<{
+    tempo: string;
+    key: string;
+    instruments: string[];
+    style: string;
+    structure: string;
+  }>(),
+  copyrightStatus: text("copyright_status").notNull().default("original"),
+  copyrightNotes: text("copyright_notes"),
+  usageContext: text("usage_context"),
+  audioUrl: text("audio_url"),
+  timesUsed: integer("times_used").default(0),
+  effectivenessScore: integer("effectiveness_score").default(50),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("amt_user_idx").on(t.userId),
+  index("amt_genre_idx").on(t.genre),
+]);
+
+export const originalityResearch = pgTable("originality_research", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  contentType: text("content_type").notNull(),
+  topic: text("topic").notNull(),
+  webSources: jsonb("web_sources").$type<Array<{ url: string; title: string; snippet: string }>>().default([]),
+  synthesizedInsights: text("synthesized_insights"),
+  originalAngle: text("original_angle"),
+  copyrightSafe: boolean("copyright_safe").default(true),
+  timesUsed: integer("times_used").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("or_user_idx").on(t.userId),
+  index("or_type_idx").on(t.contentType),
+]);
