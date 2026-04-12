@@ -5,6 +5,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, gte, sql, ne } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData, getAllStoreStats } from "../lib/engine-store";
 import { executeRoutedAICall } from "./ai-model-router";
 
@@ -358,7 +359,7 @@ Return JSON: {
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
 
     if (result.newPrinciples && Array.isArray(result.newPrinciples)) {
       for (const p of result.newPrinciples.slice(0, 5)) {

@@ -3,8 +3,9 @@ import {
   videos, channels, discoveredStrategies, autonomousActions,
   systemImprovements, memoryConsolidation, studioVideos,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, gt, sql, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { buildKnowledgeContext, getApplicableStrategies } from "./knowledge-context-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
@@ -44,7 +45,7 @@ export async function runFullContentOptimization(userId: string, videoId: number
     const principleBlock = principles.map(p => `• [${p.category}] ${p.principle}`).join("\n");
 
     const channelVideos = await db.select().from(videos)
-      .where(and(eq(videos.channelId, v.channelId!), sql`${videos.viewCount} > 0`))
+      .where(and(eq(videos.channelId, v.channelId!), gt(videos.viewCount, 0)))
       .orderBy(desc(videos.viewCount))
       .limit(5);
 
@@ -90,7 +91,7 @@ Generate the BEST possible version of this content. Apply every insight you have
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
     if (!result.optimizedTitle) {
       logger.warn("Autonomous pipeline returned empty result", { videoId });
       return;

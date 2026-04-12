@@ -2,6 +2,7 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 
 const logger = createLogger("vod-seo-optimizer");
@@ -53,7 +54,7 @@ Ensure the tone matches the creator's DNA.`;
         prompt
       );
 
-      const optimized = JSON.parse(aiResult.content || "{}");
+      const optimized = safeParseJSON(aiResult.content, {} as any);
 
       // 4. Update via YouTube API (Mocking the update call for now as per instructions)
       // In a real implementation, we would use the youtube client to call videos.update

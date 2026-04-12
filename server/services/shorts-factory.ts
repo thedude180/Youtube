@@ -2,6 +2,7 @@ import { creatorDNABuilder, withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { getEngineKnowledgeForContext, recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("shorts-factory");
@@ -52,7 +53,7 @@ Return a JSON array of objects with keys: "startTime", "endTime", "title", "reas
         prompt
       );
 
-      const parsed = JSON.parse(aiResult.content || "[]");
+      const parsed = safeParseJSON(aiResult.content, [] as any[]);
       const moments = Array.isArray(parsed) ? parsed : (parsed.moments || []);
 
       logger.info(`[ShortsFactory] AI identified ${moments.length} moments for VOD ${vodVideoId}`);

@@ -4,8 +4,9 @@ import {
   videos, channels, users, learningInsights, studioVideos,
   selfReflectionJournal, improvementGoals, curiosityQueue,
 } from "@shared/schema";
-import { eq, and, desc, gte, sql, inArray, lt, asc, ne } from "drizzle-orm";
+import { eq, and, desc, gte, gt, sql, inArray, lt, asc, ne, count, sum, avg, max } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
@@ -202,9 +203,9 @@ async function reflectOnSelf(userId: string, userChannels: any[], trigger: strin
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        totalViews: sql<number>`coalesce(sum(${videos.viewCount}), 0)`,
-        videoCount: sql<number>`count(*)`,
-        avgViews: sql<number>`coalesce(avg(${videos.viewCount}), 0)`,
+        totalViews: sql<number>`coalesce(sum(cast(${videos.viewCount} as bigint)), 0)`,
+        videoCount: count(),
+        avgViews: sql<number>`coalesce(avg(cast(${videos.viewCount} as real)), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));
       channelStats.push({ name: ch.channelName || ch.id, ...stats });
     }
@@ -272,7 +273,7 @@ Return JSON: {
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
     if (!result.selfAssessment) return;
 
     await db.insert(selfReflectionJournal).values({
@@ -343,7 +344,7 @@ ${existingQs || "None yet"}
 Generate 2-3 genuinely curious questions I should explore. Each should be specific, actionable, and born from a real gap in my knowledge. Return JSON array: [{"question": "the question", "context": "why I'm curious about this", "priority": 1-10, "origin": "blind_spot|weakness|opportunity|pattern_noticed|gut_feeling"}]`
     );
 
-    const questions = JSON.parse(aiResult.content || "[]");
+    const questions = safeParseJSON(aiResult.content, [] as any[]);
     if (Array.isArray(questions)) {
       for (const q of questions.slice(0, 3)) {
         if (!q.question) continue;
@@ -403,7 +404,7 @@ ${webContext || "No web data — use expertise."}
 Answer the question thoroughly. Then identify any strategies or insights that could improve a YouTube gaming channel. Return JSON: {"answer": "thorough answer", "insights": ["actionable insight 1", "insight 2"], "followUpQuestions": ["new question this raised"], "couldBecomeStrategy": true/false, "strategyDraft": {"title": "", "description": "", "strategyType": "", "applicableTo": []}}`
         );
 
-        const result = JSON.parse(aiResult.content || "{}");
+        const result = safeParseJSON(aiResult.content, {} as any);
 
         await db.update(curiosityQueue).set({
           status: "explored",
@@ -476,8 +477,8 @@ async function setNewGoals(userId: string, userChannels: any[]): Promise<void> {
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        avgViews: sql<number>`coalesce(avg(${videos.viewCount}), 0)`,
-        videoCount: sql<number>`count(*)`,
+        avgViews: sql<number>`coalesce(avg(cast(${videos.viewCount} as real)), 0)`,
+        videoCount: count(),
         maxViews: sql<number>`coalesce(max(${videos.viewCount}), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));
       channelStats.push({ name: ch.channelName || ch.id, ...stats });
@@ -498,7 +499,7 @@ Existing goals (don't duplicate): ${existingGoalTitles || "None"}
 Return JSON array of 1-2 goals: [{"goalType": "views|retention|seo|thumbnails|shorts|consistency|engagement|cross_channel", "title": "short goal title", "description": "what specifically I'll do", "targetMetric": "metric name", "currentValue": estimated current, "targetValue": target number, "unit": "views|percent|videos|score", "milestones": [{"label": "25% there", "value": 25}, {"label": "halfway", "value": 50}, {"label": "almost", "value": 75}]}]`
     );
 
-    const goals = JSON.parse(aiResult.content || "[]");
+    const goals = safeParseJSON(aiResult.content, [] as any[]);
     if (Array.isArray(goals)) {
       for (const goal of goals.slice(0, 2)) {
         if (!goal.title || !goal.targetMetric) continue;
@@ -552,7 +553,7 @@ Recent relevant improvements: ${relevantImprovements.map(i => i.afterState).join
 Estimate updated progress and reflect. Return JSON: {"newProgress": 0-100, "newCurrentValue": number, "reflection": "honest assessment", "milestonesReached": [numbers], "shouldAbandon": false, "abandonReason": ""}`
       );
 
-      const result = JSON.parse(aiResult.content || "{}");
+      const result = safeParseJSON(aiResult.content, {} as any);
       const newProgress = Math.min(100, Math.max(0, result.newProgress || goal.progress));
 
       const updatedMilestones = (goal.milestones as any[] || []).map((m: any) => ({
@@ -655,7 +656,7 @@ async function scanWebForStrategies(userId: string): Promise<void> {
     );
 
     try {
-      const strategies = JSON.parse(aiResult.content || "[]");
+      const strategies = safeParseJSON(aiResult.content, [] as any[]);
       if (Array.isArray(strategies)) {
         for (const strategy of strategies.slice(0, 3)) {
           if (!strategy.title || !strategy.description || !strategy.strategyType) continue;
@@ -697,7 +698,7 @@ async function analyzeCrossChannelPerformance(userId: string, userChannels: any[
     const topVideos = await db.select().from(videos)
       .where(and(
         eq(videos.channelId, channel.id),
-        sql`${videos.viewCount} > 0`
+        gt(videos.viewCount, 0)
       ))
       .orderBy(desc(videos.viewCount))
       .limit(5);
@@ -718,7 +719,7 @@ async function analyzeCrossChannelPerformance(userId: string, userChannels: any[
         `Source channel top performers (avg ${Math.round(avgViews)} views):\nTitles: ${topTitles}\nGames: ${topGames.join(", ")}\n\nGenerate 2 cross-channel insights. Return JSON array: [{"insightType": "title_pattern|game_selection|upload_timing|thumbnail_style|content_format", "insight": "specific actionable insight", "evidence": {"avgViews": ${Math.round(avgViews)}, "topGames": ${JSON.stringify(topGames)}}, "confidenceScore": 50-100}]`
       );
 
-      const insights = JSON.parse(aiResult.content || "[]");
+      const insights = safeParseJSON(aiResult.content, [] as any[]);
       if (Array.isArray(insights)) {
         for (const insight of insights.slice(0, 2)) {
           if (!insight.insight || !insight.insightType) continue;
@@ -749,10 +750,10 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
   const underperformers = await db.select().from(videos)
     .where(and(
       inArray(videos.channelId, channelIds),
-      sql`${videos.publishedAt} < ${sevenDaysAgo}`,
-      sql`${videos.viewCount} > 0`,
+      lt(videos.publishedAt, sevenDaysAgo),
+      gt(videos.viewCount, 0),
     ))
-    .orderBy(sql`${videos.viewCount} ASC`)
+    .orderBy(asc(videos.viewCount))
     .limit(BACK_CATALOG_BATCH);
 
   if (underperformers.length === 0) return;
@@ -783,7 +784,7 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
         `Video: "${video.title}" (${video.viewCount} views, ${video.type})\nGame: ${meta.gameName || "Unknown"}\nDescription: ${(video.description || "").slice(0, 200)}\n\nProven strategies available:\n${strategyContext || "None yet — use best practices."}\n\nReturn JSON: {"improvements": [{"area": "title|description|tags|thumbnail", "current": "current state", "suggested": "improvement", "expectedImpact": "low|medium|high"}], "repurposeIdeas": ["idea1", "idea2"]}`
       );
 
-      const result = JSON.parse(aiResult.content || "{}");
+      const result = safeParseJSON(aiResult.content, {} as any);
       const improvements = result.improvements || [];
 
       await db.update(videos).set({
@@ -819,7 +820,7 @@ async function evolveStrategies(userId: string): Promise<void> {
   const strategies = await db.select().from(discoveredStrategies)
     .where(and(
       eq(discoveredStrategies.isActive, true),
-      sql`${discoveredStrategies.timesApplied} > 0`
+      gt(discoveredStrategies.timesApplied, 0)
     ))
     .limit(20);
 
@@ -863,7 +864,7 @@ async function analyzeAndLearnFromContent(userId: string, videoId: number): Prom
   const channelVideos = await db.select().from(videos)
     .where(and(
       eq(videos.channelId, video.channelId!),
-      sql`${videos.viewCount} > 0`
+      gt(videos.viewCount, 0)
     ))
     .orderBy(desc(videos.viewCount))
     .limit(10);
@@ -886,7 +887,7 @@ async function analyzeAndLearnFromContent(userId: string, videoId: number): Prom
       `New content: "${video.title}" (${video.type}, game: ${meta.gameName || "Unknown"})\nChannel avg views: ${Math.round(channelAvgViews)}\nTop performing titles: ${topTitlePatterns}\nTop games: ${topGames.join(", ")}\nActive strategies: ${strategyList || "None yet"}\n\nReturn JSON: {"learnings": [{"area": "title|game_selection|timing|format|thumbnail", "finding": "specific finding", "confidence": 50-100, "actionItem": "what to do next time"}], "strategyUpdates": [{"strategyTitle": "existing strategy title", "outcome": "success|failure"}]}`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
 
     if (result.learnings && Array.isArray(result.learnings)) {
       for (const learning of result.learnings) {
@@ -934,7 +935,7 @@ async function propagateInsightsToChannels(userId: string, videoId: number, user
       `Source video: "${video.title}" on channel ${sourceChannelId}\nGame: ${meta.gameName || "Unknown"}\nType: ${video.type}\n\nOther channels to propagate to: ${otherChannels.map(c => `${c.id} (${c.channelName || "unnamed"})`).join(", ")}\n\nReturn JSON array of max 2 insights: [{"insightType": "content_idea|game_crossover|audience_bridge|format_reuse", "insight": "specific actionable insight for other channels", "confidenceScore": 50-100}]`
     );
 
-    const insights = JSON.parse(aiResult.content || "[]");
+    const insights = safeParseJSON(aiResult.content, [] as any[]);
     if (Array.isArray(insights)) {
       for (const insight of insights.slice(0, 2)) {
         if (!insight.insight || !insight.insightType) continue;
@@ -981,7 +982,7 @@ async function identifyBackCatalogOpportunities(userId: string, newVideoId: numb
       `New video just published: "${newVideo.title}" (${gameName})\n\nExisting catalog for ${gameName}:\n${catalogTitles}\n\nIdentify 1-2 old videos that could benefit from refreshed titles, thumbnails, or being linked/referenced in the new video's end screen. Return JSON: {"opportunities": [{"videoTitle": "existing video title", "action": "refresh_title|refresh_thumbnail|add_endscreen|create_playlist", "reason": "why this helps"}]}`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
     if (result.opportunities && Array.isArray(result.opportunities)) {
       for (const opp of result.opportunities.slice(0, 2)) {
         await db.insert(systemImprovements).values({

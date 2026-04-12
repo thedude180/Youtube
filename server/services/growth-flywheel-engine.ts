@@ -4,8 +4,9 @@ import {
   discoveredStrategies, systemImprovements, selfReflectionJournal, improvementGoals,
   curiosityQueue, crossChannelInsights, videos, channels, users,
 } from "@shared/schema";
-import { eq, and, desc, gte, sql, lt, ne } from "drizzle-orm";
+import { eq, and, desc, gte, gt, sql, lt, ne, inArray, asc } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
@@ -226,7 +227,7 @@ Return JSON: {
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
     const phases = result.phases || [];
     const newMomentum = Math.min(100, Math.max(0, result.newMomentum || lastMomentum + 1));
     const compoundingFactor = Math.min(5, Math.max(1, result.compoundingFactor || 1));
@@ -323,10 +324,10 @@ async function executeAutonomousAction(userId: string, action: any): Promise<voi
 
       const underperformers = await db.select().from(videos)
         .where(and(
-          sql`${videos.channelId} = ANY(${channelIds})`,
-          sql`${videos.viewCount} > 0`,
+          inArray(videos.channelId, channelIds),
+          gt(videos.viewCount, 0),
         ))
-        .orderBy(sql`${videos.viewCount} ASC`)
+        .orderBy(asc(videos.viewCount))
         .limit(3);
 
       for (const video of underperformers) {
@@ -337,7 +338,7 @@ async function executeAutonomousAction(userId: string, action: any): Promise<voi
           `Video: "${video.title}"\nViews: ${video.viewCount}\nGame: ${meta.gameName || "Unknown"}\nAction: ${action.actionType}\n\nReturn JSON: {"optimized": "the improved ${action.actionType.replace("optimize_", "")}", "reason": "why this is better"}`
         );
 
-        const result = JSON.parse(aiResult.content || "{}");
+        const result = safeParseJSON(aiResult.content, {} as any);
         if (result.optimized) {
           const beforeSnapshot = { title: video.title, description: video.description?.slice(0, 200) };
 
@@ -452,7 +453,7 @@ Return JSON: {
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
 
     if (result.newPrinciples && Array.isArray(result.newPrinciples)) {
       for (const principle of result.newPrinciples.slice(0, 4)) {
@@ -624,7 +625,7 @@ Return JSON: {
 }`
     );
 
-    const result = JSON.parse(aiResult.content || "{}");
+    const result = safeParseJSON(aiResult.content, {} as any);
     const findings = result.findings || [];
 
     for (const finding of findings.slice(0, 3)) {
