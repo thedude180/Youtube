@@ -604,6 +604,7 @@ function UpdatedVideosTab() {
       )}
 
       <VodUrlInputCard />
+      <CatalogRedetectCard />
       <SmartEditPanel />
     </div>
   );
@@ -737,6 +738,69 @@ function VodUrlInputCard() {
                 Scheduled: {new Date(result.scheduledAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
               </p>
             )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CatalogRedetectCard() {
+  const [result, setResult] = useState<{ total: number; taskId: number } | null>(null);
+  const { toast } = useToast();
+
+  const redetectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/content/catalog-redetect");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.success) {
+        setResult({ total: data.total, taskId: data.taskId });
+        toast({ title: "Catalog redetection started", description: `Processing ${data.total} videos with AI vision` });
+        queryClient.invalidateQueries({ queryKey: ["/api/content/videos"] });
+      }
+    },
+    onError: () => {
+      toast({ title: "Failed to start", description: "Could not start catalog redetection", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card data-testid="card-catalog-redetect">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          Game Detection Rerun
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          Re-analyze your entire catalog using AI vision to correctly identify games from actual gameplay frames. Fixes wrong SEO packages caused by title-only detection.
+        </p>
+        <Button
+          onClick={() => redetectMutation.mutate()}
+          disabled={redetectMutation.isPending}
+          className="w-full"
+          variant="outline"
+          data-testid="button-catalog-redetect"
+        >
+          {redetectMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Rerun Entire Catalog
+            </>
+          )}
+        </Button>
+        {result && (
+          <div className="text-xs text-emerald-400 flex items-center gap-1.5" data-testid="text-redetect-status">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Processing {result.total} videos — SEO will update automatically
           </div>
         )}
       </CardContent>

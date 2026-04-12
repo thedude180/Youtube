@@ -129,7 +129,88 @@ async function getVideoDuration(videoPath: string): Promise<number> {
   }
 }
 
-async function detectGameName(title: string, description: string): Promise<string> {
+async function extractFramesAsBase64(videoPath: string, count: number = 4): Promise<string[]> {
+  const frames: string[] = [];
+  try {
+    const { stdout: durationOut } = await execFileAsync(FFPROBE_BIN, [
+      "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", videoPath,
+    ], { timeout: 15_000 });
+    const duration = parseFloat(durationOut.trim()) || 600;
+
+    const timestamps = Array.from({ length: count }, (_, i) =>
+      Math.max(10, Math.floor((duration / (count + 1)) * (i + 1)))
+    );
+
+    for (const ts of timestamps) {
+      const framePath = path.join(REEL_DIR, `frame_detect_${ts}_${Date.now()}.jpg`);
+      try {
+        await execFileAsync(FFMPEG_BIN, [
+          "-y", "-ss", String(ts), "-i", videoPath,
+          "-frames:v", "1", "-q:v", "3",
+          "-vf", "scale=512:-1",
+          framePath,
+        ], { timeout: 15_000 });
+
+        if (fs.existsSync(framePath) && fs.statSync(framePath).size > 500) {
+          const b64 = fs.readFileSync(framePath).toString("base64");
+          frames.push(b64);
+        }
+      } finally {
+        try { fs.unlinkSync(framePath); } catch { }
+      }
+    }
+  } catch (err) {
+    logger.warn("Frame extraction for game detection failed", { error: String(err).substring(0, 200) });
+  }
+  return frames;
+}
+
+export async function detectGameFromFrames(videoPath: string, title: string, description: string): Promise<string> {
+  const frames = await extractFramesAsBase64(videoPath, 4);
+
+  if (frames.length > 0) {
+    try {
+      const imageContent = frames.map(b64 => ({
+        type: "image_url" as const,
+        image_url: { url: `data:image/jpeg;base64,${b64}`, detail: "low" as const },
+      }));
+
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a PS5 game identification expert. Analyze the gameplay screenshots and identify the EXACT game being played. Use visual cues: HUD elements, art style, character models, environments, UI layout, health bars, minimaps, and any on-screen text.
+
+Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of War Ragnarok", "Spider-Man 2"). If you cannot confidently identify the game, return "Unknown".`,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Video title: "${title}"\nDescription: "${(description || "").slice(0, 200)}"\n\nIdentify the game from these ${frames.length} gameplay frames:` },
+              ...imageContent,
+            ],
+          },
+        ],
+        max_completion_tokens: 60,
+      });
+
+      const visionResult = resp.choices[0]?.message?.content?.trim() || "";
+      const cleaned = visionResult.replace(/['"]/g, "").slice(0, 60);
+
+      if (cleaned && cleaned !== "Unknown" && cleaned.length > 1) {
+        logger.info("Game detected from frames via vision", { game: cleaned, frameCount: frames.length });
+        return cleaned;
+      }
+    } catch (err) {
+      logger.warn("Vision game detection failed, falling back to title", { error: String(err).substring(0, 200) });
+    }
+  }
+
+  return detectGameNameFromText(title, description);
+}
+
+async function detectGameNameFromText(title: string, description: string): Promise<string> {
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -459,7 +540,11 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       analyzeSceneChanges(sourcePath, actualDuration),
     ]);
 
-    const gameName = await detectGameName(video.title || "", video.description || "");
+    const gameName = await detectGameFromFrames(sourcePath, video.title || "", video.description || "");
+
+    await db.update(videos).set({
+      metadata: { ...(video.metadata as any || {}), gameName, gameDetectionMethod: "vision" },
+    }).where(eq(videos.id, videoId));
 
     logger.info("Identifying gaming highlights with AI", { gameName, energyWindows: energyProfile.length });
     const segments = await identifyGamingHighlights(

@@ -33,7 +33,10 @@ import {
   autoScheduleOptimizedContent,
   getStaleVideos,
 } from "../backlog-engine";
+import * as fs from "fs";
 import { packageForAllPlatforms } from "../distribution/cross-platform-packaging";
+import { detectGameFromFrames } from "../smart-edit-engine";
+import { downloadSourceVideo } from "../clip-video-processor";
 import { VIDEO_PLATFORMS, type Platform } from "@shared/schema";
 
 async function generatePlatformOptimizations(
@@ -204,6 +207,117 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       console.error("Bulk SEO optimization error:", err);
       res.status(500).json({ message: "Failed to queue bulk SEO optimization" });
+    }
+  }));
+
+  app.post("/api/content/catalog-redetect", writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    try {
+      const allVideos = await storage.getVideosByUser(userId, 1, 500);
+      if (allVideos.length === 0) {
+        return res.json({ success: true, total: 0, message: "No videos found" });
+      }
+
+      const [agentTask] = await db.insert(aiAgentTasks).values({
+        ownerId: userId,
+        agentRole: "ai-editor",
+        taskType: "catalog_game_redetect",
+        title: `Re-detecting games across ${allVideos.length} videos`,
+        status: "in_progress",
+        startedAt: new Date(),
+        payload: { totalVideos: allVideos.length } as any,
+      }).returning();
+
+      res.json({ success: true, total: allVideos.length, taskId: agentTask.id });
+
+      (async () => {
+        let processed = 0;
+        let updated = 0;
+        let errors = 0;
+
+        for (const video of allVideos) {
+          try {
+            const meta = (video.metadata || {}) as any;
+            const youtubeVideoId = meta?.youtubeVideoId || meta?.youtube_id;
+            if (!youtubeVideoId) {
+              processed++;
+              continue;
+            }
+
+            let sourcePath: string | null = null;
+            try {
+              sourcePath = await downloadSourceVideo(youtubeVideoId, userId);
+            } catch {
+              processed++;
+              errors++;
+              continue;
+            }
+
+            const oldGame = meta?.gameName || "Unknown";
+            const newGame = await detectGameFromFrames(
+              sourcePath,
+              video.title || "",
+              video.description || "",
+            );
+
+            if (newGame !== oldGame) {
+              await db.update(videos).set({
+                metadata: {
+                  ...meta,
+                  gameName: newGame,
+                  gameDetectionMethod: "vision",
+                  previousGameName: oldGame,
+                  gameRedetectedAt: new Date().toISOString(),
+                },
+              }).where(eq(videos.id, video.id));
+              updated++;
+            }
+
+            await db.insert(aiAgentTasks).values({
+              ownerId: userId,
+              agentRole: "ai-seo-manager",
+              taskType: "seo_optimize",
+              title: `Re-optimize SEO (${newGame}): ${(video.title || "").slice(0, 60)}`,
+              status: "queued",
+              priority: 5,
+              payload: {
+                videoId: video.id,
+                videoTitle: video.title,
+                videoDescription: video.description,
+                platform: video.platform,
+                metadata: { ...meta, gameName: newGame },
+                redetectedGame: newGame,
+              } as any,
+            });
+
+            try { if (sourcePath) fs.unlinkSync(sourcePath); } catch { }
+            processed++;
+          } catch (err: any) {
+            console.error(`Catalog redetect error for video ${video.id}:`, String(err).substring(0, 200));
+            errors++;
+            processed++;
+          }
+        }
+
+        await db.update(aiAgentTasks).set({
+          status: "completed",
+          completedAt: new Date(),
+          result: { processed, updated, errors, total: allVideos.length } as any,
+        }).where(eq(aiAgentTasks.id, agentTask.id));
+      })().catch(err => {
+        console.error("Catalog redetect background job failed:", err);
+        db.update(aiAgentTasks).set({
+          status: "failed",
+          completedAt: new Date(),
+          result: { error: String(err).substring(0, 500) } as any,
+        }).where(eq(aiAgentTasks.id, agentTask.id)).catch(() => {});
+      });
+
+    } catch (err: any) {
+      console.error("Catalog redetect error:", err);
+      res.status(500).json({ message: "Failed to start catalog redetection" });
     }
   }));
 
