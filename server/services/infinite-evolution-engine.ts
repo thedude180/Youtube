@@ -5,6 +5,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("infinite-evolution");
 
@@ -298,6 +299,12 @@ Return JSON:
         isActive: true,
         metadata: { priority: strat.priority, fromEvolution: true },
       } as any).catch(() => undefined);
+
+      await recordEngineKnowledge("infinite-evolution", userId, "evolved_strategy", system.domain, String(strat.title).substring(0, 200) + ": " + String(strat.description).substring(0, 200), `From system audit score ${system.score}, priority: ${strat.priority}`, 55);
+    }
+
+    for (const imp of improvements.slice(0, 2)) {
+      await recordEngineKnowledge("infinite-evolution", userId, "system_improvement", system.domain, `${imp.title}: ${imp.description}`.substring(0, 400), `Expected impact: ${imp.expectedImpact}, metric: ${imp.metric}`, 60);
     }
 
     logger.info(`[${userId.substring(0, 8)}] Evolved ${system.domain}: ${improvements.length} improvements, ${newStrategies.length} new strategies`);

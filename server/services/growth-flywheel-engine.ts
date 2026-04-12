@@ -9,6 +9,7 @@ import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("growth-flywheel");
 
@@ -283,6 +284,12 @@ Return JSON: {
       triggerEvent: "flywheel_spin",
       engineSource: "growth-flywheel",
     });
+
+    for (const phase of phases.slice(0, 3)) {
+      if (phase.insight) {
+        await recordEngineKnowledge("growth-flywheel", userId, "flywheel_insight", phase.phase || "growth", phase.insight.substring(0, 400), `Cycle ${currentCycle}, momentum ${newMomentum.toFixed(1)}, compound ${compoundingFactor.toFixed(1)}x`, Math.round(newMomentum));
+      }
+    }
 
     invalidateUserData(fwStore, userId, "flywheel_last");
     invalidateUserData(fwStore, userId, "actions_recent");
@@ -634,6 +641,8 @@ Return JSON: {
         potentialImpact: finding.impact || "medium",
         metadata: { marketGap: result.marketGap, urgentTrend: result.urgentTrend } as any,
       });
+
+      await recordEngineKnowledge("competitive-intel", userId, "competitive_finding", finding.category, finding.finding.substring(0, 400), `Impact: ${finding.impact}, difficulty: ${finding.difficulty}, source: ${topic}`, finding.impact === "massive" ? 85 : finding.impact === "high" ? 70 : 55);
 
       if (finding.couldBecomeStrategy && (finding.impact === "high" || finding.impact === "massive")) {
         const existing = await db.select({ id: discoveredStrategies.id }).from(discoveredStrategies)

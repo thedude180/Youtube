@@ -501,6 +501,17 @@ export async function registerRoutes(
     );
   });
 
+  app.get("/api/knowledge-mesh/stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    try {
+      const { getKnowledgeMeshStats } = await import("./services/knowledge-mesh");
+      const stats = await getKnowledgeMeshStats(req.user!.id);
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to get knowledge mesh stats" });
+    }
+  });
+
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Endpoint not found" });
   });

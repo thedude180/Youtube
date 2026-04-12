@@ -1177,6 +1177,7 @@ httpServer.listen(
       import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(() => {});
       import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(() => {});
       import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(() => {});
+      import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(() => {});
     });
 
     // ── WAVE 11 (T+34s): Self-healing, webhook pipeline, health brain ───────

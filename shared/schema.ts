@@ -9456,6 +9456,76 @@ export const aiMusicTracks = pgTable("ai_music_tracks", {
   index("amt_genre_idx").on(t.genre),
 ]);
 
+export const engineKnowledge = pgTable("engine_knowledge", {
+  id: serial("id").primaryKey(),
+  engineName: text("engine_name").notNull(),
+  userId: text("user_id").notNull(),
+  knowledgeType: text("knowledge_type").notNull(),
+  topic: text("topic").notNull(),
+  insight: text("insight").notNull(),
+  evidence: text("evidence"),
+  confidenceScore: integer("confidence_score").default(50),
+  timesValidated: integer("times_validated").default(0),
+  timesContradicted: integer("times_contradicted").default(0),
+  isActive: boolean("is_active").default(true),
+  appliedSuccessfully: integer("applied_successfully").default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("ek_engine_idx").on(t.engineName),
+  index("ek_user_idx").on(t.userId),
+  index("ek_type_idx").on(t.knowledgeType),
+  index("ek_active_idx").on(t.isActive),
+]);
+
+export const masterKnowledgeBank = pgTable("master_knowledge_bank", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  category: text("category").notNull(),
+  principle: text("principle").notNull(),
+  sourceEngines: text("source_engines").array().default([]),
+  evidenceCount: integer("evidence_count").default(1),
+  confidenceScore: integer("confidence_score").default(50),
+  applicableEngines: text("applicable_engines").array().default([]),
+  timesApplied: integer("times_applied").default(0),
+  timesSucceeded: integer("times_succeeded").default(0),
+  successRate: integer("success_rate").default(0),
+  isActive: boolean("is_active").default(true),
+  lastReinforcedAt: timestamp("last_reinforced_at"),
+  lastAppliedAt: timestamp("last_applied_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("mkb_user_idx").on(t.userId),
+  index("mkb_category_idx").on(t.category),
+  index("mkb_active_idx").on(t.isActive),
+  index("mkb_confidence_idx").on(t.confidenceScore),
+]);
+
+export const crossEngineTeachings = pgTable("cross_engine_teachings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceEngine: text("source_engine").notNull(),
+  targetEngine: text("target_engine").notNull(),
+  teachingType: text("teaching_type").notNull(),
+  lesson: text("lesson").notNull(),
+  context: text("context"),
+  wasApplied: boolean("was_applied").default(false),
+  wasUseful: boolean("was_useful"),
+  impactScore: integer("impact_score"),
+  sourceKnowledgeId: integer("source_knowledge_id"),
+  masterKnowledgeId: integer("master_knowledge_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cet_user_idx").on(t.userId),
+  index("cet_source_idx").on(t.sourceEngine),
+  index("cet_target_idx").on(t.targetEngine),
+]);
+
 export const originalityResearch = pgTable("originality_research", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),

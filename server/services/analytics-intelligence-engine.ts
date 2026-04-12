@@ -3,6 +3,7 @@ import { unifiedMetrics, trendForecasts, competitorSnapshots, algorithmHealth, p
 import { eq, and, desc, sql, sum } from "drizzle-orm";
 import { storage } from "../storage";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getEngineKnowledgeForContext } from "./knowledge-mesh";
 
 const SCAN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 let engineRunning = false;
@@ -287,6 +288,13 @@ async function generateTrendForecasts(userId: string): Promise<void> {
         topic: "30d_performance_forecast",
         forecast: forecast30d,
       });
+
+      const topInsights: string[] = [];
+      if (forecast30d.optimalPostingHour) topInsights.push(`Best posting hour: ${forecast30d.optimalPostingHour}:00`);
+      if (forecast30d.bestPerformingType) topInsights.push(`Top content type: ${forecast30d.bestPerformingType}`);
+      if (topInsights.length > 0) {
+        await recordEngineKnowledge("analytics-intelligence", userId, "trend_forecast", `${platform}_performance`, topInsights.join("; "), `Confidence: ${Math.round((forecast30d.confidence || 0) * 100)}%, based on ${channelVideos.length} videos`, Math.round((forecast30d.confidence || 0.5) * 100));
+      }
     }
 
   } catch (e) {

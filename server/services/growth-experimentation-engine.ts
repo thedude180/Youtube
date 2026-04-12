@@ -4,6 +4,7 @@ import { eq, and, desc, gte, count, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getEngineKnowledgeForContext } from "./knowledge-mesh";
 
 const logger = createLogger("growth-experiments");
 
@@ -188,6 +189,8 @@ Return JSON:
             triggerEvent: "experiment_evaluation",
             engineSource: "growth-experimentation-engine",
           } as any);
+
+          await recordEngineKnowledge("growth-experiments", userId, "experiment_result", experiment.experimentType, parsed.learnings.substring(0, 400), `Hypothesis: ${experiment.hypothesis || ""} | Winner: ${parsed.winner || "N/A"} | Confidence: ${parsed.confidence || 0}%`, parsed.confidence || 50);
         }
 
         logger.info(`[${userId.substring(0, 8)}] Experiment "${experiment.experimentType}" completed: winner=${parsed.winner}, confidence=${parsed.confidence}%`);

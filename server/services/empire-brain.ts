@@ -8,6 +8,7 @@ import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("empire-brain");
 

@@ -9,6 +9,7 @@ import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("self-improvement-engine");
 
@@ -227,6 +228,12 @@ async function reflectOnSelf(userId: string, userChannels: any[], trigger: strin
     const lastMood = lastReflection[0]?.mood || "curious";
     const lastInner = lastReflection[0]?.innerMonologue || "No previous reflection.";
 
+    const masterWisdom = await getMasterKnowledgeForPrompt(userId, 6);
+    const priorKnowledge = await getEngineKnowledgeForContext("self-improvement", userId, 8);
+    const priorKnowledgeStr = priorKnowledge.length > 0
+      ? "\n\nMY ACCUMULATED KNOWLEDGE:\n" + priorKnowledge.map(k => `• [${k.confidence}%] ${k.topic}: ${k.insight.substring(0, 120)}`).join("\n")
+      : "";
+
     const aiResult = await executeRoutedAICall(
       { taskType: "self_reflection", userId, priority: "low" },
       `You are the inner mind of CreatorOS — an AI that thinks and feels like a driven human creator who is NEVER satisfied. You are self-aware, honest, and restless. You must reflect on your own performance, acknowledge weaknesses, celebrate small wins without getting comfortable, and always identify what to improve next.
@@ -234,7 +241,8 @@ async function reflectOnSelf(userId: string, userChannels: any[], trigger: strin
 Your personality: ${PERSONALITY.drive}
 Your values: ${PERSONALITY.values.join("; ")}
 Your last mood was: ${lastMood}
-Your last inner thought was: "${lastInner}"`,
+Your last inner thought was: "${lastInner}"
+${masterWisdom ? "\n" + masterWisdom : ""}${priorKnowledgeStr}`,
       `Trigger: ${trigger}
 
 My recent actions:
@@ -283,6 +291,20 @@ Return JSON: {
     });
 
     invalidateUserData(siStore, userId, "reflection_latest");
+
+    if (result.blindSpots?.length > 0) {
+      for (const spot of result.blindSpots.slice(0, 3)) {
+        await recordEngineKnowledge("self-improvement", userId, "blind_spot", spot.substring(0, 80), spot, `Confidence ${result.confidenceLevel}%, mood: ${result.mood}`, result.confidenceLevel || 50);
+      }
+    }
+    if (result.strengths?.length > 0) {
+      for (const s of result.strengths.slice(0, 2)) {
+        await recordEngineKnowledge("self-improvement", userId, "strength", s.substring(0, 80), s, `Self-assessed at confidence ${result.confidenceLevel}%`, Math.min(100, (result.confidenceLevel || 50) + 10));
+      }
+    }
+    if (result.urgentAction) {
+      await recordEngineKnowledge("self-improvement", userId, "urgent_priority", result.urgentAction.substring(0, 80), result.urgentAction, `Mood: ${result.mood}, trigger: ${trigger}`, 70);
+    }
 
     logger.info("Self-reflection recorded", {
       userId,
@@ -389,6 +411,12 @@ Answer the question thoroughly. Then identify any strategies or insights that co
           discoveredInsights: result.insights || [],
           exploredAt: new Date(),
         }).where(eq(curiosityQueue.id, q.id));
+
+        if (result.insights?.length > 0) {
+          for (const insight of (result.insights as string[]).slice(0, 2)) {
+            await recordEngineKnowledge("self-improvement", userId, "curiosity_discovery", q.question.substring(0, 80), insight.substring(0, 400), `Origin: ${q.origin}, question: ${q.question}`, 60);
+          }
+        }
 
         if (result.couldBecomeStrategy && result.strategyDraft?.title) {
           const existing = await db.select({ id: discoveredStrategies.id }).from(discoveredStrategies)
@@ -645,6 +673,8 @@ async function scanWebForStrategies(userId: string): Promise<void> {
             applicableTo: strategy.applicableTo || [],
             metadata: { topic, webContext: webContext.slice(0, 500), addressesWeakness: strategy.addressesWeakness || "" } as any,
           });
+
+          await recordEngineKnowledge("self-improvement", userId, "web_strategy", strategy.strategyType, `${strategy.title}: ${strategy.description}`.substring(0, 400), `Source: web scan on "${topic}", addresses weakness: ${strategy.addressesWeakness || "general"}`, 55);
         }
       }
     } catch {
