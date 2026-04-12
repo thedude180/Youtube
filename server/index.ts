@@ -1263,6 +1263,13 @@ httpServer.listen(
       }).catch(err => logger.error("Game Detection Engine init failed", { error: String(err) }));
     });
 
+    delay(560_000, () => {
+      import("./services/self-improvement-engine").then(m => {
+        const iv = m.initSelfImprovementEngine();
+        backgroundIntervals.push(iv);
+      }).catch(err => logger.error("Self-Improvement Engine init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.

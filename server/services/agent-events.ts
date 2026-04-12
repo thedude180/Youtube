@@ -339,11 +339,24 @@ export async function wireAgentCoordination(): Promise<void> {
         logger.warn(`Stream operator stop failed: ${err.message}`);
       }
     }, 5_000); // 5s grace period
+
+    // 10. Self-Improvement Cascade (T+5min) — learn, cross-pollinate, improve catalog
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { onNewContentDetected } = await import("./self-improvement-engine");
+          await onNewContentDetected(event.userId, videoId, "stream_ended");
+          logger.info(`Self-improvement cascade complete for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Self-improvement cascade failed: ${err.message}`);
+        }
+      }, 5 * 60_000);
+    }
   });
 
-  // When a new upload is detected → run consistency check on it
+  // When a new upload is detected → run consistency check + self-improvement
   onAgentEvent("upload.detected", async (event) => {
-    logger.info(`New upload for ${event.userId.slice(0, 8)} — scheduling consistency audit`);
+    logger.info(`New upload for ${event.userId.slice(0, 8)} — scheduling consistency audit + self-improvement`);
     setTimeout(async () => {
       try {
         const { runConsistencyCheckForUser } = await import("./content-consistency-agent");
@@ -351,7 +364,20 @@ export async function wireAgentCoordination(): Promise<void> {
       } catch (err: any) {
         logger.warn(`Upload-triggered consistency check failed: ${err.message}`);
       }
-    }, 2 * 60_000); // Wait 2 min for upload processing
+    }, 2 * 60_000);
+
+    const videoId = event.payload?.videoId;
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const { onNewContentDetected } = await import("./self-improvement-engine");
+          await onNewContentDetected(event.userId, videoId, "upload_detected");
+          logger.info(`Self-improvement cascade (upload) complete for ${event.userId.slice(0, 8)}`);
+        } catch (err: any) {
+          logger.warn(`Upload self-improvement cascade failed: ${err.message}`);
+        }
+      }, 3 * 60_000);
+    }
   });
 
   // When empire is activated → start stream agent if not already running

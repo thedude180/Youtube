@@ -8963,3 +8963,68 @@ export const discoveredGames = pgTable("discovered_games", {
 export const insertDiscoveredGameSchema = createInsertSchema(discoveredGames).omit({ id: true, firstDetectedAt: true, lastDetectedAt: true });
 export type InsertDiscoveredGame = z.infer<typeof insertDiscoveredGameSchema>;
 export type DiscoveredGame = typeof discoveredGames.$inferSelect;
+
+export const discoveredStrategies = pgTable("discovered_strategies", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  strategyType: text("strategy_type").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  source: text("source").notNull().default("web-scan"),
+  sourceUrl: text("source_url"),
+  applicableTo: text("applicable_to").array(),
+  effectiveness: integer("effectiveness").default(0),
+  timesApplied: integer("times_applied").notNull().default(0),
+  timesSucceeded: integer("times_succeeded").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastAppliedAt: timestamp("last_applied_at"),
+}, (t) => [
+  index("ds_type_idx").on(t.strategyType),
+  index("ds_user_idx").on(t.userId),
+]);
+
+export const insertDiscoveredStrategySchema = createInsertSchema(discoveredStrategies).omit({ id: true, createdAt: true, lastAppliedAt: true });
+export type InsertDiscoveredStrategy = z.infer<typeof insertDiscoveredStrategySchema>;
+export type DiscoveredStrategy = typeof discoveredStrategies.$inferSelect;
+
+export const systemImprovements = pgTable("system_improvements", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  improvementType: text("improvement_type").notNull(),
+  area: text("area").notNull(),
+  beforeState: text("before_state"),
+  afterState: text("after_state"),
+  measuredImpact: jsonb("measured_impact"),
+  triggerEvent: text("trigger_event"),
+  engineSource: text("engine_source").notNull(),
+  appliedAcrossChannels: boolean("applied_across_channels").default(false),
+  channelIds: text("channel_ids").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("si_imp_type_idx").on(t.improvementType),
+  index("si_imp_user_idx").on(t.userId),
+  index("si_imp_area_idx").on(t.area),
+]);
+
+export const insertSystemImprovementSchema = createInsertSchema(systemImprovements).omit({ id: true, createdAt: true });
+export type InsertSystemImprovement = z.infer<typeof insertSystemImprovementSchema>;
+export type SystemImprovement = typeof systemImprovements.$inferSelect;
+
+export const crossChannelInsights = pgTable("cross_channel_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceChannelId: integer("source_channel_id").notNull(),
+  insightType: text("insight_type").notNull(),
+  insight: text("insight").notNull(),
+  evidence: jsonb("evidence"),
+  confidenceScore: integer("confidence_score").notNull().default(50),
+  propagatedTo: text("propagated_to").array(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  appliedAt: timestamp("applied_at"),
+}, (t) => [
+  index("cci_user_idx").on(t.userId),
+  index("cci_type_idx").on(t.insightType),
+]);

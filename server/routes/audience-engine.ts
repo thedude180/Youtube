@@ -516,4 +516,71 @@ export function registerAudienceEngineRoutes(app: Express) {
       res.json({ date: new Date().toISOString(), summary: "Brief unavailable", actionItems: [], blockers: [], topActions: [], metrics: {} });
     }
   });
+
+  app.get("/api/self-improvement/stats", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { getImprovementStats } = await import("../services/self-improvement-engine");
+      const stats = await getImprovementStats(userId);
+      res.json(stats);
+    } catch (err: any) {
+      logger.error("Self-improvement stats failed", { error: err.message });
+      res.json({ strategiesDiscovered: 0, strategiesActive: 0, improvementsMade: 0, crossChannelInsightsCount: 0, topStrategies: [] });
+    }
+  });
+
+  app.get("/api/self-improvement/log", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { systemImprovements } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const log = await database.select().from(systemImprovements)
+        .where(eq(systemImprovements.userId, userId))
+        .orderBy(desc(systemImprovements.createdAt))
+        .limit(50);
+      res.json(log);
+    } catch (err: any) {
+      logger.error("Self-improvement log failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/self-improvement/strategies", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { discoveredStrategies } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const strategies = await database.select().from(discoveredStrategies)
+        .where(eq(discoveredStrategies.userId, userId))
+        .orderBy(desc(discoveredStrategies.effectiveness))
+        .limit(50);
+      res.json(strategies);
+    } catch (err: any) {
+      logger.error("Strategies list failed", { error: err.message });
+      res.json([]);
+    }
+  });
+
+  app.get("/api/self-improvement/cross-channel", async (req, res) => {
+    try {
+      const userId = getUserId(req, res);
+      if (!userId) return;
+      const { db: database } = await import("../db");
+      const { crossChannelInsights } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const insights = await database.select().from(crossChannelInsights)
+        .where(eq(crossChannelInsights.userId, userId))
+        .orderBy(desc(crossChannelInsights.createdAt))
+        .limit(50);
+      res.json(insights);
+    } catch (err: any) {
+      logger.error("Cross-channel insights failed", { error: err.message });
+      res.json([]);
+    }
+  });
 }
