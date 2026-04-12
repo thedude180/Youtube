@@ -137,7 +137,7 @@ async function runCycle(userId: string) {
           inArray(videos.channelId, channelIds),
           lt(videos.createdAt, new Date(Date.now() - 7 * 86400_000)),
         ))
-        .orderBy(desc(videos.views))
+        .orderBy(desc(videos.createdAt))
         .limit(20) : [];
 
       const unprocessed = candidateVideos
@@ -180,7 +180,7 @@ async function runCycle(userId: string) {
     if (shortsBudget > 0) {
       const topVideos = channelIds.length > 0 ? await db.select().from(videos)
         .where(inArray(videos.channelId, channelIds))
-        .orderBy(desc(videos.views))
+        .orderBy(desc(videos.createdAt))
         .limit(10) : [];
 
       const processedVideoIds = new Set(

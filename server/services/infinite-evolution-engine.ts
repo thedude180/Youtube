@@ -146,7 +146,7 @@ async function auditAllSystems(userId: string): Promise<SystemAudit[]> {
 
   for (const domain of SYSTEM_DOMAINS) {
     const improvements = allImprovements.filter((i: any) => i.area === domain.name);
-    const strategies = allStrategies.filter((s: any) => s.category === domain.name);
+    const strategies = allStrategies.filter((s: any) => s.strategyType === domain.name);
 
     const domainImprovementsSorted = improvements.sort((a: any, b: any) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -185,7 +185,7 @@ async function improveSystem(userId: string, system: SystemAudit): Promise<void>
   const existingStrategies = await db.select().from(discoveredStrategies)
     .where(and(
       eq(discoveredStrategies.userId, userId),
-      eq(discoveredStrategies.category, system.domain),
+      eq(discoveredStrategies.strategyType, system.domain),
     ))
     .orderBy(desc(discoveredStrategies.effectiveness))
     .limit(10);
@@ -278,7 +278,7 @@ Return JSON:
         triggerEvent: "infinite_evolution_cycle",
         engineSource: "infinite-evolution-engine",
         appliedAcrossChannels: true,
-        metadata: {
+        measuredImpact: {
           expectedImpact: imp.expectedImpact,
           implementation: imp.implementationApproach,
           metric: imp.metric,
@@ -293,7 +293,7 @@ Return JSON:
         userId,
         title: String(strat.title).substring(0, 200),
         description: String(strat.description).substring(0, 1000),
-        category: system.domain,
+        strategyType: system.domain,
         source: "infinite_evolution",
         effectiveness: 50,
         isActive: true,

@@ -128,7 +128,7 @@ async function detectPolicyChanges(): Promise<PolicyChange[]> {
     ruleName: complianceRules.ruleName,
     description: complianceRules.description,
     severity: complianceRules.severity,
-    updatedAt: complianceRules.updatedAt,
+    updatedAt: complianceRules.lastUpdated,
   }).from(complianceRules)
     .where(eq(complianceRules.isActive, true))
     .limit(50);
@@ -307,32 +307,19 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
 
     if (existingRule.length > 0) {
       await db.update(complianceRules).set({
-        description: change.summary,
+        description: `${change.summary} | Impact: ${change.impact} | Action: ${change.requiredAction}`,
         severity: change.severity as any,
-        updatedAt: new Date(),
-        metadata: {
-          changeType: change.changeType,
-          impact: change.impact,
-          requiredAction: change.requiredAction,
-          detectedAt: new Date().toISOString(),
-        },
+        lastUpdated: new Date(),
       }).where(eq(complianceRules.id, existingRule[0].id));
     } else {
       await db.insert(complianceRules).values({
         platform: change.platform,
         ruleCategory: change.area,
         ruleName: `${change.area} - ${change.changeType}`,
-        description: change.summary,
+        description: `${change.summary} | Impact: ${change.impact} | Action: ${change.requiredAction}`,
         severity: change.severity as any,
-        keywords: [],
+        keywords: change.affectedEngines || [],
         isActive: true,
-        metadata: {
-          changeType: change.changeType,
-          impact: change.impact,
-          requiredAction: change.requiredAction,
-          detectedAt: new Date().toISOString(),
-          affectedEngines: change.affectedEngines,
-        },
       });
     }
 
@@ -360,7 +347,7 @@ async function enforceCurrentRules(): Promise<void> {
       eq(complianceRules.isActive, true),
       eq(complianceRules.platform, "youtube"),
     ))
-    .orderBy(desc(complianceRules.updatedAt))
+    .orderBy(desc(complianceRules.lastUpdated))
     .limit(30);
 
   for (const rule of rules) {

@@ -128,14 +128,11 @@ Design ONE high-impact experiment to run. Output JSON:
   "expectedLearning": "what we'll learn regardless of outcome"
 }`;
 
-    const aiResult = await executeRoutedAICall({
-      task: "experiment_design",
-      systemPrompt: "You design rigorous content experiments. Return valid JSON only.",
-      userPrompt: hypothesisPrompt,
-      userId,
-      maxTokens: 600,
-      responseFormat: "json",
-    });
+    const aiResult = await executeRoutedAICall(
+      { taskType: "experiment_design", userId, maxTokens: 600 },
+      "You design rigorous content experiments. Return valid JSON only.",
+      hypothesisPrompt,
+    );
 
     const resultText = typeof aiResult === "string" ? aiResult : (aiResult as any)?.content || "";
     let parsed: any;

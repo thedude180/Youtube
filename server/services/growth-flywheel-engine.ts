@@ -163,8 +163,8 @@ async function spinFlywheelForUser(userId: string): Promise<void> {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
     const [recent] = await db.select({
       videoCount: sql<number>`count(*)`,
-      totalViews: sql<number>`coalesce(sum(${videos.viewCount}), 0)`,
-      avgViews: sql<number>`coalesce(avg(${videos.viewCount}), 0)`,
+      totalViews: sql<number>`coalesce(sum((${videos.metadata}->>'viewCount')::int), 0)`,
+      avgViews: sql<number>`coalesce(avg((${videos.metadata}->>'viewCount')::int), 0)`,
     }).from(videos).where(and(eq(videos.channelId, ch.id), gte(videos.publishedAt, weekAgo)));
     channelStats.push({ channelId: ch.id, name: ch.channelName || ch.id, ...recent });
   }

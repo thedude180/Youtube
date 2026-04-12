@@ -5,7 +5,7 @@ import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
 import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
-import { cached } from "../lib/cache";
+import { cached, apiCache } from "../lib/cache";
 import {
   runStyleScan,
   recordFeedback,
@@ -121,6 +121,8 @@ export function registerSettingsRoutes(app: Express) {
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     await storage.markRead(id);
+    apiCache.invalidate(`notifications:${userId}`);
+    apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });
   }));
 
@@ -128,6 +130,8 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
+    apiCache.invalidate(`notifications:${userId}`);
+    apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });
   }));
 
@@ -135,6 +139,8 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.markAllRead(userId);
+    apiCache.invalidate(`notifications:${userId}`);
+    apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });
   }));
 
@@ -144,6 +150,8 @@ export function registerSettingsRoutes(app: Express) {
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     await storage.deleteNotification(id, userId);
+    apiCache.invalidate(`notifications:${userId}`);
+    apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });
   }));
 
@@ -151,6 +159,8 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     await storage.deleteAllRead(userId);
+    apiCache.invalidate(`notifications:${userId}`);
+    apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });
   }));
 
