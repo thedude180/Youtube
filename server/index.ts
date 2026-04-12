@@ -1358,6 +1358,99 @@ httpServer.listen(
         // Register job handlers for all autonomous job types
         jobQueue.registerHandler("extract_and_publish_clip", async (job) => {
           logger.info("[Autonomous] extract_and_publish_clip job received", { userId: job.userId, payload: job.payload });
+          const { vodVideoId, gameTitle, startTime, endTime, title } = job.payload || {};
+          if (!vodVideoId || !job.userId) return;
+
+          try {
+            const { videos, channels } = await import("@shared/schema");
+            const { eq: eqOp, and: andOp } = await import("drizzle-orm");
+            const { db: database } = await import("./db");
+
+            const [video] = await database.select().from(videos).where(eqOp(videos.id, vodVideoId));
+            if (!video) { logger.warn("extract_clip: video not found", { vodVideoId }); return; }
+
+            const youtubeId = (video.metadata as any)?.youtubeId || (video.metadata as any)?.youtubeVideoId;
+            if (!youtubeId) { logger.warn("extract_clip: no YouTube ID on video", { vodVideoId }); return; }
+
+            const ytChannels = await database.select().from(channels)
+              .where(andOp(eqOp(channels.userId, job.userId), eqOp(channels.platform, "youtube")));
+            const ytChannel = ytChannels.find((c: any) => c.accessToken);
+            if (!ytChannel) { logger.warn("extract_clip: no YouTube channel connected", { userId: job.userId }); return; }
+
+            const parseTs = (ts: any): number => {
+              if (typeof ts === "number") return ts;
+              if (!ts) return 0;
+              const str = String(ts);
+              const parts = str.split(":").map(Number);
+              if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+              if (parts.length === 2) return parts[0] * 60 + parts[1];
+              return parseFloat(str) || 0;
+            };
+
+            const startSec = parseTs(startTime);
+            const endSec = parseTs(endTime) || startSec + 45;
+            const clipDuration = Math.min(endSec - startSec, 59);
+            if (clipDuration < 5) { logger.warn("extract_clip: clip too short", { startSec, endSec }); return; }
+
+            const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
+            const sourcePath = await downloadSourceVideo(youtubeId, job.userId);
+            const clipPath = await cutClipFromVideo(sourcePath, startSec, startSec + clipDuration, Date.now());
+
+            const shortsTitle = `${(title || gameTitle || video.title || "Clip").substring(0, 90)} #Shorts`;
+            const videoMeta = (video.metadata as any) || {};
+            const tags = [...new Set([...(videoMeta.tags || []), "shorts", "highlights", gameTitle].filter(Boolean))].slice(0, 25);
+            const description = `${gameTitle || ""} highlights\nFrom: ${video.title || ""}\n${(video.description || "").substring(0, 200)}`;
+
+            const { uploadVideoToYouTube } = await import("./youtube");
+            const { isMonetizationUnlocked } = await import("./services/monetization-check");
+            const monetizationEnabled = await isMonetizationUnlocked(job.userId, "youtube");
+
+            const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
+              title: shortsTitle,
+              description,
+              tags,
+              categoryId: videoMeta.categoryId || "20",
+              privacyStatus: "public",
+              videoFilePath: clipPath,
+              enableMonetization: monetizationEnabled,
+            });
+
+            cleanupClipFile(clipPath);
+
+            if (uploadResult?.youtubeId) {
+              const [newVideo] = await database.insert(videos).values({
+                channelId: ytChannel.id,
+                title: shortsTitle,
+                description,
+                type: "short",
+                platform: "youtube",
+                status: "published",
+                metadata: {
+                  youtubeId: uploadResult.youtubeId,
+                  youtubeVideoId: uploadResult.youtubeId,
+                  tags,
+                  isShort: true,
+                  sourceVideoId: vodVideoId,
+                  gameName: gameTitle,
+                  clipStart: startSec,
+                  clipEnd: startSec + clipDuration,
+                  uploadedVia: "shorts_factory_autonomous",
+                } as any,
+              }).returning();
+
+              logger.info("[Autonomous] Short uploaded successfully", {
+                youtubeId: uploadResult.youtubeId,
+                title: shortsTitle,
+                sourceVodId: vodVideoId,
+                newVideoId: newVideo?.id,
+              });
+
+              const { verifyVideoUpload } = await import("./publish-verifier");
+              verifyVideoUpload(newVideo?.id || vodVideoId, job.userId, uploadResult.youtubeId, "shorts_factory").catch(() => undefined);
+            }
+          } catch (err: any) {
+            logger.error("[Autonomous] extract_and_publish_clip failed", { userId: job.userId, vodVideoId, error: err.message?.substring(0, 300) });
+          }
         });
         jobQueue.registerHandler("post_stream_community", async (job) => {
           const { communityAutoManager } = await import("./services/community-auto-manager");
