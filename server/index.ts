@@ -1301,6 +1301,12 @@ httpServer.listen(
       }).catch(err => logger.error("Empire Brain init failed", { error: String(err) }));
     });
 
+    delay(690_000, () => {
+      import("./services/channel-catalog-sync").then(m => {
+        m.startCatalogSync();
+      }).catch(err => logger.error("Channel Catalog Sync init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.

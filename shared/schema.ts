@@ -9352,3 +9352,46 @@ export const empireMetrics = pgTable("empire_metrics", {
   index("em_user_idx").on(t.userId),
   index("em_period_idx").on(t.period),
 ]);
+
+export const videoCatalogLinks = pgTable("video_catalog_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").notNull(),
+  youtubeId: text("youtube_id").notNull(),
+  shareLink: text("share_link").notNull(),
+  fullUrl: text("full_url").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url"),
+  duration: text("duration"),
+  durationSec: integer("duration_sec").default(0),
+  publishedAt: timestamp("published_at"),
+  viewCount: integer("view_count").default(0),
+  likeCount: integer("like_count").default(0),
+  commentCount: integer("comment_count").default(0),
+  tags: text("tags").array().default([]),
+  privacyStatus: text("privacy_status").default("public"),
+  videoType: text("video_type").default("regular"),
+  editingStatus: text("editing_status").notNull().default("unprocessed"),
+  editingStartedAt: timestamp("editing_started_at"),
+  editingCompletedAt: timestamp("editing_completed_at"),
+  editingResult: jsonb("editing_result").$type<Record<string, any>>().default({}),
+  scheduledForUpload: boolean("scheduled_for_upload").default(false),
+  uploadScheduledAt: timestamp("upload_scheduled_at"),
+  uploadCompletedAt: timestamp("upload_completed_at"),
+  derivedContentCount: integer("derived_content_count").default(0),
+  lastSyncedAt: timestamp("last_synced_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("vcl_user_idx").on(t.userId),
+  index("vcl_channel_idx").on(t.channelId),
+  index("vcl_ytid_idx").on(t.youtubeId),
+  index("vcl_editing_status_idx").on(t.editingStatus),
+  index("vcl_scheduled_idx").on(t.scheduledForUpload),
+]);
+
+export const insertVideoCatalogLinkSchema = createInsertSchema(videoCatalogLinks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertVideoCatalogLink = z.infer<typeof insertVideoCatalogLinkSchema>;
+export type VideoCatalogLink = typeof videoCatalogLinks.$inferSelect;

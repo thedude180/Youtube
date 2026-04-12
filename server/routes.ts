@@ -52,6 +52,7 @@ import { registerResolutionIntelligenceRoutes } from "./routes/resolution-intell
 import { registerStudioRoutes } from "./routes/studio";
 import { registerAudienceEngineRoutes } from "./routes/audience-engine";
 import { registerEmpireRoutes } from "./routes/empire";
+import { registerCatalogRoutes } from "./routes/catalog";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -363,6 +364,7 @@ export async function registerRoutes(
   registerStudioRoutes(app);
   registerAudienceEngineRoutes(app);
   registerEmpireRoutes(app);
+  registerCatalogRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
