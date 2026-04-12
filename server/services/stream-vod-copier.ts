@@ -63,16 +63,21 @@ export async function createEditCopyFromStream(
     const destFilename = `edit_${safeTitle}_${timestamp}.mp4`;
     const destPath = path.join(EDIT_COPIES_DIR, destFilename);
 
-    logger.info("Copying recording to persistent edit location", {
+    logger.info("Moving recording to persistent edit location", {
       from: recordingPath,
       to: destPath,
       size: fileStats.size,
     });
 
-    fs.copyFileSync(recordingPath, destPath);
+    try {
+      fs.renameSync(recordingPath, destPath);
+    } catch {
+      fs.copyFileSync(recordingPath, destPath);
+      try { fs.unlinkSync(recordingPath); } catch {}
+    }
 
     if (!fs.existsSync(destPath)) {
-      return { success: false, error: "copy_failed" };
+      return { success: false, error: "move_failed" };
     }
 
     const destStats = fs.statSync(destPath);
