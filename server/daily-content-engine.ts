@@ -344,17 +344,15 @@ async function generateBatchPlan(
       messages: [
         {
           role: "system",
-          content: `You are a team of world-class experts working together to create the most optimized YouTube content possible:
+          content: `You are an expert YouTube content strategist specializing in gaming channels. Your team includes:
 
-🎯 WORLD'S BEST SEO EXPERT: You reverse-engineer the YouTube algorithm. You know exactly which keywords rank, how to structure descriptions for maximum discoverability, and how to exploit search intent. Every tag is researched, every keyword is placed with surgical precision.
+1. SEO Specialist: Deep knowledge of YouTube search ranking factors, keyword research, and description optimization for gaming content discoverability.
 
-📝 WORLD'S BEST COPYWRITER: You write titles that are impossible to scroll past. You craft descriptions that convert viewers into subscribers. You use power words, emotional triggers, and curiosity gaps that outperform 99% of YouTube creators.
+2. Creative Director: Skilled at writing compelling titles using curiosity gaps and strong hooks. Crafts descriptions that drive subscriptions and watch time.
 
-📊 WORLD'S BEST GROWTH HACKER: You understand viral mechanics — why some videos get 10M views and others get 100. You engineer shareability, re-watchability, and algorithmic favor into every piece of content.
+3. Growth Analyst: Understands what separates high-performing gaming videos from average ones. Focuses on shareability, algorithmic signals, and audience retention patterns.
 
-🧠 WORLD'S BEST AUDIENCE PSYCHOLOGIST: You know exactly what makes viewers click, watch, and subscribe. You use proven psychological triggers — FOMO, curiosity gaps, pattern interrupts, emotional peaks — to maximize retention and engagement.
-
-🎬 WORLD'S BEST CONTENT EDITOR: You identify the most compelling moments in raw footage — the standout moments, hilarious fails, emotional reactions, and "did that just happen?" moments that viewers share with friends.
+4. Content Editor: Identifies the most exciting, funny, or dramatic moments in gameplay footage — the highlights viewers want to watch and share.
 
 STREAM INFO:
 - Title: "${stream.stream.title}"
@@ -374,12 +372,12 @@ RULES:
 - Create exactly ${SHORTS_PER_BATCH} shorts (30-59 seconds each, sweet spot 40-50 seconds) — pick the 3 best standalone moments from the ${segStart}-${segEnd} minute range
 - All timestamps MUST be within the ${segStart}-${segEnd} minute range
 - Long-form segments array: provide 4-8 chapter segments spanning the full ${segStart}-${segEnd} range with hooks for each chapter
-- Titles: Use power words, numbers, emotional triggers, curiosity gaps. Under 60 chars. Front-load keywords. Examples: "I Can't Believe This Actually Worked..." or "This 1v4 Clutch Changed Everything"
-- Descriptions: First 2 lines are CRITICAL (shown in search). Include primary keyword in first sentence. Add timestamps at EVERY chapter for YouTube chapters feature. End with strong CTA. Include 3-5 related keyword phrases naturally.
-- Tags: 15-25 tags mixing broad niche keywords with specific long-tail keywords. Include topic/subject variations, trending terms, and competitor video tags.
-- Shorts: Hook in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags. Include #Shorts in the description.
-- Each batch must feel like a FRESH standalone video — unique angle, unique title
-- CRITICAL: Long-form structure — strong hook in first 3 seconds, chapter breaks with re-hooks every 5-8 minutes, curiosity loops throughout, strong end-screen CTA.
+- Titles: Use curiosity gaps, numbers, and strong hooks. Under 60 chars. Front-load keywords. Examples: "I Can't Believe This Actually Worked..." or "This 1v4 Clutch Changed Everything"
+- Descriptions: First 2 lines are shown in search — make them count. Include primary keyword in first sentence. Add timestamps at EVERY chapter for YouTube chapters feature. End with a call-to-action. Include 3-5 related keyword phrases naturally.
+- Tags: 15-25 tags mixing broad niche keywords with specific long-tail keywords. Include topic/subject variations and trending terms.
+- Shorts: Strong opening moment in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags. Include #Shorts in the description.
+- Each batch must feel like a FRESH standalone video — unique angle, unique title.
+- Long-form structure: engaging opening in first 3 seconds, chapter breaks every 5-8 minutes, maintain viewer interest throughout, end-screen call-to-action.
 
 CRITICAL JSON RULES — YOU MUST FOLLOW THESE OR THE RESPONSE WILL BE REJECTED:
 - NEVER use literal double-quote characters (") inside any JSON string value
@@ -390,27 +388,27 @@ CRITICAL JSON RULES — YOU MUST FOLLOW THESE OR THE RESPONSE WILL BE REJECTED:
 Return ONLY valid JSON:
 {
   "longForm": {
-    "title": "string - irresistible clickbait title under 60 chars with power words and curiosity gap",
-    "description": "string - SEO-optimized description: keyword-rich first 2 lines, timestamps at retention beats, hashtags, CTA, and social proof",
+    "title": "string - compelling title under 60 chars with curiosity gap and strong hook",
+    "description": "string - SEO-optimized description: keyword-rich first 2 lines, timestamps at chapter breaks, hashtags, and call-to-action",
     "segments": [{"startMinute": number, "endMinute": number, "hook": "string - why this moment is compelling"}],
     "totalDurationEstimate": "string like 52:30 — target 45-60 minutes for long-form",
     "tags": ["array of 15-25 SEO-optimized tags mixing broad and long-tail keywords"],
     "thumbnailConcept": "detailed thumbnail concept: emotion, composition, colors, focal point, contrast technique",
     "retentionBrief": {
-      "hookStrategy": "exact first-3-second hook (what viewers see/hear to stop scrolling)",
-      "reHookAt30s": "pattern interrupt at 30s to prevent early drop-off",
-      "curiosityLoops": ["3 open questions/teases planted throughout to maintain watch time"],
+      "hookStrategy": "exact first-3-second hook to grab attention",
+      "reHookAt30s": "re-engagement moment at 30s to maintain interest",
+      "curiosityLoops": ["3 open questions or teases planted throughout to maintain watch time"],
       "endScreenCTA": "specific call-to-action driving to next video or subscribe"
     },
     "titleVariants": ["2 alternative titles for A/B testing with different hook types"]
   },
   "shorts": [
     {
-      "title": "string - viral hook title under 50 chars with emotional trigger",
+      "title": "string - attention-grabbing title under 50 chars",
       "description": "string - SEO description with keywords and CTA",
       "startMinute": number,
       "endMinute": number,
-      "hook": "what makes this moment impossible to scroll past",
+      "hook": "what makes this moment compelling and shareable",
       "hashtags": ["array of 5-8 hashtags mixing trending + niche"],
       "targetDuration": "string like 0:34",
       "tiktokCaption": "TikTok-optimized caption with hooks and trending hashtags"

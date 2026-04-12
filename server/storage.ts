@@ -403,6 +403,11 @@ export class DatabaseStorage implements IStorage {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
         }
         await tx.execute(sql`DELETE FROM cannibalization_alerts WHERE video_id_1 = ANY(${videoIdArray}) OR video_id_2 = ANY(${videoIdArray})`);
+        const clipIds = await tx.execute(sql`SELECT id FROM content_clips WHERE source_video_id = ANY(${videoIdArray})`);
+        if (clipIds.rows && clipIds.rows.length > 0) {
+          const clipIdArray = sql`ARRAY[${sql.join(clipIds.rows.map((r: any) => sql`${r.id}`), sql`, `)}]::int[]`;
+          await tx.execute(sql`DELETE FROM clip_virality_scores WHERE clip_id = ANY(${clipIdArray})`);
+        }
         const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
           'content_atoms', 'clip_queue_items', 'moment_genome_classifications'];
         for (const table of srcTables) {

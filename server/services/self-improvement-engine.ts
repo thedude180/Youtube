@@ -203,9 +203,9 @@ async function reflectOnSelf(userId: string, userChannels: any[], trigger: strin
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        totalViews: sql<number>`coalesce(sum(cast(${videos.viewCount} as bigint)), 0)`,
+        totalViews: sql<number>`coalesce(sum(${videos.viewCount}::bigint), 0)`,
         videoCount: count(),
-        avgViews: sql<number>`coalesce(avg(cast(${videos.viewCount} as real)), 0)`,
+        avgViews: sql<number>`coalesce(avg(${videos.viewCount}::real), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));
       channelStats.push({ name: ch.channelName || ch.id, ...stats });
     }
@@ -477,7 +477,7 @@ async function setNewGoals(userId: string, userChannels: any[]): Promise<void> {
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
       const [stats] = await db.select({
-        avgViews: sql<number>`coalesce(avg(cast(${videos.viewCount} as real)), 0)`,
+        avgViews: sql<number>`coalesce(avg(${videos.viewCount}::real), 0)`,
         videoCount: count(),
         maxViews: sql<number>`coalesce(max(${videos.viewCount}), 0)`,
       }).from(videos).where(eq(videos.channelId, ch.id));

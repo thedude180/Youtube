@@ -364,9 +364,12 @@ async function enforceCurrentRules(): Promise<void> {
     .limit(30);
 
   for (const rule of rules) {
-    const meta = (rule.metadata as any) || {};
+    let meta: any = {};
+    try {
+      meta = rule.metadata != null && typeof rule.metadata === "object" ? rule.metadata : {};
+    } catch { meta = {}; }
     if (meta.changeType === "new_restriction" && rule.severity === "critical") {
-      for (const engine of (meta.affectedEngines || [])) {
+      for (const engine of (Array.isArray(meta.affectedEngines) ? meta.affectedEngines : [])) {
         const engines = SYSTEM_ENGINE_MAP[engine] || [];
         for (const eng of engines) {
           adaptiveRules.set(`${eng}_restricted`, true);
