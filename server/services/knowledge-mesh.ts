@@ -54,6 +54,19 @@ const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
   { from: "empire-brain", to: "analytics-intelligence", relevance: "business KPIs add revenue context to metrics" },
   { from: "media-command", to: "content-grinder", relevance: "cadence rules shape content scheduling" },
   { from: "music-composer", to: "content-grinder", relevance: "music effectiveness improves content quality" },
+
+  { from: "content-grinder", to: "self-improvement", relevance: "distribution results across all platforms reveal what content types and formats actually work" },
+  { from: "content-grinder", to: "growth-flywheel", relevance: "cross-platform success data feeds flywheel momentum and compound growth calculations" },
+  { from: "content-grinder", to: "growth-experiments", relevance: "platform performance differences inspire new experiments (what works on TikTok vs YouTube vs X)" },
+  { from: "content-grinder", to: "analytics-intelligence", relevance: "distribution metrics across platforms give analytics multi-platform trend data" },
+  { from: "content-grinder", to: "media-command", relevance: "platform success rates inform upload cadence and content mix decisions per platform" },
+  { from: "content-grinder", to: "empire-brain", relevance: "cross-platform revenue and reach data feeds empire-level business strategy" },
+  { from: "analytics-intelligence", to: "content-grinder", relevance: "analytics trends tell content grinder which platforms to prioritize" },
+  { from: "growth-flywheel", to: "content-grinder", relevance: "flywheel momentum indicates which platforms to double down on" },
+  { from: "self-improvement", to: "content-grinder", relevance: "strategy discoveries and curiosity insights shape cross-platform content approach" },
+  { from: "trend-rider", to: "media-command", relevance: "trending topics influence optimal posting times and platform selection" },
+  { from: "performance-feedback", to: "content-grinder", relevance: "video performance feedback shapes which clips get distributed to which platforms" },
+  { from: "performance-feedback", to: "analytics-intelligence", relevance: "individual video performance validates or challenges analytics forecasts" },
 ];
 
 function ensureMeshUserRegistered(userId: string) {

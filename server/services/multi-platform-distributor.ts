@@ -6,6 +6,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { db } from "../db";
 import { userAutonomousSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { getEngineKnowledgeForContext, recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("multi-platform-distributor");
 
@@ -30,14 +31,22 @@ export class MultiPlatformDistributor {
 
       logger.info(`[MultiPlatformDistributor] Distributing clip to ${platforms.join(", ")} for user ${userId}. Approval required: ${requireApproval}`);
 
-      // 2. Generate platform-specific copy via AI
+      const platformKnowledge = await getEngineKnowledgeForContext("content-grinder", userId, 6);
+      const masterWisdom = await getMasterKnowledgeForPrompt(userId, 4);
+      const platformContext = platformKnowledge.length > 0
+        ? "\n\nLEARNED PLATFORM INTELLIGENCE:\n" + platformKnowledge.map(k => `• [${k.confidence}%] ${k.insight.substring(0, 120)}`).join("\n")
+        : "";
+
       const basePrompt = `Generate engaging, platform-specific captions for a highlight clip titled "${clipPayload.title}" from the game "${clipPayload.gameTitle}".
 Platforms: ${platforms.join(", ")}
+${masterWisdom ? "\n" + masterWisdom : ""}${platformContext}
 
 Requirements:
 - TikTok/Reels: Short, punchy, hashtags, loop-friendly.
 - X (Twitter): Viral hook, thread-starter, driving traffic to the full VOD.
 - Discord: Community-focused announcement.
+- Instagram: Visually-driven, story-telling, strategic hashtags.
+- Apply any platform-specific learnings from the intelligence above.
 
 Return a JSON object where keys are platform names and values are the generated captions.`;
 
@@ -157,6 +166,10 @@ Return a JSON object where keys are platform names and values are the generated 
         prompt,
         response: response.choices[0].message.content || "",
       });
+
+      for (const platform of platforms) {
+        recordEngineKnowledge("content-grinder", userId, "distribution_action", `${platform}_distribution`, `Distributed "${clipPayload.title}" to ${platform}. ${requireApproval ? "Awaiting approval" : "Auto-published"}.`, `Game: ${clipPayload.gameTitle || "unknown"}, platforms: ${platforms.join(",")}`, 55).catch(() => {});
+      }
 
     } catch (err: any) {
       logger.error(`[MultiPlatformDistributor] Error distributing clip: ${err.message}`);

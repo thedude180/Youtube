@@ -2,6 +2,7 @@ import { db } from "../db";
 import { trafficStrategies, videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
+import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const openai = getOpenAIClient();
 
@@ -58,7 +59,14 @@ export async function generateTrafficStrategies(userId: string) {
     videoCount: userChannels[0].videoCount || 0,
   } : { name: "New Channel", subscribers: 0, totalViews: 0, videoCount: 0 };
 
-  const prompt = `You are a YouTube growth strategist. Create actionable, 100% legitimate traffic strategies for this channel. Every strategy must comply with YouTube's Terms of Service and Community Guidelines. ZERO bots, sub4sub, view exchanges, clickfarms, or any artificial inflation.
+  const masterWisdom = await getMasterKnowledgeForPrompt(userId, 6);
+  const crossPlatformKnowledge = await getEngineKnowledgeForContext("content-grinder", userId, 8);
+  const platformInsightsStr = crossPlatformKnowledge.length > 0
+    ? "\n\nCROSS-PLATFORM INTELLIGENCE (learned from distribution results):\n" + crossPlatformKnowledge.map(k => `• [${k.confidence}%] ${k.topic}: ${k.insight.substring(0, 150)}`).join("\n")
+    : "";
+
+  const prompt = `You are a multi-platform growth strategist. Create actionable, 100% legitimate traffic strategies across ALL platforms (YouTube, TikTok, X, Discord, Instagram, Kick, Rumble). Every strategy must comply with each platform's Terms of Service. ZERO bots, sub4sub, view exchanges, clickfarms, or any artificial inflation.
+${masterWisdom ? "\n" + masterWisdom : ""}${platformInsightsStr}
 
 CHANNEL DATA:
 ${JSON.stringify(channelInfo)}
@@ -211,6 +219,17 @@ Respond with JSON:
       source: "traffic-growth-engine",
     },
   });
+
+  for (const strategy of (plan.strategies || []).slice(0, 5)) {
+    if (strategy.priority >= 7) {
+      const platform = strategy.platform || "youtube";
+      recordEngineKnowledge("content-grinder", userId, "traffic_strategy", `${platform}_${strategy.type}`, `${strategy.title}: ${strategy.description}`.substring(0, 400), `Priority: ${strategy.priority}/10, impact: ${strategy.estimatedImpact}, platform: ${platform}`, Math.min(90, 40 + strategy.priority * 5)).catch(() => {});
+    }
+  }
+
+  if (plan.topPriority) {
+    recordEngineKnowledge("content-grinder", userId, "top_priority", "cross_platform_priority", plan.topPriority.substring(0, 400), "Identified as the single most impactful action across all platforms", 80).catch(() => {});
+  }
 
   return plan;
 }

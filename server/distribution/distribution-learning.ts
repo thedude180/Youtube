@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { distributionEvents } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
+import { recordEngineKnowledge } from "../services/knowledge-mesh";
 
 type LearningSignal = {
   allowed: boolean;
@@ -50,6 +51,18 @@ export async function recordDistributionLearning(
   } catch (err: any) {
     console.error("[distribution-learning] governance ingestion failed:", err?.message);
   }
+
+  try {
+    if (signal.publishSuccess !== undefined) {
+      const insightParts: string[] = [`${platform} ${eventType}: ${signal.publishSuccess ? "SUCCESS" : "FAILED"}`];
+      if (signal.engagementRate) insightParts.push(`engagement ${(signal.engagementRate * 100).toFixed(1)}%`);
+      if (signal.viewCount) insightParts.push(`${signal.viewCount} views`);
+      if (signal.clickThroughRate) insightParts.push(`CTR ${(signal.clickThroughRate * 100).toFixed(1)}%`);
+      if (signal.policyIssues.length > 0) insightParts.push(`issues: ${signal.policyIssues.join(", ")}`);
+      const confidence = signal.publishSuccess ? 65 : 45;
+      await recordEngineKnowledge("content-grinder", userId, "distribution_result", `${platform}_${eventType}`, insightParts.join(" | "), `Trust cost: ${signal.trustCost}, connection: ${signal.connectionStatus}`, confidence);
+    }
+  } catch {}
 }
 
 export function getDistributionLearningContext(userId: string, platform?: string): {
@@ -145,6 +158,19 @@ export async function getDistributionInsights(userId: string): Promise<{
   if (blockedRate > 0.2) suggestions.push("High block rate — review trust budget allocation and policy compliance");
   if (Object.keys(platformCounts).length < 3) suggestions.push("Consider diversifying to more platforms for independence");
   if (recentTrend === "declining") suggestions.push("Distribution success is declining — check platform connection health");
+
+  if (bestPlatform) {
+    recordEngineKnowledge("content-grinder", userId, "platform_insight", `best_platform_${bestPlatform}`, `Best performing platform: ${bestPlatform} (${platformCounts[bestPlatform]} successes). Trend: ${recentTrend}. Block rate: ${(blockedRate * 100).toFixed(0)}%`, `Based on ${events.length} distribution events`, recentTrend === "improving" ? 75 : recentTrend === "stable" ? 60 : 45).catch(() => {});
+  }
+
+  for (const plat of Object.keys(platformCounts)) {
+    const platEvents = events.filter(e => e.platform === plat);
+    const platSuccess = platEvents.filter(e => e.status === "published" || e.status === "approved").length;
+    const platRate = platEvents.length > 0 ? platSuccess / platEvents.length : 0;
+    if (platEvents.length >= 5) {
+      recordEngineKnowledge("content-grinder", userId, "platform_performance", `${plat}_distribution`, `${plat}: ${(platRate * 100).toFixed(0)}% success rate (${platSuccess}/${platEvents.length})`, `Platform distribution stats`, Math.round(platRate * 100)).catch(() => {});
+    }
+  }
 
   return { recentTrend, bestPlatform, suggestions };
 }

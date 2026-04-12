@@ -2,6 +2,7 @@ import { db } from "../db";
 import { autopilotQueue, users } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { recordEngineKnowledge } from "./knowledge-mesh";
 
 const logger = createLogger("content-distributor");
 
@@ -77,6 +78,10 @@ export async function runContentDistribution(): Promise<{
         itemsRedistributed += result.redistributed;
         conflictsResolved += result.conflicts;
         maxDaySpan = Math.max(maxDaySpan, result.daysUsed);
+
+        if (result.redistributed > 0 || result.conflicts > 0) {
+          recordEngineKnowledge("media-command", user.id, "scheduling_pattern", "cross_platform_scheduling", `Redistributed ${result.redistributed} items, resolved ${result.conflicts} conflicts across ${result.daysUsed} days`, `Platform daily limits applied, human-like spacing enforced`, 60).catch(() => {});
+        }
       } catch (err: any) {
         logger.warn("Distribution failed for user", { userId: user.id.substring(0, 8), error: err.message?.substring(0, 200) });
       }

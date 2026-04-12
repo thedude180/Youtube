@@ -5,6 +5,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { getAdaptiveRule, getAllAdaptiveRules } from "./tos-compliance-monitor";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
+import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("media-command");
 
@@ -148,7 +149,7 @@ async function assessChannelHealth(userId: string): Promise<ChannelHealthReport>
     return dur >= 480;
   }).length;
 
-  return {
+  const report = {
     score: Math.max(0, Math.min(100, score)),
     grade,
     uploadCadence: {
@@ -191,6 +192,10 @@ async function assessChannelHealth(userId: string): Promise<ChannelHealthReport>
       factors: strikeFactors,
     },
   };
+
+  recordEngineKnowledge("media-command", userId, "channel_health", `health_grade_${report.grade}`, `Channel health: ${report.grade} (${report.score}/100). Cadence: ${report.uploadCadence.actual}/day. Mix: ${shorts.length} shorts, ${longForm.length} long, ${streams.length} streams. Strike risk: ${report.strikeRisk.level}`, `${report.uploadCadence.recommendation} | ${report.contentMix.recommendation}`, report.score).catch(() => {});
+
+  return report;
 }
 
 async function optimizeUploadCadence(userId: string): Promise<CadenceIntelligence> {

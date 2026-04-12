@@ -2,6 +2,7 @@ import { creatorDNABuilder, withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
+import { getEngineKnowledgeForContext, recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("shorts-factory");
 
@@ -20,18 +21,26 @@ export class ShortsFactory {
     logger.info(`[ShortsFactory] Identifying best moments for VOD ${vodVideoId} (${gameTitle}) for user ${userId}`);
 
     try {
-      // 1. Prepare AI Prompt
+      const masterWisdom = await getMasterKnowledgeForPrompt(userId, 4);
+      const clipKnowledge = await getEngineKnowledgeForContext("content-grinder", userId, 5);
+      const clipContext = clipKnowledge.length > 0
+        ? "\n\nLEARNED CLIP INTELLIGENCE:\n" + clipKnowledge.map(k => `• [${k.confidence}%] ${k.insight.substring(0, 120)}`).join("\n")
+        : "";
+
       const basePrompt = `Analyze the stream metadata for "${gameTitle}" (VOD ID: ${vodVideoId}).
-Identify 6 high-engagement, viral-potential moments for short-form clips (Shorts/TikTok/Reels).
+Identify 6 high-engagement, viral-potential moments for short-form clips (Shorts/TikTok/Reels/Instagram).
 Focus on: high-action gameplay, funny reactions, or insightful commentary.
+These clips will be distributed across ALL platforms — optimize for cross-platform virality.
+${masterWisdom ? "\n" + masterWisdom : ""}${clipContext}
 
 For each moment, provide:
 1. Start timestamp (estimate based on duration: ${duration || "unknown"})
 2. End timestamp (clips should be 15-60 seconds)
 3. Catchy title for the clip
 4. Reasoning for selection
+5. Which platforms this clip is best suited for
 
-Return a JSON array of objects with keys: "startTime", "endTime", "title", "reasoning".`;
+Return a JSON array of objects with keys: "startTime", "endTime", "title", "reasoning", "bestPlatforms".`;
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 
@@ -76,6 +85,11 @@ Return a JSON array of objects with keys: "startTime", "endTime", "title", "reas
         prompt,
         response: aiResult.content,
       });
+
+      if (moments.length > 0) {
+        const platforms = [...new Set(moments.flatMap((m: any) => m.bestPlatforms || ["youtube", "tiktok"]))];
+        recordEngineKnowledge("content-grinder", userId, "shorts_extraction", `${gameTitle}_clips`, `Extracted ${moments.length} clips from ${gameTitle} for ${platforms.join(", ")}. Top clip: "${moments[0]?.title}"`, `VOD ${vodVideoId}, multi-platform distribution`, 60).catch(() => {});
+      }
 
     } catch (err: any) {
       logger.error(`[ShortsFactory] Error processing shorts for VOD ${vodVideoId}: ${err.message}`);
