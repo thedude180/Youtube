@@ -605,6 +605,68 @@ export async function initAutomationEngine() {
     }
   });
 
+  cron.schedule("30 */8 * * *", async () => {
+    await withCronLock("ContentSweep", 7 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ContentSweep", async () => {
+        const { startContentSweep: startSweep } = await import("./services/content-sweep");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          if (userId) {
+            try { await startSweep(userId); } catch {}
+          }
+        }
+      });
+    });
+  });
+
+  cron.schedule("15 */12 * * *", async () => {
+    await withCronLock("SecurityFullScan", 10 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("SecurityFullScan", async () => {
+        const { runFullSecurityScan } = await import("./services/ai-security-sentinel");
+        await runFullSecurityScan("autonomous").catch(() => undefined);
+      });
+    });
+  });
+
+  cron.schedule("45 */6 * * *", async () => {
+    await withCronLock("SmartEditCycle", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("SmartEditCycle", async () => {
+        const { initSmartEditForAllLongVideos } = await import("./smart-edit-engine");
+        const { users } = await import("@shared/schema");
+        const allUsers = await db.select({ id: users.id }).from(users).limit(10);
+        for (const u of allUsers) {
+          try { await initSmartEditForAllLongVideos(u.id); } catch {}
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      });
+    });
+  });
+
+  cron.schedule("0 */4 * * *", async () => {
+    await withCronLock("ContentIdeasGen", 3 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ContentIdeasGen", async () => {
+        const { generateContentIdeasFromEmpire: generateContentIdeas } = await import("./idea-empire-engine");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          if (userId) {
+            try { await generateContentIdeas(userId); } catch {}
+          }
+        }
+      });
+    });
+  });
+
+  cron.schedule("30 */6 * * *", async () => {
+    await withCronLock("BulkSEOSweep", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("BulkSEOSweep", async () => {
+        const { runVodOptimizationCycle } = await import("./vod-optimizer-engine");
+        await runVodOptimizationCycle();
+      });
+    });
+  });
+
 }
 
 async function processAllCronJobs() {
@@ -680,6 +742,23 @@ async function processAutoApprovals() {
       console.error(`[AutomationEngine] Auto-approval failed for deal ${deal.id}:`, err);
     }
   }
+
+  try {
+    const { approveSeoAction } = await import("./live-ops/live-seo-producer-service");
+    const { liveSeoActions } = await import("@shared/schema");
+    const pendingSeoActions = await db.select().from(liveSeoActions)
+      .where(eq(liveSeoActions.status, "proposed"))
+      .limit(20);
+
+    for (const action of pendingSeoActions) {
+      const ageMs = Date.now() - new Date(action.createdAt).getTime();
+      if (ageMs > 60_000) {
+        try {
+          await approveSeoAction(action.userId, action.id);
+        } catch {}
+      }
+    }
+  } catch {}
 }
 
 async function processAutoPayments() {
