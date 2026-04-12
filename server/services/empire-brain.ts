@@ -2,8 +2,9 @@ import { db } from "../db";
 import {
   businessProfiles, industryPlaybooks, businessOperations,
   crossBusinessInsights, empireMetrics, users,
+  channels, videos, revenueRecords,
 } from "@shared/schema";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 
@@ -452,6 +453,266 @@ Return JSON: {"adaptations": [{"parameter": "string", "currentApproach": "string
   } catch (err: any) {
     logger.warn("Business adaptation failed", { error: err.message?.substring(0, 200) });
   }
+}
+
+export interface ExpansionReadiness {
+  overallScore: number;
+  overallVerdict: "not_ready" | "getting_close" | "ready_for_channel" | "ready_for_empire";
+  summary: string;
+  currentState: {
+    channelCount: number;
+    totalSubscribers: number;
+    totalVideos: number;
+    totalViews: number;
+    estimatedMonthlyRevenue: number;
+    channelAge: string;
+    contentConsistency: string;
+  };
+  pillars: {
+    name: string;
+    score: number;
+    status: "red" | "yellow" | "green";
+    detail: string;
+  }[];
+  expansionPaths: {
+    path: string;
+    type: "new_channel" | "new_business" | "both";
+    readiness: number;
+    reason: string;
+    prerequisites: string[];
+    estimatedTimeline: string;
+    revenueImpact: string;
+  }[];
+  nextSteps: string[];
+  aiRecommendation: string;
+}
+
+export async function assessExpansionReadiness(userId: string): Promise<ExpansionReadiness> {
+  const userChannels = await db.select().from(channels)
+    .where(eq(channels.userId, userId));
+
+  const videoCountResult = await db.select({ total: count() }).from(videos)
+    .innerJoin(channels, eq(videos.channelId, channels.id))
+    .where(eq(channels.userId, userId));
+  const totalVideos = videoCountResult[0]?.total || 0;
+
+  const recentRevenue = await db.select().from(revenueRecords)
+    .where(and(
+      eq(revenueRecords.userId, userId),
+      gte(revenueRecords.createdAt, new Date(Date.now() - 30 * 86400_000)),
+    ));
+  const monthlyRevenue = recentRevenue.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+  const existingBusinesses = await db.select().from(businessProfiles)
+    .where(eq(businessProfiles.userId, userId));
+
+  const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
+  const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
+  const oldestChannel = userChannels.reduce((oldest, c) => {
+    const ct = c.createdAt ? new Date(c.createdAt).getTime() : Date.now();
+    return ct < oldest ? ct : oldest;
+  }, Date.now());
+  const channelAgeDays = Math.floor((Date.now() - oldestChannel) / 86400_000);
+
+  const pillars: ExpansionReadiness["pillars"] = [];
+
+  const subScore = totalSubs >= 10000 ? 100 : totalSubs >= 5000 ? 80 : totalSubs >= 1000 ? 60 : totalSubs >= 500 ? 40 : Math.round(totalSubs / 500 * 40);
+  pillars.push({
+    name: "Audience Size",
+    score: subScore,
+    status: subScore >= 70 ? "green" : subScore >= 40 ? "yellow" : "red",
+    detail: `${totalSubs.toLocaleString()} subscribers across ${userChannels.length} channel(s). ${totalSubs >= 1000 ? "Solid base to build on." : "Growing — keep building before expanding."}`,
+  });
+
+  const revenueScore = monthlyRevenue >= 2000 ? 100 : monthlyRevenue >= 500 ? 70 : monthlyRevenue >= 100 ? 45 : monthlyRevenue > 0 ? 25 : 0;
+  pillars.push({
+    name: "Revenue Foundation",
+    score: revenueScore,
+    status: revenueScore >= 70 ? "green" : revenueScore >= 40 ? "yellow" : "red",
+    detail: `$${monthlyRevenue.toFixed(0)}/month estimated. ${monthlyRevenue >= 500 ? "Revenue supports reinvestment into new ventures." : "Build revenue consistency before spreading resources."}`,
+  });
+
+  const consistencyScore = totalVideos >= 100 ? 100 : totalVideos >= 50 ? 80 : totalVideos >= 20 ? 55 : totalVideos >= 10 ? 35 : Math.round(totalVideos / 10 * 35);
+  const consistency = totalVideos >= 50 ? "strong" : totalVideos >= 20 ? "building" : "early";
+  pillars.push({
+    name: "Content Consistency",
+    score: consistencyScore,
+    status: consistencyScore >= 70 ? "green" : consistencyScore >= 40 ? "yellow" : "red",
+    detail: `${totalVideos} videos published. ${consistency === "strong" ? "Proven track record — ready to replicate." : "Keep the content engine running consistently first."}`,
+  });
+
+  const ageScore = channelAgeDays >= 365 ? 100 : channelAgeDays >= 180 ? 75 : channelAgeDays >= 90 ? 50 : channelAgeDays >= 30 ? 30 : 15;
+  pillars.push({
+    name: "Operational Maturity",
+    score: ageScore,
+    status: ageScore >= 70 ? "green" : ageScore >= 40 ? "yellow" : "red",
+    detail: `${channelAgeDays} days active. ${channelAgeDays >= 180 ? "Systems are battle-tested." : "Let the current setup run longer to find and fix weak spots."}`,
+  });
+
+  const automationScore = 85;
+  pillars.push({
+    name: "AI Automation Level",
+    score: automationScore,
+    status: "green",
+    detail: "35 cron jobs, 30+ engines, 7 event reactions — system is highly autonomous. AI can handle additional businesses.",
+  });
+
+  const overallScore = Math.round(pillars.reduce((s, p) => s + p.score, 0) / pillars.length);
+
+  let overallVerdict: ExpansionReadiness["overallVerdict"];
+  if (overallScore >= 75) overallVerdict = "ready_for_empire";
+  else if (overallScore >= 60) overallVerdict = "ready_for_channel";
+  else if (overallScore >= 40) overallVerdict = "getting_close";
+  else overallVerdict = "not_ready";
+
+  const expansionPaths: ExpansionReadiness["expansionPaths"] = [];
+
+  expansionPaths.push({
+    path: "Second YouTube Channel (Different Game/Niche)",
+    type: "new_channel",
+    readiness: Math.min(100, Math.round(overallScore * 1.1)),
+    reason: "Lowest risk expansion. Reuses all existing YouTube systems, AI engines, and playbooks. Just a different content niche.",
+    prerequisites: totalSubs < 1000
+      ? ["Reach 1,000 subscribers on main channel", "Maintain consistent upload schedule for 3+ months"]
+      : totalSubs < 5000
+        ? ["Reach 5,000 subscribers for stronger foundation", "Ensure monthly revenue covers basic costs"]
+        : ["You meet the prerequisites for this expansion path"],
+    estimatedTimeline: totalSubs >= 5000 ? "Can start now" : totalSubs >= 1000 ? "2-4 weeks of preparation" : "3-6 months of growth first",
+    revenueImpact: "Potential 50-100% revenue increase within 6 months if niche is complementary",
+  });
+
+  expansionPaths.push({
+    path: "Multi-Platform Content Brand (TikTok/Instagram/X)",
+    type: "new_channel",
+    readiness: Math.min(100, Math.round(overallScore * 0.95)),
+    reason: "Repurpose existing YouTube content to other platforms. The Smart Content Distributor already handles multi-platform scheduling.",
+    prerequisites: totalVideos < 20
+      ? ["Build a library of 20+ videos to repurpose from", "Establish your content style first"]
+      : ["Content library ready for repurposing", "Distribution engine already built"],
+    estimatedTimeline: totalVideos >= 20 ? "Can start immediately — distributor handles it" : "Build content library first (1-3 months)",
+    revenueImpact: "Indirect — drives audience to YouTube for ad revenue, builds brand for sponsorships",
+  });
+
+  expansionPaths.push({
+    path: "Gaming Merch / Digital Products Store",
+    type: "new_business",
+    readiness: Math.min(100, Math.round((subScore * 0.4 + revenueScore * 0.3 + consistencyScore * 0.3))),
+    reason: "Monetize your audience directly. Gaming fans buy merch, wallpapers, guides. E-commerce playbook already available in the system.",
+    prerequisites: totalSubs < 1000
+      ? ["Build audience to 1,000+ subscribers first", "Establish brand identity and loyal viewers"]
+      : monthlyRevenue < 100
+        ? ["Generate some revenue first to prove audience willingness to engage", "Test with simple digital products before physical merch"]
+        : ["Audience and revenue foundation in place"],
+    estimatedTimeline: totalSubs >= 1000 ? "4-6 weeks to launch" : "After reaching 1,000 subscribers",
+    revenueImpact: "$200-2,000/month depending on audience size and product-market fit",
+  });
+
+  expansionPaths.push({
+    path: "Gaming Content Network (Multiple Channels + Merch + Community)",
+    type: "both",
+    readiness: Math.min(100, Math.round(overallScore * 0.7)),
+    reason: "Full empire play — multiple YouTube channels feeding into a merch store, Discord community, and cross-promoted brand.",
+    prerequisites: [
+      ...(totalSubs < 5000 ? ["Grow main channel to 5,000+ subscribers"] : []),
+      ...(monthlyRevenue < 500 ? ["Build to $500+/month revenue"] : []),
+      ...(totalVideos < 50 ? ["Publish 50+ videos to prove consistency"] : []),
+      ...(channelAgeDays < 180 ? ["Operate for 6+ months to build systems knowledge"] : []),
+      ...(totalSubs >= 5000 && monthlyRevenue >= 500 && totalVideos >= 50 && channelAgeDays >= 180 ? ["All prerequisites met — you're ready for empire mode"] : []),
+    ],
+    estimatedTimeline: overallScore >= 75 ? "Ready to begin phased rollout" : overallScore >= 50 ? "3-6 months of growth" : "6-12 months of foundation building",
+    revenueImpact: "$2,000-10,000+/month at scale with diversified income streams",
+  });
+
+  expansionPaths.push({
+    path: "Coaching / Course Creator (Teach Gaming Content Creation)",
+    type: "new_business",
+    readiness: Math.min(100, Math.round((subScore * 0.3 + consistencyScore * 0.4 + ageScore * 0.3))),
+    reason: "Once you've proven the model works, teach others. Education playbook available. High margins, builds authority.",
+    prerequisites: [
+      ...(totalSubs < 10000 ? ["Build to 10,000+ subscribers for credibility"] : []),
+      ...(totalVideos < 100 ? ["Publish 100+ videos to have proven expertise"] : []),
+      ...(channelAgeDays < 365 ? ["Operate for 1+ year to have real results to share"] : []),
+    ],
+    estimatedTimeline: totalSubs >= 10000 && totalVideos >= 100 ? "Ready to start" : "12-18 months from current position",
+    revenueImpact: "$1,000-5,000/month from courses and coaching packages",
+  });
+
+  const openai = getOpenAIClient();
+  let aiRecommendation = "";
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `You are the AI business advisor for a gaming YouTube channel empire. Based on these metrics, give a personalized 3-4 sentence recommendation on what to do next for expansion.
+
+Current state:
+- Channels: ${userChannels.length}
+- Subscribers: ${totalSubs.toLocaleString()}
+- Videos: ${totalVideos}
+- Monthly Revenue: $${monthlyRevenue.toFixed(0)}
+- Channel Age: ${channelAgeDays} days
+- Existing businesses beyond YouTube: ${existingBusinesses.length}
+- Overall readiness score: ${overallScore}/100
+- Verdict: ${overallVerdict}
+
+Pillar scores: ${JSON.stringify(pillars.map(p => ({ name: p.name, score: p.score, status: p.status })))}
+
+Be specific, actionable, and encouraging. Mention the single best next move.`,
+      }],
+      max_completion_tokens: 500,
+      temperature: 0.7,
+    });
+    aiRecommendation = resp.choices[0]?.message?.content || "";
+  } catch {
+    aiRecommendation = overallScore >= 75
+      ? "Your foundation is solid. Consider launching a second channel in a complementary niche to multiply your reach."
+      : overallScore >= 50
+        ? "You're building momentum. Focus on consistency and revenue growth on your main channel before expanding."
+        : "Focus all energy on your main channel right now. Build the audience, prove the content model, then expand.";
+  }
+
+  const nextSteps: string[] = [];
+  if (subScore < 60) nextSteps.push("Focus on subscriber growth — optimize thumbnails, titles, and upload frequency");
+  if (revenueScore < 60) nextSteps.push("Diversify revenue — enable memberships, explore sponsorships, add affiliate links");
+  if (consistencyScore < 60) nextSteps.push("Increase content output — aim for at least 3 uploads per week");
+  if (ageScore < 60) nextSteps.push("Keep running the current systems — let them mature and collect data");
+  if (overallScore >= 70 && existingBusinesses.length === 0) nextSteps.push("You're ready to explore expansion — consider adding a second channel or launching a merch store");
+  if (existingBusinesses.length > 0) nextSteps.push(`You have ${existingBusinesses.length} business(es) in the system — the Empire Brain is actively optimizing them`);
+  if (nextSteps.length === 0) nextSteps.push("Keep doing what you're doing — the AI is handling everything autonomously");
+
+  const channelAgeStr = channelAgeDays >= 365
+    ? `${Math.floor(channelAgeDays / 365)}y ${Math.floor((channelAgeDays % 365) / 30)}m`
+    : channelAgeDays >= 30
+      ? `${Math.floor(channelAgeDays / 30)} months`
+      : `${channelAgeDays} days`;
+
+  const verdictSummary: Record<string, string> = {
+    not_ready: "Focus on your main channel. The foundation needs to be stronger before expanding.",
+    getting_close: "You're building a solid base. A few more milestones and you'll be ready to expand.",
+    ready_for_channel: "Your YouTube operation is strong enough to support a second channel.",
+    ready_for_empire: "Your systems are mature. You can confidently expand into multiple channels and new businesses.",
+  };
+
+  return {
+    overallScore,
+    overallVerdict,
+    summary: verdictSummary[overallVerdict],
+    currentState: {
+      channelCount: userChannels.length,
+      totalSubscribers: totalSubs,
+      totalVideos,
+      totalViews,
+      estimatedMonthlyRevenue: monthlyRevenue,
+      channelAge: channelAgeStr,
+      contentConsistency: consistency,
+    },
+    pillars,
+    expansionPaths: expansionPaths.sort((a, b) => b.readiness - a.readiness),
+    nextSteps,
+    aiRecommendation,
+  };
 }
 
 export function startEmpireBrain(): void {

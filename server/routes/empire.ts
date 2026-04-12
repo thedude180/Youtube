@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { createBusinessProfile, getEmpireOverview, getIndustryRegistry, adaptBusinessToIndustry, runEmpireCycle } from "../services/empire-brain";
+import { createBusinessProfile, getEmpireOverview, getIndustryRegistry, adaptBusinessToIndustry, runEmpireCycle, assessExpansionReadiness } from "../services/empire-brain";
 import { db } from "../db";
 import { businessProfiles, businessOperations, crossBusinessInsights, industryPlaybooks, empireMetrics } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -114,6 +114,18 @@ export function registerEmpireRoutes(app: Express): void {
         .limit(50);
 
       res.json(insights);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/empire/expansion-readiness", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const readiness = await assessExpansionReadiness(userId);
+      res.json(readiness);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
