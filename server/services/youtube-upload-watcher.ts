@@ -6,6 +6,13 @@ import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("upload-watcher");
 
+function parseDurationToSeconds(isoDuration: string | null): number {
+  if (!isoDuration) return 0;
+  const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  return (parseInt(match[1] || "0") * 3600) + (parseInt(match[2] || "0") * 60) + parseInt(match[3] || "0");
+}
+
 interface UploadWatcherState {
   userId: string;
   lastScanAt: Date | null;
@@ -51,6 +58,59 @@ async function getAuthenticatedYouTube(channel: any) {
     }
   });
   return google.youtube({ version: "v3", auth: oauth2Client });
+}
+
+async function runFullEditingPipeline(userId: string, videoId: number, channelId: number): Promise<void> {
+  const video = await storage.getVideo(videoId);
+  if (!video) return;
+
+  const durationSec = (video.metadata as any)?.durationSec || 0;
+  const isLongForm = durationSec >= 900;
+
+  if (isLongForm) {
+    try {
+      const { queueVideoForSmartEdit, processSmartEditQueue } = await import("../smart-edit-engine");
+      const jobId = await queueVideoForSmartEdit(userId, videoId);
+      if (jobId) {
+        processSmartEditQueue(userId).catch(() => undefined);
+        logger.info(`[${userId}] Smart-edit queued for video ${videoId} (job ${jobId})`);
+      }
+    } catch (err: any) {
+      logger.warn(`[${userId}] Smart-edit queue failed for video ${videoId}: ${err.message}`);
+    }
+  } else {
+    try {
+      const { startShortsPipeline } = await import("../shorts-pipeline-engine");
+      await startShortsPipeline(userId, "new-only");
+      logger.info(`[${userId}] Shorts pipeline triggered for short video ${videoId}`);
+    } catch (err: any) {
+      logger.warn(`[${userId}] Shorts pipeline failed for video ${videoId}: ${err.message}`);
+    }
+  }
+
+  try {
+    const { vodSEOOptimizer } = await import("./vod-seo-optimizer");
+    vodSEOOptimizer.optimize(userId, videoId).catch(() => undefined);
+    logger.info(`[${userId}] SEO optimization triggered for video ${videoId}`);
+  } catch (err: any) {
+    logger.warn(`[${userId}] SEO optimization failed for video ${videoId}: ${err.message}`);
+  }
+
+  try {
+    const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
+    generateThumbnailForNewVideo(userId, videoId).catch(() => undefined);
+    logger.info(`[${userId}] Thumbnail generation triggered for video ${videoId}`);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Thumbnail gen failed for video ${videoId}: ${err.message}`);
+  }
+
+  try {
+    const { repurposeVideo } = await import("../repurpose-engine");
+    await repurposeVideo(userId, videoId, ["blog", "twitter_thread", "instagram_caption"]);
+    logger.info(`[${userId}] Repurpose triggered for video ${videoId}`);
+  } catch (err: any) {
+    logger.warn(`[${userId}] Repurpose failed for video ${videoId}: ${err.message}`);
+  }
 }
 
 async function scanUserForNewUploads(userId: string): Promise<{ newUploads: number; scanned: number }> {
@@ -128,9 +188,11 @@ async function scanUserForNewUploads(userId: string): Promise<{ newUploads: numb
         publishedAt,
         metadata: {
           youtubeId: v.id,
+          youtubeVideoId: v.id,
           youtubeUrl: `https://youtube.com/watch?v=${v.id}`,
           tags: v.snippet?.tags || [],
           duration,
+          durationSec: parseDurationToSeconds(duration),
           viewCount: Number(v.statistics?.viewCount || 0),
           likeCount: Number(v.statistics?.likeCount || 0),
           commentCount: Number(v.statistics?.commentCount || 0),
@@ -148,26 +210,16 @@ async function scanUserForNewUploads(userId: string): Promise<{ newUploads: numb
   }
 
   if (createdVideoIds.length > 0) {
-    try {
-      const { startShortsPipeline } = await import("../shorts-pipeline-engine");
-      await startShortsPipeline(userId, "new-only");
-      logger.info(`[${userId}] Shorts pipeline triggered for ${createdVideoIds.length} new uploads`);
-    } catch (err: any) {
-      logger.warn(`[${userId}] Failed to trigger shorts pipeline: ${err.message}`);
+    for (const videoId of createdVideoIds) {
+      fireAgentEvent("upload.detected", userId, { videoId, count: createdVideoIds.length });
     }
 
     for (const videoId of createdVideoIds) {
       try {
-        const { repurposeVideo } = await import("../repurpose-engine");
-        await repurposeVideo(userId, videoId, ["blog", "twitter_thread", "instagram_caption"]);
-        logger.info(`[${userId}] Repurpose triggered for video ${videoId}`);
+        await runFullEditingPipeline(userId, videoId, ytChannel.id);
       } catch (err: any) {
-        logger.warn(`[${userId}] Repurpose failed for video ${videoId}: ${err.message}`);
+        logger.warn(`[${userId}] Full editing pipeline failed for video ${videoId}: ${err.message?.substring(0, 200)}`);
       }
-    }
-
-    for (const videoId of createdVideoIds) {
-      fireAgentEvent("upload.detected", userId, { videoId, count: createdVideoIds.length });
     }
   }
 
