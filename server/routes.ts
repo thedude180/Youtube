@@ -54,6 +54,7 @@ import { registerAudienceEngineRoutes } from "./routes/audience-engine";
 import { registerEmpireRoutes } from "./routes/empire";
 import { registerCatalogRoutes } from "./routes/catalog";
 import { registerGrinderRoutes } from "./routes/grinder";
+import { registerEvolutionRoutes } from "./routes/evolution";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -367,6 +368,7 @@ export async function registerRoutes(
   registerEmpireRoutes(app);
   registerCatalogRoutes(app);
   registerGrinderRoutes(app);
+  registerEvolutionRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));

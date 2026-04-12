@@ -1313,6 +1313,12 @@ httpServer.listen(
       }).catch(err => logger.error("Content Grinder init failed", { error: String(err) }));
     });
 
+    delay(730_000, () => {
+      import("./services/infinite-evolution-engine").then(m => {
+        m.startInfiniteEvolution();
+      }).catch(err => logger.error("Infinite Evolution Engine init failed", { error: String(err) }));
+    });
+
     // ── TIER 6: Self-Healing Architecture (T+490s → T+510s) ──────────────────
     // All services are self-starting (setInterval) after import.
     // These delays simply stagger initial work away from the Tier 5 burst.
