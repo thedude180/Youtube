@@ -22,32 +22,19 @@ import { AuthForm } from "@/components/AuthForm";
 import { useTranslation } from "react-i18next";
 
 function LiveStatsBar() {
-  const [stats, setStats] = useState({ creators: 142, tasks: 847, revenue: 12847 });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setStats(prev => ({
-        creators: prev.creators + (Math.random() > 0.8 ? 1 : 0),
-        tasks: prev.tasks + Math.floor(Math.random() * 3),
-        revenue: prev.revenue + Math.floor(Math.random() * 5)
-      }));
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div className="flex justify-center mt-12 slide-up-stagger" data-testid="widget-live-stats-bar" style={{ animationDelay: '0.5s' }}>
       <div className="inline-flex items-center gap-6 px-6 py-2.5 rounded-full bg-background/40 backdrop-blur-md border border-primary/20 shadow-xl shadow-primary/5 text-xs font-medium">
         <div className="flex items-center gap-2">
           <span className="live-dot" />
-          <span className="text-muted-foreground uppercase tracking-wider">Live</span>
+          <span className="text-muted-foreground uppercase tracking-wider">AI-Powered</span>
         </div>
         <div className="h-4 w-px bg-border/50" />
-        <span className="text-foreground">{stats.creators} creators live</span>
+        <span className="text-foreground">41 AI Agents</span>
         <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-        <span className="text-foreground">{stats.tasks.toLocaleString()} tasks completed</span>
+        <span className="text-foreground">24/7 Autonomous Ops</span>
         <div className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-        <span className="text-foreground">Revenue: ${stats.revenue.toLocaleString()}</span>
+        <span className="text-foreground">YouTube + Twitch + Kick</span>
       </div>
     </div>
   );

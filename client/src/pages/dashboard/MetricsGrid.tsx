@@ -18,17 +18,6 @@ interface MetricsGridProps {
   metrics: MetricItem[];
 }
 
-function generateFakeSparkline(value: number, seed: number): number[] {
-  const points: number[] = [];
-  let v = Math.max(1, value * 0.6);
-  for (let i = 0; i < 8; i++) {
-    v += (Math.sin(seed + i * 1.3) * value * 0.15);
-    points.push(Math.max(0, Math.round(v)));
-  }
-  points.push(typeof value === "number" ? value : 0);
-  return points;
-}
-
 const METRIC_GRADIENTS = [
   "from-violet-500/10 to-purple-500/5",
   "from-emerald-500/10 to-green-500/5",
@@ -45,12 +34,7 @@ const METRIC_ICON_COLORS = [
 
 export default memo(function MetricsGrid({ metrics }: MetricsGridProps) {
   const sparklines = useMemo(() =>
-    metrics.map((m, i) => {
-      if (m.sparklineData) return m.sparklineData;
-      const numVal = typeof m.value === "number" ? m.value : parseFloat(String(m.value).replace(/[^0-9.]/g, ""));
-      if (isNaN(numVal) || numVal === 0) return null;
-      return generateFakeSparkline(numVal, i * 7 + 13);
-    }),
+    metrics.map((m) => m.sparklineData ?? null),
     [metrics]
   );
 

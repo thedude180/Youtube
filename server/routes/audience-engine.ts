@@ -261,17 +261,41 @@ export function registerAudienceEngineRoutes(app: Express) {
       if (!video) return res.status(404).json({ error: "Video not found" });
 
       const meta = video.metadata as any;
-      const durationSec = meta?.durationSec || 600;
+      let durationSec = 600;
+      if (typeof meta?.durationSec === "number" && meta.durationSec > 0) {
+        durationSec = meta.durationSec;
+      } else if (typeof meta?.duration === "string" && meta.duration.startsWith("PT")) {
+        const match = meta.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (match) {
+          durationSec = (parseInt(match[1] || "0") * 3600) + (parseInt(match[2] || "0") * 60) + parseInt(match[3] || "0");
+        }
+      } else if (typeof meta?.duration === "number" && meta.duration > 0) {
+        durationSec = meta.duration;
+      }
       const videoType = meta?.videoType || video.type || "gameplay";
       const segmentCount = Math.min(20, Math.max(5, Math.floor(durationSec / 30)));
-      const syntheticRetention = Array.from({ length: segmentCount }, (_, i) => {
-        const pos = i / segmentCount;
-        return Math.max(0.15, 0.95 - pos * 0.4 + (Math.sin(pos * Math.PI * 3) * 0.1));
-      });
+
+      const storedRetention = meta?.retentionCurve;
+      const hasRealData = Array.isArray(storedRetention) && storedRetention.length >= 3;
+      const retentionData = hasRealData
+        ? storedRetention.slice(0, segmentCount)
+        : null;
+
+      if (!retentionData) {
+        return res.json({
+          videoId: video.id,
+          title: video.title,
+          videoType,
+          durationSec,
+          analysis: null,
+          dataSource: "none",
+          message: "No retention data available. Connect YouTube Analytics for real retention curves.",
+        });
+      }
 
       const { analyzeBeatMap } = await import("../retention-beats-engine");
-      const analysis = analyzeBeatMap(videoType, durationSec, syntheticRetention);
-      res.json({ videoId: video.id, title: video.title, videoType, durationSec, analysis });
+      const analysis = analyzeBeatMap(videoType, durationSec, retentionData);
+      res.json({ videoId: video.id, title: video.title, videoType, durationSec, analysis, dataSource: "youtube-analytics" });
     } catch (err: any) {
       res.status(500).json({ error: "Failed to analyze beat map" });
     }
