@@ -181,3 +181,10 @@ export function stopLifecycleManager(userId: string) {
     managers.delete(userId);
   }
 }
+
+export function stopAllLifecycleManagers() {
+  for (const [userId, manager] of managers) {
+    manager.stop();
+  }
+  managers.clear();
+}

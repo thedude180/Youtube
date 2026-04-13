@@ -376,3 +376,10 @@ export const streamOperator = {
 
 export const startStreamOperator = streamOperator.startOperating.bind(streamOperator);
 export const stopStreamOperator = streamOperator.stopStreamOperator.bind(streamOperator);
+
+export function stopAllStreamOperators() {
+  for (const [userId, state] of activeOperators) {
+    if (state.interval) clearInterval(state.interval);
+  }
+  activeOperators.clear();
+}

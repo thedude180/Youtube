@@ -51,12 +51,12 @@ import { userAutonomousSettings, autonomousActionLog, dailyBriefings, growthPlan
 import { eq, and, gt, desc } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { fireAgentEvent } from "./services/agent-events";
-import { startLifecycleManager, stopLifecycleManager } from "./services/stream-lifecycle";
-import { startCommunityAutoManager, stopCommunityAutoManager } from "./services/community-auto-manager";
+import { startLifecycleManager, stopLifecycleManager, stopAllLifecycleManagers } from "./services/stream-lifecycle";
+import { startCommunityAutoManager, stopCommunityAutoManager, stopAllCommunityAutoManagers } from "./services/community-auto-manager";
 import { dailyBriefing } from "./services/daily-briefing";
 import { revenueBrain } from "./services/revenue-brain";
 import { growthEngine } from "./services/growth-intelligence-engine";
-import { startStreamOperator, stopStreamOperator } from "./services/stream-operator";
+import { startStreamOperator, stopStreamOperator, stopAllStreamOperators } from "./services/stream-operator";
 
 const logger = createLogger("express");
 
@@ -77,15 +77,15 @@ const logger = createLogger("express");
 const CRASH_LOG = "/tmp/server-crash.log";
 _writeFileSync(CRASH_LOG, `[STARTUP] PID=${process.pid} started at ${new Date().toISOString()}\n`, { flag: "a" });
 
-// Catch unhandled rejections / exceptions that may bypass the exit interceptor
+// Early crash file logger — the structured handlers at the bottom of the file
+// supersede these once the server is fully initialized. These only fire during
+// the brief window between module load and the structured handlers' registration.
 process.on("uncaughtException", (err) => {
   const msg = `\n[UNCAUGHT-EXCEPTION] PID=${process.pid} ${err.message}\n${err.stack}\n`;
-  process.stdout.write(msg);
   _appendFileSync(CRASH_LOG, msg);
 });
 process.on("unhandledRejection", (reason) => {
   const msg = `\n[UNHANDLED-REJECTION] PID=${process.pid} ${String(reason)}\n`;
-  process.stdout.write(msg);
   _appendFileSync(CRASH_LOG, msg);
 });
 
@@ -1015,7 +1015,7 @@ const port = parseInt(process.env.PORT || "5000", 10);
 httpServer.listen(
   { port, host: "0.0.0.0" },
   () => {
-    process.stderr.write(`[Server] listening on port ${port}\n`);
+    process.stdout.write(`[Server] listening on port ${port}\n`);
     setServerStartTime(Date.now()); // resource governor quiet period starts here
 
     // ── CRITICAL: listen callback must return IMMEDIATELY ─────────────────────
@@ -1560,7 +1560,7 @@ httpServer.listen(
     await setupVite(httpServer, app);
   }
 
-  process.stderr.write("[Server] routes registered, all middleware active\n");
+  process.stdout.write("[Server] routes registered, all middleware active\n");
 })();
 
   let isShuttingDown = false;
@@ -1606,6 +1606,9 @@ httpServer.listen(
     stopAutoFixCleanup();
     stopSettingsCleanup();
     stopTierCleanup();
+    try { stopAllLifecycleManagers(); } catch {}
+    try { stopAllStreamOperators(); } catch {}
+    try { stopAllCommunityAutoManagers(); } catch {}
     log("[Server] Background engines stopped");
 
     // Close all SSE connections

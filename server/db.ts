@@ -16,7 +16,7 @@ export const pool = new Pool({
   max: 5,                       // reduced from 10 — 14+ background engines caused thundering herd exhaustion
   idleTimeoutMillis: 30_000,    // longer idle release to avoid churn from rapid acquire/release cycles
   connectionTimeoutMillis: 6_000, // 6s fail-fast so withRetry can try fresh connection sooner
-  allowExitOnIdle: true,
+  allowExitOnIdle: false,
   statement_timeout: 25_000,
   query_timeout: 25_000,
 });

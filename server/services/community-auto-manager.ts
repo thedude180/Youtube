@@ -17,7 +17,7 @@ import { storage } from "../storage";
 const logger = createLogger("community-auto-manager");
 
 export class CommunityAutoManager {
-  private intervals: Map<string, NodeJS.Timeout> = new Map();
+  intervals: Map<string, NodeJS.Timeout> = new Map();
 
   /**
    * Starts the 8-hour cycle for a specific user.
@@ -324,4 +324,10 @@ export async function startCommunityAutoManager(userId: string) {
 
 export function stopCommunityAutoManager(userId: string) {
   return communityAutoManager.stopCommunityAutoManager(userId);
+}
+
+export function stopAllCommunityAutoManagers() {
+  for (const [userId] of communityAutoManager.intervals) {
+    communityAutoManager.stopCommunityAutoManager(userId);
+  }
 }
