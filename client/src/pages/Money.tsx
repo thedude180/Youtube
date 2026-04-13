@@ -288,7 +288,13 @@ function MissionsTab() {
   });
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
-  if (!data) return null;
+  if (!data || !data.missions?.length) return (
+    <div className="flex flex-col items-center justify-center py-16 text-center" data-testid="missions-empty">
+      <Target className="h-12 w-12 text-muted-foreground/50 mb-3" />
+      <p className="text-muted-foreground font-medium">No monetization missions yet</p>
+      <p className="text-sm text-muted-foreground/70 mt-1">Missions will appear as your channel grows</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4" data-testid="section-missions">

@@ -327,7 +327,7 @@ export type AgentId = typeof AI_AGENTS[number]["id"];
 
 export const channels = pgTable("channels", {
   id: serial("id").primaryKey(),
-  userId: text("user_id"),
+  userId: text("user_id").notNull(),
   platform: text("platform").notNull(),
   channelName: text("channel_name").notNull(),
   channelId: text("channel_id").notNull(),
@@ -358,7 +358,7 @@ export const channels = pgTable("channels", {
 
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
-  channelId: integer("channel_id").references(() => channels.id),
+  channelId: integer("channel_id").notNull().references(() => channels.id),
   title: text("title").notNull(),
   originalFilename: text("original_filename"),
   filePath: text("file_path"),
@@ -457,7 +457,7 @@ export const streamDestinations = pgTable("stream_destinations", {
 
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
-  userId: text("user_id"),
+  userId: text("user_id").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category"),

@@ -444,7 +444,7 @@ export async function exportUserData(userId: string): Promise<Record<string, any
   const out: Record<string, any[]> = {};
   try {
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`SELECT * FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); if (r.rows?.length) out[t] = r.rows; } catch { continue; }
+      try { const r = await db.execute(sql`SELECT * FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); if (r.rows?.length) out[t] = r.rows; } catch (e: any) { console.warn(`[SecurityFortress] exportUserData skipped table ${t}:`, e?.message); continue; }
     }
     await db.insert(securityEvents).values({ userId, eventType: "gdpr_data_export", severity: "info", details: { tablesExported: Object.keys(out).length, totalRecords: Object.values(out).reduce((s, a) => s + a.length, 0) }, blocked: false });
     return out;
@@ -456,7 +456,7 @@ export async function deleteUserData(userId: string): Promise<{ success: boolean
   try {
     await db.insert(securityEvents).values({ userId, eventType: "gdpr_data_deletion_started", severity: "high", details: { requestedAt: new Date().toISOString() }, blocked: false });
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`DELETE FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); const d = Number(r.rowCount) || 0; if (d > 0) { tables++; rows += d; } } catch { continue; }
+      try { const r = await db.execute(sql`DELETE FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); const d = Number(r.rowCount) || 0; if (d > 0) { tables++; rows += d; } } catch (e: any) { console.warn(`[SecurityFortress] deleteUserData skipped table ${t}:`, e?.message); continue; }
     }
     return { success: true, tablesAffected: tables, totalRowsDeleted: rows };
   } catch (error) { console.error("[Security Fortress] deleteUserData error:", error); return { success: false, tablesAffected: tables, totalRowsDeleted: rows }; }
@@ -467,7 +467,7 @@ export async function anonymizeUserData(userId: string): Promise<{ success: bool
   const anonId = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   try {
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`UPDATE ${sql.identifier(t)} SET user_id = ${anonId} WHERE user_id = ${userId}`); if (Number(r.rowCount) > 0) anonymized++; } catch { continue; }
+      try { const r = await db.execute(sql`UPDATE ${sql.identifier(t)} SET user_id = ${anonId} WHERE user_id = ${userId}`); if (Number(r.rowCount) > 0) anonymized++; } catch (e: any) { console.warn(`[SecurityFortress] anonymizeUserData skipped table ${t}:`, e?.message); continue; }
     }
     try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize login_attempts", e?.message); }
     try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize security_events", e?.message); }

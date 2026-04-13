@@ -98,7 +98,8 @@ export async function registerPlatformRoutes(app: Express) {
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement } = req.body || {};
-    const post = await storage.updateCommunityPost(id, { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement });
+    const post = await storage.updateCommunityPost(id, { content, platform, type, status, publishedAt, aiGenerated, scheduledAt, engagement }, userId);
+    if (!post) return res.status(403).json({ error: "Not authorized to update this post" });
     res.json(post);
   });
 

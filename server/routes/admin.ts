@@ -216,7 +216,9 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  app.get("/api/system/health", async (_req, res) => {
+  app.get("/api/system/health", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
     try {
       const health = await cached(`system-health`, 60, async () => {
         let dbStatus: { status: string; latencyMs: number } = { status: "unhealthy", latencyMs: -1 };

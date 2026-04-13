@@ -149,7 +149,7 @@ export interface IStorage {
 
   getCommunityPosts(userId?: string, platform?: string): Promise<CommunityPost[]>;
   createCommunityPost(post: InsertCommunityPost): Promise<CommunityPost>;
-  updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost>;
+  updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>, userId?: string): Promise<CommunityPost | undefined>;
 
   getNotifications(userId: string): Promise<Notification[]>;
   getUnreadCount(userId: string): Promise<number>;
@@ -730,9 +730,9 @@ export class DatabaseStorage implements IStorage {
     if (platform) conditions.push(eq(revenueRecords.platform, platform));
 
     if (conditions.length > 0) {
-      return await db.select().from(revenueRecords).where(and(...conditions)).orderBy(desc(revenueRecords.recordedAt));
+      return await db.select().from(revenueRecords).where(and(...conditions)).orderBy(desc(revenueRecords.recordedAt)).limit(1000);
     }
-    return await db.select().from(revenueRecords).orderBy(desc(revenueRecords.recordedAt));
+    return await db.select().from(revenueRecords).orderBy(desc(revenueRecords.recordedAt)).limit(1000);
   }
 
   async createRevenueRecord(record: InsertRevenueRecord): Promise<RevenueRecord> {
@@ -741,15 +741,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRevenueSummary(userId?: string): Promise<{ total: number; byPlatform: Record<string, number>; bySource: Record<string, number> }> {
-    const records = await this.getRevenueRecords(userId);
-    const total = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const condition = userId ? eq(revenueRecords.userId, userId) : undefined;
+
+    const totalResult = await db.select({
+      total: sql<number>`COALESCE(SUM(amount), 0)`,
+    }).from(revenueRecords).where(condition);
+
+    const platformResult = await db.select({
+      platform: revenueRecords.platform,
+      amount: sql<number>`COALESCE(SUM(amount), 0)`,
+    }).from(revenueRecords).where(condition).groupBy(revenueRecords.platform);
+
+    const sourceResult = await db.select({
+      source: revenueRecords.source,
+      amount: sql<number>`COALESCE(SUM(amount), 0)`,
+    }).from(revenueRecords).where(condition).groupBy(revenueRecords.source);
+
     const byPlatform: Record<string, number> = {};
+    for (const row of platformResult) byPlatform[row.platform] = Number(row.amount);
     const bySource: Record<string, number> = {};
-    for (const r of records) {
-      byPlatform[r.platform] = (byPlatform[r.platform] || 0) + (r.amount || 0);
-      bySource[r.source] = (bySource[r.source] || 0) + (r.amount || 0);
-    }
-    return { total, byPlatform, bySource };
+    for (const row of sourceResult) bySource[row.source] = Number(row.amount);
+
+    return { total: Number(totalResult[0]?.total ?? 0), byPlatform, bySource };
   }
 
   async getRevenueByExternalId(userId: string, externalId: string): Promise<RevenueRecord | null> {
@@ -787,8 +800,10 @@ export class DatabaseStorage implements IStorage {
     return newPost;
   }
 
-  async updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>): Promise<CommunityPost> {
-    const [updated] = await db.update(communityPosts).set(updates).where(eq(communityPosts.id, id)).returning();
+  async updateCommunityPost(id: number, updates: Partial<InsertCommunityPost>, userId?: string): Promise<CommunityPost | undefined> {
+    const conditions = [eq(communityPosts.id, id)];
+    if (userId) conditions.push(eq(communityPosts.userId, userId));
+    const [updated] = await db.update(communityPosts).set(updates).where(and(...conditions)).returning();
     return updated;
   }
 
@@ -1102,18 +1117,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getExpenseSummary(userId: string): Promise<{ total: number; byCategory: Record<string, number>; deductible: number }> {
-    const records = await this.getExpenseRecords(userId);
-    const total = records.reduce((sum, r) => sum + (r.amount || 0), 0);
+    const totalResult = await db.select({
+      total: sql<number>`COALESCE(SUM(amount), 0)`,
+      deductible: sql<number>`COALESCE(SUM(CASE WHEN tax_deductible = true THEN amount ELSE 0 END), 0)`,
+    }).from(expenseRecords).where(eq(expenseRecords.userId, userId));
+
+    const categoryResult = await db.select({
+      category: sql<string>`COALESCE(category, 'uncategorized')`,
+      amount: sql<number>`COALESCE(SUM(amount), 0)`,
+    }).from(expenseRecords).where(eq(expenseRecords.userId, userId)).groupBy(sql`COALESCE(category, 'uncategorized')`);
+
     const byCategory: Record<string, number> = {};
-    let deductible = 0;
-    for (const r of records) {
-      const cat = r.category || "uncategorized";
-      byCategory[cat] = (byCategory[cat] || 0) + (r.amount || 0);
-      if (r.taxDeductible) {
-        deductible += (r.amount || 0);
-      }
+    for (const row of categoryResult) {
+      byCategory[row.category] = Number(row.amount);
     }
-    return { total, byCategory, deductible };
+
+    return {
+      total: Number(totalResult[0]?.total ?? 0),
+      byCategory,
+      deductible: Number(totalResult[0]?.deductible ?? 0),
+    };
   }
 
   async getBusinessVentures(userId: string): Promise<BusinessVenture[]> {
@@ -1528,20 +1551,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async redeemAccessCode(code: string, userId: string): Promise<AccessCode | undefined> {
-    const ac = await this.getAccessCode(code);
-    if (!ac || !ac.active) return undefined;
-    if (ac.maxUses && ac.useCount !== null && ac.useCount >= ac.maxUses) return undefined;
-    if (ac.expiresAt && new Date() > ac.expiresAt) return undefined;
-
     const [updated] = await db.transaction(async (tx) => {
+      const [ac] = await tx.select().from(accessCodes).where(eq(accessCodes.code, code)).limit(1);
+      if (!ac || !ac.active) return [undefined];
+      if (ac.maxUses && ac.useCount !== null && ac.useCount >= ac.maxUses) return [undefined];
+      if (ac.expiresAt && new Date() > ac.expiresAt) return [undefined];
+
       const [accessCodeResult] = await tx.update(accessCodes)
         .set({
           redeemedBy: userId,
           redeemedAt: new Date(),
           useCount: (ac.useCount || 0) + 1,
         })
-        .where(eq(accessCodes.code, code))
+        .where(and(eq(accessCodes.code, code), eq(accessCodes.active, true)))
         .returning();
+
+      if (!accessCodeResult) return [undefined];
 
       await tx.update(users)
         .set({ role: "premium", tier: ac.tier || "ultimate", accessCodeUsed: code, updatedAt: new Date() })

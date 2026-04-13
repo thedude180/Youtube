@@ -29,7 +29,7 @@ const pendingStartTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let eventsWired = false;
 
 const TWITCH_IRC_URL = "wss://irc-ws.chat.twitch.tv:443";
-const KICK_PUSHER_KEY = "eb1d5f283081a78b932c";
+const KICK_PUSHER_KEY = process.env.KICK_PUSHER_KEY || "eb1d5f283081a78b932c";
 const KICK_PUSHER_URL = `wss://ws-us2.pusher.com/app/${KICK_PUSHER_KEY}?protocol=7&client=js&version=7.6.0&flash=false`;
 const DISCORD_GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 const DISCORD_API_BASE = "https://discord.com/api/v10";
