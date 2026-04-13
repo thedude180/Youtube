@@ -183,8 +183,7 @@ export class SelfHealingAgent {
 
 export const selfHealingAgent = new SelfHealingAgent();
 
-// 5-minute diagnostic interval
-setInterval(() => {
+export const selfHealInterval = setInterval(() => {
   selfHealingAgent.diagnoseAndHeal().catch((err) => {
     logger.error(`[SelfHealingAgent] Error in diagnostic loop: ${err.message}`);
   });

@@ -1048,6 +1048,11 @@ export async function registerPlatformRoutes(app: Express) {
     for (const [key, val] of Array.from(pendingOAuthStates.entries())) {
       if (now - val.timestamp > 10 * 60 * 1000) pendingOAuthStates.delete(key);
     }
+    if (pendingOAuthStates.size > 200) {
+      const sorted = Array.from(pendingOAuthStates.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = sorted.slice(0, sorted.length - 200);
+      for (const [key] of toRemove) pendingOAuthStates.delete(key);
+    }
   }
 
   app.get("/api/oauth/needs-reconnect", async (req, res) => {

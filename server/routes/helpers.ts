@@ -126,6 +126,8 @@ function isInStartupGrace(): boolean {
 }
 
 const endpointLimits = new Map<string, Map<string, { count: number; resetAt: number }>>();
+import { registerMap } from "../services/resilience-core";
+registerMap("endpointLimits", endpointLimits, 500);
 
 /**
  * Rate limiter middleware for endpoint protection.

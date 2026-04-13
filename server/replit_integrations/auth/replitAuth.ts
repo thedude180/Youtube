@@ -44,8 +44,11 @@ export function getSession() {
   };
 
   const isDeployed = !!process.env.REPLIT_DEPLOYMENT;
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET environment variable must be set");
+  }
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,

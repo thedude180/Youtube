@@ -112,6 +112,8 @@ registerCleanup("routesRateLimit", () => {
   }
 }, 60_000);
 
+export const routeIntervals: ReturnType<typeof setInterval>[] = [];
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -405,15 +407,17 @@ export async function registerRoutes(
       registerCronHeartbeat("MarketerEngine", 12 * 60 * 60_000);
       registerCronHeartbeat("PlaylistManager", 6 * 60 * 60_000);
 
-      setInterval(() => {
+      const hbIv = setInterval(() => {
         runHeartbeatCheck().catch((err) => console.error("[heartbeat] Check failed:", (err as Error)?.message));
       }, 5 * 60_000);
+      routeIntervals.push(hbIv);
     });
 
     import("./services/metric-rollups").then(({ rollupMetrics }) => {
-      setInterval(() => {
+      const ruIv = setInterval(() => {
         rollupMetrics().catch((err) => console.error("[metric-rollup] Rollup failed:", (err as Error)?.message));
       }, 60 * 60_000);
+      routeIntervals.push(ruIv);
     });
   }
 

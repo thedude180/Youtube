@@ -148,7 +148,6 @@ class ContinuousAudit {
 
 export const continuousAudit = new ContinuousAudit();
 
-// Daily audit (every 24h)
-setInterval(() => {
+export const continuousAuditInterval = setInterval(() => {
   continuousAudit.run().catch(err => logger.error("Scheduled audit failed", { error: err.message }));
 }, 24 * 60 * 60 * 1000);

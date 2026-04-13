@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import compression from "compression";
 import crypto from "crypto";
-import { registerRoutes } from "./routes";
+import { registerRoutes, routeIntervals } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { runMigrations } from 'stripe-replit-sync';
@@ -1609,6 +1609,18 @@ httpServer.listen(
     try { stopAllLifecycleManagers(); } catch {}
     try { stopAllStreamOperators(); } catch {}
     try { stopAllCommunityAutoManagers(); } catch {}
+
+    for (const iv of routeIntervals) clearInterval(iv);
+
+    try {
+      const { selfHealInterval } = require("./services/self-healing-agent");
+      clearInterval(selfHealInterval);
+    } catch {}
+    try {
+      const { continuousAuditInterval } = require("./services/continuous-audit");
+      clearInterval(continuousAuditInterval);
+    } catch {}
+
     log("[Server] Background engines stopped");
 
     // Close all SSE connections
