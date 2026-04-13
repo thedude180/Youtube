@@ -170,6 +170,7 @@ function Router() {
       <Route path="/sponsorships">{() => <Redirect to="/money/sponsors" />}</Route>
       <Route path="/brand-kit">{() => <Redirect to="/settings" />}</Route>
       <Route path="/channels">{() => <Redirect to="/content/channels" />}</Route>
+      <Route path="/dashboard">{() => <Redirect to="/" />}</Route>
       <Route path="/autopilot">{() => <Redirect to="/" />}</Route>
       <Route path="/pipeline">{() => <Redirect to="/" />}</Route>
       <Route path="/hub">{() => <Redirect to="/" />}</Route>

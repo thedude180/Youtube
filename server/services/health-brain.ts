@@ -46,6 +46,8 @@ class HealthBrain {
     return this.dbPressure > 60; // p3 background
   }
 
+  private dbQueryFailCount = 0;
+
   async measurePressure(): Promise<void> {
     try {
       const res = await pool.query(
@@ -53,7 +55,17 @@ class HealthBrain {
       );
       const active = parseInt(res.rows[0]?.active || "0", 10);
       this.dbPressure = Math.min(100, Math.round((active / 20) * 100));
-    } catch { /* silent — don't let pressure measurement crash the tick */ }
+      this.dbQueryFailCount = 0;
+    } catch (err: any) {
+      this.dbQueryFailCount++;
+      if (this.dbQueryFailCount >= 3) {
+        this.dbPressure = 100;
+        logger.error(`[HealthBrain] DB pressure query failed ${this.dbQueryFailCount}x consecutively — reporting 100% pressure: ${err.message}`);
+      } else {
+        this.dbPressure = Math.max(this.dbPressure, 75);
+        logger.warn(`[HealthBrain] DB pressure query failed (${this.dbQueryFailCount}/3): ${err.message}`);
+      }
+    }
     const heapUsed = process.memoryUsage().heapUsed;
     this.memPressure = Math.min(100, Math.round((heapUsed / 536_870_912) * 100)); // 512MB
   }

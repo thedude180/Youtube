@@ -3,6 +3,7 @@ import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { aiModelRoutingLogs } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
+import { executeWithFallbackChain, resolveChainForTask } from "../kernel/model-fallback-chain";
 
 export interface AIRouterConfig {
   taskType: string;
@@ -124,33 +125,57 @@ export async function executeRoutedAICall(
   let promptTokens = 0;
   let completionTokens = 0;
 
-  if (routing.provider === "claude") {
-    const result = await callClaude({
-      system: systemPrompt,
-      prompt: userPrompt,
-      model: routing.model as any,
-      maxTokens: routing.maxTokens,
-      temperature: routing.temperature,
-    });
-    content = result.content;
-    promptTokens = result.inputTokens;
-    completionTokens = result.outputTokens;
-    tokensUsed = result.inputTokens + result.outputTokens;
-  } else {
-    const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: routing.model,
-      max_completion_tokens: routing.maxTokens,
-      temperature: routing.temperature,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    });
-    content = response.choices[0]?.message?.content || "";
-    tokensUsed = response.usage?.total_tokens || 0;
-    promptTokens = response.usage?.prompt_tokens || 0;
-    completionTokens = response.usage?.completion_tokens || 0;
+  try {
+    if (routing.provider === "claude") {
+      const result = await callClaude({
+        system: systemPrompt,
+        prompt: userPrompt,
+        model: routing.model as any,
+        maxTokens: routing.maxTokens,
+        temperature: routing.temperature,
+      });
+      content = result.content;
+      promptTokens = result.inputTokens;
+      completionTokens = result.outputTokens;
+      tokensUsed = result.inputTokens + result.outputTokens;
+    } else {
+      const client = getOpenAIClient();
+      const response = await client.chat.completions.create({
+        model: routing.model,
+        max_completion_tokens: routing.maxTokens,
+        temperature: routing.temperature,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
+      content = response.choices[0]?.message?.content || "";
+      tokensUsed = response.usage?.total_tokens || 0;
+      promptTokens = response.usage?.prompt_tokens || 0;
+      completionTokens = response.usage?.completion_tokens || 0;
+    }
+  } catch (primaryErr: any) {
+    const primaryModel = routing.model;
+    const primaryProvider = routing.provider;
+    const chainName = resolveChainForTask(config.taskType, primaryProvider);
+    try {
+      const fallbackResult = await executeWithFallbackChain({
+        chainName,
+        systemPrompt,
+        userPrompt,
+        maxTokens: routing.maxTokens,
+        temperature: routing.temperature,
+        userId: config.userId,
+        taskType: config.taskType,
+      });
+      content = fallbackResult.content;
+      tokensUsed = fallbackResult.tokensUsed;
+      routing.model = fallbackResult.model;
+      routing.provider = fallbackResult.provider;
+      routing.reason = `Failover via ${chainName}: primary ${primaryProvider}/${primaryModel} failed (${primaryErr.message})`;
+    } catch (fallbackErr: any) {
+      throw new Error(`AI call failed — primary ${primaryProvider}/${primaryModel}: ${primaryErr.message}, fallback chain ${chainName}: ${fallbackErr.message}`);
+    }
   }
 
   const latencyMs = Date.now() - startTime;

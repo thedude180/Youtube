@@ -20,15 +20,27 @@ async function getAccessToken() {
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
+  if (!hostname) {
+    throw new Error('REPLIT_CONNECTORS_HOSTNAME is not set');
+  }
+
+  const url = new URL(`https://${hostname}/api/v2/connection`);
+  url.searchParams.set('include_secrets', 'true');
+  url.searchParams.set('connector_names', 'google-mail');
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Accept': 'application/json',
+      'X_REPLIT_TOKEN': xReplitToken
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gmail credentials fetch failed: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  connectionSettings = data.items?.[0];
 
   const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
 
@@ -68,16 +80,32 @@ function createRawEmail(to: string, subject: string, htmlBody: string): string {
 }
 
 export async function sendGmail(to: string, subject: string, htmlBody: string): Promise<boolean> {
-  try {
-    const gmail = await getUncachableGmailClient();
-    const raw = createRawEmail(to, subject, htmlBody);
-    await gmail.users.messages.send({
-      userId: "me",
-      requestBody: { raw },
-    });
-    return true;
-  } catch (err: any) {
-    console.error(`[Gmail] Failed to send: ${err.message}`);
-    return false;
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        connectionSettings = null;
+      }
+      const gmail = await getUncachableGmailClient();
+      const raw = createRawEmail(to, subject, htmlBody);
+      await gmail.users.messages.send({
+        userId: "me",
+        requestBody: { raw },
+      });
+      return true;
+    } catch (err: any) {
+      const statusCode = err.code || err.status || err.response?.status || 0;
+      const isRetryable = statusCode === 429 || statusCode === 503 || statusCode === 500 || statusCode === 502 ||
+        err.message?.includes("ECONNRESET") || err.message?.includes("ETIMEDOUT") ||
+        err.message?.includes("timeout") || err.message?.includes("socket hang up") ||
+        err.message?.includes("invalid_grant");
+      if (!isRetryable || attempt === MAX_RETRIES - 1) {
+        console.error(`[Gmail] Failed to send after ${attempt + 1} attempt(s): ${err.message}`);
+        return false;
+      }
+      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500;
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
+  return false;
 }

@@ -460,13 +460,21 @@ app.get("/api/system/live", (req: Request, res: Response) => {
       const jobStats = await jobQueue.getStats();
       const healthStatus = healthBrain.getStatus();
       
-      // Get current stream state (stub for now, will be implemented in T002)
-      // For now we look it up from the streamLifecycleStates table if it existed
-      // But we just return a status object for the dashboard.
+      let streamState: any = null;
+      try {
+        const { getState } = await import("./services/stream-lifecycle");
+        const userId = (req as any).user?.claims?.sub;
+        if (userId) {
+          const state = await getState(userId);
+          streamState = { state, userId };
+        }
+      } catch {}
+
       const status = {
         timestamp: new Date().toISOString(),
         jobs: jobStats,
         health: healthStatus,
+        stream: streamState,
         system: {
           uptime: process.uptime(),
           memory: process.memoryUsage(),
