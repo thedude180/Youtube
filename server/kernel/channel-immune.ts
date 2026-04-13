@@ -16,12 +16,17 @@ export interface ImmuneStatus {
 }
 
 const threatHistoryByUser = new Map<string, ThreatDetection[]>();
+const MAX_THREATS_PER_USER = 100;
 
 function getUserThreats(userId: string): ThreatDetection[] {
   if (!threatHistoryByUser.has(userId)) {
     threatHistoryByUser.set(userId, []);
   }
-  return threatHistoryByUser.get(userId)!;
+  const threats = threatHistoryByUser.get(userId)!;
+  if (threats.length > MAX_THREATS_PER_USER) {
+    threats.splice(0, threats.length - MAX_THREATS_PER_USER);
+  }
+  return threats;
 }
 
 export function detectThreat(indicators: {

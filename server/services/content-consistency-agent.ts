@@ -37,6 +37,7 @@ interface VideoRecommendation {
 
 const agentSessions = new Map<string, ConsistencyAgentState>();
 const pendingRecommendations = new Map<string, VideoRecommendation[]>();
+const MAX_SESSIONS = 200;
 
 const RUN_INTERVAL_MS = 60 * 60 * 1000;
 const LOOK_AHEAD_DAYS = 14;
@@ -45,8 +46,34 @@ const SEO_TITLE_MIN_LEN = 30;
 const SEO_DESCRIPTION_MIN_LEN = 100;
 const BATCH_SIZE = 5;
 
+function pruneStaleSessionsIfNeeded() {
+  if (agentSessions.size <= MAX_SESSIONS) return;
+  const now = Date.now();
+  const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+  for (const [uid, state] of agentSessions) {
+    if (!state.isRunning && state.lastRunAt && now - state.lastRunAt.getTime() > STALE_MS) {
+      if (state.intervalHandle) clearInterval(state.intervalHandle);
+      agentSessions.delete(uid);
+      pendingRecommendations.delete(uid);
+    }
+    if (agentSessions.size <= MAX_SESSIONS) break;
+  }
+  if (agentSessions.size > MAX_SESSIONS) {
+    const inactive = Array.from(agentSessions.entries())
+      .filter(([, s]) => !s.isRunning)
+      .sort((a, b) => (a[1].lastRunAt?.getTime() ?? 0) - (b[1].lastRunAt?.getTime() ?? 0));
+    for (const [uid, state] of inactive) {
+      if (agentSessions.size <= MAX_SESSIONS) break;
+      if (state.intervalHandle) clearInterval(state.intervalHandle);
+      agentSessions.delete(uid);
+      pendingRecommendations.delete(uid);
+    }
+  }
+}
+
 function getOrInitState(userId: string): ConsistencyAgentState {
   if (!agentSessions.has(userId)) {
+    pruneStaleSessionsIfNeeded();
     agentSessions.set(userId, {
       userId,
       lastRunAt: null,

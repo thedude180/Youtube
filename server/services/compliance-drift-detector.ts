@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { complianceDriftEvents, complianceRules, policyPackBaselines } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count, sql, ne } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getPolicyPack, getPolicyPackHash, getSupportedPlatforms } from "./policy-packs";
 import { createHash } from "crypto";
@@ -206,24 +206,34 @@ export async function getDriftSummary(): Promise<{
   bySeverity: Record<string, number>;
   lastDetected: Date | null;
 }> {
-  const events = await db.select().from(complianceDriftEvents)
-    .orderBy(desc(complianceDriftEvents.detectedAt));
+  const [[totals], platformRows, severityRows, [latest]] = await Promise.all([
+    db.select({
+      total: count(),
+      unresolved: sql<number>`count(*) filter (where ${complianceDriftEvents.status} != 'resolved')`,
+    }).from(complianceDriftEvents),
+    db.select({
+      platform: complianceDriftEvents.platform,
+      cnt: count(),
+    }).from(complianceDriftEvents).groupBy(complianceDriftEvents.platform),
+    db.select({
+      severity: complianceDriftEvents.severity,
+      cnt: count(),
+    }).from(complianceDriftEvents).groupBy(complianceDriftEvents.severity),
+    db.select({
+      lastDetected: sql<Date | null>`max(${complianceDriftEvents.detectedAt})`,
+    }).from(complianceDriftEvents),
+  ]);
 
   const byPlatform: Record<string, number> = {};
+  for (const r of platformRows) byPlatform[r.platform] = r.cnt;
   const bySeverity: Record<string, number> = {};
-  let unresolvedCount = 0;
-
-  for (const event of events) {
-    byPlatform[event.platform] = (byPlatform[event.platform] || 0) + 1;
-    bySeverity[event.severity] = (bySeverity[event.severity] || 0) + 1;
-    if (event.status !== "resolved") unresolvedCount++;
-  }
+  for (const r of severityRows) bySeverity[r.severity] = r.cnt;
 
   return {
-    totalEvents: events.length,
-    unresolvedCount,
+    totalEvents: totals?.total ?? 0,
+    unresolvedCount: totals?.unresolved ?? 0,
     byPlatform,
     bySeverity,
-    lastDetected: events.length > 0 ? events[0].detectedAt : null,
+    lastDetected: latest?.lastDetected ?? null,
   };
 }

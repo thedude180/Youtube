@@ -10,6 +10,7 @@ export interface IdempotencyRecord {
 }
 
 const ledger = new Map<string, IdempotencyRecord>();
+const MAX_LEDGER_SIZE = 5000;
 
 export function checkIdempotency(key: string): { isDuplicate: boolean; cachedResult?: any } {
   const record = ledger.get(key);
@@ -28,6 +29,15 @@ export function recordIdempotency(
   result: any,
   ttlMs: number = 24 * 60 * 60 * 1000
 ): void {
+  if (ledger.size >= MAX_LEDGER_SIZE) {
+    cleanExpired();
+    if (ledger.size >= MAX_LEDGER_SIZE) {
+      const oldest = Array.from(ledger.entries())
+        .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime())
+        .slice(0, Math.floor(MAX_LEDGER_SIZE * 0.2));
+      for (const [k] of oldest) ledger.delete(k);
+    }
+  }
   ledger.set(key, {
     key,
     operationHash,

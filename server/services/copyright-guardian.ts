@@ -56,14 +56,39 @@ interface GuardianState {
 }
 
 const guardianStates = new Map<string, GuardianState>();
+const MAX_GUARDIAN_STATES = 200;
 
 const SCAN_INTERVAL_MS = 90 * 60 * 1000;
 const VIDEO_RATE_LIMIT_MS = 12_000;
 const AUTO_FIX_MAX_RISK = "medium";
 const RISK_RANK: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };
 
+function pruneStaleGuardians() {
+  if (guardianStates.size <= MAX_GUARDIAN_STATES) return;
+  const now = Date.now();
+  const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+  for (const [uid, state] of guardianStates) {
+    if (state.phase === "idle" && state.lastScanAt && now - state.lastScanAt.getTime() > STALE_MS) {
+      if (state.intervalHandle) clearInterval(state.intervalHandle);
+      guardianStates.delete(uid);
+    }
+    if (guardianStates.size <= MAX_GUARDIAN_STATES) break;
+  }
+  if (guardianStates.size > MAX_GUARDIAN_STATES) {
+    const idle = Array.from(guardianStates.entries())
+      .filter(([, s]) => s.phase === "idle")
+      .sort((a, b) => (a[1].lastScanAt?.getTime() ?? 0) - (b[1].lastScanAt?.getTime() ?? 0));
+    for (const [uid, state] of idle) {
+      if (guardianStates.size <= MAX_GUARDIAN_STATES) break;
+      if (state.intervalHandle) clearInterval(state.intervalHandle);
+      guardianStates.delete(uid);
+    }
+  }
+}
+
 function getOrCreateState(userId: string): GuardianState {
   if (!guardianStates.has(userId)) {
+    pruneStaleGuardians();
     guardianStates.set(userId, {
       userId,
       phase: "idle",

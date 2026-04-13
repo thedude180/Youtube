@@ -607,6 +607,7 @@ export const aiAgentActivities = pgTable("ai_agent_activities", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("ai_agent_activities_user_id_idx").on(table.userId),
+  userCreatedIdx: index("ai_agent_activities_user_created_idx").on(table.userId, table.createdAt),
 }));
 
 export const automationRules = pgTable("automation_rules", {
@@ -835,6 +836,7 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("analytics_snapshots_user_id_idx").on(table.userId),
+  userDateIdx: index("analytics_snapshots_user_date_idx").on(table.userId, table.snapshotDate),
 }));
 
 export const channelGrowthTracking = pgTable("channel_growth_tracking", {
@@ -1106,7 +1108,11 @@ export const streamChatMessages = pgTable("stream_chat_messages", {
     topicCluster?: string;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  streamIdIdx: index("scm_stream_id_idx").on(table.streamId),
+  createdAtIdx: index("scm_created_at_idx").on(table.createdAt),
+  streamCreatedIdx: index("scm_stream_created_idx").on(table.streamId, table.createdAt),
+}));
 
 export const chatTopics = pgTable("chat_topics", {
   id: serial("id").primaryKey(),
@@ -1123,7 +1129,9 @@ export const chatTopics = pgTable("chat_topics", {
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  streamIdIdx: index("ct_stream_id_idx").on(table.streamId),
+}));
 
 export const sponsorshipDeals = pgTable("sponsorship_deals", {
   id: serial("id").primaryKey(),
@@ -2568,6 +2576,7 @@ export const autopilotQueue = pgTable("autopilot_queue", {
   userIdIdx: index("autopilot_queue_user_id_idx").on(table.userId),
   statusIdx: index("autopilot_queue_status_idx").on(table.status),
   autopilot_queue_status_scheduledAt_idx: index("autopilot_queue_status_scheduledAt_idx").on(table.status, table.scheduledAt),
+  userStatusIdx: index("autopilot_queue_user_status_idx").on(table.userId, table.status),
 }));
 
 export const commentResponses = pgTable("comment_responses", {

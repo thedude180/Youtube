@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, desc } from "drizzle-orm";
 import cron from "node-cron";
 import { getSystemHealthReport } from "./self-healing-core";
 import { videos, notifications, scheduleItems, channels, users, aiAgentActivities } from "@shared/schema";
@@ -63,7 +63,9 @@ export async function generateWeeklyReport(userId: string): Promise<WeeklyReport
   const recentActions = await db
     .select()
     .from(aiAgentActivities)
-    .where(and(eq(aiAgentActivities.userId, userId), gte(aiAgentActivities.createdAt, sevenDaysAgo)));
+    .where(and(eq(aiAgentActivities.userId, userId), gte(aiAgentActivities.createdAt, sevenDaysAgo)))
+    .orderBy(desc(aiAgentActivities.createdAt))
+    .limit(500);
 
   const healthReport = getSystemHealthReport();
 
