@@ -234,7 +234,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
             message: tip,
             severity: "info",
           });
-        } catch {}
+        } catch (err: any) { console.warn("[StreamAgent] Notification tip failed:", err?.message || err); }
       } else {
         logAction(state, "Monitoring your stream", `Viewers: ${state.viewerCount} | Sentiment: ${state.chatSentiment}`);
       }

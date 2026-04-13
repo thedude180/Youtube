@@ -94,7 +94,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
         `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
       ).join("\n");
     }
-  } catch {}
+  } catch (err: any) { console.warn("[LiveChat] Wikipedia search failed:", err?.message || err); }
 
   if (!webContext) {
     try {
@@ -109,7 +109,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
         const related = (data?.RelatedTopics || []).slice(0, 3).map((t: any) => t.Text || "").filter(Boolean).join("\n");
         webContext = `${abstract}\n${related}`.trim();
       }
-    } catch {}
+    } catch (err: any) { console.warn("[LiveChat] DuckDuckGo search failed:", err?.message || err); }
   }
 
   return webContext;
@@ -217,7 +217,7 @@ Bad responses (DO NOT do this):
         let researchContext = "";
         try {
           researchContext = await researchQuestion(questionText, gameName);
-        } catch {}
+        } catch (err: any) { console.warn("[LiveChat] Research failed:", err?.message || err); }
 
         const recentChat = session.recentContext.slice(-3).join("\n");
 

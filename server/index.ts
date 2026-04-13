@@ -1027,6 +1027,8 @@ httpServer.listen(
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
     // ── WARP SPEED STARTUP ────────────────────────────────────────────────────
+    const slog = (label: string) => (err: any) => logger.error(`[Boot] ${label} failed`, { error: String(err) });
+
     // Health check window: T+0→5s event loop IDLE. All services launch in
     // tight parallel waves after that. Most inits just register a setInterval
     // (sub-ms) — heavy work runs on each service's own deferred first cycle.
@@ -1037,23 +1039,23 @@ httpServer.listen(
       try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
       try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
-      import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(() => {})).catch(() => {});
-      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(() => {});
-      import("./kernel/seed").then(m => m.seedKernelData()).catch(() => {});
-      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(() => {});
-      import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(() => {});
-      import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(() => {});
-      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(() => {});
-      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(() => {});
+      import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(slog("AgentExplanationContract"))).catch(slog("seed-schema-registry import"));
+      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(slog("seedSignalRegistry"));
+      import("./kernel/seed").then(m => m.seedKernelData()).catch(slog("seedKernelData"));
+      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(slog("registerSmartEditCommand"));
+      import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(slog("seedDegradationPlaybooks"));
+      import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(slog("seedCapabilityRegistry"));
+      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(slog("seedDefaultSkills"));
+      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
     });
 
     // ── WAVE 2 (T+7s): Event wiring, DLQ, content loops ─────────────────────
     delay(7_000, () => {
-      import("./services/agent-events").then(m => m.wireAgentCoordination().catch(() => {})).catch(() => {});
+      import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
-      const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(() => {}); }, DLQ_INTERVAL_MS);
-      const digestInterval = setInterval(() => { processAllDigests().catch(() => {}); }, DIGEST_INTERVAL_MS);
+      const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(slog("processDeadLetterQueue")); }, DLQ_INTERVAL_MS);
+      const digestInterval = setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, DIGEST_INTERVAL_MS);
       backgroundIntervals.push(dlqInterval, digestInterval);
       import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
@@ -1061,95 +1063,95 @@ httpServer.listen(
     // ── WAVE 3 (T+10s): Live detection, agents, watchers ─────────────────────
     delay(10_000, () => {
       const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "90000");
-      const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(() => {}); };
+      const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(slog("liveDetectionPoll")); };
       pollLive();
       const liveInterval = setInterval(pollLive, LIVE_POLL_MS);
       backgroundIntervals.push(liveInterval);
       logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
 
-      import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(() => {}); m.startWatchdog(); }).catch(() => {});
-      import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(() => {})).catch(() => {});
-      import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(() => {})).catch(() => {});
+      import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
+      import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(slog("bootstrapUploadWatchers"))).catch(slog("upload-watcher import"));
+      import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(slog("bootstrapVodWatchers"))).catch(slog("vod-watcher import"));
     });
 
     // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──
     delay(13_000, () => {
-      import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(() => {})).catch(() => {});
-      import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(() => {})).catch(() => {});
-      import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(() => {})).catch(() => {});
-      import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(() => {})).catch(() => {});
-      import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(() => {});
+      import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import"));
+      import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import"));
+      import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import"));
+      import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(slog("bootstrapTikTokAutopublishers"))).catch(slog("tiktok-autopublisher import"));
+      import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(slog("wireMultistreamEvents"));
       startConnectionGuardian();
       initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) }));
     });
 
     // ── WAVE 5 (T+16s): Intelligence engines batch 1 ─────────────────────────
     delay(16_000, () => {
-      startThreatLearningEngine().catch(() => {});
-      try { startSentinel(); } catch {}
-      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(() => {});
-      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(() => {});
-      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(() => {});
+      startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
+      try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
+      import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine"));
+      import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine"));
+      import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine"));
     });
 
     // ── WAVE 6 (T+19s): Intelligence engines batch 2 + live agents ──────────
     delay(19_000, () => {
-      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(() => {});
-      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(() => {});
-      import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(() => {});
-      import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(() => {});
-      import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(() => {});
-      import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(() => {});
-      import("./services/chat-bridge").then(m => m.initChatBridge()).catch(() => {});
-      import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(() => {});
-      import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(() => {});
-      import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(() => {});
-      import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(() => {});
+      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine"));
+      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine"));
+      import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules"));
+      import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler"));
+      import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(slog("initLivestreamGrowthAgent"));
+      import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(slog("initLiveChatAgent"));
+      import("./services/chat-bridge").then(m => m.initChatBridge()).catch(slog("initChatBridge"));
+      import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(slog("initIdleEngagement"));
+      import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(slog("initLiveClipHighlighter"));
+      import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(slog("initLiveRaidScout"));
+      import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(slog("initLiveRevenueActivator"));
     });
 
     // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
     delay(22_000, () => {
-      import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(() => {});
-      import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(() => {});
-      import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(() => {});
-      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(() => {});
+      import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine"));
+      import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(slog("initVodShortsLoopEngine"));
+      import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(slog("initVodContinuousEngine"));
+      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(slog("registerApiCache"));
       startCleanupCoordinator();
       startResilienceWatchdog();
     });
 
     // ── WAVE 8 (T+25s): Content engines — thumbnails, marketing, daily ──────
     delay(25_000, () => {
-      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(() => {});
+      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./auto-thumbnail-engine").then(async m => {
-        await m.runAutoThumbnailGeneration().catch(() => {});
-        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(() => {}), 60 * 60_000);
+        await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
+        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("auto-thumbnail-engine import"));
       import("./marketer-engine").then(async m => {
-        await m.runMarketingCycleForAllUsers().catch(() => {});
-        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(() => {}), 90 * 60_000);
+        await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), 90 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("marketer-engine import"));
       import("./daily-content-engine").then(async m => {
-        await m.runDailyContentGeneration().catch(() => {});
-        const iv = setInterval(() => m.runDailyContentGeneration().catch(() => {}), 3 * 60 * 60_000);
+        await m.runDailyContentGeneration().catch(slog("runDailyContentGeneration"));
+        const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), 3 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("daily-content-engine import"));
       import("./playlist-manager").then(async m => {
-        await m.runPlaylistOrganizationForAllUsers().catch(() => {});
-        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(() => {}), 6 * 60 * 60_000);
+        await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));
+        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), 6 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("playlist-manager import"));
       import("./vod-optimizer-engine").then(async m => {
-        await m.runVodOptimizationCycle().catch(() => {});
-        const iv = setInterval(() => m.runVodOptimizationCycle().catch(() => {}), 2 * 60 * 60_000);
+        await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
+        const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), 2 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("vod-optimizer-engine import"));
       import("./token-refresh").then(async m => {
-        await m.keepAliveAllTokens().catch(() => {});
-        const iv = setInterval(() => m.keepAliveAllTokens().catch(() => {}), 12 * 60 * 60_000);
+        await m.keepAliveAllTokens().catch(slog("keepAliveAllTokens"));
+        const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), 12 * 60 * 60_000);
         backgroundIntervals.push(iv);
-      }).catch(() => {});
+      }).catch(slog("token-refresh import"));
     });
 
     // ── WAVE 9 (T+28s): Advanced engines — feedback, edits, detection, AI ───
@@ -1160,39 +1162,39 @@ httpServer.listen(
         const { users } = await import("@shared/schema");
         const allUsers = await database.select({ id: users.id }).from(users).limit(50);
         for (const u of allUsers) {
-          m.initSmartEditForAllLongVideos(u.id).catch(() => undefined);
+          m.initSmartEditForAllLongVideos(u.id).catch(slog(`smartEdit(${u.id})`));
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      }).catch(() => {});
-      import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(() => {});
-      import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(() => {});
-      import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(() => {});
+      }).catch(slog("smart-edit-engine import"));
+      import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine"));
+      import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine"));
+      import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine"));
     });
 
     // ── WAVE 10 (T+31s): Autonomous command engines ─────────────────────────
     delay(31_000, () => {
-      import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(() => {});
-      import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(() => {});
-      import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(() => {});
-      import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(() => {});
-      import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(() => {});
-      import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(() => {});
-      import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(() => {});
-      import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(() => {});
+      import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor"));
+      import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter"));
+      import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(slog("startSmartContentDistributor"));
+      import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(slog("startEmpireBrain"));
+      import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync"));
+      import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder"));
+      import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution"));
+      import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh"));
     });
 
     // ── WAVE 10.5 (T+33s): Autonomous meta-intelligence engines ─────────────
     delay(33_000, () => {
-      import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(() => {});
-      import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(() => {});
-      import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(() => {});
-      import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(() => {});
-      import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(() => {});
-      import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(() => {});
-      import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(() => {});
-      import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(() => {});
-      import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(() => {});
-      import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(() => {});
+      import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner"));
+      import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution"));
+      import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine"));
+      import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine"));
+      import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(slog("initAudienceIntelligenceEngine"));
+      import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(slog("initPredictiveGuardian"));
+      import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(slog("initEmpireIntelligenceEngine"));
+      import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect"));
+      import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter"));
+      import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler"));
     });
 
     // ── WAVE 11 (T+34s): Self-healing, webhook pipeline, health brain ───────
@@ -1208,7 +1210,7 @@ httpServer.listen(
       try {
         webhookPipeline.register("stripe", async (payload, eventType) => {
           const { WebhookHandlers } = await import("./webhookHandlers");
-          await WebhookHandlers.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(() => {});
+          await WebhookHandlers.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(slog("stripeWebhookProcess"));
         });
         webhookPipeline.register("youtube", async (payload, eventType) => {
           logger.info("[WebhookPipeline] YouTube event processed", { eventType });
@@ -1314,7 +1316,7 @@ httpServer.listen(
               });
 
               const { verifyVideoUpload } = await import("./publish-verifier");
-              verifyVideoUpload(newVideo?.id || vodVideoId, job.userId, uploadResult.youtubeId, "shorts_factory").catch(() => undefined);
+              verifyVideoUpload(newVideo?.id || vodVideoId, job.userId, uploadResult.youtubeId, "shorts_factory").catch(slog("verifyVideoUpload"));
             }
           } catch (err: any) {
             logger.error("[Autonomous] extract_and_publish_clip failed", { userId: job.userId, vodVideoId, error: err.message?.substring(0, 300) });

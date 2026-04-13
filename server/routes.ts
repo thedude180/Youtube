@@ -429,7 +429,7 @@ export async function registerRoutes(
         vitalsBuffer.push(...vitals.map((v: any) => ({ ...v, url, timestamp, receivedAt: Date.now() })));
         if (vitalsBuffer.length > 500) vitalsBuffer.splice(0, vitalsBuffer.length - 500);
       }
-    } catch {}
+    } catch (err: any) { console.warn("[Vitals] Parse error:", err?.message || err); }
     res.sendStatus(204);
   });
 

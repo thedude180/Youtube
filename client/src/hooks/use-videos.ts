@@ -59,7 +59,7 @@ export function useGenerateMetadata() {
 
   return useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/videos/${id}/generate-metadata`, {});
+      const res = await apiRequest("POST", `/api/videos/${id}/metadata`, {});
       return res.json();
     },
     onSuccess: (data, id) => {

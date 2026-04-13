@@ -254,7 +254,7 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
       return;
     }
     await trackQuotaUsage(userId, "list", 1);
-  } catch {}
+  } catch (err: any) { console.warn("[YouTube] Quota check failed:", err?.message || err); }
   const userChannels = await storage.getChannelsByUser(userId);
 
   const ytChannels = userChannels.filter(c => c.platform === "youtube" && c.accessToken);

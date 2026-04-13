@@ -358,13 +358,13 @@ export class DatabaseStorage implements IStorage {
         initializeGrowthPrograms(channel.userId!).then(() => {
           autoDetectAndUpdateMetrics(channel.userId!);
         }).catch(err => console.error("[Storage] Growth programs init error:", err));
-      }).catch(() => {});
+      }).catch(err => console.error("[Storage] growth-programs-engine import failed:", err));
 
       import("./growth-programs-engine").then(({ enableAutoApplyForPlatform }) => {
         enableAutoApplyForPlatform(channel.userId!, newChannel.platform).catch(err =>
           console.error("[Storage] Auto-apply enable error:", err)
         );
-      }).catch(() => {});
+      }).catch(err => console.error("[Storage] growth-programs-engine import failed:", err));
     }
 
     return newChannel;
@@ -1317,7 +1317,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const { getStreamAgentStatus } = await import("./services/stream-agent");
       isLive = getStreamAgentStatus(userId)?.isLive ?? false;
-    } catch {}
+    } catch (err: any) { console.error("[Storage] stream-agent status check failed:", err?.message || err); }
 
     return {
       totalVideos: Number(totalVideos),

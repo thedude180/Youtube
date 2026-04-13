@@ -141,14 +141,25 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
           icon: "/icon-192.png"
         });
 
+        const expiredEndpoints: string[] = [];
         for (const sub of subs) {
           try {
             await webpush.sendNotification(sub, pushPayload);
           } catch (err: any) {
             console.error(`[Notifications] Web Push failed for user ${payload.userId}:`, err.message);
             if (err.statusCode === 410 || err.statusCode === 404) {
-              // TODO: Clean up expired subscriptions
+              expiredEndpoints.push(sub.endpoint);
             }
+          }
+        }
+        if (expiredEndpoints.length > 0) {
+          try {
+            const liveSubs = subs.filter((s: any) => !expiredEndpoints.includes(s.endpoint));
+            const updatedPrefs = { ...prefs, pushSubscriptions: liveSubs };
+            await db.update(users).set({ userPreferences: updatedPrefs } as any).where(eq(users.id, payload.userId));
+            console.info(`[Notifications] Cleaned up ${expiredEndpoints.length} expired push subscription(s) for user ${payload.userId}`);
+          } catch (cleanupErr) {
+            console.error("[Notifications] Failed to clean up expired subscriptions:", cleanupErr);
           }
         }
       }

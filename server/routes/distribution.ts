@@ -342,16 +342,16 @@ export function registerDistributionRoutes(app: Express) {
       ]);
 
       let brandScore = 0;
-      try { brandScore = (await import("../distribution/brand-recognition").then(m => m.scoreBrandConsistency(userId))).overallScore; } catch {}
+      try { brandScore = (await import("../distribution/brand-recognition").then(m => m.scoreBrandConsistency(userId))).overallScore; } catch (err: any) { console.warn("[Distribution] brandScore failed:", err?.message); }
 
       let cadenceSummary = { burnoutRisk: 0, overallHealth: "unknown" };
-      try { cadenceSummary = await import("../distribution/cadence-intelligence").then(m => m.analyzeCadence(userId)).then(r => ({ burnoutRisk: r.burnoutRisk, overallHealth: r.burnoutRisk < 0.3 ? "healthy" : r.burnoutRisk < 0.6 ? "moderate" : "at_risk" })); } catch {}
+      try { cadenceSummary = await import("../distribution/cadence-intelligence").then(m => m.analyzeCadence(userId)).then(r => ({ burnoutRisk: r.burnoutRisk, overallHealth: r.burnoutRisk < 0.3 ? "healthy" : r.burnoutRisk < 0.6 ? "moderate" : "at_risk" })); } catch (err: any) { console.warn("[Distribution] cadenceSummary failed:", err?.message); }
 
       let regulatoryUrgent = 0;
-      try { regulatoryUrgent = (await import("../distribution/regulatory-horizon").then(m => m.scanRegulatoryHorizon(userId))).urgentCount; } catch {}
+      try { regulatoryUrgent = (await import("../distribution/regulatory-horizon").then(m => m.scanRegulatoryHorizon(userId))).urgentCount; } catch (err: any) { console.warn("[Distribution] regulatoryUrgent failed:", err?.message); }
 
       let safetyScore = 1;
-      try { safetyScore = (await import("../distribution/geopolitical-safety").then(m => m.checkGeopoliticalSafety(userId, { title: "", description: "", tags: [] }))).overallSafety; } catch {}
+      try { safetyScore = (await import("../distribution/geopolitical-safety").then(m => m.checkGeopoliticalSafety(userId, { title: "", description: "", tags: [] }))).overallSafety; } catch (err: any) { console.warn("[Distribution] safetyScore failed:", err?.message); }
 
       res.json({
         stats,

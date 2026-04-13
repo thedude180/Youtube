@@ -7072,7 +7072,7 @@ export async function aiLearningPathBuilder(data: { goal?: string; current?: str
       if (recentVideos.length > 0) {
         creatorCtx += `\nRecent content: ${recentVideos.map(v => `"${v.title}" (${(v.metadata as any)?.viewCount || 0} views)`).join(", ")}`;
       }
-    } catch {}
+    } catch (err: any) { console.warn("[AIEngine] Creator context fetch failed:", err?.message || err); }
   }
   const p = `Build a personalized learning path for a PS5/gaming content creator who streams and uploads on YouTube, Twitch, and other platforms.
 ${data.goal ? `Their stated goal: ${data.goal}` : "Goal: grow audience and monetize content"}

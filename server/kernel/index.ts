@@ -425,7 +425,7 @@ export async function routeCommand(
       const domain = inferDomainFromActionType(actionType);
       const gc = await getGovernedConfidenceForDomain(userId, domain);
       governedConfidenceData = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
-    } catch {}
+    } catch (err: any) { console.warn("[Kernel] Governed confidence lookup failed:", err?.message || err); }
 
     const decisionTheater = {
       whatChanged: options.decisionTheater?.whatChanged || actionType,
