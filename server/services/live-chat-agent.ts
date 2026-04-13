@@ -142,8 +142,8 @@ async function processChatCycle(session: ChatSession): Promise<void> {
       pageToken: session.lastPageToken,
     });
 
-    session.lastPageToken = chatRes.data.nextPageToken || undefined;
-    const messages = chatRes.data.items || [];
+    session.lastPageToken = chatRes.data?.nextPageToken || undefined;
+    const messages = chatRes.data?.items || [];
     if (messages.length === 0) return;
 
     const newMessages = messages.filter(m =>

@@ -152,7 +152,7 @@ function HeatmapCard() {
             className="text-xs no-default-hover-elevate no-default-active-elevate"
             data-testid="badge-peak-time"
           >
-            Peak: {data.peakTime.day} {data.peakTime.hour}:00
+            Peak: {data.peakTime?.day ?? "N/A"} {data.peakTime?.hour ?? 0}:00
           </Badge>
         </div>
       </CardHeader>

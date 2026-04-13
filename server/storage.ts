@@ -1274,7 +1274,7 @@ export class DatabaseStorage implements IStorage {
       )
     ))[0].count;
 
-    const complianceAll = await db.select().from(complianceRecords);
+    const complianceAll = await db.select().from(complianceRecords).where(inArray(complianceRecords.channelId, userChannelIds));
     const passCount = complianceAll.filter(c => c.status === 'pass').length;
     const complianceScore = complianceAll.length > 0 ? Math.round((passCount / complianceAll.length) * 100) : 100;
 
@@ -1296,8 +1296,8 @@ export class DatabaseStorage implements IStorage {
     );
     const monthlyRevenue = Number(monthlyRevenueRow[0]?.total || 0);
 
-    const agentCount = (await db.select({ count: sql<number>`count(distinct agent_id)` }).from(aiAgentActivities))[0].count;
-    const scheduledCount = (await db.select({ count: sql<number>`count(*)` }).from(scheduleItems).where(eq(scheduleItems.status, 'scheduled')))[0].count;
+    const agentCount = (await db.select({ count: sql<number>`count(distinct agent_id)` }).from(aiAgentActivities).where(eq(aiAgentActivities.userId, userId)))[0].count;
+    const scheduledCount = (await db.select({ count: sql<number>`count(*)` }).from(scheduleItems).where(and(eq(scheduleItems.status, 'scheduled'), eq(scheduleItems.userId, userId))))[0].count;
 
     const channelStats = await db.select({
       subscriberCount: sql<number>`coalesce(sum(subscriber_count), 0)`,
