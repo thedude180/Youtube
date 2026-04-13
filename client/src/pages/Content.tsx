@@ -17,7 +17,7 @@ import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
-  Sparkles, Shield, Monitor,
+  Sparkles, Shield, Monitor, RefreshCw, Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
@@ -26,7 +26,9 @@ import { lazyRetry } from "@/lib/lazyRetry";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useChannels } from "@/hooks/use-channels";
+import { SiYoutube } from "react-icons/si";
 
 type ContentTab = "library" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta";
 
@@ -337,6 +339,96 @@ function StudioButton({ videoId }: { videoId: number }) {
   );
 }
 
+function YouTubeImportSection() {
+  const { data: channels } = useChannels();
+  const { toast } = useToast();
+
+  const ytChannels = (channels || []).filter((c: any) => c.platform === "youtube" && c.accessToken);
+
+  const syncMutation = useMutation({
+    mutationFn: async (channelId: number) => {
+      const res = await apiRequest("POST", `/api/youtube/sync/${channelId}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      toast({ title: "YouTube Import Complete", description: `${data.synced || 0} videos imported from YouTube.` });
+    },
+    onError: (error: any) => {
+      const msg = error.message || "";
+      if (msg.includes("quota") || msg.includes("429")) {
+        toast({ title: "YouTube API quota reached", description: "Your quota resets daily. Try again in a few hours.", variant: "destructive" });
+      } else {
+        toast({ title: "Import failed", description: msg, variant: "destructive" });
+      }
+    },
+  });
+
+  const connectYouTube = async () => {
+    try {
+      const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { Accept: "application/json" } });
+      if (!res.ok) throw new Error("Failed to start YouTube login");
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  if (ytChannels.length === 0) {
+    return (
+      <Card className="border-dashed" data-testid="card-youtube-connect">
+        <CardContent className="py-8 text-center space-y-4">
+          <div className="mx-auto h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <SiYoutube className="h-6 w-6 text-red-500" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Connect Your YouTube Channel</h3>
+            <p className="text-xs text-muted-foreground mt-1">Sign in with Google to import all your videos, stats, and metadata automatically.</p>
+          </div>
+          <Button onClick={connectYouTube} className="bg-red-600 hover:bg-red-700 text-white" data-testid="button-connect-youtube">
+            <SiYoutube className="h-4 w-4 mr-2" />
+            Connect YouTube
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-dashed" data-testid="card-youtube-import">
+      <CardContent className="py-6 text-center space-y-3">
+        <div className="mx-auto h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center">
+          <SiYoutube className="h-5 w-5 text-red-500" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold">Import YouTube Videos</h3>
+          <p className="text-xs text-muted-foreground mt-1">Pull your latest videos, shorts, and VODs into CreatorOS.</p>
+        </div>
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          {ytChannels.map((ch: any) => (
+            <Button
+              key={ch.id}
+              onClick={() => syncMutation.mutate(ch.id)}
+              disabled={syncMutation.isPending}
+              variant="default"
+              data-testid={`button-import-youtube-${ch.id}`}
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {syncMutation.isPending ? "Importing..." : `Import from ${ch.channelName || "YouTube"}`}
+            </Button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function LibraryTab() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -442,12 +534,16 @@ function LibraryTab() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={Video}
-          type="content"
-          title={searchQuery ? "No matching videos" : "No Content Yet"}
-          description={searchQuery ? "Try a different search term." : "Your videos and content will appear here once you connect a platform and start creating."}
-        />
+        searchQuery ? (
+          <EmptyState
+            icon={Video}
+            type="content"
+            title="No matching videos"
+            description="Try a different search term."
+          />
+        ) : (
+          <YouTubeImportSection />
+        )
       ) : (
         <div className="space-y-2">
           {filtered.map((video: any) => {

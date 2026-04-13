@@ -3,6 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
+import { offlineStore } from "@/lib/offline-store";
 
 const SYNC_COOLDOWN_KEY = "creatoros_last_login_sync";
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -72,6 +73,9 @@ export function useLoginSync() {
 
     const runSync = async () => {
       try {
+        await offlineStore.clearAll().catch(() => {});
+        queryClient.clear();
+
         const res = await apiRequest("POST", "/api/sync/login");
 
         if (!res.ok) {
