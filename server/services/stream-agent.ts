@@ -204,15 +204,22 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       if (detectedVideoId) state.videoId = detectedVideoId;
 
       if (wasOffline) {
-        logAction(state, "You went live!", `Detected on ${state.platform}`);
-        logAction(state, "AI chat responder active", "Responding to viewers in your voice");
-        logAction(state, "Chat moderation enabled", "Watching for toxic content");
-        logAction(state, "Viewer monitoring started", "Tracking engagement in real time");
-        fireAgentEvent("stream.started", userId, {
-          platform: state.platform,
-          streamTitle: state.streamTitle,
-          videoId: state.videoId,
-        });
+        const hasRealConfirmation = !!detectedVideoId || (liveStream.startedAt && (Date.now() - new Date(liveStream.startedAt).getTime()) < 30 * 60_000);
+        if (hasRealConfirmation) {
+          logAction(state, "You went live!", `Detected on ${state.platform}`);
+          logAction(state, "AI chat responder active", "Responding to viewers in your voice");
+          logAction(state, "Chat moderation enabled", "Watching for toxic content");
+          logAction(state, "Viewer monitoring started", "Tracking engagement in real time");
+          fireAgentEvent("stream.started", userId, {
+            platform: state.platform,
+            streamTitle: state.streamTitle,
+            videoId: state.videoId,
+          });
+        } else {
+          logger.info(`[${userId}] DB stream #${liveStream.id} marked live but no real confirmation — skipping event fire, marking ended`);
+          storage.updateStream(liveStream.id, { status: "ended", endedAt: new Date() }).catch(() => {});
+          state.isLive = false;
+        }
       }
 
       const nowMs = Date.now();
@@ -226,15 +233,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         const tip = await generateEngagementPrompt(state);
         logAction(state, "Engagement tip ready", tip);
 
-        try {
-          await storage.createNotification({
-            userId,
-            type: "stream_agent",
-            title: "Stream Agent: Keep viewers engaged",
-            message: tip,
-            severity: "info",
-          });
-        } catch (err: any) { console.warn("[StreamAgent] Notification tip failed:", err?.message || err); }
+        
       } else {
         logAction(state, "Monitoring your stream", `Viewers: ${state.viewerCount} | Sentiment: ${state.chatSentiment}`);
       }

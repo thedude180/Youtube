@@ -324,16 +324,26 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
     }
 
     if (change.severity === "critical" || change.severity === "high") {
+      const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`;
       const { users } = await import("@shared/schema");
       const allUsers = await db.select({ id: users.id }).from(users).limit(10);
       for (const user of allUsers) {
-        await db.insert(notifications).values({
-          userId: user.id,
-          type: "compliance",
-          title: `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`,
-          message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
-          priority: change.severity === "critical" ? "urgent" : "high",
-        } as any).catch(() => undefined);
+        const existing = await db.select({ id: notifications.id })
+          .from(notifications)
+          .where(and(
+            eq(notifications.userId, user.id),
+            eq(notifications.title, notifTitle),
+          ))
+          .limit(1);
+        if (existing.length === 0) {
+          await db.insert(notifications).values({
+            userId: user.id,
+            type: "compliance",
+            title: notifTitle,
+            message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
+            priority: change.severity === "critical" ? "urgent" : "high",
+          } as any).catch(() => undefined);
+        }
       }
     }
   } catch (err: any) {

@@ -140,15 +140,6 @@ export const ALL_BUSINESS_AGENTS = { ...BUSINESS_AGENTS };
 
 async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_AGENTS[string]): Promise<void> {
   try {
-    await storage.createAgentActivity({
-      userId,
-      agentId: agentConfig.agentId,
-      action: agentConfig.taskDescription,
-      target: "creator-business",
-      status: "running",
-      details: { description: `${agentConfig.name} is analyzing...`, impact: "monitoring" },
-    });
-
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",

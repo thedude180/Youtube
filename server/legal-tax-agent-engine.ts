@@ -254,15 +254,6 @@ export const ALL_LEGAL_TAX_AGENTS = { ...LEGAL_AGENTS, ...TAX_AGENTS };
 
 async function runSingleAgentTask(userId: string, agentConfig: typeof LEGAL_AGENTS[string]): Promise<void> {
   try {
-    await storage.createAgentActivity({
-      userId,
-      agentId: agentConfig.agentId,
-      action: agentConfig.taskDescription,
-      target: "creator-platform",
-      status: "running",
-      details: { description: `${agentConfig.name} is scanning...`, impact: "monitoring" },
-    });
-
     const openai = getOpenAIClient();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",

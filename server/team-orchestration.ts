@@ -365,15 +365,6 @@ async function runPhaseAgent(userId: string, agentId: string, phase: string, pre
 Generate a 1-sentence autonomous finding about your domain. Start with an action verb. No greeting.`;
 
   try {
-    await storage.createAgentActivity({
-      userId,
-      agentId,
-      action: `[${phase}] ${org.title} running`,
-      target: "company-cycle",
-      status: "running",
-      details: { description: `${org.name} analyzing...`, impact: "team-ops", phase },
-    });
-
     const openai = getOpenAIClient();
     const contextMessage = previousPhaseContext
       ? `Previous team findings: ${previousPhaseContext.slice(0, 300)}\n\nNow run your part of the company cycle.`
