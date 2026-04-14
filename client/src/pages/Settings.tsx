@@ -67,6 +67,375 @@ const defaultNotificationPrefs: NotificationPrefs = {
   revenueUpdates: false,
 };
 
+interface ConnectionHealthPlatform {
+  platform: string;
+  channelName: string;
+  channelId: string;
+  status: "healthy" | "degraded" | "expired" | "disconnected";
+  lastVerifiedAt: string | null;
+  lastSyncAt: string | null;
+  subscriberCount: number | null;
+  viewCount: number | null;
+  videoCount: number | null;
+  failureCount: number;
+  hasRefreshToken: boolean;
+}
+
+interface ConnectionHealthResponse {
+  platforms: ConnectionHealthPlatform[];
+  guardianStatus: {
+    isRunning: boolean;
+    cycleIntervalMin: number;
+    fastRecoveryIntervalMin: number;
+    lastStatsRefreshAt: string | null;
+    statsRefreshIntervalMin: number;
+  };
+}
+
+function PlatformConnectionsCard({
+  channels, connectedCount, oauthLoading, setOauthLoading, oauthStatus, toast, setLocation
+}: {
+  channels: any;
+  connectedCount: number;
+  oauthLoading: string | null;
+  setOauthLoading: (v: string | null) => void;
+  oauthStatus: Record<string, { hasOAuth: boolean; configured: boolean }> | undefined;
+  toast: any;
+  setLocation: (path: string) => void;
+}) {
+  const { data: health, isLoading: healthLoading } = useQuery<ConnectionHealthResponse>({
+    queryKey: ["/api/connections/health"],
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: async (platform: string) => {
+      const res = await apiRequest("POST", `/api/connections/refresh/${platform}`);
+      return res.json();
+    },
+    onSuccess: (data: any, platform: string) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      if (data.success) {
+        toast({ title: "Refreshed", description: `${platform} connection refreshed successfully.` });
+      } else {
+        toast({ title: "Refresh Issue", description: data.error || "Could not refresh. May need re-authorization.", variant: "destructive" });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const refreshAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/connections/refresh-all");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      toast({ title: "All Refreshed", description: "All platform stats have been updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
+  const FOCUSED_PLATFORMS = [
+    { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
+    { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
+    { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
+    { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
+    { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
+    { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
+  ];
+
+  const connectedSet = new Set((channels || []).map((c: any) => c.platform));
+  const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
+  const connected = FOCUSED_PLATFORMS.filter(p => connectedSet.has(p.key));
+
+  const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
+
+  const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
+    setOauthLoading(platform);
+    try {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+        window.location.href = `/api/oauth/${platform}/bounce`;
+        return;
+      }
+      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setOauthLoading(null);
+    }
+  };
+
+  const handleDisconnect = async (platform: string, label: string) => {
+    setDisconnecting(platform);
+    try {
+      await apiRequest("DELETE", `/api/oauth/${platform}/disconnect`);
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
+      toast({ title: "Disconnected", description: `${label} has been disconnected.` });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDisconnecting(null);
+    }
+  };
+
+  const handleReconnect = async (platform: string, isYouTube: boolean) => {
+    setOauthLoading(platform);
+    try {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+        window.location.href = `/api/oauth/${platform}/bounce`;
+        return;
+      }
+      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setOauthLoading(null);
+    }
+  };
+
+  const getHealthInfo = (platformKey: string): ConnectionHealthPlatform | null => {
+    return health?.platforms?.find(p => p.platform === platformKey) || null;
+  };
+
+  const statusConfig = {
+    healthy: { color: "text-emerald-400", bg: "bg-emerald-500/20", pulse: "bg-emerald-500", label: "Live", badgeVariant: "secondary" as const },
+    degraded: { color: "text-amber-400", bg: "bg-amber-500/20", pulse: "bg-amber-500", label: "Degraded", badgeVariant: "secondary" as const },
+    expired: { color: "text-red-400", bg: "bg-red-500/20", pulse: "bg-red-500", label: "Expired", badgeVariant: "destructive" as const },
+    disconnected: { color: "text-gray-400", bg: "bg-gray-500/20", pulse: "bg-gray-500", label: "Offline", badgeVariant: "secondary" as const },
+  };
+
+  const formatTimeAgo = (iso: string | null) => {
+    if (!iso) return "Never";
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 60_000) return "Just now";
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
+    return `${Math.floor(diff / 86400_000)}d ago`;
+  };
+
+  const formatCount = (n: number | null) => {
+    if (n == null) return "-";
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
+  };
+
+  const guardian = health?.guardianStatus;
+  const healthyCount = health?.platforms?.filter(p => p.status === "healthy").length || 0;
+  const totalCount = health?.platforms?.length || 0;
+
+  const expiredChannels = (channels || []).filter((ch: any) => ch.connectionStatus === "expired");
+
+  return (
+    <Card>
+      <CardHeader className="pb-0">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+            <Link2 className="h-4 w-4 text-muted-foreground" />
+            Platform Connections
+            {connectedCount > 0 && (
+              <Badge variant="secondary" data-testid="badge-channel-count">{connectedCount}</Badge>
+            )}
+            {guardian?.isRunning && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground font-normal">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                Guardian Active
+              </span>
+            )}
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={refreshAllMutation.isPending}
+            onClick={() => refreshAllMutation.mutate()}
+            data-testid="button-refresh-all-connections"
+          >
+            {refreshAllMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            )}
+            Refresh All
+          </Button>
+        </div>
+        {totalCount > 0 && (
+          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+            <span>{healthyCount}/{totalCount} platforms live</span>
+            {guardian?.lastStatsRefreshAt && (
+              <span>Stats updated {formatTimeAgo(guardian.lastStatsRefreshAt)}</span>
+            )}
+            <span>Auto-check every {guardian?.cycleIntervalMin || 15}min</span>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="p-3 space-y-3">
+        {expiredChannels.length > 0 && (
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30" data-testid="banner-connection-alert">
+            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-destructive">
+                {expiredChannels.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)).join(" & ")} {expiredChannels.length === 1 ? "needs" : "need"} reconnection
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Posting has paused. Use the Reconnect button below to restore automation.</p>
+            </div>
+          </div>
+        )}
+
+        {connected.length > 0 && (
+          <div className="space-y-2">
+            {connected.map(p => {
+              const hi = getHealthInfo(p.key);
+              const status = hi?.status || "healthy";
+              const sc = statusConfig[status];
+              return (
+                <div key={p.key} className={cn("rounded-lg border p-3", status === "expired" && "border-destructive/30 bg-destructive/5")} data-testid={`row-connected-${p.key}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative">
+                        <p.Icon className="h-5 w-5" style={{ color: p.color === "#000000" ? "#999" : p.color }} />
+                        <span className={cn("absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background", sc.pulse)} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium">{p.label}</span>
+                          <Badge variant={sc.badgeVariant} className="text-xs px-1.5 py-0">
+                            <span className={cn("w-1.5 h-1.5 rounded-full mr-1", sc.pulse)} />
+                            {sc.label}
+                          </Badge>
+                        </div>
+                        {hi && (
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                            {hi.subscriberCount != null && <span>{formatCount(hi.subscriberCount)} subs</span>}
+                            {hi.viewCount != null && <span>{formatCount(hi.viewCount)} views</span>}
+                            {hi.videoCount != null && <span>{hi.videoCount} videos</span>}
+                            <span>Checked {formatTimeAgo(hi.lastVerifiedAt)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {status === "expired" && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          disabled={oauthLoading === p.key}
+                          onClick={() => handleReconnect(p.key, p.isYouTube)}
+                          data-testid={`button-reconnect-${p.key}`}
+                        >
+                          {oauthLoading === p.key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Link2 className="h-3 w-3 mr-1" />}
+                          Reconnect
+                        </Button>
+                      )}
+                      {status === "degraded" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={refreshMutation.isPending}
+                          onClick={() => refreshMutation.mutate(p.key)}
+                          data-testid={`button-heal-${p.key}`}
+                        >
+                          {refreshMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                          Heal
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        disabled={refreshMutation.isPending}
+                        onClick={() => refreshMutation.mutate(p.key)}
+                        data-testid={`button-refresh-${p.key}`}
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-spin")} />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" disabled={disconnecting === p.key} data-testid={`button-disconnect-${p.key}`}>
+                            {disconnecting === p.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Disconnect {p.label}?</AlertDialogTitle>
+                            <AlertDialogDescription>This will remove your {p.label} connection. You can reconnect at any time.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel data-testid={`button-cancel-disconnect-${p.key}`}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDisconnect(p.key, p.label)} className="bg-destructive text-destructive-foreground" data-testid={`button-confirm-disconnect-${p.key}`}>Disconnect</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                  {hi && hi.failureCount > 0 && hi.failureCount < 15 && (
+                    <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {hi.failureCount} recent connection {hi.failureCount === 1 ? "issue" : "issues"} — auto-recovery in progress
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {unconnected.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {unconnected.map(p => {
+              const canOAuth = p.isYouTube || oauthStatus?.[p.key]?.configured;
+              if (p.streamKeyOnly) {
+                return (
+                  <Button key={p.key} data-testid={`button-connect-${p.key}`} className="w-full justify-start" variant="outline"
+                    style={{ borderColor: p.color === "#000000" ? "#555" : p.color, color: p.color === "#000000" ? "#ccc" : p.color }}
+                    onClick={() => setLocation("/content")}>
+                    <p.Icon className="h-4 w-4 mr-2" />
+                    Set up {p.label}
+                    <ExternalLink className="h-3 w-3 ml-auto opacity-60" />
+                  </Button>
+                );
+              }
+              return (
+                <Button key={p.key} data-testid={`button-connect-${p.key}`} className="w-full justify-start"
+                  style={{ backgroundColor: p.color === "#000000" ? "#333" : p.color, borderColor: p.color, color: "#fff" }}
+                  disabled={oauthLoading === p.key || !canOAuth}
+                  onClick={() => handleOAuthLogin(p.key, p.isYouTube)}>
+                  {oauthLoading === p.key ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <p.Icon className="h-4 w-4 mr-2" />}
+                  {oauthLoading === p.key ? "Connecting..." : `Login with ${p.label}`}
+                </Button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
   const [, setLocation] = useLocation();
@@ -336,240 +705,15 @@ function GeneralTab() {
 
       <ThemeScheduleCard />
 
-      <Card>
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
-            <Link2 className="h-4 w-4 text-muted-foreground" />
-            Connected Platforms
-            {connectedCount > 0 && (
-              <Badge variant="secondary" data-testid="badge-channel-count">{connectedCount}</Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 space-y-3">
-          {(() => {
-            const expiredChannels = (channels || []).filter((ch: any) => ch.connectionStatus === "expired");
-            if (expiredChannels.length > 0) {
-              const names = expiredChannels.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)).join(" & ");
-              return (
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30" data-testid="banner-connection-alert">
-                  <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-destructive">{names} {expiredChannels.length === 1 ? "needs" : "need"} reconnection</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Posting has paused on {expiredChannels.length === 1 ? "this platform" : "these platforms"}. Use the Reconnect button below to restore full automation.</p>
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-          {(() => {
-            const FOCUSED_PLATFORMS = [
-              { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
-              { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
-              { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
-              { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
-              { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
-              { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
-            ];
-            const connectedSet = new Set((channels || []).map((c: any) => c.platform));
-            const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
-            const connected = FOCUSED_PLATFORMS.filter(p => connectedSet.has(p.key));
-
-            const [disconnecting, setDisconnecting] = useState<string | null>(null);
-
-            const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
-
-            const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
-              setOauthLoading(platform);
-              try {
-                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
-                  window.location.href = `/api/oauth/${platform}/bounce`;
-                  return;
-                }
-                const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
-                const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
-                if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
-                const { url } = await res.json();
-                window.location.href = url;
-              } catch (error: any) {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-                setOauthLoading(null);
-              }
-            };
-
-            const handleDisconnect = async (platform: string, label: string) => {
-              setDisconnecting(platform);
-              try {
-                await apiRequest("DELETE", `/api/oauth/${platform}/disconnect`);
-                queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
-                queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
-                toast({ title: "Disconnected", description: `${label} has been disconnected.` });
-              } catch (error: any) {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-              } finally {
-                setDisconnecting(null);
-              }
-            };
-
-            const getConnectionStatus = (platformKey: string) => {
-              const ch = (channels || []).find((c: any) => c.platform === platformKey);
-              return (ch as any)?.connectionStatus || "healthy";
-            };
-
-            const handleReconnect = async (platform: string, isYouTube: boolean) => {
-              setOauthLoading(platform);
-              try {
-                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-                if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
-                  window.location.href = `/api/oauth/${platform}/bounce`;
-                  return;
-                }
-                const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
-                const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
-                if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
-                const { url } = await res.json();
-                window.location.href = url;
-              } catch (error: any) {
-                toast({ title: "Error", description: error.message, variant: "destructive" });
-                setOauthLoading(null);
-              }
-            };
-
-            return (
-              <>
-                {connected.length > 0 && (
-                  <div className="space-y-2">
-                    {connected.map(p => {
-                      const status = getConnectionStatus(p.key);
-                      const isExpired = status === "expired";
-                      return (
-                        <div key={p.key} className={cn("flex items-center justify-between gap-2 rounded-md p-2", isExpired && "bg-destructive/10 border border-destructive/30")} data-testid={`row-connected-${p.key}`}>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p.Icon className="h-4 w-4" style={{ color: p.color === "#000000" ? "#999" : p.color }} />
-                            <span className="text-sm font-medium">{p.label}</span>
-                            {isExpired ? (
-                              <Badge variant="destructive" className="text-xs" data-testid={`badge-expired-${p.key}`}>
-                                <AlertTriangle className="w-3 h-3 mr-1" />
-                                Expired
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                <CheckCircle className="w-3 h-3 mr-1 text-emerald-400" />
-                                Connected
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {isExpired && (
-                              <Button
-                                size="sm"
-                                variant="default"
-                                disabled={oauthLoading === p.key}
-                                onClick={() => handleReconnect(p.key, p.isYouTube)}
-                                data-testid={`button-reconnect-${p.key}`}
-                                aria-label={`Reconnect ${p.label}`}
-                              >
-                                {oauthLoading === p.key ? (
-                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                ) : (
-                                  <Link2 className="h-3 w-3 mr-1" />
-                                )}
-                                Reconnect
-                              </Button>
-                            )}
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive"
-                                  disabled={disconnecting === p.key}
-                                  data-testid={`button-disconnect-${p.key}`}
-                                  aria-label={`Disconnect ${p.label}`}
-                                >
-                                  {disconnecting === p.key ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Disconnect {p.label}?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove your {p.label} connection, including any saved tokens and stream keys. You can reconnect at any time.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel data-testid={`button-cancel-disconnect-${p.key}`}>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDisconnect(p.key, p.label)}
-                                    className="bg-destructive text-destructive-foreground"
-                                    data-testid={`button-confirm-disconnect-${p.key}`}
-                                  >
-                                    Disconnect
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {unconnected.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {unconnected.map(p => {
-                      const canOAuth = p.isYouTube || oauthStatus?.[p.key]?.configured;
-                      if (p.streamKeyOnly) {
-                        return (
-                          <Button
-                            key={p.key}
-                            data-testid={`button-connect-${p.key}`}
-                            aria-label={`Set up ${p.label}`}
-                            className="w-full justify-start"
-                            variant="outline"
-                            style={{ borderColor: p.color === "#000000" ? "#555" : p.color, color: p.color === "#000000" ? "#ccc" : p.color }}
-                            onClick={() => setLocation("/content")}
-                          >
-                            <p.Icon className="h-4 w-4 mr-2" />
-                            Set up {p.label}
-                            <ExternalLink className="h-3 w-3 ml-auto opacity-60" />
-                          </Button>
-                        );
-                      }
-                      return (
-                        <Button
-                          key={p.key}
-                          data-testid={`button-connect-${p.key}`}
-                          aria-label={`Connect ${p.label}`}
-                          className="w-full justify-start"
-                          style={{ backgroundColor: p.color === "#000000" ? "#333" : p.color, borderColor: p.color, color: "#fff" }}
-                          disabled={oauthLoading === p.key || !canOAuth}
-                          onClick={() => handleOAuthLogin(p.key, p.isYouTube)}
-                        >
-                          {oauthLoading === p.key ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <p.Icon className="h-4 w-4 mr-2" />
-                          )}
-                          {oauthLoading === p.key ? "Connecting..." : `Login with ${p.label}`}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
-                )}
-              </>
-            );
-          })()}
-        </CardContent>
-      </Card>
+      <PlatformConnectionsCard
+        channels={channels}
+        connectedCount={connectedCount}
+        oauthLoading={oauthLoading}
+        setOauthLoading={setOauthLoading}
+        oauthStatus={oauthStatus}
+        toast={toast}
+        setLocation={setLocation}
+      />
 
       <Card>
         <CardHeader className="pb-0">

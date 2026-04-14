@@ -1699,4 +1699,46 @@ export async function registerPlatformRoutes(app: Express) {
     primaryLanguage: "en",
     internationalPercentage: 0,
   })));
+
+  app.get("/api/connections/health", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getConnectionHealth } = await import("../services/connection-guardian");
+      const health = await getConnectionHealth(userId);
+      res.json(health);
+    } catch (err: any) {
+      console.error("[ConnectionHealth] Error:", err?.message);
+      res.status(500).json({ error: "Failed to fetch connection health" });
+    }
+  });
+
+  app.post("/api/connections/refresh/:platform", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const platform = req.params.platform;
+    try {
+      const { forceRefreshPlatform } = await import("../services/connection-guardian");
+      const result = await forceRefreshPlatform(userId, platform);
+      res.json(result);
+    } catch (err: any) {
+      console.error("[ConnectionRefresh] Error:", err?.message);
+      res.status(500).json({ success: false, error: "Failed to refresh connection" });
+    }
+  });
+
+  app.post("/api/connections/refresh-all", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { refreshAllUserChannelStats } = await import("../youtube");
+      await refreshAllUserChannelStats(userId);
+      const { getConnectionHealth } = await import("../services/connection-guardian");
+      const health = await getConnectionHealth(userId);
+      res.json({ success: true, health });
+    } catch (err: any) {
+      console.error("[ConnectionRefreshAll] Error:", err?.message);
+      res.status(500).json({ success: false, error: "Failed to refresh all connections" });
+    }
+  });
 }

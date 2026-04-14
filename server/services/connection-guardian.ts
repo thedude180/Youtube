@@ -422,7 +422,40 @@ async function autoConnectStreamingPlatforms(): Promise<{ rumble: number; twitch
   return { rumble, twitch, kick };
 }
 
+let statsRefreshInFlight = false;
+
+async function refreshAllChannelStatsInBackground(): Promise<number> {
+  if (statsRefreshInFlight) return 0;
+  statsRefreshInFlight = true;
+  let refreshed = 0;
+  try {
+    const allUsers = await db.select({ id: users.id }).from(users).limit(200);
+    for (const user of allUsers) {
+      try {
+        const { refreshAllUserChannelStats } = await import("../youtube");
+        await refreshAllUserChannelStats(user.id);
+        refreshed++;
+      } catch (err: any) {
+        console.warn(`[ConnectionGuardian] Stats refresh failed for ${user.id}: ${err?.message?.substring(0, 150)}`);
+      }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch (err: any) {
+    console.error("[ConnectionGuardian] Background stats refresh error:", err?.message?.substring(0, 200));
+  } finally {
+    statsRefreshInFlight = false;
+  }
+  return refreshed;
+}
+
+let lastStatsRefresh = 0;
+const STATS_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+
+let guardianCycleInFlight = false;
+
 async function runGuardianCycle(): Promise<void> {
+  if (guardianCycleInFlight) return;
+  guardianCycleInFlight = true;
   const startTime = Date.now();
   try {
     const heartbeatMod = await import("./engine-heartbeat");
@@ -435,12 +468,21 @@ async function runGuardianCycle(): Promise<void> {
     const baselines = await withRetry(() => captureBaselineSnapshots(), "guardian-baselines");
     const periodic = await withRetry(() => capturePeriodicSnapshots(), "guardian-snapshots");
 
+    const now = Date.now();
+    if (now - lastStatsRefresh >= STATS_REFRESH_INTERVAL_MS) {
+      lastStatsRefresh = now;
+      refreshAllChannelStatsInBackground().catch(err =>
+        console.warn("[ConnectionGuardian] Stats refresh failed:", String(err).substring(0, 200))
+      );
+    }
 
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);
   } catch (err) {
     console.error("[ConnectionGuardian] Cycle error:", err);
     const { recordHeartbeat } = await import("./engine-heartbeat");
     await recordHeartbeat("connectionGuardian", "error", undefined, String(err));
+  } finally {
+    guardianCycleInFlight = false;
   }
 }
 
@@ -478,10 +520,15 @@ async function fastRecoverBrokenConnections(): Promise<number> {
   return recovered;
 }
 
+let initialKickoffTimeout: ReturnType<typeof setTimeout> | null = null;
+
 export function startConnectionGuardian(): void {
   if (guardianInterval) return;
 
-  setTimeout(() => runGuardianCycle().catch(console.error), 30_000);
+  initialKickoffTimeout = setTimeout(() => {
+    initialKickoffTimeout = null;
+    runGuardianCycle().catch(console.error);
+  }, 30_000);
 
   guardianInterval = setInterval(() => {
     runGuardianCycle().catch(console.error);
@@ -493,6 +540,10 @@ export function startConnectionGuardian(): void {
 }
 
 export function stopConnectionGuardian(): void {
+  if (initialKickoffTimeout) {
+    clearTimeout(initialKickoffTimeout);
+    initialKickoffTimeout = null;
+  }
   if (guardianInterval) {
     clearInterval(guardianInterval);
     guardianInterval = null;
@@ -500,6 +551,129 @@ export function stopConnectionGuardian(): void {
   if (fastRecoveryInterval) {
     clearInterval(fastRecoveryInterval);
     fastRecoveryInterval = null;
+  }
+}
+
+export async function getConnectionHealth(userId: string): Promise<{
+  platforms: Array<{
+    platform: string;
+    channelName: string;
+    channelId: string;
+    status: "healthy" | "degraded" | "expired" | "disconnected";
+    lastVerifiedAt: string | null;
+    lastSyncAt: string | null;
+    subscriberCount: number | null;
+    viewCount: number | null;
+    videoCount: number | null;
+    failureCount: number;
+    hasRefreshToken: boolean;
+  }>;
+  guardianStatus: {
+    isRunning: boolean;
+    cycleIntervalMin: number;
+    fastRecoveryIntervalMin: number;
+    lastStatsRefreshAt: string | null;
+    statsRefreshIntervalMin: number;
+  };
+}> {
+  const userChannels = await db.select().from(channels)
+    .where(eq(channels.userId, userId));
+
+  const userLinked = await db.select().from(linkedChannels)
+    .where(eq(linkedChannels.userId, userId));
+
+  const platformMap = new Map<string, any>();
+  for (const ch of userChannels) {
+    const pd = (ch.platformData || {}) as any;
+    const status = ch.accessToken
+      ? (pd._connectionStatus || "healthy")
+      : "disconnected";
+    platformMap.set(ch.platform, {
+      platform: ch.platform,
+      channelName: ch.channelName || ch.platform,
+      channelId: ch.channelId || "",
+      status,
+      lastVerifiedAt: pd._lastVerifiedAt ? new Date(pd._lastVerifiedAt).toISOString() : null,
+      lastSyncAt: ch.lastSyncAt ? new Date(ch.lastSyncAt).toISOString() : null,
+      subscriberCount: ch.subscriberCount,
+      viewCount: ch.viewCount,
+      videoCount: ch.videoCount,
+      failureCount: pd._reconnectFailures || 0,
+      hasRefreshToken: !!ch.refreshToken,
+    });
+  }
+
+  for (const lc of userLinked) {
+    if (!platformMap.has(lc.platform)) {
+      platformMap.set(lc.platform, {
+        platform: lc.platform,
+        channelName: lc.username || lc.platform,
+        channelId: "",
+        status: lc.isConnected ? "degraded" : "disconnected",
+        lastVerifiedAt: null,
+        lastSyncAt: null,
+        subscriberCount: null,
+        viewCount: null,
+        videoCount: null,
+        failureCount: 0,
+        hasRefreshToken: false,
+      });
+    }
+  }
+
+  return {
+    platforms: Array.from(platformMap.values()),
+    guardianStatus: {
+      isRunning: !!guardianInterval,
+      cycleIntervalMin: GUARDIAN_CYCLE_MS / 60000,
+      fastRecoveryIntervalMin: FAST_RECOVERY_CYCLE_MS / 60000,
+      lastStatsRefreshAt: lastStatsRefresh > 0 ? new Date(lastStatsRefresh).toISOString() : null,
+      statsRefreshIntervalMin: STATS_REFRESH_INTERVAL_MS / 60000,
+    },
+  };
+}
+
+const VALID_PLATFORMS = ["youtube", "twitch", "kick", "tiktok", "discord", "rumble", "x", "instagram", "facebook"];
+
+export async function forceRefreshPlatform(userId: string, platform: string): Promise<{ success: boolean; error?: string }> {
+  const normalizedPlatform = platform.trim().toLowerCase();
+  if (!VALID_PLATFORMS.includes(normalizedPlatform)) {
+    return { success: false, error: `Unknown platform: ${platform}` };
+  }
+
+  try {
+    const userChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, normalizedPlatform)));
+
+    if (userChannels.length === 0) {
+      return { success: false, error: "No channel found for this platform" };
+    }
+
+    for (const ch of userChannels) {
+      if (ch.refreshToken) {
+        const refreshOk = await tryRefreshSingleToken(ch);
+        if (!refreshOk) return { success: false, error: "Token refresh failed — may need re-authorization" };
+      }
+
+      const freshChannel = await db.select().from(channels).where(eq(channels.id, ch.id)).limit(1);
+      const currentToken = freshChannel[0]?.accessToken;
+
+      if (currentToken) {
+        const alive = await verifyConnectionAlive(normalizedPlatform, currentToken);
+        if (!alive) return { success: false, error: "Connection verification failed after refresh" };
+      }
+
+      try {
+        const { refreshAllUserChannelStats } = await import("../youtube");
+        await refreshAllUserChannelStats(userId);
+      } catch (err: any) {
+        console.warn(`[ConnectionGuardian] Stats refresh failed during force-refresh: ${err?.message?.substring(0, 150)}`);
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message?.substring(0, 200) || "Unknown error" };
   }
 }
 
