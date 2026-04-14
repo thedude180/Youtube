@@ -262,9 +262,12 @@ async function runAutonomyCycle() {
 
         await recordHeartbeat(engine.engineName, "error", durationMs, error.message);
 
-        if (failureCount >= 3) {
+        const isTransientAIError = /429|rate.?limit|quota|too many requests|retry.?after/i.test(error.message);
+        if (failureCount >= 3 && !isTransientAIError) {
           await notifyExceptionOnly(userId, engine.engineName, "critical",
             `Engine ${engine.engineName} has failed ${failureCount} times. Last error: ${error.message}`);
+        } else if (isTransientAIError) {
+          logger.info(`[AutonomyController] Suppressing notification for transient AI rate-limit on ${engine.engineName} (attempt ${failureCount})`);
         }
 
         logger.error(`${engine.engineName} FAILED: ${error.message}`);

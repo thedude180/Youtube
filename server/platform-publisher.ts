@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { channels } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { channels, notifications } from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { storage } from "./storage";
 import { withRetry } from "./services/api-retry";
@@ -93,16 +93,28 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 
         try {
           const platformName = channel.platform.charAt(0).toUpperCase() + channel.platform.slice(1);
-          await storage.createNotification({
-            userId: channel.userId,
-            type: "platform_disconnect",
-            title: `${platformName} Disconnected`,
-            message: `Your ${platformName} connection has expired. Please reconnect in Settings > Channels to resume automation.`,
-            severity: "critical",
-          });
+          const recentDisconnectNotifs = await db.select({ id: notifications.id })
+            .from(notifications)
+            .where(and(
+              eq(notifications.userId, channel.userId),
+              eq(notifications.type, "platform_disconnect"),
+              sql`${notifications.title} LIKE ${`%${platformName}%`}`,
+              gte(notifications.createdAt, new Date(Date.now() - 24 * 60 * 60_000)),
+            ))
+            .limit(1);
 
-          const { sendReconnectEmail } = await import("./services/reconnect-email");
-          sendReconnectEmail(channel.userId, channel.platform).catch(() => {});
+          if (recentDisconnectNotifs.length === 0) {
+            await storage.createNotification({
+              userId: channel.userId,
+              type: "platform_disconnect",
+              title: `${platformName} Disconnected`,
+              message: `Your ${platformName} connection has expired. Please reconnect in Settings > Channels to resume automation.`,
+              severity: "critical",
+            });
+
+            const { sendReconnectEmail } = await import("./services/reconnect-email");
+            sendReconnectEmail(channel.userId, channel.platform).catch(() => {});
+          }
         } catch (notifyErr) {
           console.error("[Publisher] Failed to send disconnect notification:", notifyErr);
         }

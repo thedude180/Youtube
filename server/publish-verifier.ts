@@ -6,7 +6,7 @@ import { logger } from "./lib/logger";
 import { storage } from "./storage";
 import { OAUTH_CONFIGS } from "./oauth-config";
 
-const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing"]);
+const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing", "config_missing"]);
 
 export async function clearMatchingScheduleItems(
   userId: string,

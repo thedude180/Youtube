@@ -367,15 +367,18 @@ export async function autoFixFailedPosts(): Promise<{
       }
 
       const maxAutoFix = category === "network" || category === "platform_down" ? 8 : 3;
+      const SILENT_AUTOFIX_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "platform_down"]);
       if (autoFixAttempts >= maxAutoFix) {
         stats.permanent++;
-        if (!metadata.permanentFailNotified) {
+        if (!metadata.permanentFailNotified && !SILENT_AUTOFIX_CATEGORIES.has(category)) {
           await createNotification(post.userId,
             `Upload couldn't be fixed automatically`,
             `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
             "error",
             post.targetPlatform === "youtube" ? "/content" : `/settings?reconnect=${post.targetPlatform}`
           );
+        } else {
+          logger.info("[AutoFix] Suppressing permanent-fail notification for transient category", { postId: post.id, category, attempts: autoFixAttempts });
         }
         await db.update(autopilotQueue)
           .set({
