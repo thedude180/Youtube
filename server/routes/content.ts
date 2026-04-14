@@ -32,6 +32,8 @@ import {
   bulkOptimize,
   autoScheduleOptimizedContent,
   getStaleVideos,
+  reprocessBackCatalog,
+  viralOptimizeVideo,
 } from "../backlog-engine";
 import * as fs from "fs";
 import { packageForAllPlatforms } from "../distribution/cross-platform-packaging";
@@ -1295,6 +1297,44 @@ export function registerContentRoutes(app: Express) {
     if (!userId) return;
     const stale = await getStaleVideos(userId);
     res.json(stale);
+  }));
+
+  app.post(api.backlog.viralReprocess.path, bulkRateLimit, asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const result = await reprocessBackCatalog(userId);
+      if (!result.alreadyRunning) {
+        await storage.createAuditLog({
+          userId,
+          action: "viral_back_catalog_started",
+          target: `${result.totalVideos} videos queued for viral optimization`,
+          details: { jobId: result.jobId },
+          riskLevel: "low",
+        });
+      }
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("Viral reprocess error:", error);
+      res.status(500).json({ success: false, message: "Failed to start viral reprocess" });
+    }
+  }));
+
+  app.post(api.backlog.viralOptimizeSingle.path, writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const schema = z.object({ videoId: z.number() });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    try {
+      const result = await viralOptimizeVideo(userId, parsed.data.videoId);
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      console.error("Viral optimize error:", error);
+      res.status(500).json({ success: false, message: "Failed to viral-optimize video" });
+    }
   }));
 
   app.post(api.thumbnails.generate.path, contentRateLimit, asyncHandler(async (req, res) => {

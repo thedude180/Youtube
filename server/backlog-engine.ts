@@ -790,6 +790,281 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
   return totalScheduled;
 }
 
+export async function viralOptimizeVideo(userId: string, videoId: number): Promise<{
+  optimized: boolean;
+  youtubeUpdated: boolean;
+  thumbnailQueued: boolean;
+  seoScore: number;
+  error?: string;
+}> {
+  const video = await storage.getVideo(videoId);
+  if (!video) return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Video not found" };
+
+  if (video.channelId) {
+    const userChannels = await storage.getChannelsByUser(userId);
+    const ownsVideo = userChannels.some(c => c.id === video.channelId);
+    if (!ownsVideo) return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Access denied" };
+  }
+
+  const meta = (video.metadata as any) || {};
+  const youtubeId = meta.youtubeId || meta.youtubeVideoId || meta.externalId;
+  const channelId = video.channelId;
+
+  let liveYouTubeData: any = null;
+  if (youtubeId && channelId) {
+    try {
+      const { fetchYouTubeVideoDetails } = await import("./youtube");
+      liveYouTubeData = await fetchYouTubeVideoDetails(channelId, youtubeId);
+    } catch (err: any) {
+      console.error(`[ViralOptimize] Failed to fetch YouTube data for ${youtubeId}:`, err.message);
+    }
+  }
+
+  const currentTitle = liveYouTubeData?.title || video.title;
+  const currentDescription = liveYouTubeData?.description || video.description || "";
+  const currentTags = liveYouTubeData?.tags || meta.tags || [];
+  const currentStats = liveYouTubeData ? {
+    viewCount: liveYouTubeData.viewCount,
+    likeCount: liveYouTubeData.likeCount,
+    commentCount: liveYouTubeData.commentCount,
+  } : {
+    viewCount: meta.viewCount || 0,
+    likeCount: meta.likeCount || 0,
+    commentCount: meta.commentCount || 0,
+  };
+
+  const contentCtx = detectContentContext(currentTitle, currentDescription, meta.contentCategory, meta);
+
+  const suggestions = await generateVideoMetadata({
+    title: currentTitle,
+    description: currentDescription,
+    type: video.type || "long",
+    metadata: {
+      ...meta,
+      tags: currentTags,
+      liveStats: currentStats,
+      youtubeCategory: liveYouTubeData?.categoryId,
+      publishedAt: liveYouTubeData?.publishedAt || meta.publishedAt,
+      duration: liveYouTubeData?.duration || meta.duration,
+    },
+    platform: video.platform || "youtube",
+  }, userId);
+
+  const newMetadata: any = {
+    ...meta,
+    seoScore: suggestions.seoScore || 0,
+    aiSuggestions: {
+      titleHooks: suggestions.titleHooks || [],
+      descriptionTemplate: suggestions.descriptionTemplate || "",
+      thumbnailCritique: suggestions.thumbnailCritique || "",
+      thumbnailVariants: suggestions.thumbnailVariants || [],
+      seoRecommendations: suggestions.seoRecommendations || [],
+      complianceNotes: suggestions.complianceNotes || [],
+      retentionBrief: suggestions.retentionBrief || null,
+      contentBrief: suggestions.contentBrief || null,
+    },
+    tags: suggestions.suggestedTags || currentTags,
+    aiOptimized: true,
+    aiOptimizedAt: new Date().toISOString(),
+    viralOptimized: true,
+    viralOptimizedAt: new Date().toISOString(),
+    gameName: meta.gameName || contentCtx.topicName || null,
+    contentCategory: meta.contentCategory || (contentCtx.niche !== 'general' ? contentCtx.niche : null),
+    brandKeywords: meta.brandKeywords?.length ? meta.brandKeywords : contentCtx.brandKeywords,
+    liveYouTubeSnapshot: liveYouTubeData ? {
+      fetchedAt: new Date().toISOString(),
+      title: liveYouTubeData.title,
+      viewCount: liveYouTubeData.viewCount,
+      likeCount: liveYouTubeData.likeCount,
+      commentCount: liveYouTubeData.commentCount,
+    } : meta.liveYouTubeSnapshot,
+  };
+
+  const videoUpdate: any = { metadata: newMetadata };
+  const bestTitle = suggestions.titleHooks?.[0];
+  if (bestTitle && bestTitle.length <= 100) {
+    newMetadata.originalTitle = newMetadata.originalTitle || currentTitle;
+    videoUpdate.title = bestTitle;
+  }
+  if (suggestions.descriptionTemplate) {
+    newMetadata.originalDescription = newMetadata.originalDescription || currentDescription;
+    videoUpdate.description = suggestions.descriptionTemplate;
+  }
+
+  await storage.updateVideo(videoId, videoUpdate);
+
+  let youtubeUpdated = false;
+  if (youtubeId && channelId) {
+    try {
+      const pushUpdates: any = {};
+      if (videoUpdate.title) pushUpdates.title = videoUpdate.title;
+      if (videoUpdate.description) pushUpdates.description = videoUpdate.description;
+      if (newMetadata.tags?.length) pushUpdates.tags = newMetadata.tags;
+      if (Object.keys(pushUpdates).length > 0) {
+        const { addToBacklog } = await import("./services/youtube-push-backlog");
+        await addToBacklog({
+          userId,
+          videoId,
+          channelId,
+          youtubeVideoId: youtubeId,
+          updates: pushUpdates,
+          priority: 3,
+        });
+        youtubeUpdated = true;
+      }
+    } catch (err: any) {
+      console.error(`[ViralOptimize] YouTube push queue failed for ${videoId}:`, err.message);
+    }
+  }
+
+  let thumbnailQueued = false;
+  if (youtubeId && channelId) {
+    try {
+      newMetadata.autoThumbnailGenerated = false;
+      newMetadata.autoThumbnailFailed = false;
+      await storage.updateVideo(videoId, { metadata: newMetadata });
+
+      const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
+      const success = await generateThumbnailForNewVideo(userId, videoId);
+      thumbnailQueued = success;
+    } catch (err: any) {
+      console.error(`[ViralOptimize] Thumbnail regeneration failed for ${videoId}:`, err.message);
+    }
+  }
+
+  await storage.createAgentActivity({
+    userId,
+    agentId: "seo_director",
+    action: `Viral-optimized "${video.title}"`,
+    target: video.title,
+    status: "completed",
+    details: {
+      description: `Full viral optimization with ${liveYouTubeData ? "live YouTube analysis" : "cached data"}. SEO score: ${suggestions.seoScore}. Tags: ${newMetadata.tags?.length || 0}. Thumbnail: ${thumbnailQueued ? "regenerated" : "skipped"}.`,
+      impact: `SEO ${suggestions.seoScore}/100 | YouTube push: ${youtubeUpdated ? "queued" : "skipped"} | Thumbnail: ${thumbnailQueued ? "new" : "kept"}`,
+    },
+  });
+
+  return {
+    optimized: true,
+    youtubeUpdated,
+    thumbnailQueued,
+    seoScore: suggestions.seoScore || 0,
+  };
+}
+
+export async function reprocessBackCatalog(userId: string): Promise<{
+  jobId: number;
+  totalVideos: number;
+  alreadyRunning: boolean;
+}> {
+  const existing = sessions.get(userId);
+  if (existing && existing.state === "processing") {
+    return { jobId: existing.jobId!, totalVideos: existing.totalVideos, alreadyRunning: true };
+  }
+
+  const allVideos = await storage.getVideosByUser(userId);
+  const publicVideos = allVideos.filter(v => {
+    const m = (v.metadata as any) || {};
+    return m.privacyStatus !== "private" && m.privacyStatus !== "unlisted";
+  });
+
+  const prioritized = prioritizeVideos(publicVideos);
+
+  const job = await storage.createJob({
+    type: "viral_back_catalog_reprocess",
+    status: "processing",
+    priority: 1,
+    payload: {
+      totalVideos: prioritized.length,
+      mode: "viral",
+      videoIds: prioritized.map(v => v.id),
+      userId,
+    },
+  });
+
+  const session: BacklogSession = {
+    userId,
+    state: "processing",
+    currentVideoId: null,
+    currentAgentIndex: 0,
+    currentChainStep: 0,
+    totalVideos: prioritized.length,
+    processedVideos: 0,
+    jobId: job.id,
+    startedAt: new Date(),
+    lastActivityAt: new Date(),
+    mode: "deep",
+    priority: "backlog",
+    chainResults: {},
+    errors: [],
+  };
+
+  sessions.set(userId, session);
+  viralReprocessAsync(userId, prioritized, job.id).catch(err =>
+    console.error(`[BackCatalog] Viral reprocess failed:`, err)
+  );
+
+  return { jobId: job.id, totalVideos: prioritized.length, alreadyRunning: false };
+}
+
+async function viralReprocessAsync(userId: string, videoList: any[], jobId: number) {
+  let completed = 0;
+
+  for (const video of videoList) {
+    const currentSession = sessions.get(userId);
+    if (!currentSession || currentSession.state === "paused") break;
+    if (currentSession.state === "stream_active") {
+      await waitForStreamEnd(userId);
+      const resumed = sessions.get(userId);
+      if (!resumed || resumed.state === "paused") break;
+    }
+
+    currentSession.currentVideoId = video.id;
+    currentSession.lastActivityAt = new Date();
+
+    try {
+      const result = await viralOptimizeVideo(userId, video.id);
+      console.log(`[BackCatalog] ${completed + 1}/${videoList.length} — "${video.title}" → SEO ${result.seoScore}, YT push: ${result.youtubeUpdated}, thumb: ${result.thumbnailQueued}`);
+    } catch (err: any) {
+      console.error(`[BackCatalog] Failed video ${video.id} "${video.title}":`, err.message);
+      currentSession.errors.push({ videoId: video.id, error: err.message, timestamp: new Date() });
+    }
+
+    completed++;
+    currentSession.processedVideos = completed;
+    const progress = Math.round((completed / videoList.length) * 100);
+    await storage.updateJobProgress(jobId, progress);
+
+    if (completed < videoList.length) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+
+  const finalSession = sessions.get(userId);
+  if (finalSession) {
+    finalSession.state = "idle";
+    finalSession.currentVideoId = null;
+  }
+
+  const wasInterrupted = completed < videoList.length;
+  const jobStatus = wasInterrupted ? "partial" : "completed";
+  await storage.updateJobStatus(jobId, jobStatus, {
+    optimized: completed,
+    total: videoList.length,
+    mode: "viral",
+    interrupted: wasInterrupted,
+  });
+
+  await storage.createAuditLog({
+    userId,
+    action: "viral_back_catalog_completed",
+    target: `${completed} of ${videoList.length} videos viral-optimized`,
+    riskLevel: "low",
+  });
+
+  console.log(`[BackCatalog] ✓ Viral reprocess complete: ${completed}/${videoList.length} videos`);
+}
+
 export async function getStaleVideos(userId: string): Promise<any[]> {
   const allVideos = await storage.getVideosByUser(userId);
   return allVideos.filter(v => {

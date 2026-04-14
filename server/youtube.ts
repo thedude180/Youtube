@@ -383,6 +383,52 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
   }));
 }
 
+export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId: string): Promise<{
+  title: string;
+  description: string;
+  tags: string[];
+  categoryId: string;
+  thumbnailUrl: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  duration: string;
+  publishedAt: string;
+  privacyStatus: string;
+  defaultAudioLanguage?: string;
+} | null> {
+  try {
+    const { oauth2Client } = await getAuthenticatedClient(channelId);
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+
+    const response = await youtube.videos.list({
+      part: ["snippet", "statistics", "contentDetails", "status"],
+      id: [youtubeVideoId],
+    });
+
+    const v = response.data.items?.[0];
+    if (!v) return null;
+
+    return {
+      title: v.snippet?.title || "",
+      description: v.snippet?.description || "",
+      tags: v.snippet?.tags || [],
+      categoryId: v.snippet?.categoryId || "",
+      thumbnailUrl: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || "",
+      viewCount: Number(v.statistics?.viewCount || 0),
+      likeCount: Number(v.statistics?.likeCount || 0),
+      commentCount: Number(v.statistics?.commentCount || 0),
+      duration: v.contentDetails?.duration || "",
+      publishedAt: v.snippet?.publishedAt || "",
+      privacyStatus: v.status?.privacyStatus || "",
+      defaultAudioLanguage: v.snippet?.defaultAudioLanguage || undefined,
+    };
+  } catch (err: any) {
+    console.error(`[YouTube] Failed to fetch details for ${youtubeVideoId}:`, err.message);
+    return null;
+  }
+}
+
 export async function updateYouTubeVideo(
   channelId: number,
   videoId: string,

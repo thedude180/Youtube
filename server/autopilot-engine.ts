@@ -244,6 +244,21 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
         .catch(err => logger.warn("Auto smart-edit queue failed", { videoId, error: String(err).substring(0, 200) }));
     }).catch(() => undefined);
   }
+
+  import("./backlog-engine").then(m => {
+    m.viralOptimizeVideo(userId, videoId)
+      .then(result => {
+        if (result.optimized) {
+          logger.info("Viral optimization completed for new video", {
+            videoId,
+            seoScore: result.seoScore,
+            youtubeUpdated: result.youtubeUpdated,
+            thumbnailQueued: result.thumbnailQueued,
+          });
+        }
+      })
+      .catch(err => logger.warn("Viral optimization failed for new video", { videoId, error: String(err).substring(0, 200) }));
+  }).catch(() => undefined);
 }
 
 const MAX_CROSS_POSTS_PER_DAY = 20;

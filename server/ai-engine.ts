@@ -365,9 +365,15 @@ Platform: ${platformName}
 Content Niche: ${nicheLabel}
 Current Description: "${video.description || 'None provided'}"
 Current Tags: ${video.metadata?.tags?.join(', ') || 'None'}
+${video.metadata?.duration ? `Video Duration: ${video.metadata.duration}` : ''}
+${video.metadata?.youtubeCategory ? `YouTube Category ID: ${video.metadata.youtubeCategory}` : ''}
+${video.metadata?.liveStats ? `Current Performance: ${video.metadata.liveStats.viewCount} views, ${video.metadata.liveStats.likeCount} likes, ${video.metadata.liveStats.commentCount} comments` : ''}
+${video.metadata?.publishedAt ? `Published: ${video.metadata.publishedAt}` : ''}
 ${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
 ${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}
 ${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}
+
+CRITICAL: Your optimization MUST be specifically relevant to THIS video's actual content. Analyze the title, description, and tags to understand exactly what this clip/video shows. Your SEO, thumbnails, and all recommendations must match the actual gameplay, moments, or content depicted — NOT generic gaming advice.
 
 RETENTION RULES (MANDATORY):
 - Title MUST create a curiosity gap or promise a specific outcome

@@ -305,6 +305,18 @@ export const api = {
       path: '/api/backlog/stale' as const,
       responses: { 200: z.any() },
     },
+    viralReprocess: {
+      method: 'POST' as const,
+      path: '/api/backlog/viral-reprocess' as const,
+      input: z.object({}),
+      responses: { 200: z.object({ success: z.boolean(), jobId: z.number(), totalVideos: z.number(), alreadyRunning: z.boolean() }) },
+    },
+    viralOptimizeSingle: {
+      method: 'POST' as const,
+      path: '/api/backlog/viral-optimize' as const,
+      input: z.object({ videoId: z.number() }),
+      responses: { 200: z.object({ success: z.boolean(), optimized: z.boolean(), seoScore: z.number() }) },
+    },
   },
   thumbnails: {
     generate: {
