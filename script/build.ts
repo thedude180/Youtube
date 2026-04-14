@@ -12,11 +12,9 @@ const allowlist = [
   "express",
   "express-session",
   "memorystore",
-  "openai",
   "passport",
   "passport-local",
   "pg",
-  "stripe",
   "ws",
   "zod",
   "zod-validation-error",
@@ -48,6 +46,9 @@ async function buildAll() {
     minify: true,
     external: externals,
     logLevel: "info",
+    treeShaking: true,
+    drop: ["debugger"],
+    legalComments: "none",
   });
 }
 

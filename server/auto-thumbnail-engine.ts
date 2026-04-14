@@ -169,6 +169,11 @@ async function generateAndUploadThumbnail(
     const errMsg = String(err);
     const isNotFound = errMsg.includes("cannot be found") || (errMsg.includes("videoId") && errMsg.includes("not found")) || errMsg.includes("404");
     const isTooLarge = errMsg.includes("Media is too large") || errMsg.includes("2097152") || errMsg.includes("media_too_large");
+    const isNotConnected = errMsg.includes("not connected") || errMsg.includes("missing access token");
+    if (isNotConnected) {
+      logger.warn("Auto-thumbnail skipped — channel not connected", { videoDbId, youtubeId });
+      return false;
+    }
     if (isNotFound || isTooLarge) {
       const failReason = isNotFound ? "video_not_found_on_youtube" : "image_too_large";
       try {
@@ -205,8 +210,17 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
         sql`${channels.accessToken} IS NOT NULL`,
       ));
 
+    if (ytChannels.length === 0) {
+      return 0;
+    }
+
     for (const ytChannel of ytChannels) {
       if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+
+      if (ytChannel.tokenExpiresAt && ytChannel.tokenExpiresAt.getTime() < Date.now() - 86400_000) {
+        logger.info("Auto-thumbnail skipped — channel token expired", { channelId: ytChannel.id });
+        continue;
+      }
 
       const userVideos = await db.select().from(videos)
         .where(eq(videos.channelId, ytChannel.id))
