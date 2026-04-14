@@ -8,6 +8,9 @@ import { OAUTH_CONFIGS } from "./oauth-config";
 
 const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing", "config_missing"]);
 
+const recentEmailKeys = new Map<string, number>();
+const EMAIL_DEDUP_MS = 24 * 60 * 60 * 1000;
+
 export async function clearMatchingScheduleItems(
   userId: string,
   platform: string,
@@ -90,12 +93,27 @@ function diagnoseFailureReason(error: string | undefined, platform: string, plat
 
 async function sendUploadFailureEmail(userId: string, platform: string, title: string, reason: string, contentUrl?: string) {
   try {
+    const reasonLower = (reason || "").toLowerCase();
+    if (reasonLower.includes("quota") || reasonLower.includes("rate limit") || reasonLower.includes("network error") || reasonLower.includes("still processing") || reasonLower.includes("will retry")) {
+      logger.info("[Verifier] Email suppressed for transient failure", { userId, platform, reason: reason.substring(0, 60) });
+      return;
+    }
+
+    const dedupKey = `${userId}:${platform}:${title}`;
+    const lastSent = recentEmailKeys.get(dedupKey);
+    if (lastSent && Date.now() - lastSent < EMAIL_DEDUP_MS) {
+      logger.info("[Verifier] Email deduplicated (24h window)", { userId, platform, title: title.substring(0, 40) });
+      return;
+    }
+
     const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     const email = user[0]?.email;
     if (!email) return;
 
     const notifyEmail = user[0]?.notifyEmail ?? true;
     if (!notifyEmail) return;
+
+    recentEmailKeys.set(dedupKey, Date.now());
 
     const { sendGmail } = await import("./services/gmail-client");
     const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
