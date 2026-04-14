@@ -1,6 +1,9 @@
 import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("creator-intelligence");
 const openai = getOpenAIClient();
 
 interface StyleProfile {
@@ -51,7 +54,7 @@ Provide your analysis as JSON with exactly these fields:
   try {
     profile = JSON.parse(content);
   } catch {
-    console.error("[CreatorIntelligence] Failed to parse style profile");
+    logger.error("[CreatorIntelligence] Failed to parse style profile");
     profile = {
       tone: "",
       commonPhrases: [],
@@ -243,7 +246,7 @@ Provide your response as JSON with exactly this field:
   try {
     result = JSON.parse(content);
   } catch {
-    console.error("[CreatorIntelligence] Failed to parse humanization result");
+    logger.error("[CreatorIntelligence] Failed to parse humanization result");
     result = {};
   }
   return result.humanized || text;

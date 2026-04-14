@@ -7,6 +7,9 @@ import { withRetry } from "./services/api-retry";
 import { PLATFORM_CONTENT_SPECS, getTitleLimit, getDescriptionLimit } from "@shared/platform-specs";
 import { formatContentForPlatform } from "./lib/platform-formatter";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("platform-publisher");
 export interface PublishResult {
   success: boolean;
   platform: string;
@@ -81,10 +84,10 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[Publisher] Token refresh failed for ${channel.platform} (${res.status}):`, errText);
+      logger.error(`[Publisher] Token refresh failed for ${channel.platform} (${res.status}):`, errText);
 
       if (res.status === 400 || res.status === 401) {
-        console.error(`[Publisher] Token for ${channel.platform} channel ${channel.id} is invalid/revoked. User needs to reconnect.`);
+        logger.error(`[Publisher] Token for ${channel.platform} channel ${channel.id} is invalid/revoked. User needs to reconnect.`);
         const existingPd = (channel as any).platformData || {};
         await storage.updateChannel(channel.id, {
           tokenExpiresAt: new Date(0),
@@ -116,7 +119,7 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
             sendReconnectEmail(channel.userId, channel.platform).catch(() => {});
           }
         } catch (notifyErr) {
-          console.error("[Publisher] Failed to send disconnect notification:", notifyErr);
+          logger.error("[Publisher] Failed to send disconnect notification:", notifyErr);
         }
 
         return null;
@@ -138,7 +141,7 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 
     return newToken;
   } catch (err: any) {
-    console.error(`[Publisher] Token refresh error for ${channel.platform}:`, err.message);
+    logger.error(`[Publisher] Token refresh error for ${channel.platform}:`, err.message);
     return channel.accessToken;
   }
 }
@@ -266,7 +269,7 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
       };
     }
 
-    console.error(`[Publisher:Twitch] Chat announcement failed:`, chatResult.error.message);
+    logger.error(`[Publisher:Twitch] Chat announcement failed:`, chatResult.error.message);
 
     const titleContent = twitchContent.replace(/\n/g, " ").substring(0, 140);
     const titleResult = await withRetry(async () => {

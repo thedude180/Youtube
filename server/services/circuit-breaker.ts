@@ -1,3 +1,6 @@
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("circuit-breaker");
 type CircuitState = "closed" | "open" | "half-open";
 
 interface CircuitBreakerOptions {
@@ -82,7 +85,7 @@ class CircuitBreaker {
     this.successes = 0;
     if (this.failures >= this.failureThreshold) {
       this.state = "open";
-      console.warn(`[CircuitBreaker] ${this.name} tripped to OPEN after ${this.failures} failures`);
+      logger.warn(`[CircuitBreaker] ${this.name} tripped to OPEN after ${this.failures} failures`);
     }
   }
 

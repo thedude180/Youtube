@@ -2,6 +2,9 @@ import { db } from "../db";
 import { complianceChecks, copyrightClaims, licensingAudits, disclosureRequirements, fairUseReviews, videos, channels, users } from "@shared/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("compliance-legal-engine");
 const SCAN_INTERVAL_MS = 3 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
@@ -198,7 +201,7 @@ export async function runPolicyComplianceCheck(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] Policy compliance check error:", e);
+    logger.error("[Compliance Engine] Policy compliance check error:", e);
   }
 }
 
@@ -243,7 +246,7 @@ export async function monitorCopyrightClaims(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] Copyright monitoring error:", e);
+    logger.error("[Compliance Engine] Copyright monitoring error:", e);
   }
 }
 
@@ -301,7 +304,7 @@ export async function auditLicensing(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] Licensing audit error:", e);
+    logger.error("[Compliance Engine] Licensing audit error:", e);
   }
 }
 
@@ -361,7 +364,7 @@ export async function checkCOPPA(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] COPPA check error:", e);
+    logger.error("[Compliance Engine] COPPA check error:", e);
   }
 }
 
@@ -426,7 +429,7 @@ export async function checkDisclosureRequirements(userId: string): Promise<void>
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] Disclosure requirements check error:", e);
+    logger.error("[Compliance Engine] Disclosure requirements check error:", e);
   }
 }
 
@@ -511,7 +514,7 @@ export async function analyzeFairUse(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Compliance Engine] Fair use analysis error:", e);
+    logger.error("[Compliance Engine] Fair use analysis error:", e);
   }
 }
 
@@ -530,14 +533,14 @@ export async function runComplianceScan(): Promise<void> {
         await checkDisclosureRequirements(user.id);
         await analyzeFairUse(user.id);
       } catch (e) {
-        console.error(`[Compliance Engine] Scan failed for user ${user.id}:`, e);
+        logger.error(`[Compliance Engine] Scan failed for user ${user.id}:`, e);
       }
     }
 
     lastScanTime = Date.now();
     const duration = Date.now() - startTime;
   } catch (e) {
-    console.error("[Compliance Engine] Full compliance scan error:", e);
+    logger.error("[Compliance Engine] Full compliance scan error:", e);
   }
 }
 
@@ -549,14 +552,14 @@ export function startComplianceLegalEngine(): void {
 
 
   setTimeout(() => {
-    runComplianceScan().catch(e => console.error("[Compliance Engine] Startup scan failed:", e));
+    runComplianceScan().catch(e => logger.error("[Compliance Engine] Startup scan failed:", e));
   }, 70_000);
 
   complianceInterval = setInterval(async () => {
     try {
       await runComplianceScan();
     } catch (e) {
-      console.error("[Compliance Engine] Scheduled scan failed:", e);
+      logger.error("[Compliance Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

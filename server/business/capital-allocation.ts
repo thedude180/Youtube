@@ -3,6 +3,9 @@ import { revenueRecords, channels, videos, equipmentRoi } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { computeRevenueConfidence } from "./revenue-confidence";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("capital-allocation");
 export interface AllocationBucket {
   category: string;
   currentAllocation: number;
@@ -134,7 +137,7 @@ export async function computeCapitalAllocation(userId: string): Promise<CapitalA
       "capital-allocation",
     );
   } catch (err: any) {
-    console.warn("[capital-allocation] audit trail write failed:", err?.message);
+    logger.warn("[capital-allocation] audit trail write failed:", err?.message);
   }
 
   return plan;

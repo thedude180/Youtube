@@ -20,7 +20,10 @@ import {
   getAudienceDrivenTime,
   addHumanMicroDelay,
 } from "../human-behavior-engine";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("autopilot");
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
     res.sendStatus(401);
@@ -37,7 +40,7 @@ export function registerAutopilotRoutes(app: Express) {
       const stats = await cached(`autopilot-stats:${userId}`, 10, () => getAutopilotStats(userId));
       res.json(stats);
     } catch (err) {
-      console.error("[Autopilot] Stats error:", err);
+      logger.error("[Autopilot] Stats error:", err);
       res.status(500).json({ error: "Failed to fetch autopilot stats" });
     }
   });
@@ -87,7 +90,7 @@ export function registerAutopilotRoutes(app: Express) {
         })),
       });
     } catch (err) {
-      console.error("[Autopilot] Auto-fix status error:", err);
+      logger.error("[Autopilot] Auto-fix status error:", err);
       res.status(500).json({ error: "Failed to fetch auto-fix status" });
     }
   });
@@ -112,7 +115,7 @@ export function registerAutopilotRoutes(app: Express) {
         .limit(20);
       res.json(recent);
     } catch (err) {
-      console.error("[Autopilot] Recent activity error:", err);
+      logger.error("[Autopilot] Recent activity error:", err);
       res.status(500).json({ error: "Failed to fetch recent activity" });
     }
   });
@@ -125,7 +128,7 @@ export function registerAutopilotRoutes(app: Express) {
       const activity = await getAutopilotActivity(userId, limit);
       res.json(activity);
     } catch (err) {
-      console.error("[Autopilot] Activity error:", err);
+      logger.error("[Autopilot] Activity error:", err);
       res.status(500).json({ error: "Failed to fetch activity" });
     }
   });
@@ -161,7 +164,7 @@ export function registerAutopilotRoutes(app: Express) {
       const filtered = status ? items.filter(i => i.status === status) : items;
       res.json(filtered);
     } catch (err) {
-      console.error("[Autopilot] Queue fetch error:", err);
+      logger.error("[Autopilot] Queue fetch error:", err);
       res.status(500).json({ error: "Failed to fetch queue" });
     }
   });
@@ -259,7 +262,7 @@ export function registerAutopilotRoutes(app: Express) {
       const config = await updateAutopilotFeatureConfig(userId, feature, enabled ?? true, settings);
       res.json(config);
     } catch (err) {
-      console.error("[Autopilot] Config update error:", err);
+      logger.error("[Autopilot] Config update error:", err);
       res.status(500).json({ error: "Failed to update config" });
     }
   });
@@ -348,7 +351,7 @@ export function registerAutopilotRoutes(app: Express) {
         .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
       res.json({ success: true, message: "Failed posts re-queued for retry" });
     } catch (err) {
-      console.error("[Autopilot] Retry failed error:", err);
+      logger.error("[Autopilot] Retry failed error:", err);
       res.status(500).json({ error: "Failed to retry" });
     }
   });
@@ -361,7 +364,7 @@ export function registerAutopilotRoutes(app: Express) {
         .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
       res.json({ success: true, message: "Failed posts cleared" });
     } catch (err) {
-      console.error("[Autopilot] Clear failed error:", err);
+      logger.error("[Autopilot] Clear failed error:", err);
       res.status(500).json({ error: "Failed to clear" });
     }
   });
@@ -461,7 +464,7 @@ export function registerAutopilotRoutes(app: Express) {
         error: result.error,
       });
     } catch (err) {
-      console.error("[Autopilot] Manual verification error:", err);
+      logger.error("[Autopilot] Manual verification error:", err);
       res.status(500).json({ error: "Verification failed" });
     }
   });
@@ -526,7 +529,7 @@ export function registerAutopilotRoutes(app: Express) {
       const report = await getStealthReport(userId);
       res.json(report);
     } catch (err) {
-      console.error("[Autopilot] Stealth report error:", err);
+      logger.error("[Autopilot] Stealth report error:", err);
       res.status(500).json({ error: "Failed to generate stealth report" });
     }
   });
@@ -697,7 +700,7 @@ export function registerAutopilotRoutes(app: Express) {
           : "YouTube token may have expired. Re-connect to restore sync.",
       });
     } catch (err) {
-      console.error("[Autopilot] YouTube status error:", err);
+      logger.error("[Autopilot] YouTube status error:", err);
       res.status(500).json({ error: "Failed to check YouTube status" });
     }
   });
@@ -734,7 +737,7 @@ export function registerAutopilotRoutes(app: Express) {
 
       res.json(calendarItems);
     } catch (err) {
-      console.error("[Autopilot] Calendar feed error:", err);
+      logger.error("[Autopilot] Calendar feed error:", err);
       res.status(500).json({ error: "Failed to fetch calendar feed" });
     }
   });
@@ -897,7 +900,7 @@ export function registerAutopilotRoutes(app: Express) {
         fireAgentEvent("empire.activated", userId, { seeded });
       } catch {}
     } catch (err) {
-      console.error("[Autopilot] Activation error:", err);
+      logger.error("[Autopilot] Activation error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Failed to activate autopilot" });
     }
   });
@@ -915,7 +918,7 @@ export function registerAutopilotRoutes(app: Express) {
       });
       res.json(result);
     } catch (err) {
-      console.error("[Priority] Status error:", err);
+      logger.error("[Priority] Status error:", err);
       res.status(500).json({ error: "Failed to get priority status" });
     }
   });
@@ -930,7 +933,7 @@ export function registerAutopilotRoutes(app: Express) {
       });
       res.json(result);
     } catch (err) {
-      console.error("[ContentLoop] Status error:", err);
+      logger.error("[ContentLoop] Status error:", err);
       res.status(500).json({ error: "Failed to get content loop status" });
     }
   });
@@ -943,7 +946,7 @@ export function registerAutopilotRoutes(app: Express) {
       forceStartLoop(userId);
       res.json({ success: true, status: getLoopStatus(userId) });
     } catch (err) {
-      console.error("[ContentLoop] Force start error:", err);
+      logger.error("[ContentLoop] Force start error:", err);
       res.status(500).json({ error: "Failed to start content loop" });
     }
   });
@@ -956,7 +959,7 @@ export function registerAutopilotRoutes(app: Express) {
       const stats = await getVodOptimizationStats(userId);
       res.json(stats);
     } catch (err) {
-      console.error("[VODOptimizer] Stats error:", err);
+      logger.error("[VODOptimizer] Stats error:", err);
       res.status(500).json({ error: "Failed to get VOD optimizer stats" });
     }
   });
@@ -969,7 +972,7 @@ export function registerAutopilotRoutes(app: Express) {
       const status = await getDailyContentStatus(userId);
       res.json(status);
     } catch (err) {
-      console.error("[DailyContent] Status error:", err);
+      logger.error("[DailyContent] Status error:", err);
       res.status(500).json({ error: "Failed to get daily content status" });
     }
   });
@@ -982,7 +985,7 @@ export function registerAutopilotRoutes(app: Express) {
       await runDailyContentGeneration();
       res.json({ success: true, message: "Stream exhaust engine triggered" });
     } catch (err) {
-      console.error("[StreamExhaust] Trigger error:", err);
+      logger.error("[StreamExhaust] Trigger error:", err);
       res.status(500).json({ error: "Failed to trigger content generation" });
     }
   });
@@ -997,7 +1000,7 @@ export function registerAutopilotRoutes(app: Express) {
       });
       res.json(status);
     } catch (err) {
-      console.error("[StreamExhaust] Status error:", err);
+      logger.error("[StreamExhaust] Status error:", err);
       res.status(500).json({ error: "Failed to get stream exhaust status" });
     }
   });
@@ -1060,7 +1063,7 @@ export function registerAutopilotRoutes(app: Express) {
         })),
       });
     } catch (err) {
-      console.error("[Autopilot] Distribution status error:", err);
+      logger.error("[Autopilot] Distribution status error:", err);
       res.status(500).json({ error: "Failed to get distribution status" });
     }
   });
@@ -1077,7 +1080,7 @@ export function registerAutopilotRoutes(app: Express) {
         message: `Redistributed ${result.itemsRedistributed} items across ${result.daysSpanned} days, resolved ${result.conflictsResolved} scheduling conflicts`,
       });
     } catch (err) {
-      console.error("[Autopilot] Redistribute error:", err);
+      logger.error("[Autopilot] Redistribute error:", err);
       res.status(500).json({ error: "Failed to redistribute content" });
     }
   });

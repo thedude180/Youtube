@@ -131,7 +131,7 @@ async function recordFailure(sub: SubsystemHealth, error: Error): Promise<void> 
         severity: "critical",
       });
     } catch (notifErr) {
-      console.error(`[SelfHealing] Failed to create critical failure notification for "${sub.name}":`, notifErr);
+      logger.error(`[SelfHealing] Failed to create critical failure notification for "${sub.name}":`, notifErr);
     }
   }
 }
@@ -190,7 +190,7 @@ export async function selfHealingCore<T>(
         // Suppress esbuild service errors — transient dev-mode artifact, not a real failure
         const isTransformError = error?.message?.includes("service is no longer running") || error?.name === "TransformError";
         if (!options?.silent && !isTransformError) {
-          console.error(`[SelfHealing] ❌ "${subsystemName}" failed after ${maxRetries + 1} attempts: ${error.message}`);
+          logger.error(`[SelfHealing] ❌ "${subsystemName}" failed after ${maxRetries + 1} attempts: ${error.message}`);
         }
         return null;
       }
@@ -250,6 +250,9 @@ export function getSubsystemNames(): string[] {
 }
 
 import { registerCleanup } from "./services/cleanup-coordinator";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("self-healing-core");
 registerCleanup("selfHealingBreakers", () => {
   const now = new Date();
   for (const [, sub] of subsystems) {

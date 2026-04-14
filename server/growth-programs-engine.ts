@@ -4,6 +4,9 @@ import { eq, and } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext } from "./creator-intelligence";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("growth-programs-engine");
 const openai = getOpenAIClient();
 
 interface ProgramDefinition {
@@ -406,7 +409,7 @@ Respond as JSON:
 
     return recommendations;
   } catch (err) {
-    console.error("[GrowthPrograms] AI error:", err);
+    logger.error("[GrowthPrograms] AI error:", err);
     return null;
   }
 }
@@ -528,7 +531,7 @@ export async function toggleAutoApply(userId: string, programId: number, enabled
 
   if (enabled) {
     checkAndNotifyEligible(userId).catch(err =>
-      console.error("[GrowthPrograms] Background eligibility check error:", err)
+      logger.error("[GrowthPrograms] Background eligibility check error:", err)
     );
   }
 
@@ -588,7 +591,7 @@ async function checkAndNotifyEligible(userId: string) {
           actionUrl: `/settings?tab=growth`,
         } as any);
       } catch (err) {
-        console.error("[GrowthPrograms] Notification error:", err);
+        logger.error("[GrowthPrograms] Notification error:", err);
       }
     }
   }
@@ -641,7 +644,7 @@ export async function activateMonetization(userId: string, programId: number) {
       actionUrl: `/settings?tab=growth`,
     } as any);
   } catch (err) {
-    console.error("[GrowthPrograms] Activation notification error:", err);
+    logger.error("[GrowthPrograms] Activation notification error:", err);
   }
 
   return updated;
@@ -718,7 +721,7 @@ export async function runComplianceCheck(userId: string) {
           actionUrl: `/settings?tab=growth`,
         } as any);
       } catch (err) {
-        console.error("[GrowthPrograms] Compliance notification error:", err);
+        logger.error("[GrowthPrograms] Compliance notification error:", err);
       }
     }
 
@@ -786,7 +789,7 @@ Respond as JSON:
     if (!content) return null;
     return JSON.parse(content);
   } catch (err) {
-    console.error("[GrowthPrograms] Guide generation error:", err);
+    logger.error("[GrowthPrograms] Guide generation error:", err);
     return {
       steps: [
         `Go to ${applicationUrl}`,

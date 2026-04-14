@@ -56,6 +56,9 @@ const sessions = new Map<string, BacklogSession>();
 
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 import { registerCleanup } from "./services/cleanup-coordinator";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("backlog-engine");
 registerCleanup("backlogSessions", () => {
   const now = Date.now();
   for (const [userId, session] of sessions) {
@@ -239,7 +242,7 @@ async function processBacklogAsync(
         const { queueMetadataUpdate } = await import("./services/push-scheduler");
         queueMetadataUpdate(userId, video.id, "immediate");
       } catch (syncErr: any) {
-        console.error(`[BacklogEngine] Push scheduler queue failed:`, syncErr.message);
+        logger.error(`[BacklogEngine] Push scheduler queue failed:`, syncErr.message);
       }
 
       if (video.metadata?.youtubeId && video.channelId) {
@@ -260,7 +263,7 @@ async function processBacklogAsync(
             });
           }
         } catch (backlogErr: any) {
-          console.error(`[BacklogEngine] YouTube push backlog queue failed:`, backlogErr.message);
+          logger.error(`[BacklogEngine] YouTube push backlog queue failed:`, backlogErr.message);
         }
       }
 
@@ -316,7 +319,7 @@ async function processBacklogAsync(
             });
           } catch (err: any) {
             chainResult.steps[stepIndex].status = "failed";
-            console.error(`Chain step ${step.agentId} failed for video ${video.id}:`, err.message);
+            logger.error(`Chain step ${step.agentId} failed for video ${video.id}:`, err.message);
           }
 
           const checkSession = sessions.get(userId);
@@ -341,7 +344,7 @@ async function processBacklogAsync(
       chainResult.completedAt = new Date();
 
     } catch (err: any) {
-      console.error(`Failed to process video ${video.id}:`, err.message);
+      logger.error(`Failed to process video ${video.id}:`, err.message);
       currentSession.errors.push({
         videoId: video.id,
         error: err.message,
@@ -446,7 +449,7 @@ export async function pivotToStream(userId: string, streamId: number): Promise<v
         },
       });
     } catch (err: any) {
-      console.error(`Stream support agent ${agent.agentId} error:`, err.message);
+      logger.error(`Stream support agent ${agent.agentId} error:`, err.message);
     }
   }
 }
@@ -488,7 +491,7 @@ export async function resumeFromStream(userId: string, streamId: number): Promis
         },
       });
     } catch (err: any) {
-      console.error(`Post-stream agent ${agent.agentId} error:`, err.message);
+      logger.error(`Post-stream agent ${agent.agentId} error:`, err.message);
     }
   }
 
@@ -644,7 +647,7 @@ export async function bulkOptimize(
             },
           });
         } catch (err: any) {
-          console.error(`Bulk optimize agent ${agentId} failed for video ${videoId}:`, err.message);
+          logger.error(`Bulk optimize agent ${agentId} failed for video ${videoId}:`, err.message);
         }
       }
 
@@ -762,7 +765,7 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
         scheduledPerPlatformPerDay.set(finalDayKey, currentDayCount + 1);
         lastScheduledPerPlatform.set(platform, scheduledTime);
       } catch (err: any) {
-        console.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
+        logger.error(`[AutoSchedule] Failed for video ${video.id} on ${platform}:`, err.message);
       }
     }
 
@@ -816,7 +819,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
       const { fetchYouTubeVideoDetails } = await import("./youtube");
       liveYouTubeData = await fetchYouTubeVideoDetails(channelId, youtubeId);
     } catch (err: any) {
-      console.error(`[ViralOptimize] Failed to fetch YouTube data for ${youtubeId}:`, err.message);
+      logger.error(`[ViralOptimize] Failed to fetch YouTube data for ${youtubeId}:`, err.message);
     }
   }
 
@@ -913,7 +916,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
         youtubeUpdated = true;
       }
     } catch (err: any) {
-      console.error(`[ViralOptimize] YouTube push queue failed for ${videoId}:`, err.message);
+      logger.error(`[ViralOptimize] YouTube push queue failed for ${videoId}:`, err.message);
     }
   }
 
@@ -928,7 +931,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
       const success = await generateThumbnailForNewVideo(userId, videoId);
       thumbnailQueued = success;
     } catch (err: any) {
-      console.error(`[ViralOptimize] Thumbnail regeneration failed for ${videoId}:`, err.message);
+      logger.error(`[ViralOptimize] Thumbnail regeneration failed for ${videoId}:`, err.message);
     }
   }
 
@@ -1001,7 +1004,7 @@ export async function reprocessBackCatalog(userId: string): Promise<{
 
   sessions.set(userId, session);
   viralReprocessAsync(userId, prioritized, job.id).catch(err =>
-    console.error(`[BackCatalog] Viral reprocess failed:`, err)
+    logger.error(`[BackCatalog] Viral reprocess failed:`, err)
   );
 
   return { jobId: job.id, totalVideos: prioritized.length, alreadyRunning: false };
@@ -1024,9 +1027,9 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
 
     try {
       const result = await viralOptimizeVideo(userId, video.id);
-      console.log(`[BackCatalog] ${completed + 1}/${videoList.length} — "${video.title}" → SEO ${result.seoScore}, YT push: ${result.youtubeUpdated}, thumb: ${result.thumbnailQueued}`);
+      logger.info(`[BackCatalog] ${completed + 1}/${videoList.length} — "${video.title}" → SEO ${result.seoScore}, YT push: ${result.youtubeUpdated}, thumb: ${result.thumbnailQueued}`);
     } catch (err: any) {
-      console.error(`[BackCatalog] Failed video ${video.id} "${video.title}":`, err.message);
+      logger.error(`[BackCatalog] Failed video ${video.id} "${video.title}":`, err.message);
       currentSession.errors.push({ videoId: video.id, error: err.message, timestamp: new Date() });
     }
 
@@ -1062,7 +1065,7 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
     riskLevel: "low",
   });
 
-  console.log(`[BackCatalog] ✓ Viral reprocess complete: ${completed}/${videoList.length} videos`);
+  logger.info(`[BackCatalog] ✓ Viral reprocess complete: ${completed}/${videoList.length} videos`);
 }
 
 export async function getStaleVideos(userId: string): Promise<any[]> {

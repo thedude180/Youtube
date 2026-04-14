@@ -45,7 +45,10 @@ import {
   updateYouTubeVideo, syncYouTubeVideosToLibrary,
   syncYouTubeVideosFromPublicFeed,
 } from "../youtube";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("platform");
 export async function registerPlatformRoutes(app: Express) {
   app.get(api.community.list.path, async (req, res) => {
     const userId = requireAuth(req, res);
@@ -88,7 +91,7 @@ export async function registerPlatformRoutes(app: Express) {
       res.status(201).json(post);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      console.error("Error creating community post:", err);
+      logger.error("Error creating community post:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -116,7 +119,7 @@ export async function registerPlatformRoutes(app: Express) {
         res.redirect(url);
       }
     } catch (error: any) {
-      console.error("[YouTube Auth] Error generating auth URL:", error);
+      logger.error("[YouTube Auth] Error generating auth URL:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -149,7 +152,7 @@ export async function registerPlatformRoutes(app: Express) {
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform: "youtube" });
       res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
     } catch (error: any) {
-      console.error("YouTube OAuth callback error:", error);
+      logger.error("YouTube OAuth callback error:", error);
       const isNoChannel = error.message?.includes("No YouTube channel found");
       if (isNoChannel) {
         res.redirect("/?yt_no_channel=true");
@@ -275,7 +278,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await syncYouTubeVideosFromPublicFeed(channelId, userId);
       res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
     } catch (error: any) {
-      console.error("[YouTube] Public feed sync error:", error?.message || error);
+      logger.error("[YouTube] Public feed sync error:", error?.message || error);
       res.status(500).json({ error: "Public feed sync failed" });
     }
   });
@@ -324,7 +327,7 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const { startVaultSync } = await import("../services/video-vault");
       startVaultSync(userId).catch(err =>
-        console.error("[Vault] Background sync error:", err?.message || err)
+        logger.error("[Vault] Background sync error:", err?.message || err)
       );
       res.json({ message: "Vault sync started — indexing all channel videos and beginning downloads" });
     } catch (error: any) {
@@ -643,7 +646,7 @@ export async function registerPlatformRoutes(app: Express) {
       let stealthStatus = null;
       try {
         stealthStatus = await getGuardrailStatus(userId);
-      } catch (e: any) { console.error("[Platform] Stealth status error:", e?.message); }
+      } catch (e: any) { logger.error("[Platform] Stealth status error:", e?.message); }
 
       if (!res.headersSent) {
         res.json({
@@ -654,7 +657,7 @@ export async function registerPlatformRoutes(app: Express) {
         });
       }
     } catch (error: any) {
-      console.error("Audience analytics error:", error);
+      logger.error("Audience analytics error:", error);
       if (!res.headersSent) {
         res.status(500).json({ message: "An internal error occurred. Please try again." });
       }
@@ -691,7 +694,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await startShortsPipeline(userId, req.body.mode);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -703,7 +706,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await getShortsPipelineStatus(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -715,7 +718,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await pauseShortsPipeline(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -727,7 +730,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await resumeShortsPipeline(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -741,7 +744,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await extractClipsFromVideo(userId, videoId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -755,7 +758,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await generateClipHook(userId, clipId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -769,7 +772,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await predictClipVirality(userId, clipId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -781,7 +784,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await getClipsByVideo(userId, req.query.videoId ? Number(req.query.videoId) : undefined);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -793,7 +796,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await compileAutoReel(userId, req.body.theme);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -807,7 +810,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await trackClipPerformance(userId, clipId, req.body);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -816,14 +819,14 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getOptimizationHealthScore(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/sub-engines", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getSubEngineStatuses(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/metadata/:videoId", async (req, res) => {
@@ -832,7 +835,7 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await runMetadataOptimizer(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/ab-test/:videoId", async (req, res) => {
@@ -841,21 +844,21 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await runAbTestEngine(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/inject-trend", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await injectTrendingTopic(userId, req.body.videoId, req.body.topicId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/decay-alerts", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getDecayAlerts(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/viral-score/:videoId", async (req, res) => {
@@ -864,14 +867,14 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await predictViralScore(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/hashtag-health", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await analyzeHashtagHealth(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/sentiment/:videoId", async (req, res) => {
@@ -880,14 +883,14 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await analyzeSentiment(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/algorithm-alerts", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await detectAlgorithmChanges(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/lifecycle/:videoId", async (req, res) => {
@@ -896,35 +899,35 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await manageContentLifecycle(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/evergreen", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await detectEvergreenContent(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/cannibalization", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await detectContentCannibalization(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/trend-predictions", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await predictTrends(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/content-dna", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await buildContentDna(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/ctr/:videoId", async (req, res) => {
@@ -933,28 +936,28 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await optimizeCtr(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/trending-topics", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getTrendingTopics(userId, req.query.platform as string | undefined); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/viral-leaderboard", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getViralLeaderboard(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/content-gaps", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getContentGaps(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/optimization/algorithm-cheatsheet/:platform", async (req, res) => {
@@ -963,7 +966,7 @@ export async function registerPlatformRoutes(app: Express) {
     const platform = String(req.params.platform).toLowerCase().trim();
     if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
     try { const result = await getAlgorithmCheatSheet(userId, platform); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/optimization/full-pass/:videoId", async (req, res) => {
@@ -972,28 +975,28 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await runFullOptimizationPass(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/playlist", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await createManagedPlaylist(userId, req.body); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/youtube-manager/playlists", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getPlaylists(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/auto-organize", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await autoOrganizePlaylists(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/playlist/:playlistId/add", async (req, res) => {
@@ -1002,7 +1005,7 @@ export async function registerPlatformRoutes(app: Express) {
     const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
     if (playlistId === null) return;
     try { const result = await addToPlaylist(playlistId, req.body.videoId, req.body.position); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/youtube-manager/playlist/:playlistId/seo", async (req, res) => {
@@ -1011,7 +1014,7 @@ export async function registerPlatformRoutes(app: Express) {
     const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
     if (playlistId === null) return;
     try { const result = await getPlaylistSeoScore(playlistId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/pinned-comment/:videoId", async (req, res) => {
@@ -1039,7 +1042,7 @@ export async function registerPlatformRoutes(app: Express) {
       }
       res.json(result);
     }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/pin-all-videos", async (req, res) => {
@@ -1093,7 +1096,7 @@ export async function registerPlatformRoutes(app: Express) {
 
           await new Promise(resolve => setTimeout(resolve, 5000));
         } catch (err: any) {
-          console.error(`[PinAll] Failed for video ${video.id}:`, err.message);
+          logger.error(`[PinAll] Failed for video ${video.id}:`, err.message);
           failed++;
           processed++;
         }
@@ -1101,7 +1104,7 @@ export async function registerPlatformRoutes(app: Express) {
 
       res.json({ success: true, total: userVideos.length, processed, pinned, skipped, failed });
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1110,7 +1113,7 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await buildDescriptionLinks(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/multi-language/:videoId", async (req, res) => {
@@ -1119,42 +1122,42 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await generateMultiLanguageMetadata(userId, videoId, req.body.languages); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/youtube-manager/batch-push", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await batchPushOptimizations(userId, req.body.videoIds); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/repurpose/generate", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await repurposeVideo(userId, req.body.videoId, req.body.formats); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/repurpose/content", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getRepurposedContent(userId, req.query.videoId ? Number(req.query.videoId) : undefined); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/repurpose/template", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await createScriptTemplate(userId, req.body); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/repurpose/templates", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getScriptTemplates(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/repurpose/b-roll/:videoId", async (req, res) => {
@@ -1163,12 +1166,12 @@ export async function registerPlatformRoutes(app: Express) {
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
     try { const result = await suggestBRoll(userId, videoId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/repurpose/formats", async (_req, res) => {
     try { const result = getRepurposeFormats(); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/scheduler/optimal-times/:platform", async (req, res) => {
@@ -1177,35 +1180,35 @@ export async function registerPlatformRoutes(app: Express) {
     const platform = String(req.params.platform).toLowerCase().trim();
     if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
     try { const result = await getOptimalPostingTimes(userId, platform); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/scheduler/activity-patterns", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await updateActivityPatterns(userId, req.body.platform, req.body.data); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/scheduler/cadence", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getUploadCadence(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/scheduler/auto-schedule", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await autoScheduleContent(userId, req.body.videoId, req.body.platforms); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.get("/api/scheduler/recommendations", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try { const result = await getScheduleRecommendations(userId); res.json(result); }
-    catch (error: any) { console.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   const { OAUTH_CONFIGS, getOAuthRedirectUri, isPlatformOAuthConfigured, getAllOAuthPlatforms } = await import("../oauth-config");
@@ -1249,7 +1252,7 @@ export async function registerPlatformRoutes(app: Express) {
       const platforms = [...new Set(broken.map(ch => ch.platform))];
       res.json({ needsReconnect: platforms.length > 0, platforms, count: platforms.length });
     } catch (err) {
-      console.error("[NeedsReconnect] Error:", err);
+      logger.error("[NeedsReconnect] Error:", err);
       res.json({ needsReconnect: false, platforms: [], count: 0 });
     }
   });
@@ -1471,7 +1474,7 @@ export async function registerPlatformRoutes(app: Express) {
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        console.error(`[OAuth ${platform}] Token exchange failed:`, errText);
+        logger.error(`[OAuth ${platform}] Token exchange failed:`, errText);
         return res.redirect(`/?error=${encodeURIComponent(`Failed to connect ${config.label}. Please try again.`)}`);
       }
 
@@ -1498,7 +1501,7 @@ export async function registerPlatformRoutes(app: Express) {
             profileUrl = parsed.profileUrl;
           }
         } catch (e) {
-          console.error(`[OAuth ${platform}] User info fetch failed:`, e);
+          logger.error(`[OAuth ${platform}] User info fetch failed:`, e);
         }
       }
 
@@ -1517,7 +1520,7 @@ export async function registerPlatformRoutes(app: Express) {
         if (fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
         if (fetched.platformData) platformDataObj = fetched.platformData;
       } catch (e) {
-        console.error(`[OAuth ${platform}] Platform data fetch failed:`, e);
+        logger.error(`[OAuth ${platform}] Platform data fetch failed:`, e);
       }
 
       const existingChannels = await storage.getChannelsByUser(userId);
@@ -1623,7 +1626,7 @@ export async function registerPlatformRoutes(app: Express) {
 
       res.redirect(`/?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
-      console.error(`[OAuth ${platform}] Callback error:`, error);
+      logger.error(`[OAuth ${platform}] Callback error:`, error);
       res.redirect(`/?error=${encodeURIComponent(`Failed to connect ${config.label}: ${error.message}`)}`);
     }
   });
@@ -1665,7 +1668,7 @@ export async function registerPlatformRoutes(app: Express) {
       const { credentials, ...safeResult } = result;
       res.json(safeResult);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1681,7 +1684,7 @@ export async function registerPlatformRoutes(app: Express) {
       });
       res.json(safeResults);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1699,7 +1702,7 @@ export async function registerPlatformRoutes(app: Express) {
       const { credentials, ...safeResult } = result;
       res.json(safeResult);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1732,7 +1735,7 @@ export async function registerPlatformRoutes(app: Express) {
       sendSSEEvent(userId, "dashboard-update", { type: "channel_disconnected", platform });
       res.json({ success: true });
     } catch (error: any) {
-      console.error(`[OAuth ${platform}] Disconnect error:`, error);
+      logger.error(`[OAuth ${platform}] Disconnect error:`, error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1747,7 +1750,7 @@ export async function registerPlatformRoutes(app: Express) {
         .where(and(eq(linkedChannels.id, id), eq(linkedChannels.userId, userId)));
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   });
@@ -1879,7 +1882,7 @@ export async function registerPlatformRoutes(app: Express) {
       const health = await getConnectionHealth(userId);
       res.json(health);
     } catch (err: any) {
-      console.error("[ConnectionHealth] Error:", err?.message);
+      logger.error("[ConnectionHealth] Error:", err?.message);
       res.status(500).json({ error: "Failed to fetch connection health" });
     }
   });
@@ -1893,7 +1896,7 @@ export async function registerPlatformRoutes(app: Express) {
       const result = await forceRefreshPlatform(userId, platform);
       res.json(result);
     } catch (err: any) {
-      console.error("[ConnectionRefresh] Error:", err?.message);
+      logger.error("[ConnectionRefresh] Error:", err?.message);
       res.status(500).json({ success: false, error: "Failed to refresh connection" });
     }
   });
@@ -1908,7 +1911,7 @@ export async function registerPlatformRoutes(app: Express) {
       const health = await getConnectionHealth(userId);
       res.json({ success: true, health });
     } catch (err: any) {
-      console.error("[ConnectionRefreshAll] Error:", err?.message);
+      logger.error("[ConnectionRefreshAll] Error:", err?.message);
       res.status(500).json({ success: false, error: "Failed to refresh all connections" });
     }
   });

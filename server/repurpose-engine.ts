@@ -5,6 +5,9 @@ import { repurposedContent, scriptTemplates } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("repurpose-engine");
 const openai = getOpenAIClient();
 
 const AVAILABLE_FORMATS = [
@@ -85,7 +88,7 @@ Requirements:
     try {
       parsed = JSON.parse(content);
     } catch {
-      console.error("[RepurposeEngine] Failed to parse repurpose video response");
+      logger.error("[RepurposeEngine] Failed to parse repurpose video response");
       parsed = {};
     }
 
@@ -105,14 +108,14 @@ Requirements:
           }).returning();
           saved.push({ format, id: record.id });
         } catch (err) {
-          console.error(`Failed to save ${format}:`, err);
+          logger.error(`Failed to save ${format}:`, err);
         }
       }
     }
 
     return { results: parsed.results || {}, saved, total: saved.length };
   } catch (error) {
-    console.error("Failed to repurpose video:", error);
+    logger.error("Failed to repurpose video:", error);
     return { results: {}, saved: [], total: 0, error: "Unable to repurpose content at this time" };
   }
 }
@@ -126,7 +129,7 @@ export async function getRepurposedContent(userId: string, videoId?: number) {
       .where(and(...conditions))
       .orderBy(desc(repurposedContent.createdAt));
   } catch (error) {
-    console.error("Failed to get repurposed content:", error);
+    logger.error("Failed to get repurposed content:", error);
     return [];
   }
 }
@@ -146,7 +149,7 @@ export async function createScriptTemplate(
     }).returning();
     return record;
   } catch (error) {
-    console.error("Failed to create script template:", error);
+    logger.error("Failed to create script template:", error);
     throw new Error("Could not create script template");
   }
 }
@@ -157,7 +160,7 @@ export async function getScriptTemplates(userId: string) {
       .where(eq(scriptTemplates.userId, userId))
       .orderBy(desc(scriptTemplates.createdAt));
   } catch (error) {
-    console.error("Failed to get script templates:", error);
+    logger.error("Failed to get script templates:", error);
     return [];
   }
 }
@@ -203,11 +206,11 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
     try {
       return JSON.parse(content);
     } catch {
-      console.error("[RepurposeEngine] Failed to parse B-roll suggestions response");
+      logger.error("[RepurposeEngine] Failed to parse B-roll suggestions response");
       return {};
     }
   } catch (error) {
-    console.error("Failed to suggest B-roll:", error);
+    logger.error("Failed to suggest B-roll:", error);
     return { suggestions: [], overallStyle: "", transitionTips: "" };
   }
 }

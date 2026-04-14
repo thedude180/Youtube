@@ -19,6 +19,9 @@ import {
 } from "../human-behavior-engine";
 import { cached } from "../lib/cache";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("clips");
 export function registerClipRoutes(app: Express) {
   app.get("/api/clips/backlog", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
@@ -54,7 +57,7 @@ export function registerClipRoutes(app: Express) {
 
       res.json(enriched);
     } catch (err) {
-      console.error("[Clips] Backlog error:", err);
+      logger.error("[Clips] Backlog error:", err);
       res.status(500).json({ error: "Failed to fetch clip backlog" });
     }
   }));
@@ -68,7 +71,7 @@ export function registerClipRoutes(app: Express) {
       });
       res.json(status);
     } catch (err) {
-      console.error("[Clips] Pipeline status error:", err);
+      logger.error("[Clips] Pipeline status error:", err);
       res.status(500).json({ error: "Failed to fetch pipeline status" });
     }
   }));
@@ -101,7 +104,7 @@ export function registerClipRoutes(app: Express) {
         ...result,
       });
     } catch (err) {
-      console.error("[Clips] Run pipeline error:", err);
+      logger.error("[Clips] Run pipeline error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to start clip pipeline" });
     }
@@ -246,7 +249,7 @@ export function registerClipRoutes(app: Express) {
         alreadyExisted: result.alreadyExisted,
       });
     } catch (err: any) {
-      console.error("[Clips] From-URL error:", err);
+      logger.error("[Clips] From-URL error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: err.message || "Failed to extract shorts from URL" });
     }
@@ -272,7 +275,7 @@ export function registerClipRoutes(app: Express) {
         clips,
       });
     } catch (err) {
-      console.error("[Clips] Extract error:", err);
+      logger.error("[Clips] Extract error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to extract clips" });
     }
@@ -417,7 +420,7 @@ export function registerClipRoutes(app: Express) {
         existingScheduled: existingCount,
       });
     } catch (err) {
-      console.error("[Clips] Schedule all error:", err);
+      logger.error("[Clips] Schedule all error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to schedule clips" });
     }
@@ -494,7 +497,7 @@ export function registerClipRoutes(app: Express) {
         queueItem: queued,
       });
     } catch (err) {
-      console.error("[Clips] Schedule single error:", err);
+      logger.error("[Clips] Schedule single error:", err);
       if (!res.headersSent)
         res.status(500).json({ error: "Failed to schedule clip" });
     }
@@ -513,7 +516,7 @@ export function registerClipRoutes(app: Express) {
       await db.delete(contentClips).where(eq(contentClips.id, clipId));
       res.json({ success: true });
     } catch (err) {
-      console.error("[Clips] Delete error:", err);
+      logger.error("[Clips] Delete error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Failed to delete clip" });
     }
   }));
@@ -566,7 +569,7 @@ export function registerClipRoutes(app: Express) {
 
       res.json(stats);
     } catch (err) {
-      console.error("[Clips] Stats error:", err);
+      logger.error("[Clips] Stats error:", err);
       res.status(500).json({ error: "Failed to fetch clip stats" });
     }
   }));
@@ -595,7 +598,7 @@ export function registerClipRoutes(app: Express) {
 
       res.json(result);
     } catch (err: any) {
-      console.error("[Clips] TikTok publish error:", err);
+      logger.error("[Clips] TikTok publish error:", err);
       res.status(500).json({ error: "Failed to publish clip to TikTok" });
     }
   }));

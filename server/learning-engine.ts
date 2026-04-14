@@ -9,6 +9,9 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("learning-engine");
 const openai = getOpenAIClient();
 
 function hoursAgo(hours: number): Date {
@@ -173,7 +176,7 @@ Generate exactly this JSON:
 
     return briefing;
   } catch (error) {
-    console.error("Failed to generate daily briefing:", error);
+    logger.error("Failed to generate daily briefing:", error);
     return {
       overnightSummary: "Unable to generate overnight summary. Check back shortly.",
       trendingNow: "Trend analysis is currently being updated.",
@@ -245,7 +248,7 @@ export async function recordLearningEvent(
       });
     }
   } catch (error) {
-    console.error("Failed to record learning event:", error);
+    logger.error("Failed to record learning event:", error);
   }
 }
 
@@ -320,7 +323,7 @@ export async function getLearningContext(userId: string): Promise<string> {
 
     return parts.join("\n");
   } catch (error) {
-    console.error("Failed to get learning context:", error);
+    logger.error("Failed to get learning context:", error);
     return "";
   }
 }
@@ -369,7 +372,7 @@ export async function getHealthScore(userId: string): Promise<number> {
 
     return Math.max(1, Math.min(100, Math.round(score)));
   } catch (error) {
-    console.error("Failed to calculate health score:", error);
+    logger.error("Failed to calculate health score:", error);
     return 50;
   }
 }
@@ -436,7 +439,7 @@ export async function updateAgentScorecard(
       });
     }
   } catch (error) {
-    console.error("Failed to update agent scorecard:", error);
+    logger.error("Failed to update agent scorecard:", error);
   }
 }
 
@@ -540,7 +543,7 @@ Be realistic. Account for diminishing returns, seasonality, and typical creator 
       factors: prediction.factors || [],
     };
   } catch (error) {
-    console.error("Failed to generate growth prediction:", error);
+    logger.error("Failed to generate growth prediction:", error);
     return {
       subscribers: { current: 0, predicted30d: 0, predicted90d: 0, predicted365d: 0 },
       views: { current: 0, predicted30d: 0, predicted90d: 0, predicted365d: 0 },
@@ -643,7 +646,7 @@ export async function processActionItems(userId: string): Promise<Array<{
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
   } catch (error) {
-    console.error("Failed to process action items:", error);
+    logger.error("Failed to process action items:", error);
     return [];
   }
 }
@@ -780,7 +783,7 @@ Generate a Content DNA profile as JSON:
 
     return { ...profileData, confidence, sampleSize };
   } catch (error) {
-    console.error("Failed to build content DNA profile:", error);
+    logger.error("Failed to build content DNA profile:", error);
     return defaultProfile;
   }
 }

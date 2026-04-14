@@ -1,3 +1,6 @@
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("agent-events");
 /**
  * Agent Event Bus — lightweight pub/sub for cross-agent coordination.
  * Agents fire events; other agents subscribe and react immediately.
@@ -29,11 +32,6 @@ type AgentEventHandler = (event: AgentEvent) => void | Promise<void>;
 const subscribers = new Map<AgentEventType, AgentEventHandler[]>();
 const recentEvents: AgentEvent[] = [];
 const MAX_RECENT = 50;
-
-const logger = {
-  info: (msg: string) => console.log(`[agent-events] ${msg}`),
-  warn: (msg: string) => console.warn(`[agent-events] WARN ${msg}`),
-};
 
 export function onAgentEvent(type: AgentEventType, handler: AgentEventHandler): void {
   const existing = subscribers.get(type) || [];
@@ -74,7 +72,6 @@ export function fireAgentEvent(type: AgentEventType, userId: string, payload?: R
     const { observeAgentEvent } = require("./universal-learning-observer");
     observeAgentEvent(type, userId, payload);
   } catch {}
-
 
   const handlers = subscribers.get(type) || [];
   for (const handler of handlers) {

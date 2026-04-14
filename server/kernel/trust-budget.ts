@@ -3,6 +3,9 @@ import { trustBudgetPeriods } from "@shared/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { emitDomainEvent } from "./index";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("trust-budget");
 const DEFAULT_BUDGET = 100;
 const PERIOD_HOURS = 24;
 
@@ -107,7 +110,7 @@ export async function checkTrustBudget(
         metadata: { agentName, cost, periodId: period.id },
       });
     } catch (feedErr: any) {
-      console.error("[trust-budget] Failed to feed trust violation to exception desk:", feedErr?.message);
+      logger.error("[trust-budget] Failed to feed trust violation to exception desk:", feedErr?.message);
     }
   }
 

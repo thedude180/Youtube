@@ -8,6 +8,9 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("monetization-engine");
 const openai = getOpenAIClient();
 
 function daysAgo(days: number): Date {
@@ -63,11 +66,11 @@ Best practices:
     try {
       return JSON.parse(content);
     } catch {
-      console.error("[MonetizationEngine] Failed to parse ad breaks response");
+      logger.error("[MonetizationEngine] Failed to parse ad breaks response");
       return {};
     }
   } catch (error) {
-    console.error("Failed to suggest ad breaks:", error);
+    logger.error("Failed to suggest ad breaks:", error);
     return { adBreaks: [], tips: [] };
   }
 }
@@ -147,7 +150,7 @@ Generate forecast as JSON:
     try {
       forecast = JSON.parse(content);
     } catch {
-      console.error("[MonetizationEngine] Failed to parse revenue forecast response");
+      logger.error("[MonetizationEngine] Failed to parse revenue forecast response");
       forecast = {};
     }
 
@@ -163,7 +166,7 @@ Generate forecast as JSON:
 
     return forecast;
   } catch (error) {
-    console.error("Failed to generate revenue forecast:", error);
+    logger.error("Failed to generate revenue forecast:", error);
     return {
       period,
       predictedRevenue: 0,
@@ -195,7 +198,7 @@ export async function trackFanFunnel(
     }).returning();
     return record;
   } catch (error) {
-    console.error("Failed to track fan funnel:", error);
+    logger.error("Failed to track fan funnel:", error);
     throw new Error("Could not track fan funnel event");
   }
 }
@@ -216,7 +219,7 @@ export async function getFanFunnelData(userId: string) {
 
     return { events, summary, stages: funnelStages };
   } catch (error) {
-    console.error("Failed to get fan funnel data:", error);
+    logger.error("Failed to get fan funnel data:", error);
     return { events: [], summary: {}, stages: [] };
   }
 }
@@ -265,7 +268,7 @@ export async function calculateSponsorRates(userId: string) {
 
     return { rates, avgViews: Math.round(avgViews), avgEngagement: Math.round(avgEngagement) };
   } catch (error) {
-    console.error("Failed to calculate sponsor rates:", error);
+    logger.error("Failed to calculate sponsor rates:", error);
     return { rates: [], avgViews: 0, avgEngagement: 0 };
   }
 }
@@ -276,7 +279,7 @@ export async function getSponsorRates(userId: string) {
       .where(eq(sponsorRates.userId, userId))
       .orderBy(desc(sponsorRates.lastCalculatedAt));
   } catch (error) {
-    console.error("Failed to get sponsor rates:", error);
+    logger.error("Failed to get sponsor rates:", error);
     return [];
   }
 }
@@ -312,7 +315,7 @@ export async function trackEquipmentRoi(
     }).returning();
     return record;
   } catch (error) {
-    console.error("Failed to track equipment ROI:", error);
+    logger.error("Failed to track equipment ROI:", error);
     throw new Error("Could not track equipment ROI");
   }
 }
@@ -323,7 +326,7 @@ export async function getEquipmentRoi(userId: string) {
       .where(eq(equipmentRoi.userId, userId))
       .orderBy(desc(equipmentRoi.createdAt));
   } catch (error) {
-    console.error("Failed to get equipment ROI:", error);
+    logger.error("Failed to get equipment ROI:", error);
     return [];
   }
 }
@@ -371,7 +374,7 @@ Split the deal value across the deliverables proportionally. Include any applica
     try {
       invoiceData = JSON.parse(content);
     } catch {
-      console.error("[MonetizationEngine] Failed to parse invoice generation response");
+      logger.error("[MonetizationEngine] Failed to parse invoice generation response");
       invoiceData = {};
     }
 
@@ -392,7 +395,7 @@ Split the deal value across the deliverables proportionally. Include any applica
 
     return { invoice, ...invoiceData };
   } catch (error) {
-    console.error("Failed to generate invoice:", error);
+    logger.error("Failed to generate invoice:", error);
     return { error: "Unable to generate invoice" };
   }
 }
@@ -403,7 +406,7 @@ export async function getInvoices(userId: string) {
       .where(eq(invoices.userId, userId))
       .orderBy(desc(invoices.createdAt));
   } catch (error) {
-    console.error("Failed to get invoices:", error);
+    logger.error("Failed to get invoices:", error);
     return [];
   }
 }
@@ -464,11 +467,11 @@ Analyze this deal as JSON:
     try {
       return JSON.parse(content);
     } catch {
-      console.error("[MonetizationEngine] Failed to parse deal analysis response");
+      logger.error("[MonetizationEngine] Failed to parse deal analysis response");
       return {};
     }
   } catch (error) {
-    console.error("Failed to analyze deal:", error);
+    logger.error("Failed to analyze deal:", error);
     return { fairnessScore: 50, verdict: "unknown", analysis: "Unable to analyze deal", negotiationTips: [], redFlags: [] };
   }
 }

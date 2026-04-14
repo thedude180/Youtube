@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+import { createLogger } from ".//logger";
+
+const logger = createLogger("claude");
 export const CLAUDE_MODELS = {
   opus: "claude-opus-4-6",
   sonnet: "claude-sonnet-4-6",
@@ -100,7 +103,7 @@ export async function callClaude(params: ClaudeCallParams): Promise<ClaudeCallRe
   const textBlock = response.content.find((b) => b.type === "text");
   const content = textBlock?.type === "text" ? textBlock.text : "";
 
-  console.log(
+  logger.info(
     `[Claude] model=${model} in=${inputTokens} out=${outputTokens} latency=${latencyMs}ms`
   );
 

@@ -3,6 +3,9 @@ import { cronLocks } from "@shared/schema";
 import { eq, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
+import { createLogger } from ".//logger";
+
+const logger = createLogger("cron-lock");
 const INSTANCE_ID = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 interface HeartbeatConfig {
@@ -222,7 +225,7 @@ export async function withCronLock(
           lastError,
         })
         .where(eq(cronLocks.jobName, jobName))
-        .catch(e => console.warn(`[CronLock] Failed to release lock for ${jobName}`, e?.message));
+        .catch(e => logger.warn(`[CronLock] Failed to release lock for ${jobName}`, e?.message));
     }
 
     return true;
@@ -230,7 +233,7 @@ export async function withCronLock(
     if (err?.message?.includes("cron_locks") || err?.code === "23505") {
       return false;
     }
-    console.error(`[CronLock] Unexpected error acquiring lock for ${jobName}:`, err?.message);
+    logger.error(`[CronLock] Unexpected error acquiring lock for ${jobName}:`, err?.message);
     return false;
   }
 }

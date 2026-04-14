@@ -27,6 +27,9 @@ import { eq, and, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { enqueueAgentTask } from "../ai-team-engine";
 import { aiAgentTasks } from "@shared/schema";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("stream");
 async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean> {
   const result = await detectYouTubeLiveFromChannel(channelId);
   return result.isLive;
@@ -70,7 +73,7 @@ export function registerStreamRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      console.error("Error creating stream destination:", err);
+      logger.error("Error creating stream destination:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -172,7 +175,7 @@ export function registerStreamRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      console.error("Error creating stream:", err);
+      logger.error("Error creating stream:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -228,7 +231,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, seoData });
     } catch (error: any) {
-      console.error("Stream SEO error:", error);
+      logger.error("Stream SEO error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -253,7 +256,7 @@ export function registerStreamRoutes(app: Express) {
       pauseForLive(userId, stream.id);
 
       pivotToStream(userId, stream.id).catch(err =>
-        console.error("Stream pivot error:", err)
+        logger.error("Stream pivot error:", err)
       );
 
       processGoLiveAnnouncements(
@@ -262,10 +265,10 @@ export function registerStreamRoutes(app: Express) {
         stream.title,
         stream.description || "",
         (stream.platforms as string[]) || ["youtube"],
-      ).catch(err => console.error("[Autopilot] Go-live announcement error:", err));
+      ).catch(err => logger.error("[Autopilot] Go-live announcement error:", err));
 
       createPipelineForStream(userId, stream.title).catch(err =>
-        console.error("[Pipeline] Auto-pipeline on go-live error:", err)
+        logger.error("[Pipeline] Auto-pipeline on go-live error:", err)
       );
 
       await storage.createNotification({
@@ -326,7 +329,7 @@ export function registerStreamRoutes(app: Express) {
           (tasks[0] as any).result = { platformCount: Object.keys(seoData.platformSpecific || {}).length };
           await persistTasks(40);
         } catch (err) {
-          console.error("Auto SEO failed:", err);
+          logger.error("Auto SEO failed:", err);
           tasks[0].status = "failed";
           (tasks[0] as any).error = (err as Error).message;
           await persistTasks(40);
@@ -355,7 +358,7 @@ export function registerStreamRoutes(app: Express) {
           (tasks[1] as any).result = { style: thumbData.style };
           await persistTasks(70);
         } catch (err) {
-          console.error("Auto thumbnail failed:", err);
+          logger.error("Auto thumbnail failed:", err);
           tasks[1].status = "failed";
           (tasks[1] as any).error = (err as Error).message;
           await persistTasks(70);
@@ -382,7 +385,7 @@ export function registerStreamRoutes(app: Express) {
           (tasks[2] as any).result = { overallScore: complianceResult.overallScore, checks: complianceResult.checks?.length || 0 };
           await persistTasks(100);
         } catch (err) {
-          console.error("Auto compliance failed:", err);
+          logger.error("Auto compliance failed:", err);
           tasks[2].status = "failed";
           (tasks[2] as any).error = (err as Error).message;
           await persistTasks(100);
@@ -398,7 +401,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, stream: updatedStream, automationJobId: job.id });
     } catch (error: any) {
-      console.error("Go live error:", error);
+      logger.error("Go live error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -428,7 +431,7 @@ export function registerStreamRoutes(app: Express) {
       });
 
       resumeFromStream(userId, stream.id).catch(err =>
-        console.error("Stream resume error:", err)
+        logger.error("Stream resume error:", err)
       );
 
       processPostStreamHighlights(
@@ -437,14 +440,14 @@ export function registerStreamRoutes(app: Express) {
         stream.title,
         stream.description || "",
         (stream.platforms as string[]) || ["youtube"],
-      ).catch(err => console.error("[Autopilot] Post-stream highlights error:", err));
+      ).catch(err => logger.error("[Autopilot] Post-stream highlights error:", err));
 
       createPipelineForStream(userId, stream.title, "replay").catch(err =>
-        console.error("[Pipeline] REPLAY pipeline for ended stream error:", err)
+        logger.error("[Pipeline] REPLAY pipeline for ended stream error:", err)
       );
 
       resumeAfterStream(userId).catch(err =>
-        console.error("[Backlog] Resume after manual stream end error:", err)
+        logger.error("[Backlog] Resume after manual stream end error:", err)
       );
 
       await storage.createNotification({
@@ -521,7 +524,7 @@ export function registerStreamRoutes(app: Express) {
           (tasks[0] as any).result = { seoScore: result.seoScore };
           await persistTasks(60);
         } catch (err) {
-          console.error("Auto VOD optimization failed:", err);
+          logger.error("Auto VOD optimization failed:", err);
           tasks[0].status = "failed";
           (tasks[0] as any).error = (err as Error).message;
           await persistTasks(60);
@@ -551,7 +554,7 @@ export function registerStreamRoutes(app: Express) {
           (tasks[1] as any).result = { style: thumbData.style };
           await persistTasks(100);
         } catch (err) {
-          console.error("Auto VOD thumbnail failed:", err);
+          logger.error("Auto VOD thumbnail failed:", err);
           tasks[1].status = "failed";
           (tasks[1] as any).error = (err as Error).message;
           await persistTasks(100);
@@ -567,7 +570,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, stream: updatedStream, postProcessJobId: job.id });
     } catch (error: any) {
-      console.error("End stream error:", error);
+      logger.error("End stream error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -685,7 +688,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, result });
     } catch (error: any) {
-      console.error("Post-stream processing error:", error);
+      logger.error("Post-stream processing error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -773,7 +776,7 @@ export function registerStreamRoutes(app: Express) {
       );
       res.json({ stored: true, aiResponse: result });
     } catch (error: any) {
-      console.error("Live chat error:", error);
+      logger.error("Live chat error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -812,7 +815,7 @@ export function registerStreamRoutes(app: Express) {
       });
       res.json(result);
     } catch (error: any) {
-      console.error("[YouTube] Live status error:", error);
+      logger.error("[YouTube] Live status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -850,7 +853,7 @@ export function registerStreamRoutes(app: Express) {
         message: "Live detection runs automatically every 2 minutes.",
       });
     } catch (error: any) {
-      console.error("[YouTube] Detect live error:", error);
+      logger.error("[YouTube] Detect live error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -933,7 +936,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json(result);
     } catch (error: any) {
-      console.error("[UnEditedVODs] Error:", error);
+      logger.error("[UnEditedVODs] Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -961,7 +964,7 @@ export function registerStreamRoutes(app: Express) {
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.error("[UnEditedVODs] Mark uploaded error:", error);
+      logger.error("[UnEditedVODs] Mark uploaded error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1012,7 +1015,7 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, agentsQueued: ["ai-editor", "ai-catalog-director"] });
     } catch (error: any) {
-      console.error("[UnEditedVODs] Start pipeline error:", error);
+      logger.error("[UnEditedVODs] Start pipeline error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));

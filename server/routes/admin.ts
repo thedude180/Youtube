@@ -8,6 +8,9 @@ import { desc, sql } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
 import { cached } from "../lib/cache";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
   const writeRateLimit = rateLimitEndpoint(30, 60000);
   const deleteRateLimit = rateLimitEndpoint(10, 60000);
@@ -61,10 +64,10 @@ export function registerAdminRoutes(app: Express) {
         try {
           const { initializePostOnboarding } = await import("../services/post-login-init");
           initializePostOnboarding(userId, parsed.contentNiche).catch((err) =>
-            console.error("[Profile] Post-onboarding init error:", err)
+            logger.error("[Profile] Post-onboarding init error:", err)
           );
         } catch (err) {
-          console.error("[Profile] Post-onboarding init import error:", err);
+          logger.error("[Profile] Post-onboarding init import error:", err);
         }
       }
 
@@ -72,10 +75,10 @@ export function registerAdminRoutes(app: Express) {
         try {
           const { initializeUserSystems } = await import("../services/post-login-init");
           initializeUserSystems(userId).catch((err) =>
-            console.error("[Profile] System init error:", err)
+            logger.error("[Profile] System init error:", err)
           );
         } catch (err) {
-          console.error("[Profile] System init import error:", err);
+          logger.error("[Profile] System init import error:", err);
         }
       }
 
@@ -94,7 +97,7 @@ export function registerAdminRoutes(app: Express) {
       const result = await initializeUserSystems(userId);
       res.json({ success: true, ...result });
     } catch (err: any) {
-      console.error("[InitSystems] Error:", err);
+      logger.error("[InitSystems] Error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });

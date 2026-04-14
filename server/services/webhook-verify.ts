@@ -2,6 +2,9 @@ import crypto from "crypto";
 import nacl from 'tweetnacl';
 import { trackSecurityEvent } from "../security-engine";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("webhook-verify");
 interface VerificationResult {
   valid: boolean;
   error?: string;
@@ -35,7 +38,7 @@ export function verifyYouTubeWebhook(body: string, hubSignature: string): Verifi
   const secret = process.env.YOUTUBE_WEBHOOK_SECRET;
   if (!secret) {
     if (isProd) {
-      console.error('[WebhookVerify] MISSING YOUTUBE_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      logger.error('[WebhookVerify] MISSING YOUTUBE_WEBHOOK_SECRET IN PRODUCTION — blocking request');
       return { valid: false, error: 'webhook_secret_not_configured' };
     }
     return { valid: true };
@@ -49,7 +52,7 @@ export function verifyTwitchWebhook(body: string, messageId: string, timestamp: 
   const secret = process.env.TWITCH_WEBHOOK_SECRET;
   if (!secret) {
     if (isProd) {
-      console.error('[WebhookVerify] MISSING TWITCH_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      logger.error('[WebhookVerify] MISSING TWITCH_WEBHOOK_SECRET IN PRODUCTION — blocking request');
       return { valid: false, error: 'webhook_secret_not_configured' };
     }
     return { valid: true };
@@ -77,7 +80,7 @@ export function verifyKickWebhook(body: string, signature: string): Verification
   const secret = process.env.KICK_WEBHOOK_SECRET;
   if (!secret) {
     if (isProd) {
-      console.error('[WebhookVerify] MISSING KICK_WEBHOOK_SECRET IN PRODUCTION — blocking request');
+      logger.error('[WebhookVerify] MISSING KICK_WEBHOOK_SECRET IN PRODUCTION — blocking request');
       return { valid: false, error: 'webhook_secret_not_configured' };
     }
     return { valid: true };
@@ -90,7 +93,7 @@ export function verifyDiscordWebhook(body: string, signature: string, timestamp:
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
   if (!publicKey) {
     if (isProd) {
-      console.error('[WebhookVerify] MISSING DISCORD_PUBLIC_KEY IN PRODUCTION — blocking request');
+      logger.error('[WebhookVerify] MISSING DISCORD_PUBLIC_KEY IN PRODUCTION — blocking request');
       return { valid: false, error: 'webhook_secret_not_configured' };
     }
     return { valid: true };
@@ -119,6 +122,6 @@ export async function logWebhookFailure(platform: string, ip: string, error: str
       blocked: false,
     });
   } catch (err) {
-    console.error(`[WebhookVerify] Failed to log webhook failure for ${platform}:`, err);
+    logger.error(`[WebhookVerify] Failed to log webhook failure for ${platform}:`, err);
   }
 }

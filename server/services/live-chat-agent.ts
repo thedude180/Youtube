@@ -12,10 +12,9 @@ import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 
-const logger = {
-  info: (msg: string) => console.log(`[live-chat-agent] ${msg}`),
-  warn: (msg: string) => console.warn(`[live-chat-agent] WARN ${msg}`),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-chat-agent");
 
 const openai = getOpenAIClient();
 const CHAT_INTERVAL_MS = 2 * 60 * 1000;
@@ -94,7 +93,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
         `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
       ).join("\n");
     }
-  } catch (err: any) { console.warn("[LiveChat] Wikipedia search failed:", err?.message || err); }
+  } catch (err: any) { logger.warn("[LiveChat] Wikipedia search failed:", err?.message || err); }
 
   if (!webContext) {
     try {
@@ -109,7 +108,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
         const related = (data?.RelatedTopics || []).slice(0, 3).map((t: any) => t.Text || "").filter(Boolean).join("\n");
         webContext = `${abstract}\n${related}`.trim();
       }
-    } catch (err: any) { console.warn("[LiveChat] DuckDuckGo search failed:", err?.message || err); }
+    } catch (err: any) { logger.warn("[LiveChat] DuckDuckGo search failed:", err?.message || err); }
   }
 
   return webContext;
@@ -217,7 +216,7 @@ Bad responses (DO NOT do this):
         let researchContext = "";
         try {
           researchContext = await researchQuestion(questionText, gameName);
-        } catch (err: any) { console.warn("[LiveChat] Research failed:", err?.message || err); }
+        } catch (err: any) { logger.warn("[LiveChat] Research failed:", err?.message || err); }
 
         const recentChat = session.recentContext.slice(-3).join("\n");
 

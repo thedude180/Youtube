@@ -3,10 +3,13 @@ import { processLiveChatMessage } from "../live-chat-engine";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("chat-bridge");
 const log = {
-  info: (msg: string) => console.log(`[chat-bridge] ${msg}`),
-  warn: (msg: string) => console.warn(`[chat-bridge] WARN ${msg}`),
-  error: (msg: string) => console.error(`[chat-bridge] ERROR ${msg}`),
+  info: (msg: string) => logger.info(`[chat-bridge] ${msg}`),
+  warn: (msg: string) => logger.warn(`[chat-bridge] WARN ${msg}`),
+  error: (msg: string) => logger.error(`[chat-bridge] ERROR ${msg}`),
 };
 
 interface BridgeSession {

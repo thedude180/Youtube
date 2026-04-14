@@ -5,6 +5,9 @@ import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
 import { storage } from "../storage";
 import { markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("connection-guardian");
 let guardianInterval: ReturnType<typeof setInterval> | null = null;
 let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
 const GUARDIAN_CYCLE_MS = 15 * 60 * 1000;
@@ -63,7 +66,7 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
           return true;
         }
       } catch (bodyErr: any) {
-        console.warn("[ConnectionGuardian] Failed to parse 403 body", bodyErr?.message);
+        logger.warn("[ConnectionGuardian] Failed to parse 403 body", bodyErr?.message);
       }
     }
     return false;
@@ -88,7 +91,7 @@ async function tryRefreshSingleToken(ch: typeof channels.$inferSelect): Promise<
     }
     return false;
   } catch (err) {
-    console.error(`[ConnectionGuardian] Refresh attempt failed for ${ch.platform}:`, err);
+    logger.error(`[ConnectionGuardian] Refresh attempt failed for ${ch.platform}:`, err);
     return false;
   }
 }
@@ -166,7 +169,7 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
             failed++;
 
             if (failures <= 5) {
-              console.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
+              logger.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
             }
 
             if (failures >= PERMANENT_FAILURE_THRESHOLD && ch.userId) {
@@ -174,7 +177,7 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
                 const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
                 await proactiveTokenHealthCheck();
               } catch (reconnectErr) {
-                console.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, reconnectErr);
+                logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, reconnectErr);
               }
             }
           }
@@ -188,7 +191,7 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
     if (err?.message?.includes("service is no longer running") || err?.name === "TransformError") {
       return { refreshed, verified, failed };
     }
-    console.error("[ConnectionGuardian] Token check error:", err);
+    logger.error("[ConnectionGuardian] Token check error:", err);
   }
 
   return { refreshed, verified, failed };
@@ -212,7 +215,7 @@ async function ensureAutopilotAlwaysOn(): Promise<number> {
       }
     }
   } catch (err) {
-    console.error("[ConnectionGuardian] Autopilot re-enable error:", err);
+    logger.error("[ConnectionGuardian] Autopilot re-enable error:", err);
   }
 
   return reactivated;
@@ -257,7 +260,7 @@ async function captureBaselineSnapshots(): Promise<number> {
       }
     }
   } catch (err) {
-    console.error("[ConnectionGuardian] Baseline capture error:", err);
+    logger.error("[ConnectionGuardian] Baseline capture error:", err);
   }
 
   return captured;
@@ -331,7 +334,7 @@ async function capturePeriodicSnapshots(): Promise<number> {
       captured++;
     }
   } catch (err) {
-    console.error("[ConnectionGuardian] Periodic snapshot error:", err);
+    logger.error("[ConnectionGuardian] Periodic snapshot error:", err);
   }
 
   return captured;
@@ -395,7 +398,7 @@ async function autoConnectStreamingPlatform(
       connected++;
     }
   } catch (err) {
-    console.error(`[ConnectionGuardian] ${platformName} auto-connect error:`, err);
+    logger.error(`[ConnectionGuardian] ${platformName} auto-connect error:`, err);
   }
 
   return connected;
@@ -438,12 +441,12 @@ async function refreshAllChannelStatsInBackground(): Promise<number> {
         await refreshAllUserChannelStats(user.id);
         refreshed++;
       } catch (err: any) {
-        console.warn(`[ConnectionGuardian] Stats refresh failed for ${user.id}: ${err?.message?.substring(0, 150)}`);
+        logger.warn(`[ConnectionGuardian] Stats refresh failed for ${user.id}: ${err?.message?.substring(0, 150)}`);
       }
       await new Promise(r => setTimeout(r, 2000));
     }
   } catch (err: any) {
-    console.error("[ConnectionGuardian] Background stats refresh error:", err?.message?.substring(0, 200));
+    logger.error("[ConnectionGuardian] Background stats refresh error:", err?.message?.substring(0, 200));
   } finally {
     statsRefreshInFlight = false;
   }
@@ -474,13 +477,13 @@ async function runGuardianCycle(): Promise<void> {
     if (now - lastStatsRefresh >= STATS_REFRESH_INTERVAL_MS) {
       lastStatsRefresh = now;
       refreshAllChannelStatsInBackground().catch(err =>
-        console.warn("[ConnectionGuardian] Stats refresh failed:", String(err).substring(0, 200))
+        logger.warn("[ConnectionGuardian] Stats refresh failed:", String(err).substring(0, 200))
       );
     }
 
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running", Date.now() - startTime);
   } catch (err) {
-    console.error("[ConnectionGuardian] Cycle error:", err);
+    logger.error("[ConnectionGuardian] Cycle error:", err);
     const { recordHeartbeat } = await import("./engine-heartbeat");
     await recordHeartbeat("connectionGuardian", "error", undefined, String(err));
   } finally {
@@ -517,7 +520,7 @@ async function fastRecoverBrokenConnections(): Promise<number> {
       await new Promise(r => setTimeout(r, 500));
     }
   } catch (err) {
-    console.error("[ConnectionGuardian] Fast recovery error:", err);
+    logger.error("[ConnectionGuardian] Fast recovery error:", err);
   }
   return recovered;
 }
@@ -529,15 +532,15 @@ export function startConnectionGuardian(): void {
 
   initialKickoffTimeout = setTimeout(() => {
     initialKickoffTimeout = null;
-    runGuardianCycle().catch(console.error);
+    runGuardianCycle().catch((err) => logger.error("Guardian cycle failed", { error: String(err) }));
   }, 30_000);
 
   guardianInterval = setInterval(() => {
-    runGuardianCycle().catch(console.error);
+    runGuardianCycle().catch((err) => logger.error("Guardian cycle failed", { error: String(err) }));
   }, GUARDIAN_CYCLE_MS);
 
   fastRecoveryInterval = setInterval(() => {
-    fastRecoverBrokenConnections().catch(console.error);
+    fastRecoverBrokenConnections().catch((err) => logger.error("Fast recovery failed", { error: String(err) }));
   }, FAST_RECOVERY_CYCLE_MS);
 }
 
@@ -669,7 +672,7 @@ export async function forceRefreshPlatform(userId: string, platform: string): Pr
         const { refreshAllUserChannelStats } = await import("../youtube");
         await refreshAllUserChannelStats(userId);
       } catch (err: any) {
-        console.warn(`[ConnectionGuardian] Stats refresh failed during force-refresh: ${err?.message?.substring(0, 150)}`);
+        logger.warn(`[ConnectionGuardian] Stats refresh failed during force-refresh: ${err?.message?.substring(0, 150)}`);
       }
     }
 

@@ -3,6 +3,9 @@ import { notificationPreferences, notifications } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { eq, desc, sql, and, gte, count, lte } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("notification-system");
 const DEFAULT_CATEGORIES: Record<string, boolean> = {
   security: true,
   content: true,
@@ -177,12 +180,12 @@ export async function sendDiscordWebhook(
     clearTimeout(notifTimer);
 
     if (!response.ok) {
-      console.error(`[NotificationSystem] Discord webhook failed (${response.status})`);
+      logger.error(`[NotificationSystem] Discord webhook failed (${response.status})`);
       return false;
     }
     return true;
   } catch (err) {
-    console.error("[NotificationSystem] Discord webhook error:", err);
+    logger.error("[NotificationSystem] Discord webhook error:", err);
     return false;
   }
 }
@@ -310,7 +313,7 @@ export async function processAllDigests() {
           await sendGmail(email, `CreatorOS Daily Digest - ${digest.total} updates`, htmlBody);
         }
       } catch (emailErr: any) {
-        console.error(`[NotificationSystem] Failed to send digest email for ${pref.userId}: ${emailErr.message}`);
+        logger.error(`[NotificationSystem] Failed to send digest email for ${pref.userId}: ${emailErr.message}`);
       }
     }
     results.push({ userId: pref.userId, sent: !!digest });

@@ -26,7 +26,10 @@ import {
   buildAttributionGraph, getTopRevenueContent, getRevenueByContent,
   getPlatformRevenueAttribution,
 } from "../business/revenue-attribution";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("money");
 function getAppBaseUrl(req: any): string {
   if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL.replace(/\/$/, '');
   const domains = process.env.REPLIT_DOMAINS?.split(',')[0];
@@ -72,7 +75,7 @@ export function registerMoneyRoutes(app: Express) {
       res.json({ url: session.url });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      console.error("Stripe checkout error:", err);
+      logger.error("Stripe checkout error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -119,15 +122,15 @@ export function registerMoneyRoutes(app: Express) {
 
         try {
           const { initializeUserSystems } = await import("../services/post-login-init");
-          initializeUserSystems(userId).catch((e: any) => console.error("[VerifySession] Post-login init error:", e?.message));
-        } catch (e: any) { console.error("[VerifySession] Post-login import error:", e?.message); }
+          initializeUserSystems(userId).catch((e: any) => logger.error("[VerifySession] Post-login init error:", e?.message));
+        } catch (e: any) { logger.error("[VerifySession] Post-login import error:", e?.message); }
 
         return res.json({ tier: detectedTier, synced: true, previousTier: user.tier });
       }
 
       res.json({ tier: user.tier || "free", synced: false, reason: "already_synced" });
     } catch (err: any) {
-      console.error("[VerifySession] Error:", err);
+      logger.error("[VerifySession] Error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -198,7 +201,7 @@ export function registerMoneyRoutes(app: Express) {
       const key = await getStripePublishableKey();
       res.json({ publishableKey: key });
     } catch (error: any) {
-      console.error("Stripe key error:", error);
+      logger.error("Stripe key error:", error);
       res.status(500).json({ error: "Failed to get Stripe key" });
     }
   }));
@@ -249,7 +252,7 @@ export function registerMoneyRoutes(app: Express) {
 
       res.json({ url: session.url, sessionId: session.id });
     } catch (error: any) {
-      console.error("Create payment link error:", error);
+      logger.error("Create payment link error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -266,7 +269,7 @@ export function registerMoneyRoutes(app: Express) {
       if (error.message?.includes('relation "stripe.payment_intents" does not exist')) {
         return res.json([]);
       }
-      console.error("Fetch payments error:", error);
+      logger.error("Fetch payments error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -279,7 +282,7 @@ export function registerMoneyRoutes(app: Express) {
       const balance = await stripe.balance.retrieve();
       res.json(balance);
     } catch (error: any) {
-      console.error("Balance error:", error);
+      logger.error("Balance error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -410,7 +413,7 @@ export function registerMoneyRoutes(app: Express) {
       res.status(201).json(record);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      console.error("Error creating expense:", err);
+      logger.error("Error creating expense:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -492,7 +495,7 @@ export function registerMoneyRoutes(app: Express) {
 
       res.json({ imported: imported.length, records: imported });
     } catch (error: any) {
-      console.error("CSV import error:", error);
+      logger.error("CSV import error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -533,7 +536,7 @@ export function registerMoneyRoutes(app: Express) {
       }
       res.json({ imported: imported.length, records: imported });
     } catch (error: any) {
-      console.error("Revenue CSV import error:", error);
+      logger.error("Revenue CSV import error:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -886,7 +889,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await suggestAdBreaks(userId, videoId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -901,7 +904,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await generateRevenueForecast(userId, parsedForecast.data.period);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -920,7 +923,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await trackFanFunnel(userId, parsedFunnel.data.eventType, parsedFunnel.data.platform, parsedFunnel.data.count);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -932,7 +935,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getFanFunnelData(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -944,7 +947,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await calculateSponsorRates(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -956,7 +959,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getSponsorRates(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -977,7 +980,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await trackEquipmentRoi(userId, parsedEquip.data);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -989,7 +992,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getEquipmentRoi(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1003,7 +1006,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await generateInvoice(userId, dealId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1015,7 +1018,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getInvoices(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1029,7 +1032,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await analyzeDeal(userId, dealId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1041,7 +1044,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await syncAllRevenue(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Revenue sync error:", error);
+      logger.error("Revenue sync error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1056,7 +1059,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await syncPlatformRevenue(userId, platform);
       res.json(result);
     } catch (error: any) {
-      console.error("Platform revenue sync error:", error);
+      logger.error("Platform revenue sync error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1080,7 +1083,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       }
       res.json({ lastSync: lastSync?.syncedAt?.toISOString() || null, platformStatuses, recentLogs: logs.slice(0, 10) });
     } catch (error: any) {
-      console.error("Sync status error:", error);
+      logger.error("Sync status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1140,7 +1143,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         },
       });
     } catch (error: any) {
-      console.error("Revenue breakdown error:", error);
+      logger.error("Revenue breakdown error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1152,7 +1155,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const summary = await getRevenueTruthSummary(userId);
       res.json(summary);
     } catch (error: unknown) {
-      console.error("Revenue truth error:", error);
+      logger.error("Revenue truth error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1186,7 +1189,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         },
       });
     } catch (error: unknown) {
-      console.error("Reconciliation error:", error);
+      logger.error("Reconciliation error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1210,7 +1213,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Verification failed";
       if (message.includes("not found")) return res.status(404).json({ error: message });
-      console.error("Revenue verify error:", error);
+      logger.error("Revenue verify error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1223,7 +1226,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const report = await generateReconciliationReport(userId, period);
       res.json(report);
     } catch (error: unknown) {
-      console.error("Reconciliation report error:", error);
+      logger.error("Reconciliation report error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1236,7 +1239,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const history = await getReconciliationHistory(userId, limit);
       res.json(history);
     } catch (error: unknown) {
-      console.error("Reconciliation history error:", error);
+      logger.error("Reconciliation history error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1249,7 +1252,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const count = await flagDelayedReconciliation(userId, days);
       res.json({ flagged: count, threshold: `${days} days` });
     } catch (error: unknown) {
-      console.error("Flag delayed error:", error);
+      logger.error("Flag delayed error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1262,7 +1265,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const actions = await getActionQueue(userId, status);
       res.json(actions);
     } catch (error: unknown) {
-      console.error("Action queue error:", error);
+      logger.error("Action queue error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1281,7 +1284,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       if (!resolved) return res.status(404).json({ error: "Action not found" });
       res.json({ success: true });
     } catch (error: unknown) {
-      console.error("Resolve action error:", error);
+      logger.error("Resolve action error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1305,7 +1308,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         },
       });
     } catch (error: unknown) {
-      console.error("Monthly reconciliation error:", error);
+      logger.error("Monthly reconciliation error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1318,7 +1321,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const reports = await getStoredReports(userId, limit);
       res.json(reports);
     } catch (error: unknown) {
-      console.error("Stored reports error:", error);
+      logger.error("Stored reports error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1330,7 +1333,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const graph = await buildAttributionGraph(userId);
       res.json(graph);
     } catch (error: unknown) {
-      console.error("Attribution graph error:", error);
+      logger.error("Attribution graph error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1343,7 +1346,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const topContent = await getTopRevenueContent(userId, limit);
       res.json(topContent);
     } catch (error: unknown) {
-      console.error("Top content error:", error);
+      logger.error("Top content error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1361,7 +1364,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getRevenueByContent(userId, contentType, contentId);
       res.json(result);
     } catch (error: unknown) {
-      console.error("Content attribution error:", error);
+      logger.error("Content attribution error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1373,7 +1376,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const result = await getPlatformRevenueAttribution(userId);
       res.json(result);
     } catch (error: unknown) {
-      console.error("Platform attribution error:", error);
+      logger.error("Platform attribution error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1621,7 +1624,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         },
       });
     } catch (error: any) {
-      console.error("Revenue opportunities error:", error);
+      logger.error("Revenue opportunities error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));

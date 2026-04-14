@@ -1,5 +1,8 @@
 import { getUncachableStripeClient } from "./stripeClient";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("stripe-seed");
 const TIERS = [
   {
     name: "YouTube Tier",
@@ -85,6 +88,6 @@ export async function seedStripeProducts() {
     }
 
   } catch (e: any) {
-    console.error("[Stripe Seed] Error:", e.message);
+    logger.error("[Stripe Seed] Error:", e.message);
   }
 }

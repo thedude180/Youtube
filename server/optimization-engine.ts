@@ -11,6 +11,9 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, gte, inArray } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("optimization-engine");
 const openai = getOpenAIClient();
 
 const SUB_ENGINES = [
@@ -69,7 +72,7 @@ export async function getOptimizationHealthScore(userId: string): Promise<number
 
     return Math.max(1, Math.min(100, score));
   } catch (error) {
-    console.error("Failed to calculate optimization health score:", error);
+    logger.error("Failed to calculate optimization health score:", error);
     return 50;
   }
 }
@@ -133,7 +136,7 @@ export async function getSubEngineStatuses(userId: string): Promise<Array<{
       { engine: "performance_monitor", ...getStatus(lifecycles), details: "Monitors overall content performance" },
     ];
   } catch (error) {
-    console.error("Failed to get sub-engine statuses:", error);
+    logger.error("Failed to get sub-engine statuses:", error);
     return SUB_ENGINES.map(engine => ({ engine, status: "off" as const, details: "Unable to determine status" }));
   }
 }
@@ -204,7 +207,7 @@ Provide your response as JSON:
 
     return { optimized: true, previousScore, newScore, changes };
   } catch (error) {
-    console.error("Metadata optimizer failed:", error);
+    logger.error("Metadata optimizer failed:", error);
     return { optimized: false, previousScore: 0, newScore: 0, changes: [] };
   }
 }
@@ -279,7 +282,7 @@ Respond as JSON:
       variants: result.variants,
     };
   } catch (error) {
-    console.error("A/B test engine failed:", error);
+    logger.error("A/B test engine failed:", error);
     return { testCreated: false };
   }
 }
@@ -330,7 +333,7 @@ Respond as JSON:
 
     return { injected: true, topic: topic.topic, updatedTags: result.updatedTags || newTags };
   } catch (error) {
-    console.error("Trending topic injection failed:", error);
+    logger.error("Trending topic injection failed:", error);
     return { injected: false };
   }
 }
@@ -379,7 +382,7 @@ export async function detectPerformanceDecay(userId: string): Promise<Array<{
 
     return decayAlerts;
   } catch (error) {
-    console.error("Performance decay detection failed:", error);
+    logger.error("Performance decay detection failed:", error);
     return [];
   }
 }
@@ -441,7 +444,7 @@ Respond as JSON:
 
     return { score, factors: result.factors || {}, prediction: result.prediction || "" };
   } catch (error) {
-    console.error("Viral score prediction failed:", error);
+    logger.error("Viral score prediction failed:", error);
     return { score: 50, factors: {}, prediction: "Unable to predict viral score" };
   }
 }
@@ -516,7 +519,7 @@ Evaluate up to 15 most important tags.`;
       recommendation: h.recommendation || "",
     }));
   } catch (error) {
-    console.error("Hashtag health analysis failed:", error);
+    logger.error("Hashtag health analysis failed:", error);
     return [];
   }
 }
@@ -586,7 +589,7 @@ Based on the content type, topic, and engagement ratio, predict the sentiment di
       actionableInsights: result.actionableInsights || [],
     };
   } catch (error) {
-    console.error("Sentiment analysis failed:", error);
+    logger.error("Sentiment analysis failed:", error);
     return { positivePct: 50, negativePct: 20, neutralPct: 30, topThemes: [], actionableInsights: [] };
   }
 }
@@ -655,7 +658,7 @@ Identify 2-3 current algorithm behaviors or recent changes. Respond as JSON:
       recommendations: a.recommendations || [],
     }));
   } catch (error) {
-    console.error("Algorithm change detection failed:", error);
+    logger.error("Algorithm change detection failed:", error);
     return [];
   }
 }
@@ -734,7 +737,7 @@ export async function manageContentLifecycle(userId: string, videoId: number): P
 
     return { currentStage, predictedNextStage, daysInStage, performanceData: { views, growth: viewsPerDay, engagement } };
   } catch (error) {
-    console.error("Content lifecycle management failed:", error);
+    logger.error("Content lifecycle management failed:", error);
     return { currentStage: "unknown", predictedNextStage: "unknown", daysInStage: 0, performanceData: {} };
   }
 }
@@ -825,7 +828,7 @@ For each video, classify as evergreen or not. Respond as JSON:
 
     return results;
   } catch (error) {
-    console.error("Evergreen content detection failed:", error);
+    logger.error("Evergreen content detection failed:", error);
     return [];
   }
 }
@@ -909,7 +912,7 @@ Identify pairs of videos that may be cannibalizing each other's performance. Res
 
     return results;
   } catch (error) {
-    console.error("Content cannibalization detection failed:", error);
+    logger.error("Content cannibalization detection failed:", error);
     return [];
   }
 }
@@ -980,7 +983,7 @@ Predict trends that are emerging or about to emerge. Respond as JSON:
       recommendation: p.recommendation || "",
     }));
   } catch (error) {
-    console.error("Trend prediction failed:", error);
+    logger.error("Trend prediction failed:", error);
     return [];
   }
 }
@@ -1067,7 +1070,7 @@ Build a comprehensive Content DNA profile as JSON:
 
     return profileData;
   } catch (error) {
-    console.error("Content DNA build failed:", error);
+    logger.error("Content DNA build failed:", error);
     return {
       topFormats: [], avgLength: 0, bestHooks: [], tonalPattern: "",
       visualStyle: "", audienceResponse: "", bestPostingTimes: [], uniqueStrengths: [],
@@ -1136,7 +1139,7 @@ Suggest specific changes to improve CTR. Respond as JSON:
       expectedImprovement: result.expectedImprovement || 0,
     };
   } catch (error) {
-    console.error("CTR optimization failed:", error);
+    logger.error("CTR optimization failed:", error);
     return { originalCtr: 0, suggestedChanges: {}, expectedImprovement: 0 };
   }
 }
@@ -1227,7 +1230,7 @@ Respond as JSON:
 
     return inserted;
   } catch (error) {
-    console.error("Get trending topics failed:", error);
+    logger.error("Get trending topics failed:", error);
     return [];
   }
 }
@@ -1274,7 +1277,7 @@ export async function getViralLeaderboard(userId: string): Promise<Array<{
       factors: (p.factors as Record<string, number>) || {},
     }));
   } catch (error) {
-    console.error("Get viral leaderboard failed:", error);
+    logger.error("Get viral leaderboard failed:", error);
     return [];
   }
 }
@@ -1312,7 +1315,7 @@ export async function getDecayAlerts(userId: string): Promise<Array<{
       recommendation: "Refresh metadata, update thumbnail, or create follow-up content",
     }));
   } catch (error) {
-    console.error("Get decay alerts failed:", error);
+    logger.error("Get decay alerts failed:", error);
     return [];
   }
 }
@@ -1403,7 +1406,7 @@ Find 5 content gaps with high demand. Respond as JSON:
       suggestedAngle: g.suggestedAngle || "",
     }));
   } catch (error) {
-    console.error("Content gap analysis failed:", error);
+    logger.error("Content gap analysis failed:", error);
     return [];
   }
 }
@@ -1456,7 +1459,7 @@ Include 8-10 best practices, 3-4 recent changes, 5 dos and 5 don'ts.`;
       dontList: result.dontList || [],
     };
   } catch (error) {
-    console.error("Algorithm cheat sheet generation failed:", error);
+    logger.error("Algorithm cheat sheet generation failed:", error);
     return {
       platform,
       lastUpdated: new Date().toISOString(),
@@ -1523,7 +1526,7 @@ export async function runFullOptimizationPass(userId: string, videoId: number): 
 
     return { videoId, results, overallScore, passNumber };
   } catch (error) {
-    console.error("Full optimization pass failed:", error);
+    logger.error("Full optimization pass failed:", error);
     return { videoId, results: {}, overallScore: 0, passNumber: 0 };
   }
 }

@@ -6,6 +6,9 @@ import { storage } from "../storage";
 const syncState = new Map<string, { startedAt: number; status: "syncing" | "complete" | "error" }>();
 
 import { registerCleanup } from "../services/cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("sync");
 registerCleanup("syncState", () => {
   const cutoff = Date.now() - 10 * 60 * 1000;
   for (const [key, val] of syncState) {
@@ -41,7 +44,7 @@ export function registerSyncRoutes(app: Express): void {
         await refreshAllUserChannelStats(userId);
         results.channelStats = "synced";
       } catch (err: any) {
-        console.error(`[LoginSync] Channel stats sync failed for ${userId}:`, err.message);
+        logger.error(`[LoginSync] Channel stats sync failed for ${userId}:`, err.message);
         results.channelStats = "error";
       }
 
@@ -60,7 +63,7 @@ export function registerSyncRoutes(app: Express): void {
           await syncAllRevenue(userId);
           results.revenue = "synced";
         } catch (err: any) {
-          console.error(`[LoginSync] Revenue sync failed for ${userId}:`, err.message);
+          logger.error(`[LoginSync] Revenue sync failed for ${userId}:`, err.message);
           results.revenue = "error";
         }
 
@@ -77,7 +80,7 @@ export function registerSyncRoutes(app: Express): void {
 
       res.json({ status: "syncing", message: "Sync started", results });
     } catch (err: any) {
-      console.error(`[LoginSync] Sync failed for ${userId}:`, err.message);
+      logger.error(`[LoginSync] Sync failed for ${userId}:`, err.message);
       syncState.set(userId, { startedAt: Date.now(), status: "error" });
       res.status(500).json({ error: "Sync failed" });
     }

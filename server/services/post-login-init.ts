@@ -3,6 +3,9 @@ import { channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("post-login-init");
 export async function initializeUserSystems(userId: string): Promise<{ results: Record<string, string> }> {
   const results: Record<string, string> = {};
 
@@ -20,7 +23,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       const backlogResult = await startBacklogOnLogin(userId);
       results.backlog = backlogResult.started ? "started" : backlogResult.message;
     } catch (err) {
-      console.error(`[PostLoginInit] Backlog start failed for ${userId}:`, err);
+      logger.error(`[PostLoginInit] Backlog start failed for ${userId}:`, err);
       results.backlog = "error";
     }
 
@@ -67,7 +70,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
     if (channelStatsResult.status === "fulfilled") {
       results.channelStats = channelStatsResult.value;
     } else {
-      console.error(`[PostLoginInit] Channel stats failed for ${userId}:`, channelStatsResult.reason);
+      logger.error(`[PostLoginInit] Channel stats failed for ${userId}:`, channelStatsResult.reason);
       results.channelStats = "error";
     }
 
@@ -94,14 +97,14 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
         }
       }
     } else {
-      console.error(`[PostLoginInit] Token refresh failed for ${userId}:`, tokenRefreshResult.reason);
+      logger.error(`[PostLoginInit] Token refresh failed for ${userId}:`, tokenRefreshResult.reason);
       results.tokenRefresh = "error";
     }
 
     if (customerResult.status === "fulfilled") {
       results.customerProfile = customerResult.value;
     } else {
-      console.error(`[PostLoginInit] Customer profile failed for ${userId}:`, customerResult.reason);
+      logger.error(`[PostLoginInit] Customer profile failed for ${userId}:`, customerResult.reason);
       results.customerProfile = "error";
     }
 
@@ -129,12 +132,12 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
         try {
           const { processCommentResponses, processContentRecycling, processCrossPromotion } = await import("../autopilot-engine");
           await Promise.allSettled([
-            processCommentResponses(userId).catch(e => console.error(`[PostLoginInit] Comment responses failed for ${userId}:`, e)),
-            processContentRecycling(userId).catch(e => console.error(`[PostLoginInit] Content recycling failed for ${userId}:`, e)),
-            processCrossPromotion(userId).catch(e => console.error(`[PostLoginInit] Cross promotion failed for ${userId}:`, e)),
+            processCommentResponses(userId).catch(e => logger.error(`[PostLoginInit] Comment responses failed for ${userId}:`, e)),
+            processContentRecycling(userId).catch(e => logger.error(`[PostLoginInit] Content recycling failed for ${userId}:`, e)),
+            processCrossPromotion(userId).catch(e => logger.error(`[PostLoginInit] Cross promotion failed for ${userId}:`, e)),
           ]);
         } catch (e) {
-          console.error(`[PostLoginInit] Autopilot deferred tasks failed for ${userId}:`, e);
+          logger.error(`[PostLoginInit] Autopilot deferred tasks failed for ${userId}:`, e);
         }
       }, 3000);
       results.autopilot = "activated";
@@ -147,7 +150,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
         const { evaluateRules } = await import("../automation-engine");
         await evaluateRules(userId, "user_login", { userId, timestamp: new Date().toISOString() });
       } catch (e) {
-        console.error(`[PostLoginInit] Automation rules failed for ${userId}:`, e);
+        logger.error(`[PostLoginInit] Automation rules failed for ${userId}:`, e);
       }
     }, 1500);
     results.automationRules = "evaluated";
@@ -159,7 +162,7 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
         await startUploadWatcher(userId);
         results.uploadWatcher = "started";
       } catch (e) {
-        console.error(`[PostLoginInit] Upload watcher start failed for ${userId}:`, e);
+        logger.error(`[PostLoginInit] Upload watcher start failed for ${userId}:`, e);
         results.uploadWatcher = "error";
       }
     }, 5000);
@@ -170,12 +173,12 @@ export async function initializeUserSystems(userId: string): Promise<{ results: 
       const session = await startUserAgentSession(userId);
       results.agentSession = `started:${session.tier}:${session.agentsStarted.join("+") || "core"}`;
     } catch (err) {
-      console.error(`[PostLoginInit] Agent session start failed for ${userId}:`, err);
+      logger.error(`[PostLoginInit] Agent session start failed for ${userId}:`, err);
       results.agentSession = "error";
     }
 
   } catch (err) {
-    console.error(`[PostLoginInit] Critical error for ${userId}:`, err);
+    logger.error(`[PostLoginInit] Critical error for ${userId}:`, err);
     results.critical = "error";
   }
 
@@ -192,7 +195,7 @@ export async function initializePostOnboarding(userId: string, niche?: string): 
     if (niche) updateData.contentNiche = niche;
     await storage.updateUserProfile(userId, updateData);
   } catch (err) {
-    console.error(`[PostLoginInit] Profile update failed for ${userId}:`, err);
+    logger.error(`[PostLoginInit] Profile update failed for ${userId}:`, err);
   }
 
   try {
@@ -207,7 +210,7 @@ export async function initializePostOnboarding(userId: string, niche?: string): 
       set: { autonomousMode: true, requireApproval: false, updatedAt: new Date() },
     });
   } catch (err) {
-    console.error(`[PostLoginInit] Autonomous mode activation failed for ${userId}:`, err);
+    logger.error(`[PostLoginInit] Autonomous mode activation failed for ${userId}:`, err);
   }
 
   await initializeUserSystems(userId);

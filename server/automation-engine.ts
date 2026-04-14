@@ -16,7 +16,10 @@ import {
   aiMultiLangAbTesting, aiVoiceOverFormatter, aiRegionalComplianceChecker,
   aiMultiLangMediaKit,
 } from "./ai-engine";
+import { createLogger } from "./lib/logger";
 
+
+const logger = createLogger("automation-engine");
 const AI_FEATURE_CATEGORIES = {
   content: [
     "ai-keyword-research", "ai-seo-audit", "ai-content-ideas", "ai-thumbnail-concepts",
@@ -212,10 +215,10 @@ export async function initAutomationEngine() {
     const { flushQueueToAsap } = await import("./autopilot-engine");
     const flushed = await flushQueueToAsap();
     if (flushed > 0) {
-      console.log(`[AutomationEngine] Flushed ${flushed} future-scheduled posts to ASAP on startup`);
+      logger.info(`[AutomationEngine] Flushed ${flushed} future-scheduled posts to ASAP on startup`);
     }
   } catch (err: any) {
-    console.warn("[AutomationEngine] Startup flush failed:", err.message);
+    logger.warn("[AutomationEngine] Startup flush failed:", err.message);
   }
 
   // Stagger cron start times using minute offsets to prevent all jobs firing at :00 simultaneously.
@@ -417,17 +420,17 @@ export async function initAutomationEngine() {
         const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
         totalNew += result.newVideos.length;
       } catch (chErr: any) {
-        console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
+        logger.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
       }
     }
     if (totalNew > 0) {
-      console.log(`[VideoSync] Discovered ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
+      logger.info(`[VideoSync] Discovered ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
     }
   }
 
   setTimeout(async () => {
     await selfHealingCore("VideoSync-Startup", async () => {
-      console.log("[VideoSync] Running startup sync...");
+      logger.info("[VideoSync] Running startup sync...");
       await runVideoSync();
     }, { maxRetries: 2 });
 
@@ -438,7 +441,7 @@ export async function initAutomationEngine() {
         const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
         const userId = adminRow[0]?.id || ytChannels[0].userId!;
         const { startVaultSync } = await import("./services/video-vault");
-        console.log("[Vault] Starting automatic vault sync on startup...");
+        logger.info("[Vault] Starting automatic vault sync on startup...");
         await startVaultSync(userId);
       }
     }, { maxRetries: 1 });
@@ -501,7 +504,7 @@ export async function initAutomationEngine() {
             }
           } catch (bErr: any) {
             if (!bErr.message?.includes("already")) {
-              console.error(`[SelfHealing] VideoOptimizer sub-task failed for ${userId}:`, bErr.message);
+              logger.error(`[SelfHealing] VideoOptimizer sub-task failed for ${userId}:`, bErr.message);
             }
           }
         }
@@ -638,7 +641,7 @@ export async function initAutomationEngine() {
       const { purgeStaleReadNotifications } = await import("./services/notification-system");
       await purgeStaleReadNotifications();
     } catch (err: any) {
-      console.error("[NotificationCleanup] Error purging stale read notifications:", err.message);
+      logger.error("[NotificationCleanup] Error purging stale read notifications:", err.message);
     }
   });
 
@@ -739,7 +742,7 @@ export async function initAutomationEngine() {
               },
             });
           } catch (snapErr: any) {
-            console.error(`[AnalyticsSnapshot] Failed for ${userId}:`, snapErr.message);
+            logger.error(`[AnalyticsSnapshot] Failed for ${userId}:`, snapErr.message);
           }
         }
       });
@@ -767,7 +770,7 @@ async function processAllCronJobs() {
       const nextRun = getNextRunTime(job.schedule);
       await db.update(cronJobs).set({ status: "idle", nextRun }).where(eq(cronJobs.id, job.id));
     } catch (err) {
-      console.error(`[AutomationEngine] Cron job ${job.id} failed:`, err);
+      logger.error(`[AutomationEngine] Cron job ${job.id} failed:`, err);
       await db.update(cronJobs).set({ status: "error" }).where(eq(cronJobs.id, job.id));
     }
   }
@@ -862,7 +865,7 @@ async function processAllChains() {
       await db.update(aiChains).set({ status: "idle", lastResult: { steps: results, completedAt: new Date().toISOString() } }).where(eq(aiChains.id, chain.id));
 
     } catch (err) {
-      console.error(`[AutomationEngine] Chain ${chain.id} failed:`, err);
+      logger.error(`[AutomationEngine] Chain ${chain.id} failed:`, err);
       await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chain.id));
     }
   }
@@ -881,7 +884,7 @@ async function processAutoApprovals() {
       }).where(eq(aiResults.id, deal.id));
 
     } catch (err) {
-      console.error(`[AutomationEngine] Auto-approval failed for deal ${deal.id}:`, err);
+      logger.error(`[AutomationEngine] Auto-approval failed for deal ${deal.id}:`, err);
     }
   }
 
@@ -916,7 +919,7 @@ async function processAutoPayments() {
       }).where(eq(aiResults.id, payment.id));
 
     } catch (err) {
-      console.error(`[AutomationEngine] Auto-payment failed for ${payment.id}:`, err);
+      logger.error(`[AutomationEngine] Auto-payment failed for ${payment.id}:`, err);
     }
   }
 }
@@ -958,7 +961,7 @@ async function processAutoLocalization() {
         result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() },
       } as any);
     } catch (err) {
-      console.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
+      logger.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
     }
 
     const langAwareRunners: Array<{ key: string; fn: (data: any, userId?: string) => Promise<any>; dataBuilder: () => any }> = [
@@ -989,7 +992,7 @@ async function processAutoLocalization() {
           result: { ...result, source: "auto-localization", trafficDrivenLanguages: trafficDrivenLangs, processedAt: new Date().toISOString() },
         } as any);
       } catch (err) {
-        console.error(`[AutomationEngine] Auto-localization ${runner.key} failed for user ${userId}:`, err);
+        logger.error(`[AutomationEngine] Auto-localization ${runner.key} failed for user ${userId}:`, err);
       }
     }
   }
@@ -1016,7 +1019,7 @@ export async function processWebhookEvent(userId: string, source: string, eventT
     await storage.markWebhookProcessed(event.id);
     return event;
   } catch (err) {
-    console.error(`[AutomationEngine] Webhook event processing failed for ${userId}:`, err);
+    logger.error(`[AutomationEngine] Webhook event processing failed for ${userId}:`, err);
     throw err;
   }
 }
@@ -1032,7 +1035,7 @@ export async function runChainManually(chainId: number) {
 
     return { chainId, steps: results };
   } catch (err) {
-    console.error(`[AutomationEngine] Manual chain execution failed for chain ${chainId}:`, err);
+    logger.error(`[AutomationEngine] Manual chain execution failed for chain ${chainId}:`, err);
     await db.update(aiChains).set({ status: "error" }).where(eq(aiChains.id, chainId));
     throw err;
   }
@@ -1053,7 +1056,7 @@ export async function evaluateRules(userId: string, eventType: string, _eventDat
 
     return triggered;
   } catch (err) {
-    console.error(`[AutomationEngine] Rule evaluation failed for ${userId}:`, err);
+    logger.error(`[AutomationEngine] Rule evaluation failed for ${userId}:`, err);
     return [];
   }
 }

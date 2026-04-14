@@ -61,7 +61,7 @@ async function resolveSubscriptionTier(stripe: Stripe, subscription: Stripe.Subs
       }
     }
   } catch (err) {
-    console.error('[TierSync] Error resolving subscription tier:', err);
+    logger.error('[TierSync] Error resolving subscription tier:', err);
   }
   return null;
 }
@@ -74,7 +74,7 @@ async function findUserByCustomerId(customerId: string): Promise<string | null> 
       .limit(1);
     return user?.id || null;
   } catch (err) {
-    console.error('[TierSync] Error finding user by customer ID:', err);
+    logger.error('[TierSync] Error finding user by customer ID:', err);
     return null;
   }
 }
@@ -95,13 +95,13 @@ async function applyTierChange(userId: string, newTier: string, subscriptionId: 
     try {
       const { initializeUserSystems } = await import('./services/post-login-init');
       initializeUserSystems(userId).catch((err) =>
-        console.error(`[TierSync] Post-tier-change system init error for ${userId}:`, err)
+        logger.error(`[TierSync] Post-tier-change system init error for ${userId}:`, err)
       );
     } catch (err) {
-      console.error(`[TierSync] System init import error:`, err);
+      logger.error(`[TierSync] System init import error:`, err);
     }
   } catch (err) {
-    console.error(`[TierSync] Error applying tier change for ${userId}:`, err);
+    logger.error(`[TierSync] Error applying tier change for ${userId}:`, err);
   }
 }
 
@@ -112,13 +112,13 @@ async function handleSubscriptionChange(event: Stripe.Event): Promise<void> {
     : subscription.customer?.id;
 
   if (!customerId) {
-    console.warn('[TierSync] No customer ID on subscription event');
+    logger.warn('[TierSync] No customer ID on subscription event');
     return;
   }
 
   const userId = await findUserByCustomerId(customerId);
   if (!userId) {
-    console.warn(`[TierSync] No user found for Stripe customer ${customerId}`);
+    logger.warn(`[TierSync] No user found for Stripe customer ${customerId}`);
     return;
   }
 
@@ -158,7 +158,7 @@ async function handleCheckoutComplete(event: Stripe.Event): Promise<void> {
   }
 
   if (!userId) {
-    console.warn(`[TierSync] No user for checkout session customer ${customerId}`);
+    logger.warn(`[TierSync] No user for checkout session customer ${customerId}`);
     return;
   }
 
@@ -170,7 +170,7 @@ async function handleCheckoutComplete(event: Stripe.Event): Promise<void> {
       await applyTierChange(userId, tier, subscriptionId);
     }
   } catch (err) {
-    console.error('[TierSync] Checkout complete tier resolve error:', err);
+    logger.error('[TierSync] Checkout complete tier resolve error:', err);
   }
 }
 

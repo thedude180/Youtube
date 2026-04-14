@@ -41,6 +41,9 @@ import { detectGameFromFrames } from "../smart-edit-engine";
 import { downloadSourceVideo } from "../clip-video-processor";
 import { VIDEO_PLATFORMS, type Platform } from "@shared/schema";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("content");
 async function generatePlatformOptimizations(
   userId: string,
   videoTitle: string,
@@ -74,7 +77,7 @@ async function generatePlatformOptimizations(
     }
     return result;
   } catch (err) {
-    console.error("[cross-platform-optimization] Failed:", err);
+    logger.error("[cross-platform-optimization] Failed:", err);
     return {};
   }
 }
@@ -151,7 +154,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ connected: true, existing: false, channel });
     } catch (err: any) {
-      console.error("Auto-connect YouTube error:", err);
+      logger.error("Auto-connect YouTube error:", err);
       res.status(500).json({ message: "Failed to auto-connect YouTube" });
     }
   }));
@@ -207,7 +210,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, count: videoList.length });
     } catch (err: any) {
-      console.error("Bulk SEO optimization error:", err);
+      logger.error("Bulk SEO optimization error:", err);
       res.status(500).json({ message: "Failed to queue bulk SEO optimization" });
     }
   }));
@@ -297,7 +300,7 @@ export function registerContentRoutes(app: Express) {
             try { if (sourcePath) fs.unlinkSync(sourcePath); } catch { }
             processed++;
           } catch (err: any) {
-            console.error(`Catalog redetect error for video ${video.id}:`, String(err).substring(0, 200));
+            logger.error(`Catalog redetect error for video ${video.id}:`, String(err).substring(0, 200));
             errors++;
             processed++;
           }
@@ -309,7 +312,7 @@ export function registerContentRoutes(app: Express) {
           result: { processed, updated, errors, total: allVideos.length } as any,
         }).where(eq(aiAgentTasks.id, agentTask.id));
       })().catch(err => {
-        console.error("Catalog redetect background job failed:", err);
+        logger.error("Catalog redetect background job failed:", err);
         db.update(aiAgentTasks).set({
           status: "failed",
           completedAt: new Date(),
@@ -318,7 +321,7 @@ export function registerContentRoutes(app: Express) {
       });
 
     } catch (err: any) {
-      console.error("Catalog redetect error:", err);
+      logger.error("Catalog redetect error:", err);
       res.status(500).json({ message: "Failed to start catalog redetection" });
     }
   }));
@@ -371,7 +374,7 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      console.error("Error creating channel:", err);
+      logger.error("Error creating channel:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -404,7 +407,7 @@ export function registerContentRoutes(app: Express) {
       res.json(channel);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      console.error("Error updating channel:", err);
+      logger.error("Error updating channel:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -463,7 +466,7 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      console.error("Error creating video:", err);
+      logger.error("Error creating video:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -566,7 +569,7 @@ export function registerContentRoutes(app: Express) {
             }
           }
         } catch (backfillErr: any) {
-          console.error(`[UpdateHistory] Backfill error:`, backfillErr.message);
+          logger.error(`[UpdateHistory] Backfill error:`, backfillErr.message);
         }
       }
 
@@ -751,7 +754,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, suggestions, platformOptimizations });
     } catch (error: any) {
-      console.error("AI metadata generation error:", error);
+      logger.error("AI metadata generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -782,7 +785,7 @@ export function registerContentRoutes(app: Express) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      console.error("Error creating job:", err);
+      logger.error("Error creating job:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   }));
@@ -861,7 +864,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, insights: result.insights, weeklyReport: result.weeklyReport });
     } catch (error: any) {
-      console.error("Insights generation error:", error);
+      logger.error("Insights generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -938,7 +941,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, checks: result.checks, overallScore: result.overallScore || 100, summary: result.summary });
     } catch (error: any) {
-      console.error("Compliance check error:", error);
+      logger.error("Compliance check error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1013,7 +1016,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, strategies: result.strategies });
     } catch (error: any) {
-      console.error("Strategy generation error:", error);
+      logger.error("Strategy generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1066,7 +1069,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ answer });
     } catch (error: any) {
-      console.error("Advisor error:", error);
+      logger.error("Advisor error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1156,7 +1159,7 @@ export function registerContentRoutes(app: Express) {
             const progress = Math.round((completed / unoptimized.length) * 100);
             await storage.updateJobProgress(job.id, progress);
           } catch (err) {
-            console.error(`Failed to optimize video ${video.id}:`, err);
+            logger.error(`Failed to optimize video ${video.id}:`, err);
           }
         }
         await storage.updateJobStatus(job.id, 'completed', { optimized: completed, total: unoptimized.length });
@@ -1171,7 +1174,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, jobId: job.id });
     } catch (error: any) {
-      console.error("Backlog optimization error:", error);
+      logger.error("Backlog optimization error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1196,7 +1199,7 @@ export function registerContentRoutes(app: Express) {
         activeJob,
       });
     } catch (err: any) {
-      console.error("[Backlog] Status error:", err);
+      logger.error("[Backlog] Status error:", err);
       res.status(500).json({ error: "Failed to get backlog status" });
     }
   }));
@@ -1227,7 +1230,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, ...result });
     } catch (error: any) {
-      console.error("Auto backlog start error:", error);
+      logger.error("Auto backlog start error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1326,7 +1329,7 @@ export function registerContentRoutes(app: Express) {
       }
       res.json({ success: true, ...result });
     } catch (error: any) {
-      console.error("Viral reprocess error:", error);
+      logger.error("Viral reprocess error:", error);
       res.status(500).json({ success: false, message: "Failed to start viral reprocess" });
     }
   }));
@@ -1343,7 +1346,7 @@ export function registerContentRoutes(app: Express) {
       const result = await viralOptimizeVideo(userId, parsed.data.videoId);
       res.json({ success: true, ...result });
     } catch (error: any) {
-      console.error("Viral optimize error:", error);
+      logger.error("Viral optimize error:", error);
       res.status(500).json({ success: false, message: "Failed to viral-optimize video" });
     }
   }));
@@ -1409,7 +1412,7 @@ export function registerContentRoutes(app: Express) {
 
       res.json({ success: true, thumbnail: { ...thumbnail, aiData: thumbnailData } });
     } catch (error: any) {
-      console.error("Thumbnail generation error:", error);
+      logger.error("Thumbnail generation error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1569,7 +1572,7 @@ export function registerContentRoutes(app: Express) {
     try {
       const rec = await storage.getLocalizationRecommendations(userId);
       res.json(rec || { recommendedLanguages: [], trafficData: {}, source: "none" });
-    } catch (e: any) { console.error("Localization recommendations error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+    } catch (e: any) { logger.error("Localization recommendations error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   }));
 
   app.get("/api/calendar/uploads", asyncHandler(async (req, res) => {
@@ -1809,7 +1812,7 @@ export function registerContentRoutes(app: Express) {
       });
       res.json(cleaned);
     } catch (err: any) {
-      console.error("[Calendar Uploads] Error:", err);
+      logger.error("[Calendar Uploads] Error:", err);
       res.status(500).json({ error: "Failed to load upload calendar" });
     }
   }));
@@ -1894,7 +1897,7 @@ export function registerContentRoutes(app: Express) {
       const result = await analyzeChannelKeywords(userId);
       res.json(result);
     } catch (err: any) {
-      console.error("[Keywords] Analyze error:", err);
+      logger.error("[Keywords] Analyze error:", err);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -1921,7 +1924,7 @@ export function registerContentRoutes(app: Express) {
       const result = await generateTrafficStrategies(userId);
       res.json(result);
     } catch (err: any) {
-      console.error("[Traffic] Generate error:", err);
+      logger.error("[Traffic] Generate error:", err);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -2056,7 +2059,7 @@ export function registerContentRoutes(app: Express) {
         startDate: scheduleStart.toISOString(),
       });
     } catch (err: any) {
-      console.error("[Calendar] Schedule pipelines error:", err);
+      logger.error("[Calendar] Schedule pipelines error:", err);
       res.status(500).json({ success: false, message: "Failed to schedule pipeline content." });
     }
   }));
@@ -2186,7 +2189,7 @@ export function registerContentRoutes(app: Express) {
         platforms: result.platforms,
       });
     } catch (e: any) {
-      console.error("Shorts cross-platform optimization error:", e);
+      logger.error("Shorts cross-platform optimization error:", e);
       res.status(500).json({ error: "Failed to optimize shorts for other platforms" });
     }
   }));
@@ -2372,7 +2375,7 @@ export function registerContentRoutes(app: Express) {
         },
       });
     } catch (e: any) {
-      console.error("[content/from-url] Error:", e.message);
+      logger.error("[content/from-url] Error:", e.message);
       res.status(500).json({ error: "Failed to process video URL" });
     }
   }));

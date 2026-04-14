@@ -5,6 +5,9 @@ import { getSystemHealthReport } from "./self-healing-core";
 import { videos, notifications, scheduleItems, channels, users, aiAgentActivities } from "@shared/schema";
 import { sendGmail } from "./services/gmail-client";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("weekly-report-engine");
 interface WeeklyReport {
   userId: string;
   email: string | null;
@@ -239,7 +242,7 @@ export async function sendWeeklyReportEmail(userId: string): Promise<boolean> {
       return false;
     }
   } catch (err: any) {
-    console.error(`[WeeklyReport] Failed to generate/send report for ${userId}:`, err.message);
+    logger.error(`[WeeklyReport] Failed to generate/send report for ${userId}:`, err.message);
     return false;
   }
 }
@@ -269,12 +272,12 @@ export function initWeeklyReportEngine() {
         try {
           await sendWeeklyReportEmail(uid);
         } catch (err: any) {
-          console.error(`[WeeklyReport] Error sending report to ${uid}:`, err.message);
+          logger.error(`[WeeklyReport] Error sending report to ${uid}:`, err.message);
         }
       }
 
     } catch (err: any) {
-      console.error("[WeeklyReport] Cron job failed:", err.message);
+      logger.error("[WeeklyReport] Cron job failed:", err.message);
     }
   });
 }

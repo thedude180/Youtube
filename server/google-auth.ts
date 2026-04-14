@@ -8,12 +8,15 @@ import { db } from "./db";
 import { linkedChannels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("google-auth");
 export function setupGoogleAuth(app: Express) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.warn("GOOGLE_CLIENT_ID/SECRET not set, Google auth disabled");
+    logger.warn("GOOGLE_CLIENT_ID/SECRET not set, Google auth disabled");
     return;
   }
 
@@ -74,7 +77,7 @@ export function setupGoogleAuth(app: Express) {
               actualUserId = dbUser.id;
             }
           } catch (upsertErr) {
-            console.error("Google auth: upsertUser FAILED:", upsertErr);
+            logger.error("Google auth: upsertUser FAILED:", upsertErr);
           }
 
           const user = {
@@ -95,7 +98,7 @@ export function setupGoogleAuth(app: Express) {
 
           done(null, user);
         } catch (error) {
-          console.error("Google auth error:", error);
+          logger.error("Google auth error:", error);
           done(error, null);
         }
       }
@@ -127,14 +130,14 @@ export function setupGoogleAuth(app: Express) {
     } as any)(req, res, async () => {
       const user = req.user as any;
       if (!user) {
-        console.error("Google auth callback: no user on req after authenticate");
+        logger.error("Google auth callback: no user on req after authenticate");
         return res.redirect("/?auth_error=no_user");
       }
 
 
       req.login(user, async (loginErr) => {
         if (loginErr) {
-          console.error("Google auth req.login error:", loginErr);
+          logger.error("Google auth req.login error:", loginErr);
           return res.redirect("/?auth_error=login_failed");
         }
 
@@ -148,7 +151,7 @@ export function setupGoogleAuth(app: Express) {
             );
           }
         } catch (error) {
-          console.error("Auto YouTube connect after Google auth failed:", error);
+          logger.error("Auto YouTube connect after Google auth failed:", error);
         }
 
         if (user.claims?.sub) {
@@ -156,7 +159,7 @@ export function setupGoogleAuth(app: Express) {
             const { initializeUserSystems } = await import("./services/post-login-init");
             await initializeUserSystems(user.claims.sub);
           } catch (initErr) {
-            console.error("[GoogleAuth] Post-login init failed:", initErr);
+            logger.error("[GoogleAuth] Post-login init failed:", initErr);
           }
 
           if (ytResult && !ytResult.hasChannel) {
@@ -164,13 +167,13 @@ export function setupGoogleAuth(app: Express) {
               const { initPreChannelState } = await import("./services/channel-launch-service");
               await initPreChannelState(user.claims.sub);
             } catch (launchErr) {
-              console.error("[GoogleAuth] Pre-channel init failed:", launchErr);
+              logger.error("[GoogleAuth] Pre-channel init failed:", launchErr);
             }
           }
         }
 
         req.session.save((saveErr) => {
-          if (saveErr) console.error("Google auth session save error:", saveErr);
+          if (saveErr) logger.error("Google auth session save error:", saveErr);
           if (ytResult?.hasChannel && ytResult?.ytChannel) {
             res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(ytResult.ytChannel.title || "YouTube")}`);
           } else if (ytResult && !ytResult.hasChannel) {
@@ -320,9 +323,9 @@ async function autoConnectYouTubeFromGoogle(
     };
   } catch (error: any) {
     if (error.code === 403 || error.message?.includes("quotaExceeded")) {
-      console.warn("[GoogleAuth] YouTube API quota exceeded — tokens already saved");
+      logger.warn("[GoogleAuth] YouTube API quota exceeded — tokens already saved");
     } else {
-      console.error("[GoogleAuth] Auto YouTube connect error:", error.message);
+      logger.error("[GoogleAuth] Auto YouTube connect error:", error.message);
     }
     return { hasChannel: !!existingYt, error: error.message };
   }

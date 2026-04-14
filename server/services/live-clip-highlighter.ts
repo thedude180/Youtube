@@ -12,10 +12,9 @@ import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 
-const logger = {
-  info: (msg: string) => console.log(`[live-clip-highlighter] ${msg}`),
-  warn: (msg: string) => console.warn(`[live-clip-highlighter] WARN ${msg}`),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-clip-highlighter");
 
 const openai = getOpenAIClient();
 const SCAN_INTERVAL_MS = 10 * 60 * 1000;

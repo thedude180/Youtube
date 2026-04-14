@@ -2,6 +2,9 @@ import { db, withRetry } from "../db";
 import { engineHeartbeats } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("engine-heartbeat");
 export async function recordHeartbeat(engineName: string, status: "running" | "idle" | "error" | "completed", durationMs?: number, error?: string): Promise<void> {
   try {
     const existing = await withRetry(() => db.select().from(engineHeartbeats).where(eq(engineHeartbeats.engineName, engineName)).limit(1), "heartbeat-read");
@@ -38,7 +41,7 @@ export async function recordHeartbeat(engineName: string, status: "running" | "i
       }
     }
   } catch (e) {
-    console.error(`[Heartbeat] Failed to record for ${engineName}:`, e);
+    logger.error(`[Heartbeat] Failed to record for ${engineName}:`, e);
   }
 }
 

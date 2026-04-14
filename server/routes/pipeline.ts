@@ -18,6 +18,9 @@ const STEP_IDS = PIPELINE_STEPS.map(s => s.id);
 
 import { getOpenAIClient } from "../lib/openai";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("pipeline");
 function getOpenAI() {
   return getOpenAIClient();
 }
@@ -106,7 +109,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
   try {
     return JSON.parse(content);
   } catch {
-    console.error("[Pipeline] Failed to parse AI response:", content?.slice(0, 200));
+    logger.error("[Pipeline] Failed to parse AI response:", content?.slice(0, 200));
     return {};
   }
 }
@@ -185,7 +188,7 @@ async function recordOptimizationHistory(
       }
     }
   } catch (err: any) {
-    console.error(`[Pipeline] Failed to record update history for step "${step}":`, err.message);
+    logger.error(`[Pipeline] Failed to record update history for step "${step}":`, err.message);
   }
 }
 
@@ -229,7 +232,7 @@ export async function executePipelineInBackground(id: number, videoTitle: string
               result.posts[i].safetyGrade = guardrailed.safetyGrade;
             }
           }
-        } catch (e: any) { console.error(`[Pipeline] Guardrail error for step ${step}:`, e?.message); }
+        } catch (e: any) { logger.error(`[Pipeline] Guardrail error for step ${step}:`, e?.message); }
       }
 
       currentResults[step] = result;
@@ -244,7 +247,7 @@ export async function executePipelineInBackground(id: number, videoTitle: string
           const { queueMetadataUpdate } = await import("../services/push-scheduler");
           queueMetadataUpdate(pipelineUserId, pipelineVideoId, "high", { pipelineStep: step });
         } catch (syncErr: any) {
-          console.error(`[Pipeline] Push scheduler queue failed:`, syncErr.message);
+          logger.error(`[Pipeline] Push scheduler queue failed:`, syncErr.message);
         }
       }
 
@@ -252,10 +255,10 @@ export async function executePipelineInBackground(id: number, videoTitle: string
         recordOptimizationHistory(
           pipelineUserId, pipelineVideoId, id, videoTitle,
           step, result, existingVideoSnapshot
-        ).catch(err => console.error(`[Pipeline] History record error:`, err.message));
+        ).catch(err => logger.error(`[Pipeline] History record error:`, err.message));
       }
     } catch (stepErr: any) {
-      console.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
+      logger.error(`[Pipeline] Step "${step}" failed for pipeline ${id}:`, stepErr.message);
       await db.update(contentPipeline)
         .set({
           status: "error",
@@ -294,12 +297,12 @@ export async function createPipelineForStream(userId: string, streamTitle: strin
     }).returning();
 
     executePipelineInBackground(pipeline.id, streamTitle, mode, {}, []).catch(err => {
-      console.error(`[Pipeline] Auto-run failed for ${mode} stream pipeline ${pipeline.id}:`, err);
+      logger.error(`[Pipeline] Auto-run failed for ${mode} stream pipeline ${pipeline.id}:`, err);
     });
 
     return pipeline;
   } catch (err) {
-    console.error(`[Pipeline] Failed to auto-create ${mode} pipeline for stream:`, err);
+    logger.error(`[Pipeline] Failed to auto-create ${mode} pipeline for stream:`, err);
     return null;
   }
 }
@@ -350,7 +353,7 @@ export async function runBacklogRefresh(userId: string, batchSize = 10): Promise
 
     for (const pipeline of created) {
       executePipelineInBackground(pipeline.id, pipeline.videoTitle, "refresh", {}, []).catch(err => {
-        console.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
+        logger.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
       });
     }
 
@@ -364,7 +367,7 @@ export async function runBacklogRefresh(userId: string, batchSize = 10): Promise
 
     return { queued: created.length };
   } catch (err: any) {
-    console.error("[Pipeline] Auto backlog refresh error:", err);
+    logger.error("[Pipeline] Auto backlog refresh error:", err);
     return { queued: 0, message: err.message };
   }
 }
@@ -382,7 +385,7 @@ export function registerPipelineRoutes(app: Express) {
       });
       res.json(pipelines);
     } catch (err) {
-      console.error("[Pipeline] List error:", err);
+      logger.error("[Pipeline] List error:", err);
       res.status(500).json({ error: "Failed to fetch pipelines" });
     }
   });
@@ -408,7 +411,7 @@ export function registerPipelineRoutes(app: Express) {
 
       res.json(pipeline);
     } catch (err) {
-      console.error("[Pipeline] Create error:", err);
+      logger.error("[Pipeline] Create error:", err);
       res.status(500).json({ error: "Failed to create pipeline" });
     }
   });
@@ -434,12 +437,12 @@ export function registerPipelineRoutes(app: Express) {
       const completedSteps = [...(pipeline.completedSteps || [])];
 
       executePipelineInBackground(id, pipeline.videoTitle, pipeline.mode || "vod", currentResults, completedSteps).catch(err => {
-        console.error(`[Pipeline] Background execution failed for ${id}:`, err);
+        logger.error(`[Pipeline] Background execution failed for ${id}:`, err);
       });
 
       res.json({ message: "Pipeline started", status: "processing" });
     } catch (err: any) {
-      console.error("[Pipeline] Run error:", err);
+      logger.error("[Pipeline] Run error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -484,7 +487,7 @@ export function registerPipelineRoutes(app: Express) {
 
       res.json(updated);
     } catch (err: any) {
-      console.error("[Pipeline] Step error:", err);
+      logger.error("[Pipeline] Step error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -526,7 +529,7 @@ export function registerPipelineRoutes(app: Express) {
       const result = await runBacklogRefresh(userId, maxVideos || 10);
       res.json(result);
     } catch (err: any) {
-      console.error("[Pipeline] Backlog refresh error:", err);
+      logger.error("[Pipeline] Backlog refresh error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -540,7 +543,7 @@ export function registerPipelineRoutes(app: Express) {
       const result = await startBacklogOnLogin(userId);
       res.json(result);
     } catch (err: any) {
-      console.error("[Backlog] Start error:", err);
+      logger.error("[Backlog] Start error:", err);
       res.status(500).json({ error: "Failed to start backlog" });
     }
   });
@@ -598,7 +601,7 @@ export function registerPipelineRoutes(app: Express) {
 
       res.json(calendarItems);
     } catch (err: any) {
-      console.error("[Pipeline Calendar Feed] Error:", err);
+      logger.error("[Pipeline Calendar Feed] Error:", err);
       res.status(500).json({ error: "Failed to load pipeline calendar feed" });
     }
   });

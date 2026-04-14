@@ -7,6 +7,9 @@ import { processFeedback, getFeedbackStats } from "../services/feedback-processo
 import { getUserId } from "./helpers";
 import { cached } from "../lib/cache";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("feedback");
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
     res.sendStatus(401);
@@ -35,7 +38,7 @@ export function registerFeedbackRoutes(app: Express) {
       }).returning();
 
       processFeedback(inserted.id, userId, parsed.message).catch(err => {
-        console.error("[Feedback] Background processing failed:", err.message);
+        logger.error("[Feedback] Background processing failed:", err.message);
       });
 
       res.json({
@@ -45,7 +48,7 @@ export function registerFeedbackRoutes(app: Express) {
       });
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ error: "Invalid input", details: err.errors });
-      console.error("[Feedback] Submit error:", err);
+      logger.error("[Feedback] Submit error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -65,7 +68,7 @@ export function registerFeedbackRoutes(app: Express) {
 
       res.json(submissions);
     } catch (err: any) {
-      console.error("[Feedback] List error:", err);
+      logger.error("[Feedback] List error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -78,7 +81,7 @@ export function registerFeedbackRoutes(app: Express) {
       const stats = await getFeedbackStats();
       res.json(stats);
     } catch (err: any) {
-      console.error("[Feedback] Stats error:", err);
+      logger.error("[Feedback] Stats error:", err);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });

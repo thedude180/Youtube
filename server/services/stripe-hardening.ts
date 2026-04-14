@@ -4,6 +4,9 @@ import { users, billingDunningRecords, billingPausedSubscriptions, billingPromoA
 import { eq, and } from "drizzle-orm";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("stripe-hardening");
 interface PaymentFailure {
   customerId: string;
   invoiceId: string;
@@ -40,7 +43,7 @@ async function findUserByCustomerId(customerId: string): Promise<string | null> 
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.stripeCustomerId, customerId)).limit(1);
     return user?.id || null;
   } catch (error) {
-    console.error("[Stripe Hardening] findUserByCustomerId error:", error);
+    logger.error("[Stripe Hardening] findUserByCustomerId error:", error);
     return null;
   }
 }
@@ -65,7 +68,7 @@ async function incrementPromoUses(code: string): Promise<void> {
         set: { currentUses: sql`${billingPromoUsage.currentUses} + 1`, updatedAt: new Date() },
       });
   } catch (err) {
-    console.error("[StripeHardening] incrementPromoUses error:", err);
+    logger.error("[StripeHardening] incrementPromoUses error:", err);
   }
 }
 
@@ -101,7 +104,7 @@ export async function handlePaymentFailed(customerId: string, invoiceId: string,
       }
     }
   } catch (err) {
-    console.error("[StripeHardening] handlePaymentFailed error:", err);
+    logger.error("[StripeHardening] handlePaymentFailed error:", err);
   }
 }
 
@@ -125,11 +128,11 @@ export async function handlePaymentSucceeded(customerId: string, invoiceId: stri
           .values({ invoiceId, userId, amount: 0, status: "paid", description: "Subscription payment", createdAt: new Date() })
           .onConflictDoNothing();
       } catch (e) {
-        console.error("[StripeHardening] invoice insert error:", e);
+        logger.error("[StripeHardening] invoice insert error:", e);
       }
     }
   } catch (err) {
-    console.error("[StripeHardening] handlePaymentSucceeded error:", err);
+    logger.error("[StripeHardening] handlePaymentSucceeded error:", err);
   }
 }
 
@@ -138,7 +141,7 @@ export async function checkDunningStatus(userId: string): Promise<typeof billing
     const [record] = await db.select().from(billingDunningRecords).where(eq(billingDunningRecords.userId, userId)).limit(1);
     return record || null;
   } catch (error) {
-    console.error("[Stripe Hardening] checkDunningStatus error:", error);
+    logger.error("[Stripe Hardening] checkDunningStatus error:", error);
     return null;
   }
 }
@@ -159,7 +162,7 @@ export async function startDunning(userId: string, reason: string): Promise<void
       metadata: { source: "billing" },
     });
   } catch (err) {
-    console.error("[StripeHardening] startDunning error:", err);
+    logger.error("[StripeHardening] startDunning error:", err);
   }
 }
 
@@ -186,7 +189,7 @@ export async function endDunning(userId: string, resolved: boolean): Promise<voi
       });
     }
   } catch (err) {
-    console.error("[StripeHardening] endDunning error:", err);
+    logger.error("[StripeHardening] endDunning error:", err);
   }
 }
 
@@ -206,7 +209,7 @@ export async function pauseSubscription(userId: string, reason?: string): Promis
     });
     return { success: true, message: "Subscription paused successfully" };
   } catch (err) {
-    console.error("[StripeHardening] pauseSubscription error:", err);
+    logger.error("[StripeHardening] pauseSubscription error:", err);
     return { success: false, message: "Failed to pause subscription" };
   }
 }
@@ -225,7 +228,7 @@ export async function resumeSubscription(userId: string): Promise<{ success: boo
     });
     return { success: true, message: "Subscription resumed successfully" };
   } catch (err) {
-    console.error("[StripeHardening] resumeSubscription error:", err);
+    logger.error("[StripeHardening] resumeSubscription error:", err);
     return { success: false, message: "Failed to resume subscription" };
   }
 }
@@ -249,7 +252,7 @@ export async function getSubscriptionStatus(userId: string): Promise<{
       trialEndsAt: isTrialActive ? trial!.endsAt : undefined,
     };
   } catch (error) {
-    console.error("[Stripe Hardening] getSubscriptionStatus error:", error);
+    logger.error("[Stripe Hardening] getSubscriptionStatus error:", error);
     return { tier: "free", active: false, paused: false, inDunning: false, inTrial: false };
   }
 }
@@ -259,7 +262,7 @@ export async function isSubscriptionActive(userId: string): Promise<boolean> {
     const status = await getSubscriptionStatus(userId);
     return status.active;
   } catch (error) {
-    console.error("[Stripe Hardening] isSubscriptionActive error:", error);
+    logger.error("[Stripe Hardening] isSubscriptionActive error:", error);
     return false;
   }
 }
@@ -283,7 +286,7 @@ export async function validatePromoCode(code: string, userId?: string): Promise<
 
     return { valid: true, discountPercent: promo.discountPercent, applicableTiers: promo.applicableTiers, message: "Promo code is valid" };
   } catch (error) {
-    console.error("[Stripe Hardening] validatePromoCode error:", error);
+    logger.error("[Stripe Hardening] validatePromoCode error:", error);
     return { valid: false, message: "Error validating promo code" };
   }
 }
@@ -317,7 +320,7 @@ export async function applyPromoCode(userId: string, code: string): Promise<{ su
     });
     return { success: true, discountPercent: promo.discountPercent, message: `${promo.discountPercent}% discount applied` };
   } catch (error) {
-    console.error("[Stripe Hardening] applyPromoCode error:", error);
+    logger.error("[Stripe Hardening] applyPromoCode error:", error);
     return { success: false, message: "Error applying promo code" };
   }
 }
@@ -331,7 +334,7 @@ export async function getActivePromoCodes(): Promise<(PromoCode & { currentUses:
       currentUses: await getPromoCurrentUses(p.code),
     })));
   } catch (error) {
-    console.error("[Stripe Hardening] getActivePromoCodes error:", error);
+    logger.error("[Stripe Hardening] getActivePromoCodes error:", error);
     return [];
   }
 }
@@ -363,7 +366,7 @@ export async function startFreeTrial(userId: string, tier: string = DEFAULT_TRIA
     });
     return { success: true, message: `${durationDays}-day trial started`, endsAt };
   } catch (err) {
-    console.error("[StripeHardening] startFreeTrial error:", err);
+    logger.error("[StripeHardening] startFreeTrial error:", err);
     return { success: false, message: "Failed to start free trial" };
   }
 }
@@ -380,7 +383,7 @@ export async function checkTrialStatus(userId: string): Promise<{ inTrial: boole
     const daysRemaining = Math.ceil((trial.endsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return { inTrial: true, daysRemaining, tier: trial.tier, endsAt: trial.endsAt };
   } catch (error) {
-    console.error("[Stripe Hardening] checkTrialStatus error:", error);
+    logger.error("[Stripe Hardening] checkTrialStatus error:", error);
     return { inTrial: false };
   }
 }
@@ -398,7 +401,7 @@ export async function endTrial(userId: string): Promise<void> {
       metadata: { source: "billing" },
     });
   } catch (err) {
-    console.error("[StripeHardening] endTrial error:", err);
+    logger.error("[StripeHardening] endTrial error:", err);
   }
 }
 
@@ -415,7 +418,7 @@ export async function getInvoiceHistory(userId: string): Promise<typeof billingI
   try {
     return await db.select().from(billingInvoices).where(eq(billingInvoices.userId, userId));
   } catch (error) {
-    console.error("[Stripe Hardening] getInvoiceHistory error:", error);
+    logger.error("[Stripe Hardening] getInvoiceHistory error:", error);
     return [];
   }
 }
@@ -429,7 +432,7 @@ export async function getNextBillingDate(userId: string): Promise<Date | null> {
     next.setMonth(next.getMonth() + 1);
     return next;
   } catch (error) {
-    console.error("[Stripe Hardening] getNextBillingDate error:", error);
+    logger.error("[Stripe Hardening] getNextBillingDate error:", error);
     return null;
   }
 }
@@ -439,7 +442,7 @@ export async function getLifetimeSpend(userId: string): Promise<number> {
     const invoices = await db.select().from(billingInvoices).where(eq(billingInvoices.userId, userId));
     return invoices.reduce((sum, inv) => sum + inv.amount, 0);
   } catch (error) {
-    console.error("[Stripe Hardening] getLifetimeSpend error:", error);
+    logger.error("[Stripe Hardening] getLifetimeSpend error:", error);
     return 0;
   }
 }
@@ -452,7 +455,7 @@ export async function getAnnualPricing(): Promise<{ tier: string; monthly: numbe
       return { tier, monthly, annual, savings };
     });
   } catch (error) {
-    console.error("[Stripe Hardening] getAnnualPricing error:", error);
+    logger.error("[Stripe Hardening] getAnnualPricing error:", error);
     return [];
   }
 }
@@ -471,7 +474,7 @@ export async function switchToAnnual(userId: string): Promise<{ success: boolean
     });
     return { success: true, message: "Switched to annual billing", annualPrice };
   } catch (error) {
-    console.error("[Stripe Hardening] switchToAnnual error:", error);
+    logger.error("[Stripe Hardening] switchToAnnual error:", error);
     return { success: false, message: "Failed to switch to annual billing" };
   }
 }
@@ -488,7 +491,7 @@ export async function switchToMonthly(userId: string): Promise<{ success: boolea
     });
     return { success: true, message: "Switched to monthly billing" };
   } catch (error) {
-    console.error("[Stripe Hardening] switchToMonthly error:", error);
+    logger.error("[Stripe Hardening] switchToMonthly error:", error);
     return { success: false, message: "Failed to switch to monthly billing" };
   }
 }

@@ -12,6 +12,9 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { routeNotification } from "./notification-system";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("growth-intelligence-engine");
 export class GrowthIntelligenceEngine {
   private engineName = "GrowthIntelligenceEngine";
 
@@ -23,7 +26,7 @@ export class GrowthIntelligenceEngine {
     const autonomous = await isAutonomousMode(userId);
     if (!autonomous) return;
 
-    console.log(`[GrowthIntelligenceEngine] Starting daily cycle for user ${userId}`);
+    logger.info(`[GrowthIntelligenceEngine] Starting daily cycle for user ${userId}`);
 
     try {
       // 1. Gather Data
@@ -129,7 +132,7 @@ Return ONLY valid JSON matching this structure:
       });
 
     } catch (err: any) {
-      console.error(`[GrowthIntelligenceEngine] Error in daily cycle for user ${userId}:`, err);
+      logger.error(`[GrowthIntelligenceEngine] Error in daily cycle for user ${userId}:`, err);
     }
   }
 
@@ -137,7 +140,7 @@ Return ONLY valid JSON matching this structure:
    * Schedules the daily cycle to run at 7 AM for all autonomous users.
    */
   scheduleAt7am(): void {
-    console.log("[GrowthIntelligenceEngine] Scheduling daily cycle at 7 AM.");
+    logger.info("[GrowthIntelligenceEngine] Scheduling daily cycle at 7 AM.");
     setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 7 && now.getMinutes() === 0) {
@@ -149,11 +152,11 @@ Return ONLY valid JSON matching this structure:
           `);
           for (const row of (result as any).rows ?? []) {
             await this.dailyGrowthCycle(row.user_id as string).catch((err: any) =>
-              console.error(`[GrowthEngine] Daily cycle error for ${row.user_id}:`, err)
+              logger.error(`[GrowthEngine] Daily cycle error for ${row.user_id}:`, err)
             );
           }
         } catch (err: any) {
-          console.error("[GrowthEngine] Failed to fetch autonomous users:", err);
+          logger.error("[GrowthEngine] Failed to fetch autonomous users:", err);
         }
       }
     }, 60_000);

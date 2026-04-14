@@ -3,6 +3,9 @@ import { db } from "../db";
 import { copilotConversations, videos, channels, scheduleItems } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("copilot-engine");
 export interface CopilotMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -406,7 +409,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
 
     return { response: responseContent, toolCalls: [], suggestedActions };
   } catch (err: any) {
-    console.error("[CopilotEngine] Error processing message:", err);
+    logger.error("[CopilotEngine] Error processing message:", err);
     return {
       response: "I encountered an error processing your request. Please try again.",
       toolCalls: [],
@@ -458,7 +461,7 @@ export async function getCopilotHistory(userId: string, sessionId: string, limit
       toolCalls: row.toolCalls ?? undefined
     }));
   } catch (err: any) {
-    console.error("[CopilotEngine] Error fetching history:", err);
+    logger.error("[CopilotEngine] Error fetching history:", err);
     return [];
   }
 }
@@ -469,7 +472,7 @@ export async function clearCopilotSession(userId: string, sessionId: string): Pr
       and(eq(copilotConversations.userId, userId), eq(copilotConversations.sessionId, sessionId))
     );
   } catch (err: any) {
-    console.error("[CopilotEngine] Error clearing session:", err);
+    logger.error("[CopilotEngine] Error clearing session:", err);
   }
 }
 
@@ -492,7 +495,7 @@ export async function getCopilotSessions(userId: string): Promise<Array<{ sessio
       lastMessageAt: r.lastMessageAt
     }));
   } catch (err: any) {
-    console.error("[CopilotEngine] Error fetching sessions:", err);
+    logger.error("[CopilotEngine] Error fetching sessions:", err);
     return [];
   }
 }

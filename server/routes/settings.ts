@@ -21,7 +21,10 @@ import {
   toggleAutoApply, updateApplicationStatus, generateApplicationGuide,
   activateMonetization, runComplianceCheck,
 } from "../growth-programs-engine";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("settings");
 export function registerSettingsRoutes(app: Express) {
   const writeRateLimit = rateLimitEndpoint(30, 60000);
   const deleteRateLimit = rateLimitEndpoint(10, 60000);
@@ -259,7 +262,7 @@ export function registerSettingsRoutes(app: Express) {
       });
       res.json({ success: true, profile });
     } catch (error: any) {
-      console.error("Style scan error:", error);
+      logger.error("Style scan error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   }));
@@ -443,7 +446,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await generateDailyBriefing(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -455,7 +458,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await getHealthScore(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -467,7 +470,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await processActionItems(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -485,7 +488,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await updateAgentScorecard(userId, parsed.data.agentId, parsed.data.taskResult as any);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -497,7 +500,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await generateGrowthPrediction(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -509,7 +512,7 @@ export function registerSettingsRoutes(app: Express) {
       const result = await getContentDnaProfile(userId);
       res.json(result);
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -530,7 +533,7 @@ export function registerSettingsRoutes(app: Express) {
         nicheResearched: research ? "yes" : "not yet",
       });
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -548,7 +551,7 @@ export function registerSettingsRoutes(app: Express) {
       const research = await researchYouTubeNiche(userId, niche);
       res.json({ success: true, research });
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -566,7 +569,7 @@ export function registerSettingsRoutes(app: Express) {
       const analysis = await analyzeVideoPerformanceAndLearn(userId, Number(videoId));
       res.json({ success: true, analysis });
     } catch (error: any) {
-      console.error("Error:", error);
+      logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -579,7 +582,7 @@ export function registerSettingsRoutes(app: Express) {
       const programs = await getUserGrowthPrograms(userId);
       res.json(programs);
     } catch (error: any) {
-      console.error("Growth programs error:", error);
+      logger.error("Growth programs error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -591,7 +594,7 @@ export function registerSettingsRoutes(app: Express) {
       const recommendations = await generateGrowthRecommendations(userId);
       res.json(recommendations || { prioritizedPrograms: [], crossPlatformStrategy: "", quickWins: [], longTermGoals: [] });
     } catch (error: any) {
-      console.error("Growth recommendations error:", error);
+      logger.error("Growth recommendations error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -614,7 +617,7 @@ export function registerSettingsRoutes(app: Express) {
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
-      console.error("Update metrics error:", error);
+      logger.error("Update metrics error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -632,7 +635,7 @@ export function registerSettingsRoutes(app: Express) {
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
-      console.error("Auto-apply toggle error:", error);
+      logger.error("Auto-apply toggle error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -652,7 +655,7 @@ export function registerSettingsRoutes(app: Express) {
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
-      console.error("Application status error:", error);
+      logger.error("Application status error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -678,7 +681,7 @@ export function registerSettingsRoutes(app: Express) {
 
       res.json(guide);
     } catch (error: any) {
-      console.error("Guide generation error:", error);
+      logger.error("Guide generation error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -693,7 +696,7 @@ export function registerSettingsRoutes(app: Express) {
       }
       res.json({ success: true, count: programs.length });
     } catch (error: any) {
-      console.error("Enable all auto-apply error:", error);
+      logger.error("Enable all auto-apply error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -708,7 +711,7 @@ export function registerSettingsRoutes(app: Express) {
       if (!updated) return res.status(404).json({ message: "Program not found" });
       res.json(updated);
     } catch (error: any) {
-      console.error("Activate monetization error:", error);
+      logger.error("Activate monetization error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -720,7 +723,7 @@ export function registerSettingsRoutes(app: Express) {
       const results = await runComplianceCheck(userId);
       res.json(results);
     } catch (error: any) {
-      console.error("Compliance check error:", error);
+      logger.error("Compliance check error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
   }));
@@ -797,7 +800,7 @@ export function registerSettingsRoutes(app: Express) {
       res.setHeader("Content-Type", "application/json");
       res.json(exportData);
     } catch (e: any) {
-      console.error("Data export error:", e);
+      logger.error("Data export error:", e);
       res.status(500).json({ error: "Failed to export data. Please try again." });
     }
   }));
@@ -825,7 +828,7 @@ export function registerSettingsRoutes(app: Express) {
         scheduledDeletion: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
     } catch (e: any) {
-      console.error("Deletion request error:", e);
+      logger.error("Deletion request error:", e);
       res.status(500).json({ error: "Failed to process deletion request. Please try again." });
     }
   }));
@@ -973,7 +976,7 @@ export function registerSettingsRoutes(app: Express) {
 
       res.json({ steps, completedCount: steps.filter(s => s.completed).length, totalCount: steps.length });
     } catch (error: any) {
-      console.error("[Onboarding] Checklist fetch error:", error);
+      logger.error("[Onboarding] Checklist fetch error:", error);
       res.status(500).json({ message: "Failed to fetch checklist" });
     }
   }));
@@ -1003,7 +1006,7 @@ export function registerSettingsRoutes(app: Express) {
       }
       res.json({ success: true, stepId, completed: true });
     } catch (error: any) {
-      console.error("[Onboarding] Step complete error:", error);
+      logger.error("[Onboarding] Step complete error:", error);
       res.status(500).json({ message: "Failed to mark step complete" });
     }
   }));

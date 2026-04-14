@@ -62,6 +62,9 @@ function checkEmailRateLimit(email: string, maxAttempts: number = 8, windowMs: n
 }
 
 import { registerCleanup } from "../../services/cleanup-coordinator";
+import { createLogger } from "../../lib/logger";
+
+const logger = createLogger("routes");
 registerCleanup("authRateLimit", () => {
   const cutoff = Date.now() - 60_000;
   for (const [key, timestamps] of authRateLimiter) {
@@ -139,7 +142,7 @@ export function registerAuthRoutes(app: Express): void {
 
       req.login(sessionUser, async (loginErr: any) => {
         if (loginErr) {
-          console.error("Register login error:", loginErr);
+          logger.error("Register login error:", loginErr);
           return res.status(500).json({ message: "Account created but login failed. Please try logging in." });
         }
 
@@ -148,7 +151,7 @@ export function registerAuthRoutes(app: Express): void {
             const { initializeUserSystems } = await import("../../services/post-login-init");
             await initializeUserSystems(user.id);
           } catch (e) {
-            console.error("[EmailAuth] Post-login init failed:", e);
+            logger.error("[EmailAuth] Post-login init failed:", e);
           }
         }
 
@@ -160,24 +163,24 @@ export function registerAuthRoutes(app: Express): void {
             signupSource: req.headers.referer,
           });
         } catch (profileErr) {
-          console.error("Customer profile update error (non-critical):", profileErr);
+          logger.error("Customer profile update error (non-critical):", profileErr);
         }
 
         const ip = req.ip || req.socket?.remoteAddress || "unknown";
         try {
           await recordLoginAttempt(ip, user.id, true, req.headers["user-agent"] || "");
         } catch (e) {
-          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+          logger.error("[Auth] recordLoginAttempt error (non-critical):", e);
         }
 
         req.session.save((saveErr: any) => {
-          if (saveErr) console.error("Register session save error:", saveErr);
+          if (saveErr) logger.error("Register session save error:", saveErr);
           const { passwordHash: _, ...safeUser } = user;
           res.json({ ok: true, user: safeUser });
         });
       });
     } catch (error: any) {
-      console.error("Registration error:", error);
+      logger.error("Registration error:", error);
       res.status(500).json({ message: "Registration failed. Please try again." });
     }
   });
@@ -210,7 +213,7 @@ export function registerAuthRoutes(app: Express): void {
         try {
           await recordLoginAttempt(ip, null, false, userAgent, "Invalid email");
         } catch (e) {
-          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+          logger.error("[Auth] recordLoginAttempt error (non-critical):", e);
         }
         return res.status(401).json({ message: "Invalid email or password" });
       }
@@ -220,7 +223,7 @@ export function registerAuthRoutes(app: Express): void {
         try {
           await recordLoginAttempt(ip, user.id, false, userAgent, "Invalid password");
         } catch (e) {
-          console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+          logger.error("[Auth] recordLoginAttempt error (non-critical):", e);
         }
 
         const updatedLock = await checkAccountLock(user.id);
@@ -237,7 +240,7 @@ export function registerAuthRoutes(app: Express): void {
       try {
         await recordLoginAttempt(ip, user.id, true, userAgent);
       } catch (e) {
-        console.error("[Auth] recordLoginAttempt error (non-critical):", e);
+        logger.error("[Auth] recordLoginAttempt error (non-critical):", e);
       }
 
       const sessionUser = {
@@ -253,7 +256,7 @@ export function registerAuthRoutes(app: Express): void {
 
       req.login(sessionUser, async (loginErr: any) => {
         if (loginErr) {
-          console.error("Login error:", loginErr);
+          logger.error("Login error:", loginErr);
           return res.status(500).json({ message: "Login failed. Please try again." });
         }
 
@@ -262,24 +265,24 @@ export function registerAuthRoutes(app: Express): void {
             const { initializeUserSystems } = await import("../../services/post-login-init");
             await initializeUserSystems(user.id);
           } catch (e) {
-            console.error("[EmailAuth] Post-login init failed:", e);
+            logger.error("[EmailAuth] Post-login init failed:", e);
           }
         }
 
         try {
           await updateCustomerActivity(user.id);
         } catch (profileErr) {
-          console.error("Customer activity update error (non-critical):", profileErr);
+          logger.error("Customer activity update error (non-critical):", profileErr);
         }
 
         req.session.save((saveErr: any) => {
-          if (saveErr) console.error("Login session save error:", saveErr);
+          if (saveErr) logger.error("Login session save error:", saveErr);
           const { passwordHash: _, ...safeUser } = user;
           res.json({ ok: true, user: safeUser });
         });
       });
     } catch (error: any) {
-      console.error("Login error:", error);
+      logger.error("Login error:", error);
       res.status(500).json({ message: "Login failed. Please try again." });
     }
   });
@@ -293,7 +296,7 @@ export function registerAuthRoutes(app: Express): void {
       const { email } = parsed.data;
       res.json({ ok: true, message: "If an account with that email exists, you will receive a password reset link shortly." });
     } catch (error: any) {
-      console.error("Forgot password error:", error);
+      logger.error("Forgot password error:", error);
       res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });
@@ -338,13 +341,13 @@ export function registerAuthRoutes(app: Express): void {
         });
         await updateCustomerActivity(userId);
       } catch (profileErr) {
-        console.error("Customer profile update error (non-critical):", profileErr);
+        logger.error("Customer profile update error (non-critical):", profileErr);
       }
 
       const { passwordHash: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error) {
-      console.error("Error fetching user:", error);
+      logger.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });

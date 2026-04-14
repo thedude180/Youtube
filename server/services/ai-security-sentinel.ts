@@ -11,6 +11,9 @@ import {
 } from "./security-fortress";
 import { getAllBreakerStats } from "./circuit-breaker";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("ai-security-sentinel");
 type Finding = {
   category: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
@@ -59,7 +62,7 @@ async function scanBruteForce(): Promise<Finding[]> {
         await adjustRateLimit(r.ip, "suspicious");
       }
     }
-  } catch (e) { console.error("[AI Sentinel] Brute force scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Brute force scan error:", e); }
   return findings;
 }
 
@@ -95,7 +98,7 @@ async function scanSuspiciousIps(): Promise<Finding[]> {
         fixDescription: "Throttled to 50 req/min via adaptive rate limiting",
       });
     }
-  } catch (e) { console.error("[AI Sentinel] IP scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] IP scan error:", e); }
   return findings;
 }
 
@@ -124,7 +127,7 @@ async function scanCircuitBreakers(): Promise<Finding[]> {
         });
       }
     }
-  } catch (e) { console.error("[AI Sentinel] Circuit breaker scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Circuit breaker scan error:", e); }
   return findings;
 }
 
@@ -178,7 +181,7 @@ async function scanSecurityEvents(): Promise<Finding[]> {
         });
       }
     }
-  } catch (e) { console.error("[AI Sentinel] Security events scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Security events scan error:", e); }
   return findings;
 }
 
@@ -221,7 +224,7 @@ async function scanThreatPatterns(): Promise<Finding[]> {
         updatedAt: new Date(),
       }).where(eq(threatPatterns.id, p.id));
     }
-  } catch (e) { console.error("[AI Sentinel] Threat pattern scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Threat pattern scan error:", e); }
   return findings;
 }
 
@@ -252,7 +255,7 @@ async function scanSessionAnomalies(): Promise<Finding[]> {
         fixDescription: "Source IPs reputation adjusted",
       });
     }
-  } catch (e) { console.error("[AI Sentinel] Session scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Session scan error:", e); }
   return findings;
 }
 
@@ -290,7 +293,7 @@ async function scanLockoutHealth(): Promise<Finding[]> {
         fixDescription: "Stale lockout records purged",
       });
     }
-  } catch (e) { console.error("[AI Sentinel] Lockout scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Lockout scan error:", e); }
   return findings;
 }
 
@@ -320,7 +323,7 @@ async function scanRateLimitEffectiveness(): Promise<Finding[]> {
         autoFixed: false,
       });
     }
-  } catch (e) { console.error("[AI Sentinel] Rate limit scan error:", e); }
+  } catch (e) { logger.error("[AI Sentinel] Rate limit scan error:", e); }
   return findings;
 }
 
@@ -352,7 +355,7 @@ export async function runFullSecurityScan(triggeredBy: string = "automated"): Pr
       const findings = await mod.fn();
       allFindings.push(...findings);
     } catch (e) {
-      console.error(`[AI Sentinel] Module ${mod.name} failed:`, e);
+      logger.error(`[AI Sentinel] Module ${mod.name} failed:`, e);
       allFindings.push({
         category: "scan_error",
         severity: "medium",
@@ -424,7 +427,7 @@ export async function getLatestScanResult(): Promise<SecurityScanResult | null> 
       duration: scan.duration || 0,
     };
   } catch (e) {
-    console.error("[AI Sentinel] getLatestScanResult error:", e);
+    logger.error("[AI Sentinel] getLatestScanResult error:", e);
     return null;
   }
 }
@@ -435,7 +438,7 @@ export async function getScanHistory(limit: number = 50): Promise<any[]> {
       .orderBy(desc(securityScans.createdAt))
       .limit(limit);
   } catch (e) {
-    console.error("[AI Sentinel] getScanHistory error:", e);
+    logger.error("[AI Sentinel] getScanHistory error:", e);
     return [];
   }
 }
@@ -447,14 +450,14 @@ export function startSentinel(): void {
   sentinelRunning = true;
 
   setTimeout(() => {
-    runFullSecurityScan("startup").catch(e => console.error("[AI Sentinel] Startup scan failed:", e));
+    runFullSecurityScan("startup").catch(e => logger.error("[AI Sentinel] Startup scan failed:", e));
   }, 10_000);
 
   sentinelInterval = setInterval(async () => {
     try {
       await runFullSecurityScan("automated");
     } catch (e) {
-      console.error("[AI Sentinel] Scheduled scan failed:", e);
+      logger.error("[AI Sentinel] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

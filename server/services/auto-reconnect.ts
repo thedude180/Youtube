@@ -5,6 +5,9 @@ import { eq, and, lt, isNotNull } from "drizzle-orm";
 import { sendGmail } from "./gmail-client";
 import { OAUTH_CONFIGS } from "../oauth-config";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("auto-reconnect");
 const REQUIRED_CONSECUTIVE_FAILURES = 2;
 const EMAIL_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days between emails per user
 
@@ -156,7 +159,7 @@ async function sendConsolidatedReconnectEmail(userId: string, platforms: string[
 
     return sent;
   } catch (err) {
-    console.error(`[AutoReconnect] Failed to send email:`, err);
+    logger.error(`[AutoReconnect] Failed to send email:`, err);
     return false;
   }
 }
@@ -222,7 +225,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
       }
     }
   } catch (err) {
-    console.error("[AutoReconnect] Proactive health check error:", err);
+    logger.error("[AutoReconnect] Proactive health check error:", err);
   }
 
   return { checked, refreshed, emailsSent };

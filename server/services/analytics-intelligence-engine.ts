@@ -5,6 +5,9 @@ import { storage } from "../storage";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getEngineKnowledgeForContext } from "./knowledge-mesh";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("analytics-intelligence-engine");
 const SCAN_INTERVAL_MS = 2 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
@@ -195,7 +198,7 @@ export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Analytics Engine] aggregateUnifiedMetrics error:", e);
+    logger.error("[Analytics Engine] aggregateUnifiedMetrics error:", e);
   }
 }
 
@@ -298,7 +301,7 @@ async function generateTrendForecasts(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Analytics Engine] generateTrendForecasts error:", e);
+    logger.error("[Analytics Engine] generateTrendForecasts error:", e);
   }
 }
 
@@ -342,7 +345,7 @@ async function trackCompetitors(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Analytics Engine] trackCompetitors error:", e);
+    logger.error("[Analytics Engine] trackCompetitors error:", e);
   }
 }
 
@@ -451,7 +454,7 @@ export async function computeAlgorithmHealth(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error("[Analytics Engine] computeAlgorithmHealth error:", e);
+    logger.error("[Analytics Engine] computeAlgorithmHealth error:", e);
   }
 }
 
@@ -550,7 +553,7 @@ export async function generatePerformanceBenchmarks(userId: string): Promise<voi
     }
 
   } catch (e) {
-    console.error("[Analytics Engine] generatePerformanceBenchmarks error:", e);
+    logger.error("[Analytics Engine] generatePerformanceBenchmarks error:", e);
   }
 }
 
@@ -572,7 +575,7 @@ export async function runAnalyticsScan(): Promise<{ usersScanned: number; durati
         await computeAlgorithmHealth(userId);
         await generatePerformanceBenchmarks(userId);
       } catch (e) {
-        console.error(`[Analytics Engine] Error scanning user ${userId}:`, e);
+        logger.error(`[Analytics Engine] Error scanning user ${userId}:`, e);
       }
     }
 
@@ -582,7 +585,7 @@ export async function runAnalyticsScan(): Promise<{ usersScanned: number; durati
 
     return { usersScanned: userIds.length, duration };
   } catch (e) {
-    console.error("[Analytics Engine] runAnalyticsScan error:", e);
+    logger.error("[Analytics Engine] runAnalyticsScan error:", e);
     return { usersScanned: 0, duration: Date.now() - startTime };
   }
 }
@@ -595,14 +598,14 @@ export function startAnalyticsIntelligenceEngine(): void {
 
 
   setTimeout(() => {
-    runAnalyticsScan().catch(e => console.error("[Analytics Engine] Startup scan failed:", e));
+    runAnalyticsScan().catch(e => logger.error("[Analytics Engine] Startup scan failed:", e));
   }, 50_000);
 
   analyticsInterval = setInterval(async () => {
     try {
       await runAnalyticsScan();
     } catch (e) {
-      console.error("[Analytics Engine] Scheduled scan failed:", e);
+      logger.error("[Analytics Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

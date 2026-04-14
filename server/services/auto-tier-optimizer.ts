@@ -57,6 +57,9 @@ function cleanupLastRecommended(): void {
 }
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("auto-tier-optimizer");
 registerCleanup("tierRecommend", cleanupLastRecommended, 5 * 60 * 1000);
 
 export function stopTierCleanup(): void {}
@@ -181,11 +184,11 @@ export async function runTierOptimizationForAllUsers(): Promise<{ analyzed: numb
           recommended++;
         }
       } catch (err) {
-        console.error(`[TierOptimizer] Error analyzing user ${user.id}:`, err);
+        logger.error(`[TierOptimizer] Error analyzing user ${user.id}:`, err);
       }
     }
   } catch (err) {
-    console.error("[TierOptimizer] Batch optimization error:", err);
+    logger.error("[TierOptimizer] Batch optimization error:", err);
   }
 
   return { analyzed, recommended };

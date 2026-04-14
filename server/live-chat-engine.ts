@@ -9,7 +9,10 @@ import {
   simulateTypingDelay,
   getActivityWindow,
 } from "./human-behavior-engine";
+import { createLogger } from "./lib/logger";
 
+
+const logger = createLogger("live-chat-engine");
 const openai = getOpenAIClient();
 
 const PLATFORM_CHAT_STYLE: Record<string, string> = {
@@ -231,7 +234,7 @@ CRITICAL RULES:
       delay,
     };
   } catch (err) {
-    console.error("[LiveChat] AI response error:", err);
+    logger.error("[LiveChat] AI response error:", err);
     return null;
   }
 }

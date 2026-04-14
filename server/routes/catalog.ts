@@ -4,7 +4,10 @@ import {
   retryFailedCatalogItems, syncPlatformCatalog, syncAllPlatformCatalogs,
   getCatalogByPlatform, getPlatformCatalogSummary,
 } from "../services/channel-catalog-sync";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("catalog");
 export function registerCatalogRoutes(app: Express): void {
   app.get("/api/catalog/status", async (req: Request, res: Response) => {
     try {
@@ -70,7 +73,7 @@ export function registerCatalogRoutes(app: Express): void {
         const { refreshAllUserChannelStats } = await import("../youtube");
         await refreshAllUserChannelStats(userId);
       } catch (statsErr: any) {
-        console.warn(`[CatalogSync] Channel stats refresh failed: ${statsErr?.message?.substring(0, 200)}`);
+        logger.warn(`[CatalogSync] Channel stats refresh failed: ${statsErr?.message?.substring(0, 200)}`);
       }
 
       const results = await syncAllPlatformCatalogs(userId);

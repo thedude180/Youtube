@@ -12,10 +12,9 @@ import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 
-const logger = {
-  info: (msg: string) => console.log(`[live-raid-scout] ${msg}`),
-  warn: (msg: string) => console.warn(`[live-raid-scout] WARN ${msg}`),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-raid-scout");
 
 const openai = getOpenAIClient();
 const SCOUT_INTERVAL_MS = 30 * 60 * 1000;

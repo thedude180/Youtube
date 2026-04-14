@@ -46,6 +46,9 @@ function cleanupMaps(): void {
 }
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("security-fortress");
 registerCleanup("fortress", cleanupMaps, 60_000);
 
 export function stopFortressCleanup(): void {}
@@ -116,7 +119,7 @@ export async function recordLoginAttempt(ip: string, userId: string | null, succ
       await unlockAccount(userId || ip);
       await updateIpReputation(ip, "successful_auth");
     }
-  } catch (error) { console.error("[Security Fortress] recordLoginAttempt error:", error); }
+  } catch (error) { logger.error("[Security Fortress] recordLoginAttempt error:", error); }
 }
 
 export async function checkAccountLock(identifier: string): Promise<{ locked: boolean; lockedUntil: Date | null; failedAttempts: number }> {
@@ -131,7 +134,7 @@ export async function checkAccountLock(identifier: string): Promise<{ locked: bo
     if (lockout.permanent) return { locked: true, lockedUntil: null, failedAttempts: lockout.failedAttempts };
     if (lockout.lockedUntil && new Date() < lockout.lockedUntil) return { locked: true, lockedUntil: lockout.lockedUntil, failedAttempts: lockout.failedAttempts };
     return { locked: false, lockedUntil: null, failedAttempts: lockout.failedAttempts };
-  } catch (error) { console.error("[Security Fortress] checkAccountLock error:", error); return { locked: false, lockedUntil: null, failedAttempts: 0 }; }
+  } catch (error) { logger.error("[Security Fortress] checkAccountLock error:", error); return { locked: false, lockedUntil: null, failedAttempts: 0 }; }
 }
 
 export async function lockAccount(identifier: string, type: string, reason: string, durationMinutes?: number): Promise<void> {
@@ -143,12 +146,12 @@ export async function lockAccount(identifier: string, type: string, reason: stri
     } else {
       await db.insert(accountLockouts).values({ identifier, lockType: type, reason, lockedUntil, permanent: !durationMinutes, failedAttempts: 1 });
     }
-  } catch (error) { console.error("[Security Fortress] lockAccount error:", error); }
+  } catch (error) { logger.error("[Security Fortress] lockAccount error:", error); }
 }
 
 export async function unlockAccount(identifier: string): Promise<void> {
   try { await db.delete(accountLockouts).where(eq(accountLockouts.identifier, identifier)); }
-  catch (error) { console.error("[Security Fortress] unlockAccount error:", error); }
+  catch (error) { logger.error("[Security Fortress] unlockAccount error:", error); }
 }
 
 // ==================== IP REPUTATION SYSTEM ====================
@@ -162,7 +165,7 @@ export async function getIpReputation(ip: string): Promise<{ score: number; tota
     await db.insert(ipReputations).values({ ipAddress: ip, reputationScore: score, totalRequests: 0, blockedRequests: 0, ...det }).onConflictDoNothing();
     return { score, totalRequests: 0, blockedRequests: 0, ...det, firstSeen: new Date(), lastSeen: new Date() };
   } catch (error) {
-    console.error("[Security Fortress] getIpReputation error:", error);
+    logger.error("[Security Fortress] getIpReputation error:", error);
     return { score: 50, totalRequests: 0, blockedRequests: 0, isVpn: false, isTor: false, isProxy: false, firstSeen: null, lastSeen: null };
   }
 }
@@ -185,19 +188,19 @@ export async function updateIpReputation(ip: string, event: string): Promise<voi
       lastSeen: new Date(),
     }).where(eq(ipReputations.ipAddress, ip));
     if (newScore < 10) await lockAccount(ip, "ip", `Auto-blocked: IP reputation dropped to ${newScore}`);
-  } catch (error) { console.error("[Security Fortress] updateIpReputation error:", error); }
+  } catch (error) { logger.error("[Security Fortress] updateIpReputation error:", error); }
 }
 
 export async function isIpSuspicious(ip: string): Promise<boolean> {
   try { return (await getIpReputation(ip)).score < 30; }
-  catch (error) { console.error("[Security Fortress] isIpSuspicious error:", error); return false; }
+  catch (error) { logger.error("[Security Fortress] isIpSuspicious error:", error); return false; }
 }
 
 export async function getTopSuspiciousIps(limit: number = 20): Promise<Array<{ ip: string; score: number; blockedRequests: number; isVpn: boolean; isTor: boolean }>> {
   try {
     const results = await db.select().from(ipReputations).where(lt(ipReputations.reputationScore, 50)).orderBy(ipReputations.reputationScore).limit(limit);
     return results.map(r => ({ ip: r.ipAddress, score: r.reputationScore, blockedRequests: r.blockedRequests || 0, isVpn: r.isVpn || false, isTor: r.isTor || false }));
-  } catch (error) { console.error("[Security Fortress] getTopSuspiciousIps error:", error); return []; }
+  } catch (error) { logger.error("[Security Fortress] getTopSuspiciousIps error:", error); return []; }
 }
 
 // ==================== BEHAVIORAL ANALYSIS ====================
@@ -263,7 +266,7 @@ export function getBehaviorScore(ip: string): number {
 export async function registerThreatPattern(name: string, type: string, signature: string, severity: string): Promise<{ id: number } | null> {
   // AUDIT FIX: Validate regex at insertion time to prevent ReDoS from malformed or adversarially complex patterns
   try { new RegExp(signature); } catch (e) {
-    console.error("[Security Fortress] registerThreatPattern: invalid regex rejected:", signature);
+    logger.error("[Security Fortress] registerThreatPattern: invalid regex rejected:", signature);
     return null;
   }
   try {
@@ -272,14 +275,14 @@ export async function registerThreatPattern(name: string, type: string, signatur
       autoGenerated: false, hitCount: 0, falsePositives: 0, confidence: 0.8, enabled: true,
     }).returning({ id: threatPatterns.id });
     return result;
-  } catch (error) { console.error("[Security Fortress] registerThreatPattern error:", error); return null; }
+  } catch (error) { logger.error("[Security Fortress] registerThreatPattern error:", error); return null; }
 }
 
 // AUDIT FIX: Read-only listing of threat patterns; does not mutate hitCount unlike matchThreatPatterns
 export async function listThreatPatterns() {
   try {
     return await db.select().from(threatPatterns).where(eq(threatPatterns.enabled, true));
-  } catch (error) { console.error("[Security Fortress] listThreatPatterns error:", error); return []; }
+  } catch (error) { logger.error("[Security Fortress] listThreatPatterns error:", error); return []; }
 }
 
 export async function matchThreatPatterns(input: string): Promise<Array<{ id: number; name: string; type: string; severity: string; matched: boolean }>> {
@@ -301,7 +304,7 @@ export async function matchThreatPatterns(input: string): Promise<Array<{ id: nu
       await db.update(threatPatterns).set({ hitCount: sql`${threatPatterns.hitCount} + 1`, updatedAt: new Date() }).where(inArray(threatPatterns.id, hitIds));
     }
     return matches;
-  } catch (error) { console.error("[Security Fortress] matchThreatPatterns error:", error); return []; }
+  } catch (error) { logger.error("[Security Fortress] matchThreatPatterns error:", error); return []; }
 }
 
 export async function autoGenerateRule(event: { eventType: string; endpoint: string; ipAddress: string; details?: Record<string, any> }): Promise<{ success: boolean; patternId?: number }> {
@@ -326,7 +329,7 @@ export async function autoGenerateRule(event: { eventType: string; endpoint: str
       return { success: true, patternId: result.id };
     }
     return { success: false };
-  } catch (error) { console.error("[Security Fortress] autoGenerateRule error:", error); return { success: false }; }
+  } catch (error) { logger.error("[Security Fortress] autoGenerateRule error:", error); return { success: false }; }
 }
 
 // ==================== SESSION SECURITY ====================
@@ -348,7 +351,7 @@ export async function validateSession(userId: string, ip: string, userAgent: str
     }
     sessionMap.set(key, { ip, userAgent, lastSeen: Date.now() });
     return { valid: true };
-  } catch (error) { console.error("[Security Fortress] validateSession error:", error); return { valid: true }; }
+  } catch (error) { logger.error("[Security Fortress] validateSession error:", error); return { valid: true }; }
 }
 
 export async function invalidateAllSessions(userId: string, reason: string): Promise<void> {
@@ -356,7 +359,7 @@ export async function invalidateAllSessions(userId: string, reason: string): Pro
     sessionMap.delete(`session_${userId}`);
     await createSecurityAlert(userId, "sessions_invalidated", "info", "All Sessions Invalidated", `All sessions invalidated. Reason: ${reason}`);
     await db.insert(securityEvents).values({ userId, eventType: "sessions_invalidated", severity: "info", details: { reason }, blocked: false });
-  } catch (error) { console.error("[Security Fortress] invalidateAllSessions error:", error); }
+  } catch (error) { logger.error("[Security Fortress] invalidateAllSessions error:", error); }
 }
 
 export function getActiveSessions(userId: string): Array<{ ip: string; userAgent: string; lastSeen: number }> {
@@ -369,7 +372,7 @@ export function getActiveSessions(userId: string): Array<{ ip: string; userAgent
 export async function createSecurityAlert(userId: string | undefined, type: string, severity: string, title: string, message: string): Promise<void> {
   try {
     await db.insert(securityAlerts).values({ userId: userId || null, alertType: type, severity, title, message, acknowledged: false });
-  } catch (error) { console.error("[Security Fortress] createSecurityAlert error:", error); }
+  } catch (error) { logger.error("[Security Fortress] createSecurityAlert error:", error); }
 }
 
 export async function getUnacknowledgedAlerts(userId: string): Promise<Array<{ id: number; type: string; severity: string; title: string; message: string; createdAt: Date | null }>> {
@@ -378,14 +381,14 @@ export async function getUnacknowledgedAlerts(userId: string): Promise<Array<{ i
       .where(and(eq(securityAlerts.userId, userId), eq(securityAlerts.acknowledged, false)))
       .orderBy(desc(securityAlerts.createdAt)).limit(50);
     return alerts.map(a => ({ id: a.id, type: a.alertType, severity: a.severity, title: a.title, message: a.message, createdAt: a.createdAt }));
-  } catch (error) { console.error("[Security Fortress] getUnacknowledgedAlerts error:", error); return []; }
+  } catch (error) { logger.error("[Security Fortress] getUnacknowledgedAlerts error:", error); return []; }
 }
 
 export async function acknowledgeAlert(alertId: number, userId: string): Promise<boolean> {
   try {
     await db.update(securityAlerts).set({ acknowledged: true, acknowledgedAt: new Date() }).where(and(eq(securityAlerts.id, alertId), eq(securityAlerts.userId, userId)));
     return true;
-  } catch (error) { console.error("[Security Fortress] acknowledgeAlert error:", error); return false; }
+  } catch (error) { logger.error("[Security Fortress] acknowledgeAlert error:", error); return false; }
 }
 
 // ==================== ADAPTIVE RATE LIMITING ====================
@@ -397,12 +400,12 @@ export async function getAdaptiveRateLimit(ip: string): Promise<{ allowed: boole
     if (score < 40) return { allowed: true, maxRequestsPerMinute: 50, currentScore: score, tier: "low" };
     if (score < 80) return { allowed: true, maxRequestsPerMinute: 200, currentScore: score, tier: "medium" };
     return { allowed: true, maxRequestsPerMinute: 500, currentScore: score, tier: "good" };
-  } catch (error) { console.error("[Security Fortress] getAdaptiveRateLimit error:", error); return { allowed: true, maxRequestsPerMinute: 200, currentScore: 50, tier: "medium" }; }
+  } catch (error) { logger.error("[Security Fortress] getAdaptiveRateLimit error:", error); return { allowed: true, maxRequestsPerMinute: 200, currentScore: 50, tier: "medium" }; }
 }
 
 export async function adjustRateLimit(ip: string, behavior: "good" | "suspicious" | "malicious"): Promise<void> {
   try { await updateIpReputation(ip, { good: "successful_auth", suspicious: "suspicious_pattern", malicious: "attack" }[behavior]); }
-  catch (error) { console.error("[Security Fortress] adjustRateLimit error:", error); }
+  catch (error) { logger.error("[Security Fortress] adjustRateLimit error:", error); }
 }
 
 // ==================== DATA RETENTION ENGINE ====================
@@ -412,7 +415,7 @@ export async function seedRetentionPolicies(): Promise<void> {
     for (const p of RETENTION_DEFAULTS) {
       await db.insert(dataRetentionPolicies).values({ tableName: p.tableName, retentionDays: p.retentionDays, enabled: true, rowsPurged: 0 }).onConflictDoNothing();
     }
-  } catch (error) { console.error("[Security Fortress] seedRetentionPolicies error:", error); }
+  } catch (error) { logger.error("[Security Fortress] seedRetentionPolicies error:", error); }
 }
 
 export async function runDataRetention(): Promise<{ policiesProcessed: number; totalRowsPurged: number; details: Array<{ table: string; rowsPurged: number }> }> {
@@ -423,7 +426,7 @@ export async function runDataRetention(): Promise<{ policiesProcessed: number; t
     for (const policy of policies) {
       try {
         if (!ALLOWED_RETENTION_TABLES.has(policy.tableName)) {
-          console.warn(`[Security Fortress] Skipping unauthorized table "${policy.tableName}" in retention policy`);
+          logger.warn(`[Security Fortress] Skipping unauthorized table "${policy.tableName}" in retention policy`);
           continue;
         }
         const cutoff = new Date(Date.now() - policy.retentionDays * 86400000);
@@ -432,10 +435,10 @@ export async function runDataRetention(): Promise<{ policiesProcessed: number; t
         totalPurged += purged;
         details.push({ table: policy.tableName, rowsPurged: purged });
         await db.update(dataRetentionPolicies).set({ lastPurgedAt: new Date(), rowsPurged: sql`${dataRetentionPolicies.rowsPurged} + ${purged}` }).where(eq(dataRetentionPolicies.id, policy.id));
-      } catch (e) { console.error(`[Security Fortress] Retention error for ${policy.tableName}:`, e); details.push({ table: policy.tableName, rowsPurged: 0 }); }
+      } catch (e) { logger.error(`[Security Fortress] Retention error for ${policy.tableName}:`, e); details.push({ table: policy.tableName, rowsPurged: 0 }); }
     }
     return { policiesProcessed: policies.length, totalRowsPurged: totalPurged, details };
-  } catch (error) { console.error("[Security Fortress] runDataRetention error:", error); return { policiesProcessed: 0, totalRowsPurged: 0, details }; }
+  } catch (error) { logger.error("[Security Fortress] runDataRetention error:", error); return { policiesProcessed: 0, totalRowsPurged: 0, details }; }
 }
 
 // ==================== GDPR COMPLIANCE ====================
@@ -444,11 +447,11 @@ export async function exportUserData(userId: string): Promise<Record<string, any
   const out: Record<string, any[]> = {};
   try {
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`SELECT * FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); if (r.rows?.length) out[t] = r.rows; } catch (e: any) { console.warn(`[SecurityFortress] exportUserData skipped table ${t}:`, e?.message); continue; }
+      try { const r = await db.execute(sql`SELECT * FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); if (r.rows?.length) out[t] = r.rows; } catch (e: any) { logger.warn(`[SecurityFortress] exportUserData skipped table ${t}:`, e?.message); continue; }
     }
     await db.insert(securityEvents).values({ userId, eventType: "gdpr_data_export", severity: "info", details: { tablesExported: Object.keys(out).length, totalRecords: Object.values(out).reduce((s, a) => s + a.length, 0) }, blocked: false });
     return out;
-  } catch (error) { console.error("[Security Fortress] exportUserData error:", error); return out; }
+  } catch (error) { logger.error("[Security Fortress] exportUserData error:", error); return out; }
 }
 
 export async function deleteUserData(userId: string): Promise<{ success: boolean; tablesAffected: number; totalRowsDeleted: number }> {
@@ -456,10 +459,10 @@ export async function deleteUserData(userId: string): Promise<{ success: boolean
   try {
     await db.insert(securityEvents).values({ userId, eventType: "gdpr_data_deletion_started", severity: "high", details: { requestedAt: new Date().toISOString() }, blocked: false });
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`DELETE FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); const d = Number(r.rowCount) || 0; if (d > 0) { tables++; rows += d; } } catch (e: any) { console.warn(`[SecurityFortress] deleteUserData skipped table ${t}:`, e?.message); continue; }
+      try { const r = await db.execute(sql`DELETE FROM ${sql.identifier(t)} WHERE user_id = ${userId}`); const d = Number(r.rowCount) || 0; if (d > 0) { tables++; rows += d; } } catch (e: any) { logger.warn(`[SecurityFortress] deleteUserData skipped table ${t}:`, e?.message); continue; }
     }
     return { success: true, tablesAffected: tables, totalRowsDeleted: rows };
-  } catch (error) { console.error("[Security Fortress] deleteUserData error:", error); return { success: false, tablesAffected: tables, totalRowsDeleted: rows }; }
+  } catch (error) { logger.error("[Security Fortress] deleteUserData error:", error); return { success: false, tablesAffected: tables, totalRowsDeleted: rows }; }
 }
 
 export async function anonymizeUserData(userId: string): Promise<{ success: boolean; tablesAnonymized: number }> {
@@ -467,11 +470,11 @@ export async function anonymizeUserData(userId: string): Promise<{ success: bool
   const anonId = `anon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   try {
     for (const t of USER_TABLES) {
-      try { const r = await db.execute(sql`UPDATE ${sql.identifier(t)} SET user_id = ${anonId} WHERE user_id = ${userId}`); if (Number(r.rowCount) > 0) anonymized++; } catch (e: any) { console.warn(`[SecurityFortress] anonymizeUserData skipped table ${t}:`, e?.message); continue; }
+      try { const r = await db.execute(sql`UPDATE ${sql.identifier(t)} SET user_id = ${anonId} WHERE user_id = ${userId}`); if (Number(r.rowCount) > 0) anonymized++; } catch (e: any) { logger.warn(`[SecurityFortress] anonymizeUserData skipped table ${t}:`, e?.message); continue; }
     }
-    try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize login_attempts", e?.message); }
-    try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { console.warn("[SecurityFortress] Failed to anonymize security_events", e?.message); }
+    try { await db.execute(sql`UPDATE login_attempts SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { logger.warn("[SecurityFortress] Failed to anonymize login_attempts", e?.message); }
+    try { await db.execute(sql`UPDATE security_events SET ip_address = '0.0.0.0', user_agent = 'anonymized' WHERE user_id = ${anonId}`); } catch (e: any) { logger.warn("[SecurityFortress] Failed to anonymize security_events", e?.message); }
     await db.insert(securityEvents).values({ userId: anonId, eventType: "gdpr_data_anonymized", severity: "info", details: { originalUserId: "redacted", anonymizedTo: anonId, tablesAnonymized: anonymized }, blocked: false });
     return { success: true, tablesAnonymized: anonymized };
-  } catch (error) { console.error("[Security Fortress] anonymizeUserData error:", error); return { success: false, tablesAnonymized: anonymized }; }
+  } catch (error) { logger.error("[Security Fortress] anonymizeUserData error:", error); return { success: false, tablesAnonymized: anonymized }; }
 }

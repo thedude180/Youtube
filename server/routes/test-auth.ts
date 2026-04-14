@@ -12,6 +12,9 @@
 
 import type { Express } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("test-auth");
 const TEST_ADMIN_USER_ID = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
 const TEST_ADMIN_EMAIL = "admin@creatorOS.dev";
 
@@ -68,5 +71,5 @@ export function registerTestAuthRoutes(app: Express): void {
     });
   });
 
-  console.log("[test-auth] Dev test auth routes registered: POST /api/__test/login, POST /api/__test/logout, GET /api/__test/whoami");
+  logger.info("[test-auth] Dev test auth routes registered: POST /api/__test/login, POST /api/__test/logout, GET /api/__test/whoami");
 }

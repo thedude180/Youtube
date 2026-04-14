@@ -4,6 +4,9 @@ import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("traffic-growth-engine");
 const openai = getOpenAIClient();
 
 const LEGIT_STRATEGY_TYPES = [
@@ -141,7 +144,7 @@ Respond with JSON:
   if (!content) return { strategies: [] };
 
   let plan: any;
-  try { plan = JSON.parse(content); } catch { console.error("[TrafficGrowth] Failed to parse AI response"); return { strategies: [] }; }
+  try { plan = JSON.parse(content); } catch { logger.error("[TrafficGrowth] Failed to parse AI response"); return { strategies: [] }; }
 
   const BANNED_TACTICS = [
     "bot", "bots", "sub4sub", "sub 4 sub", "view exchange", "view swap",
@@ -314,7 +317,7 @@ Respond with JSON:
       keywordsApplied: applied,
     };
   } catch (err: any) {
-    console.error(`[KeywordEngine] Relevance check failed:`, err.message);
+    logger.error(`[KeywordEngine] Relevance check failed:`, err.message);
     return { optimizedTags: currentTags, optimizedDescription: currentDescription, keywordsApplied: [] };
   }
 }
@@ -330,7 +333,7 @@ export async function runTrafficGrowthCycle() {
       await generateTrafficStrategies(userId);
       totalProcessed++;
     } catch (err: any) {
-      console.error(`[TrafficEngine] Failed for user ${userId}:`, err.message);
+      logger.error(`[TrafficEngine] Failed for user ${userId}:`, err.message);
     }
   }
 

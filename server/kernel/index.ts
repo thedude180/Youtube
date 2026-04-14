@@ -22,7 +22,10 @@ import {
   startCorrelation,
   endCorrelation,
 } from "../services/resilience-observability";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("index");
 function getHmacSecret(): string {
   const secret = process.env.KERNEL_HMAC_SECRET || process.env.SESSION_SECRET;
   if (!secret) {
@@ -217,7 +220,7 @@ export async function routeToDLQ(
       payload,
     });
   } catch (feedErr: any) {
-    console.error("[kernel] Failed to feed DLQ to exception desk:", feedErr?.message);
+    logger.error("[kernel] Failed to feed DLQ to exception desk:", feedErr?.message);
   }
 
   return item.id;
@@ -288,7 +291,7 @@ export async function routeCommand(
           return { success: false, reason: `internal-rate-limit-exceeded`, correlationId, retryAfterMs: rl.retryAfterMs };
         }
       } catch (err: any) {
-        console.warn("[kernel] internal rate limiter check failed:", err?.message);
+        logger.warn("[kernel] internal rate limiter check failed:", err?.message);
       }
     }
 
@@ -333,7 +336,7 @@ export async function routeCommand(
         recordMetric("kernel.governance.contradiction_penalty", 1, "count", { actionType, contradictions: String(gc.contradictionCount) });
       }
     } catch (err: any) {
-      console.warn("[kernel] governance confidence lookup failed, using base confidence:", err?.message);
+      logger.warn("[kernel] governance confidence lookup failed, using base confidence:", err?.message);
     }
 
     const approval = await checkApprovalViaGovernance(actionType, userId, effectiveConfidence);
@@ -352,7 +355,7 @@ export async function routeCommand(
           metadata: { actionType, executionKey, reason: approval.reason, decision: approval.decision, correlationId },
         });
       } catch (feedErr: any) {
-        console.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
+        logger.error("[kernel] Failed to feed approval denial to exception desk:", feedErr?.message);
       }
       recordMetric("kernel.command.denied", 1, "count", { actionType, decision: approval.decision || "denied" });
       return { success: false, reason: approval.reason, correlationId };
@@ -431,7 +434,7 @@ export async function routeCommand(
       const domain = inferDomainFromActionType(actionType);
       const gc = await getGovernedConfidenceForDomain(userId, domain);
       governedConfidenceData = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
-    } catch (err: any) { console.warn("[Kernel] Governed confidence lookup failed:", err?.message || err); }
+    } catch (err: any) { logger.warn("[Kernel] Governed confidence lookup failed:", err?.message || err); }
 
     const decisionTheater = {
       whatChanged: options.decisionTheater?.whatChanged || actionType,

@@ -3,6 +3,9 @@ import { deadLetterQueue } from "@shared/schema";
 import { eq, desc, and, lte, count, asc } from "drizzle-orm";
 import { registerMap } from "./resilience-core";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("automation-hardening");
 const PRIORITY_LEVELS = {
   CRITICAL: 1,
   HIGH: 3,
@@ -46,7 +49,7 @@ export async function addToDeadLetter(
       payload,
     });
   } catch (feedErr: any) {
-    console.error("[automation-hardening] Failed to feed DLQ to exception desk:", feedErr?.message);
+    logger.error("[automation-hardening] Failed to feed DLQ to exception desk:", feedErr?.message);
   }
 
   return item;
@@ -100,7 +103,7 @@ export async function processDeadLetterQueue() {
       await retryDeadLetterItem(item.id);
       processed++;
     } catch (err: any) {
-      console.error(`[DLQ] Failed processing item ${item.id}:`, err.message);
+      logger.error(`[DLQ] Failed processing item ${item.id}:`, err.message);
     }
   }
 

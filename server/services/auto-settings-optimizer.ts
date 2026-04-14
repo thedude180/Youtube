@@ -23,6 +23,9 @@ function cleanupLastOptimized(): void {
 }
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("auto-settings-optimizer");
 registerCleanup("settings", cleanupLastOptimized, 5 * 60 * 1000);
 
 export function stopSettingsCleanup(): void {}
@@ -1265,7 +1268,7 @@ export async function autoOptimizeSettings(userId: string): Promise<Optimization
       changes,
     };
   } catch (err) {
-    console.error(`[AutoSettings] Optimization error for ${userId}:`, err);
+    logger.error(`[AutoSettings] Optimization error for ${userId}:`, err);
     return { optimized: false, summary: "Optimization error", changes: [] };
   }
 }

@@ -1498,7 +1498,7 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
       response_format: { type: "json_object" }
     });
   } catch (aiErr: any) {
-    console.error(`[ai-team] Agent ${task.agentRole} AI call failed:`, aiErr.message);
+    logger.error(`[ai-team] Agent ${task.agentRole} AI call failed:`, aiErr.message);
     return { result: { action: task.taskType, output: `AI call failed: ${aiErr.message}`, error: true } };
   }
 

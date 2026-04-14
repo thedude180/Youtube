@@ -4,6 +4,9 @@ import { db } from "./db";
 import { channels } from "@shared/schema";
 import { eq, lt, and, isNotNull } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("token-refresh");
 interface RefreshResult {
   success: boolean;
   accessToken?: string;
@@ -35,7 +38,7 @@ async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshR
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[TokenRefresh:google] Failed:`, errText);
+      logger.error(`[TokenRefresh:google] Failed:`, errText);
 
       if (errText.includes("invalid_grant") || errText.includes("Token has been expired or revoked")) {
         return { success: false, error: "Google token expired - user needs to re-authorize YouTube" };
@@ -54,9 +57,9 @@ async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshR
     const isAbort = e?.name === "AbortError" || String(e).includes("AbortError");
     const isNetwork = e?.code === "ECONNRESET" || e?.code === "ECONNREFUSED" || String(e).includes("fetch failed");
     if (isAbort || isNetwork) {
-      console.warn(`[TokenRefresh:google] Transient network error: ${String(e).substring(0, 100)}`);
+      logger.warn(`[TokenRefresh:google] Transient network error: ${String(e).substring(0, 100)}`);
     } else {
-      console.error("[TokenRefresh:google] Error:", e);
+      logger.error("[TokenRefresh:google] Error:", e);
     }
     return { success: false, error: String(e) };
   }
@@ -108,7 +111,7 @@ async function refreshTokenOnce(platform: Platform, currentRefreshToken: string)
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error(`[TokenRefresh:${platform}] Failed (${res.status}):`, errText);
+      logger.error(`[TokenRefresh:${platform}] Failed (${res.status}):`, errText);
 
       const isPermanentlyDead =
         (errText.includes("invalid_grant") && !errText.includes("invalid_grant_type")) ||
@@ -135,9 +138,9 @@ async function refreshTokenOnce(platform: Platform, currentRefreshToken: string)
     const isAbort = e?.name === "AbortError" || String(e).includes("AbortError");
     const isNetwork = e?.code === "ECONNRESET" || e?.code === "ECONNREFUSED" || String(e).includes("fetch failed");
     if (isAbort || isNetwork) {
-      console.warn(`[TokenRefresh:${platform}] Transient network error: ${String(e).substring(0, 100)}`);
+      logger.warn(`[TokenRefresh:${platform}] Transient network error: ${String(e).substring(0, 100)}`);
     } else {
-      console.error(`[TokenRefresh:${platform}] Error:`, e);
+      logger.error(`[TokenRefresh:${platform}] Error:`, e);
     }
     return { success: false, error: String(e) };
   }
@@ -153,12 +156,12 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
 
   const isTransient = result.error && !result.error.includes("Token expired") && !result.error.includes("re-authorize");
   if (isTransient) {
-    console.log(`[TokenRefresh:${platform}] Transient failure, retrying in 3s...`);
+    logger.info(`[TokenRefresh:${platform}] Transient failure, retrying in 3s...`);
     await new Promise(r => setTimeout(r, 3000));
     const retry = await refreshTokenOnce(platform, currentRefreshToken);
     if (retry.success) return retry;
 
-    console.log(`[TokenRefresh:${platform}] Retry 2 in 5s...`);
+    logger.info(`[TokenRefresh:${platform}] Retry 2 in 5s...`);
     await new Promise(r => setTimeout(r, 5000));
     return refreshTokenOnce(platform, currentRefreshToken);
   }
@@ -236,7 +239,7 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           const failures = (pd._permanentFailures || 0) + 1;
           if (failures >= PERMANENT_FAILURE_THRESHOLD) {
             await markChannelExpired(ch.id, pd);
-            console.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
+            logger.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
           } else {
             // Don't wipe the token yet — wait for more failures to confirm it's truly dead
             await db.update(channels).set({
@@ -247,16 +250,16 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
                 _lastFailureAt: new Date().toISOString(),
               },
             }).where(eq(channels.id, ch.id));
-            console.warn(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}) — will retry`);
+            logger.warn(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}) — will retry`);
           }
         } else {
-          console.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
+          logger.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
         }
         failed++;
       }
     }
   } catch (e) {
-    console.error("[TokenRefresh] Error checking expiring tokens:", e);
+    logger.error("[TokenRefresh] Error checking expiring tokens:", e);
   }
 
   return { refreshed, failed };
@@ -269,7 +272,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
   let kept = 0;
   let failed = 0;
 
-  console.log("[TokenKeepalive] Starting daily keepalive for all active channels...");
+  logger.info("[TokenKeepalive] Starting daily keepalive for all active channels...");
 
   try {
     const activeChannels = await db.select().from(channels).where(
@@ -292,7 +295,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
         const lastAttempt = pd._lastKeepaliveAttempt ? new Date(pd._lastKeepaliveAttempt).getTime() : 0;
         if (Date.now() - lastAttempt < 4 * 60 * 60 * 1000) continue; // too soon, try again later
         // Fall through to attempt refresh
-        console.log(`[TokenKeepalive] Retrying expired channel ${ch.platform} (attempt ${failures + 1}/${PERMANENT_FAILURE_THRESHOLD})`);
+        logger.info(`[TokenKeepalive] Retrying expired channel ${ch.platform} (attempt ${failures + 1}/${PERMANENT_FAILURE_THRESHOLD})`);
         await db.update(channels).set({
           platformData: { ...pd, _lastKeepaliveAttempt: new Date().toISOString() },
         }).where(eq(channels.id, ch.id));
@@ -330,7 +333,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
             const failures = (pd._permanentFailures || 0) + 1;
             if (failures >= PERMANENT_FAILURE_THRESHOLD) {
               await markChannelExpired(ch.id, pd);
-              console.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
+              logger.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
             } else {
               await db.update(channels).set({
                 platformData: { ...pd, _connectionStatus: "degraded", _permanentFailures: failures, _lastFailureAt: new Date().toISOString() },
@@ -340,7 +343,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
           failed++;
         }
       } catch (e) {
-        console.warn(`[TokenKeepalive] Error refreshing ${ch.platform} channel ${ch.id}:`, e);
+        logger.warn(`[TokenKeepalive] Error refreshing ${ch.platform} channel ${ch.id}:`, e);
         failed++;
       }
 
@@ -348,9 +351,9 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
       await new Promise(r => setTimeout(r, 200));
     }
   } catch (e) {
-    console.error("[TokenKeepalive] Error during keepalive:", e);
+    logger.error("[TokenKeepalive] Error during keepalive:", e);
   }
 
-  console.log(`[TokenKeepalive] Done — ${kept} kept alive, ${failed} failed`);
+  logger.info(`[TokenKeepalive] Done — ${kept} kept alive, ${failed} failed`);
   return { kept, failed };
 }

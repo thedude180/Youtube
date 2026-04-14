@@ -10,6 +10,9 @@ import {
 } from "./human-behavior-engine";
 import crypto from "crypto";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("empire-launcher");
 function generateBuildToken(): string {
   return crypto.randomBytes(24).toString("hex");
 }
@@ -153,7 +156,7 @@ export async function launchEmpire(email: string, idea: string): Promise<{ build
   }).returning();
 
   runEmpireBuild(build.id, email.trim().toLowerCase(), idea.trim(), buildToken).catch(err => {
-    console.error(`[EmpireLauncher] Unhandled error in build ${build.id}:`, err.message);
+    logger.error(`[EmpireLauncher] Unhandled error in build ${build.id}:`, err.message);
   });
 
   return { buildToken, buildId: build.id };
@@ -196,7 +199,7 @@ async function runEmpireBuild(buildId: number, email: string, idea: string, buil
     try {
       blueprint = await buildEmpireFromIdea(userId, idea);
     } catch (bpErr: any) {
-      console.error(`[EmpireLauncher] CATASTROPHIC: Blueprint generation failed for build ${buildId}:`, bpErr.message);
+      logger.error(`[EmpireLauncher] CATASTROPHIC: Blueprint generation failed for build ${buildId}:`, bpErr.message);
       await db.update(empireBuilds).set({
         stage: "failed",
         progress: -1,
@@ -235,7 +238,7 @@ async function runEmpireBuild(buildId: number, email: string, idea: string, buil
       const launchResult = await autoLaunchEmpireContent(userId, 3);
       videosLaunched = launchResult.totalLaunched;
     } catch (err: any) {
-      console.error(`[EmpireLauncher] Auto-launch failed for build ${buildId}:`, err.message);
+      logger.error(`[EmpireLauncher] Auto-launch failed for build ${buildId}:`, err.message);
     }
 
     await updateBuildStage(buildId, "seeding_autopilot", 80, "Seeding 14-day autopilot schedule across all platforms...", { videosLaunched });
@@ -246,7 +249,7 @@ async function runEmpireBuild(buildId: number, email: string, idea: string, buil
     try {
       autopilotCount = await seedAutopilotForUser(userId);
     } catch (err: any) {
-      console.error(`[EmpireLauncher] Autopilot seed failure for build ${buildId}:`, err.message);
+      logger.error(`[EmpireLauncher] Autopilot seed failure for build ${buildId}:`, err.message);
     }
 
     await db
@@ -269,7 +272,7 @@ async function runEmpireBuild(buildId: number, email: string, idea: string, buil
     });
 
   } catch (err: any) {
-    console.error(`[EmpireLauncher] CATASTROPHIC failure for build ${buildId}:`, err.message);
+    logger.error(`[EmpireLauncher] CATASTROPHIC failure for build ${buildId}:`, err.message);
 
     const failureReason = err.message || "Unknown error during empire build";
     const currentStage = (await db.select().from(empireBuilds).where(eq(empireBuilds.id, buildId)).limit(1))?.[0]?.stage || "unknown";

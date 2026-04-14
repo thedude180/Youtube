@@ -69,10 +69,10 @@ async function sendSmsNotification(phone: string, title: string, message: string
     if (response.ok) {
       return true;
     }
-    console.error(`[Notifications] SMS failed (${response.status})`);
+    logger.error(`[Notifications] SMS failed (${response.status})`);
     return false;
   } catch (err) {
-    console.error("[Notifications] SMS error:", err);
+    logger.error("[Notifications] SMS error:", err);
     return false;
   }
 }
@@ -81,6 +81,9 @@ const recentNotifications = new Map<string, number>();
 const NOTIFICATION_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("notifications");
 registerCleanup("recentNotifications", () => {
   const now = Date.now();
   for (const [key, ts] of recentNotifications) {
@@ -104,7 +107,7 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
   try {
     const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
     if (!user) {
-      console.warn(`[Notifications] User not found: ${payload.userId}`);
+      logger.warn(`[Notifications] User not found: ${payload.userId}`);
       return result;
     }
 
@@ -126,7 +129,7 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
         const sent = await sendEmailNotification((user as any).email, payload.title, payload.message, payload.severity);
         result.email = sent;
       } catch (emailErr) {
-        console.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
+        logger.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
       }
     }
 
@@ -146,7 +149,7 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
           try {
             await webpush.sendNotification(sub, pushPayload);
           } catch (err: any) {
-            console.error(`[Notifications] Web Push failed for user ${payload.userId}:`, err.message);
+            logger.error(`[Notifications] Web Push failed for user ${payload.userId}:`, err.message);
             if (err.statusCode === 410 || err.statusCode === 404) {
               expiredEndpoints.push(sub.endpoint);
             }
@@ -159,13 +162,13 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
             await db.update(users).set({ userPreferences: updatedPrefs } as any).where(eq(users.id, payload.userId));
             console.info(`[Notifications] Cleaned up ${expiredEndpoints.length} expired push subscription(s) for user ${payload.userId}`);
           } catch (cleanupErr) {
-            console.error("[Notifications] Failed to clean up expired subscriptions:", cleanupErr);
+            logger.error("[Notifications] Failed to clean up expired subscriptions:", cleanupErr);
           }
         }
       }
     }
   } catch (err) {
-    console.error("[Notifications] Notify error:", err);
+    logger.error("[Notifications] Notify error:", err);
   }
 
   return result;
@@ -177,7 +180,7 @@ export async function notifyAdmin(title: string, message: string, severity: Noti
     const html = buildEmailHtml(title, message, severity);
     return sendGmail(ADMIN_EMAIL, subject, html);
   } catch (err) {
-    console.error("[Notifications] Admin notify error:", err);
+    logger.error("[Notifications] Admin notify error:", err);
     return false;
   }
 }

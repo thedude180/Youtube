@@ -205,6 +205,6 @@ setInterval(async () => {
   tickRunning = true;
   try { await healthBrain.tick(); } catch (e: any) {
     // Never let tick crash the interval
-    console.error("[HealthBrain] Tick error:", e.message);
+    logger.error("[HealthBrain] Tick error:", e.message);
   } finally { tickRunning = false; }
 }, 15_000);

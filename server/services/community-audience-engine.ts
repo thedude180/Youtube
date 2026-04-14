@@ -3,6 +3,9 @@ import { audienceSegments, churnRiskScores, reengagementCampaigns, fanMilestones
 import { eq, and, desc, gte } from "drizzle-orm";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("community-audience-engine");
 const SCAN_INTERVAL_MS = 90 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
@@ -174,7 +177,7 @@ export async function computeAudienceSegments(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error(`[Community Engine] computeAudienceSegments error for user ${userId}:`, e);
+    logger.error(`[Community Engine] computeAudienceSegments error for user ${userId}:`, e);
   }
 }
 
@@ -289,7 +292,7 @@ export async function computeChurnRisk(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error(`[Community Engine] computeChurnRisk error for user ${userId}:`, e);
+    logger.error(`[Community Engine] computeChurnRisk error for user ${userId}:`, e);
   }
 }
 
@@ -400,7 +403,7 @@ export async function generateReengagementCampaign(userId: string): Promise<void
     }
 
   } catch (e) {
-    console.error(`[Community Engine] generateReengagementCampaign error for user ${userId}:`, e);
+    logger.error(`[Community Engine] generateReengagementCampaign error for user ${userId}:`, e);
   }
 }
 
@@ -479,7 +482,7 @@ export async function checkFanMilestones(userId: string): Promise<void> {
     if (newMilestones.length > 0) {
     }
   } catch (e) {
-    console.error(`[Community Engine] checkFanMilestones error for user ${userId}:`, e);
+    logger.error(`[Community Engine] checkFanMilestones error for user ${userId}:`, e);
   }
 }
 
@@ -627,7 +630,7 @@ export async function executeAutoCommunityActions(userId: string): Promise<void>
     if (actionsCreated.length > 0) {
     }
   } catch (e) {
-    console.error(`[Community Engine] executeAutoCommunityActions error for user ${userId}:`, e);
+    logger.error(`[Community Engine] executeAutoCommunityActions error for user ${userId}:`, e);
   }
 }
 
@@ -651,14 +654,14 @@ export async function runCommunityAudienceScan(): Promise<void> {
         await checkFanMilestones(userId);
         await executeAutoCommunityActions(userId);
       } catch (e) {
-        console.error(`[Community Engine] Error processing user ${userId}:`, e);
+        logger.error(`[Community Engine] Error processing user ${userId}:`, e);
       }
     }
 
     const duration = Date.now() - startTime;
     lastScanTime = Date.now();
   } catch (e) {
-    console.error("[Community Engine] runCommunityAudienceScan error:", e);
+    logger.error("[Community Engine] runCommunityAudienceScan error:", e);
   }
 }
 
@@ -670,14 +673,14 @@ export function startCommunityAudienceEngine(): void {
 
 
   setTimeout(() => {
-    runCommunityAudienceScan().catch(e => console.error("[Community Engine] Startup scan failed:", e));
+    runCommunityAudienceScan().catch(e => logger.error("[Community Engine] Startup scan failed:", e));
   }, 30_000);
 
   communityInterval = setInterval(async () => {
     try {
       await runCommunityAudienceScan();
     } catch (e) {
-      console.error("[Community Engine] Scheduled scan failed:", e);
+      logger.error("[Community Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

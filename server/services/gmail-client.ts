@@ -2,6 +2,9 @@
 import { google } from 'googleapis';
 import { SUPPORT_EMAIL } from "@shared/models/auth";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("gmail-client");
 let connectionSettings: any;
 
 async function getAccessToken() {
@@ -100,7 +103,7 @@ export async function sendGmail(to: string, subject: string, htmlBody: string): 
         err.message?.includes("timeout") || err.message?.includes("socket hang up") ||
         err.message?.includes("invalid_grant");
       if (!isRetryable || attempt === MAX_RETRIES - 1) {
-        console.error(`[Gmail] Failed to send after ${attempt + 1} attempt(s): ${err.message}`);
+        logger.error(`[Gmail] Failed to send after ${attempt + 1} attempt(s): ${err.message}`);
         return false;
       }
       const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500;

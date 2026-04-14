@@ -1,6 +1,9 @@
 import type { Platform } from "@shared/schema";
 import { withRetry } from "./lib/retry";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("platform-data-fetcher");
 export interface PlatformFetchedData {
   streamKey?: string;
   rtmpUrl?: string;
@@ -29,7 +32,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:twitch] Stream key fetch failed:", e);
+    logger.error("[PlatformFetcher:twitch] Stream key fetch failed:", e);
   }
 
   try {
@@ -47,7 +50,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:twitch] Channel info fetch failed:", e);
+    logger.error("[PlatformFetcher:twitch] Channel info fetch failed:", e);
   }
 
   try {
@@ -64,7 +67,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:twitch] User fetch failed:", e);
+    logger.error("[PlatformFetcher:twitch] User fetch failed:", e);
   }
 
   try {
@@ -74,7 +77,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
       result.followerCount = data.total || 0;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:twitch] Follower count fetch failed:", e);
+    logger.error("[PlatformFetcher:twitch] Follower count fetch failed:", e);
   }
 
   try {
@@ -100,7 +103,7 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
       result.platformData!.totalViewCount = totalViewCount;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:twitch] Videos fetch failed:", e);
+    logger.error("[PlatformFetcher:twitch] Videos fetch failed:", e);
   }
 
   return result;
@@ -131,12 +134,12 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
             }
           }
         } catch (e) {
-          console.error("[PlatformFetcher:facebook] Live video fetch failed:", e);
+          logger.error("[PlatformFetcher:facebook] Live video fetch failed:", e);
         }
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:facebook] Pages fetch failed:", e);
+    logger.error("[PlatformFetcher:facebook] Pages fetch failed:", e);
   }
 
   try {
@@ -148,7 +151,7 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
       result.platformData!.profilePicture = data.picture?.data?.url;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:facebook] Profile fetch failed:", e);
+    logger.error("[PlatformFetcher:facebook] Profile fetch failed:", e);
   }
 
   return result;
@@ -176,7 +179,7 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:tiktok] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:tiktok] User info fetch failed:", e);
   }
 
   try {
@@ -196,7 +199,7 @@ async function fetchTikTokData(accessToken: string, channelId: string): Promise<
       result.platformData!.recentVideoCount = videos.length;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:tiktok] Video list fetch failed:", e);
+    logger.error("[PlatformFetcher:tiktok] Video list fetch failed:", e);
   }
 
   return result;
@@ -216,7 +219,7 @@ async function fetchInstagramData(accessToken: string, channelId: string): Promi
       result.platformData!.mediaCount = data.media_count;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:instagram] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:instagram] User info fetch failed:", e);
   }
 
   return result;
@@ -239,7 +242,7 @@ async function fetchLinkedInData(accessToken: string, channelId: string): Promis
       result.platformData!.emailVerified = data.email_verified;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:linkedin] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:linkedin] User info fetch failed:", e);
   }
 
   return result;
@@ -262,7 +265,7 @@ async function fetchDiscordData(accessToken: string, channelId: string): Promise
       result.platformData!.premiumType = data.premium_type;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:discord] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:discord] User info fetch failed:", e);
   }
 
   try {
@@ -279,7 +282,7 @@ async function fetchDiscordData(accessToken: string, channelId: string): Promise
       result.platformData!.guildCount = guilds.length;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:discord] Guilds fetch failed:", e);
+    logger.error("[PlatformFetcher:discord] Guilds fetch failed:", e);
   }
 
   return result;
@@ -306,7 +309,7 @@ async function fetchRedditData(accessToken: string, channelId: string): Promise<
       result.platformData!.isGold = data.is_gold;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:reddit] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:reddit] User info fetch failed:", e);
   }
 
   return result;
@@ -332,7 +335,7 @@ async function fetchPinterestData(accessToken: string, channelId: string): Promi
       result.platformData!.accountType = data.account_type;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:pinterest] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:pinterest] User info fetch failed:", e);
   }
 
   return result;
@@ -356,7 +359,7 @@ async function fetchSpotifyData(accessToken: string, channelId: string): Promise
       result.platformData!.images = data.images;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:spotify] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:spotify] User info fetch failed:", e);
   }
 
   return result;
@@ -389,7 +392,7 @@ async function fetchPatreonData(accessToken: string, channelId: string): Promise
       result.platformData!.campaigns = campaigns.map((c: any) => ({ id: c.id, name: c.attributes?.creation_name, patronCount: c.attributes?.patron_count }));
     }
   } catch (e) {
-    console.error("[PlatformFetcher:patreon] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:patreon] User info fetch failed:", e);
   }
 
   return result;
@@ -412,7 +415,7 @@ async function fetchSnapchatData(accessToken: string, channelId: string): Promis
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:snapchat] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:snapchat] User info fetch failed:", e);
   }
 
   return result;
@@ -432,7 +435,7 @@ async function fetchThreadsData(accessToken: string, channelId: string): Promise
       result.platformData!.biography = data.threads_biography;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:threads] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:threads] User info fetch failed:", e);
   }
 
   return result;
@@ -459,7 +462,7 @@ async function fetchMastodonData(accessToken: string, channelId: string): Promis
       result.platformData!.bot = data.bot;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:mastodon] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:mastodon] User info fetch failed:", e);
   }
 
   return result;
@@ -486,7 +489,7 @@ async function fetchTrovoData(accessToken: string, channelId: string): Promise<P
       result.platformData!.info = data.info;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:trovo] User info fetch failed:", e);
+    logger.error("[PlatformFetcher:trovo] User info fetch failed:", e);
   }
 
   try {
@@ -503,7 +506,7 @@ async function fetchTrovoData(accessToken: string, channelId: string): Promise<P
       }
     }
   } catch (e) {
-    console.error("[PlatformFetcher:trovo] Channel fetch failed:", e);
+    logger.error("[PlatformFetcher:trovo] Channel fetch failed:", e);
   }
 
   return result;
@@ -517,7 +520,7 @@ async function fetchKickData(accessToken: string, channelId: string): Promise<Pl
     result.rtmpUrl = "rtmp://fa723fc1b171.global-contribute.live-video.net/app";
     result.platformData!.connectionStatus = "connected";
   } catch (e) {
-    console.error("[PlatformFetcher:kick] Fetch failed:", e);
+    logger.error("[PlatformFetcher:kick] Fetch failed:", e);
   }
 
   return result;
@@ -582,7 +585,7 @@ async function fetchWhatsAppData(accessToken: string, channelId: string): Promis
       result.platformData!.businessName = data.name;
     }
   } catch (e) {
-    console.error("[PlatformFetcher:whatsapp] Business info fetch failed:", e);
+    logger.error("[PlatformFetcher:whatsapp] Business info fetch failed:", e);
   }
 
   result.platformData!.connectionStatus = "connected";
@@ -624,7 +627,7 @@ export async function fetchPlatformData(platform: Platform, accessToken: string,
     const data = await fetcher(accessToken, channelId);
     return data;
   } catch (e) {
-    console.error(`[PlatformFetcher:${platform}] Error:`, e);
+    logger.error(`[PlatformFetcher:${platform}] Error:`, e);
     return { platformData: { connectionStatus: "connected", fetchError: String(e) } };
   }
 }

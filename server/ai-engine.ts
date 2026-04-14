@@ -2,6 +2,9 @@ import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { detectGameFromLearned } from "./services/web-game-lookup";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("ai-engine");
 const openai = getOpenAIClient();
 
 export type ContentNiche = 'gaming' | 'cooking' | 'tech' | 'fitness' | 'music' | 'comedy' | 'education' | 'vlogging' | 'beauty' | 'travel' | 'finance' | 'crafts' | 'automotive' | 'sports' | 'news' | 'science' | 'art' | 'photography' | 'pets' | 'asmr' | 'reaction' | 'general';
@@ -349,7 +352,7 @@ ${beats.map(b => `- ${b.beatType} at ${b.timestampMarker || '0'}s: "${b.descript
 Apply these proven retention patterns to ALL content. Every video must hook in first 3 seconds, re-hook at 30s, and maintain curiosity loops throughout.`;
       }
     } catch (err) {
-      console.error("[AIEngine] Failed to load retention beats context:", err);
+      logger.error("[AIEngine] Failed to load retention beats context:", err);
     }
   }
 
@@ -905,7 +908,7 @@ Create an engaging community post as JSON:
       parsed.stealthScore = guardrailed.stealthScore;
       parsed.safetyGrade = guardrailed.safetyGrade;
     } catch (err) {
-      console.error("[AIEngine] Failed to apply stealth guardrails to community post:", err);
+      logger.error("[AIEngine] Failed to apply stealth guardrails to community post:", err);
     }
   }
 
@@ -7078,7 +7081,7 @@ export async function aiLearningPathBuilder(data: { goal?: string; current?: str
       if (recentVideos.length > 0) {
         creatorCtx += `\nRecent content: ${recentVideos.map(v => `"${v.title}" (${(v.metadata as any)?.viewCount || 0} views)`).join(", ")}`;
       }
-    } catch (err: any) { console.warn("[AIEngine] Creator context fetch failed:", err?.message || err); }
+    } catch (err: any) { logger.warn("[AIEngine] Creator context fetch failed:", err?.message || err); }
   }
   const p = `Build a personalized learning path for a PS5/gaming content creator who streams and uploads on YouTube, Twitch, and other platforms.
 ${data.goal ? `Their stated goal: ${data.goal}` : "Goal: grow audience and monetize content"}

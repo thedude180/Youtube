@@ -2,6 +2,9 @@ import { storage } from "./storage";
 import type { Channel } from "@shared/schema";
 import { withRetry } from "./lib/retry";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("revenue-sync-engine");
 interface RevenueSyncResult {
   platform: string;
   recordsSynced: number;
@@ -158,7 +161,7 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:youtube] Error:", e.message);
+    logger.error("[RevenueSyncEngine:youtube] Error:", e.message);
   }
   return result;
 }
@@ -257,7 +260,7 @@ async function syncTwitchRevenue(channel: Channel, userId: string): Promise<Reve
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:twitch] Error:", e.message);
+    logger.error("[RevenueSyncEngine:twitch] Error:", e.message);
   }
   return result;
 }
@@ -326,7 +329,7 @@ async function syncTikTokRevenue(channel: Channel, userId: string): Promise<Reve
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:tiktok] Error:", e.message);
+    logger.error("[RevenueSyncEngine:tiktok] Error:", e.message);
   }
   return result;
 }
@@ -364,7 +367,7 @@ async function syncKickRevenue(channel: Channel, userId: string): Promise<Revenu
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:kick] Error:", e.message);
+    logger.error("[RevenueSyncEngine:kick] Error:", e.message);
   }
   return result;
 }
@@ -402,7 +405,7 @@ async function syncDiscordRevenue(channel: Channel, userId: string): Promise<Rev
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:discord] Error:", e.message);
+    logger.error("[RevenueSyncEngine:discord] Error:", e.message);
   }
   return result;
 }
@@ -452,7 +455,7 @@ async function syncStripeRevenue(userId: string): Promise<RevenueSyncResult> {
     }
   } catch (e: any) {
     result.error = e.message;
-    console.error("[RevenueSyncEngine:stripe] Error:", e.message);
+    logger.error("[RevenueSyncEngine:stripe] Error:", e.message);
   }
   return result;
 }

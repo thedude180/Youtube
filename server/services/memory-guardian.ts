@@ -140,7 +140,7 @@ setInterval(() => {
   try {
     memoryGuardian.tick();
   } catch (e) {
-    console.error("[MemoryGuardian] Error in tick:", e);
+    logger.error("[MemoryGuardian] Error in tick:", e);
   }
 }, 60_000);
 

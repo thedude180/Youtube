@@ -1,5 +1,8 @@
 import { pool } from "../db";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("resilience-core");
 const MAX_HEAP_MB = parseInt(process.env.NODE_OPTIONS?.match(/--max-old-space-size=(\d+)/)?.[1] || "512", 10);
 const HEAP_WARNING_MB = Math.floor(MAX_HEAP_MB * 0.75);
 const HEAP_CRITICAL_MB = Math.floor(MAX_HEAP_MB * 0.88);
@@ -43,9 +46,9 @@ export function isolateEngine(name: string, fn: () => Promise<void>): () => Prom
       engineCrashCounts.set(name, entry);
 
       if (entry.count >= ENGINE_CRASH_THRESHOLD) {
-        console.error(`[Resilience] Engine "${name}" crashed ${entry.count} times in ${ENGINE_CRASH_WINDOW_MS / 60000}min — suppressing further runs until cooldown`);
+        logger.error(`[Resilience] Engine "${name}" crashed ${entry.count} times in ${ENGINE_CRASH_WINDOW_MS / 60000}min — suppressing further runs until cooldown`);
       } else {
-        console.error(`[Resilience] Engine "${name}" crashed (${entry.count}/${ENGINE_CRASH_THRESHOLD}):`, String(err).substring(0, 150));
+        logger.error(`[Resilience] Engine "${name}" crashed (${entry.count}/${ENGINE_CRASH_THRESHOLD}):`, String(err).substring(0, 150));
       }
     }
   };
@@ -81,7 +84,7 @@ export function capMap<K, V>(map: Map<K, V>, maxSize: number, name: string): voi
       map.delete(key);
       deleted++;
     }
-    console.warn(`[Resilience] Capped ${name} map from ${map.size + deleted} to ${map.size} entries`);
+    logger.warn(`[Resilience] Capped ${name} map from ${map.size + deleted} to ${map.size} entries`);
   }
 }
 
@@ -98,12 +101,12 @@ export function registerMap(name: string, map: Map<any, any>, maxSize: number): 
 
 export function emergencyMemoryRelief(): void {
   totalEmergencyReliefs++;
-  console.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches and capping maps");
+  logger.warn("[Resilience] EMERGENCY memory relief — clearing all registered caches and capping maps");
 
   for (const cache of registeredCaches) {
     try {
       cache.clear();
-      console.warn(`[Resilience] Cleared cache: ${cache.name}`);
+      logger.warn(`[Resilience] Cleared cache: ${cache.name}`);
     } catch {}
   }
 
@@ -118,14 +121,14 @@ export function emergencyMemoryRelief(): void {
           map.delete(key);
           deleted++;
         }
-        console.warn(`[Resilience] Emergency-capped ${name}: ${map.size} entries (deleted ${deleted})`);
+        logger.warn(`[Resilience] Emergency-capped ${name}: ${map.size} entries (deleted ${deleted})`);
       }
     } catch {}
   }
 
   if (global.gc) {
     global.gc();
-    console.warn("[Resilience] Forced garbage collection");
+    logger.warn("[Resilience] Forced garbage collection");
   }
 }
 
@@ -146,15 +149,15 @@ async function probeDbHealth(): Promise<{ healthy: boolean; latencyMs: number }>
   } catch (err) {
     consecutiveDbFailures++;
     const latencyMs = Date.now() - start;
-    console.error(`[Resilience] DB probe failed (consecutive: ${consecutiveDbFailures}):`, String(err).substring(0, 100));
+    logger.error(`[Resilience] DB probe failed (consecutive: ${consecutiveDbFailures}):`, String(err).substring(0, 100));
 
     if (consecutiveDbFailures >= 3 && Date.now() - lastDbRecovery > 60_000) {
       lastDbRecovery = Date.now();
-      console.warn("[Resilience] Attempting DB pool recovery — draining idle connections");
+      logger.warn("[Resilience] Attempting DB pool recovery — draining idle connections");
       try {
         const idleCount = pool.idleCount;
         if (idleCount > 0) {
-          console.warn(`[Resilience] Pool has ${idleCount} idle connections, ${pool.waitingCount} waiting`);
+          logger.warn(`[Resilience] Pool has ${idleCount} idle connections, ${pool.waitingCount} waiting`);
         }
       } catch {}
     }
@@ -181,7 +184,7 @@ function runWatchdog(): void {
     lastMemoryWarning = Date.now();
   } else if (pressure.heapUsedMB > HEAP_WARNING_MB) {
     if (Date.now() - lastMemoryWarning > 300_000) {
-      console.warn(`[Resilience] Memory pressure warning: ${pressure.heapUsedMB}MB / ${MAX_HEAP_MB}MB max (${Math.round(pressure.ratio * 100)}%) RSS: ${pressure.rssMB}MB`);
+      logger.warn(`[Resilience] Memory pressure warning: ${pressure.heapUsedMB}MB / ${MAX_HEAP_MB}MB max (${Math.round(pressure.ratio * 100)}%) RSS: ${pressure.rssMB}MB`);
       lastMemoryWarning = Date.now();
     }
   }
@@ -237,7 +240,7 @@ function detectEventLoopStall(): boolean {
   const delta = now - lastHealthCheckMs;
   lastHealthCheckMs = now;
   if (delta > HEALTH_CHECK_STALL_MS) {
-    console.error(`[Resilience] EVENT LOOP STALL detected: ${delta}ms since last tick (threshold: ${HEALTH_CHECK_STALL_MS}ms)`);
+    logger.error(`[Resilience] EVENT LOOP STALL detected: ${delta}ms since last tick (threshold: ${HEALTH_CHECK_STALL_MS}ms)`);
     return true;
   }
   return false;

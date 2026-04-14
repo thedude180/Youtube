@@ -2,6 +2,9 @@ import { db } from "../db";
 import { liveLearningSignals } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-learning");
 export async function recordLiveLearning(
   userId: string,
   streamId: string,
@@ -26,7 +29,7 @@ export async function recordLiveLearning(
       { streamId, signalValue, ...context }, Math.min(1, Math.max(0, signalValue)), "live-learning"
     );
   } catch (err: any) {
-    console.error("[live-learning] governance ingestion failed:", err?.message);
+    logger.error("[live-learning] governance ingestion failed:", err?.message);
   }
 
   return row.id;

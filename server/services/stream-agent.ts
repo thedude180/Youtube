@@ -8,11 +8,9 @@ import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
-const logger = {
-  info: (msg: string, meta?: any) => console.log(`[stream-agent] ${msg}`, meta ?? ""),
-  warn: (msg: string, meta?: any) => console.warn(`[stream-agent] WARN ${msg}`, meta ?? ""),
-  error: (msg: string, meta?: any) => console.error(`[stream-agent] ERROR ${msg}`, meta ?? ""),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("stream-agent");
 
 interface ActionEntry {
   time: Date;

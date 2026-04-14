@@ -10,6 +10,9 @@ import { db } from "../db";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("automation");
 function verifyWebhookSignature(req: any, secret: string): boolean {
   if (!secret) return false;
   const signature = req.headers["x-webhook-signature"] as string | undefined;
@@ -34,7 +37,7 @@ export async function registerAutomationRoutes(app: Express) {
       const activities = await storage.getAgentActivities(userId, agentId, 100);
       res.json(activities);
     } catch (err: any) {
-      console.error("[Automation] Activities error:", err);
+      logger.error("[Automation] Activities error:", err);
       res.status(500).json({ error: "Failed to fetch activities" });
     }
   });
@@ -66,7 +69,7 @@ export async function registerAutomationRoutes(app: Express) {
       });
       res.json(agentStatus);
     } catch (err: any) {
-      console.error("[Automation] Status error:", err);
+      logger.error("[Automation] Status error:", err);
       res.status(500).json({ error: "Failed to fetch agent status" });
     }
   });
@@ -120,7 +123,7 @@ export async function registerAutomationRoutes(app: Express) {
       sendSSEEvent(userId, "dashboard-update", {});
       res.json({ success: true, activity });
     } catch (error: any) {
-      console.error(`Agent ${agentId} error:`, error);
+      logger.error(`Agent ${agentId} error:`, error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
   });
@@ -132,7 +135,7 @@ export async function registerAutomationRoutes(app: Express) {
       const rules = await storage.getAutomationRules(userId);
       res.json(rules);
     } catch (err: any) {
-      console.error("[Automation] Rules list error:", err);
+      logger.error("[Automation] Rules list error:", err);
       res.status(500).json({ error: "Failed to fetch rules" });
     }
   });
@@ -157,7 +160,7 @@ export async function registerAutomationRoutes(app: Express) {
       res.status(201).json(rule);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      console.error("Error creating automation rule:", err);
+      logger.error("Error creating automation rule:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -183,7 +186,7 @@ export async function registerAutomationRoutes(app: Express) {
       const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
       res.json(rule);
     } catch (err: any) {
-      console.error("[Automation] Update rule error:", err);
+      logger.error("[Automation] Update rule error:", err);
       res.status(500).json({ error: "Failed to update rule" });
     }
   });
@@ -199,7 +202,7 @@ export async function registerAutomationRoutes(app: Express) {
       await storage.deleteAutomationRule(id);
       res.sendStatus(204);
     } catch (err: any) {
-      console.error("[Automation] Delete rule error:", err);
+      logger.error("[Automation] Delete rule error:", err);
       res.status(500).json({ error: "Failed to delete rule" });
     }
   });
@@ -213,7 +216,7 @@ export async function registerAutomationRoutes(app: Express) {
       const items = await storage.getScheduleItems(userId, from, to);
       res.json(items);
     } catch (err: any) {
-      console.error("[Automation] Schedule list error:", err);
+      logger.error("[Automation] Schedule list error:", err);
       res.status(500).json({ error: "Failed to fetch schedule" });
     }
   });
@@ -244,7 +247,7 @@ export async function registerAutomationRoutes(app: Express) {
       res.status(201).json(item);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      console.error("Error creating schedule item:", err);
+      logger.error("Error creating schedule item:", err);
       return res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
   });
@@ -271,7 +274,7 @@ export async function registerAutomationRoutes(app: Express) {
       const item = await storage.updateScheduleItem(id, { title, scheduledAt, platform, type, status, metadata });
       res.json(item);
     } catch (err: any) {
-      console.error("[Automation] Schedule update error:", err);
+      logger.error("[Automation] Schedule update error:", err);
       res.status(500).json({ error: "Failed to update schedule item" });
     }
   });
@@ -297,7 +300,7 @@ export async function registerAutomationRoutes(app: Express) {
       const item = await storage.updateScheduleItem(id, parsed.data);
       res.json(item);
     } catch (err: any) {
-      console.error("[Automation] Schedule patch error:", err);
+      logger.error("[Automation] Schedule patch error:", err);
       res.status(500).json({ error: "Failed to update schedule item" });
     }
   });
@@ -313,7 +316,7 @@ export async function registerAutomationRoutes(app: Express) {
       await storage.deleteScheduleItem(id);
       res.sendStatus(204);
     } catch (err: any) {
-      console.error("[Automation] Schedule delete error:", err);
+      logger.error("[Automation] Schedule delete error:", err);
       res.status(500).json({ error: "Failed to delete schedule item" });
     }
   });
@@ -465,7 +468,7 @@ export async function registerAutomationRoutes(app: Express) {
       if (!existing) return res.status(404).json({ error: "Not found" });
       const result = await runChainManually(id);
       res.json(result);
-    } catch (err: any) { console.error(`[AutomationChain] Run error for chain ${id}:`, err); res.status(500).json({ error: "An internal error occurred. Please try again." }); }
+    } catch (err: any) { logger.error(`[AutomationChain] Run error for chain ${id}:`, err); res.status(500).json({ error: "An internal error occurred. Please try again." }); }
   });
 
   app.patch("/api/automation/chains/:id", async (req: any, res) => {
@@ -673,7 +676,7 @@ export async function registerAutomationRoutes(app: Express) {
       const result = await sendTestReport(userId);
       res.json(result);
     } catch (err: any) {
-      console.error("[WeeklyReport] Test endpoint error:", err);
+      logger.error("[WeeklyReport] Test endpoint error:", err);
       res.status(500).json({ success: false, message: "Failed to send test report" });
     }
   });
@@ -690,7 +693,7 @@ export async function registerAutomationRoutes(app: Express) {
     }
   });
 
-  initAutomationEngine().catch(console.error);
+  initAutomationEngine().catch((err) => logger.error("Init failed", { error: String(err) }));
 
   const { initWeeklyReportEngine } = await import("../weekly-report-engine");
   initWeeklyReportEngine();

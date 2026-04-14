@@ -7,7 +7,10 @@ import {
   getCompanyStatus,
   getCompanyCrossTeamFeed,
 } from "../team-orchestration";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("team-ops");
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) { res.sendStatus(401); return null; }
   return getUserId(req);
@@ -30,7 +33,7 @@ export function registerTeamOpsRoutes(app: Express) {
       const status = await getCompanyStatus(userId);
       res.json(status);
     } catch (err: any) {
-      console.error("[team-ops] Failed to get company status:", err?.message || err);
+      logger.error("[team-ops] Failed to get company status:", err?.message || err);
       res.json({ agents: [], totalAgents: COMPANY_ORG.length, activeNow: 0, completedToday: 0 });
     }
   });
@@ -42,7 +45,7 @@ export function registerTeamOpsRoutes(app: Express) {
       const feed = await getCompanyCrossTeamFeed(userId);
       res.json(feed);
     } catch (err: any) {
-      console.error("[team-ops] Failed to get cross-team feed:", err?.message || err);
+      logger.error("[team-ops] Failed to get cross-team feed:", err?.message || err);
       res.json([]);
     }
   });
@@ -51,6 +54,6 @@ export function registerTeamOpsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     res.json({ message: `Full company cycle initiated — all ${COMPANY_ORG.length} agents deploying`, phases: COMPANY_DEPARTMENTS.length });
-    runCompanyCycle(userId).catch((err) => { console.error("[team-ops] Cycle failed:", err?.message || err); });
+    runCompanyCycle(userId).catch((err) => { logger.error("[team-ops] Cycle failed:", err?.message || err); });
   });
 }

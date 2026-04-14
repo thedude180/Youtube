@@ -5,6 +5,9 @@ import { fireAgentEvent } from "./agent-events";
 import { eq, desc } from "drizzle-orm";
 import { jobQueue } from "./intelligent-job-queue";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("stream-lifecycle");
 export type StreamState = "idle" | "pre_live" | "live" | "ending" | "post_processing";
 
 interface ConfirmationState {
@@ -75,7 +78,7 @@ export class StreamLifecycleManager {
         }
       }
     } catch (err) {
-      console.error(`[StreamLifecycle] Error for user ${this.userId}:`, err);
+      logger.error(`[StreamLifecycle] Error for user ${this.userId}:`, err);
     }
   }
 
@@ -84,7 +87,7 @@ export class StreamLifecycleManager {
     const now = new Date();
 
     if (!pending) {
-      console.log(`[StreamLifecycle] Potential live detected for ${this.userId}, starting 3min confirmation window.`);
+      logger.info(`[StreamLifecycle] Potential live detected for ${this.userId}, starting 3min confirmation window.`);
       pendingConfirmation.set(this.userId, {
         detectedAt: now,
         videoId: result.videoId || "pending",
@@ -97,7 +100,7 @@ export class StreamLifecycleManager {
     const diffMs = now.getTime() - pending.detectedAt.getTime();
     if (diffMs >= 3 * 60 * 1000) {
       // Confirmed!
-      console.log(`[StreamLifecycle] Stream confirmed for ${this.userId} after ${diffMs/1000}s`);
+      logger.info(`[StreamLifecycle] Stream confirmed for ${this.userId} after ${diffMs/1000}s`);
       pendingConfirmation.delete(this.userId);
 
       // Capture videoId/platform while we know the stream is live
@@ -124,7 +127,7 @@ export async function transition(userId: string, newState: StreamState, context:
   const prevState = await getState(userId);
   
   if (!isValidTransition(prevState, newState)) {
-    console.warn(`[StreamLifecycle] Invalid transition attempt: ${prevState} -> ${newState} for user ${userId}`);
+    logger.warn(`[StreamLifecycle] Invalid transition attempt: ${prevState} -> ${newState} for user ${userId}`);
     return;
   }
 

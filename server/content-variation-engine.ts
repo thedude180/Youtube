@@ -7,6 +7,9 @@ import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { humanizeText } from "./ai-humanizer-engine";
 import { PLATFORM_CONTENT_SPECS } from "@shared/platform-specs";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("content-variation-engine");
 const openai = getOpenAIClient();
 
 export interface ChannelLinks {
@@ -465,7 +468,7 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
     });
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err) {
-    console.error("[ContentVariation] AI generation error:", err);
+    logger.error("[ContentVariation] AI generation error:", err);
     return "";
   }
 }

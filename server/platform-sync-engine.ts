@@ -3,6 +3,9 @@ import { sendSSEEvent } from "./routes/events";
 import { applyGuardrails, removeBannedPhrases } from "./stealth-guardrails";
 import { sanitizePlaceholders } from "./platform-publisher";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("platform-sync-engine");
 interface PlatformSyncResult {
   platform: string;
   success: boolean;
@@ -130,7 +133,7 @@ async function pushAndUpdateLocal(
       await storage.createVideoUpdateHistory(entry);
     }
   } catch (histErr) {
-    console.error(`[PlatformSync] Failed to record update history:`, histErr);
+    logger.error(`[PlatformSync] Failed to record update history:`, histErr);
   }
 
 
@@ -217,7 +220,7 @@ export async function pushVideoUpdateToYouTube(
       updates, updatedFields, "backlog_processing"
     );
   } catch (err: any) {
-    console.error(`[PlatformSync] Failed to push to YouTube for video ${videoDbId}:`, err.message);
+    logger.error(`[PlatformSync] Failed to push to YouTube for video ${videoDbId}:`, err.message);
 
     sendSSEEvent(userId, "platform_sync", {
       type: "sync_error",
@@ -292,7 +295,7 @@ export async function pushThumbnailToYouTube(
       timestamp: new Date(),
     };
   } catch (err: any) {
-    console.error(`[PlatformSync] Thumbnail push failed for video ${videoDbId}:`, err.message);
+    logger.error(`[PlatformSync] Thumbnail push failed for video ${videoDbId}:`, err.message);
     return {
       platform: "youtube",
       success: false,
@@ -369,7 +372,7 @@ export async function syncVideoAfterProcessing(
     if (result) results.push(result);
 
   } catch (err: any) {
-    console.error(`[PlatformSync] syncVideoAfterProcessing failed for video ${videoDbId}:`, err.message);
+    logger.error(`[PlatformSync] syncVideoAfterProcessing failed for video ${videoDbId}:`, err.message);
   }
 
   return results;
@@ -423,7 +426,7 @@ export async function syncPipelineResultsToYouTube(
       updates, updatedFields, `pipeline_step_${completedStep}`
     );
   } catch (err: any) {
-    console.error(`[PlatformSync] Live push failed after "${completedStep}" step:`, err.message);
+    logger.error(`[PlatformSync] Live push failed after "${completedStep}" step:`, err.message);
     return {
       platform: "youtube",
       success: false,

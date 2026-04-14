@@ -5,6 +5,9 @@ import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
 import { registerMap } from "./services/resilience-core";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("security-engine");
 const openai = getOpenAIClient();
 
 const ipFailureMap = new Map<string, { count: number; firstAttempt: number }>();
@@ -110,7 +113,7 @@ export async function initSecurityEngine() {
     }
 
   } catch (error) {
-    console.error("[Security Engine] Init error:", error);
+    logger.error("[Security Engine] Init error:", error);
   }
 }
 
@@ -148,11 +151,11 @@ export async function trackSecurityEvent(event: {
           });
         }
       } catch (sseErr) {
-        console.error("[Security Engine] Failed to send SSE security alert:", sseErr);
+        logger.error("[Security Engine] Failed to send SSE security alert:", sseErr);
       }
     }
   } catch (error) {
-    console.error("[Security Engine] Failed to track event:", error);
+    logger.error("[Security Engine] Failed to track event:", error);
   }
 }
 
@@ -322,7 +325,7 @@ export async function getSecurityDashboard() {
       threatTimeline: timeline.map((t) => ({ hour: t.hour, count: t.cnt })),
     };
   } catch (error) {
-    console.error("[Security Engine] Dashboard error:", error);
+    logger.error("[Security Engine] Dashboard error:", error);
     return {
       totalEvents: 0,
       blockedAttacks: 0,
@@ -405,7 +408,7 @@ export async function learnFromAttack(eventId: number) {
       rule: insertedRule,
     };
   } catch (error) {
-    console.error("[Security Engine] Learn error:", error);
+    logger.error("[Security Engine] Learn error:", error);
     return { success: false, message: "Failed to learn from attack" };
   }
 }
@@ -431,7 +434,7 @@ export async function getBlockedIPs() {
       blockedSince: oneHourAgo.toISOString(),
     }));
   } catch (error) {
-    console.error("[Security Engine] Blocked IPs error:", error);
+    logger.error("[Security Engine] Blocked IPs error:", error);
     return [];
   }
 }
@@ -444,7 +447,7 @@ export async function getSecurityRules() {
       .where(eq(securityRules.enabled, true))
       .orderBy(desc(securityRules.createdAt));
   } catch (error) {
-    console.error("[Security Engine] Rules error:", error);
+    logger.error("[Security Engine] Rules error:", error);
     return [];
   }
 }
@@ -482,7 +485,7 @@ export async function getSecurityStats(userId?: string) {
       recentEvents,
     };
   } catch (error) {
-    console.error("[Security Engine] Stats error:", error);
+    logger.error("[Security Engine] Stats error:", error);
     return {
       last24h: { totalEvents: 0, blockedAttacks: 0 },
       last7d: { totalEvents: 0, blockedAttacks: 0 },

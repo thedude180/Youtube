@@ -2,6 +2,9 @@ import { db } from "../db";
 import { revenueRecords, videos, streams } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("revenue-attribution");
 export interface AttributionLink {
   revenueRecordId: number;
   contentType: "video" | "stream" | "clip" | "unknown";
@@ -284,7 +287,7 @@ export async function buildAttributionGraph(userId: string): Promise<Attribution
       "revenue-attribution",
     );
   } catch (err: unknown) {
-    console.warn("[revenue-attribution] audit trail write failed:", (err as Error)?.message);
+    logger.warn("[revenue-attribution] audit trail write failed:", (err as Error)?.message);
   }
 
   return graph;

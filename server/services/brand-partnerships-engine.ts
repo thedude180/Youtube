@@ -3,6 +3,9 @@ import { sponsorshipScores, mediaKits, brandDeals, collabMatches, brandSafetyChe
 import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("brand-partnerships-engine");
 const SCAN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
@@ -173,7 +176,7 @@ export async function computeSponsorshipReadiness(userId: string): Promise<{ sco
     await upsertSponsorshipScore(userId, finalScore, signals);
     return { score: finalScore, signals };
   } catch (e) {
-    console.error(`[Brand Engine] computeSponsorshipReadiness error for ${userId}:`, e);
+    logger.error(`[Brand Engine] computeSponsorshipReadiness error for ${userId}:`, e);
     return { score: 0, signals: { error: String(e) } };
   }
 }
@@ -299,7 +302,7 @@ export async function generateMediaKit(userId: string): Promise<Record<string, a
 
     return content;
   } catch (e) {
-    console.error(`[Brand Engine] generateMediaKit error for ${userId}:`, e);
+    logger.error(`[Brand Engine] generateMediaKit error for ${userId}:`, e);
     return { error: String(e) };
   }
 }
@@ -408,7 +411,7 @@ export async function findCollabMatches(userId: string): Promise<Array<{ matchUs
 
     return topMatches;
   } catch (e) {
-    console.error(`[Brand Engine] findCollabMatches error for ${userId}:`, e);
+    logger.error(`[Brand Engine] findCollabMatches error for ${userId}:`, e);
     return [];
   }
 }
@@ -509,7 +512,7 @@ export async function runBrandSafetyCheck(userId: string): Promise<{ status: str
 
     return { status, issues };
   } catch (e) {
-    console.error(`[Brand Engine] runBrandSafetyCheck error for ${userId}:`, e);
+    logger.error(`[Brand Engine] runBrandSafetyCheck error for ${userId}:`, e);
     return { status: "clean", issues: [] };
   }
 }
@@ -578,7 +581,7 @@ export async function trackBrandDeals(userId: string): Promise<void> {
     }
 
   } catch (e) {
-    console.error(`[Brand Engine] trackBrandDeals error for ${userId}:`, e);
+    logger.error(`[Brand Engine] trackBrandDeals error for ${userId}:`, e);
   }
 }
 
@@ -638,14 +641,14 @@ export async function runBrandPartnershipsScan(): Promise<void> {
         await generateMediaKit(user.id);
         processed++;
       } catch (e) {
-        console.error(`[Brand Engine] Error processing user ${user.id}:`, e);
+        logger.error(`[Brand Engine] Error processing user ${user.id}:`, e);
       }
     }
 
     const duration = Date.now() - startTime;
     lastScanTime = Date.now();
   } catch (e) {
-    console.error("[Brand Engine] Full scan failed:", e);
+    logger.error("[Brand Engine] Full scan failed:", e);
   }
 }
 
@@ -656,14 +659,14 @@ export function startBrandPartnershipsEngine(): void {
   engineRunning = true;
 
   setTimeout(() => {
-    runBrandPartnershipsScan().catch(e => console.error("[Brand Engine] Startup scan failed:", e));
+    runBrandPartnershipsScan().catch(e => logger.error("[Brand Engine] Startup scan failed:", e));
   }, 60_000);
 
   brandInterval = setInterval(async () => {
     try {
       await runBrandPartnershipsScan();
     } catch (e) {
-      console.error("[Brand Engine] Scheduled scan failed:", e);
+      logger.error("[Brand Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

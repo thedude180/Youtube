@@ -38,6 +38,9 @@ function cleanupAutoFixLog(): void {
 }
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("autopilot-monitor");
 registerCleanup("autoFixLog", cleanupAutoFixLog, 5 * 60 * 1000);
 
 export function stopAutoFixCleanup(): void {}
@@ -81,7 +84,7 @@ const systemChecks: SystemCheck[] = [
               existingResults,
               completedSteps,
             ).catch(err => {
-              console.error(`[Autopilot:SelfHeal] Pipeline restart failed for ${pipeline.id}:`, err);
+              logger.error(`[Autopilot:SelfHeal] Pipeline restart failed for ${pipeline.id}:`, err);
             });
             restarted++;
           }
@@ -177,7 +180,7 @@ const systemChecks: SystemCheck[] = [
 
         if (stuckDrafts.length >= 3) {
           const { startBacklogProcessing } = await import("../backlog-engine");
-          await startBacklogProcessing(userId).catch(e => console.warn("[Autopilot] Backlog processing trigger failed", e?.message));
+          await startBacklogProcessing(userId).catch(e => logger.warn("[Autopilot] Backlog processing trigger failed", e?.message));
           logAutoFix(userId, "content_queue", `Triggered backlog processing for ${stuckDrafts.length} stuck drafts`);
 
           return {
@@ -234,11 +237,11 @@ const systemChecks: SystemCheck[] = [
         if (recentPublished.length === 0 && userVideos.length > 0) {
           try {
             const { processCommentResponses, processContentRecycling } = await import("../autopilot-engine");
-            await processCommentResponses(userId).catch(e => console.warn("[Autopilot] Comment responses failed", e?.message));
-            await processContentRecycling(userId).catch(e => console.warn("[Autopilot] Content recycling failed", e?.message));
+            await processCommentResponses(userId).catch(e => logger.warn("[Autopilot] Comment responses failed", e?.message));
+            await processContentRecycling(userId).catch(e => logger.warn("[Autopilot] Content recycling failed", e?.message));
             logAutoFix(userId, "autopilot_features", "Triggered content recycling due to publishing gap");
           } catch (e) {
-            console.error(`[Autopilot] Content recycling trigger failed for user ${userId}:`, e);
+            logger.error(`[Autopilot] Content recycling trigger failed for user ${userId}:`, e);
           }
 
           return {
@@ -281,7 +284,7 @@ async function runHealthChecks(): Promise<void> {
     await heartbeatMod.recordHeartbeat("autopilotMonitor", "running");
 
     const { ensureAutopilotAlwaysOn } = await import("./connection-guardian");
-    await ensureAutopilotAlwaysOn().catch(e => console.warn("[Autopilot] ensureAutopilotAlwaysOn failed", e?.message));
+    await ensureAutopilotAlwaysOn().catch(e => logger.warn("[Autopilot] ensureAutopilotAlwaysOn failed", e?.message));
 
     const activeUsers = await withRetry(() => db.select().from(users).where(eq(users.autopilotActive, true)), "monitor-active-users");
 
@@ -308,7 +311,7 @@ async function runHealthChecks(): Promise<void> {
             }
           }
         } catch (err) {
-          console.error(`[Autopilot] Check "${systemCheck.name}" failed for user ${user.id}:`, err);
+          logger.error(`[Autopilot] Check "${systemCheck.name}" failed for user ${user.id}:`, err);
         }
       }
 
@@ -316,7 +319,7 @@ async function runHealthChecks(): Promise<void> {
 
     await heartbeatMod.recordHeartbeat("autopilotMonitor", "running", Date.now() - startTime);
   } catch (err) {
-    console.error("[Autopilot] Health check cycle error:", err);
+    logger.error("[Autopilot] Health check cycle error:", err);
     const { recordHeartbeat } = await import("./engine-heartbeat");
     await recordHeartbeat("autopilotMonitor", "error", undefined, String(err));
   }
@@ -325,10 +328,10 @@ async function runHealthChecks(): Promise<void> {
 export function startAutopilotMonitor(): void {
   if (monitorInterval) return;
 
-  setTimeout(() => runHealthChecks().catch(console.error), 60_000);
+  setTimeout(() => runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) })), 60_000);
 
   monitorInterval = setInterval(() => {
-    runHealthChecks().catch(console.error);
+    runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) }));
   }, 30 * 60 * 1000);
 }
 

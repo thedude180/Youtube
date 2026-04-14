@@ -2,6 +2,9 @@ import { db } from "../db";
 import { usageMetrics } from "@shared/schema";
 import { eq, and, gte } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("usage-metering");
 const TIER_LIMITS: Record<string, Record<string, number>> = {
   free: { ai_calls: 50, videos_processed: 5, platforms: 2, posts_per_day: 5 },
   starter: { ai_calls: 500, videos_processed: 50, platforms: 4, posts_per_day: 25 },
@@ -40,7 +43,7 @@ export async function trackUsage(userId: string, metricType: string, increment: 
       return { allowed: true, current: increment, limit };
     }
   } catch (e) {
-    console.error("[UsageMetering] Error:", e);
+    logger.error("[UsageMetering] Error:", e);
     return { allowed: false, current: 0, limit: 0 };
   }
 }
@@ -67,7 +70,7 @@ export async function getUsageSummary(userId: string): Promise<Record<string, { 
     }
     return summary;
   } catch (e) {
-    console.error("[UsageMetering] Summary error:", e);
+    logger.error("[UsageMetering] Summary error:", e);
     return {};
   }
 }

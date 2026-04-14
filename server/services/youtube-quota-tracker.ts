@@ -2,6 +2,9 @@ import { db } from "../db";
 import { youtubeQuotaUsage } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("youtube-quota-tracker");
 const QUOTA_COSTS = {
   read: 1,
   list: 1,
@@ -92,7 +95,7 @@ export async function trackQuotaUsage(userId: string, operation: QuotaOperation,
       } as any)
       .where(eq(youtubeQuotaUsage.id, record.id));
   } catch (err) {
-    console.error(`[QuotaTracker] Failed to track quota for ${userId}:`, err);
+    logger.error(`[QuotaTracker] Failed to track quota for ${userId}:`, err);
   }
 }
 
@@ -155,7 +158,7 @@ let _globalQuotaTripDate: string | null = null;
 export function tripGlobalQuotaBreaker(): void {
   const today = getPacificDate();
   if (_globalQuotaTripDate !== today) {
-    console.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`);
+    logger.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`);
   }
   _globalQuotaTripDate = today;
 }

@@ -74,6 +74,9 @@ import {
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { extractGameName } from "./services/video-vault";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("storage");
 export interface IStorage {
   getChannels(): Promise<Channel[]>;
   getChannelsByUser(userId: string): Promise<Channel[]>;
@@ -358,14 +361,14 @@ export class DatabaseStorage implements IStorage {
       import("./growth-programs-engine").then(({ initializeGrowthPrograms, autoDetectAndUpdateMetrics }) => {
         initializeGrowthPrograms(channel.userId!).then(() => {
           autoDetectAndUpdateMetrics(channel.userId!);
-        }).catch(err => console.error("[Storage] Growth programs init error:", err));
-      }).catch(err => console.error("[Storage] growth-programs-engine import failed:", err));
+        }).catch(err => logger.error("[Storage] Growth programs init error:", err));
+      }).catch(err => logger.error("[Storage] growth-programs-engine import failed:", err));
 
       import("./growth-programs-engine").then(({ enableAutoApplyForPlatform }) => {
         enableAutoApplyForPlatform(channel.userId!, newChannel.platform).catch(err =>
-          console.error("[Storage] Auto-apply enable error:", err)
+          logger.error("[Storage] Auto-apply enable error:", err)
         );
-      }).catch(err => console.error("[Storage] growth-programs-engine import failed:", err));
+      }).catch(err => logger.error("[Storage] growth-programs-engine import failed:", err));
     }
 
     return newChannel;
@@ -1424,7 +1427,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const { getStreamAgentStatus } = await import("./services/stream-agent");
       isLive = getStreamAgentStatus(userId)?.isLive ?? false;
-    } catch (err: any) { console.error("[Storage] stream-agent status check failed:", err?.message || err); }
+    } catch (err: any) { logger.error("[Storage] stream-agent status check failed:", err?.message || err); }
 
     return {
       totalVideos: Number(totalVideos),

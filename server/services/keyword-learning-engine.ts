@@ -3,6 +3,9 @@ import { videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("keyword-learning-engine");
 const openai = getOpenAIClient();
 
 export async function analyzeChannelKeywords(userId: string) {
@@ -94,7 +97,7 @@ Respond with JSON:
   if (!content) return { analyzed: 0, keywords: [] };
 
   let analysis: any;
-  try { analysis = JSON.parse(content); } catch { console.error("[KeywordEngine] Failed to parse AI response"); return { analyzed: 0, keywords: [] }; }
+  try { analysis = JSON.parse(content); } catch { logger.error("[KeywordEngine] Failed to parse AI response"); return { analyzed: 0, keywords: [] }; }
 
   for (const kw of (analysis.winningKeywords || [])) {
     const existing = await db.select().from(keywordInsights)
@@ -260,7 +263,7 @@ export async function runKeywordLearningCycle() {
       await analyzeChannelKeywords(userId);
       totalProcessed++;
     } catch (err: any) {
-      console.error(`[KeywordEngine] Failed for user ${userId}:`, err.message);
+      logger.error(`[KeywordEngine] Failed for user ${userId}:`, err.message);
     }
   }
 

@@ -6,6 +6,9 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("smart-scheduler");
 const openai = getOpenAIClient();
 
 function daysAgo(days: number): Date {
@@ -70,7 +73,7 @@ Provide 5-7 optimal posting slots based on ${platform}'s known best practices an
     const result = JSON.parse(content);
     return { source: "ai", platform, ...result };
   } catch (error) {
-    console.error("Failed to get optimal posting times:", error);
+    logger.error("Failed to get optimal posting times:", error);
     return { source: "default", platform, slots: [] };
   }
 }
@@ -113,7 +116,7 @@ export async function updateActivityPatterns(
     }).returning();
     return created;
   } catch (error) {
-    console.error("Failed to update activity patterns:", error);
+    logger.error("Failed to update activity patterns:", error);
     throw new Error("Could not update activity patterns");
   }
 }
@@ -171,7 +174,7 @@ Analyze and recommend as JSON:
     if (!content) throw new Error("No AI response");
     return JSON.parse(content);
   } catch (error) {
-    console.error("Failed to get upload cadence:", error);
+    logger.error("Failed to get upload cadence:", error);
     return {
       currentCadence: { videosPerWeek: 0, averageDaysBetween: 0, consistency: "low", gaps: [] },
       recommendedCadence: { videosPerWeek: 2, bestDays: ["Tuesday", "Thursday"], reasoning: "Default recommendation", rampUpPlan: "" },
@@ -225,7 +228,7 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
 
     return { scheduled, total: scheduled.length };
   } catch (error) {
-    console.error("Failed to auto-schedule content:", error);
+    logger.error("Failed to auto-schedule content:", error);
     return { scheduled: [], total: 0, error: "Unable to schedule content" };
   }
 }
@@ -276,7 +279,7 @@ Analyze and recommend as JSON:
     if (!content) throw new Error("No AI response");
     return JSON.parse(content);
   } catch (error) {
-    console.error("Failed to get schedule recommendations:", error);
+    logger.error("Failed to get schedule recommendations:", error);
     return { overallScore: 50, recommendations: [], scheduleDensity: "unknown", platformBalance: "unknown" };
   }
 }

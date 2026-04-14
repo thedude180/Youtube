@@ -1,5 +1,8 @@
 import { storage } from "../storage";
 
+import { createLogger } from ".//logger";
+
+const logger = createLogger("audit");
 export async function logSecurityEvent(params: {
   userId: string;
   action: string;
@@ -16,6 +19,6 @@ export async function logSecurityEvent(params: {
       riskLevel: params.riskLevel || "low",
     });
   } catch (err: any) {
-    console.error(`[Audit] Failed to log security event: ${params.action}`, err?.message);
+    logger.error(`[Audit] Failed to log security event: ${params.action}`, err?.message);
   }
 }

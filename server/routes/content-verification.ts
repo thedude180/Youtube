@@ -2,6 +2,9 @@ import type { Express } from "express";
 import { getUserId, requireTier } from "./helpers";
 import { cached } from "../lib/cache";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("content-verification");
 export function registerContentVerificationRoutes(app: Express) {
   app.get("/api/verification/dashboard", async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Content Verification");
@@ -12,7 +15,7 @@ export function registerContentVerificationRoutes(app: Express) {
       const dashboard = await cached(`verification-dashboard:${userId}`, 30, () => getVerificationDashboard(userId));
       res.json(dashboard);
     } catch (err) {
-      console.error("[Verification] Dashboard error:", err);
+      logger.error("[Verification] Dashboard error:", err);
       res.status(500).json({ error: "Failed to load verification dashboard" });
     }
   });
@@ -26,7 +29,7 @@ export function registerContentVerificationRoutes(app: Express) {
       const health = await cached(`live-health:${userId}`, 15, () => verifyLiveStreamHealth(userId));
       res.json({ streams: health });
     } catch (err) {
-      console.error("[Verification] Live health error:", err);
+      logger.error("[Verification] Live health error:", err);
       res.status(500).json({ error: "Failed to check live stream health" });
     }
   });
@@ -97,7 +100,7 @@ export function registerContentVerificationRoutes(app: Express) {
         error: result.error,
       });
     } catch (err) {
-      console.error("[Verification] Check error:", err);
+      logger.error("[Verification] Check error:", err);
       res.status(500).json({ error: "Verification check failed" });
     }
   });
@@ -111,7 +114,7 @@ export function registerContentVerificationRoutes(app: Express) {
       const report = await verifyAllUserContent(userId);
       res.json(report);
     } catch (err) {
-      console.error("[Verification] Sweep error:", err);
+      logger.error("[Verification] Sweep error:", err);
       res.status(500).json({ error: "Verification sweep failed" });
     }
   });

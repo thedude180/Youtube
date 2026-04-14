@@ -3,6 +3,9 @@ import { revenueRecords, channels, videos } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { computeRevenueConfidence } from "./revenue-confidence";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("business-learning");
 export interface LearningSignal {
   category: string;
   signal: string;
@@ -64,7 +67,7 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
     const gc = await getGovernedConfidenceForDomain(userId, "revenue");
     governedRevenue = { confidence: gc.confidence, maturityLevel: gc.maturityLevel };
   } catch (err: any) {
-    console.warn("[business-learning] governance confidence lookup failed:", err?.message);
+    logger.warn("[business-learning] governance confidence lookup failed:", err?.message);
   }
 
   const report = {
@@ -89,7 +92,7 @@ export async function computeBusinessLearning(userId: string): Promise<BusinessL
       "business-learning",
     );
   } catch (err: unknown) {
-    console.warn("[business-learning] audit trail write failed:", (err as Error)?.message);
+    logger.warn("[business-learning] audit trail write failed:", (err as Error)?.message);
   }
 
   return report;

@@ -17,6 +17,9 @@ interface DetectedBroadcast {
 const trackedBroadcasts = new Map<string, { streamId: number; platform: string; broadcastId: string; missCount: number }>();
 
 import { registerMap } from "./resilience-core";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-detection");
 registerMap("trackedBroadcasts", trackedBroadcasts, 500);
 
 let running = false;
@@ -60,7 +63,7 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
         viewerCount: s.viewer_count,
       }));
   } catch (err: any) {
-    console.warn(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    logger.warn(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -88,10 +91,10 @@ async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
       }
       // API succeeded but no live stream — still check RSS to be sure
     } catch (err) {
-      console.error(`[LiveDetection] YouTube API check failed for channel ${channelRow.id}:`, err);
+      logger.error(`[LiveDetection] YouTube API check failed for channel ${channelRow.id}:`, err);
     }
   } else {
-    console.warn(`[LiveDetection] YouTube quota low (${quota.remaining}) for ${userId} — using RSS fallback`);
+    logger.warn(`[LiveDetection] YouTube quota low (${quota.remaining}) for ${userId} — using RSS fallback`);
   }
 
   // RSS fallback: zero-quota check via YouTube Atom feed
@@ -99,7 +102,7 @@ async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
     try {
       const check = await detectYouTubeLiveFromChannel(channelRow.channelId);
       if (check.isLive) {
-        console.log(`[LiveDetection] Watch-page detected live stream for channel ${channelRow.channelId}: ${check.title} (${check.videoId})`);
+        logger.info(`[LiveDetection] Watch-page detected live stream for channel ${channelRow.channelId}: ${check.title} (${check.videoId})`);
         return [{
           platform: "youtube",
           broadcastId: check.videoId || `live_${Date.now()}`,
@@ -110,7 +113,7 @@ async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
         }];
       }
     } catch (rssErr) {
-      console.error(`[LiveDetection] Watch-page fallback failed for channel ${channelRow.channelId}:`, rssErr);
+      logger.error(`[LiveDetection] Watch-page fallback failed for channel ${channelRow.channelId}:`, rssErr);
     }
   }
 
@@ -145,7 +148,7 @@ async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
       viewerCount: undefined,
     }];
   } catch (err: any) {
-    console.warn(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    logger.warn(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -185,9 +188,9 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
   } catch (err: any) {
     const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError" || err?.code === "UND_ERR_CONNECT_TIMEOUT";
     if (isTimeout) {
-      console.warn(`[LiveDetection] Kick check timed out for channel ${channelRow.id} — Kick API slow`);
+      logger.warn(`[LiveDetection] Kick check timed out for channel ${channelRow.id} — Kick API slow`);
     } else {
-      console.warn(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err?.message ?? err);
+      logger.warn(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err?.message ?? err);
     }
     return [];
   }
@@ -223,7 +226,7 @@ async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
         viewerCount: ls.viewer_count || ls.watching_now || 0,
       }));
   } catch (err: any) {
-    console.warn(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    logger.warn(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -280,10 +283,10 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     setLivestreamPriority(userId, stream.id, broadcast.title);
     onLivestreamDetected(userId, stream.id);
     pauseForLive(userId, stream.id);
-    pivotToStream(userId, stream.id).catch(e => console.warn("[LiveDetection] pivotToStream failed", e?.message));
-    processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(e => console.warn("[LiveDetection] Go-live announcements failed", e?.message));
-    createPipelineForStream(userId, broadcast.title, "live").catch(e => console.warn("[LiveDetection] Pipeline creation failed", e?.message));
-    onStreamDetected(userId, stream).catch(e => console.warn("[LiveDetection] Trend detection failed", e?.message));
+    pivotToStream(userId, stream.id).catch(e => logger.warn("[LiveDetection] pivotToStream failed", e?.message));
+    processGoLiveAnnouncements(userId, stream.id, broadcast.title, broadcast.description, allPlatforms).catch(e => logger.warn("[LiveDetection] Go-live announcements failed", e?.message));
+    createPipelineForStream(userId, broadcast.title, "live").catch(e => logger.warn("[LiveDetection] Pipeline creation failed", e?.message));
+    onStreamDetected(userId, stream).catch(e => logger.warn("[LiveDetection] Trend detection failed", e?.message));
 
     import("./agent-events").then(({ fireAgentEvent }) => {
       fireAgentEvent("stream.started", userId, {
@@ -293,7 +296,7 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
       });
     }).catch(() => {});
   } catch (err) {
-    console.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
+    logger.error(`[LiveDetection] Pipeline trigger error for ${broadcast.platform}:`, err);
   }
 
   await storage.createNotification({
@@ -347,12 +350,12 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     const { onStreamEnded } = await import("../content-loop");
     setPostStreamHarvest(userId, liveStream.id, liveStream.title);
     onStreamEnded(userId, liveStream.id);
-    resumeFromStream(userId, liveStream.id).catch(e => console.warn("[LiveDetection] resumeFromStream failed", e?.message));
-    processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(e => console.warn("[LiveDetection] Post-stream highlights failed", e?.message));
-    createPipelineForStream(userId, liveStream.title, "replay").catch(e => console.warn("[LiveDetection] Replay pipeline failed", e?.message));
-    resumeAfterStream(userId).catch(e => console.warn("[LiveDetection] resumeAfterStream failed", e?.message));
+    resumeFromStream(userId, liveStream.id).catch(e => logger.warn("[LiveDetection] resumeFromStream failed", e?.message));
+    processPostStreamHighlights(userId, liveStream.id, liveStream.title, liveStream.description || "", (liveStream.platforms as string[]) || ["youtube"]).catch(e => logger.warn("[LiveDetection] Post-stream highlights failed", e?.message));
+    createPipelineForStream(userId, liveStream.title, "replay").catch(e => logger.warn("[LiveDetection] Replay pipeline failed", e?.message));
+    resumeAfterStream(userId).catch(e => logger.warn("[LiveDetection] resumeAfterStream failed", e?.message));
   } catch (err) {
-    console.error(`[LiveDetection] Post-stream pipeline error for ${platform}:`, err);
+    logger.error(`[LiveDetection] Post-stream pipeline error for ${platform}:`, err);
   }
 
   await storage.createNotification({
@@ -405,11 +408,11 @@ export async function runMultiPlatformLiveDetection() {
           await handleBroadcastEnded(ch.userId, ch.platform, ch.id);
         }
       } catch (err) {
-        console.error(`[LiveDetection] ${ch.platform} check failed for channel ${ch.id}:`, err);
+        logger.error(`[LiveDetection] ${ch.platform} check failed for channel ${ch.id}:`, err);
       }
     }
   } catch (err) {
-    console.error("[LiveDetection] Multi-platform detection error:", err);
+    logger.error("[LiveDetection] Multi-platform detection error:", err);
   } finally {
     running = false;
   }

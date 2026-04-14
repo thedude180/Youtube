@@ -6,6 +6,9 @@ import { getBreaker } from "./circuit-breaker";
 import { LRUCache } from "../lib/lru-cache";
 import { registerMap } from "./resilience-core";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("ai-hardening");
 interface CacheEntry {
   response: any;
   userId: string;
@@ -95,7 +98,7 @@ export async function trackAiUsage(
       latencyMs,
     });
   } catch (err) {
-    console.error("[AI Hardening] Failed to track usage:", err);
+    logger.error("[AI Hardening] Failed to track usage:", err);
   }
 }
 
@@ -194,7 +197,7 @@ export async function executeWithFallback<T>(
     trackAiUsage(userId, "gpt-4o-mini", endpoint, 0, 0, latencyMs, false, true).catch(() => {});
     return { result, usedFallback: false, latencyMs };
   } catch (primaryError) {
-    console.warn(`[AI Hardening] Primary model failed for ${endpoint}, falling back:`, (primaryError as Error).message);
+    logger.warn(`[AI Hardening] Primary model failed for ${endpoint}, falling back:`, (primaryError as Error).message);
     modelFailures.set("primary", (modelFailures.get("primary") || 0) + 1);
 
     try {

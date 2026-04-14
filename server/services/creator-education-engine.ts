@@ -2,6 +2,9 @@ import { db } from "../db";
 import { learningPaths, coachingTips, creatorInsights, skillMilestones, videos, channels, users } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("creator-education-engine");
 const SCAN_INTERVAL_MS = 3 * 60 * 60 * 1000;
 let engineRunning = false;
 let lastScanTime = 0;
@@ -125,7 +128,7 @@ async function getUserVideoMetrics(userId: string) {
       avgWatchTime: watchTimeCount > 0 ? totalWatchTime / watchTimeCount : 0,
     };
   } catch (e) {
-    console.error("[Education Engine] Error fetching user video metrics:", e);
+    logger.error("[Education Engine] Error fetching user video metrics:", e);
     return { videoCount: 0, totalViews: 0, avgViews: 0, avgEngagement: 0, totalComments: 0, totalLikes: 0, channelCount: 0, totalSubscribers: 0, recentVideos: [] as any[], allVideos: [] as any[], avgWatchTime: 0 };
   }
 }
@@ -164,7 +167,7 @@ export async function refreshLearningPath(userId: string): Promise<void> {
       });
     }
   } catch (e) {
-    console.error(`[Education Engine] refreshLearningPath error for ${userId}:`, e);
+    logger.error(`[Education Engine] refreshLearningPath error for ${userId}:`, e);
   }
 }
 
@@ -262,7 +265,7 @@ export async function generateCoachingTips(userId: string): Promise<void> {
     if (selectedTips.length > 0) {
     }
   } catch (e) {
-    console.error(`[Education Engine] generateCoachingTips error for ${userId}:`, e);
+    logger.error(`[Education Engine] generateCoachingTips error for ${userId}:`, e);
   }
 }
 
@@ -373,7 +376,7 @@ export async function generateCreatorInsights(userId: string): Promise<void> {
     if (selectedInsights.length > 0) {
     }
   } catch (e) {
-    console.error(`[Education Engine] generateCreatorInsights error for ${userId}:`, e);
+    logger.error(`[Education Engine] generateCreatorInsights error for ${userId}:`, e);
   }
 }
 
@@ -449,7 +452,7 @@ export async function checkSkillMilestones(userId: string): Promise<void> {
     if (newMilestones.length > 0) {
     }
   } catch (e) {
-    console.error(`[Education Engine] checkSkillMilestones error for ${userId}:`, e);
+    logger.error(`[Education Engine] checkSkillMilestones error for ${userId}:`, e);
   }
 }
 
@@ -466,7 +469,7 @@ export async function runEducationScan(): Promise<{ usersScanned: number; durati
         await generateCreatorInsights(user.id);
         await checkSkillMilestones(user.id);
       } catch (e) {
-        console.error(`[Education Engine] Scan failed for user ${user.id}:`, e);
+        logger.error(`[Education Engine] Scan failed for user ${user.id}:`, e);
       }
     }
 
@@ -475,7 +478,7 @@ export async function runEducationScan(): Promise<{ usersScanned: number; durati
     scanCount++;
     return { usersScanned: allUsers.length, duration };
   } catch (e) {
-    console.error("[Education Engine] runEducationScan error:", e);
+    logger.error("[Education Engine] runEducationScan error:", e);
     return { usersScanned: 0, duration: Date.now() - startTime };
   }
 }
@@ -488,14 +491,14 @@ export function startCreatorEducationEngine(): void {
 
 
   setTimeout(() => {
-    runEducationScan().catch(e => console.error("[Education Engine] Startup scan failed:", e));
+    runEducationScan().catch(e => logger.error("[Education Engine] Startup scan failed:", e));
   }, 45_000);
 
   educationInterval = setInterval(async () => {
     try {
       await runEducationScan();
     } catch (e) {
-      console.error("[Education Engine] Scheduled scan failed:", e);
+      logger.error("[Education Engine] Scheduled scan failed:", e);
     }
   }, SCAN_INTERVAL_MS);
 }

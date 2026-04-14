@@ -15,6 +15,9 @@ import { detectGamingContext, buildGamingPromptSection, getNicheLabel, ContentCo
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "../creator-intelligence";
 import { registerCleanup } from "../services/cleanup-coordinator";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("dual-pipeline");
 const PLATFORM_LIMITS = {
   youtube: { dailyQuotaUnits: 10000, updateCostUnits: 50, maxUpdatesPerDay: 180, maxConcurrentPipelines: 3 },
   tiktok: { maxUploadsPerDay: 10, maxConcurrentUploads: 1 },
@@ -235,7 +238,7 @@ async function processWaitingVodPipelines() {
       pipeline.id, pipeline.sourceTitle, "vod",
       currentResults, completedSteps,
       pipeline.sourceDuration, pipeline.userId
-    ).catch(err => console.error(`[DualPipeline] Auto VOD pipeline ${pipeline.id} failed:`, err));
+    ).catch(err => logger.error(`[DualPipeline] Auto VOD pipeline ${pipeline.id} failed:`, err));
 
     started++;
   }
@@ -265,7 +268,7 @@ async function processQueuedPipelines() {
       pipeline.id, pipeline.sourceTitle, pipeline.pipelineType,
       currentResults, completedSteps,
       pipeline.sourceDuration, pipeline.userId
-    ).catch(err => console.error(`[DualPipeline] Auto-start failed for pipeline ${pipeline.id}:`, err));
+    ).catch(err => logger.error(`[DualPipeline] Auto-start failed for pipeline ${pipeline.id}:`, err));
   }
 
   if (queued.length > 0) {
@@ -304,22 +307,22 @@ async function autoSpawnMissingVodPipelines() {
         livePipeline.sourceTitle,
         livePipeline.sourceDuration,
         "live-stream"
-      ).catch(err => console.error(`[DualPipeline] Auto-spawn VOD failed:`, err));
+      ).catch(err => logger.error(`[DualPipeline] Auto-spawn VOD failed:`, err));
     }
   } catch (err) {
-    console.error("[DualPipeline] Auto-spawn VOD check error:", err);
+    logger.error("[DualPipeline] Auto-spawn VOD check error:", err);
   }
 }
 
 registerCleanup("dualPipelineProcess", () => {
   withRetry(() => processWaitingVodPipelines(), "dual-pipeline-vod-waiting").catch(err =>
-    console.error("[DualPipeline] VOD waiting check error:", String(err).substring(0, 120))
+    logger.error("[DualPipeline] VOD waiting check error:", String(err).substring(0, 120))
   );
   withRetry(() => processQueuedPipelines(), "dual-pipeline-queued").catch(err =>
-    console.error("[DualPipeline] Queued pipeline check error:", String(err).substring(0, 120))
+    logger.error("[DualPipeline] Queued pipeline check error:", String(err).substring(0, 120))
   );
   withRetry(() => autoSpawnMissingVodPipelines(), "dual-pipeline-autospawn").catch(err =>
-    console.error("[DualPipeline] Auto-spawn VOD check error:", String(err).substring(0, 120))
+    logger.error("[DualPipeline] Auto-spawn VOD check error:", String(err).substring(0, 120))
   );
 }, 5 * 60_000);
 
@@ -477,7 +480,7 @@ Return JSON: { beatsApplied: array of {beatType: string, beatName: string, times
   try {
     return JSON.parse(content);
   } catch {
-    console.error("[DualPipeline] Failed to parse AI response:", content?.slice(0, 200));
+    logger.error("[DualPipeline] Failed to parse AI response:", content?.slice(0, 200));
     return {};
   }
 }
@@ -514,7 +517,7 @@ async function executeStreamPipelineInBackground(
           const cutResult = await generateVodCutsInternal(userId, pipelineId, sourceTitle, sourceDuration || 0, contentCtx.niche || "general");
           currentResults[step] = cutResult;
         } catch (cutErr: any) {
-          console.error(`[DualPipeline] VOD cutting failed, using AI fallback:`, cutErr.message);
+          logger.error(`[DualPipeline] VOD cutting failed, using AI fallback:`, cutErr.message);
           currentResults[step] = await runStreamPipelineStep(step, sourceTitle, pipelineType, currentResults, sourceDuration, userId);
         }
       } else {
@@ -527,7 +530,7 @@ async function executeStreamPipelineInBackground(
         .set({ completedSteps, stepResults: currentResults })
         .where(eq(streamPipelines.id, pipelineId));
     } catch (stepErr: any) {
-      console.error(`[DualPipeline] Step "${step}" failed for pipeline ${pipelineId}:`, stepErr.message);
+      logger.error(`[DualPipeline] Step "${step}" failed for pipeline ${pipelineId}:`, stepErr.message);
       await db.update(streamPipelines)
         .set({
           status: "error",
@@ -547,7 +550,7 @@ async function executeStreamPipelineInBackground(
             message: `Step "${step}" failed during processing. The self-healing system will attempt to recover automatically. Error: ${stepErr.message?.slice(0, 200)}`,
           });
         } catch (notifErr) {
-          console.error(`[DualPipeline] Failed to create error notification for pipeline ${pipelineId}:`, notifErr);
+          logger.error(`[DualPipeline] Failed to create error notification for pipeline ${pipelineId}:`, notifErr);
         }
       }
       return;
@@ -575,7 +578,7 @@ async function executeStreamPipelineInBackground(
         );
       }
     } catch (vodSpawnErr: any) {
-      console.error(`[DualPipeline] Failed to spawn VOD pipeline after live ${pipelineId}:`, vodSpawnErr.message);
+      logger.error(`[DualPipeline] Failed to spawn VOD pipeline after live ${pipelineId}:`, vodSpawnErr.message);
     }
   }
 
@@ -601,7 +604,7 @@ async function executeStreamPipelineInBackground(
         }
       }
     } catch (autopilotErr: any) {
-      console.error(`[DualPipeline] Autopilot trigger failed for pipeline ${pipelineId}:`, autopilotErr.message);
+      logger.error(`[DualPipeline] Autopilot trigger failed for pipeline ${pipelineId}:`, autopilotErr.message);
     }
 
     try {
@@ -613,7 +616,7 @@ async function executeStreamPipelineInBackground(
         message: `Your content pipeline for "${sourceTitle}" has finished processing all ${stepIds.length} steps and autopilot distribution has been triggered.`,
       });
     } catch (notifErr: any) {
-      console.error(`[DualPipeline] Notification failed for pipeline ${pipelineId}:`, notifErr.message);
+      logger.error(`[DualPipeline] Notification failed for pipeline ${pipelineId}:`, notifErr.message);
     }
   }
 }
@@ -710,7 +713,7 @@ Return JSON: {
   try {
     aiResult = JSON.parse(content);
   } catch {
-    console.error("[DualPipeline] Failed to parse VOD cuts response:", content?.slice(0, 200));
+    logger.error("[DualPipeline] Failed to parse VOD cuts response:", content?.slice(0, 200));
     aiResult = { cuts: [] };
   }
 
@@ -849,7 +852,7 @@ export function registerDualPipelineRoutes(app: Express) {
       executeStreamPipelineInBackground(
         pipeline.id, pipeline.sourceTitle, pipeline.pipelineType,
         {}, [], pipeline.sourceDuration, userId
-      ).catch(err => console.error(`[DualPipeline] Auto-run failed for pipeline ${pipeline.id}:`, err));
+      ).catch(err => logger.error(`[DualPipeline] Auto-run failed for pipeline ${pipeline.id}:`, err));
     }
 
     res.json(pipeline);
@@ -914,7 +917,7 @@ export function registerDualPipelineRoutes(app: Express) {
 
       res.json({ message: `Step "${targetStep}" completed`, step: targetStep, result });
     } catch (err: any) {
-      console.error(`[DualPipeline] Step "${targetStep}" failed for pipeline ${id}:`, err);
+      logger.error(`[DualPipeline] Step "${targetStep}" failed for pipeline ${id}:`, err);
       await db.update(streamPipelines)
         .set({ status: "error", errorMessage: `Step "${targetStep}" failed: ${err.message}` })
         .where(eq(streamPipelines.id, id));
@@ -941,7 +944,7 @@ export function registerDualPipelineRoutes(app: Express) {
     const completedSteps = [...(pipeline.completedSteps || [])];
 
     executeStreamPipelineInBackground(id, pipeline.sourceTitle, pipeline.pipelineType, currentResults, completedSteps, pipeline.sourceDuration, userId)
-      .catch(err => console.error(`[DualPipeline] Background execution failed for ${id}:`, err));
+      .catch(err => logger.error(`[DualPipeline] Background execution failed for ${id}:`, err));
 
     res.json({ message: "Pipeline started", status: "processing" });
   }));
@@ -1302,7 +1305,7 @@ Return JSON: {
     try {
       analysis = JSON.parse(content);
     } catch {
-      console.error("[DualPipeline] Failed to parse length analysis:", content?.slice(0, 200));
+      logger.error("[DualPipeline] Failed to parse length analysis:", content?.slice(0, 200));
       analysis = { winningLength: null, confidence: 0 };
     }
 

@@ -3,6 +3,9 @@ import { eq, and, desc, sql, count, ilike, or } from "drizzle-orm";
 import { customerProfiles, users, channels, videos, streams, revenueRecords, aiAgentActivities } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("customer-database-engine");
 export async function createOrUpdateCustomerProfile(
   userId: string,
   data: {
@@ -48,7 +51,7 @@ export async function createOrUpdateCustomerProfile(
     sendSSEEvent(userId, "customer_profile_updated", { userId, profile });
     return profile;
   } catch (error) {
-    console.error(`[CustomerDB] Error creating/updating profile for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error creating/updating profile for ${userId}:`, error);
     throw error;
   }
 }
@@ -108,7 +111,7 @@ export async function getCustomerProfile(userId: string) {
       },
     };
   } catch (error) {
-    console.error(`[CustomerDB] Error getting profile for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error getting profile for ${userId}:`, error);
     return null;
   }
 }
@@ -182,7 +185,7 @@ export async function getAllCustomers(options?: {
       offset,
     };
   } catch (error) {
-    console.error("[CustomerDB] Error getting all customers:", error);
+    logger.error("[CustomerDB] Error getting all customers:", error);
     return { customers: [], total: 0, limit: 50, offset: 0 };
   }
 }
@@ -197,7 +200,7 @@ export async function updateCustomerActivity(userId: string) {
       })
       .where(eq(customerProfiles.userId, userId));
   } catch (error) {
-    console.error(`[CustomerDB] Error updating activity for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error updating activity for ${userId}:`, error);
   }
 }
 
@@ -240,7 +243,7 @@ export async function recordTierChange(userId: string, newTier: string, reason?:
 
     return updated;
   } catch (error) {
-    console.error(`[CustomerDB] Error recording tier change for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error recording tier change for ${userId}:`, error);
     throw error;
   }
 }
@@ -325,7 +328,7 @@ export async function getCustomerStats() {
       revenueByTier: Object.fromEntries(revenueByTier.map((r) => [r.tier, Number(r.totalRevenue)])),
     };
   } catch (error) {
-    console.error("[CustomerDB] Error getting customer stats:", error);
+    logger.error("[CustomerDB] Error getting customer stats:", error);
     return {
       totalCustomers: 0,
       customersByTier: {},
@@ -424,7 +427,7 @@ export async function enrichCustomerProfile(userId: string) {
 
     return updated;
   } catch (error) {
-    console.error(`[CustomerDB] Error enriching profile for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error enriching profile for ${userId}:`, error);
     return null;
   }
 }
@@ -460,7 +463,7 @@ export async function searchCustomers(query: string) {
       lastName: r.lastName,
     }));
   } catch (error) {
-    console.error(`[CustomerDB] Error searching customers for "${query}":`, error);
+    logger.error(`[CustomerDB] Error searching customers for "${query}":`, error);
     return [];
   }
 }
@@ -511,7 +514,7 @@ export async function exportCustomerData(format?: string) {
       metadata: r.profile.metadata,
     }));
   } catch (error) {
-    console.error("[CustomerDB] Error exporting customer data:", error);
+    logger.error("[CustomerDB] Error exporting customer data:", error);
     return [];
   }
 }
@@ -621,7 +624,7 @@ export async function getCustomerTimeline(userId: string) {
 
     return timeline;
   } catch (error) {
-    console.error(`[CustomerDB] Error getting timeline for ${userId}:`, error);
+    logger.error(`[CustomerDB] Error getting timeline for ${userId}:`, error);
     return [];
   }
 }

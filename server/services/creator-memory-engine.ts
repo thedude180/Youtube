@@ -4,6 +4,9 @@ import { db } from "../db";
 import { creatorMemory, creatorProfiles, videos, channels, analyticsSnapshots } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("creator-memory-engine");
 const MODEL = "gpt-4o-mini";
 
 export async function getCreatorContext(userId: string): Promise<string> {
@@ -222,7 +225,7 @@ Return JSON:
       }
     }
   } catch (err) {
-    console.error("[CreatorMemoryEngine] distillCreatorMemory error:", err);
+    logger.error("[CreatorMemoryEngine] distillCreatorMemory error:", err);
   }
 }
 
@@ -298,7 +301,7 @@ export async function learnFromContent(
       }
     }
   } catch (err) {
-    console.error("[CreatorMemoryEngine] learnFromContent error:", err);
+    logger.error("[CreatorMemoryEngine] learnFromContent error:", err);
   }
 }
 
@@ -400,7 +403,7 @@ export async function updateCreatorProfile(userId: string): Promise<void> {
       });
     }
   } catch (err) {
-    console.error("[CreatorMemoryEngine] updateCreatorProfile error:", err);
+    logger.error("[CreatorMemoryEngine] updateCreatorProfile error:", err);
   }
 }
 

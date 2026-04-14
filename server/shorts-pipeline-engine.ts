@@ -7,6 +7,9 @@ import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { fetchYouTubeTranscript } from "./youtube";
 import { google } from "googleapis";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("shorts-pipeline-engine");
 const openai = getOpenAIClient();
 
 type PipelineState = "idle" | "running" | "paused" | "completed" | "failed";
@@ -351,7 +354,7 @@ TikTok-specific optimization (for clips targeting tiktok):
 
     return createdClips;
   } catch (err: any) {
-    console.error(`Failed to extract clips from video ${videoId}:`, err.message);
+    logger.error(`Failed to extract clips from video ${videoId}:`, err.message);
     return [];
   }
 }
@@ -406,7 +409,7 @@ Return as JSON:
       alternatives: parsed.alternatives || [],
     };
   } catch (err: any) {
-    console.error(`Failed to generate hook for clip ${clipId}:`, err.message);
+    logger.error(`Failed to generate hook for clip ${clipId}:`, err.message);
     return { hook: "Check this out!", alternatives: [] };
   }
 }
@@ -490,7 +493,7 @@ Return as JSON:
 
     return { score, factors };
   } catch (err: any) {
-    console.error(`Failed to predict virality for clip ${clipId}:`, err.message);
+    logger.error(`Failed to predict virality for clip ${clipId}:`, err.message);
     return { score: 50, factors: { hookStrength: 50, trendAlignment: 50, audienceMatch: 50, platformFit: 50 } };
   }
 }
@@ -586,7 +589,7 @@ Create a compilation plan as JSON:
       compilationPlan: parsed.compilationPlan || parsed.orderRationale || "Compile selected clips in order.",
     };
   } catch (err: any) {
-    console.error(`Failed to compile auto reel:`, err.message);
+    logger.error(`Failed to compile auto reel:`, err.message);
     const selectedClips = topClips.slice(0, 5);
     const totalDuration = selectedClips.reduce((sum, c) => sum + ((c.endTime || 0) - (c.startTime || 0)), 0);
     return {
@@ -705,7 +708,7 @@ export async function ingestVideoFromYouTubeUrl(
       commentCount = parseInt(stats.commentCount || "0", 10);
     }
   } catch (err: any) {
-    console.error(`[shorts-pipeline] Failed to fetch YouTube metadata for ${youtubeId}:`, err.message);
+    logger.error(`[shorts-pipeline] Failed to fetch YouTube metadata for ${youtubeId}:`, err.message);
   }
 
   const userChannels = await storage.getChannelsByUser(userId);
@@ -827,7 +830,7 @@ Return as JSON:
 
     return clips;
   } catch (err: any) {
-    console.error(`[shorts-pipeline] SEO optimization failed:`, err.message);
+    logger.error(`[shorts-pipeline] SEO optimization failed:`, err.message);
     return clips;
   }
 }
@@ -942,7 +945,7 @@ export async function trackClipPerformance(
 
     return { tracked: true, accuracy };
   } catch (err: any) {
-    console.error(`Failed to track clip performance for clip ${clipId}:`, err.message);
+    logger.error(`Failed to track clip performance for clip ${clipId}:`, err.message);
     return { tracked: false, accuracy: null };
   }
 }

@@ -4,6 +4,9 @@ import { eq } from "drizzle-orm";
 import { executeRoutedAICall } from "./ai-model-router";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("creator-dna-builder");
 export interface CreatorDNA {
   styleVector: Record<string, number>;
   voicePatterns: Record<string, any>;
@@ -22,14 +25,14 @@ export class CreatorDNABuilder {
    * @AUTONOMOUS: Critical for personalizing all AI-generated content.
    */
   async buildDNA(userId: string): Promise<CreatorDnaProfile> {
-    console.log(`[CreatorDNABuilder] Building DNA for user ${userId}...`);
+    logger.info(`[CreatorDNABuilder] Building DNA for user ${userId}...`);
     
     // 1. Fetch data from storage (channels and videos)
     const channels = await storage.getChannelsByUser(userId);
     const videos = await storage.getVideosByUser(userId, 1, 20); // Last 20 videos for analysis
     
     if (videos.length === 0) {
-      console.log(`[CreatorDNABuilder] No videos found for user ${userId}, using defaults.`);
+      logger.info(`[CreatorDNABuilder] No videos found for user ${userId}, using defaults.`);
     }
 
     // 2. Prepare data for AI analysis

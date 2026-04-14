@@ -10,6 +10,9 @@ import { db } from "../db";
 import { securityEvents } from "@shared/schema";
 import { desc, eq, gte, and, count, sql, inArray } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("security-dashboard");
 export function registerSecurityDashboardRoutes(app: Express) {
   app.get("/api/security/dashboard", async (req: any, res) => {
     try {
@@ -389,7 +392,7 @@ Return JSON with these exact fields:
 
       res.json(saved);
     } catch (err: any) {
-      console.error("[Prediction] Error:", err.message);
+      logger.error("[Prediction] Error:", err.message);
       res.status(500).json({ error: "Failed to generate prediction" });
     }
   });

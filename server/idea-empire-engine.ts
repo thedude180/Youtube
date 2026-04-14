@@ -26,6 +26,9 @@ import {
 } from "./youtube-learning-engine";
 import { creatorSkillProgress } from "@shared/schema";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("idea-empire-engine");
 const openai = getOpenAIClient();
 
 async function aiGenerate(prompt: string): Promise<any> {
@@ -49,7 +52,7 @@ export async function buildEmpireFromIdea(userId: string, idea: string) {
     researchSucceeded = true;
     sendSSEEvent(userId, "empire-progress", { step: "research", status: "completed", message: "YouTube niche intelligence gathered!" });
   } catch (err: any) {
-    console.error(`[Empire] YouTube research failed (non-fatal):`, err.message);
+    logger.error(`[Empire] YouTube research failed (non-fatal):`, err.message);
     sendSSEEvent(userId, "empire-progress", { step: "research", status: "completed", message: "Proceeding with AI knowledge base..." });
   }
 
@@ -401,7 +404,7 @@ Every formula should be so specific that a beginner can follow it like a recipe.
       await updateAutopilotFeatureConfig(userId, feature, true, {});
     }
   } catch (err: any) {
-    console.error(`[Empire] Autopilot setup failed (non-fatal):`, err.message);
+    logger.error(`[Empire] Autopilot setup failed (non-fatal):`, err.message);
   }
 
   sendSSEEvent(userId, "empire-progress", { step: "complete", status: "completed", message: "Your content empire blueprint is ready!" });
@@ -410,7 +413,7 @@ Every formula should be so specific that a beginner can follow it like a recipe.
   autoLaunchEmpireContent(userId, 3).then(launchResult => {
     sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "completed", message: `Auto-launched ${launchResult.totalLaunched} videos into VOD pipelines!` });
   }).catch(err => {
-    console.error(`[Empire] Auto-launch failed for user ${userId}:`, err.message);
+    logger.error(`[Empire] Auto-launch failed for user ${userId}:`, err.message);
     sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "error", message: "Auto-launch encountered an issue but your blueprint is saved." });
   });
 
@@ -1436,7 +1439,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       });
       sendSSEEvent(userId, "empire-auto-pipeline", { step: "upload-queued", status: "completed", message: `Video "${finalTitle}" queued for YouTube upload with human-realistic timing` });
     } catch (err: any) {
-      console.error(`[Empire] Failed to queue video upload:`, err.message);
+      logger.error(`[Empire] Failed to queue video upload:`, err.message);
     }
   }
 
@@ -1445,7 +1448,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
       const { processNewVideoUpload } = await import("./autopilot-engine");
       await processNewVideoUpload(userId, videoRecord.id);
     } catch (err: any) {
-      console.error(`[Empire] Autopilot distribution trigger failed:`, err.message);
+      logger.error(`[Empire] Autopilot distribution trigger failed:`, err.message);
     }
   }
 
@@ -1561,7 +1564,7 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
       const result = await createVideoAndSpawnPipeline(userId, idea);
       results.push({ success: true, ...result });
     } catch (err: any) {
-      console.error(`[Empire] Failed to create video for "${idea.title}":`, err.message);
+      logger.error(`[Empire] Failed to create video for "${idea.title}":`, err.message);
       results.push({ success: false, title: idea.title, error: err.message });
     }
   }

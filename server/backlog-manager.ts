@@ -25,6 +25,9 @@ const activeLoops = new Set<string>();
 
 const BM_SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 import { registerCleanup } from "./services/cleanup-coordinator";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("backlog-manager");
 registerCleanup("backlogMgrSessions", () => {
   const now = Date.now();
   for (const [userId, session] of sessions) {
@@ -114,7 +117,7 @@ export async function startBacklogOnLogin(userId: string): Promise<{ started: bo
 
   if (!activeLoops.has(userId)) {
     processBacklogContinuously(userId).catch(err => {
-      console.error(`[BacklogManager] Continuous backlog failed for ${userId}:`, err);
+      logger.error(`[BacklogManager] Continuous backlog failed for ${userId}:`, err);
     });
   }
 
@@ -169,7 +172,7 @@ export async function resumeAfterStream(userId: string): Promise<void> {
 
       if (!activeLoops.has(userId)) {
         processBacklogContinuously(userId).catch(err => {
-          console.error(`[BacklogManager] Resume backlog failed for ${userId}:`, err);
+          logger.error(`[BacklogManager] Resume backlog failed for ${userId}:`, err);
         });
       }
     }
@@ -278,7 +281,7 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.currentVideoTitle = null;
       current.lastActivityAt = new Date();
     } catch (err: any) {
-      console.error(`[BacklogManager] Error processing "${nextVideo.title}":`, err.message);
+      logger.error(`[BacklogManager] Error processing "${nextVideo.title}":`, err.message);
       current.currentPipelineId = null;
       current.currentVideoTitle = null;
     }

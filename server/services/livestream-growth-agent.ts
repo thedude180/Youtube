@@ -7,11 +7,9 @@ import { onAgentEvent } from "./agent-events";
 import { updateYouTubeVideo } from "../youtube";
 import { recordHeartbeat } from "./engine-heartbeat";
 
-const logger = {
-  info: (msg: string) => console.log(`[livestream-growth] ${msg}`),
-  warn: (msg: string) => console.warn(`[livestream-growth] WARN ${msg}`),
-  error: (msg: string) => console.error(`[livestream-growth] ERROR ${msg}`),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("livestream-growth-agent");
 
 const openai = getOpenAIClient();
 

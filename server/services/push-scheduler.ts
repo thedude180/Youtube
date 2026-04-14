@@ -50,6 +50,9 @@ function cleanupPushMaps(): void {
 }
 
 import { registerCleanup } from "./cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("push-scheduler");
 registerCleanup("pushScheduler", cleanupPushMaps, 5 * 60 * 1000);
 
 export function stopPushCleanup(): void {}
@@ -323,13 +326,13 @@ async function checkQuotaBudget(job: PushJob): Promise<{ allowed: boolean; retry
       const resetTime = getNextResetTime();
       const jitterMs = gaussianRandom(8, 3) * 60_000;
       const retryMs = Math.max(60_000, resetTime.getTime() - Date.now() + Math.max(0, jitterMs));
-      console.log(`[PushScheduler] Quota insufficient for ${opType} (job ${job.id}) — deferring to ${resetTime.toISOString()} + jitter`);
+      logger.info(`[PushScheduler] Quota insufficient for ${opType} (job ${job.id}) — deferring to ${resetTime.toISOString()} + jitter`);
       return { allowed: false, retryMs };
     }
 
     return { allowed: true };
   } catch (err) {
-    console.warn(`[PushScheduler] Quota check error, deferring conservatively:`, (err as any)?.message);
+    logger.warn(`[PushScheduler] Quota check error, deferring conservatively:`, (err as any)?.message);
     const resetTime = getNextResetTime();
     const jitterMs = gaussianRandom(10, 4) * 60_000;
     return { allowed: false, retryMs: Math.max(60_000, resetTime.getTime() - Date.now() + Math.max(0, jitterMs)) };
@@ -384,7 +387,7 @@ async function processJob(job: PushJob): Promise<boolean> {
       job.scheduledAt = new Date(Date.now() + retryMs);
       pushQueue.push(job);
       pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-      console.log(`[PushScheduler] Platform budget exceeded for ${job.platform} (job ${job.id}) — deferring ${retryMs}ms`);
+      logger.info(`[PushScheduler] Platform budget exceeded for ${job.platform} (job ${job.id}) — deferring ${retryMs}ms`);
       return false;
     }
   }
@@ -473,7 +476,7 @@ async function processJob(job: PushJob): Promise<boolean> {
       return true;
     }
   } catch (err: any) {
-    console.error(`[PushScheduler] Job ${job.id} failed:`, err.message);
+    logger.error(`[PushScheduler] Job ${job.id} failed:`, err.message);
 
     if (job.retries < job.maxRetries) {
       job.retries++;
@@ -483,7 +486,7 @@ async function processJob(job: PushJob): Promise<boolean> {
       pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
       return false;
     } else {
-      console.error(`[PushScheduler] Job ${job.id} exhausted retries, giving up`);
+      logger.error(`[PushScheduler] Job ${job.id} exhausted retries, giving up`);
 
       sendSSEEvent(job.userId, "push_scheduler", {
         type: "push_failed",

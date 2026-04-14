@@ -8,10 +8,9 @@ import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 import { withCreatorVoice } from "./creator-dna-builder";
 
-const logger = {
-  info: (msg: string, meta?: any) => console.log(`[idle-engagement] ${msg}`, meta ?? ""),
-  warn: (msg: string, meta?: any) => console.warn(`[idle-engagement] WARN ${msg}`, meta ?? ""),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("stream-idle-engagement");
 
 const openai = getOpenAIClient();
 

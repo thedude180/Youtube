@@ -2,6 +2,9 @@ import { db } from "../db";
 import { channels } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("external-health");
 interface ServiceHealthResult {
   service: string;
   status: "healthy" | "degraded" | "down" | "unconfigured";
@@ -247,7 +250,7 @@ export async function runAllHealthChecks(): Promise<{
         });
       }
     } catch (feedErr: any) {
-      console.error("[external-health] Failed to feed service health to exception desk:", feedErr?.message);
+      logger.error("[external-health] Failed to feed service health to exception desk:", feedErr?.message);
     }
   }
 

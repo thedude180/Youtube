@@ -4,6 +4,9 @@ import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { aiResults, videos, channels, learningInsights, creatorDnaProfiles, contentDnaProfiles } from "@shared/schema";
 import { recordLearningEvent } from "./learning-engine";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("youtube-learning-engine");
 const openai = getOpenAIClient();
 
 async function aiGenerate(prompt: string): Promise<any> {
@@ -158,7 +161,7 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
       });
     }
   } catch (err: any) {
-    console.error(`[YouTubeLearning] Failed to seed learning insights:`, err.message);
+    logger.error(`[YouTubeLearning] Failed to seed learning insights:`, err.message);
   }
 }
 
@@ -233,7 +236,7 @@ Respond with JSON:
 
     return analysis;
   } catch (err: any) {
-    console.error(`[YouTubeLearning] Performance analysis failed:`, err.message);
+    logger.error(`[YouTubeLearning] Performance analysis failed:`, err.message);
     return null;
   }
 }
@@ -535,7 +538,7 @@ export async function getYouTubeLearningContext(userId: string, niche?: string):
       }
     }
   } catch (err: any) {
-    console.error(`[YouTubeLearning] Failed to get learning context:`, err.message);
+    logger.error(`[YouTubeLearning] Failed to get learning context:`, err.message);
   }
 
   return parts.join("\n");

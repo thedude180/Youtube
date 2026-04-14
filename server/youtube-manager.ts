@@ -7,6 +7,9 @@ import {
 } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("youtube-manager");
 const openai = getOpenAIClient();
 
 export async function createManagedPlaylist(
@@ -24,7 +27,7 @@ export async function createManagedPlaylist(
     }).returning();
     return playlist;
   } catch (error) {
-    console.error("Failed to create managed playlist:", error);
+    logger.error("Failed to create managed playlist:", error);
     throw new Error("Could not create playlist");
   }
 }
@@ -35,7 +38,7 @@ export async function getPlaylists(userId: string) {
       .where(eq(managedPlaylists.userId, userId))
       .orderBy(desc(managedPlaylists.createdAt));
   } catch (error) {
-    console.error("Failed to get playlists:", error);
+    logger.error("Failed to get playlists:", error);
     return [];
   }
 }
@@ -95,11 +98,11 @@ Focus on:
       // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
       return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse playlist organization response:", content?.substring?.(0, 200));
+      logger.error("[YoutubeManager] Failed to parse playlist organization response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {
-    console.error("Failed to auto-organize playlists:", error);
+    logger.error("Failed to auto-organize playlists:", error);
     return { suggestions: [], message: "Unable to analyze videos at this time" };
   }
 }
@@ -128,7 +131,7 @@ export async function addToPlaylist(playlistId: number, videoId: number, positio
 
     return item;
   } catch (error) {
-    console.error("Failed to add to playlist:", error);
+    logger.error("Failed to add to playlist:", error);
     throw new Error("Could not add video to playlist");
   }
 }
@@ -184,7 +187,7 @@ Score and analyze as JSON:
       // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
       result = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse SEO score response:", content?.substring?.(0, 200));
+      logger.error("[YoutubeManager] Failed to parse SEO score response:", content?.substring?.(0, 200));
       result = {};
     }
 
@@ -194,7 +197,7 @@ Score and analyze as JSON:
 
     return result;
   } catch (error) {
-    console.error("Failed to get playlist SEO score:", error);
+    logger.error("Failed to get playlist SEO score:", error);
     return { score: 0, recommendations: ["Unable to analyze playlist SEO at this time"] };
   }
 }
@@ -245,11 +248,11 @@ Best practices:
       // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
       return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse pinned comment response:", content?.substring?.(0, 200));
+      logger.error("[YoutubeManager] Failed to parse pinned comment response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {
-    console.error("Failed to generate pinned comment:", error);
+    logger.error("Failed to generate pinned comment:", error);
     return { comment: "", strategy: "", expectedImpact: "", error: "Unable to generate comment" };
   }
 }
@@ -295,7 +298,7 @@ Generate as JSON:
       // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
       result = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse description links response:", content?.substring?.(0, 200));
+      logger.error("[YoutubeManager] Failed to parse description links response:", content?.substring?.(0, 200));
       result = {};
     }
 
@@ -309,7 +312,7 @@ Generate as JSON:
 
     return result;
   } catch (error) {
-    console.error("Failed to build description links:", error);
+    logger.error("Failed to build description links:", error);
     return { template: "", variables: [], seoTips: [] };
   }
 }
@@ -360,11 +363,11 @@ Important:
       // AUDIT FIX: typeof guard handles already-parsed objects from proxy; log snippet on failure for diagnostics
       return typeof content === "string" ? JSON.parse(content) : content;
     } catch {
-      console.error("[YoutubeManager] Failed to parse multi-language metadata response:", content?.substring?.(0, 200));
+      logger.error("[YoutubeManager] Failed to parse multi-language metadata response:", content?.substring?.(0, 200));
       return {};
     }
   } catch (error) {
-    console.error("Failed to generate multi-language metadata:", error);
+    logger.error("Failed to generate multi-language metadata:", error);
     return { translations: {} };
   }
 }
@@ -403,7 +406,7 @@ export async function batchPushOptimizations(userId: string, videoIds: number[])
       results,
     };
   } catch (error) {
-    console.error("Failed to batch push optimizations:", error);
+    logger.error("Failed to batch push optimizations:", error);
     return { total: videoIds.length, successful: 0, failed: videoIds.length, results: [] };
   }
 }

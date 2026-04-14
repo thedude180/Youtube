@@ -45,6 +45,9 @@ import { evaluateRegionalPolicy, getAllRegions, detectRegionFromLocale } from ".
 import { validateAgentUIPayload, REGISTERED_AGENTS } from "../kernel/agent-ui-contract";
 import { getAvailableChains, getChainModels } from "../kernel/model-fallback-chain";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("kernel");
 function getUserId(req: Request): string | null {
   return (req as any).user?.id || (req as any).user?.claims?.sub || null;
 }
@@ -119,7 +122,7 @@ async function seedDefaultPlaybooks() {
       },
     ]);
   } catch (err) {
-    console.warn("[kernel] Failed to seed default playbooks:", String(err).substring(0, 200));
+    logger.warn("[kernel] Failed to seed default playbooks:", String(err).substring(0, 200));
   }
 }
 

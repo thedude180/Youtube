@@ -13,7 +13,10 @@ import {
   startBudgetResetScheduler, startOverrideReportScheduler,
   tenantIsolationMiddleware, extractTargetUserId,
 } from "../services/trust-governance";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("trust-governance");
 const router = Router();
 
 router.use(tenantIsolationMiddleware(
@@ -263,6 +266,6 @@ export function registerTrustGovernanceRoutes(app: import("express").Express) {
   startBudgetResetScheduler();
   startOverrideReportScheduler();
   seedApprovalMatrix().then((count) => {
-    if (count > 0) console.log(`[trust-governance] Seeded ${count} approval matrix rules`);
+    if (count > 0) logger.info(`[trust-governance] Seeded ${count} approval matrix rules`);
   }).catch(() => {});
 }

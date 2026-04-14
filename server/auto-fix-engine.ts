@@ -4,11 +4,9 @@ import { eq, and, gte, lte, inArray, sql, gt } from "drizzle-orm";
 import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/youtube-quota-tracker";
 import { selfHealingCore } from "./self-healing-core";
 
-const logger = {
-  info: (_msg: string, _meta?: any) => {},
-  warn: (msg: string, meta?: any) => console.warn(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
-  error: (msg: string, meta?: any) => console.error(`[AutoFix] ${msg}`, meta ? JSON.stringify(meta) : ""),
-};
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("auto-fix-engine");
 
 export type FailureCategory =
   | "quota_cap"
@@ -134,7 +132,7 @@ export async function classifyWithQuotaCheck(errorMessage: string, platform: str
         return "quota_cap";
       }
     } catch (err: any) {
-      console.error("[AutoFix] Quota check failed during classification", { platform, userId, error: err?.message });
+      logger.error("[AutoFix] Quota check failed during classification", { platform, userId, error: err?.message });
     }
   }
 
@@ -565,7 +563,6 @@ export async function runAutoFixCycle(): Promise<{
     dlq: dlq || { processed: 0, deferred: 0 },
     pipelines: pipelines || { fixed: 0 },
   };
-
 
   return result;
 }

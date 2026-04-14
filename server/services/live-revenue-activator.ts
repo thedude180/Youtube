@@ -12,10 +12,9 @@ import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 
-const logger = {
-  info: (msg: string) => console.log(`[live-revenue-activator] ${msg}`),
-  warn: (msg: string) => console.warn(`[live-revenue-activator] WARN ${msg}`),
-};
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-revenue-activator");
 
 const openai = getOpenAIClient();
 

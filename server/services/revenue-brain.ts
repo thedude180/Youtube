@@ -12,6 +12,9 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { routeNotification } from "./notification-system";
 import { storage } from "../storage";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("revenue-brain");
 export class RevenueBrain {
   private engineName = "RevenueBrain";
 
@@ -23,7 +26,7 @@ export class RevenueBrain {
     const autonomous = await isAutonomousMode(userId);
     if (!autonomous) return;
 
-    console.log(`[RevenueBrain] Starting daily cycle for user ${userId}`);
+    logger.info(`[RevenueBrain] Starting daily cycle for user ${userId}`);
 
     try {
       // 1. Gather Data
@@ -125,7 +128,7 @@ Return ONLY valid JSON matching this structure:
         });
 
         if (strat.actionType === "auto") {
-          console.log(`[RevenueBrain] Auto-executing strategy: ${strat.title}`);
+          logger.info(`[RevenueBrain] Auto-executing strategy: ${strat.title}`);
           // Implementation for specific auto-actions would go here (e.g. enabling a feature, adjusting prices)
         }
       }
@@ -139,7 +142,7 @@ Return ONLY valid JSON matching this structure:
       });
 
     } catch (err: any) {
-      console.error(`[RevenueBrain] Error in daily cycle for user ${userId}:`, err);
+      logger.error(`[RevenueBrain] Error in daily cycle for user ${userId}:`, err);
     }
   }
 
@@ -147,7 +150,7 @@ Return ONLY valid JSON matching this structure:
    * Schedules the daily cycle to run at 8 AM for all autonomous users.
    */
   scheduleAt8am(): void {
-    console.log("[RevenueBrain] Scheduling daily cycle at 8 AM.");
+    logger.info("[RevenueBrain] Scheduling daily cycle at 8 AM.");
     setInterval(async () => {
       const now = new Date();
       if (now.getHours() === 8 && now.getMinutes() === 0) {
@@ -159,11 +162,11 @@ Return ONLY valid JSON matching this structure:
           `);
           for (const row of (result as any).rows ?? []) {
             await this.dailyRevenueCycle(row.user_id as string).catch((err: any) =>
-              console.error(`[RevenueBrain] Daily cycle error for ${row.user_id}:`, err)
+              logger.error(`[RevenueBrain] Daily cycle error for ${row.user_id}:`, err)
             );
           }
         } catch (err: any) {
-          console.error("[RevenueBrain] Failed to fetch autonomous users:", err);
+          logger.error("[RevenueBrain] Failed to fetch autonomous users:", err);
         }
       }
     }, 60_000);

@@ -5,6 +5,9 @@ import { SUBSCRIPTION_TIERS } from "@shared/models/auth";
 import { eq, and, sql, desc, gte } from "drizzle-orm";
 import { notifyAdmin } from "./notifications";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("feedback-processor");
 function getOpenAI() {
   return getOpenAIClient();
 }
@@ -111,7 +114,7 @@ Respond with this exact JSON structure:
       resolution: parsed.resolution || undefined,
     };
   } catch (err: any) {
-    console.error("[FeedbackProcessor] AI analysis failed:", err.message);
+    logger.error("[FeedbackProcessor] AI analysis failed:", err.message);
     analysis = {
       actionable: true,
       category: "feature",

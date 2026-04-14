@@ -4,12 +4,10 @@ import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { detectContentContext, type ContentContext } from "./ai-engine";
 import { getOpenAIClient } from "./lib/openai";
 
-const openai = getOpenAIClient();
+import { createLogger } from "./lib/logger";
 
-const logger = {
-  info: (_msg: string, _meta?: any) => {},
-  error: (msg: string, meta?: any) => console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: "error", module: "trend-rider", message: msg, ...meta })),
-};
+const logger = createLogger("trend-rider-engine");
+const openai = getOpenAIClient();
 
 const TREND_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const TREND_PEAK_WINDOW_DAYS = 14;

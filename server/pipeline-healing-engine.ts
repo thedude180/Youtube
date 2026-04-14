@@ -4,6 +4,9 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { pipelineFailures } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("pipeline-healing-engine");
 const openai = getOpenAIClient();
 
 const BACKOFF_BASE_MS = 2000;
@@ -131,7 +134,7 @@ export async function detectAndHealFailure(
       details: { failureId: failure.id, pipelineId, stepId, errorType, retryCount: failure.retryCount },
     });
   } catch (feedErr: any) {
-    console.error("[pipeline-healing] Failed to feed to exception desk:", feedErr?.message);
+    logger.error("[pipeline-healing] Failed to feed to exception desk:", feedErr?.message);
   }
 
   return { failureId: failure.id, status: "exhausted" };

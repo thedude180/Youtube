@@ -2,6 +2,9 @@ import { db } from "../db";
 import { revenueRecords, revenueSyncLog, reconciliationActions, reconciliationReports } from "@shared/schema";
 import { eq, and, desc, gte, lte, lt, sql, isNull, ne } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("revenue-reconciliation");
 export const RECONCILIATION_STATUSES = [
   "verified",
   "estimated",
@@ -207,7 +210,7 @@ export async function reconcileRevenueRecords(
           "revenue-reconciliation", gapAmount ?? undefined,
         );
       } catch (err: any) {
-        console.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
+        logger.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
       }
     }
 
@@ -281,7 +284,7 @@ export async function verifyRevenueRecord(
       "revenue-verification", gapAmount !== 0 ? gapAmount : undefined,
     );
   } catch (err: any) {
-    console.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
+    logger.warn("[revenue-reconciliation] audit trail write failed:", err?.message);
   }
 
   if (newStatus === "unresolved") {

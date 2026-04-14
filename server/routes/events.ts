@@ -20,6 +20,9 @@ let totalConnectionsCreated = 0;
 let totalConnectionsClosed = 0;
 
 import { registerCleanup } from "../services/cleanup-coordinator";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("events");
 registerCleanup("sseConnections", () => {
   const now = Date.now();
   let cleaned = 0;
@@ -79,13 +82,13 @@ export function sendSSEEvent(userId: string, event: string, data: any) {
   try {
     jsonData = JSON.stringify(data);
   } catch {
-    console.warn(`[SSE] Failed to serialize event ${event} for user ${userId}`);
+    logger.warn(`[SSE] Failed to serialize event ${event} for user ${userId}`);
     return;
   }
 
   const byteLength = Buffer.byteLength(jsonData, "utf8");
   if (byteLength > MAX_PAYLOAD_BYTES) {
-    console.warn(`[SSE] Dropping oversized event ${event} for user ${userId} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
+    logger.warn(`[SSE] Dropping oversized event ${event} for user ${userId} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
     return;
   }
 
@@ -112,13 +115,13 @@ export function broadcastSSEEvent(event: string, data: any) {
   try {
     jsonData = JSON.stringify(data);
   } catch {
-    console.warn(`[SSE] Failed to serialize broadcast event ${event}`);
+    logger.warn(`[SSE] Failed to serialize broadcast event ${event}`);
     return;
   }
 
   const byteLength = Buffer.byteLength(jsonData, "utf8");
   if (byteLength > MAX_PAYLOAD_BYTES) {
-    console.warn(`[SSE] Dropping oversized broadcast event ${event} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
+    logger.warn(`[SSE] Dropping oversized broadcast event ${event} (${byteLength} bytes > ${MAX_PAYLOAD_BYTES} limit)`);
     return;
   }
 
@@ -190,7 +193,7 @@ export function registerEventRoutes(app: Express) {
 
     const totalActive = getTotalConnections();
     if (totalActive >= MAX_TOTAL_CONNECTIONS) {
-      console.warn(`[SSE] Rejecting connection for user ${userId}: global limit reached (${totalActive}/${MAX_TOTAL_CONNECTIONS})`);
+      logger.warn(`[SSE] Rejecting connection for user ${userId}: global limit reached (${totalActive}/${MAX_TOTAL_CONNECTIONS})`);
       res.write(`event: error\ndata: ${JSON.stringify({ message: "Server connection limit reached, please try again later" })}\n\n`);
       res.end();
       return;

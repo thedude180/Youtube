@@ -9,7 +9,10 @@ import {
   getFirstVideoPlans, getFirstTenRoadmap, getBrandTasks,
   createBrandTasks, completeBrandTask,
 } from "../services/channel-launch-service";
+import { createLogger } from "../lib/logger";
 
+
+const logger = createLogger("channel-launch");
 const identitySchema = z.object({
   name: z.string().max(100).optional(),
   niche: z.string().max(100).optional(),
@@ -37,7 +40,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const state = await initPreChannelState(userId);
       res.json(state);
     } catch (err) {
-      console.error("[ChannelLaunch] Init error:", err);
+      logger.error("[ChannelLaunch] Init error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -50,7 +53,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       if (!state) return res.json({ state: null, needsInit: true });
       res.json(state);
     } catch (err) {
-      console.error("[ChannelLaunch] State error:", err);
+      logger.error("[ChannelLaunch] State error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -62,7 +65,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const missions = await getLaunchMissions(userId);
       res.json(missions);
     } catch (err) {
-      console.error("[ChannelLaunch] Missions error:", err);
+      logger.error("[ChannelLaunch] Missions error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -76,7 +79,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const result = await completeLaunchStep(userId, step, req.body || {});
       res.json(result);
     } catch (err) {
-      console.error("[ChannelLaunch] Complete step error:", err);
+      logger.error("[ChannelLaunch] Complete step error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -90,7 +93,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const identity = await updateChannelIdentity(userId, parsed.data);
       res.json(identity);
     } catch (err) {
-      console.error("[ChannelLaunch] Identity error:", err);
+      logger.error("[ChannelLaunch] Identity error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -104,7 +107,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const basics = await updateBrandBasics(userId, parsed.data);
       res.json(basics);
     } catch (err) {
-      console.error("[ChannelLaunch] Brand error:", err);
+      logger.error("[ChannelLaunch] Brand error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -118,7 +121,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const plans = await generateFirstVideoPlan(userId, parsed.data.niche, parsed.data.category);
       res.json(plans);
     } catch (err) {
-      console.error("[ChannelLaunch] First video plan error:", err);
+      logger.error("[ChannelLaunch] First video plan error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -130,7 +133,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const plans = await getFirstVideoPlans(userId);
       res.json(plans);
     } catch (err) {
-      console.error("[ChannelLaunch] Get video plans error:", err);
+      logger.error("[ChannelLaunch] Get video plans error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -144,7 +147,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const roadmap = await generateFirstTenRoadmap(userId, parsed.data.niche, parsed.data.category);
       res.json(roadmap);
     } catch (err) {
-      console.error("[ChannelLaunch] Ten video roadmap error:", err);
+      logger.error("[ChannelLaunch] Ten video roadmap error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -156,7 +159,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const roadmap = await getFirstTenRoadmap(userId);
       res.json(roadmap);
     } catch (err) {
-      console.error("[ChannelLaunch] Get roadmap error:", err);
+      logger.error("[ChannelLaunch] Get roadmap error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -168,7 +171,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const readiness = await getMonetizationReadiness(userId);
       res.json(readiness || { stage: 0, stageName: "Pre-Channel" });
     } catch (err) {
-      console.error("[ChannelLaunch] Monetization error:", err);
+      logger.error("[ChannelLaunch] Monetization error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -180,7 +183,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const milestones = await getMilestones(userId);
       res.json(milestones);
     } catch (err) {
-      console.error("[ChannelLaunch] Milestones error:", err);
+      logger.error("[ChannelLaunch] Milestones error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -192,7 +195,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const session = await getOnboardingSession(userId);
       res.json(session || { currentStep: 1, totalSteps: 10 });
     } catch (err) {
-      console.error("[ChannelLaunch] Session error:", err);
+      logger.error("[ChannelLaunch] Session error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -204,7 +207,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const tasks = await getBrandTasks(userId);
       res.json(tasks);
     } catch (err) {
-      console.error("[ChannelLaunch] Brand tasks error:", err);
+      logger.error("[ChannelLaunch] Brand tasks error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -216,7 +219,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       const tasks = await createBrandTasks(userId);
       res.json(tasks);
     } catch (err) {
-      console.error("[ChannelLaunch] Brand tasks init error:", err);
+      logger.error("[ChannelLaunch] Brand tasks init error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -230,7 +233,7 @@ export function registerChannelLaunchRoutes(app: Express) {
       await completeBrandTask(userId, taskId);
       res.json({ success: true });
     } catch (err) {
-      console.error("[ChannelLaunch] Brand task complete error:", err);
+      logger.error("[ChannelLaunch] Brand task complete error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -250,7 +253,7 @@ export function registerChannelLaunchRoutes(app: Express) {
         res.json({ found: false, message: "No YouTube channel connected yet. Try connecting through the YouTube button above." });
       }
     } catch (err) {
-      console.error("[ChannelLaunch] Recheck error:", err);
+      logger.error("[ChannelLaunch] Recheck error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   });

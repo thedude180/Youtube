@@ -6,6 +6,9 @@ import fs from "fs";
 import { execFile } from "child_process";
 import { promisify } from "util";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
 
 const VAULT_DIR = path.join(process.cwd(), "vault");
@@ -210,7 +213,7 @@ type ScrapedVideo = {
 async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "stream"): Promise<ScrapedVideo[]> {
   const videos: ScrapedVideo[] = [];
   try {
-    console.log(`[Vault] Scraping tab: ${tabUrl}`);
+    logger.info(`[Vault] Scraping tab: ${tabUrl}`);
     const { stdout } = await execFileAsync(ytDlpBin, [
       "--flat-playlist",
       "--dump-json",
@@ -236,15 +239,15 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
         });
       } catch {}
     }
-    console.log(`[Vault] Tab ${contentType}: scraped ${videos.length} entries`);
+    logger.info(`[Vault] Tab ${contentType}: scraped ${videos.length} entries`);
   } catch (err: any) {
-    console.error(`[Vault] Failed to scrape ${contentType} tab:`, err.message?.substring(0, 200));
+    logger.error(`[Vault] Failed to scrape ${contentType} tab:`, err.message?.substring(0, 200));
   }
   return videos;
 }
 
 export async function indexAllChannelVideos(userId: string): Promise<{ indexed: number; newlyAdded: number }> {
-  console.log("[Vault] Starting FULL channel index (videos + shorts + streams) of", PUBLIC_CHANNEL_URL);
+  logger.info("[Vault] Starting FULL channel index (videos + shorts + streams) of", PUBLIC_CHANNEL_URL);
 
   const [videos, shorts, streams] = await Promise.all([
     scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`, "video"),
@@ -258,7 +261,7 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
     if (!deduped.has(v.id)) deduped.set(v.id, v);
   }
   const uniqueVideos = Array.from(deduped.values());
-  console.log(`[Vault] Scraped totals — videos: ${videos.length}, shorts: ${shorts.length}, streams: ${streams.length} → ${uniqueVideos.length} unique`);
+  logger.info(`[Vault] Scraped totals — videos: ${videos.length}, shorts: ${shorts.length}, streams: ${streams.length} → ${uniqueVideos.length} unique`);
 
   const existing = await db.select({
     youtubeId: contentVaultBackups.youtubeId,
@@ -328,13 +331,13 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
       .where(eq(contentVaultBackups.id, entry.id));
   }
   if (untagged.length > 0) {
-    console.log(`[Vault] Tagged ${untagged.length} existing entries with game names`);
+    logger.info(`[Vault] Tagged ${untagged.length} existing entries with game names`);
   }
   if (typeFixed > 0) {
-    console.log(`[Vault] Fixed content type for ${typeFixed} existing entries`);
+    logger.info(`[Vault] Fixed content type for ${typeFixed} existing entries`);
   }
 
-  console.log(`[Vault] Index complete: ${uniqueVideos.length} unique total, ${newlyAdded} newly added, ${existingMap.size} already indexed`);
+  logger.info(`[Vault] Index complete: ${uniqueVideos.length} unique total, ${newlyAdded} newly added, ${existingMap.size} already indexed`);
   return { indexed: uniqueVideos.length, newlyAdded };
 }
 
@@ -357,7 +360,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
 
   const freeSpace = await getFreeSpaceGB();
   if (freeSpace < MIN_FREE_SPACE_GB) {
-    console.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB free) — pausing downloads`);
+    logger.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB free) — pausing downloads`);
     return false;
   }
 
@@ -383,7 +386,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       await db.update(contentVaultBackups)
         .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
         .where(eq(contentVaultBackups.id, vaultEntry.id));
-      console.log(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+      logger.info(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
       return true;
     } else {
       await db.update(contentVaultBackups)
@@ -396,19 +399,19 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     await db.update(contentVaultBackups)
       .set({ status: "failed", downloadError: errMsg })
       .where(eq(contentVaultBackups.id, vaultEntry.id));
-    console.error(`[Vault] Download failed for ${youtubeId}: ${errMsg.substring(0, 100)}`);
+    logger.error(`[Vault] Download failed for ${youtubeId}: ${errMsg.substring(0, 100)}`);
     return false;
   }
 }
 
 export async function processVaultDownloads(userId: string): Promise<void> {
   if (isVaultRunning) {
-    console.log("[Vault] Download processor already running — skipping");
+    logger.info("[Vault] Download processor already running — skipping");
     return;
   }
 
   isVaultRunning = true;
-  console.log("[Vault] Starting background download processor...");
+  logger.info("[Vault] Starting background download processor...");
 
   try {
     let consecutiveFailures = 0;
@@ -417,7 +420,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     while (true) {
       const freeSpace = await getFreeSpaceGB();
       if (freeSpace < MIN_FREE_SPACE_GB) {
-        console.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB) — pausing vault downloads`);
+        logger.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB) — pausing vault downloads`);
         break;
       }
 
@@ -432,7 +435,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
         .limit(1);
 
       if (!next) {
-        console.log("[Vault] All indexed/failed videos have been processed");
+        logger.info("[Vault] All indexed/failed videos have been processed");
         break;
       }
 
@@ -442,7 +445,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       } else {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          console.warn(`[Vault] ${MAX_CONSECUTIVE_FAILURES} consecutive failures — pausing downloads`);
+          logger.warn(`[Vault] ${MAX_CONSECUTIVE_FAILURES} consecutive failures — pausing downloads`);
           break;
         }
       }
@@ -451,7 +454,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     }
   } finally {
     isVaultRunning = false;
-    console.log("[Vault] Download processor stopped");
+    logger.info("[Vault] Download processor stopped");
   }
 }
 
@@ -595,9 +598,9 @@ export async function getVaultEntries(userId: string, gameName?: string, content
 
 export async function startVaultSync(userId: string): Promise<void> {
   const result = await indexAllChannelVideos(userId);
-  console.log(`[Vault] Indexed ${result.indexed} videos (${result.newlyAdded} new)`);
+  logger.info(`[Vault] Indexed ${result.indexed} videos (${result.newlyAdded} new)`);
 
   processVaultDownloads(userId).catch(err =>
-    console.error("[Vault] Background download error:", err?.message || err)
+    logger.error("[Vault] Background download error:", err?.message || err)
   );
 }

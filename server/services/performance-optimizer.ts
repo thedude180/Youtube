@@ -1,6 +1,9 @@
 import { db } from "../db";
 import { eq, desc } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("performance-optimizer");
 interface DedupeEntry<T> {
   promise: Promise<T>;
   expiresAt: number;
@@ -196,7 +199,7 @@ export class SlowQueryDetector {
     this.timings.push({ name, durationMs, timestamp: Date.now() });
 
     if (durationMs > this.thresholdMs) {
-      console.warn(`[SlowQuery] ${name} took ${durationMs}ms (threshold: ${this.thresholdMs}ms)`);
+      logger.warn(`[SlowQuery] ${name} took ${durationMs}ms (threshold: ${this.thresholdMs}ms)`);
     }
   }
 
