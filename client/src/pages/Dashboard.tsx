@@ -290,8 +290,8 @@ export default function TeamDashboard() {
   });
 
 
-  const expiredPlatforms = (channels || [])
-    .filter((ch: any) => ch.connectionStatus === "expired")
+  const brokenPlatforms = (channels || [])
+    .filter((ch: any) => ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded")
     .map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1));
 
   const activeCount = agentStatus?.filter((a: any) => a.status === "active").length ?? 0;
@@ -346,11 +346,11 @@ export default function TeamDashboard() {
             </Button>
           </div>
         )}
-        {expiredPlatforms.length > 0 && (
+        {brokenPlatforms.length > 0 && (
           <a href="/settings" className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 hover:bg-destructive/15 transition-colors" data-testid="banner-platform-alert">
             <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-destructive leading-none">{expiredPlatforms.join(" & ")} {expiredPlatforms.length === 1 ? "needs" : "need"} reconnection</p>
+              <p className="text-sm font-semibold text-destructive leading-none">{brokenPlatforms.join(" & ")} {brokenPlatforms.length === 1 ? "needs" : "need"} reconnection</p>
               <p className="text-xs text-muted-foreground mt-0.5">Posting is paused. Tap to reconnect in Settings.</p>
             </div>
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />

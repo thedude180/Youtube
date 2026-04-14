@@ -244,7 +244,19 @@ function PlatformConnectionsCard({
   const healthyCount = health?.platforms?.filter(p => p.status === "healthy").length || 0;
   const totalCount = health?.platforms?.length || 0;
 
-  const expiredChannels = (channels || []).filter((ch: any) => ch.connectionStatus === "expired");
+  const getChannelStatus = (platformKey: string): "healthy" | "degraded" | "expired" | "disconnected" => {
+    const ch = (channels || []).find((c: any) => c.platform === platformKey);
+    if (!ch) return "disconnected";
+    const chStatus = (ch as any).connectionStatus;
+    if (chStatus === "disconnected" || chStatus === "expired" || chStatus === "degraded") return chStatus;
+    const hi = getHealthInfo(platformKey);
+    if (hi?.status) return hi.status;
+    return chStatus || "healthy";
+  };
+
+  const brokenChannels = (channels || []).filter((ch: any) =>
+    ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded"
+  );
 
   return (
     <Card>
@@ -292,14 +304,38 @@ function PlatformConnectionsCard({
         )}
       </CardHeader>
       <CardContent className="p-3 space-y-3">
-        {expiredChannels.length > 0 && (
+        {brokenChannels.length > 0 && (
           <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30" data-testid="banner-connection-alert">
             <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-destructive">
-                {expiredChannels.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)).join(" & ")} {expiredChannels.length === 1 ? "needs" : "need"} reconnection
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">Posting has paused. Use the Reconnect button below to restore automation.</p>
+              {(() => {
+                const disconnected = brokenChannels.filter((ch: any) => ch.connectionStatus === "disconnected");
+                const expired = brokenChannels.filter((ch: any) => ch.connectionStatus === "expired");
+                const degraded = brokenChannels.filter((ch: any) => ch.connectionStatus === "degraded");
+                const lines: string[] = [];
+                if (disconnected.length > 0) {
+                  const names = [...new Set(disconnected.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)))].join(", ");
+                  lines.push(`${names} — no OAuth token. Needs fresh login.`);
+                }
+                if (expired.length > 0) {
+                  const names = [...new Set(expired.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)))].join(", ");
+                  lines.push(`${names} — token expired. Needs reconnection.`);
+                }
+                if (degraded.length > 0) {
+                  const names = [...new Set(degraded.map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)))].join(", ");
+                  lines.push(`${names} — connection unstable. Auto-recovery in progress.`);
+                }
+                return (
+                  <>
+                    <p className="text-sm font-semibold text-destructive">
+                      {brokenChannels.length} platform{brokenChannels.length > 1 ? "s" : ""} need{brokenChannels.length === 1 ? "s" : ""} attention
+                    </p>
+                    {lines.map((line, i) => (
+                      <p key={i} className="text-xs text-muted-foreground mt-0.5">{line}</p>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -308,10 +344,15 @@ function PlatformConnectionsCard({
           <div className="space-y-2">
             {connected.map(p => {
               const hi = getHealthInfo(p.key);
-              const status = hi?.status || "healthy";
+              const status = getChannelStatus(p.key);
               const sc = statusConfig[status];
+              const needsLogin = status === "disconnected" || status === "expired";
               return (
-                <div key={p.key} className={cn("rounded-lg border p-3", status === "expired" && "border-destructive/30 bg-destructive/5")} data-testid={`row-connected-${p.key}`}>
+                <div key={p.key} className={cn(
+                  "rounded-lg border p-3",
+                  status === "expired" && "border-destructive/30 bg-destructive/5",
+                  status === "disconnected" && "border-amber-500/30 bg-amber-500/5",
+                )} data-testid={`row-connected-${p.key}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5">
                       <div className="relative">
@@ -326,18 +367,22 @@ function PlatformConnectionsCard({
                             {sc.label}
                           </Badge>
                         </div>
-                        {hi && (
+                        {status === "disconnected" ? (
+                          <p className="text-xs text-amber-400 mt-0.5">No OAuth token — click Connect to authorize</p>
+                        ) : status === "expired" ? (
+                          <p className="text-xs text-red-400 mt-0.5">Token expired — click Reconnect to re-authorize</p>
+                        ) : hi ? (
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                             {hi.subscriberCount != null && <span>{formatCount(hi.subscriberCount)} subs</span>}
                             {hi.viewCount != null && <span>{formatCount(hi.viewCount)} views</span>}
                             {hi.videoCount != null && <span>{hi.videoCount} videos</span>}
                             <span>Checked {formatTimeAgo(hi.lastVerifiedAt)}</span>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      {status === "expired" && (
+                      {needsLogin && (
                         <Button
                           size="sm"
                           variant="default"
@@ -346,7 +391,7 @@ function PlatformConnectionsCard({
                           data-testid={`button-reconnect-${p.key}`}
                         >
                           {oauthLoading === p.key ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Link2 className="h-3 w-3 mr-1" />}
-                          Reconnect
+                          {status === "disconnected" ? "Connect" : "Reconnect"}
                         </Button>
                       )}
                       {status === "degraded" && (
@@ -361,16 +406,18 @@ function PlatformConnectionsCard({
                           Heal
                         </Button>
                       )}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7"
-                        disabled={refreshMutation.isPending}
-                        onClick={() => refreshMutation.mutate(p.key)}
-                        data-testid={`button-refresh-${p.key}`}
-                      >
-                        <RefreshCw className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-spin")} />
-                      </Button>
+                      {status === "healthy" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          disabled={refreshMutation.isPending}
+                          onClick={() => refreshMutation.mutate(p.key)}
+                          data-testid={`button-refresh-${p.key}`}
+                        >
+                          <RefreshCw className={cn("h-3.5 w-3.5", refreshMutation.isPending && "animate-spin")} />
+                        </Button>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" disabled={disconnecting === p.key} data-testid={`button-disconnect-${p.key}`}>
@@ -390,7 +437,7 @@ function PlatformConnectionsCard({
                       </AlertDialog>
                     </div>
                   </div>
-                  {hi && hi.failureCount > 0 && hi.failureCount < 15 && (
+                  {hi && hi.failureCount > 0 && hi.failureCount < 15 && status !== "disconnected" && (
                     <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" />
                       {hi.failureCount} recent connection {hi.failureCount === 1 ? "issue" : "issues"} — auto-recovery in progress

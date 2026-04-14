@@ -331,12 +331,23 @@ export function registerContentRoutes(app: Express) {
     const enriched = userChannels.map(ch => {
       const pd = (ch.platformData || {}) as any;
       const tokenExpired = ch.tokenExpiresAt && ch.tokenExpiresAt < now;
-      const guardianStatus = pd._connectionStatus || "healthy";
-      const connectionStatus = tokenExpired ? "expired" : guardianStatus;
+      const hasNoToken = !ch.accessToken && !ch.refreshToken;
+      const guardianStatus = pd._connectionStatus;
+      let connectionStatus: string;
+      if (hasNoToken) {
+        connectionStatus = "disconnected";
+      } else if (tokenExpired) {
+        connectionStatus = "expired";
+      } else if (guardianStatus) {
+        connectionStatus = guardianStatus;
+      } else {
+        connectionStatus = "healthy";
+      }
       return {
         ...ch,
         connectionStatus,
         lastVerifiedAt: pd._lastVerifiedAt || null,
+        failureCount: pd._reconnectFailures || 0,
       };
     });
     res.json(enriched);
