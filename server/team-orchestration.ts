@@ -3,8 +3,12 @@ import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { BUSINESS_AGENTS } from "./business-agent-engine";
 import { LEGAL_AGENTS, TAX_AGENTS } from "./legal-tax-agent-engine";
+import { db } from "./db";
+import { aiAgentActivities } from "@shared/schema";
+import { and, eq, gt } from "drizzle-orm";
 
 const logger = createLogger("team-orchestration");
+const MIN_TEAM_OPS_CYCLE_GAP_MINUTES = 240;
 
 export type Department = "creative" | "executive" | "legal";
 
@@ -419,6 +423,25 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
 }
 
 export async function runCompanyCycle(userId: string): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - MIN_TEAM_OPS_CYCLE_GAP_MINUTES * 60 * 1000);
+    const [recent] = await db
+      .select({ id: aiAgentActivities.id })
+      .from(aiAgentActivities)
+      .where(
+        and(
+          eq(aiAgentActivities.agentId, "biz-strategy"),
+          eq(aiAgentActivities.status, "completed"),
+          gt(aiAgentActivities.createdAt!, cutoff)
+        )
+      )
+      .limit(1);
+    if (recent) {
+      logger.info(`[team-ops] Company cycle skipped — last run was less than ${MIN_TEAM_OPS_CYCLE_GAP_MINUTES} min ago`);
+      return;
+    }
+  } catch {}
+
   logger.info(`[team-ops] Starting full company cycle for user ${userId}`);
   let phaseContext = "";
 

@@ -105,15 +105,12 @@ const AGENT_GAP_REGISTRY = [
 
 // Minimum number of pending items in the autopilotQueue before a refill is triggered
 const INVENTORY_THRESHOLD = 6;
-// Minimum hours between full health reports
-const HEALTH_REPORT_INTERVAL_HOURS = 6;
 // Minimum hours between queue doctor runs
 const QUEUE_DOCTOR_INTERVAL_MINUTES = 30;
 // How long a "pending" item can sit before it's considered stuck
 const STUCK_PENDING_HOURS = 2;
 
 let continuityInterval: ReturnType<typeof setInterval> | null = null;
-let lastHealthReportAt = 0;
 let totalGapsFilled = 0;
 let totalItemsRepaired = 0;
 let isInitialized = false;
@@ -275,22 +272,15 @@ async function runInventoryGuardian(userId: string): Promise<boolean> {
 }
 
 // --------------------------------------------------------------------------
-// 4. HEALTH REPORTER
-// Every 6 hours, writes a system health summary to agent activities.
+// 4. HEALTH SNAPSHOT
+// Returns health data to be folded into the single continuity_cycle log entry.
 // --------------------------------------------------------------------------
-async function runHealthReport(userId: string): Promise<void> {
-  if (Date.now() - lastHealthReportAt < HEALTH_REPORT_INTERVAL_HOURS * 3_600_000) return;
-
+async function getHealthSnapshot(userId: string): Promise<{ score: number; status: string } | null> {
   try {
     const [queueResult] = await db
       .select({ count: count() })
       .from(autopilotQueue)
       .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "pending")));
-
-    const [publishedResult] = await db
-      .select({ count: count() })
-      .from(autopilotQueue)
-      .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "published")));
 
     const [failedResult] = await db
       .select({ count: count() })
@@ -298,38 +288,15 @@ async function runHealthReport(userId: string): Promise<void> {
       .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
 
     const pendingCount = Number(queueResult?.count || 0);
-    const publishedCount = Number(publishedResult?.count || 0);
     const failedCount = Number(failedResult?.count || 0);
 
-    const healthScore = Math.max(0, 100 - failedCount * 5 - Math.max(0, INVENTORY_THRESHOLD - pendingCount) * 8);
+    const score = Math.max(0, 100 - failedCount * 5 - Math.max(0, INVENTORY_THRESHOLD - pendingCount) * 8);
+    const status = score >= 80 ? "healthy" : score >= 50 ? "degraded" : "critical";
 
-    const report = {
-      systemHealthScore: healthScore,
-      pendingQueueItems: pendingCount,
-      publishedTotal: publishedCount,
-      failedItems: failedCount,
-      gapsFilledLifetime: totalGapsFilled,
-      itemsRepairedLifetime: totalItemsRepaired,
-      status: healthScore >= 80 ? "healthy" : healthScore >= 50 ? "degraded" : "critical",
-    };
-
-    await storage.createAgentActivity({
-      userId,
-      agentId: "ai-continuity",
-      action: "system_health_report",
-      target: "Full pipeline",
-      status: "completed",
-      details: {
-        description: `System health: ${report.status.toUpperCase()} (score: ${healthScore}/100). Pipeline: ${pendingCount} queued, ${publishedCount} published, ${failedCount} failed. Gaps filled: ${totalGapsFilled}. Items repaired: ${totalItemsRepaired}.`,
-        impact: "Continuous autonomous operation maintained",
-        metrics: report as unknown as Record<string, number>,
-      },
-    });
-
-    lastHealthReportAt = Date.now();
-    logger.info(`[${userId}] Health report: ${report.status} (${healthScore}/100)`);
+    return { score, status };
   } catch (err: any) {
-    logger.warn(`[${userId}] Health report failed: ${err.message}`);
+    logger.warn(`[${userId}] Health snapshot failed: ${err.message}`);
+    return null;
   }
 }
 
@@ -357,8 +324,35 @@ async function runTokenKeepalive(): Promise<{ kept: number; failed: number; retr
 // --------------------------------------------------------------------------
 // MAIN CYCLE — runs every 30 minutes per user
 // --------------------------------------------------------------------------
+const MIN_CONTINUITY_GAP_MINUTES = 20;
+
+async function wasAgentRecentlyActive(agentId: string, minGapMinutes: number): Promise<boolean> {
+  try {
+    const cutoff = new Date(Date.now() - minGapMinutes * 60 * 1000);
+    const [recent] = await db
+      .select({ id: aiAgentActivities.id })
+      .from(aiAgentActivities)
+      .where(
+        and(
+          eq(aiAgentActivities.agentId, agentId),
+          eq(aiAgentActivities.status, "completed"),
+          gt(aiAgentActivities.createdAt!, cutoff)
+        )
+      )
+      .limit(1);
+    return !!recent;
+  } catch {
+    return false;
+  }
+}
+
 async function runContinuityCycle(): Promise<void> {
   try {
+    if (await wasAgentRecentlyActive("ai-continuity", MIN_CONTINUITY_GAP_MINUTES)) {
+      logger.info("Continuity cycle skipped — last run was less than 20 minutes ago");
+      return;
+    }
+
     const users = await db
       .selectDistinct({ userId: aiAgentActivities.userId })
       .from(aiAgentActivities)
@@ -379,44 +373,44 @@ async function runContinuityCycle(): Promise<void> {
       return;
     }
 
-    // Run token keepalive globally (not per-user, since keepAliveAllTokens handles all users)
     await runTokenKeepalive().catch(err =>
       logger.warn(`Token keepalive failed: ${err.message}`)
     );
 
     for (const userId of activeUserIds) {
       try {
-        // Run Queue Doctor every cycle
         const repaired = await runQueueDoctor(userId);
-
-        // Run Gap Scanner every cycle
         const kickstarted = await runGapScanner(userId);
-
-        // Run Inventory Guardian every cycle
         const refilled = await runInventoryGuardian(userId);
 
-        // Run Health Report only every 6 hours
-        await runHealthReport(userId);
+        const healthData = await getHealthSnapshot(userId);
 
-        if (repaired > 0 || kickstarted.length > 0 || refilled) {
-          await storage.createAgentActivity({
-            userId,
-            agentId: "ai-continuity",
-            action: "continuity_cycle",
-            target: "System pipeline",
-            status: "completed",
-            details: {
-              description: `Morgan ran a continuity sweep: ${kickstarted.length} agents kickstarted, ${repaired} queue items repaired${refilled ? ", content inventory refilled" : ""}`,
-              impact: "Zero-touch autonomous operation maintained",
-              metrics: {
-                agentsKickstarted: kickstarted.length,
-                queueItemsRepaired: repaired,
-                inventoryRefilled: refilled ? 1 : 0,
-                totalGapsFilledLifetime: totalGapsFilled,
-              },
+        const parts: string[] = [];
+        if (kickstarted.length > 0) parts.push(`${kickstarted.length} agents kickstarted`);
+        if (repaired > 0) parts.push(`${repaired} queue items repaired`);
+        if (refilled) parts.push("content inventory refilled");
+        if (healthData) parts.push(`health: ${healthData.status} (${healthData.score}/100)`);
+
+        await storage.createAgentActivity({
+          userId,
+          agentId: "ai-continuity",
+          action: "continuity_cycle",
+          target: "System pipeline",
+          status: "completed",
+          details: {
+            description: parts.length > 0
+              ? `Morgan ran a continuity sweep: ${parts.join(", ")}`
+              : "Morgan ran a routine continuity sweep — all systems nominal",
+            impact: "Zero-touch autonomous operation maintained",
+            metrics: {
+              agentsKickstarted: kickstarted.length,
+              queueItemsRepaired: repaired,
+              inventoryRefilled: refilled ? 1 : 0,
+              totalGapsFilledLifetime: totalGapsFilled,
+              ...(healthData ? { systemHealthScore: healthData.score, pipelineStatus: healthData.status } : {}),
             },
-          });
-        }
+          },
+        });
 
       } catch (err: any) {
         logger.error(`[${userId}] Continuity cycle error: ${err.message}`);

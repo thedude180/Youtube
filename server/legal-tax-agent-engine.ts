@@ -1,8 +1,12 @@
 import { storage } from "./storage";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
+import { db } from "./db";
+import { aiAgentActivities } from "@shared/schema";
+import { and, eq, gt } from "drizzle-orm";
 
 const logger = createLogger("legal-tax-agents");
+const MIN_LEGAL_TAX_CYCLE_GAP_MINUTES = 180;
 
 export const LEGAL_AGENTS: Record<string, {
   agentId: string; name: string; title: string; specialty: string; color: string; emoji: string;
@@ -295,6 +299,25 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof LEGAL_AGEN
 }
 
 export async function runLegalTaxAgentCycle(userId: string, type?: "legal" | "tax" | "all"): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - MIN_LEGAL_TAX_CYCLE_GAP_MINUTES * 60 * 1000);
+    const [recent] = await db
+      .select({ id: aiAgentActivities.id })
+      .from(aiAgentActivities)
+      .where(
+        and(
+          eq(aiAgentActivities.agentId, "legal-copyright"),
+          eq(aiAgentActivities.status, "completed"),
+          gt(aiAgentActivities.createdAt!, cutoff)
+        )
+      )
+      .limit(1);
+    if (recent) {
+      logger.info(`[${userId}] Legal/tax agent cycle skipped — last run was less than ${MIN_LEGAL_TAX_CYCLE_GAP_MINUTES} min ago`);
+      return;
+    }
+  } catch {}
+
   const agents = type === "legal"
     ? Object.values(LEGAL_AGENTS)
     : type === "tax"
