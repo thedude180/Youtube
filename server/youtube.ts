@@ -822,26 +822,11 @@ export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId:
 }
 
 export async function syncYouTubeVideosToLibrary(channelId: number, userId: string): Promise<{ synced: any[]; newVideos: any[] }> {
-  if (isQuotaBreakerTripped()) {
-    console.log("[YouTube] API quota breaker active — using public feed scraper instead");
-    return syncYouTubeVideosFromPublicFeed(channelId, userId);
-  }
-  let ytVideos: any[];
-  try {
-    ytVideos = await fetchYouTubeVideos(channelId);
-  } catch (err: any) {
-    const msg = String(err?.message || err).toLowerCase();
-    if (msg.includes("quota") || msg.includes("403") || msg.includes("ratelimitexceeded") || err?.code === 403) {
-      console.warn("[YouTube] Quota error during API sync — falling back to public feed scraper");
-      markQuotaErrorFromResponse(err);
-      return syncYouTubeVideosFromPublicFeed(channelId, userId);
-    }
-    if (msg.includes("not connected") || msg.includes("missing access token") || msg.includes("no access token") || msg.includes("invalid_grant")) {
-      console.warn("[YouTube] No valid API credentials — falling back to public feed scraper");
-      return syncYouTubeVideosFromPublicFeed(channelId, userId);
-    }
-    throw err;
-  }
+  return syncYouTubeVideosFromPublicFeed(channelId, userId);
+}
+
+async function _legacyApiSync(channelId: number, userId: string): Promise<{ synced: any[]; newVideos: any[] }> {
+  const ytVideos = await fetchYouTubeVideos(channelId);
   const existingVideos = await storage.getVideosByUser(userId);
 
   const synced: any[] = [];
