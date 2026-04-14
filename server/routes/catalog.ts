@@ -66,6 +66,13 @@ export function registerCatalogRoutes(app: Express): void {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
+      try {
+        const { refreshAllUserChannelStats } = await import("../youtube");
+        await refreshAllUserChannelStats(userId);
+      } catch (statsErr: any) {
+        console.warn(`[CatalogSync] Channel stats refresh failed: ${statsErr?.message?.substring(0, 200)}`);
+      }
+
       const results = await syncAllPlatformCatalogs(userId);
       res.json({ success: true, results });
     } catch (err: any) {

@@ -484,10 +484,22 @@ function PlatformCatalogsTab() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalog/summary"] });
       queryClient.invalidateQueries({ queryKey: ["/api/catalog/videos"] });
-      const total = data.results
-        ? Object.values(data.results as Record<string, any>).reduce((s: number, r: any) => s + (r.newLinks || 0), 0)
-        : data.newLinks || 0;
-      toast({ title: "Catalog Synced", description: `${total} new videos discovered across platforms.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      if (data.results) {
+        const results = data.results as Record<string, any>;
+        const totalNew = Object.values(results).reduce((s: number, r: any) => s + (r.newLinks || 0), 0);
+        const totalUpdated = Object.values(results).reduce((s: number, r: any) => s + (r.updated || 0), 0);
+        const totalErrors = Object.values(results).reduce((s: number, r: any) => s + (r.errors || 0), 0);
+        const totalFound = Object.values(results).reduce((s: number, r: any) => s + (r.total || 0), 0);
+        const platformResults = Object.entries(results).filter(([, r]) => (r as any).total > 0).map(([p, r]) => `${p}: ${(r as any).total}`).join(", ");
+        const desc = totalFound > 0
+          ? `Found ${totalFound} videos (${totalNew} new, ${totalUpdated} updated).${platformResults ? ` ${platformResults}` : ""}${totalErrors > 0 ? ` ${totalErrors} errors.` : ""}`
+          : `No new videos found. This may be due to API quota limits — try again later.`;
+        toast({ title: totalFound > 0 ? "Catalog Synced" : "Sync Complete", description: desc, variant: totalFound > 0 ? "default" : undefined });
+      } else {
+        toast({ title: "Sync Complete", description: `${data.newLinks || 0} new videos discovered.` });
+      }
     },
     onError: (err: Error) => {
       toast({ title: "Sync Failed", description: err.message, variant: "destructive" });

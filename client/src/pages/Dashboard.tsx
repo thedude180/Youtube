@@ -367,7 +367,7 @@ export default function TeamDashboard() {
             <StatCard icon={Users}      label="Subscribers"    value={fmt(stats?.subscriberCount)}  sub="YouTube"      color="border-purple-500/20 bg-purple-500/5" />
             <StatCard icon={Eye}        label="Views this month" value={fmt(stats?.monthlyViews)}   sub="30 days"      color="border-blue-500/20 bg-blue-500/5" />
             <StatCard icon={DollarSign} label="Revenue"        value={`$${stats?.monthlyRevenue != null ? Number(stats.monthlyRevenue).toFixed(0) : "—"}`} sub="this month" color="border-emerald-500/20 bg-emerald-500/5" />
-            <StatCard icon={Video}      label="Videos posted"  value={stats?.videosPosted ?? "—"}   sub="this month"   color="border-yellow-500/20 bg-yellow-500/5" />
+            <StatCard icon={Video}      label="Total Videos"   value={fmt(stats?.channelVideoCount && stats.channelVideoCount > 0 ? stats.channelVideoCount : stats?.totalVideos)}   sub="all platforms"   color="border-yellow-500/20 bg-yellow-500/5" />
           </div>
         )}
 

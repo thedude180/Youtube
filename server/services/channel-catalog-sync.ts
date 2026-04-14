@@ -52,23 +52,215 @@ async function getAuthenticatedYouTube(channel: any) {
   return google.youtube({ version: "v3", auth: oauth2Client });
 }
 
+async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
+  total: number;
+  newLinks: number;
+  updated: number;
+  errors: number;
+}> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    logger.warn(`[${userId}] No GOOGLE_API_KEY for public catalog sync`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+
+  const channelIdentifier = channel.channelId;
+  if (!channelIdentifier) {
+    logger.warn(`[${userId}] No channel ID for public sync`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+
+  try {
+    const isUcId = channelIdentifier.startsWith("UC");
+    let resolvedChannelId = channelIdentifier;
+    let uploadsPlaylistId: string | null = null;
+
+    const lookupStrategies = isUcId
+      ? [`id=${channelIdentifier}`]
+      : [`forHandle=${channelIdentifier.replace("@", "")}`, `forUsername=${channelIdentifier.replace("@", "")}`];
+
+    let chItem: any = null;
+    for (const param of lookupStrategies) {
+      const chUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&${param}&key=${apiKey}`;
+      const chResp = await fetch(chUrl, { signal: AbortSignal.timeout(15000) });
+      if (!chResp.ok) continue;
+      const chData = await chResp.json() as any;
+      if (chData.items?.[0]) {
+        chItem = chData.items[0];
+        break;
+      }
+    }
+
+    if (!chItem) {
+      logger.warn(`[${userId}] YouTube channel not found for ${channelIdentifier} — tried ${lookupStrategies.length} strategies`);
+      return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+    }
+
+    resolvedChannelId = chItem.id;
+    uploadsPlaylistId = chItem.contentDetails?.relatedPlaylists?.uploads;
+
+    const stats = chItem.statistics;
+    if (stats) {
+      const updates: any = { lastSyncAt: new Date() };
+      if (stats.subscriberCount != null) updates.subscriberCount = Number(stats.subscriberCount);
+      if (stats.videoCount != null) updates.videoCount = Number(stats.videoCount);
+      if (stats.viewCount != null) updates.viewCount = Number(stats.viewCount);
+      if (resolvedChannelId && resolvedChannelId !== channel.channelId) {
+        updates.channelId = resolvedChannelId;
+      }
+      await storage.updateChannel(channel.id, updates);
+      logger.info(`[${userId}] Updated channel stats from public API: ${stats.subscriberCount} subs, ${stats.videoCount} videos, ${stats.viewCount} views`);
+    }
+
+    if (!uploadsPlaylistId) {
+      return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+    }
+
+    const allVideoIds: string[] = [];
+    let pageToken: string | undefined;
+    const maxPages = 100;
+    let pages = 0;
+
+    do {
+      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}&key=${apiKey}`;
+      const plResp = await fetch(plUrl, { signal: AbortSignal.timeout(15000) });
+      if (!plResp.ok) {
+        logger.warn(`[${userId}] Playlist fetch failed: ${plResp.status}`);
+        break;
+      }
+      const plData = await plResp.json() as any;
+      const ids = (plData.items || []).map((item: any) => item.contentDetails?.videoId).filter(Boolean) as string[];
+      allVideoIds.push(...ids);
+      pageToken = plData.nextPageToken || undefined;
+      pages++;
+      if (pages >= maxPages) break;
+      await new Promise(r => setTimeout(r, 200));
+    } while (pageToken);
+
+    logger.info(`[${userId}] Public sync found ${allVideoIds.length} videos in uploads playlist`);
+
+    if (!allVideoIds.length) return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+
+    const existing = await db.select({ youtubeId: videoCatalogLinks.youtubeId })
+      .from(videoCatalogLinks)
+      .where(eq(videoCatalogLinks.userId, userId));
+    const existingIds = new Set(existing.map(e => e.youtubeId));
+
+    let newLinks = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (let i = 0; i < allVideoIds.length; i += 50) {
+      const batch = allVideoIds.slice(i, i + 50);
+      try {
+        const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${batch.join(",")}&key=${apiKey}`;
+        const vResp = await fetch(vUrl, { signal: AbortSignal.timeout(20000) });
+        if (!vResp.ok) {
+          logger.warn(`[${userId}] Video detail fetch failed at batch ${i}: ${vResp.status}`);
+          errors += batch.length;
+          continue;
+        }
+        const vData = await vResp.json() as any;
+
+        for (const v of (vData.items || [])) {
+          try {
+            const youtubeId = v.id;
+            if (!youtubeId) continue;
+
+            const durationSec = parseDurationToSeconds(v.contentDetails?.duration);
+            const isShort = durationSec > 0 && durationSec <= 60;
+            const isStream = !!v.liveStreamingDetails?.actualStartTime;
+            const videoType = isShort ? "short" : isStream ? "stream_vod" : "regular";
+
+            const linkData = {
+              userId,
+              channelId: channel.id,
+              platform: "youtube",
+              platformVideoId: youtubeId,
+              youtubeId,
+              shareLink: `https://youtu.be/${youtubeId}`,
+              fullUrl: `https://www.youtube.com/watch?v=${youtubeId}`,
+              title: v.snippet?.title || "Untitled",
+              description: (v.snippet?.description || "").substring(0, 5000),
+              thumbnailUrl: v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || "",
+              duration: v.contentDetails?.duration || null,
+              durationSec,
+              publishedAt: v.snippet?.publishedAt ? new Date(v.snippet.publishedAt) : null,
+              viewCount: Number(v.statistics?.viewCount || 0),
+              likeCount: Number(v.statistics?.likeCount || 0),
+              commentCount: Number(v.statistics?.commentCount || 0),
+              tags: v.snippet?.tags || [],
+              privacyStatus: v.status?.privacyStatus || "public",
+              videoType,
+              lastSyncedAt: new Date(),
+              metadata: {
+                categoryId: v.snippet?.categoryId,
+                isLiveContent: isStream,
+                streamStartedAt: v.liveStreamingDetails?.actualStartTime || null,
+                streamEndedAt: v.liveStreamingDetails?.actualEndTime || null,
+                definition: v.contentDetails?.definition || "hd",
+                dimension: v.contentDetails?.dimension || "2d",
+              },
+            };
+
+            if (existingIds.has(youtubeId)) {
+              await db.update(videoCatalogLinks).set({
+                title: linkData.title,
+                viewCount: linkData.viewCount,
+                likeCount: linkData.likeCount,
+                commentCount: linkData.commentCount,
+                lastSyncedAt: new Date(),
+                updatedAt: new Date(),
+              }).where(and(
+                eq(videoCatalogLinks.userId, userId),
+                eq(videoCatalogLinks.youtubeId, youtubeId),
+              ));
+              updated++;
+            } else {
+              await db.insert(videoCatalogLinks).values(linkData);
+              existingIds.add(youtubeId);
+              newLinks++;
+            }
+          } catch (err: any) {
+            errors++;
+          }
+        }
+      } catch (err: any) {
+        logger.warn(`[${userId}] Public video batch error at ${i}: ${err.message?.substring(0, 200)}`);
+        errors += batch.length;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    return { total: allVideoIds.length, newLinks, updated, errors };
+  } catch (err: any) {
+    logger.error(`[${userId}] Public YouTube catalog sync failed: ${err.message?.substring(0, 300)}`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 1 };
+  }
+}
+
 export async function syncFullCatalog(userId: string): Promise<{
   total: number;
   newLinks: number;
   updated: number;
   errors: number;
 }> {
-  const quota = await getQuotaStatus(userId);
-  if (quota.remaining < 100) {
-    logger.warn(`[${userId}] Catalog sync skipped — quota too low (${quota.remaining})`);
-    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
-  }
-
   const userChannels = await storage.getChannelsByUser(userId);
   const ytChannel = userChannels.find((c: any) => c.platform === "youtube" && c.accessToken);
   if (!ytChannel) {
-    logger.warn(`[${userId}] No authenticated YouTube channel found`);
+    const anyYtChannel = userChannels.find((c: any) => c.platform === "youtube");
+    if (anyYtChannel) {
+      logger.info(`[${userId}] No OAuth token — falling back to public API sync for ${anyYtChannel.channelName}`);
+      return await syncYouTubePublicCatalog(userId, anyYtChannel);
+    }
+    logger.warn(`[${userId}] No YouTube channel found`);
     return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+
+  const quota = await getQuotaStatus(userId);
+  if (quota.remaining < 100) {
+    logger.warn(`[${userId}] Quota too low for OAuth sync (${quota.remaining}) — trying public API`);
+    return await syncYouTubePublicCatalog(userId, ytChannel);
   }
 
   const yt = await getAuthenticatedYouTube(ytChannel);
@@ -760,7 +952,7 @@ async function runCatalogCycle(): Promise<void> {
 
   try {
     const allUsers = await storage.getAllUsers();
-    const eligible = allUsers.filter((u: any) => u.tier && u.tier !== "free");
+    const eligible = allUsers;
 
     for (const user of eligible) {
       try {
