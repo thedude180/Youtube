@@ -1662,7 +1662,7 @@ export async function createNotification(userId: string, type: string, title: st
   if (severity === "info") return;
   const safeMessage = message || `${title} — the system is handling this automatically.`;
   const safeTitle = title || "System notification";
-  await db.insert(notifications).values({ userId, type, title: safeTitle, message: safeMessage, severity });
+  await storage.createNotification({ userId, type, title: safeTitle, message: safeMessage, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }
 

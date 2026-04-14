@@ -6,6 +6,7 @@ import { channels, videos, autopilotConfig, autopilotQueue, engineHeartbeats,
 import { createLogger } from "./lib/logger";
 import { humanizeText, getStealthAnalysis } from "./ai-humanizer-engine";
 import { getOpenAIClient } from "./lib/openai";
+import { storage } from "./storage";
 
 const logger = createLogger("autonomy-controller");
 
@@ -148,13 +149,12 @@ async function runEngineWithAI(engineName: string, userId: string): Promise<{ ac
 
 async function notifyExceptionOnly(userId: string, engineName: string, severity: string, message: string) {
   if (severity === "info") return;
-  await db.insert(notifications).values({
+  await storage.createNotification({
     userId,
     type: severity === "critical" ? "alert" : "warning",
     title: `AI Engine: ${engineName}`,
     message,
     severity,
-    metadata: { source: "autonomy_controller", agentId: engineName },
   });
 }
 

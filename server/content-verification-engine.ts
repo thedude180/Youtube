@@ -519,6 +519,9 @@ export async function verifyLiveStreamHealth(userId: string): Promise<LiveStream
 
     for (const platform of platformsList) {
       const channelRow = userChannels.find(c => c.platform === platform);
+
+      if (channelRow && !channelRow.accessToken && !channelRow.refreshToken) continue;
+
       let health: LiveStreamHealth | null = null;
 
       if (platform === "youtube") {

@@ -367,12 +367,12 @@ export async function detectPerformanceDecay(userId: string): Promise<Array<{
           alert: `Performance declining ${Math.round(decayRate * 100)}% below expected trajectory`,
         });
 
-        await db.insert(notifications).values({
+        await storage.createNotification({
           userId,
           type: "performance_decay",
           title: `Performance Decay: ${video.title}`,
           message: `This video is performing ${Math.round(decayRate * 100)}% below expected. Consider refreshing metadata.`,
-          read: false,
+          severity: "warning",
         });
       }
     }

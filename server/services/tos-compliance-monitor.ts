@@ -3,6 +3,7 @@ import { complianceRules, discoveredStrategies, notifications } from "@shared/sc
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
+import { storage } from "../storage";
 
 const logger = createLogger("tos-monitor");
 
@@ -328,22 +329,13 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
       const { users } = await import("@shared/schema");
       const allUsers = await db.select({ id: users.id }).from(users).limit(10);
       for (const user of allUsers) {
-        const existing = await db.select({ id: notifications.id })
-          .from(notifications)
-          .where(and(
-            eq(notifications.userId, user.id),
-            eq(notifications.title, notifTitle),
-          ))
-          .limit(1);
-        if (existing.length === 0) {
-          await db.insert(notifications).values({
-            userId: user.id,
-            type: "compliance",
-            title: notifTitle,
-            message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
-            priority: change.severity === "critical" ? "urgent" : "high",
-          } as any).catch(() => undefined);
-        }
+        await storage.createNotification({
+          userId: user.id,
+          type: "compliance",
+          title: notifTitle,
+          message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
+          severity: change.severity === "critical" ? "critical" : "warning",
+        }).catch(() => undefined);
       }
     }
   } catch (err: any) {

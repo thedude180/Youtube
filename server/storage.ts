@@ -830,6 +830,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createNotification(n: InsertNotification): Promise<Notification> {
+    if (n.userId && n.title) {
+      const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      const existing = await db.select({ id: notifications.id })
+        .from(notifications)
+        .where(and(
+          eq(notifications.userId, n.userId),
+          eq(notifications.title, n.title),
+          gte(notifications.createdAt, cutoff),
+        ))
+        .limit(1);
+      if (existing.length > 0) return existing[0] as any;
+    }
     const [newNotification] = await db.insert(notifications).values(n).returning();
     return newNotification;
   }

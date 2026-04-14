@@ -9,6 +9,7 @@ import { shouldRunDailyContent } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel, ContentContext } from "./ai-engine";
 import { getActiveTrendOverride, getCooldownTrendOverrides, selectStreamByTrend, onStreamDetected } from "./trend-rider-engine";
+import { storage } from "./storage";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -195,7 +196,7 @@ interface ContentPlan {
 
 async function notify(userId: string, title: string, message: string, severity: string) {
   if (severity === "info") return;
-  await db.insert(notifications).values({ userId, type: "autopilot", title, message, severity });
+  await storage.createNotification({ userId, type: "autopilot", title, message, severity });
   sendSSEEvent(userId, "notification", { type: "new" });
 }
 
