@@ -7,6 +7,9 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
+import { createLogger } from "../../lib/logger";
+
+const replitAuthLogger = createLogger("replit-auth");
 
 const getOidcConfig = memoize(
   async () => {
@@ -36,7 +39,7 @@ export function getSession() {
   sessionStore.get = (sid: string, cb: (err: any, session?: any) => void) => {
     originalGet(sid, (err: any, sess: any) => {
       if (err) {
-        console.warn(`[Session] Store read error (treated as no-session): ${String(err).substring(0, 120)}`);
+        replitAuthLogger.warn("Session store read error (treated as no-session)", { error: String(err).substring(0, 120) });
         return cb(null, null);
       }
       cb(null, sess);
@@ -153,7 +156,7 @@ export async function setupAuth(app: Express) {
             const { initializeUserSystems } = await import("../../services/post-login-init");
             await initializeUserSystems(userId);
           } catch (e) {
-            console.error("[ReplitAuth] Post-login init failed:", e);
+            replitAuthLogger.error("Post-login init failed", { error: String(e) });
           }
         }
         res.redirect("/");

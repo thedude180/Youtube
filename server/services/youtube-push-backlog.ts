@@ -3,6 +3,19 @@ import { youtubePushBacklog, youtubeQuotaUsage } from "@shared/schema";
 import { eq, and, asc, ne, sql } from "drizzle-orm";
 import { storage } from "../storage";
 import { trackQuotaUsage, canAffordOperation, getQuotaStatus, getPacificDate, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
+import { createLogger } from "../lib/logger";
+
+const pushLogger = createLogger("push-backlog");
+const disconnectedChannelIds = new Set<number>();
+let disconnectedTTL = 0;
+
+function isChannelKnownDisconnected(channelId: number): boolean {
+  if (Date.now() > disconnectedTTL) {
+    disconnectedChannelIds.clear();
+    disconnectedTTL = Date.now() + 3600_000;
+  }
+  return disconnectedChannelIds.has(channelId);
+}
 
 export async function addToBacklog(params: {
   userId: string;
@@ -104,7 +117,7 @@ export async function smartPushOrQueue(params: {
           });
         }
       } catch (histErr) {
-        console.error(`[PushBacklog] Failed to record update history:`, histErr);
+        pushLogger.debug("Failed to record update history", { error: String(histErr) });
       }
 
       return { pushed: true, queued: false };
@@ -164,6 +177,8 @@ export async function processBacklog(): Promise<{
     }
 
     for (const item of items) {
+      if (isChannelKnownDisconnected(item.channelId)) continue;
+
       const canPush = await canAffordOperation(userId, "write");
       if (!canPush) {
         break;
@@ -218,7 +233,7 @@ export async function processBacklog(): Promise<{
             });
           }
         } catch (histErr) {
-          console.error(`[PushBacklog] Failed to record update history:`, histErr);
+          pushLogger.debug("Failed to record update history", { error: String(histErr) });
         }
 
         processed++;
@@ -233,7 +248,18 @@ export async function processBacklog(): Promise<{
         });
       } catch (err: any) {
         const attempts = item.attempts + 1;
-        const isQuotaError = err.code === 403 || err.message?.includes("quota") || err.code === "QUOTA_EXCEEDED";
+        const errMsg = String(err.message || err);
+        const isQuotaError = err.code === 403 || errMsg.includes("quota") || err.code === "QUOTA_EXCEEDED";
+        const isDisconnected = errMsg.includes("not connected") || errMsg.includes("missing access token");
+
+        if (isDisconnected) {
+          disconnectedChannelIds.add(item.channelId);
+          await db.update(youtubePushBacklog)
+            .set({ status: "queued", attempts, lastError: "channel_disconnected", updatedAt: new Date() })
+            .where(eq(youtubePushBacklog.id, item.id));
+          pushLogger.info("Channel disconnected, skipping remaining items for this channel", { channelId: item.channelId });
+          continue;
+        }
 
         if (isQuotaError) {
           await db.update(youtubePushBacklog)
@@ -244,15 +270,14 @@ export async function processBacklog(): Promise<{
 
         if (attempts >= item.maxAttempts) {
           await db.update(youtubePushBacklog)
-            .set({ status: "failed", attempts, lastError: err.message, updatedAt: new Date() })
+            .set({ status: "failed", attempts, lastError: errMsg, updatedAt: new Date() })
             .where(eq(youtubePushBacklog.id, item.id));
           failed++;
-          console.error(`[PushBacklog] Failed after ${attempts} attempts: ${item.youtubeVideoId}`, err.message);
+          pushLogger.warn("Backlog item failed permanently", { youtubeVideoId: item.youtubeVideoId, attempts, error: errMsg.substring(0, 120) });
         } else {
           await db.update(youtubePushBacklog)
-            .set({ status: "queued", attempts, lastError: err.message, updatedAt: new Date() })
+            .set({ status: "queued", attempts, lastError: errMsg, updatedAt: new Date() })
             .where(eq(youtubePushBacklog.id, item.id));
-          console.warn(`[PushBacklog] Attempt ${attempts} failed for ${item.youtubeVideoId}, will retry`);
         }
       }
 

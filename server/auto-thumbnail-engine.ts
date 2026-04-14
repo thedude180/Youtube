@@ -10,6 +10,20 @@ const logger = createLogger("auto-thumbnail");
 const openai = getOpenAIClient();
 
 const MAX_THUMBNAILS_PER_RUN = 3;
+const disconnectedChannels = new Set<number>();
+let disconnectedChannelsTTL = 0;
+
+function isChannelDisconnected(channelId: number): boolean {
+  if (Date.now() > disconnectedChannelsTTL) {
+    disconnectedChannels.clear();
+    disconnectedChannelsTTL = Date.now() + 3600_000;
+  }
+  return disconnectedChannels.has(channelId);
+}
+
+function markChannelDisconnected(channelId: number): void {
+  disconnectedChannels.add(channelId);
+}
 
 async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string): Promise<string> {
   try {
@@ -70,7 +84,8 @@ async function generateAndUploadThumbnail(
   videoType: string,
   youtubeId: string,
   channelId: number
-): Promise<boolean> {
+): Promise<boolean | "channel_disconnected"> {
+  if (isChannelDisconnected(channelId)) return "channel_disconnected";
   try {
     let researchContext = "";
     try {
@@ -171,8 +186,9 @@ async function generateAndUploadThumbnail(
     const isTooLarge = errMsg.includes("Media is too large") || errMsg.includes("2097152") || errMsg.includes("media_too_large");
     const isNotConnected = errMsg.includes("not connected") || errMsg.includes("missing access token");
     if (isNotConnected) {
-      logger.warn("Auto-thumbnail skipped — channel not connected", { videoDbId, youtubeId });
-      return false;
+      markChannelDisconnected(channelId);
+      logger.info("Auto-thumbnail skipped — channel not connected, caching for 1h", { channelId, videoDbId });
+      return "channel_disconnected";
     }
     if (isNotFound || isTooLarge) {
       const failReason = isNotFound ? "video_not_found_on_youtube" : "image_too_large";
@@ -239,8 +255,9 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
           }).where(eq(videos.id, video.id));
           continue;
         }
-        const success = await generateAndUploadThumbnail(userId, video.id, video.title, video.description || "", video.type || "video", youtubeId, ytChannel.id);
-        if (success) generated++;
+        const result = await generateAndUploadThumbnail(userId, video.id, video.title, video.description || "", video.type || "video", youtubeId, ytChannel.id);
+        if (result === "channel_disconnected") break;
+        if (result === true) generated++;
       }
     }
   } catch (err) {
@@ -265,6 +282,9 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
 
     for (const ytChannel of ytChannels) {
       if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+
+      if (isChannelDisconnected(ytChannel.id)) continue;
+      if (ytChannel.tokenExpiresAt && ytChannel.tokenExpiresAt.getTime() < Date.now() - 86400_000) continue;
 
       const userId = ytChannel.userId!;
       const userVideos = await db.select().from(videos)
@@ -296,7 +316,7 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
           continue;
         }
 
-        const success = await generateAndUploadThumbnail(
+        const result = await generateAndUploadThumbnail(
           userId,
           video.id,
           video.title,
@@ -306,7 +326,8 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
           ytChannel.id
         );
 
-        if (success) {
+        if (result === "channel_disconnected") break;
+        if (result === true) {
           generated++;
         } else {
           skipped++;
@@ -357,7 +378,7 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
       enrichedDescription = `${enrichedDescription}\n\nThumbnail concept: ${meta.thumbnailConcept}`;
     }
 
-    return await generateAndUploadThumbnail(
+    const result = await generateAndUploadThumbnail(
       userId,
       videoDbId,
       enrichedTitle,
@@ -366,6 +387,7 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
       youtubeId,
       video.channelId
     );
+    return result === true;
   } catch (err) {
     logger.error("Thumbnail generation for new video failed", { videoDbId, error: String(err) });
     return false;
@@ -434,12 +456,13 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
         },
       }).where(eq(videos.id, video.id));
 
-      const success = await generateAndUploadThumbnail(
+      const result = await generateAndUploadThumbnail(
         userId, video.id, video.title, video.description || "",
         video.type || "video", youtubeId, video.channelId
       );
 
-      if (success) {
+      if (result === "channel_disconnected") break;
+      if (result === true) {
         await db.update(videos).set({
           metadata: {
             ...((await db.select().from(videos).where(eq(videos.id, video.id)))[0]?.metadata as any || {}),

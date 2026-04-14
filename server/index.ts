@@ -419,7 +419,7 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
       });
     }
   } catch (err) {
-    console.error("[Express] Account lock check failed:", err);
+    logger.error("Account lock check failed", { error: String(err) });
   }
 
   const adaptiveLimit = await getAdaptiveRateLimit(ip);
@@ -440,7 +440,7 @@ app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
     return res.status(429).json({ error: "rate_limited", message: "Too many requests. Please slow down." });
   }
 
-  try { analyzeRequestPattern(ip, req.path, req.method); } catch (err) { console.error("[Express] Request pattern analysis failed:", err); }
+  try { analyzeRequestPattern(ip, req.path, req.method); } catch (err) { logger.debug("Request pattern analysis failed", { error: String(err) }); }
 
   next();
 });

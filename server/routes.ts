@@ -3,6 +3,9 @@ import type { Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index";
 import { storage } from "./storage";
 import { registerMap } from "./services/resilience-core";
+import { createLogger } from "./lib/logger";
+
+const logger = createLogger("routes");
 import { registerAdminRoutes } from "./routes/admin";
 import { registerContentRoutes } from "./routes/content";
 import { registerStreamRoutes } from "./routes/stream";
@@ -266,7 +269,7 @@ export async function registerRoutes(
         });
       }
     } catch (err) {
-      console.error("[Routes] AI daily usage check failed:", err);
+      logger.error("AI daily usage check failed", { error: String(err) });
     }
 
     next();
@@ -316,7 +319,7 @@ export async function registerRoutes(
           currentTier: "free",
         });
       }
-    } catch (err) { console.error("Tier check error:", err); }
+    } catch (err) { logger.error("Tier check error", { error: String(err) }); }
     next();
   });
 
@@ -373,7 +376,7 @@ export async function registerRoutes(
   registerEvolutionRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
-    restoreSafeModeState().catch((err: any) => console.error("[startup] Failed to restore safe mode state:", err?.message));
+    restoreSafeModeState().catch((err: any) => logger.error("Failed to restore safe mode state", { error: err?.message }));
   });
 
   if (process.env.NODE_ENV !== "test") {
@@ -408,14 +411,14 @@ export async function registerRoutes(
       registerCronHeartbeat("PlaylistManager", 6 * 60 * 60_000);
 
       const hbIv = setInterval(() => {
-        runHeartbeatCheck().catch((err) => console.error("[heartbeat] Check failed:", (err as Error)?.message));
+        runHeartbeatCheck().catch((err) => logger.warn("Heartbeat check failed", { error: (err as Error)?.message }));
       }, 5 * 60_000);
       routeIntervals.push(hbIv);
     });
 
     import("./services/metric-rollups").then(({ rollupMetrics }) => {
       const ruIv = setInterval(() => {
-        rollupMetrics().catch((err) => console.error("[metric-rollup] Rollup failed:", (err as Error)?.message));
+        rollupMetrics().catch((err) => logger.warn("Metric rollup failed", { error: (err as Error)?.message }));
       }, 60 * 60_000);
       routeIntervals.push(ruIv);
     });
@@ -429,7 +432,7 @@ export async function registerRoutes(
         vitalsBuffer.push(...vitals.map((v: any) => ({ ...v, url, timestamp, receivedAt: Date.now() })));
         if (vitalsBuffer.length > 500) vitalsBuffer.splice(0, vitalsBuffer.length - 500);
       }
-    } catch (err: any) { console.warn("[Vitals] Parse error:", err?.message || err); }
+    } catch (err: any) { logger.debug("Vitals parse error", { error: err?.message || String(err) }); }
     res.sendStatus(204);
   });
 

@@ -3,6 +3,9 @@ import type { Express } from "express";
 import { OAUTH_CONFIGS, type OAuthPlatformConfig } from "./oauth-config";
 import { authStorage } from "./replit_integrations/auth/storage";
 import type { Platform } from "@shared/schema";
+import { createLogger } from "./lib/logger";
+
+const authLogger = createLogger("platform-auth");
 
 const STATE_MAX_AGE = 10 * 60 * 1000;
 const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick"];
@@ -136,14 +139,14 @@ export function setupPlatformAuth(app: Express) {
 
         if (!tokenRes.ok) {
           const errText = await tokenRes.text();
-          console.error(`[PlatformAuth ${platform}] Token exchange failed:`, errText);
+          authLogger.error("Token exchange failed", { platform, error: errText.substring(0, 200) });
           return res.redirect(`/?auth_error=token_failed`);
         }
 
         const tokenData = await tokenRes.json();
         const accessToken = tokenData.access_token;
         if (!accessToken) {
-          console.error(`[PlatformAuth ${platform}] No access token in response`);
+          authLogger.error("No access token in response", { platform });
           return res.redirect(`/?auth_error=no_token`);
         }
 
@@ -157,7 +160,7 @@ export function setupPlatformAuth(app: Express) {
 
         if (!userInfoRes.ok) {
           const errText = await userInfoRes.text();
-          console.error(`[PlatformAuth ${platform}] User info failed:`, errText);
+          authLogger.error("User info fetch failed", { platform, error: errText.substring(0, 200) });
           return res.redirect(`/?auth_error=user_info_failed`);
         }
 
@@ -198,7 +201,7 @@ export function setupPlatformAuth(app: Express) {
 
         req.login(sessionUser, async (loginErr) => {
           if (loginErr) {
-            console.error(`[PlatformAuth ${platform}] Login error:`, loginErr);
+            authLogger.error("Login error", { platform, error: String(loginErr) });
             return res.redirect(`/?auth_error=login_failed`);
           }
 
@@ -206,16 +209,16 @@ export function setupPlatformAuth(app: Express) {
             const { initializeUserSystems } = await import("./services/post-login-init");
             await initializeUserSystems(dbUser.id || userId);
           } catch (e) {
-            console.error(`[PlatformAuth ${platform}] Post-login init failed:`, e);
+            authLogger.error("Post-login init failed", { platform, error: String(e) });
           }
 
           req.session.save((saveErr) => {
-            if (saveErr) console.error(`[PlatformAuth ${platform}] Session save error:`, saveErr);
+            if (saveErr) authLogger.error("Session save error", { platform, error: String(saveErr) });
             res.redirect("/");
           });
         });
       } catch (error: any) {
-        console.error(`[PlatformAuth ${platform}] Auth error:`, error.message);
+        authLogger.error("Auth error", { platform, error: error.message });
         return res.redirect(`/?auth_error=server_error`);
       }
     });

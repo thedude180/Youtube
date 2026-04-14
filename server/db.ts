@@ -2,6 +2,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import { createLogger } from "./lib/logger";
+
+const dbLogger = createLogger("db-pool");
 
 const { Pool } = pg;
 
@@ -27,10 +30,10 @@ pool.on("error", (err) => {
   const msg = err?.message || String(err);
   if (msg.includes("Connection terminated") || msg.includes("ECONNRESET")) {
     if (poolErrorCount % 10 === 1) {
-      console.warn(`[DB Pool] Transient error (count=${poolErrorCount}): ${msg.substring(0, 100)}`);
+      dbLogger.warn("Transient pool error", { count: poolErrorCount, error: msg.substring(0, 100) });
     }
   } else {
-    console.error(`[DB Pool] Unexpected client error (count=${poolErrorCount}):`, msg.substring(0, 150));
+    dbLogger.error("Unexpected pool error", { count: poolErrorCount, error: msg.substring(0, 150) });
   }
 });
 
@@ -38,7 +41,7 @@ pool.on("connect", (client) => {
   poolErrorCount = Math.max(0, poolErrorCount - 1);
   // AUDIT FIX: Apply statement_timeout per-connection; Pool constructor options are not reliably applied by all pg versions
   client.query("SET statement_timeout = 25000").catch((err: Error) => {
-    console.warn("[DB Pool] Failed to set statement_timeout on new client:", err.message);
+    dbLogger.warn("Failed to set statement_timeout", { error: err.message });
   });
 });
 
@@ -88,12 +91,12 @@ export async function withRetry<T>(
       const msg = String(err?.message || err);
       if (!isTransientDbError(msg) || attempt === maxRetries) break;
       const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-      console.warn(`[DB Retry] ${label} attempt ${attempt}/${maxRetries} failed (${msg.substring(0, 80)}), retrying in ${delay}ms...`);
+      dbLogger.warn("DB retry", { label, attempt, maxRetries, error: msg.substring(0, 80), retryMs: delay });
       await new Promise((r) => setTimeout(r, delay));
     }
   }
   // AUDIT FIX: Wrap final error with label and attempt count for production debuggability
-  console.error(`[DB Retry] ${label} final failure:`, lastErr);
+  dbLogger.error("DB retry final failure", { label, maxRetries, error: String(lastErr) });
   const wrapped = new Error(`[DB Retry] ${label} failed after ${maxRetries} attempts: ${lastErr?.message}`);
   (wrapped as any).cause = lastErr;
   throw wrapped;

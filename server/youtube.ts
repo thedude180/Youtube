@@ -1,6 +1,9 @@
 import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
 import { isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
+import { createLogger } from "./lib/logger";
+
+const ytLogger = createLogger("youtube");
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube",
@@ -159,7 +162,7 @@ export async function handleCallback(code: string, userId: string) {
       await storage.updateUserProfile(userId, { autopilotActive: true });
     }
   } catch (err) {
-    console.error(`[YouTube] Failed to auto-enable autopilot for ${userId}:`, err);
+    ytLogger.error("Failed to auto-enable autopilot", { userId, error: String(err) });
   }
 
   return {
@@ -200,7 +203,7 @@ export async function getAuthenticatedClient(channelId: number) {
           await storage.updateChannel(channelId, updateData);
         }
       } catch (err) {
-        console.error('[YouTube] Token persist failed:', err);
+        ytLogger.error("Token persist failed", { error: String(err) });
       }
     })();
   });
@@ -243,7 +246,7 @@ export async function refreshChannelStats(channelId: number): Promise<void> {
     if (info.viewCount != null) updates.viewCount = Number(info.viewCount);
     await storage.updateChannel(channelId, updates);
   } catch (err) {
-    console.error(`[YouTube] Failed to refresh stats for channel ${channelId}:`, err);
+    ytLogger.error("Failed to refresh stats", { channelId, error: String(err) });
   }
 }
 
@@ -252,11 +255,11 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
     const { getQuotaStatus, trackQuotaUsage } = await import("./services/youtube-quota-tracker");
     const quota = await getQuotaStatus(userId);
     if (quota.remaining < 10) {
-      console.warn(`[YouTube] Skipping channel stats refresh for ${userId} — quota too low (${quota.remaining})`);
+      ytLogger.info("Skipping channel stats refresh — quota too low", { userId, remaining: quota.remaining });
       return;
     }
     await trackQuotaUsage(userId, "list", 1);
-  } catch (err: any) { console.warn("[YouTube] Quota check failed:", err?.message || err); }
+  } catch (err: any) { ytLogger.warn("Quota check failed", { error: err?.message || String(err) }); }
   const userChannels = await storage.getChannelsByUser(userId);
 
   const ytChannels = userChannels.filter(c => c.platform === "youtube" && c.accessToken);
@@ -287,7 +290,7 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
       }
       await storage.updateChannel(ch.id, updates);
     } catch (err) {
-      console.error(`[ChannelStats] Failed to refresh stats for ${ch.platform} channel ${ch.id}:`, err);
+      ytLogger.error("Failed to refresh channel stats", { platform: ch.platform, channelId: ch.id, error: String(err) });
     }
   }
 
@@ -296,7 +299,7 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
       const { autoDetectAndUpdateMetrics } = await import("./growth-programs-engine");
       await autoDetectAndUpdateMetrics(userId);
     } catch (err) {
-      console.error(`[ChannelStats] Failed to update growth metrics for ${userId}:`, err);
+      ytLogger.error("Failed to update growth metrics", { userId, error: String(err) });
     }
   }
 }
@@ -366,7 +369,7 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota")) {
         markQuotaErrorFromResponse(err);
-        console.warn(`[YouTube] Quota hit during video details fetch (got ${allVideos.length} so far)`);
+        ytLogger.info("Quota hit during video details fetch", { fetched: allVideos.length });
         break;
       }
       throw err;
@@ -433,7 +436,7 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
   } catch (err: any) {
     const msg = String(err?.message || "");
     if (!msg.includes("not connected") && !msg.includes("missing access token")) {
-      console.error(`[YouTube] Failed to fetch details for ${youtubeVideoId}:`, msg);
+      ytLogger.error("Failed to fetch video details", { youtubeVideoId, error: msg });
     }
     return null;
   }
@@ -656,11 +659,11 @@ export async function optimizeShortsForAllPlatforms(userId: string, shorts: any[
       });
       optimized++;
     } catch (err) {
-      console.error(`[Shorts] Failed to optimize short ${short.id} for other platforms:`, err);
+      ytLogger.error("Failed to optimize short for other platforms", { shortId: short.id, error: String(err) });
     }
   }
 
-  console.log(`[Shorts] Cross-platform optimized ${optimized}/${shorts.length} shorts for: ${shortFormPlatforms.join(", ")}`);
+  ytLogger.info("Cross-platform optimized shorts", { optimized, total: shorts.length, platforms: shortFormPlatforms.join(", ") });
   return { optimized, platforms: shortFormPlatforms };
 }
 
@@ -690,7 +693,7 @@ export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHA
   likeCount: number;
 }>> {
   if (!isValidYouTubeChannelUrl(channelUrl)) {
-    console.error(`[YouTube] Invalid channel URL rejected: ${channelUrl}`);
+    ytLogger.warn("Invalid channel URL rejected", { channelUrl });
     return [];
   }
 
@@ -746,19 +749,19 @@ export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHA
       } catch {}
     }
 
-    console.log(`[YouTube] yt-dlp scraped ${videos.length} videos from ${channelUrl}`);
+    ytLogger.info("yt-dlp scraped videos", { count: videos.length, channelUrl });
     return videos;
   } catch (err: any) {
-    console.error(`[YouTube] yt-dlp channel scrape failed:`, err.message?.substring(0, 200));
+    ytLogger.error("yt-dlp channel scrape failed", { error: err.message?.substring(0, 200) });
     return [];
   }
 }
 
 export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId: string, channelUrl: string = PUBLIC_CHANNEL_URL): Promise<{ synced: any[]; newVideos: any[] }> {
-  console.log(`[YouTube] Syncing videos from public feed: ${channelUrl} (bypasses API quota)`);
+  ytLogger.info("Syncing videos from public feed", { channelUrl });
   const ytVideos = await fetchChannelVideosViaYtDlp(channelUrl);
   if (ytVideos.length === 0) {
-    console.warn("[YouTube] No videos found from public feed — falling back to existing library");
+    ytLogger.warn("No videos found from public feed — falling back to existing library");
     return { synced: [], newVideos: [] };
   }
 
@@ -801,21 +804,21 @@ export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId:
   }
 
   if (newVideos.length > 0) {
-    console.log(`[YouTube] Public feed sync: ${newVideos.length} new videos discovered, ${synced.length} total`);
+    ytLogger.info("Public feed sync: new videos discovered", { newVideos: newVideos.length, total: synced.length });
     await storage.updateChannel(channelId, { lastSyncAt: new Date() });
 
     try {
       const { processNewVideoUpload } = await import("./autopilot-engine");
       for (const video of newVideos) {
         processNewVideoUpload(userId, video.id).catch(err =>
-          console.error(`[YouTube] Autopilot pipeline failed for video ${video.id}:`, err?.message || err)
+          ytLogger.error("Autopilot pipeline failed for video", { videoId: video.id, error: err?.message || String(err) })
         );
       }
     } catch (err) {
-      console.error("[YouTube] Failed to trigger autopilot pipeline:", err);
+      ytLogger.error("Failed to trigger autopilot pipeline", { error: String(err) });
     }
   } else {
-    console.log(`[YouTube] Public feed sync: all ${synced.length} videos already in library`);
+    ytLogger.info("Public feed sync: all videos already in library", { count: synced.length });
   }
 
   return { synced, newVideos };
@@ -868,7 +871,7 @@ async function _legacyApiSync(channelId: number, userId: string): Promise<{ sync
   const newShorts = newVideos.filter(v => v.type === "short");
   if (newShorts.length > 0) {
     optimizeShortsForAllPlatforms(userId, newShorts).catch(err =>
-      console.error("[YouTube] Shorts cross-platform optimization failed:", err)
+      ytLogger.error("Shorts cross-platform optimization failed", { error: String(err) })
     );
   }
 
@@ -878,19 +881,19 @@ async function _legacyApiSync(channelId: number, userId: string): Promise<{ sync
       const { bridgeVodsToStreams } = await import("./daily-content-engine");
       await bridgeVodsToStreams(userId);
     } catch (err) {
-      console.error("[YouTube] VOD bridge after sync failed:", err);
+      ytLogger.error("VOD bridge after sync failed", { error: String(err) });
     }
 
     try {
       const { processNewVideoUpload } = await import("./autopilot-engine");
       for (const video of newVideos) {
         processNewVideoUpload(userId, video.id).catch(err =>
-          console.error(`[YouTube] Autopilot pipeline failed for video ${video.id}:`, err?.message || err)
+          ytLogger.error("Autopilot pipeline failed", { videoId: video.id, error: err?.message || String(err) })
         );
       }
-      console.log(`[YouTube] Triggered autopilot pipeline for ${newVideos.length} new video(s)`);
+      ytLogger.info("Triggered autopilot pipeline for new videos", { count: newVideos.length });
     } catch (err) {
-      console.error("[YouTube] Failed to trigger autopilot pipeline for new videos:", err);
+      ytLogger.error("Failed to trigger autopilot pipeline for new videos", { error: String(err) });
     }
   }
   return { synced, newVideos };
@@ -921,7 +924,7 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
     }));
   } catch (err: any) {
     markQuotaErrorFromResponse(err);
-    console.error("[YouTube] Live broadcast check failed:", err.message);
+    ytLogger.warn("Live broadcast check failed", { error: err.message });
     return [];
   }
 }
@@ -1000,12 +1003,12 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
         moderationStatus: "published",
       });
     } catch (moderationErr) {
-      console.error("[YouTube] Failed to set comment moderation status:", moderationErr);
+      ytLogger.error("Failed to set comment moderation status", { error: String(moderationErr) });
     }
 
     return { success: true, commentId: newCommentId };
   } catch (err: any) {
-    console.error("[YouTube] Post & pin comment failed:", err.message);
+    ytLogger.error("Post & pin comment failed", { error: err.message });
     return { success: false, error: err.message };
   }
 }
@@ -1072,7 +1075,7 @@ export async function fetchYouTubeTranscript(videoId: string): Promise<string | 
     if (segments.length === 0) return null;
     return segments.join("\n");
   } catch (err: any) {
-    console.error(`[YouTube] Transcript fetch failed for ${videoId}:`, err.message);
+    ytLogger.error("Transcript fetch failed", { videoId, error: err.message });
     return null;
   }
 }
