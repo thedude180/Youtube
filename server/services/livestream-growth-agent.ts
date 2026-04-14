@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { channels, streams, autopilotQueue } from "@shared/schema";
+import { channels, streams, autopilotQueue, autopilotConfig } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
@@ -33,6 +33,29 @@ interface LiveGrowthSession {
 
 const activeSessions = new Map<string, LiveGrowthSession>();
 let eventsRegistered = false;
+
+async function getConnectedPlatforms(userId: string): Promise<Set<string>> {
+  const userChannels = await db.select({ platform: channels.platform, accessToken: channels.accessToken, platformData: channels.platformData })
+    .from(channels)
+    .where(eq(channels.userId, userId));
+  return new Set(userChannels.filter(c => {
+    if (!c.accessToken) return false;
+    const pd = (c.platformData || {}) as any;
+    if (pd._connectionStatus === "expired") return false;
+    return true;
+  }).map(c => c.platform));
+}
+
+async function isSocialBlastEnabled(userId: string): Promise<boolean> {
+  const configs = await db.select()
+    .from(autopilotConfig)
+    .where(and(eq(autopilotConfig.userId, userId)));
+  const smartSchedule = configs.find(c => c.feature === "smart-schedule");
+  if (smartSchedule && smartSchedule.enabled === false) return false;
+  const socialBlast = configs.find(c => c.feature === "social-blast" || c.feature === "discord-announce");
+  if (socialBlast && socialBlast.enabled === false) return false;
+  return true;
+}
 
 function buildPrompt(session: LiveGrowthSession, liveYouTubeContext?: string): string {
   const liveMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
@@ -214,10 +237,22 @@ async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
 
 async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
   try {
+    const blastEnabled = await isSocialBlastEnabled(session.userId);
+    if (!blastEnabled) {
+      logger.info(`[${session.userId}] Social blast skipped — disabled by user`);
+      return;
+    }
+
+    const connected = await getConnectedPlatforms(session.userId);
+    if (connected.size === 0) {
+      logger.info(`[${session.userId}] Social blast skipped — no platforms connected`);
+      return;
+    }
+
     const update = await aiGenerateLiveUpdate(session);
     if (!update) return;
 
-    const posts: Array<[string, string]> = [
+    const allPosts: Array<[string, string]> = [
       ["discord", update.discordPost],
       ["tiktok", update.tiktokPost],
       ["x", update.xPost || ""],
@@ -225,32 +260,41 @@ async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
       ["kick", update.kickPost || ""],
     ];
 
+    const eligiblePosts = allPosts.filter(([platform, content]) =>
+      content && content.length > 0 && connected.has(platform)
+    );
+
     let queued = 0;
-    for (const [platform, content] of posts) {
-      if (content && content.length > 0) {
-        await queueSocialPost(session.userId, platform, content, session.broadcastId);
-        queued++;
-      }
+    const platformNames: string[] = [];
+    for (const [platform, content] of eligiblePosts) {
+      await queueSocialPost(session.userId, platform, content, session.broadcastId);
+      queued++;
+      platformNames.push(platform);
     }
 
-    logger.info(`[${session.userId}] Social blast queued — ${queued} posts (viewers: ${session.viewerCount})`);
+    const skipped = allPosts
+      .filter(([p, c]) => c && c.length > 0 && !connected.has(p))
+      .map(([p]) => p);
+
+    logger.info(`[${session.userId}] Social blast queued — ${queued} posts to [${platformNames.join(", ")}] (viewers: ${session.viewerCount})${skipped.length > 0 ? ` | Skipped (not connected): ${skipped.join(", ")}` : ""}`);
 
     await storage.createAgentActivity({
       userId: session.userId,
       agentId: "ai-livestream-growth",
       action: "social_blast",
-      target: `${queued} platforms (X, Discord, TikTok)`,
+      target: `${queued} platforms (${platformNames.join(", ")})`,
       status: "completed",
       details: {
-        description: `Blasted ${queued} social platforms to drive viewers to live stream`,
+        description: `Blasted ${queued} connected platforms to drive viewers to live stream`,
         impact: `Targeting ${session.viewerCount} current viewers → growth push`,
-        metrics: { platformsBlasted: queued, currentViewers: session.viewerCount },
+        metrics: { platformsBlasted: queued, currentViewers: session.viewerCount, platforms: platformNames, skippedNotConnected: skipped },
       },
     });
 
     sendSSEEvent(session.userId, "livestream-growth", {
       action: "social_blasted",
       platforms: queued,
+      platformNames,
       viewers: session.viewerCount,
     });
 

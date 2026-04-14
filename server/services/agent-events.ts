@@ -276,7 +276,7 @@ export async function wireAgentCoordination(): Promise<void> {
       }, 45_000);
     }
 
-    // 1e. T+2min: Cross-platform live announcement blast (all platforms)
+    // 1e. T+2min: Cross-platform live announcement blast (only connected platforms)
     setTimeout(async () => {
       try {
         const { processGoLiveAnnouncements } = await import("../autopilot-engine");
@@ -286,7 +286,7 @@ export async function wireAgentCoordination(): Promise<void> {
           streamId,
           title || gameTitle || "Live Stream",
           `${gameTitle || "PS5 Gameplay"} — Live now on YouTube!`,
-          ["youtube", "twitch", "kick", "discord", "tiktok", "x", "instagram"]
+          []
         );
         logger.info(`Cross-platform go-live blast sent for ${event.userId.slice(0, 8)}`);
       } catch (err: any) {
