@@ -342,17 +342,17 @@ export default function Money() {
   const userId = user?.id;
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
 
-  const { data: sponsorData } = useQuery({ 
+  const { data: sponsorData, isLoading: sponsorLoading } = useQuery({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
     enabled: !!userId && (activeTab === "sponsors" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: merchData } = useQuery({ 
+  const { data: merchData, isLoading: merchLoading } = useQuery({ 
     queryKey: ["/api/monetization/merch-predictor", userId],
     enabled: !!userId && (activeTab === "merch-intel" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: diversifyData } = useQuery({ 
+  const { data: diversifyData, isLoading: diversifyLoading } = useQuery({ 
     queryKey: ["/api/monetization/revenue-diversification", userId],
     enabled: !!userId && (activeTab === "diversify" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
@@ -717,7 +717,15 @@ export default function Money() {
         <TabsContent value="sponsors" className="mt-2">
           <UpgradeTabGate requiredTier="pro" featureName="Sponsorship Manager" description="Find, negotiate, and manage brand deals with AI-powered sponsorship tools.">
             <div className="space-y-6">
-              {sponsorData && (
+              {sponsorLoading ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-32 rounded-xl" />
+                    <Skeleton className="h-32 rounded-xl" />
+                  </div>
+                  <Skeleton className="h-48 rounded-xl" />
+                </div>
+              ) : sponsorData ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="card-empire border-0 relative overflow-hidden">
@@ -795,7 +803,7 @@ export default function Money() {
                     </CardContent>
                   </Card>
                 </>
-              )}
+              ) : null}
               <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                 <LazySponsorsTab />
               </Suspense>
@@ -805,7 +813,12 @@ export default function Money() {
 
         <TabsContent value="merch-intel" className="mt-2">
           <UpgradeTabGate requiredTier="pro" featureName="Merch Predictor" description="AI-powered analysis of viral phrases and audience demand to suggest high-converting merchandise.">
-            {merchData && (
+            {merchLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-48 rounded-xl" />
+                <Skeleton className="h-32 rounded-xl" />
+              </div>
+            ) : merchData ? (
               <div className="space-y-6">
                 <Card className="bg-gradient-to-br from-orange-900/20 to-pink-900/20 border-orange-500/20">
                   <CardHeader>
@@ -873,13 +886,21 @@ export default function Money() {
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
           </UpgradeTabGate>
         </TabsContent>
 
         <TabsContent value="diversify" className="mt-2">
           <UpgradeTabGate requiredTier="pro" featureName="Revenue Diversification" description="Analyze your income streams and identify missing opportunities to build a more resilient creator business.">
-            {diversifyData && (
+            {diversifyLoading ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <Skeleton className="h-48 rounded-xl" />
+                  <Skeleton className="h-48 rounded-xl md:col-span-2" />
+                </div>
+                <Skeleton className="h-32 rounded-xl" />
+              </div>
+            ) : diversifyData ? (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <Card className="card-empire border-0 text-center flex flex-col items-center justify-center p-6 relative overflow-hidden empire-glow">
@@ -983,7 +1004,7 @@ export default function Money() {
                   </Card>
                 </div>
               </div>
-            )}
+            ) : null}
           </UpgradeTabGate>
         </TabsContent>
 

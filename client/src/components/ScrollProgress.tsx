@@ -24,12 +24,15 @@ export function ScrollProgress() {
 
   return (
     <div
-      className="fixed top-[2px] left-0 right-0 z-[99] h-[2px] pointer-events-none"
+      className="fixed top-0 left-0 right-0 z-[98] h-[1.5px] pointer-events-none"
       data-testid="scroll-progress"
     >
       <div
-        className="h-full bg-primary/40 transition-[width] duration-75 ease-linear"
-        style={{ width: `${progress}%` }}
+        className="h-full transition-[width] duration-100 ease-linear rounded-r-full"
+        style={{
+          width: `${progress}%`,
+          background: "hsl(var(--primary) / 0.3)",
+        }}
       />
     </div>
   );

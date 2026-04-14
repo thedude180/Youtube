@@ -21,6 +21,7 @@ import { FirstLiveMission } from "@/components/FirstLiveMission";
 import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
 import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 
 const AGENT_ROSTER = [
@@ -246,13 +247,13 @@ export default function TeamDashboard() {
     }
   });
 
-  const { data: stats, isLoading: statsLoading } = useQuery<any>({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
     refetchInterval: 5 * 60_000,
     staleTime: 3 * 60_000,
   });
 
-  const { data: agentStatus, isLoading: agentsLoading } = useQuery<any[]>({
+  const { data: agentStatus, isLoading: agentsLoading, error: agentsError } = useQuery<any[]>({
     queryKey: ["/api/agents/status"],
     refetchInterval: 2 * 60_000,
     staleTime: 60_000,
@@ -271,19 +272,19 @@ export default function TeamDashboard() {
     staleTime: 5 * 60_000,
   });
 
-  const { data: operatorBrief } = useQuery<any>({
+  const { data: operatorBrief, isLoading: briefLoading } = useQuery<any>({
     queryKey: ["/api/operator/brief"],
     refetchInterval: 10 * 60_000,
     staleTime: 5 * 60_000,
   });
 
-  const { data: sponsorData } = useQuery<any>({
+  const { data: sponsorData, isLoading: sponsorsLoading } = useQuery<any>({
     queryKey: ["/api/monetization/sponsorship-opportunities"],
     refetchInterval: 15 * 60_000,
     staleTime: 10 * 60_000,
   });
 
-  const { data: missions } = useQuery<any>({
+  const { data: missions, isLoading: missionsLoading } = useQuery<any>({
     queryKey: ["/api/monetization/missions"],
     refetchInterval: 15 * 60_000,
     staleTime: 10 * 60_000,
@@ -358,7 +359,9 @@ export default function TeamDashboard() {
         )}
         <FirstLiveMission />
 
-        {statsLoading ? (
+        {statsError ? (
+          <QueryErrorReset error={statsError as Error} queryKey={["/api/dashboard/stats"]} label="Failed to load dashboard stats" />
+        ) : statsLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
           </div>
@@ -371,7 +374,15 @@ export default function TeamDashboard() {
           </div>
         )}
 
-        <DailyBriefingSection briefing={operatorBrief} />
+        {briefLoading ? (
+          <div className="rounded-xl border border-border/30 bg-card/20 p-4 space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        ) : (
+          <DailyBriefingSection briefing={operatorBrief} />
+        )}
 
         {operatorBrief?.topActions?.length > 0 && (
           <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-top-actions">
@@ -408,7 +419,13 @@ export default function TeamDashboard() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {sponsorData?.opportunities?.length > 0 && (
+          {sponsorsLoading ? (
+            <div className="rounded-xl border border-border/30 bg-card/20 p-4 space-y-3">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          ) : sponsorData?.opportunities?.length > 0 ? (
             <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-sponsor-pipeline">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
                 <DollarSign className="h-4 w-4 text-emerald-400" />
@@ -423,8 +440,14 @@ export default function TeamDashboard() {
                 ))}
               </div>
             </div>
-          )}
-          {missions?.missions?.length > 0 && (
+          ) : null}
+          {missionsLoading ? (
+            <div className="rounded-xl border border-border/30 bg-card/20 p-4 space-y-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : missions?.missions?.length > 0 ? (
             <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-monetization-missions">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
                 <TrendingUp className="h-4 w-4 text-amber-400" />
@@ -439,7 +462,7 @@ export default function TeamDashboard() {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -456,7 +479,9 @@ export default function TeamDashboard() {
               )}
             </div>
 
-            {agentsLoading ? (
+            {agentsError ? (
+              <QueryErrorReset error={agentsError as Error} queryKey={["/api/agents/status"]} label="Failed to load agent status" />
+            ) : agentsLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {[...Array(AGENT_ROSTER.length)].map((_, i) => <Skeleton key={i} className="h-[76px] rounded-lg" />)}
               </div>

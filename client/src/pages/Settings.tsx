@@ -905,7 +905,7 @@ export default function Settings() {
   const params = useParams<{ tab?: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
+  const { data: profile, isLoading: profileLoading } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
   const isAdmin = profile?.role === "admin";
   const tabs = useMemo(() => baseTabs.filter((t) => !t.adminOnly || isAdmin), [isAdmin]);
   const activeTab: TabKey = VALID_TABS.includes(params.tab as TabKey) ? (params.tab as TabKey) : "general";
@@ -955,6 +955,12 @@ export default function Settings() {
         <p data-testid="text-page-subtitle" className="text-sm text-muted-foreground">Manage your account, brand, and tools</p>
       </div>
 
+      {profileLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-64 rounded-lg" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+      ) : (
       <Tabs value={activeTab} onValueChange={(v) => handleTabClick(v as TabKey)}>
         <div className="scrollable-tabs">
           <TabsList data-testid="tab-bar" className="w-auto inline-flex gap-1">
@@ -984,6 +990,7 @@ export default function Settings() {
           {isAdmin && <TabsContent value="admin-health" className="mt-4"><SectionErrorBoundary fallbackTitle="System health failed to load"><AdminSystemHealthTab /></SectionErrorBoundary></TabsContent>}
         </Suspense>
       </Tabs>
+      )}
     </div>
   );
 }

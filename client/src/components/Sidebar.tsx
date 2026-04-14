@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { prefetchForRoute } from "@/lib/prefetch";
 import {
   Users,
   Video,
@@ -90,7 +91,7 @@ export function AppSidebar() {
             const active = isActive(item.href);
             return (
               <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={active} data-testid={`nav-${item.label.toLowerCase()}`} className="transition-all duration-150">
+                <SidebarMenuButton asChild isActive={active} data-testid={`nav-${item.label.toLowerCase()}`} className="transition-all duration-150" onMouseEnter={() => prefetchForRoute(item.href)}>
                   <Link href={item.href}>
                     <Icon className={`h-4 w-4 flex-shrink-0 transition-all duration-200 ${active ? "text-primary" : ""}`} strokeWidth={active ? 2.2 : 1.8} />
                     <span className={`font-medium transition-colors duration-150 ${active ? "text-foreground" : ""}`}>{item.label}</span>

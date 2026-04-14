@@ -27,8 +27,12 @@ export function BackToTop() {
       size="icon"
       variant="outline"
       onClick={scrollToTop}
-      className="fixed bottom-20 md:bottom-6 right-4 z-30 shadow-md transition-all duration-200"
-      style={{ visibility: visible ? "visible" : "hidden", opacity: visible ? 1 : 0 }}
+      className="fixed bottom-[4.5rem] md:bottom-6 right-4 z-30 shadow-lg transition-all duration-300 rounded-full h-9 w-9"
+      style={{
+        visibility: visible ? "visible" : "hidden",
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0) scale(1)" : "translateY(8px) scale(0.9)",
+      }}
       data-testid="button-back-to-top"
     >
       <ArrowUp className="h-4 w-4" />

@@ -18,6 +18,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 interface VaultStats {
   totalIndexed: number;
@@ -186,12 +187,12 @@ export default function Vault() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
 
-  const { data: stats, isLoading: statsLoading } = useQuery<VaultStats>({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<VaultStats>({
     queryKey: ["/api/vault/stats"],
     refetchInterval: 30_000,
   });
 
-  const { data: games, isLoading: gamesLoading } = useQuery<VaultGame[]>({
+  const { data: games, isLoading: gamesLoading, error: gamesError } = useQuery<VaultGame[]>({
     queryKey: ["/api/vault/games"],
     refetchInterval: 60_000,
   });
@@ -241,7 +242,7 @@ export default function Vault() {
   }, [entries]);
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8 space-y-6" data-testid="page-vault">
+    <div className="min-h-screen p-3 lg:p-4 space-y-6 page-enter" data-testid="page-vault">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {selectedGame && (
@@ -311,7 +312,9 @@ export default function Vault() {
         </div>
       </div>
 
-      {!selectedGame && (
+      {!selectedGame && statsError ? (
+        <QueryErrorReset error={statsError as Error} queryKey={["/api/vault/stats"]} label="Failed to load vault stats" />
+      ) : !selectedGame && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card data-testid="stat-total-indexed">
             <CardContent className="p-4 flex items-center gap-3">
@@ -447,7 +450,9 @@ export default function Vault() {
             Games ({filteredGames.length})
           </h2>
 
-          {gamesLoading ? (
+          {gamesError ? (
+            <QueryErrorReset error={gamesError as Error} queryKey={["/api/vault/games"]} label="Failed to load games" />
+          ) : gamesLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {[...Array(6)].map((_, i) => (
                 <Card key={i} className="animate-pulse">

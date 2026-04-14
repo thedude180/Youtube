@@ -40,11 +40,34 @@ export function prefetchMoney() {
   ]);
 }
 
+export function prefetchStream() {
+  prefetchRoute([
+    ["/api/stream/command-center"],
+  ]);
+}
+
+export function prefetchSettings() {
+  prefetchRoute([
+    ["/api/user/profile"],
+    ["/api/linked-channels"],
+  ]);
+}
+
+export function prefetchVault() {
+  prefetchRoute([
+    ["/api/vault/stats"],
+    ["/api/vault/games"],
+  ]);
+}
+
 const routePrefetchers: Record<string, () => void> = {
   "/": prefetchDashboard,
   "/content": prefetchContent,
   "/autopilot": prefetchAutopilot,
   "/money": prefetchMoney,
+  "/stream": prefetchStream,
+  "/settings": prefetchSettings,
+  "/vault": prefetchVault,
 };
 
 export function prefetchForRoute(path: string) {
