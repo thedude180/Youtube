@@ -63,7 +63,6 @@ const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ defa
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(async (registration) => {
-      console.log('SW registered:', registration);
       try {
         const response = await fetch('/api/notifications/vapid-public-key');
         const { publicKey } = await response.json();
@@ -75,14 +74,11 @@ if ('serviceWorker' in navigator) {
               applicationServerKey: publicKey
             });
             await apiRequest('POST', '/api/notifications/subscribe', subscription);
-            console.log('Push subscription successful');
           }
         }
-      } catch (err) {
-        console.error('Push subscription failed:', err);
+      } catch {
       }
-    }).catch((err) => {
-      console.error('SW registration failed:', err);
+    }).catch(() => {
     });
   });
 }

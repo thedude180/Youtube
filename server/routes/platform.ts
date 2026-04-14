@@ -1068,14 +1068,15 @@ export async function registerPlatformRoutes(app: Express) {
         accessToken: channels.accessToken,
       }).from(channels).where(eq(channels.userId, userId));
 
-      const expired = userChannels.filter(ch => {
+      const broken = userChannels.filter(ch => {
         const pd = (ch.platformData || {}) as any;
-        if (pd._connectionStatus === "expired") return true;
+        if (!ch.accessToken && !ch.refreshToken) return true;
+        if (pd._connectionStatus === "expired" || pd._connectionStatus === "disconnected") return true;
         if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date() && !ch.refreshToken) return true;
         return false;
       });
 
-      const platforms = [...new Set(expired.map(ch => ch.platform))];
+      const platforms = [...new Set(broken.map(ch => ch.platform))];
       res.json({ needsReconnect: platforms.length > 0, platforms, count: platforms.length });
     } catch (err) {
       console.error("[NeedsReconnect] Error:", err);

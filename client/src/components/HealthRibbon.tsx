@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Wifi, WifiOff, Activity, Bot, Zap, Shield, Database } from "lucide-react";
+import { Activity, Bot, Zap, Shield, Database } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface EngineHeartbeat {

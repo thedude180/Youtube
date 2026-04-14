@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { AlertTriangle, X, RefreshCw } from "lucide-react";
@@ -33,11 +33,6 @@ export function PlatformReconnectBanner() {
   });
 
   const cacheKey = data?.platforms?.sort().join(",") ?? "";
-
-  useEffect(() => {
-    if (cacheKey && cacheKey !== dismissed) {
-    }
-  }, [cacheKey]);
 
   if (!isAuthenticated) return null;
   if (!data?.needsReconnect) return null;
