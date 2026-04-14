@@ -150,6 +150,8 @@ export async function syncFullCatalog(userId: string): Promise<{
           const linkData = {
             userId,
             channelId: ytChannel.id,
+            platform: "youtube",
+            platformVideoId: youtubeId,
             youtubeId,
             shareLink: `https://youtu.be/${youtubeId}`,
             fullUrl: `https://www.youtube.com/watch?v=${youtubeId}`,
@@ -448,6 +450,311 @@ export async function retryFailedCatalogItems(userId: string): Promise<number> {
   return 0;
 }
 
+export async function syncPlatformCatalog(userId: string, platform: string): Promise<{
+  total: number;
+  newLinks: number;
+  updated: number;
+  errors: number;
+}> {
+  const userChannels = await storage.getChannelsByUser(userId);
+  const platformChannel = userChannels.find((c: any) => c.platform === platform && c.accessToken);
+  if (!platformChannel) {
+    logger.warn(`[${userId}] No authenticated ${platform} channel found`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+
+  const existing = await db.select({ platformVideoId: videoCatalogLinks.platformVideoId })
+    .from(videoCatalogLinks)
+    .where(and(eq(videoCatalogLinks.userId, userId), eq(videoCatalogLinks.platform, platform)));
+  const existingIds = new Set(existing.map(e => e.platformVideoId));
+
+  let newLinks = 0;
+  let updated = 0;
+  let errors = 0;
+  let total = 0;
+
+  try {
+    if (platform === "twitch") {
+      const clientId = process.env.TWITCH_CLIENT_ID || "";
+      const headers = { "Authorization": `Bearer ${platformChannel.accessToken}`, "Client-Id": clientId };
+      const channelPlatformId = platformChannel.channelId || "";
+
+      let cursor: string | undefined;
+      do {
+        const url = `https://api.twitch.tv/helix/videos?user_id=${channelPlatformId}&type=archive&first=100${cursor ? `&after=${cursor}` : ""}`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) break;
+        const data = await res.json() as any;
+        const vids = data.data || [];
+        total += vids.length;
+
+        for (const v of vids) {
+          try {
+            const vid = {
+              userId,
+              channelId: platformChannel.id,
+              platform: "twitch",
+              platformVideoId: v.id,
+              youtubeId: "",
+              shareLink: v.url || `https://www.twitch.tv/videos/${v.id}`,
+              fullUrl: v.url || `https://www.twitch.tv/videos/${v.id}`,
+              title: v.title || "Untitled",
+              description: (v.description || "").substring(0, 5000),
+              thumbnailUrl: (v.thumbnail_url || "").replace("%{width}", "320").replace("%{height}", "180"),
+              duration: v.duration || null,
+              durationSec: parseTwitchDuration(v.duration),
+              publishedAt: v.published_at ? new Date(v.published_at) : v.created_at ? new Date(v.created_at) : null,
+              viewCount: v.view_count || 0,
+              likeCount: 0,
+              commentCount: 0,
+              tags: [],
+              privacyStatus: "public",
+              videoType: v.type === "highlight" ? "highlight" : "stream_vod",
+              lastSyncedAt: new Date(),
+              metadata: { language: v.language, streamId: v.stream_id },
+            };
+
+            if (existingIds.has(v.id)) {
+              await db.update(videoCatalogLinks).set({
+                title: vid.title,
+                viewCount: vid.viewCount,
+                lastSyncedAt: new Date(),
+                updatedAt: new Date(),
+              }).where(and(eq(videoCatalogLinks.userId, userId), eq(videoCatalogLinks.platformVideoId, v.id)));
+              updated++;
+            } else {
+              await db.insert(videoCatalogLinks).values(vid);
+              existingIds.add(v.id);
+              newLinks++;
+            }
+          } catch (err: any) {
+            errors++;
+          }
+        }
+        cursor = data.pagination?.cursor;
+      } while (cursor);
+
+    } else if (platform === "kick") {
+      const channelName = platformChannel.channelName || platformChannel.channelId || "";
+      try {
+        const res = await fetch(`https://kick.com/api/v2/channels/${channelName}/videos?page=1`);
+        if (res.ok) {
+          const data = await res.json() as any;
+          const vids = Array.isArray(data) ? data : data.data || [];
+          total = vids.length;
+
+          for (const v of vids) {
+            try {
+              const videoId = String(v.id || v.uuid || "");
+              if (!videoId) continue;
+              const vid = {
+                userId,
+                channelId: platformChannel.id,
+                platform: "kick",
+                platformVideoId: videoId,
+                youtubeId: "",
+                shareLink: `https://kick.com/video/${videoId}`,
+                fullUrl: `https://kick.com/video/${videoId}`,
+                title: v.title || v.session_title || "Untitled",
+                description: "",
+                thumbnailUrl: v.thumbnail?.url || v.thumbnail || "",
+                duration: null,
+                durationSec: v.duration ? Math.round(v.duration / 1000) : 0,
+                publishedAt: v.created_at ? new Date(v.created_at) : null,
+                viewCount: v.views || v.view_count || 0,
+                likeCount: v.likes || 0,
+                commentCount: 0,
+                tags: [],
+                privacyStatus: "public",
+                videoType: "stream_vod",
+                lastSyncedAt: new Date(),
+                metadata: { category: v.category?.name },
+              };
+
+              if (existingIds.has(videoId)) {
+                await db.update(videoCatalogLinks).set({
+                  title: vid.title,
+                  viewCount: vid.viewCount,
+                  lastSyncedAt: new Date(),
+                  updatedAt: new Date(),
+                }).where(and(eq(videoCatalogLinks.userId, userId), eq(videoCatalogLinks.platformVideoId, videoId)));
+                updated++;
+              } else {
+                await db.insert(videoCatalogLinks).values(vid);
+                existingIds.add(videoId);
+                newLinks++;
+              }
+            } catch (err: any) {
+              errors++;
+            }
+          }
+        }
+      } catch (err: any) {
+        logger.warn(`[${userId}] Kick catalog fetch failed: ${err.message?.substring(0, 200)}`);
+      }
+
+    } else if (platform === "rumble") {
+      const channelName = platformChannel.channelName || platformChannel.channelId || "";
+      try {
+        const rssUrl = `https://rumble.com/c/${channelName}/feed`;
+        const res = await fetch(rssUrl);
+        if (res.ok) {
+          const text = await res.text();
+          const items = text.split("<item>").slice(1);
+          total = items.length;
+
+          for (const item of items) {
+            try {
+              const titleMatch = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || item.match(/<title>(.*?)<\/title>/);
+              const linkMatch = item.match(/<link>(.*?)<\/link>/);
+              const guidMatch = item.match(/<guid.*?>(.*?)<\/guid>/);
+              const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/);
+              const thumbMatch = item.match(/<media:thumbnail url="(.*?)"/);
+              const descMatch = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/) || item.match(/<description>(.*?)<\/description>/);
+              const durationMatch = item.match(/<media:content.*?duration="(\d+)"/);
+
+              const videoId = guidMatch?.[1] || linkMatch?.[1] || "";
+              if (!videoId) continue;
+
+              const vid = {
+                userId,
+                channelId: platformChannel.id,
+                platform: "rumble",
+                platformVideoId: videoId,
+                youtubeId: "",
+                shareLink: linkMatch?.[1] || "",
+                fullUrl: linkMatch?.[1] || "",
+                title: titleMatch?.[1] || "Untitled",
+                description: (descMatch?.[1] || "").substring(0, 5000),
+                thumbnailUrl: thumbMatch?.[1] || "",
+                duration: null,
+                durationSec: durationMatch ? parseInt(durationMatch[1]) : 0,
+                publishedAt: pubDateMatch ? new Date(pubDateMatch[1]) : null,
+                viewCount: 0,
+                likeCount: 0,
+                commentCount: 0,
+                tags: [],
+                privacyStatus: "public",
+                videoType: "regular",
+                lastSyncedAt: new Date(),
+                metadata: {},
+              };
+
+              if (existingIds.has(videoId)) {
+                await db.update(videoCatalogLinks).set({
+                  title: vid.title,
+                  lastSyncedAt: new Date(),
+                  updatedAt: new Date(),
+                }).where(and(eq(videoCatalogLinks.userId, userId), eq(videoCatalogLinks.platformVideoId, videoId)));
+                updated++;
+              } else {
+                await db.insert(videoCatalogLinks).values(vid);
+                existingIds.add(videoId);
+                newLinks++;
+              }
+            } catch (err: any) {
+              errors++;
+            }
+          }
+        }
+      } catch (err: any) {
+        logger.warn(`[${userId}] Rumble catalog fetch failed: ${err.message?.substring(0, 200)}`);
+      }
+    }
+  } catch (err: any) {
+    logger.error(`[${userId}] Platform catalog sync error for ${platform}: ${err.message?.substring(0, 300)}`);
+  }
+
+  logger.info(`[${userId}] ${platform} catalog sync: ${newLinks} new, ${updated} updated, ${errors} errors (${total} total)`);
+  return { total, newLinks, updated, errors };
+}
+
+function parseTwitchDuration(dur: string | null | undefined): number {
+  if (!dur) return 0;
+  const match = dur.match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+  if (!match) return 0;
+  return (parseInt(match[1] || "0") * 3600) + (parseInt(match[2] || "0") * 60) + parseInt(match[3] || "0");
+}
+
+export async function syncAllPlatformCatalogs(userId: string): Promise<Record<string, { total: number; newLinks: number; updated: number; errors: number }>> {
+  const userChannels = await storage.getChannelsByUser(userId);
+  const results: Record<string, any> = {};
+
+  const ytResult = await syncFullCatalog(userId).catch(() => ({ total: 0, newLinks: 0, updated: 0, errors: 0 }));
+  results.youtube = ytResult;
+
+  for (const platform of ["twitch", "kick", "rumble"]) {
+    const hasChannel = userChannels.some((c: any) => c.platform === platform);
+    if (!hasChannel) continue;
+    try {
+      results[platform] = await syncPlatformCatalog(userId, platform);
+    } catch (err: any) {
+      results[platform] = { total: 0, newLinks: 0, updated: 0, errors: 1 };
+      logger.warn(`[${userId}] ${platform} catalog sync failed: ${err.message?.substring(0, 200)}`);
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  return results;
+}
+
+export async function getCatalogByPlatform(userId: string, platform?: string): Promise<any[]> {
+  const query = platform
+    ? db.select().from(videoCatalogLinks).where(and(eq(videoCatalogLinks.userId, userId), eq(videoCatalogLinks.platform, platform))).orderBy(desc(videoCatalogLinks.publishedAt)).limit(200)
+    : db.select().from(videoCatalogLinks).where(eq(videoCatalogLinks.userId, userId)).orderBy(desc(videoCatalogLinks.publishedAt)).limit(500);
+  return await query;
+}
+
+export async function getPlatformCatalogSummary(userId: string): Promise<{
+  platforms: Array<{
+    platform: string;
+    videoCount: number;
+    totalViews: number;
+    lastSynced: string | null;
+    types: Record<string, number>;
+  }>;
+  totalVideos: number;
+  totalViews: number;
+}> {
+  const allLinks = await db.select({
+    platform: videoCatalogLinks.platform,
+    viewCount: videoCatalogLinks.viewCount,
+    videoType: videoCatalogLinks.videoType,
+    lastSyncedAt: videoCatalogLinks.lastSyncedAt,
+  }).from(videoCatalogLinks).where(eq(videoCatalogLinks.userId, userId));
+
+  const byPlatform = new Map<string, { count: number; views: number; lastSynced: Date | null; types: Record<string, number> }>();
+
+  for (const link of allLinks) {
+    const p = link.platform || "youtube";
+    if (!byPlatform.has(p)) {
+      byPlatform.set(p, { count: 0, views: 0, lastSynced: null, types: {} });
+    }
+    const entry = byPlatform.get(p)!;
+    entry.count++;
+    entry.views += link.viewCount || 0;
+    const vt = link.videoType || "regular";
+    entry.types[vt] = (entry.types[vt] || 0) + 1;
+    if (link.lastSyncedAt && (!entry.lastSynced || link.lastSyncedAt > entry.lastSynced)) {
+      entry.lastSynced = link.lastSyncedAt;
+    }
+  }
+
+  const platforms = Array.from(byPlatform.entries()).map(([platform, data]) => ({
+    platform,
+    videoCount: data.count,
+    totalViews: data.views,
+    lastSynced: data.lastSynced?.toISOString() || null,
+    types: data.types,
+  }));
+
+  return {
+    platforms,
+    totalVideos: allLinks.length,
+    totalViews: allLinks.reduce((s, l) => s + (l.viewCount || 0), 0),
+  };
+}
+
 async function runCatalogCycle(): Promise<void> {
   logger.info("Catalog sync cycle starting");
 
@@ -457,11 +764,7 @@ async function runCatalogCycle(): Promise<void> {
 
     for (const user of eligible) {
       try {
-        const userChannels = await storage.getChannelsByUser(user.id);
-        const hasYouTube = userChannels.some((c: any) => c.platform === "youtube" && c.accessToken);
-        if (!hasYouTube) continue;
-
-        await syncFullCatalog(user.id);
+        await syncAllPlatformCatalogs(user.id);
 
         await new Promise(r => setTimeout(r, 3000));
 

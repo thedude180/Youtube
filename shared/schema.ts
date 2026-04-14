@@ -9366,6 +9366,8 @@ export const videoCatalogLinks = pgTable("video_catalog_links", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   channelId: integer("channel_id").notNull(),
+  platform: text("platform").notNull().default("youtube"),
+  platformVideoId: text("platform_video_id").notNull().default(""),
   youtubeId: text("youtube_id").notNull(),
   shareLink: text("share_link").notNull(),
   fullUrl: text("full_url").notNull(),
@@ -9399,6 +9401,8 @@ export const videoCatalogLinks = pgTable("video_catalog_links", {
   index("vcl_ytid_idx").on(t.youtubeId),
   index("vcl_editing_status_idx").on(t.editingStatus),
   index("vcl_scheduled_idx").on(t.scheduledForUpload),
+  index("vcl_platform_idx").on(t.platform),
+  index("vcl_platform_video_idx").on(t.platformVideoId),
 ]);
 
 export const insertVideoCatalogLinkSchema = createInsertSchema(videoCatalogLinks).omit({ id: true, createdAt: true, updatedAt: true });

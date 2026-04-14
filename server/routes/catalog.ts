@@ -1,5 +1,9 @@
 import type { Express, Request, Response } from "express";
-import { syncFullCatalog, processUnprocessedCatalog, getCatalogStatus, retryFailedCatalogItems } from "../services/channel-catalog-sync";
+import {
+  syncFullCatalog, processUnprocessedCatalog, getCatalogStatus,
+  retryFailedCatalogItems, syncPlatformCatalog, syncAllPlatformCatalogs,
+  getCatalogByPlatform, getPlatformCatalogSummary,
+} from "../services/channel-catalog-sync";
 
 export function registerCatalogRoutes(app: Express): void {
   app.get("/api/catalog/status", async (req: Request, res: Response) => {
@@ -14,13 +18,56 @@ export function registerCatalogRoutes(app: Express): void {
     }
   });
 
+  app.get("/api/catalog/summary", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const summary = await getPlatformCatalogSummary(userId);
+      res.json(summary);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/catalog/videos", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const platform = req.query.platform as string | undefined;
+      const videos = await getCatalogByPlatform(userId, platform);
+      res.json(videos);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/catalog/sync", async (req: Request, res: Response) => {
     try {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const result = await syncFullCatalog(userId);
-      res.json({ success: true, ...result });
+      const { platform } = req.body || {};
+      if (platform && platform !== "youtube") {
+        const result = await syncPlatformCatalog(userId, platform);
+        res.json({ success: true, ...result });
+      } else {
+        const result = await syncFullCatalog(userId);
+        res.json({ success: true, ...result });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/catalog/sync-all", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const results = await syncAllPlatformCatalogs(userId);
+      res.json({ success: true, results });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -55,12 +102,12 @@ export function registerCatalogRoutes(app: Express): void {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const syncResult = await syncFullCatalog(userId);
+      const syncResults = await syncAllPlatformCatalogs(userId);
       const processResult = await processUnprocessedCatalog(userId);
 
       res.json({
         success: true,
-        sync: syncResult,
+        sync: syncResults,
         processing: processResult,
       });
     } catch (err: any) {

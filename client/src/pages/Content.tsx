@@ -17,8 +17,9 @@ import {
   Search, Video, Radio, CheckCircle2, ExternalLink,
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
-  Sparkles, Shield, Monitor, RefreshCw, Download,
+  Sparkles, Shield, Monitor, RefreshCw, Download, Globe, Layers,
 } from "lucide-react";
+import { SiTwitch, SiKick } from "react-icons/si";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
@@ -30,7 +31,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useChannels } from "@/hooks/use-channels";
 import { SiYoutube } from "react-icons/si";
 
-type ContentTab = "library" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta";
+type ContentTab = "library" | "catalogs" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
@@ -90,7 +91,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "updated", "channels", "calendar", "intelligence", "revenue", "cta"];
+  const validTabs: ContentTab[] = ["library", "catalogs", "updated", "channels", "calendar", "intelligence", "revenue", "cta"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -109,6 +110,9 @@ export default function Content() {
           <TabsList data-testid="tabs-content" className="w-auto inline-flex">
             <TabsTrigger value="library" data-testid="tab-library" aria-label="Video library tab">
               <Video className="h-3.5 w-3.5 mr-1.5" />{t("content.library")}
+            </TabsTrigger>
+            <TabsTrigger value="catalogs" data-testid="tab-catalogs" aria-label="Platform catalogs tab">
+              <Layers className="h-3.5 w-3.5 mr-1.5" />Catalogs
             </TabsTrigger>
             <TabsTrigger value="updated" data-testid="tab-updated" aria-label="Updated videos tab">
               <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Updated
@@ -133,6 +137,9 @@ export default function Content() {
 
         <TabsContent value="library" className="mt-2">
           <LibraryTab />
+        </TabsContent>
+        <TabsContent value="catalogs" className="mt-2">
+          <PlatformCatalogsTab />
         </TabsContent>
         <TabsContent value="updated" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
@@ -426,6 +433,263 @@ function YouTubeImportSection() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const PLATFORM_ICONS: Record<string, any> = {
+  youtube: SiYoutube,
+  twitch: SiTwitch,
+  kick: SiKick,
+  rumble: Globe,
+};
+const PLATFORM_COLORS: Record<string, string> = {
+  youtube: "text-red-500",
+  twitch: "text-purple-500",
+  kick: "text-green-500",
+  rumble: "text-emerald-400",
+};
+const PLATFORM_NAMES: Record<string, string> = {
+  youtube: "YouTube",
+  twitch: "Twitch",
+  kick: "Kick",
+  rumble: "Rumble",
+};
+
+function PlatformCatalogsTab() {
+  const [activePlatform, setActivePlatform] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const { toast } = useToast();
+
+  const { data: summary, isLoading: summaryLoading } = useQuery<any>({
+    queryKey: ["/api/catalog/summary"],
+    staleTime: 2 * 60_000,
+  });
+
+  const { data: catalogVideos, isLoading: videosLoading } = useQuery<any[]>({
+    queryKey: ["/api/catalog/videos", activePlatform === "all" ? undefined : activePlatform],
+    queryFn: () => {
+      const url = activePlatform === "all" ? "/api/catalog/videos" : `/api/catalog/videos?platform=${activePlatform}`;
+      return fetch(url, { credentials: "include" }).then(r => r.json());
+    },
+    staleTime: 2 * 60_000,
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: async (platform?: string) => {
+      const url = platform ? "/api/catalog/sync" : "/api/catalog/sync-all";
+      const body = platform ? { platform } : {};
+      const res = await apiRequest("POST", url, body);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/catalog/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/catalog/videos"] });
+      const total = data.results
+        ? Object.values(data.results as Record<string, any>).reduce((s: number, r: any) => s + (r.newLinks || 0), 0)
+        : data.newLinks || 0;
+      toast({ title: "Catalog Synced", description: `${total} new videos discovered across platforms.` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Sync Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const filtered = useMemo(() => {
+    if (!catalogVideos || !Array.isArray(catalogVideos)) return [];
+    if (!searchQuery.trim()) return catalogVideos;
+    const q = searchQuery.toLowerCase();
+    return catalogVideos.filter((v: any) => v.title?.toLowerCase().includes(q));
+  }, [catalogVideos, searchQuery]);
+
+  const platforms = summary?.platforms || [];
+
+  return (
+    <div className="space-y-4 pb-20">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-sm font-semibold flex items-center gap-2" data-testid="text-catalogs-title">
+            <Layers className="h-4 w-4 text-primary" />
+            Platform Catalogs
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real video data synced from each connected platform
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending}
+          data-testid="button-sync-all-catalogs"
+        >
+          {syncMutation.isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          {syncMutation.isPending ? "Syncing..." : "Sync All Platforms"}
+        </Button>
+      </div>
+
+      {summaryLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card
+            className={`cursor-pointer transition-colors ${activePlatform === "all" ? "border-primary/50 bg-primary/5" : "hover:border-border/80"}`}
+            onClick={() => setActivePlatform("all")}
+            data-testid="card-platform-all"
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Globe className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold">All Platforms</span>
+              </div>
+              <div className="text-lg font-bold metric-display">{summary?.totalVideos || 0}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {(summary?.totalViews || 0).toLocaleString()} total views
+              </div>
+            </CardContent>
+          </Card>
+          {(["youtube", "twitch", "kick", "rumble"] as const).map(p => {
+            const pData = platforms.find((pl: any) => pl.platform === p);
+            const Icon = PLATFORM_ICONS[p] || Globe;
+            const color = PLATFORM_COLORS[p] || "text-muted-foreground";
+            return (
+              <Card
+                key={p}
+                className={`cursor-pointer transition-colors ${activePlatform === p ? "border-primary/50 bg-primary/5" : "hover:border-border/80"}`}
+                onClick={() => setActivePlatform(p)}
+                data-testid={`card-platform-${p}`}
+              >
+                <CardContent className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className={`h-4 w-4 ${color}`} />
+                      <span className="text-xs font-semibold">{PLATFORM_NAMES[p]}</span>
+                    </div>
+                    {pData?.lastSynced && (
+                      <span className="text-[9px] text-muted-foreground">
+                        {new Date(pData.lastSynced).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-lg font-bold metric-display">{pData?.videoCount || 0}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {(pData?.totalViews || 0).toLocaleString()} views
+                  </div>
+                  {pData?.types && Object.keys(pData.types).length > 0 && (
+                    <div className="flex gap-1 mt-1.5 flex-wrap">
+                      {Object.entries(pData.types).map(([type, count]) => (
+                        <Badge key={type} variant="secondary" className="text-[9px] h-4 px-1">
+                          {type}: {String(count)}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder={`Search ${activePlatform === "all" ? "all" : PLATFORM_NAMES[activePlatform]} videos...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8"
+            data-testid="input-search-catalog"
+          />
+        </div>
+        {activePlatform !== "all" && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncMutation.mutate(activePlatform)}
+            disabled={syncMutation.isPending}
+            data-testid={`button-sync-${activePlatform}`}
+          >
+            {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+            Sync {PLATFORM_NAMES[activePlatform]}
+          </Button>
+        )}
+      </div>
+
+      {videosLoading ? (
+        <div className="space-y-2">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Layers}
+          type="content"
+          title={activePlatform === "all" ? "No catalog data yet" : `No ${PLATFORM_NAMES[activePlatform]} videos found`}
+          description="Click 'Sync All Platforms' to pull your video catalog from each connected platform."
+        />
+      ) : (
+        <div className="space-y-1.5">
+          {filtered.map((video: any) => {
+            const PIcon = PLATFORM_ICONS[video.platform] || Globe;
+            const pColor = PLATFORM_COLORS[video.platform] || "text-muted-foreground";
+            return (
+              <Card key={video.id} data-testid={`card-catalog-${video.id}`}>
+                <CardContent className="p-2.5">
+                  <div className="flex items-center gap-3">
+                    {video.thumbnailUrl ? (
+                      <img src={video.thumbnailUrl} alt="" className="h-9 w-16 rounded object-cover shrink-0" />
+                    ) : (
+                      <div className="h-9 w-16 rounded bg-muted flex items-center justify-center shrink-0">
+                        <Video className="h-3.5 w-3.5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate" data-testid={`text-catalog-title-${video.id}`}>
+                        {video.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                        <PIcon className={`h-3 w-3 ${pColor}`} />
+                        <span className="text-[10px] text-muted-foreground">{PLATFORM_NAMES[video.platform] || video.platform}</span>
+                        <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                          {video.videoType || "video"}
+                        </Badge>
+                        {(video.viewCount || 0) > 0 && (
+                          <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                            <Eye className="h-2.5 w-2.5" />{Number(video.viewCount).toLocaleString()}
+                          </span>
+                        )}
+                        {video.durationSec > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {Math.floor(video.durationSec / 60)}:{String(video.durationSec % 60).padStart(2, "0")}
+                          </span>
+                        )}
+                        {video.publishedAt && (
+                          <LiveTimestamp date={video.publishedAt} />
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {video.fullUrl && (
+                        <a href={video.fullUrl} target="_blank" rel="noopener noreferrer" data-testid={`link-catalog-${video.id}`}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Button>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
