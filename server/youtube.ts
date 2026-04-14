@@ -660,6 +660,18 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
     } catch (err) {
       console.error("[YouTube] VOD bridge after sync failed:", err);
     }
+
+    try {
+      const { processNewVideoUpload } = await import("./autopilot-engine");
+      for (const video of newVideos) {
+        processNewVideoUpload(userId, video.id).catch(err =>
+          console.error(`[YouTube] Autopilot pipeline failed for video ${video.id}:`, err?.message || err)
+        );
+      }
+      console.log(`[YouTube] Triggered autopilot pipeline for ${newVideos.length} new video(s)`);
+    } catch (err) {
+      console.error("[YouTube] Failed to trigger autopilot pipeline for new videos:", err);
+    }
   }
   return { synced, newVideos };
 }

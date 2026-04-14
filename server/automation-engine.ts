@@ -667,6 +667,48 @@ export async function initAutomationEngine() {
     });
   });
 
+  cron.schedule("0 */12 * * *", async () => {
+    await withCronLock("ComplianceDriftScan", 10 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("ComplianceDriftScan", async () => {
+        const { getDriftSummary } = await import("./services/compliance-drift-detector");
+        const summary = await getDriftSummary();
+        if (summary.critical > 0 || summary.high > 0) {
+          logger.warn(`Compliance drift detected: ${summary.critical} critical, ${summary.high} high`);
+        }
+      });
+    });
+  });
+
+  cron.schedule("0 */6 * * *", async () => {
+    await withCronLock("AnalyticsSnapshot", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("AnalyticsSnapshot", async () => {
+        const { analyticsSnapshots } = await import("@shared/schema");
+        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
+        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        for (const userId of userIds.slice(0, 10)) {
+          if (!userId) continue;
+          try {
+            const stats = await import("./storage").then(m => m.storage.getStats(userId));
+            await db.insert(analyticsSnapshots).values({
+              userId,
+              snapshotType: "auto_6h",
+              metrics: {
+                subscribers: stats.subscriberCount,
+                totalViews: stats.totalViews,
+                monthlyRevenue: stats.monthlyRevenue,
+                totalVideos: stats.totalVideos,
+                activeAgents: stats.activeAgents,
+                complianceScore: stats.complianceScore,
+              },
+            });
+          } catch (snapErr: any) {
+            console.error(`[AnalyticsSnapshot] Failed for ${userId}:`, snapErr.message);
+          }
+        }
+      });
+    });
+  });
+
 }
 
 async function processAllCronJobs() {
@@ -698,14 +740,77 @@ async function executeChainSteps(chain: any): Promise<any[]> {
   const steps = chain.steps as any[];
   const results: any[] = [];
   for (const step of steps) {
-    results.push({
-      feature: step.feature,
-      label: step.label,
-      status: "completed",
-      timestamp: new Date().toISOString(),
-    });
+    const startTime = Date.now();
+    try {
+      const output = await executeAiFeatureByKey(step.feature, chain.userId);
+      results.push({
+        feature: step.feature,
+        label: step.label,
+        status: "completed",
+        durationMs: Date.now() - startTime,
+        output: output ? "generated" : "no_output",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (stepErr: any) {
+      results.push({
+        feature: step.feature,
+        label: step.label,
+        status: "failed",
+        error: stepErr.message?.substring(0, 200),
+        durationMs: Date.now() - startTime,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
   return results;
+}
+
+async function executeAiFeatureByKey(featureKey: string, userId: string): Promise<any> {
+  const engine = await import("./ai-engine");
+  const featureMap: Record<string, (data: any, uid?: string) => Promise<any>> = {
+    "ai-keyword-research": engine.aiKeywordResearch,
+    "ai-seo-audit": engine.aiSEOAudit,
+    "ai-content-ideas": engine.aiContentIdeas,
+    "ai-thumbnail-concepts": engine.aiThumbnailConcepts,
+    "ai-script-writer": engine.aiScriptWriter,
+    "ai-content-calendar": engine.aiContentCalendarPlanner,
+    "ai-financial-insights": engine.aiFinancialInsights,
+    "ai-sponsorship-manager": engine.aiSponsorshipManager,
+    "ai-revenue-forecast": engine.aiRevenueForecaster,
+    "ai-expense-optimizer": engine.aiCategorizeExpenses,
+    "ai-brand-analysis": engine.aiBrandAnalysis,
+    "ai-media-kit": engine.aiMediaKit,
+    "ai-wellness-advisor": engine.aiWellnessAdvisor,
+    "ai-stream-advisor": engine.aiStreamRecommendations,
+    "ai-stream-checklist": engine.aiStreamChecklist,
+    "ai-raid-strategy": engine.aiRaidStrategy,
+    "ai-post-stream-report": engine.aiPostStreamReport,
+    "ai-collab-matchmaker": engine.aiCollabMatchmaker,
+    "ai-pacing-analyzer": engine.aiPacingAnalyzer,
+    "ai-chapter-markers": engine.aiChapterMarkers,
+    "ai-repurpose-hub": engine.aiRepurposeContent,
+    "ai-cross-platform-analytics": engine.aiCrossplatformAnalytics,
+    "ai-team-manager": engine.aiTeamManager,
+    "ai-automation-builder": engine.aiAutomationBuilder,
+    "ai-creator-academy": engine.aiCreatorAcademy,
+    "ai-pnl-report": engine.aiPLReport,
+    "ai-comment-strategy": engine.aiCommentManager,
+  };
+
+  const handler = featureMap[featureKey];
+  if (!handler) {
+    return { skipped: true, reason: `No handler mapped for ${featureKey}` };
+  }
+
+  const result = await handler({}, userId);
+  if (result) {
+    await db.insert(aiResults).values({
+      userId,
+      featureKey,
+      result,
+    });
+  }
+  return result;
 }
 
 async function processAllChains() {
