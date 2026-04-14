@@ -34,22 +34,43 @@ interface LiveGrowthSession {
 const activeSessions = new Map<string, LiveGrowthSession>();
 let eventsRegistered = false;
 
-function buildPrompt(session: LiveGrowthSession): string {
+function buildPrompt(session: LiveGrowthSession, liveYouTubeContext?: string): string {
   const liveMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
   return `The streamer is LIVE right now. Here is the current situation:
 - Stream title: "${session.streamTitle}"
 - Current viewers: ${session.viewerCount}
 - Stream running for: ${liveMinutes} minutes
 - Cycle #${session.cycleCount + 1} (every 15 min)
+${liveYouTubeContext ? `\nLIVE YOUTUBE DATA:\n${liveYouTubeContext}` : ""}
 
 Generate an optimized live stream update. Return valid JSON with:
-- optimizedTitle (max 100 chars, start with 🔴 LIVE:, be specific about what's happening)
-- optimizedDescription (full description with links section at bottom)
-- optimizedTags (array of 15 strings — game name, genre, "live", "gaming", "ps5", specifics)
+- optimizedTitle (max 100 chars, start with 🔴 LIVE:, be specific about what's happening NOW based on the actual stream content)
+- optimizedDescription (full description with links section at bottom — must reference what's actually happening in the stream)
+- optimizedTags (array of 20 strings — game name, genre, "live", "gaming", "ps5", specifics, trending terms)
 - discordPost (@everyone announcement, exciting, include context about what's happening)
 - tiktokPost (short text-post, under 150 chars, drive to YouTube)
+- xPost (tweet-style, under 280 chars, include hook + YouTube link placeholder [LINK])
+- instagramCaption (engaging caption, under 300 chars with hashtags, drive to YouTube)
+- kickPost (short viewer-engaging message, under 200 chars)
 - urgency: "high" if viewers < 50, "medium" if 50-200, "low" if 200+
-- viewerStrategy: one sentence on what to focus on`;
+- viewerStrategy: one sentence on what to focus on
+- viralHook: one sentence that could make someone share this stream right now`;
+}
+
+async function fetchLiveYouTubeContext(session: LiveGrowthSession): Promise<string> {
+  try {
+    const { fetchYouTubeVideoDetails } = await import("../youtube");
+    if (!session.broadcastId || session.broadcastId.length < 5) return "";
+    const details = await fetchYouTubeVideoDetails(session.channelId, session.broadcastId);
+    if (!details) return "";
+    return `Current YouTube Title: "${details.title}"
+Current Description: "${details.description.substring(0, 300)}"
+Current Tags: ${details.tags.slice(0, 10).join(", ")}
+Views: ${details.viewCount} | Likes: ${details.likeCount} | Comments: ${details.commentCount}
+Category: ${details.categoryId}`;
+  } catch {
+    return "";
+  }
 }
 
 async function aiGenerateLiveUpdate(session: LiveGrowthSession): Promise<{
@@ -58,8 +79,12 @@ async function aiGenerateLiveUpdate(session: LiveGrowthSession): Promise<{
   optimizedTags: string[];
   discordPost: string;
   tiktokPost: string;
+  xPost?: string;
+  instagramCaption?: string;
+  kickPost?: string;
   urgency: string;
   viewerStrategy: string;
+  viralHook?: string;
 } | null> {
   try {
     const systemPrompt = `You are River Osei — the Live Stream Growth Agent. Your sole mission: maximize concurrent viewers on every live stream. You activate the moment a stream goes live and work non-stop until the stream ends.
@@ -78,12 +103,14 @@ SOCIAL BLAST FORMULA:
 
 Return ONLY valid JSON, no markdown.`;
 
+    const liveContext = await fetchLiveYouTubeContext(session);
+
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_completion_tokens: 1500,
+      max_completion_tokens: 2000,
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: buildPrompt(session) },
+        { role: "user", content: buildPrompt(session, liveContext) },
       ],
       response_format: { type: "json_object" },
     });
@@ -193,6 +220,9 @@ async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
     const posts: Array<[string, string]> = [
       ["discord", update.discordPost],
       ["tiktok", update.tiktokPost],
+      ["x", update.xPost || ""],
+      ["instagram", update.instagramCaption || ""],
+      ["kick", update.kickPost || ""],
     ];
 
     let queued = 0;

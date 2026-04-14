@@ -260,6 +260,40 @@ export async function wireAgentCoordination(): Promise<void> {
       }, 30_000);
     }
 
+    // 1d. T+45s: Viral optimization of the live stream (fetch live YouTube data, optimize SEO with content awareness)
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const numericId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
+          if (!isNaN(numericId)) {
+            const { viralOptimizeVideo } = await import("../backlog-engine");
+            const result = await viralOptimizeVideo(event.userId, numericId);
+            logger.info(`Live stream viral optimization: SEO ${result.seoScore}, YT push: ${result.youtubeUpdated} — ${event.userId.slice(0, 8)}`);
+          }
+        } catch (err: any) {
+          logger.warn(`Live stream viral optimization failed: ${err.message}`);
+        }
+      }, 45_000);
+    }
+
+    // 1e. T+2min: Cross-platform live announcement blast (all platforms)
+    setTimeout(async () => {
+      try {
+        const { processGoLiveAnnouncements } = await import("../autopilot-engine");
+        const streamId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10) || 0;
+        await processGoLiveAnnouncements(
+          event.userId,
+          streamId,
+          title || gameTitle || "Live Stream",
+          `${gameTitle || "PS5 Gameplay"} — Live now on YouTube!`,
+          ["youtube", "twitch", "kick", "discord", "tiktok", "x", "instagram"]
+        );
+        logger.info(`Cross-platform go-live blast sent for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Cross-platform go-live blast failed: ${err.message}`);
+      }
+    }, 2 * 60_000);
+
     // 2. T+1min: Community post announcing the stream
     setTimeout(async () => {
       try {
@@ -411,6 +445,41 @@ export async function wireAgentCoordination(): Promise<void> {
         }
       }, 10 * 60_000);
     }
+
+    // 4c. Full Viral Optimization (T+18min) — fetch live YouTube VOD data + content-aware SEO + thumbnail regen
+    if (videoId) {
+      setTimeout(async () => {
+        try {
+          const numericId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
+          if (!isNaN(numericId)) {
+            const { viralOptimizeVideo } = await import("../backlog-engine");
+            const result = await viralOptimizeVideo(event.userId, numericId);
+            logger.info(`Post-stream viral optimization: SEO ${result.seoScore}, YT push: ${result.youtubeUpdated}, thumb: ${result.thumbnailQueued} — ${event.userId.slice(0, 8)}`);
+
+            try {
+              const { updateHandoff } = await import("../live-ops/post-stream-handoff");
+              updateHandoff(event.userId, videoId, { seoOptimized: true, thumbnailGenerated: result.thumbnailQueued });
+            } catch {}
+          }
+        } catch (err: any) {
+          logger.warn(`Post-stream viral optimization failed: ${err.message}`);
+        }
+      }, 18 * 60_000);
+    }
+
+    // 4d. Cross-platform viral distribution for VOD highlights (T+25min)
+    setTimeout(async () => {
+      try {
+        const { processNewVideoUpload } = await import("../autopilot-engine");
+        const numericId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
+        if (!isNaN(numericId)) {
+          await processNewVideoUpload(event.userId, numericId);
+          logger.info(`Post-stream cross-platform autopilot triggered for ${event.userId.slice(0, 8)}`);
+        }
+      } catch (err: any) {
+        logger.warn(`Post-stream cross-platform autopilot failed: ${err.message}`);
+      }
+    }, 25 * 60_000);
 
     // 5. Multi-Platform Distribution (T+20min)
     // Distribution often depends on clips being ready, but can also distribute VOD link
