@@ -31,11 +31,27 @@ import { useTheme } from "@/hooks/use-theme";
 import { useParams, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-const SubscriptionTab = lazy(() => import("./settings/AdminTabs"));
-const AdminCodesTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminCodesTab })));
-const AdminUsersTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab })));
-const AdminSystemHealthTab = lazy(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminSystemHealthTab })));
-const SecurityTab = lazy(() => import("./settings/SecurityTab"));
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
+
+function lazyRetry<T extends { default: any }>(
+  factory: () => Promise<T>,
+  retries = 2,
+): Promise<T> {
+  return factory().catch((err) => {
+    if (retries > 0) {
+      return new Promise<T>((resolve) =>
+        setTimeout(() => resolve(lazyRetry(factory, retries - 1)), 1000),
+      );
+    }
+    throw err;
+  });
+}
+
+const SubscriptionTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs")));
+const AdminCodesTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminCodesTab }))));
+const AdminUsersTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab }))));
+const AdminSystemHealthTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminSystemHealthTab }))));
+const SecurityTab = lazy(() => lazyRetry(() => import("./settings/SecurityTab")));
 
 const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
@@ -949,15 +965,17 @@ export default function Settings() {
         </div>
 
         <TabsContent value="general" className="mt-4">
-          <GeneralTab />
+          <SectionErrorBoundary fallbackTitle="General settings failed to load">
+            <GeneralTab />
+          </SectionErrorBoundary>
         </TabsContent>
         <Suspense fallback={<TabFallback />}>
-          <TabsContent value="security" className="mt-4"><SecurityTab /></TabsContent>
-          <TabsContent value="subscription" className="mt-4"><SubscriptionTab /></TabsContent>
-          <TabsContent value="billing" className="mt-4"><BillingTab /></TabsContent>
-          {isAdmin && <TabsContent value="admin-codes" className="mt-4"><AdminCodesTab /></TabsContent>}
-          {isAdmin && <TabsContent value="admin-users" className="mt-4"><AdminUsersTab /></TabsContent>}
-          {isAdmin && <TabsContent value="admin-health" className="mt-4"><AdminSystemHealthTab /></TabsContent>}
+          <TabsContent value="security" className="mt-4"><SectionErrorBoundary fallbackTitle="Security settings failed to load"><SecurityTab /></SectionErrorBoundary></TabsContent>
+          <TabsContent value="subscription" className="mt-4"><SectionErrorBoundary fallbackTitle="Subscription settings failed to load"><SubscriptionTab /></SectionErrorBoundary></TabsContent>
+          <TabsContent value="billing" className="mt-4"><SectionErrorBoundary fallbackTitle="Billing failed to load"><BillingTab /></SectionErrorBoundary></TabsContent>
+          {isAdmin && <TabsContent value="admin-codes" className="mt-4"><SectionErrorBoundary fallbackTitle="Admin codes failed to load"><AdminCodesTab /></SectionErrorBoundary></TabsContent>}
+          {isAdmin && <TabsContent value="admin-users" className="mt-4"><SectionErrorBoundary fallbackTitle="Admin users failed to load"><AdminUsersTab /></SectionErrorBoundary></TabsContent>}
+          {isAdmin && <TabsContent value="admin-health" className="mt-4"><SectionErrorBoundary fallbackTitle="System health failed to load"><AdminSystemHealthTab /></SectionErrorBoundary></TabsContent>}
         </Suspense>
       </Tabs>
     </div>

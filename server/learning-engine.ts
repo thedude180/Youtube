@@ -206,20 +206,21 @@ export async function recordLearningEvent(
       const confidenceBoost = Math.min(0.05, 1 / (newSampleSize + 5));
       const newConfidence = Math.min(0.99, currentConfidence + confidenceBoost);
 
+      const existingData = match.data || {} as any;
       await db.update(learningInsights)
         .set({
           sampleSize: newSampleSize,
           confidence: newConfidence,
           data: {
-            finding: (data.finding as string) || match.data.finding,
+            finding: (data.finding as string) || existingData.finding || pattern,
             evidence: [
-              ...(match.data.evidence || []),
+              ...(existingData.evidence || []),
               ...((data.evidence as string[]) || []),
             ].slice(-20),
-            recommendation: (data.recommendation as string) || match.data.recommendation,
-            performanceImpact: (data.performanceImpact as number) ?? match.data.performanceImpact,
-            platform: (data.platform as string) || match.data.platform,
-            seasonal: (data.seasonal as boolean) ?? match.data.seasonal,
+            recommendation: (data.recommendation as string) || existingData.recommendation || "",
+            performanceImpact: (data.performanceImpact as number) ?? existingData.performanceImpact,
+            platform: (data.platform as string) || existingData.platform,
+            seasonal: (data.seasonal as boolean) ?? existingData.seasonal,
             lastValidated: new Date().toISOString(),
           },
           updatedAt: new Date(),

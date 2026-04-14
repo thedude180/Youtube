@@ -379,7 +379,7 @@ async function gatherAllKnowledgeSources(userId: string): Promise<string> {
     if (overrides.length > 0) {
       const appliedCount = overrides.filter(o => o.applied).length;
       const summary = overrides.slice(0, 5).map(o =>
-        `  Pattern: ${(o.patternDetected || "").substring(0, 80)} → ${(o.suggestedRuleChange || "").substring(0, 80)} (conf: ${o.confidenceScore}, applied: ${o.applied})`
+        `  Pattern: ${String(o.patternDetected || "").substring(0, 80)} → ${String(o.suggestedRuleChange || "").substring(0, 80)} (conf: ${o.confidenceScore}, applied: ${o.applied})`
       ).join("\n");
       sections.push(`HUMAN OVERRIDE LEARNINGS (${overrides.length} recent, ${appliedCount} applied):\n${summary}`);
     }
