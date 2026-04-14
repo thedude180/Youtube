@@ -98,10 +98,11 @@ Provide your analysis as JSON:
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI for revenue analysis");
-  const analysis = JSON.parse(content);
+  let analysis: any;
+  try { analysis = JSON.parse(content); } catch { throw new Error("Invalid AI response format"); }
 
   const results = [];
-  for (const model of analysis.models) {
+  for (const model of (analysis.models || [])) {
     const existing = existingModels.find(m => m.modelType === model.modelType);
     if (existing) {
       const [updated] = await db.update(revenueModels)

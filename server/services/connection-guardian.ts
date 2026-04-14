@@ -3,6 +3,7 @@ import { channels, linkedChannels } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
 import { storage } from "../storage";
+import { markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 let guardianInterval: ReturnType<typeof setInterval> | null = null;
 let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
@@ -58,6 +59,7 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
       try {
         const body = await res.text();
         if (body.includes("quota") || body.includes("rateLimitExceeded") || body.includes("dailyLimitExceeded")) {
+          markQuotaErrorFromResponse({ message: body, code: 403 });
           return true;
         }
       } catch (bodyErr: any) {

@@ -230,5 +230,9 @@ Provide JSON with:
 
   const content = response.choices[0]?.message?.content;
   if (!content) return { rootCause: "unknown", suggestedFix: "retry", confidence: 0.3 };
-  return JSON.parse(content);
+  try {
+    return JSON.parse(content);
+  } catch {
+    return { rootCause: "unknown", suggestedFix: "retry", confidence: 0.3 };
+  }
 }

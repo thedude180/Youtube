@@ -72,12 +72,12 @@ export function packageMetadataForPlatform(
 ): PackagedMetadata {
   const template = PLATFORM_TEMPLATES[platform] || PLATFORM_TEMPLATES.youtube;
 
-  let title = sourceTitle;
+  let title = sourceTitle || "";
   if (template.titlePrefix) title = template.titlePrefix + title;
   if (template.titleSuffix) title = title + template.titleSuffix;
   title = title.substring(0, template.maxTitleLength);
 
-  const description = sourceDescription.substring(0, template.maxDescriptionLength);
+  const description = (sourceDescription || "").substring(0, template.maxDescriptionLength);
   const category = template.categoryMapping[sourceCategory.toLowerCase()] || sourceCategory;
   const tags = sourceTags.slice(0, template.maxTags);
 

@@ -23,6 +23,9 @@ if (!fs.existsSync(CLIP_DIR)) {
 const activeDownloads = new Map<string, Promise<string>>();
 
 const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number }>();
+const softFailCounts = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_SOFT_RETRIES = 3;
+const SOFT_FAIL_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 
 try {
   const { registerMap } = require("./services/resilience-core");
@@ -350,6 +353,11 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
     throw new Error(`Video permanently failed (cached): ${failReason} (${youtubeId})`);
   }
 
+  const softFail = softFailCounts.get(youtubeId);
+  if (softFail && softFail.count >= MAX_SOFT_RETRIES && (Date.now() - softFail.lastAttempt) < SOFT_FAIL_COOLDOWN_MS) {
+    throw new Error(`Video download failed ${softFail.count} times — cooling down for 4 hours (${youtubeId})`);
+  }
+
   const existing = activeDownloads.get(youtubeId);
   if (existing) return existing;
 
@@ -397,7 +405,13 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
         markPermanentlyFailed(youtubeId, reason);
         throw new Error(reason);
       }
-      throw new Error(`All download methods failed for ${youtubeId}. Both ytdl-core and yt-dlp could not download this video. Will retry when credentials are available.`);
+      const prev = softFailCounts.get(youtubeId);
+      const newCount = (prev?.count || 0) + 1;
+      softFailCounts.set(youtubeId, { count: newCount, lastAttempt: Date.now() });
+      if (newCount >= MAX_SOFT_RETRIES) {
+        logger.warn("Video download exhausted retries — entering 4-hour cooldown", { youtubeId, attempts: newCount });
+      }
+      throw new Error(`All download methods failed for ${youtubeId} (attempt ${newCount}/${MAX_SOFT_RETRIES}). Will retry after cooldown.`);
     } finally {
       activeDownloads.delete(youtubeId);
     }

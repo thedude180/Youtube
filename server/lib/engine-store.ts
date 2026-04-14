@@ -144,7 +144,7 @@ export function invalidateAllStores(): void {
 }
 
 export function buildUserKey(userId: string, suffix: string): string {
-  return `${userId.substring(0, 12)}:${suffix}`;
+  return `${(userId || "").substring(0, 12)}:${suffix}`;
 }
 
 export function registerUserQueries(
@@ -169,6 +169,6 @@ export function invalidateUserData(store: EngineLocalStore, userId: string, suff
   if (suffix) {
     store.invalidate(buildUserKey(userId, suffix));
   } else {
-    store.invalidatePrefix(userId.substring(0, 12));
+    store.invalidatePrefix((userId || "").substring(0, 12));
   }
 }

@@ -1,5 +1,6 @@
 import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
+import { isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube",
@@ -208,6 +209,7 @@ export async function getAuthenticatedClient(channelId: number) {
 }
 
 export async function fetchYouTubeChannelInfo(channelId: number) {
+  if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -300,6 +302,7 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
 }
 
 export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
+  if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -308,6 +311,7 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
     channelInfo = await fetchYouTubeChannelInfo(channelId);
   } catch (err: any) {
     if (err.code === 403 || err.message?.includes("quota")) {
+      markQuotaErrorFromResponse(err);
       const quotaErr = new Error("YouTube API quota exceeded. Your videos are safe — sync will resume automatically when quota resets (usually within 24 hours).");
       (quotaErr as any).code = "QUOTA_EXCEEDED";
       throw quotaErr;
@@ -338,6 +342,7 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
     } while (pageToken && allVideoIds.length < maxResults);
   } catch (err: any) {
     if (err.code === 403 || err.message?.includes("quota")) {
+      markQuotaErrorFromResponse(err);
       const quotaErr = new Error("YouTube API quota exceeded. Your videos are safe — sync will resume automatically when quota resets (usually within 24 hours).");
       (quotaErr as any).code = "QUOTA_EXCEEDED";
       throw quotaErr;
@@ -360,6 +365,7 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
       }
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota")) {
+        markQuotaErrorFromResponse(err);
         console.warn(`[YouTube] Quota hit during video details fetch (got ${allVideos.length} so far)`);
         break;
       }
@@ -434,6 +440,7 @@ export async function updateYouTubeVideo(
   videoId: string,
   updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean }
 ) {
+  if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -498,6 +505,7 @@ export async function uploadVideoToYouTube(
     enableMonetization?: boolean;
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
+  if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
   const { Readable } = await import("stream");
@@ -574,6 +582,7 @@ export async function setYouTubeThumbnail(
   thumbnailBuffer: Buffer,
   mimeType: string = "image/png"
 ) {
+  if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -723,6 +732,7 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
 }
 
 export async function checkYouTubeLiveBroadcasts(channelId: number) {
+  if (isQuotaBreakerTripped()) return [];
   try {
     const { oauth2Client } = await getAuthenticatedClient(channelId);
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
@@ -745,12 +755,14 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
       liveChatId: b.snippet?.liveChatId || null,
     }));
   } catch (err: any) {
+    markQuotaErrorFromResponse(err);
     console.error("[YouTube] Live broadcast check failed:", err.message);
     return [];
   }
 }
 
 export async function fetchYouTubeComments(channelId: number, youtubeVideoId: string, maxResults = 20) {
+  if (isQuotaBreakerTripped()) return [];
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 

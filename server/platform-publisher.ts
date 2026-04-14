@@ -158,7 +158,7 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
       discordPayload = {
         embeds: [{
           title: title?.substring(0, 256),
-          description: description.substring(0, 4096),
+          description: (description || "").substring(0, 4096),
           color: 0x9146FF,
         }],
       };

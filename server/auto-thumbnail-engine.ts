@@ -4,7 +4,7 @@ import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
-import { getQuotaStatus, trackQuotaUsage } from "./services/youtube-quota-tracker";
+import { getQuotaStatus, trackQuotaUsage, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
 
 const logger = createLogger("auto-thumbnail");
 const openai = getOpenAIClient();
@@ -181,6 +181,7 @@ async function generateAndUploadThumbnail(
         logger.warn(`Auto-thumbnail permanently skipped — ${failReason}`, { videoDbId, youtubeId });
       } catch {}
     } else {
+      markQuotaErrorFromResponse(err);
       logger.error("Auto-thumbnail generation failed", { videoDbId, error: errMsg });
     }
     return false;
@@ -190,7 +191,7 @@ async function generateAndUploadThumbnail(
 export async function runAutoThumbnailForUser(userId: string): Promise<number> {
   let generated = 0;
   try {
-    // thumbnails.set costs 50 quota units — skip if quota is too low
+    if (isQuotaBreakerTripped()) return 0;
     const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
     if (quota.remaining < 100) {
       logger.warn("Auto-thumbnail skipped — quota too low", { userId, remaining: quota.remaining });

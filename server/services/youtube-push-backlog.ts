@@ -2,7 +2,7 @@ import { db } from "../db";
 import { youtubePushBacklog, youtubeQuotaUsage } from "@shared/schema";
 import { eq, and, asc, ne, sql } from "drizzle-orm";
 import { storage } from "../storage";
-import { trackQuotaUsage, canAffordOperation, getQuotaStatus, getPacificDate } from "./youtube-quota-tracker";
+import { trackQuotaUsage, canAffordOperation, getQuotaStatus, getPacificDate, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 export async function addToBacklog(params: {
   userId: string;
@@ -110,6 +110,7 @@ export async function smartPushOrQueue(params: {
       return { pushed: true, queued: false };
     } catch (err: any) {
       if (err.code === 403 || err.message?.includes("quota") || err.code === "QUOTA_EXCEEDED") {
+        markQuotaErrorFromResponse(err);
         const result = await addToBacklog(params);
         return { pushed: false, queued: true, backlogId: result.id };
       }
@@ -127,6 +128,7 @@ export async function processBacklog(): Promise<{
   remaining: number;
   quotaUsed: number;
 }> {
+  if (isQuotaBreakerTripped()) return { processed: 0, failed: 0, remaining: 0, quotaUsed: 0 };
   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
   await db.update(youtubePushBacklog)
     .set({ status: "queued", updatedAt: new Date() })

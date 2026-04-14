@@ -152,4 +152,34 @@ export async function getQuotaForAllUsers(): Promise<Array<{ userId: string; rem
   }));
 }
 
+let _globalQuotaTripDate: string | null = null;
+
+export function tripGlobalQuotaBreaker(): void {
+  const today = getPacificDate();
+  if (_globalQuotaTripDate !== today) {
+    console.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`);
+  }
+  _globalQuotaTripDate = today;
+}
+
+export function isQuotaBreakerTripped(): boolean {
+  if (!_globalQuotaTripDate) return false;
+  const today = getPacificDate();
+  if (_globalQuotaTripDate !== today) {
+    _globalQuotaTripDate = null;
+    return false;
+  }
+  return true;
+}
+
+export function markQuotaErrorFromResponse(err: any): boolean {
+  const msg = String(err?.message || err || "").toLowerCase();
+  const code = err?.code;
+  if (code === 403 || code === "QUOTA_EXCEEDED" || msg.includes("quota") || msg.includes("ratelimitexceeded") || msg.includes("dailylimitexceeded")) {
+    tripGlobalQuotaBreaker();
+    return true;
+  }
+  return false;
+}
+
 export { QUOTA_COSTS, type QuotaOperation, getPacificDate, getNextResetTime };
