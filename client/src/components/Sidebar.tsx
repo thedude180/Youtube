@@ -91,7 +91,7 @@ export function AppSidebar() {
             const active = isActive(item.href);
             return (
               <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={active} data-testid={`nav-${item.label.toLowerCase()}`} className="transition-all duration-150" onMouseEnter={() => prefetchForRoute(item.href)}>
+                <SidebarMenuButton asChild isActive={active} data-testid={`nav-${item.label.toLowerCase()}`} className="transition-all duration-150" onMouseEnter={() => prefetchForRoute(item.href)} onClick={() => prefetchForRoute(item.href)}>
                   <Link href={item.href}>
                     <Icon className={`h-4 w-4 flex-shrink-0 transition-all duration-200 ${active ? "text-primary" : ""}`} strokeWidth={active ? 2.2 : 1.8} />
                     <span className={`font-medium transition-colors duration-150 ${active ? "text-foreground" : ""}`}>{item.label}</span>

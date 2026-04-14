@@ -60,6 +60,12 @@ export function prefetchVault() {
   ]);
 }
 
+export function prefetchStudio() {
+  prefetchRoute([
+    ["/api/videos"],
+  ]);
+}
+
 const routePrefetchers: Record<string, () => void> = {
   "/": prefetchDashboard,
   "/content": prefetchContent,
@@ -68,6 +74,7 @@ const routePrefetchers: Record<string, () => void> = {
   "/stream": prefetchStream,
   "/settings": prefetchSettings,
   "/vault": prefetchVault,
+  "/studio": prefetchStudio,
 };
 
 export function prefetchForRoute(path: string) {

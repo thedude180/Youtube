@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   HardDrive, Download, CheckCircle2, AlertCircle, Clock,
@@ -322,7 +323,7 @@ export default function Vault() {
                 <HardDrive className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.totalIndexed?.toLocaleString()}</p>
+                {statsLoading ? <Skeleton className="h-7 w-16" /> : <p className="text-2xl font-bold">{stats?.totalIndexed?.toLocaleString()}</p>}
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
             </CardContent>
@@ -333,7 +334,7 @@ export default function Vault() {
                 <Video className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.vods?.toLocaleString()}</p>
+                {statsLoading ? <Skeleton className="h-7 w-12" /> : <p className="text-2xl font-bold">{stats?.vods?.toLocaleString()}</p>}
                 <p className="text-xs text-muted-foreground">VODs</p>
               </div>
             </CardContent>
@@ -344,7 +345,7 @@ export default function Vault() {
                 <Clapperboard className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.shorts?.toLocaleString()}</p>
+                {statsLoading ? <Skeleton className="h-7 w-12" /> : <p className="text-2xl font-bold">{stats?.shorts?.toLocaleString()}</p>}
                 <p className="text-xs text-muted-foreground">Shorts</p>
               </div>
             </CardContent>
@@ -355,7 +356,7 @@ export default function Vault() {
                 <Radio className="h-5 w-5 text-red-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.streams?.toLocaleString()}</p>
+                {statsLoading ? <Skeleton className="h-7 w-12" /> : <p className="text-2xl font-bold">{stats?.streams?.toLocaleString()}</p>}
                 <p className="text-xs text-muted-foreground">Streams</p>
               </div>
             </CardContent>
@@ -366,7 +367,7 @@ export default function Vault() {
                 <Download className="h-5 w-5 text-emerald-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.downloaded?.toLocaleString()}</p>
+                {statsLoading ? <Skeleton className="h-7 w-12" /> : <p className="text-2xl font-bold">{stats?.downloaded?.toLocaleString()}</p>}
                 <p className="text-xs text-muted-foreground">Downloaded</p>
               </div>
             </CardContent>
@@ -377,7 +378,7 @@ export default function Vault() {
                 <HardDrive className="h-5 w-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{statsLoading ? "—" : stats?.totalSizeMB ? `${(stats.totalSizeMB / 1024).toFixed(1)}G` : "0G"}</p>
+                {statsLoading ? <Skeleton className="h-7 w-14" /> : <p className="text-2xl font-bold">{stats?.totalSizeMB ? `${(stats.totalSizeMB / 1024).toFixed(1)}G` : "0G"}</p>}
                 <p className="text-xs text-muted-foreground">{statsLoading ? "" : `${stats?.freeSpaceGB}G free`}</p>
               </div>
             </CardContent>
