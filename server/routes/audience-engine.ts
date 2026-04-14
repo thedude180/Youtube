@@ -508,10 +508,15 @@ export function registerAudienceEngineRoutes(app: Express) {
       const [activeSponsors] = await db.select({ count: sql<number>`count(*)::int` })
         .from(sponsorshipDeals).where(eq(sponsorshipDeals.userId, userId));
 
+      const { inArray } = await import("drizzle-orm");
+      const { channels } = await import("@shared/schema");
+
+      const userChannelIds = db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId));
+
       const recentVideos = await db.select({ id: videos.id, title: videos.title, status: videos.status, metadata: videos.metadata })
         .from(videos)
-        .where(eq(videos.channelId, sql`(SELECT id FROM channels WHERE user_id = ${userId} LIMIT 1)`))
-        .orderBy(desc(videos.createdAt)).limit(5);
+        .where(inArray(videos.channelId, userChannelIds))
+        .orderBy(desc(videos.createdAt)).limit(10);
 
       const unpublished = recentVideos.filter(v => v.status !== "published");
 

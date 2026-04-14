@@ -446,6 +446,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVideo(id: number, updates: UpdateVideoRequest): Promise<Video> {
+    if ((updates as any).status === "published" && !(updates as any).publishedAt) {
+      (updates as any).publishedAt = new Date();
+    }
     const [updated] = await db.update(videos).set(updates).where(eq(videos.id, id)).returning();
     return updated;
   }
@@ -1279,7 +1282,7 @@ export class DatabaseStorage implements IStorage {
     const videosPosted = (await db.select({ count: sql<number>`count(*)` }).from(videos).where(
       and(
         inArray(videos.channelId, userChannelIds),
-        sql`${videos.publishedAt} >= ${thirtyDaysAgo}`,
+        sql`COALESCE(${videos.publishedAt}, ${videos.createdAt}) >= ${thirtyDaysAgo}`,
         inArray(videos.status, ['uploaded', 'published', 'optimized'])
       )
     ))[0].count;
