@@ -342,10 +342,10 @@ export async function generateVideoMetadata(video: {
       const { db } = await import("./db");
       const { retentionBeats } = await import("@shared/schema");
       const { eq, desc } = await import("drizzle-orm");
-      const beats = await db.select().from(retentionBeats).where(eq(retentionBeats.userId, userId)).orderBy(desc(retentionBeats.effectiveness)).limit(10);
+      const beats = await db.select().from(retentionBeats).where(eq(retentionBeats.userId, userId)).orderBy(desc(retentionBeats.retentionImpact)).limit(10);
       if (beats.length > 0) {
         retentionContext = `\n\nRETENTION SCIENCE (from top creators like MrBeast):
-${beats.map(b => `- ${b.beatType} at ${b.timingSeconds}s: "${b.description}" (${Math.round((b.effectiveness ?? 0) * 100)}% effective)`).join('\n')}
+${beats.map(b => `- ${b.beatType} at ${b.timestampMarker || '0'}s: "${b.description}" (${Math.round((b.retentionImpact ?? 0) * 100)}% effective)`).join('\n')}
 Apply these proven retention patterns to ALL content. Every video must hook in first 3 seconds, re-hook at 30s, and maintain curiosity loops throughout.`;
       }
     } catch (err) {

@@ -403,6 +403,7 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
   privacyStatus: string;
   defaultAudioLanguage?: string;
 } | null> {
+  if (isQuotaBreakerTripped()) return null;
   try {
     const { oauth2Client } = await getAuthenticatedClient(channelId);
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
@@ -430,7 +431,10 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
       defaultAudioLanguage: v.snippet?.defaultAudioLanguage || undefined,
     };
   } catch (err: any) {
-    console.error(`[YouTube] Failed to fetch details for ${youtubeVideoId}:`, err.message);
+    const msg = String(err?.message || "");
+    if (!msg.includes("not connected") && !msg.includes("missing access token")) {
+      console.error(`[YouTube] Failed to fetch details for ${youtubeVideoId}:`, msg);
+    }
     return null;
   }
 }
@@ -827,9 +831,13 @@ export async function syncYouTubeVideosToLibrary(channelId: number, userId: stri
     ytVideos = await fetchYouTubeVideos(channelId);
   } catch (err: any) {
     const msg = String(err?.message || err).toLowerCase();
-    if (msg.includes("quota") || msg.includes("403") || msg.includes("rateLimitExceeded") || err?.code === 403) {
+    if (msg.includes("quota") || msg.includes("403") || msg.includes("ratelimitexceeded") || err?.code === 403) {
       console.warn("[YouTube] Quota error during API sync — falling back to public feed scraper");
       markQuotaErrorFromResponse(err);
+      return syncYouTubeVideosFromPublicFeed(channelId, userId);
+    }
+    if (msg.includes("not connected") || msg.includes("missing access token") || msg.includes("no access token") || msg.includes("invalid_grant")) {
+      console.warn("[YouTube] No valid API credentials — falling back to public feed scraper");
       return syncYouTubeVideosFromPublicFeed(channelId, userId);
     }
     throw err;

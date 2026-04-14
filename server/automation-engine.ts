@@ -407,24 +407,34 @@ export async function initAutomationEngine() {
     });
   });
 
+  async function runVideoSync() {
+    const { syncYouTubeVideosToLibrary } = await import("./youtube");
+    const allChannelRows = await db.select().from(channels);
+    const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+    let totalNew = 0;
+    for (const ch of ytChannels) {
+      try {
+        const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
+        totalNew += result.newVideos.length;
+      } catch (chErr: any) {
+        console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
+      }
+    }
+    if (totalNew > 0) {
+      console.log(`[VideoSync] Discovered ${totalNew} new video(s) across ${ytChannels.length} channel(s)`);
+    }
+  }
+
+  setTimeout(async () => {
+    await selfHealingCore("VideoSync-Startup", async () => {
+      console.log("[VideoSync] Running startup sync...");
+      await runVideoSync();
+    }, { maxRetries: 2 });
+  }, 15_000);
+
   cron.schedule("0 */2 * * *", async () => {
     await withCronLock("VideoSync", 90 * 60 * 1000, async () => {
-      await selfHealingCore("VideoSync", async () => {
-        const { syncYouTubeVideosToLibrary } = await import("./youtube");
-        const allChannelRows = await db.select().from(channels);
-        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
-        let totalNew = 0;
-        for (const ch of ytChannels) {
-          try {
-            const result = await syncYouTubeVideosToLibrary(ch.id, ch.userId!);
-            totalNew += result.newVideos.length;
-          } catch (chErr: any) {
-            console.error(`[SelfHealing] VideoSync sub-task failed for channel ${ch.id}:`, chErr.message);
-          }
-        }
-        if (totalNew > 0) {
-        }
-      });
+      await selfHealingCore("VideoSync", runVideoSync);
     });
   });
 
