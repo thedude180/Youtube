@@ -154,7 +154,7 @@ YOUR TASK:
 1. Based on your knowledge of YouTube's current policies (as of 2025-2026), identify any CHANGES, NEW RESTRICTIONS, or CLARIFICATIONS that could affect our channel type.
 2. Focus especially on: automated content posting limits, no-commentary gameplay eligibility for monetization, Shorts uploading frequency caps, AI content disclosure rules, and reused/repetitive content flags.
 3. For each change, rate its severity and explain what our system needs to do differently.
-4. Be CONSERVATIVE — if you're unsure whether something changed, don't report it.
+4. Be EXTREMELY CONSERVATIVE — ONLY report changes you are highly confident actually occurred since the last known update. If a rule is already in our system, do NOT re-report it. If you're unsure whether something changed, return allClear: true with an empty changes array. False positives are worse than missing a change.
 
 Return ONLY valid JSON:
 {
@@ -194,15 +194,24 @@ Return ONLY valid JSON:
     const deduped: PolicyChange[] = [];
     for (const change of validChanges) {
       const areaKey = change.area.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 40);
-      const alreadyRecorded = existingRules.some(r =>
-        r.ruleName?.toLowerCase().replace(/[^a-z0-9]/g, "").includes(areaKey) ||
-        areaKey.includes(r.ruleName?.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20) || "___")
-      );
+      const areaWords = change.area.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const alreadyRecorded = existingRules.some(r => {
+        const ruleKey = r.ruleName?.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+        const ruleDesc = r.description?.toLowerCase() || "";
+        if (ruleKey.includes(areaKey) || areaKey.includes(ruleKey.substring(0, 20) || "___")) return true;
+        const matchingWords = areaWords.filter(w => ruleKey.includes(w) || ruleDesc.includes(w));
+        if (matchingWords.length >= 2) return true;
+        return false;
+      });
       if (!alreadyRecorded) {
         deduped.push(change);
       } else {
         logger.info("Skipping already-known policy area", { area: change.area });
       }
+    }
+    if (deduped.length > 3) {
+      logger.warn("Capping TOS changes from GPT — likely hallucination", { total: deduped.length });
+      return deduped.slice(0, 2);
     }
     return deduped;
   } catch (err: any) {
@@ -340,11 +349,22 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
     }
 
     if (change.severity === "critical" || change.severity === "high") {
-      const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`;
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60_000);
+      const recentComplianceNotifs = await db.select({ id: notifications.id }).from(notifications)
+        .where(and(
+          eq(notifications.type, "compliance"),
+          gte(notifications.createdAt, oneDayAgo),
+        ))
+        .limit(5);
+      if (recentComplianceNotifs.length >= 2) {
+        logger.info("Skipping TOS notification — daily cap reached (2 per 24h)", { area: change.area });
+        return;
+      }
+
+      const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`;
       const existingNotif = await db.select({ id: notifications.id }).from(notifications)
         .where(and(
-          eq(notifications.title, notifTitle),
+          sql`${notifications.title} ILIKE ${`%Policy Change%`}`,
           gte(notifications.createdAt, oneDayAgo),
         ))
         .limit(1);

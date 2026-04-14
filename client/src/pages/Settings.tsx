@@ -766,17 +766,21 @@ function GeneralTab() {
         </CardContent>
       </Card>
 
-      <ThemeScheduleCard />
+      <SectionErrorBoundary fallbackTitle="Theme settings failed to load">
+        <ThemeScheduleCard />
+      </SectionErrorBoundary>
 
-      <PlatformConnectionsCard
-        channels={channels}
-        connectedCount={connectedCount}
-        oauthLoading={oauthLoading}
-        setOauthLoading={setOauthLoading}
-        oauthStatus={oauthStatus}
-        toast={toast}
-        setLocation={setLocation}
-      />
+      <SectionErrorBoundary fallbackTitle="Platform connections failed to load">
+        <PlatformConnectionsCard
+          channels={channels}
+          connectedCount={connectedCount}
+          oauthLoading={oauthLoading}
+          setOauthLoading={setOauthLoading}
+          oauthStatus={oauthStatus}
+          toast={toast}
+          setLocation={setLocation}
+        />
+      </SectionErrorBoundary>
 
       <Card>
         <CardHeader className="pb-0">
@@ -890,7 +894,9 @@ function GeneralTab() {
         </CardContent>
       </Card>
 
-      <QualitySettingsPanel />
+      <SectionErrorBoundary fallbackTitle="Quality settings failed to load">
+        <QualitySettingsPanel />
+      </SectionErrorBoundary>
     </div>
   );
 }
