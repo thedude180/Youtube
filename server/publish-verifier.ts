@@ -6,6 +6,8 @@ import { logger } from "./lib/logger";
 import { storage } from "./storage";
 import { OAUTH_CONFIGS } from "./oauth-config";
 
+const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing"]);
+
 export async function clearMatchingScheduleItems(
   userId: string,
   platform: string,
@@ -356,14 +358,19 @@ export async function verifyRecentPublishedPosts() {
         .where(eq(autopilotQueue.id, post.id));
       failed++;
 
-      const { createNotification } = await import("./autopilot-engine");
-      await createNotification(post.userId, "autopilot",
-        `Upload failed: ${post.targetPlatform}`,
-        diagnosis.reason,
-        "warning");
+      const isSilentRetry = SILENT_RETRY_CATEGORIES.has(diagnosis.category);
+      if (!isSilentRetry) {
+        const { createNotification } = await import("./autopilot-engine");
+        await createNotification(post.userId, "autopilot",
+          `Upload failed: ${post.targetPlatform}`,
+          diagnosis.reason,
+          "warning");
 
-      const contentTitle = post.content?.substring(0, 60) || "Content post";
-      await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, existingVerification.platformUrl);
+        const contentTitle = post.content?.substring(0, 60) || "Content post";
+        await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, existingVerification.platformUrl);
+      } else {
+        logger.info("[Verifier] Suppressing notification for transient failure — will auto-retry", { postId: post.id, platform: post.targetPlatform, category: diagnosis.category });
+      }
 
       if (diagnosis.fixable) {
         try {
@@ -486,14 +493,19 @@ export async function verifyRecentPublishedPosts() {
 
       if (isFinal) {
         const diagnosis = diagnoseFailureReason(result.error, post.targetPlatform, result.platformStatus);
-        const { createNotification } = await import("./autopilot-engine");
-        await createNotification(post.userId, "autopilot",
-          `Upload failed: ${post.targetPlatform}`,
-          diagnosis.reason,
-          "warning");
+        const isSilentRetry = SILENT_RETRY_CATEGORIES.has(diagnosis.category);
+        if (!isSilentRetry) {
+          const { createNotification } = await import("./autopilot-engine");
+          await createNotification(post.userId, "autopilot",
+            `Upload failed: ${post.targetPlatform}`,
+            diagnosis.reason,
+            "warning");
 
-        const contentTitle = post.content?.substring(0, 60) || "Content post";
-        await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, result.platformUrl);
+          const contentTitle = post.content?.substring(0, 60) || "Content post";
+          await sendUploadFailureEmail(post.userId, post.targetPlatform, contentTitle, diagnosis.reason, result.platformUrl);
+        } else {
+          logger.info("[Verifier] Suppressing notification for transient failure — will auto-retry", { postId: post.id, platform: post.targetPlatform, category: diagnosis.category });
+        }
 
         if (diagnosis.fixable) {
           try {
@@ -626,15 +638,21 @@ export async function verifyAllRecentUploads() {
           const userId = channel[0]?.userId;
           if (userId) {
             const diagnosis = diagnoseFailureReason(existing.error, platform, existing.platformStatus);
+            const isSilentRetry = SILENT_RETRY_CATEGORIES.has(diagnosis.category);
             const platformUrl = platform === "youtube" || platform === "youtubeshorts"
               ? `https://youtube.com/watch?v=${platformId}` : "";
-            const { createNotification } = await import("./autopilot-engine");
-            await createNotification(userId, "autopilot",
-              `Upload failed: ${video.title?.substring(0, 40)}`,
-              diagnosis.reason,
-              "warning");
 
-            await sendUploadFailureEmail(userId, platform, video.title || "Untitled", diagnosis.reason, platformUrl || undefined);
+            if (!isSilentRetry) {
+              const { createNotification } = await import("./autopilot-engine");
+              await createNotification(userId, "autopilot",
+                `Upload failed: ${video.title?.substring(0, 40)}`,
+                diagnosis.reason,
+                "warning");
+
+              await sendUploadFailureEmail(userId, platform, video.title || "Untitled", diagnosis.reason, platformUrl || undefined);
+            } else {
+              logger.info("[Verifier] Suppressing notification for transient failure — will auto-retry", { videoId: video.id, platform, category: diagnosis.category });
+            }
 
             await db.update(videos).set({
               metadata: {
