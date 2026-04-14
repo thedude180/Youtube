@@ -674,6 +674,16 @@ export class DatabaseStorage implements IStorage {
 
   async createAgentActivity(activity: InsertAgentActivity): Promise<AgentActivity> {
     const [newActivity] = await db.insert(aiAgentActivities).values(activity).returning();
+    try {
+      const { observeAgentActivity } = require("./services/universal-learning-observer");
+      observeAgentActivity(
+        activity.userId,
+        activity.agentId,
+        activity.action,
+        activity.status,
+        typeof activity.details === "object" ? activity.details as Record<string, any> : {},
+      );
+    } catch {}
     return newActivity;
   }
 

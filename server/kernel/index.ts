@@ -63,6 +63,12 @@ export async function emitDomainEvent(
       metadata: { emittedBy: "kernel", timestamp: Date.now(), ...(correlationId ? { correlationId } : {}) },
     })
     .returning({ id: domainEvents.id });
+
+  try {
+    const { observeDomainEvent } = require("../services/universal-learning-observer");
+    observeDomainEvent(userId, eventType, payload, aggregateType);
+  } catch {}
+
   return event.id;
 }
 

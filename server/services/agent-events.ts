@@ -70,6 +70,12 @@ export function fireAgentEvent(type: AgentEventType, userId: string, payload?: R
 
   logger.info(`Event fired: ${type} for user ${userId.slice(0, 8)}...`);
 
+  try {
+    const { observeAgentEvent } = require("./universal-learning-observer");
+    observeAgentEvent(type, userId, payload);
+  } catch {}
+
+
   const handlers = subscribers.get(type) || [];
   for (const handler of handlers) {
     Promise.resolve(handler(event)).catch(err => {

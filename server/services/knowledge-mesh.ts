@@ -44,6 +44,7 @@ const ENGINE_REGISTRY = [
   { name: "autonomous-experimenter", domains: ["hypothesis-testing", "a-b-testing", "experiment-design", "validation"] },
   { name: "decision-chronicler", domains: ["decision-audit", "transparency", "accountability", "reasoning-trail"] },
   { name: "stream-learning", domains: ["stream-performance", "live-engagement", "viewer-trends", "chat-sentiment", "stream-grading"] },
+  { name: "universal-observer", domains: ["cross-domain-signals", "system-patterns", "data-flow-health", "anomaly-detection", "activity-density"] },
 ] as const;
 
 const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
@@ -127,6 +128,13 @@ const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
   { from: "stream-learning", to: "revenue-optimizer", relevance: "stream revenue and viewer data inform monetization strategy for live content" },
   { from: "audience-intelligence", to: "stream-learning", relevance: "audience preferences inform optimal stream timing and engagement tactics" },
   { from: "performance-feedback", to: "stream-learning", relevance: "VOD performance of stream recordings validates live engagement strategies" },
+
+  { from: "universal-observer", to: "self-improvement", relevance: "cross-domain activity patterns reveal blind spots and strengths the system can't see from any single engine" },
+  { from: "universal-observer", to: "analytics-intelligence", relevance: "system-wide data flow patterns inform analytics trend accuracy and data quality" },
+  { from: "universal-observer", to: "predictive-guardian", relevance: "anomaly patterns and error frequency signal system health risks early" },
+  { from: "universal-observer", to: "infinite-evolution", relevance: "activity density and data flow health inform system efficiency scoring" },
+  { from: "universal-observer", to: "growth-flywheel", relevance: "cross-domain signal volume tracks overall growth momentum" },
+  { from: "universal-observer", to: "empire-intelligence", relevance: "universal data patterns inform cross-domain strategy transfer" },
 ];
 
 function ensureMeshUserRegistered(userId: string) {
