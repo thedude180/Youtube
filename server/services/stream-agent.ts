@@ -247,9 +247,10 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       }
 
       const nowMs = Date.now();
-      const LEARNING_CHECKPOINT_INTERVAL = 30 * 60 * 1000;
+      const FIRST_CHECKPOINT_DELAY = 8 * 60 * 1000;
+      const LEARNING_CHECKPOINT_INTERVAL = 15 * 60 * 1000;
       const shouldCheckpoint = state.streamStartedAt &&
-        (Date.now() - state.streamStartedAt.getTime()) >= 20 * 60 * 1000 &&
+        (Date.now() - state.streamStartedAt.getTime()) >= FIRST_CHECKPOINT_DELAY &&
         (!state.lastLearningCheckpointAt || (nowMs - state.lastLearningCheckpointAt.getTime()) >= LEARNING_CHECKPOINT_INTERVAL);
 
       if (shouldCheckpoint) {
