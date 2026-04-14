@@ -43,6 +43,7 @@ import {
   getAuthUrl, handleCallback, getPendingOAuthUser,
   fetchYouTubeChannelInfo, fetchYouTubeVideos,
   updateYouTubeVideo, syncYouTubeVideosToLibrary,
+  syncYouTubeVideosFromPublicFeed,
 } from "../youtube";
 
 export async function registerPlatformRoutes(app: Express) {
@@ -259,6 +260,23 @@ export async function registerPlatformRoutes(app: Express) {
       res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
     } catch (error: any) {
       handleYouTubeError(res, error);
+    }
+  });
+
+  app.post("/api/youtube/sync-public-feed/:channelId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+    if (channelId === null) return;
+    try {
+      const channel = await storage.getChannel(channelId);
+      if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
+      if (channel.platform !== "youtube") return res.status(400).json({ error: "Channel is not a YouTube channel" });
+      const result = await syncYouTubeVideosFromPublicFeed(channelId, userId);
+      res.json({ synced: result.synced.length, newVideos: result.newVideos.length, videos: result.synced });
+    } catch (error: any) {
+      console.error("[YouTube] Public feed sync error:", error?.message || error);
+      res.status(500).json({ error: "Public feed sync failed" });
     }
   });
 

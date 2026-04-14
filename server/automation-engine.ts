@@ -412,7 +412,7 @@ export async function initAutomationEngine() {
       await selfHealingCore("VideoSync", async () => {
         const { syncYouTubeVideosToLibrary } = await import("./youtube");
         const allChannelRows = await db.select().from(channels);
-        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.accessToken && c.userId);
+        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
         let totalNew = 0;
         for (const ch of ytChannels) {
           try {

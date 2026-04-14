@@ -660,8 +660,180 @@ export async function optimizeShortsForAllPlatforms(userId: string, shorts: any[
   return { optimized, platforms: shortFormPlatforms };
 }
 
+const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
+
+function isValidYouTubeChannelUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      (parsed.protocol === "https:" || parsed.protocol === "http:") &&
+      (parsed.hostname === "youtube.com" || parsed.hostname === "www.youtube.com" || parsed.hostname === "m.youtube.com") &&
+      (parsed.pathname.startsWith("/@") || parsed.pathname.startsWith("/channel/") || parsed.pathname.startsWith("/c/"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHANNEL_URL, maxVideos = 100): Promise<Array<{
+  youtubeId: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+  publishedAt: string;
+  duration: string;
+  viewCount: number;
+  likeCount: number;
+}>> {
+  if (!isValidYouTubeChannelUrl(channelUrl)) {
+    console.error(`[YouTube] Invalid channel URL rejected: ${channelUrl}`);
+    return [];
+  }
+
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const path = await import("path");
+  const fs = await import("fs");
+  const execFileAsync = promisify(execFile);
+
+  const ytDlpBin = (() => {
+    const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
+    if (fs.existsSync(local)) return local;
+    return "yt-dlp";
+  })();
+
+  try {
+    const videosUrl = channelUrl.includes("/videos") ? channelUrl : `${channelUrl}/videos`;
+    const { stdout } = await execFileAsync(ytDlpBin, [
+      "--flat-playlist",
+      "--dump-json",
+      "--no-download",
+      "--no-warnings",
+      "--playlist-end", String(maxVideos),
+      "--extractor-args", "youtube:player_client=web",
+      videosUrl,
+    ], { timeout: 120_000, maxBuffer: 50 * 1024 * 1024 });
+
+    const videos: Array<{
+      youtubeId: string; title: string; description: string;
+      thumbnailUrl: string; publishedAt: string; duration: string;
+      viewCount: number; likeCount: number;
+    }> = [];
+
+    for (const line of stdout.split("\n").filter(Boolean)) {
+      try {
+        const entry = JSON.parse(line);
+        if (!entry.id) continue;
+        const durationSec = typeof entry.duration === "number" ? entry.duration : 0;
+        videos.push({
+          youtubeId: entry.id,
+          title: entry.title || "",
+          description: entry.description || "",
+          thumbnailUrl: entry.thumbnail || entry.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`,
+          publishedAt: entry.upload_date
+            ? `${entry.upload_date.slice(0, 4)}-${entry.upload_date.slice(4, 6)}-${entry.upload_date.slice(6, 8)}T00:00:00Z`
+            : new Date().toISOString(),
+          duration: durationSec > 0
+            ? `PT${Math.floor(durationSec / 60)}M${durationSec % 60}S`
+            : "PT0S",
+          viewCount: entry.view_count || 0,
+          likeCount: entry.like_count || 0,
+        });
+      } catch {}
+    }
+
+    console.log(`[YouTube] yt-dlp scraped ${videos.length} videos from ${channelUrl}`);
+    return videos;
+  } catch (err: any) {
+    console.error(`[YouTube] yt-dlp channel scrape failed:`, err.message?.substring(0, 200));
+    return [];
+  }
+}
+
+export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId: string, channelUrl: string = PUBLIC_CHANNEL_URL): Promise<{ synced: any[]; newVideos: any[] }> {
+  console.log(`[YouTube] Syncing videos from public feed: ${channelUrl} (bypasses API quota)`);
+  const ytVideos = await fetchChannelVideosViaYtDlp(channelUrl);
+  if (ytVideos.length === 0) {
+    console.warn("[YouTube] No videos found from public feed — falling back to existing library");
+    return { synced: [], newVideos: [] };
+  }
+
+  const existingVideos = await storage.getVideosByUser(userId);
+  const synced: any[] = [];
+  const newVideos: any[] = [];
+
+  for (const ytVideo of ytVideos) {
+    const existing = existingVideos.find(v =>
+      (v.metadata as any)?.youtubeId === ytVideo.youtubeId
+    );
+    if (existing) {
+      synced.push(existing);
+      continue;
+    }
+
+    const durationSeconds = parseDuration(ytVideo.duration);
+    const isShort = durationSeconds > 0 && durationSeconds <= 60;
+    const video = await storage.createVideo({
+      channelId,
+      title: ytVideo.title,
+      thumbnailUrl: ytVideo.thumbnailUrl,
+      type: isShort ? "short" : "long",
+      status: "published",
+      platform: "youtube",
+      description: ytVideo.description,
+      metadata: {
+        youtubeId: ytVideo.youtubeId,
+        tags: [],
+        viewCount: ytVideo.viewCount,
+        likeCount: ytVideo.likeCount,
+        commentCount: 0,
+        publishedAt: ytVideo.publishedAt,
+        duration: ytVideo.duration,
+        privacyStatus: "public",
+      },
+    });
+    synced.push(video);
+    newVideos.push(video);
+  }
+
+  if (newVideos.length > 0) {
+    console.log(`[YouTube] Public feed sync: ${newVideos.length} new videos discovered, ${synced.length} total`);
+    await storage.updateChannel(channelId, { lastSyncAt: new Date() });
+
+    try {
+      const { processNewVideoUpload } = await import("./autopilot-engine");
+      for (const video of newVideos) {
+        processNewVideoUpload(userId, video.id).catch(err =>
+          console.error(`[YouTube] Autopilot pipeline failed for video ${video.id}:`, err?.message || err)
+        );
+      }
+    } catch (err) {
+      console.error("[YouTube] Failed to trigger autopilot pipeline:", err);
+    }
+  } else {
+    console.log(`[YouTube] Public feed sync: all ${synced.length} videos already in library`);
+  }
+
+  return { synced, newVideos };
+}
+
 export async function syncYouTubeVideosToLibrary(channelId: number, userId: string): Promise<{ synced: any[]; newVideos: any[] }> {
-  const ytVideos = await fetchYouTubeVideos(channelId);
+  if (isQuotaBreakerTripped()) {
+    console.log("[YouTube] API quota breaker active — using public feed scraper instead");
+    return syncYouTubeVideosFromPublicFeed(channelId, userId);
+  }
+  let ytVideos: any[];
+  try {
+    ytVideos = await fetchYouTubeVideos(channelId);
+  } catch (err: any) {
+    const msg = String(err?.message || err).toLowerCase();
+    if (msg.includes("quota") || msg.includes("403") || msg.includes("rateLimitExceeded") || err?.code === 403) {
+      console.warn("[YouTube] Quota error during API sync — falling back to public feed scraper");
+      markQuotaErrorFromResponse(err);
+      return syncYouTubeVideosFromPublicFeed(channelId, userId);
+    }
+    throw err;
+  }
   const existingVideos = await storage.getVideosByUser(userId);
 
   const synced: any[] = [];
