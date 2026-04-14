@@ -139,28 +139,24 @@ async function runClipCycle(session: ClipSession): Promise<void> {
 
   session.lastBlastAt = now;
 
-  await storage.createAgentActivity({
-    userId: session.userId,
-    agentId: "ai-clip-highlighter",
-    action: "moment_captured",
-    target: `Clip #${session.clipMarkers.length}`,
-    status: "completed",
-    details: {
-      description: `Mila captured moment: "${moment.momentDescription}" | Viral score: ${moment.viralScore}`,
-      impact: "TikTok + Discord blast queued immediately",
-      metrics: {
-        totalClipsThisStream: session.clipMarkers.length,
-        viralScore: moment.viralScore,
-        streamMinutes: Math.round((Date.now() - session.startedAt.getTime()) / 60000),
+  if (moment.viralScore >= 80) {
+    await storage.createAgentActivity({
+      userId: session.userId,
+      agentId: "ai-clip-highlighter",
+      action: "moment_captured",
+      target: `Clip #${session.clipMarkers.length}`,
+      status: "completed",
+      details: {
+        description: `High-viral moment captured: "${moment.momentDescription}" | Viral score: ${moment.viralScore}`,
+        impact: "TikTok + Discord blast queued immediately",
+        metrics: {
+          totalClipsThisStream: session.clipMarkers.length,
+          viralScore: moment.viralScore,
+          streamMinutes: Math.round((Date.now() - session.startedAt.getTime()) / 60000),
+        },
       },
-    },
-  });
-
-  sendSSEEvent(session.userId, "live-clip-highlighter", {
-    action: "moment_captured",
-    momentDescription: moment.momentDescription,
-    clipCount: session.clipMarkers.length,
-  });
+    });
+  }
 
   logger.info(`[${session.userId}] Clip #${session.clipMarkers.length} captured — "${moment.momentDescription}"`);
 }
@@ -203,15 +199,6 @@ async function startClipSession(
   }, SCAN_INTERVAL_MS);
 
   logger.info(`[${userId}] Clip Highlighter started for "${streamTitle}"`);
-
-  await storage.createAgentActivity({
-    userId,
-    agentId: "ai-clip-highlighter",
-    action: "session_started",
-    target: streamTitle,
-    status: "completed",
-    details: { description: `Mila Reyes activated — hunting viral moments in "${streamTitle}"` },
-  });
 }
 
 function stopClipSession(userId: string): void {

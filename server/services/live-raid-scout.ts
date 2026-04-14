@@ -103,26 +103,7 @@ async function runScoutCycle(session: RaidSession): Promise<void> {
   session.raidList = targets.sort((a, b) => b.raidScore - a.raidScore);
   session.lastScoutAt = Date.now();
 
-  await storage.createAgentActivity({
-    userId: session.userId,
-    agentId: "ai-raid-scout",
-    action: "raid_list_updated",
-    target: "Raid targets",
-    status: "completed",
-    details: {
-      description: `Devon updated raid list — top target: ${targets[0]?.channelName} (score: ${targets[0]?.raidScore})`,
-      impact: `${targets.length} raid targets ready for end of stream`,
-      metrics: { targetsIdentified: targets.length, topScore: targets[0]?.raidScore || 0 },
-    },
-  });
-
-  sendSSEEvent(session.userId, "live-raid-scout", {
-    action: "raid_list_updated",
-    topTarget: targets[0]?.channelName,
-    targetCount: targets.length,
-  });
-
-  logger.info(`[${session.userId}] Raid list updated — top: ${targets[0]?.channelName}`);
+  logger.info(`[${session.userId}] Raid list updated — top: ${targets[0]?.channelName}, ${targets.length} targets`);
 }
 
 async function deliverFinalRaidList(session: RaidSession): Promise<void> {

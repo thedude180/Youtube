@@ -4,7 +4,6 @@ import { eq, and, desc } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
-import { sendSSEEvent } from "../routes/events";
 import { updateYouTubeVideo } from "../youtube";
 import { recordHeartbeat } from "./engine-heartbeat";
 
@@ -210,25 +209,20 @@ async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
 
     session.cycleCount++;
 
-    await storage.createAgentActivity({
-      userId: session.userId,
-      agentId: "ai-livestream-growth",
-      action: "live_seo_update",
-      target: `Live stream: ${session.streamTitle?.slice(0, 50)}`,
-      status: "completed",
-      details: {
-        description: `Updated live stream title to: "${update.optimizedTitle.slice(0, 60)}" | Viewers: ${session.viewerCount} | Urgency: ${update.urgency}`,
-        impact: update.viewerStrategy,
-        metrics: { viewerCount: session.viewerCount, cycleNumber: session.cycleCount },
-      },
-    });
-
-    sendSSEEvent(session.userId, "livestream-growth", {
-      action: "seo_updated",
-      title: update.optimizedTitle,
-      viewers: session.viewerCount,
-      cycleCount: session.cycleCount,
-    });
+    if (update.urgency === "high" || session.cycleCount === 1) {
+      await storage.createAgentActivity({
+        userId: session.userId,
+        agentId: "ai-livestream-growth",
+        action: "live_seo_update",
+        target: `Live stream: ${session.streamTitle?.slice(0, 50)}`,
+        status: "completed",
+        details: {
+          description: `Updated live stream SEO — Viewers: ${session.viewerCount} | Urgency: ${update.urgency}`,
+          impact: update.viewerStrategy,
+          metrics: { viewerCount: session.viewerCount, cycleNumber: session.cycleCount },
+        },
+      });
+    }
 
   } catch (err: any) {
     logger.warn(`[${session.userId}] SEO update cycle failed: ${err.message}`);
@@ -278,26 +272,6 @@ async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
 
     logger.info(`[${session.userId}] Social blast queued — ${queued} posts to [${platformNames.join(", ")}] (viewers: ${session.viewerCount})${skipped.length > 0 ? ` | Skipped (not connected): ${skipped.join(", ")}` : ""}`);
 
-    await storage.createAgentActivity({
-      userId: session.userId,
-      agentId: "ai-livestream-growth",
-      action: "social_blast",
-      target: `${queued} platforms (${platformNames.join(", ")})`,
-      status: "completed",
-      details: {
-        description: `Blasted ${queued} connected platforms to drive viewers to live stream`,
-        impact: `Targeting ${session.viewerCount} current viewers → growth push`,
-        metrics: { platformsBlasted: queued, currentViewers: session.viewerCount, platforms: platformNames, skippedNotConnected: skipped },
-      },
-    });
-
-    sendSSEEvent(session.userId, "livestream-growth", {
-      action: "social_blasted",
-      platforms: queued,
-      platformNames,
-      viewers: session.viewerCount,
-    });
-
   } catch (err: any) {
     logger.warn(`[${session.userId}] Social blast cycle failed: ${err.message}`);
   }
@@ -346,11 +320,7 @@ async function startLiveGrowthSession(
     if (current) await runSocialBlast(current);
   }, SOCIAL_BLAST_INTERVAL_MS);
 
-  sendSSEEvent(userId, "livestream-growth", {
-    action: "session_started",
-    broadcastId,
-    streamTitle,
-  });
+  logger.info(`[${userId}] Live growth session active — broadcast: ${broadcastId}, title: "${streamTitle}"`);
 }
 
 export function stopLiveGrowthSession(userId: string): void {
@@ -362,10 +332,6 @@ export function stopLiveGrowthSession(userId: string): void {
   activeSessions.delete(userId);
 
   logger.info(`[${userId}] Live growth session stopped — ${session.cycleCount} SEO cycles ran`);
-  sendSSEEvent(userId, "livestream-growth", {
-    action: "session_ended",
-    totalCycles: session.cycleCount,
-  });
 }
 
 export function updateLiveGrowthViewerCount(userId: string, viewerCount: number): void {
@@ -419,21 +385,8 @@ export function initLivestreamGrowthAgent(): void {
     const { userId } = event;
     if (!userId) return;
 
-    logger.info(`[${userId}] stream.ended event — stopping Live Growth Agent`);
-
-    try {
-      await storage.createAgentActivity({
-        userId,
-        agentId: "ai-livestream-growth",
-        action: "stream_ended",
-        target: "Live stream concluded",
-        status: "completed",
-        details: {
-          description: `Stream ended — River Osei stood down after ${activeSessions.get(userId)?.cycleCount || 0} optimization cycles`,
-          impact: "Live growth agent deactivated until next stream",
-        },
-      });
-    } catch {}
+    const cycleCount = activeSessions.get(userId)?.cycleCount || 0;
+    logger.info(`[${userId}] stream.ended event — stopping Live Growth Agent after ${cycleCount} cycles`);
 
     stopLiveGrowthSession(userId);
   });

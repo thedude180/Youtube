@@ -225,19 +225,6 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
   session.revenueActions++;
   session.lastMembershipPromptAt = Date.now();
 
-  await storage.createAgentActivity({
-    userId: session.userId,
-    agentId: "ai-revenue-pulse",
-    action: "membership_prompt",
-    target: "Discord",
-    status: "completed",
-    details: {
-      description: `Jade sent membership prompt to Discord (${session.viewerCount} viewers live)`,
-      impact: "Channel membership awareness raised",
-      metrics: { viewerCount: session.viewerCount },
-    },
-  });
-
   logger.info(`[${session.userId}] Membership prompt sent (${session.viewerCount} viewers)`);
 }
 
@@ -296,15 +283,6 @@ async function startRevenueSession(
   }, MEMBERSHIP_PROMPT_INTERVAL_MS);
 
   logger.info(`[${userId}] Revenue Pulse started for "${streamTitle}"`);
-
-  await storage.createAgentActivity({
-    userId,
-    agentId: "ai-revenue-pulse",
-    action: "session_started",
-    target: streamTitle,
-    status: "completed",
-    details: { description: `Jade Kim activated — watching viewer milestones for "${streamTitle}"` },
-  });
 }
 
 function stopRevenueSession(userId: string): void {
