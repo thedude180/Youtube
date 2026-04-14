@@ -227,12 +227,12 @@ function HeaderClock() {
 
 function AppFooter() {
   return (
-    <footer className="border-t border-border/50 mt-4 py-3 px-4" data-testid="app-footer">
+    <footer className="border-t border-border/10 mt-6 py-4 px-4" data-testid="app-footer">
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-[11px] text-muted-foreground/60 font-medium">&copy; {new Date().getFullYear()} CreatorOS</p>
-        <div className="flex items-center gap-4">
-          <a href="/privacy" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-privacy">Privacy</a>
-          <a href="/terms" className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors" data-testid="link-footer-terms">Terms</a>
+        <p className="text-[11px] text-muted-foreground/40 font-medium">&copy; {new Date().getFullYear()} CreatorOS</p>
+        <div className="flex items-center gap-5">
+          <a href="/privacy" className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-200" data-testid="link-footer-privacy">Privacy</a>
+          <a href="/terms" className="text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors duration-200" data-testid="link-footer-terms">Terms</a>
         </div>
       </div>
     </footer>
@@ -354,14 +354,14 @@ function MobileBottomNav() {
       className="md:hidden fixed bottom-0 left-0 right-0 z-50 safe-area-bottom"
       data-testid="nav-mobile-bottom"
       style={{
-        background: "linear-gradient(to top, hsl(230 25% 4% / 0.97), hsl(230 25% 5% / 0.90))",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderTop: "1px solid hsl(265 60% 50% / 0.15)",
-        boxShadow: "0 -4px 32px hsl(265 80% 60% / 0.08)",
+        background: "linear-gradient(to top, hsl(var(--background) / 0.97), hsl(var(--background) / 0.88))",
+        backdropFilter: "blur(28px) saturate(1.8)",
+        WebkitBackdropFilter: "blur(28px) saturate(1.8)",
+        borderTop: "1px solid hsl(var(--border) / 0.3)",
+        boxShadow: "0 -2px 24px hsl(0 0% 0% / 0.08), 0 -1px 0 hsl(var(--border) / 0.1)",
       }}
     >
-      <div className="flex items-center justify-around h-16">
+      <div className="flex items-center justify-around h-[3.5rem]">
         {MOBILE_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -369,24 +369,78 @@ function MobileBottomNav() {
             <button
               key={item.href}
               onClick={() => setLocation(item.href)}
-              className="relative flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-200 active:scale-95 select-none"
-              style={{ color: active ? "hsl(265 80% 72%)" : "hsl(220 12% 50%)" }}
+              className="relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full select-none group"
+              style={{
+                color: active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
+                WebkitTapHighlightColor: "transparent",
+              }}
               data-testid={`button-mobile-nav-${item.label.toLowerCase()}`}
               aria-label={`Navigate to ${item.label}`}
               aria-current={active ? "page" : undefined}
             >
               {active && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[2px] rounded-full" style={{ background: "hsl(265 80% 70%)", boxShadow: "0 0 10px hsl(265 80% 70% / 0.8)" }} />
+                <span
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[2.5px] rounded-full"
+                  style={{
+                    background: "hsl(var(--primary))",
+                    boxShadow: "0 1px 8px hsl(var(--primary) / 0.5)",
+                    transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                />
               )}
-              <div className="relative flex items-center justify-center w-10 h-9 rounded-xl transition-all duration-200" style={active ? { background: "hsl(265 80% 60% / 0.15)" } : {}}>
-                <Icon className={`h-[18px] w-[18px] transition-all duration-200 ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.5 : 2} />
+              <div
+                className="relative flex items-center justify-center w-9 h-8 rounded-lg"
+                style={{
+                  background: active ? "hsl(var(--primary) / 0.12)" : "transparent",
+                  transition: "all 0.25s cubic-bezier(0.22, 1, 0.36, 1)",
+                  transform: active ? "scale(1)" : "scale(0.95)",
+                }}
+              >
+                <Icon
+                  className="h-[18px] w-[18px]"
+                  strokeWidth={active ? 2.5 : 1.8}
+                  style={{ transition: "all 0.25s cubic-bezier(0.22, 1, 0.36, 1)" }}
+                />
               </div>
-              <span className={`text-[9px] font-bold tracking-wide uppercase ${active ? "opacity-100" : "opacity-60"}`}>{item.label}</span>
+              <span
+                className="text-[9px] font-semibold tracking-wider uppercase"
+                style={{
+                  opacity: active ? 1 : 0.5,
+                  transition: "opacity 0.25s ease",
+                }}
+              >
+                {item.label}
+              </span>
             </button>
           );
         })}
       </div>
     </nav>
+  );
+}
+
+function RouteTransition({ children }: { children: ReactNode }) {
+  const [location] = useLocation();
+  const [displayChildren, setDisplayChildren] = useState(children);
+  const [transitioning, setTransitioning] = useState(false);
+
+  useEffect(() => {
+    setTransitioning(true);
+    const t = requestAnimationFrame(() => {
+      setDisplayChildren(children);
+      setTransitioning(false);
+    });
+    return () => cancelAnimationFrame(t);
+  }, [location]);
+
+  return (
+    <div
+      key={location}
+      className={transitioning ? "" : "page-enter"}
+      style={{ willChange: "opacity, transform" }}
+    >
+      {displayChildren}
+    </div>
   );
 }
 
@@ -439,14 +493,14 @@ function AuthenticatedApp() {
 
   return (
     <SidebarProvider style={sidebarStyle}>
-      <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
+      <div className="flex min-h-screen w-full bg-background text-foreground font-sans has-bottom-nav">
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-3 focus:bg-primary focus:text-primary-foreground" data-testid="link-skip-to-content">
           Skip to main content
         </a>
         <RouteAnnouncer />
         {!isFocusMode && <AppSidebar />}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/20 bg-background/50 backdrop-blur-3xl backdrop-saturate-[1.8] shrink-0 transition-all duration-300 ${isFocusMode ? "h-10" : "h-12"}`} style={{ boxShadow: '0 1px 0 0 hsl(var(--border) / 0.08), 0 4px 16px -4px hsl(0 0% 0% / 0.06)' }}>
+          <header className={`sticky top-0 z-40 flex items-center justify-between gap-2 px-3 sm:px-4 border-b border-border/15 bg-background/60 backdrop-blur-2xl backdrop-saturate-[1.6] shrink-0 transition-all duration-200 ease-out ${isFocusMode ? "h-10" : "h-12"}`} style={{ boxShadow: '0 1px 0 0 hsl(var(--border) / 0.06), 0 2px 12px -2px hsl(0 0% 0% / 0.04)' }}>
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {!isFocusMode && <SidebarTrigger data-testid="button-sidebar-toggle" className="md:hidden shrink-0" />}
               {!isFocusMode && (
@@ -483,8 +537,19 @@ function AuthenticatedApp() {
           <LiveStreamBanner />
           {!isFocusMode && <PlatformReconnectBanner />}
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
-            <Suspense fallback={<div className="flex items-center justify-center h-full min-h-[200px]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
-              <Router />
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-3 fade-in">
+                <div className="relative">
+                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground/60 font-medium">Loading...</span>
+              </div>
+            }>
+              <RouteTransition>
+                <Router />
+              </RouteTransition>
             </Suspense>
             <AppFooter />
           </main>
@@ -634,7 +699,17 @@ function AppContent() {
     setLocation("/");
   }, [user, setLocation]);
 
-  const loader = <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  const loader = (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 fade-in">
+      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary/15 to-purple-600/10 border border-primary/15 flex items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      </div>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-sm font-semibold text-foreground/80 tracking-tight">CreatorOS</span>
+        <span className="text-[11px] text-muted-foreground/50">Preparing your workspace...</span>
+      </div>
+    </div>
+  );
 
   if (isLoading) return loader;
 

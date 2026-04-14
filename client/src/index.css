@@ -841,15 +841,29 @@ body.screen-ultrawide main > * {
   }
 }
 
-/* Page transition */
+/* Page transition — silky route changes */
 .page-enter {
-  animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: pageEnter 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes pageEnter {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(6px) scale(0.998); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+
+/* View Transitions API — native-feeling navigation */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root) {
+  animation: 0.15s ease-out both fade-out;
+}
+::view-transition-new(root) {
+  animation: 0.2s ease-out 0.05s both fade-in-vt;
+}
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes fade-in-vt { from { opacity: 0; } }
 
 /* Premium card interactions */
 .card-interactive {
@@ -999,8 +1013,68 @@ body.screen-ultrawide main > * {
 /* Smooth global transitions */
 a, button, [role="button"] {
   transition-property: color, background-color, border-color, box-shadow, transform, opacity;
-  transition-duration: 200ms;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Ultra-smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+main, .overflow-auto, .overflow-y-auto {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+/* Content fade mask for scroll containers */
+.scroll-fade-bottom {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+}
+
+/* Native-feeling input transitions */
+input, textarea, select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+}
+
+/* Card entrance stagger for grids */
+.card-stagger > * {
+  animation: cardStaggerIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.card-stagger > *:nth-child(1) { animation-delay: 0s; }
+.card-stagger > *:nth-child(2) { animation-delay: 0.04s; }
+.card-stagger > *:nth-child(3) { animation-delay: 0.08s; }
+.card-stagger > *:nth-child(4) { animation-delay: 0.12s; }
+.card-stagger > *:nth-child(5) { animation-delay: 0.16s; }
+.card-stagger > *:nth-child(6) { animation-delay: 0.2s; }
+.card-stagger > *:nth-child(n+7) { animation-delay: 0.24s; }
+
+@keyframes cardStaggerIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Skeleton shimmer — premium feel */
+.skeleton-wave {
+  position: relative;
+  overflow: hidden;
+  background: hsl(var(--muted));
+  border-radius: var(--radius);
+}
+.skeleton-wave::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, hsl(var(--muted-foreground) / 0.06), transparent);
+  animation: skeletonWave 1.8s ease-in-out infinite;
+  transform: translateX(-100%);
+}
+@keyframes skeletonWave {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(100%); }
 }
 
 /* HiDPI hairline borders */
@@ -1298,7 +1372,7 @@ a, button, [role="button"] {
    MOBILE GOD-MODE UTILITIES
    ============================================================ */
 
-/* iOS momentum scrolling everywhere */
+/* iOS momentum scrolling + tap feedback suppression */
 * {
   -webkit-tap-highlight-color: transparent;
 }
@@ -1308,6 +1382,7 @@ a, button, [role="button"] {
   body {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    overscroll-behavior: none;
   }
 
   /* Bigger tap targets on mobile */
@@ -1330,6 +1405,11 @@ a, button, [role="button"] {
   .text-5xl { font-size: 2rem !important; }
   .text-6xl { font-size: 2.25rem !important; }
   .text-7xl { font-size: 2.5rem !important; }
+
+  /* Smooth page padding for bottom nav — scoped to authenticated shell */
+  .has-bottom-nav main {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
 }
 
 /* Mobile-optimized metric display */

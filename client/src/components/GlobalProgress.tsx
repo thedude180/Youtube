@@ -66,10 +66,12 @@ export function GlobalProgress() {
       data-testid="global-progress-bar"
     >
       <div
-        className="h-full bg-primary transition-all duration-200 ease-out"
+        className="h-full rounded-r-full"
         style={{
           width: `${progress}%`,
-          boxShadow: "0 0 8px hsl(var(--primary) / 0.6)",
+          background: "linear-gradient(90deg, hsl(var(--primary)), hsl(265 80% 70%))",
+          boxShadow: "0 0 12px hsl(var(--primary) / 0.5), 0 0 4px hsl(var(--primary) / 0.3)",
+          transition: "width 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       />
     </div>
