@@ -1,9 +1,10 @@
 import { db } from "../db";
 import {
   engineKnowledge, masterKnowledgeBank, crossEngineTeachings,
-  users,
+  users, learningSignals, overrideLearningRecords, signalContradictions,
+  retentionBeats, streamPerformanceLogs,
 } from "@shared/schema";
-import { eq, and, desc, gte, sql, ne } from "drizzle-orm";
+import { eq, and, desc, gte, sql, ne, gt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { safeParseJSON } from "../lib/safe-json";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData, getAllStoreStats } from "../lib/engine-store";
@@ -317,11 +318,143 @@ async function runConsolidationCycle(): Promise<void> {
   }
 }
 
+async function gatherAllKnowledgeSources(userId: string): Promise<string> {
+  const sections: string[] = [];
+
+  try {
+    const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const signals = await db.select({
+      category: learningSignals.category,
+      signalType: learningSignals.signalType,
+      bandClass: learningSignals.bandClass,
+      confidence: learningSignals.confidence,
+      value: learningSignals.value,
+    }).from(learningSignals)
+      .where(and(eq(learningSignals.userId, userId), gte(learningSignals.emittedAt, recentCutoff)))
+      .orderBy(desc(learningSignals.confidence))
+      .limit(40);
+
+    if (signals.length > 0) {
+      const byCategory = new Map<string, any[]>();
+      for (const s of signals) {
+        const list = byCategory.get(s.category || "unknown") || [];
+        list.push(s);
+        byCategory.set(s.category || "unknown", list);
+      }
+      const summary = Array.from(byCategory.entries()).map(([cat, items]) => {
+        const top = items.slice(0, 3);
+        return `  ${cat} (${items.length} signals): ${top.map(t => `${t.signalType} [${t.bandClass}] conf=${t.confidence}`).join("; ")}`;
+      }).join("\n");
+      sections.push(`LEARNING SIGNALS (${signals.length} recent):\n${summary}`);
+    }
+
+    const teachings = await db.select({
+      sourceEngine: crossEngineTeachings.sourceEngine,
+      targetEngine: crossEngineTeachings.targetEngine,
+      lesson: crossEngineTeachings.lesson,
+      impactScore: crossEngineTeachings.impactScore,
+    }).from(crossEngineTeachings)
+      .where(and(eq(crossEngineTeachings.userId, userId), gte(crossEngineTeachings.createdAt, recentCutoff)))
+      .orderBy(desc(crossEngineTeachings.impactScore))
+      .limit(20);
+
+    if (teachings.length > 0) {
+      const summary = teachings.slice(0, 10).map(t =>
+        `  ${t.sourceEngine} → ${t.targetEngine}: ${(t.lesson || "").substring(0, 100)} (impact: ${t.impactScore || "?"})`
+      ).join("\n");
+      sections.push(`CROSS-ENGINE TEACHINGS (${teachings.length} recent):\n${summary}`);
+    }
+
+    const overrides = await db.select({
+      patternDetected: overrideLearningRecords.patternDetected,
+      suggestedRuleChange: overrideLearningRecords.suggestedRuleChange,
+      confidenceScore: overrideLearningRecords.confidenceScore,
+      applied: overrideLearningRecords.applied,
+    }).from(overrideLearningRecords)
+      .where(gte(overrideLearningRecords.createdAt, recentCutoff))
+      .orderBy(desc(overrideLearningRecords.confidenceScore))
+      .limit(15);
+
+    if (overrides.length > 0) {
+      const appliedCount = overrides.filter(o => o.applied).length;
+      const summary = overrides.slice(0, 5).map(o =>
+        `  Pattern: ${(o.patternDetected || "").substring(0, 80)} → ${(o.suggestedRuleChange || "").substring(0, 80)} (conf: ${o.confidenceScore}, applied: ${o.applied})`
+      ).join("\n");
+      sections.push(`HUMAN OVERRIDE LEARNINGS (${overrides.length} recent, ${appliedCount} applied):\n${summary}`);
+    }
+
+    const contradictions = await db.select({
+      domain: signalContradictions.domain,
+      description: signalContradictions.description,
+      severity: signalContradictions.severity,
+      resolution: signalContradictions.resolution,
+      status: signalContradictions.status,
+    }).from(signalContradictions)
+      .where(and(eq(signalContradictions.userId, userId), gte(signalContradictions.createdAt, recentCutoff)))
+      .orderBy(desc(signalContradictions.createdAt))
+      .limit(10);
+
+    if (contradictions.length > 0) {
+      const resolved = contradictions.filter(c => c.status === "resolved").length;
+      const summary = contradictions.slice(0, 5).map(c =>
+        `  [${c.severity}] ${c.domain}: ${(c.description || "").substring(0, 100)} (${c.status}${c.resolution ? " — " + (c.resolution as string).substring(0, 60) : ""})`
+      ).join("\n");
+      sections.push(`SIGNAL CONTRADICTIONS (${contradictions.length} recent, ${resolved} resolved):\n${summary}`);
+    }
+
+    const beats = await db.select({
+      beatType: retentionBeats.beatType,
+      technique: retentionBeats.technique,
+      psychologyPrinciple: retentionBeats.psychologyPrinciple,
+      retentionImpact: retentionBeats.retentionImpact,
+      confidence: retentionBeats.confidence,
+    }).from(retentionBeats)
+      .where(eq(retentionBeats.userId, userId))
+      .orderBy(desc(retentionBeats.confidence))
+      .limit(10);
+
+    if (beats.length > 0) {
+      const summary = beats.slice(0, 5).map(b =>
+        `  ${b.beatType}: ${(b.technique || "").substring(0, 60)} — ${(b.psychologyPrinciple || "").substring(0, 60)} (impact: ${b.retentionImpact}, conf: ${b.confidence})`
+      ).join("\n");
+      sections.push(`RETENTION BEATS (${beats.length} total):\n${summary}`);
+    }
+
+    const streams = await db.select({
+      grade: streamPerformanceLogs.grade,
+      peakViewers: streamPerformanceLogs.peakViewers,
+      avgViewers: streamPerformanceLogs.avgViewers,
+      chatRate: streamPerformanceLogs.chatRate,
+      highlights: streamPerformanceLogs.highlights,
+      improvementTips: streamPerformanceLogs.improvementTips,
+    }).from(streamPerformanceLogs)
+      .where(eq(streamPerformanceLogs.userId, userId))
+      .orderBy(desc(streamPerformanceLogs.createdAt))
+      .limit(10);
+
+    if (streams.length > 0) {
+      const grades = streams.map(s => s.grade).join(", ");
+      const avgPeak = Math.round(streams.reduce((s, r) => s + (r.peakViewers || 0), 0) / streams.length);
+      const tips = streams.flatMap(s => (s.improvementTips as string[] || []).slice(0, 1)).slice(0, 3);
+      sections.push(`STREAM PERFORMANCE (${streams.length} streams, grades: ${grades}, avg peak: ${avgPeak}):\n  Top tips: ${tips.join("; ").substring(0, 300)}`);
+    }
+
+  } catch (err: any) {
+    logger.warn(`Failed to gather auxiliary knowledge sources: ${err.message?.substring(0, 150)}`);
+  }
+
+  return sections.join("\n\n");
+}
+
 async function consolidateForUser(userId: string): Promise<void> {
   ensureMeshUserRegistered(userId);
 
   const allKnowledge = await getUserData<any>(meshStore, userId, "local_knowledge", true);
-  if (allKnowledge.length < 3) return;
+
+  const auxiliaryKnowledge = await gatherAllKnowledgeSources(userId);
+
+  if (allKnowledge.length < 3 && !auxiliaryKnowledge) return;
 
   const existingMaster = await getUserData<any>(meshStore, userId, "master_bank");
   const existingPrinciples = existingMaster.map((m: any) => m.principle).join("\n");
@@ -338,39 +471,47 @@ async function consolidateForUser(userId: string): Promise<void> {
     return `[${engine}] (${items.length} total):\n${topItems.map((i: any) => `  • ${i.topic}: ${i.insight?.substring(0, 120)} (${i.confidenceScore}%)`).join("\n")}`;
   }).join("\n\n");
 
+  const totalSources = knowledgeByEngine.size + (auxiliaryKnowledge ? 6 : 0);
+
   try {
     const aiResult = await executeRoutedAICall(
       { taskType: "knowledge_consolidation", userId, priority: "medium" },
-      `You are the Master Knowledge Consolidator for an AI YouTube gaming empire. You receive learnings from ${knowledgeByEngine.size} specialized engines and must distill them into universal principles. Like a board of directors synthesizing reports from every department, find the patterns that cut across ALL engines. Focus on principles that multiple engines independently discovered — those are the most trustworthy.`,
+      `You are the Master Knowledge Consolidator for an AI YouTube gaming empire. You receive learnings from ${totalSources} knowledge sources — specialized engines, learning signals, cross-engine teachings, human override patterns, signal contradictions, retention psychology, and stream performance. You must distill ALL of this into universal principles. Like a board of directors synthesizing reports from every department AND every data stream, find the patterns that cut across ALL sources. Focus on principles that multiple sources independently support — those are the most trustworthy. Human override patterns are especially valuable — when a human corrects the AI, that's a high-signal learning moment.`,
       `ENGINE KNOWLEDGE REPORTS:
 
 ${knowledgeSummary}
+
+${auxiliaryKnowledge ? `AUXILIARY KNOWLEDGE SOURCES:\n\n${auxiliaryKnowledge}` : ""}
 
 EXISTING MASTER PRINCIPLES (don't duplicate):
 ${existingPrinciples || "None yet — this is the first consolidation"}
 
 Instructions:
-1. Find patterns that appear across 2+ engines
-2. Identify universal principles (not engine-specific tactics)
-3. For each principle, list which engines it applies to
-4. Rate confidence based on how many engines independently support it
+1. Find patterns that appear across 2+ sources (engines, signals, teachings, overrides, contradictions, retention, streams)
+2. Identify universal principles (not source-specific tactics)
+3. Human override learnings should carry extra weight — they represent explicit corrections
+4. Signal contradictions that were resolved reveal important nuance — capture that nuance
+5. Retention beats reveal psychology principles that may apply beyond just video retention
+6. Stream performance patterns should inform content and scheduling principles
+7. For each principle, list which sources support it
+8. Rate confidence based on how many independent sources support it
 
 Return JSON: {
   "newPrinciples": [
     {
-      "category": "content|growth|seo|audience|revenue|operations|meta-learning",
+      "category": "content|growth|seo|audience|revenue|operations|streaming|retention|meta-learning",
       "principle": "universal principle statement",
-      "sourceEngines": ["engine1", "engine2"],
+      "sourceEngines": ["engine1", "source2"],
       "applicableEngines": ["engine1", "engine2", "engine3"],
       "confidence": 50-100,
-      "evidence": "what data supports this across engines"
+      "evidence": "what data supports this across sources"
     }
   ],
   "reinforced": [
     {
       "principle": "existing principle text (exact match)",
       "newEvidence": "what new data supports this",
-      "additionalEngines": ["newly supporting engines"]
+      "additionalEngines": ["newly supporting sources"]
     }
   ],
   "insights": "meta-observation about what the collective system is learning"
