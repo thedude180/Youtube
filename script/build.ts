@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -52,7 +53,17 @@ async function buildAll() {
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+buildAll()
+  .then(() => {
+    console.log("\nrunning deploy-size check...");
+    try {
+      execSync("bash scripts/check-deploy-size.sh", { stdio: "inherit" });
+    } catch {
+      console.error("\n⚠️  Deploy size check FAILED — fix before deploying");
+      process.exit(1);
+    }
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
