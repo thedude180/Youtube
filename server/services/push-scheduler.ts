@@ -6,6 +6,13 @@ import {
   getActivityWindow,
   calculateDailyPostBudget,
 } from "../human-behavior-engine";
+import {
+  canAffordOperation,
+  getQuotaStatus,
+  getNextResetTime,
+  isQuotaBreakerTripped,
+  QUOTA_COSTS,
+} from "./youtube-quota-tracker";
 
 interface PushJob {
   id: string;
@@ -301,11 +308,48 @@ function canExecuteNow(userId: string): { allowed: boolean; reason?: string; ret
   return { allowed: true };
 }
 
+async function checkQuotaBudget(job: PushJob): Promise<{ allowed: boolean; retryMs?: number }> {
+  try {
+    if (isQuotaBreakerTripped()) {
+      const resetTime = getNextResetTime();
+      const jitterMs = gaussianRandom(5, 2) * 60_000;
+      const retryMs = Math.max(60_000, resetTime.getTime() - Date.now() + Math.max(0, jitterMs));
+      return { allowed: false, retryMs };
+    }
+
+    const opType = job.type === "video_upload" ? "upload" as const : "write" as const;
+    const canAfford = await canAffordOperation(job.userId, opType);
+    if (!canAfford) {
+      const resetTime = getNextResetTime();
+      const jitterMs = gaussianRandom(8, 3) * 60_000;
+      const retryMs = Math.max(60_000, resetTime.getTime() - Date.now() + Math.max(0, jitterMs));
+      console.log(`[PushScheduler] Quota insufficient for ${opType} (job ${job.id}) — deferring to ${resetTime.toISOString()} + jitter`);
+      return { allowed: false, retryMs };
+    }
+
+    return { allowed: true };
+  } catch (err) {
+    console.warn(`[PushScheduler] Quota check error, deferring conservatively:`, (err as any)?.message);
+    const resetTime = getNextResetTime();
+    const jitterMs = gaussianRandom(10, 4) * 60_000;
+    return { allowed: false, retryMs: Math.max(60_000, resetTime.getTime() - Date.now() + Math.max(0, jitterMs)) };
+  }
+}
+
 async function processJob(job: PushJob): Promise<boolean> {
   const check = canExecuteNow(job.userId);
 
   if (!check.allowed && job.priority !== "immediate") {
     const retryMs = check.retryMs || 60_000;
+    job.scheduledAt = new Date(Date.now() + retryMs);
+    pushQueue.push(job);
+    pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+    return false;
+  }
+
+  const quotaCheck = await checkQuotaBudget(job);
+  if (!quotaCheck.allowed) {
+    const retryMs = quotaCheck.retryMs || 60_000;
     job.scheduledAt = new Date(Date.now() + retryMs);
     pushQueue.push(job);
     pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());

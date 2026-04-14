@@ -22,27 +22,25 @@ function getPacificDate(): string {
 
 function getNextResetTime(): Date {
   const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-US', {
+  const todayPT = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Los_Angeles',
     year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(now);
-  const p: Record<string, string> = {};
-  parts.forEach(pt => { p[pt.type] = pt.value; });
-  // Tomorrow midnight in Pacific = Date.UTC(year, month-1, day+1) but adjusted for PT offset
-  // Easiest: construct a date string for tomorrow midnight Pacific and parse it
-  const tomorrowStr = `${p.year}-${p.month}-${String(Number(p.day) + 1).padStart(2,'0')}T00:00:00`;
-  // Use Temporal-style: find UTC equivalent of PT midnight tomorrow
-  // PT is UTC-7 (PDT) or UTC-8 (PST). Find offset dynamically.
-  const ptMidnightApprox = new Date(`${tomorrowStr}-07:00`); // try PDT offset first
+  }).format(now);
+
+  const todayDate = new Date(`${todayPT}T00:00:00`);
+  const tomorrowDate = new Date(todayDate.getTime() + 86400000);
+  const tomorrowStr = tomorrowDate.toISOString().slice(0, 10) + 'T00:00:00';
+
+  const ptMidnightPDT = new Date(`${tomorrowStr}-07:00`);
   const checkParts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'America/Los_Angeles',
     hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(ptMidnightApprox);
-  // if the hour is not 00, try PST offset
+  }).format(ptMidnightPDT);
+
   if (!checkParts.includes('00:00') && !checkParts.includes('24:00')) {
     return new Date(`${tomorrowStr}-08:00`);
   }
-  return ptMidnightApprox;
+  return ptMidnightPDT;
 }
 
 async function getOrCreateDailyRecord(userId: string) {

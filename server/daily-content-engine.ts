@@ -38,6 +38,69 @@ const SHORTS_PER_BATCH = 3;
 const LONG_FORM_PER_BATCH = 1;
 const MINUTES_PER_BATCH = 75; // 60 min long-form + ~15 min headroom for 3 shorts
 const CORE_YOUTUBE_PER_DAY = LONG_FORM_PER_BATCH + SHORTS_PER_BATCH; // 4 (1 long-form + 3 shorts per batch)
+
+const UPLOAD_QUOTA_COST = 1600;
+const WRITE_QUOTA_COST = 50;
+const QUOTA_OVERHEAD_PER_UPLOAD = 10;
+
+export async function getQuotaAwareUploadCap(userId: string): Promise<{ maxUploads: number; reason: string }> {
+  try {
+    const { getQuotaStatus, isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+
+    if (isQuotaBreakerTripped()) {
+      return { maxUploads: 0, reason: "quota_breaker_tripped" };
+    }
+
+    const status = await getQuotaStatus(userId);
+
+    if (status.isExceeded) {
+      return { maxUploads: 0, reason: "quota_exceeded" };
+    }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const [alreadyScheduled] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        eq(autopilotQueue.targetPlatform, "youtube"),
+        inArray(autopilotQueue.status, ["scheduled", "pending", "processing"]),
+        gte(autopilotQueue.scheduledAt, todayStart),
+        lte(autopilotQueue.scheduledAt, todayEnd),
+      ));
+
+    const alreadyQueued = alreadyScheduled?.count || 0;
+
+    const safeRemaining = Math.max(0, status.remaining - 500);
+    const perUploadCost = UPLOAD_QUOTA_COST + WRITE_QUOTA_COST + QUOTA_OVERHEAD_PER_UPLOAD;
+    const maxFromQuota = Math.floor(safeRemaining / perUploadCost);
+
+    const maxNewUploads = Math.max(0, Math.min(maxFromQuota, CORE_YOUTUBE_PER_DAY) - alreadyQueued);
+
+    logger.info("Quota-aware upload cap calculated", {
+      userId,
+      quotaUsed: status.used,
+      quotaRemaining: status.remaining,
+      safeRemaining,
+      maxFromQuota,
+      alreadyQueued,
+      effectiveCap: maxNewUploads,
+    });
+
+    if (maxNewUploads <= 0) {
+      return { maxUploads: 0, reason: alreadyQueued >= CORE_YOUTUBE_PER_DAY ? "day_full" : "quota_budget" };
+    }
+
+    return { maxUploads: maxNewUploads, reason: maxNewUploads < CORE_YOUTUBE_PER_DAY ? "quota_budget" : "full_budget" };
+  } catch (err: any) {
+    logger.warn("Quota check failed, deferring conservatively", { userId, error: err.message });
+    return { maxUploads: 0, reason: "quota_check_failed" };
+  }
+}
 const MIN_DAY_OFFSET = 0; // start from today — first batch fires ASAP, subsequent batches fill sequential future days
 const VIDEO_PLATFORMS = ["tiktok"];
 const TEXT_PLATFORMS = ["discord"];
@@ -487,37 +550,39 @@ async function queueBatchContent(
 
   const allPlatforms = ["youtube", ...connectedPlatforms.all];
 
-  try {
-    await db.insert(autopilotQueue).values({
-      userId,
-      sourceVideoId: null,
-      type: "auto-clip",
-      targetPlatform: "youtube",
-      content: plan.longForm.description,
-      caption: plan.longForm.title,
-      status: "scheduled",
-      scheduledAt: longFormTime,
-      metadata: {
-        contentType: "long-form-compilation",
-        contentCategory: "video",
-        style: "highlight-reel",
-        aiModel: "gpt-4o-mini",
-        sourceStreamId: stream.stream.id,
-        segmentStartMin: stream.nextSegmentStart,
-        segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
-        batchNumber,
-        crossPlatformGroupId: groupId,
-        crossLinkedPlatforms: allPlatforms,
-        tags: plan.longForm.tags || [],
-        retentionBeatsApplied: true,
-        retentionBrief: plan.longForm.retentionBrief || null,
-        titleVariants: plan.longForm.titleVariants || [],
-        thumbnailConcept: plan.longForm.thumbnailConcept,
-      },
-    } as any);
-    longFormQueued = true;
-  } catch (err: any) {
-    logger.error("Failed to queue long-form", { userId, error: err.message });
+  if (plan.longForm) {
+    try {
+      await db.insert(autopilotQueue).values({
+        userId,
+        sourceVideoId: null,
+        type: "auto-clip",
+        targetPlatform: "youtube",
+        content: plan.longForm.description,
+        caption: plan.longForm.title,
+        status: "scheduled",
+        scheduledAt: longFormTime,
+        metadata: {
+          contentType: "long-form-compilation",
+          contentCategory: "video",
+          style: "highlight-reel",
+          aiModel: "gpt-4o-mini",
+          sourceStreamId: stream.stream.id,
+          segmentStartMin: stream.nextSegmentStart,
+          segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
+          batchNumber,
+          crossPlatformGroupId: groupId,
+          crossLinkedPlatforms: allPlatforms,
+          tags: plan.longForm.tags || [],
+          retentionBeatsApplied: true,
+          retentionBrief: plan.longForm.retentionBrief || null,
+          titleVariants: plan.longForm.titleVariants || [],
+          thumbnailConcept: plan.longForm.thumbnailConcept,
+        },
+      } as any);
+      longFormQueued = true;
+    } catch (err: any) {
+      logger.error("Failed to queue long-form", { userId, error: err.message });
+    }
   }
 
   for (let i = 0; i < plan.shorts.length; i++) {
@@ -749,6 +814,17 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
       remainingMinutes: streamData.remainingMinutes,
     });
 
+    const quotaCap = dayOffset === 0 ? await getQuotaAwareUploadCap(userId) : { maxUploads: CORE_YOUTUBE_PER_DAY, reason: "future_day" };
+
+    if (quotaCap.maxUploads <= 0 && dayOffset === 0) {
+      logger.info("Skipping batch — no quota budget remaining today", {
+        userId,
+        reason: quotaCap.reason,
+        dayOffset,
+      });
+      return { didWork: false, exhausted: false };
+    }
+
     const plan = await generateBatchPlan(streamData, batchNumber, userId);
     if (!plan) {
       if (streamsWithContent.length > 1) {
@@ -762,6 +838,21 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
         return { didWork: false, exhausted: false };
       }
       return { didWork: false, exhausted: false };
+    }
+
+    if (quotaCap.maxUploads < CORE_YOUTUBE_PER_DAY && dayOffset === 0) {
+      const allowedShorts = Math.max(0, quotaCap.maxUploads - LONG_FORM_PER_BATCH);
+      if (quotaCap.maxUploads < 1) {
+        plan.longForm = null as any;
+        plan.shorts = [];
+      } else if (allowedShorts < plan.shorts.length) {
+        plan.shorts = plan.shorts.slice(0, allowedShorts);
+        logger.info("Trimmed shorts to fit quota budget", {
+          userId,
+          allowedShorts,
+          quotaMaxUploads: quotaCap.maxUploads,
+        });
+      }
     }
 
     const result = await queueBatchContent(userId, plan, streamData, batchNumber, connectedPlatforms, dayOffset);
@@ -876,6 +967,18 @@ export async function runDailyContentGeneration(): Promise<void> {
             totalMinutes: streamData.totalMinutes,
           });
 
+          if (dayOffset === 0) {
+            const quotaCap = await getQuotaAwareUploadCap(userId);
+            if (quotaCap.maxUploads <= 0) {
+              logger.info("Quota budget exhausted for today — deferring remaining batches to future days", {
+                userId,
+                reason: quotaCap.reason,
+                streamId: streamData.stream.id,
+              });
+              break;
+            }
+          }
+
           const plan = await generateBatchPlan(currentStreamData, batchNumber, userId);
           if (!plan) {
             consecutiveFailures++;
@@ -893,6 +996,25 @@ export async function runDailyContentGeneration(): Promise<void> {
             continue;
           }
           consecutiveFailures = 0;
+
+          if (dayOffset === 0) {
+            const quotaCap = await getQuotaAwareUploadCap(userId);
+            if (quotaCap.maxUploads < CORE_YOUTUBE_PER_DAY) {
+              const allowedShorts = Math.max(0, quotaCap.maxUploads - LONG_FORM_PER_BATCH);
+              if (quotaCap.maxUploads < 1) {
+                plan.longForm = null as any;
+                plan.shorts = [];
+              } else if (allowedShorts < plan.shorts.length) {
+                plan.shorts = plan.shorts.slice(0, allowedShorts);
+              }
+              logger.info("Trimmed batch to fit remaining quota budget", {
+                userId,
+                quotaMaxUploads: quotaCap.maxUploads,
+                shortsKept: plan.shorts.length,
+                longFormKept: !!plan.longForm,
+              });
+            }
+          }
 
           const result = await queueBatchContent(userId, plan, currentStreamData, batchNumber, connectedPlatforms, dayOffset);
           totalBatchesThisRun++;
