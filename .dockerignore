@@ -1,0 +1,14 @@
+vault/
+clips/
+reels/
+node_modules/
+.cache/
+.local/
+.git/
+.upm/
+.config/
+*.log
+tmp/
+/tmp/
+attached_assets/
+screenshots/

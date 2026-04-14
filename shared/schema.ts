@@ -5213,18 +5213,27 @@ export const contentVaultBackups = pgTable("content_vault_backups", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   contentId: text("content_id"),
+  youtubeId: text("youtube_id"),
   platform: text("platform").notNull(),
   contentType: text("content_type").notNull(),
   title: text("title"),
+  description: text("description"),
+  gameName: text("game_name"),
+  duration: text("duration"),
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
   analyticsSnapshot: jsonb("analytics_snapshot").$type<Record<string, any>>().default({}),
   backupUrl: text("backup_url"),
-  status: text("status").default("backed_up"),
+  filePath: text("file_path"),
+  fileSize: integer("file_size"),
+  status: text("status").default("indexed"),
+  downloadError: text("download_error"),
   restoredAt: timestamp("restored_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  downloadedAt: timestamp("downloaded_at"),
 }, (table) => [
   index("vault_user_idx").on(table.userId),
   index("vault_platform_idx").on(table.platform),
+  index("vault_youtube_id_idx").on(table.youtubeId),
 ]);
 
 export const contractAnalyses = pgTable("contract_analyses", {

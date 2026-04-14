@@ -54,6 +54,7 @@ const Onboarding  = lazyRetry(() => import("@/pages/Onboarding"));
 const PreChannelLaunch = lazyRetry(() => import("@/pages/PreChannelLaunch"));
 const Pricing     = lazyRetry(() => import("@/pages/Pricing"));
 const VideoStudio = lazyRetry(() => import("@/pages/VideoStudio"));
+const Vault       = lazyRetry(() => import("@/pages/Vault"));
 const Notifications = lazyRetry(() => import("@/pages/Notifications"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
@@ -143,6 +144,7 @@ function Router() {
       <Route path="/content">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
       <Route path="/content/:tab">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
       <Route path="/studio">{() => <SectionErrorBoundary fallbackTitle="Video Studio failed to load"><VideoStudio /></SectionErrorBoundary>}</Route>
+      <Route path="/vault">{() => <SectionErrorBoundary fallbackTitle="Video Vault failed to load"><Vault /></SectionErrorBoundary>}</Route>
       <Route path="/stream">{() => <SectionErrorBoundary fallbackTitle="Live failed to load"><StreamCenter /></SectionErrorBoundary>}</Route>
       <Route path="/money">{() => <SectionErrorBoundary fallbackTitle="Revenue failed to load"><Money /></SectionErrorBoundary>}</Route>
       <Route path="/money/:tab">{() => <SectionErrorBoundary fallbackTitle="Revenue failed to load"><Money /></SectionErrorBoundary>}</Route>

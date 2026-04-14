@@ -280,6 +280,158 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.get("/api/vault/stats", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVaultStats } = await import("../services/video-vault");
+      const stats = await getVaultStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get vault stats" });
+    }
+  });
+
+  app.get("/api/vault/games", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVaultGames } = await import("../services/video-vault");
+      const games = await getVaultGames(userId);
+      res.json(games);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get vault games" });
+    }
+  });
+
+  app.get("/api/vault/entries", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVaultEntries } = await import("../services/video-vault");
+      const gameName = req.query.game as string | undefined;
+      const contentType = req.query.type as string | undefined;
+      const entries = await getVaultEntries(userId, gameName, contentType);
+      res.json(entries);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get vault entries" });
+    }
+  });
+
+  app.post("/api/vault/sync", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { startVaultSync } = await import("../services/video-vault");
+      startVaultSync(userId).catch(err =>
+        console.error("[Vault] Background sync error:", err?.message || err)
+      );
+      res.json({ message: "Vault sync started — indexing all channel videos and beginning downloads" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to start vault sync" });
+    }
+  });
+
+  app.get("/api/vault/export-manifest", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const all = await db.select().from(contentVaultBackups).where(eq(contentVaultBackups.userId, userId));
+      const header = "id,youtubeId,platform,contentType,title,gameName,duration,status,fileSize,publishedAt,backupUrl\n";
+      const rows = all.map(r => {
+        const pub = (r.metadata as any)?.publishedAt || "";
+        return [
+          r.id, r.youtubeId, r.platform, r.contentType,
+          `"${(r.title || "").replace(/"/g, '""')}"`,
+          `"${(r.gameName || "").replace(/"/g, '""')}"`,
+          r.duration, r.status, r.fileSize || 0, pub, r.backupUrl || ""
+        ].join(",");
+      }).join("\n");
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=vault_manifest.csv");
+      res.send(header + rows);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to export manifest" });
+    }
+  });
+
+  app.get("/api/vault/download-file/:youtubeId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const [entry] = await db.select().from(contentVaultBackups).where(and(
+        eq(contentVaultBackups.userId, userId),
+        eq(contentVaultBackups.youtubeId, req.params.youtubeId),
+      ));
+      if (!entry || entry.status !== "downloaded" || !entry.filePath) {
+        return res.status(404).json({ error: "File not found or not yet downloaded" });
+      }
+      const fs = await import("fs");
+      const path = await import("path");
+      if (!fs.existsSync(entry.filePath)) {
+        return res.status(404).json({ error: "File missing from disk" });
+      }
+      const safeName = (entry.title || entry.youtubeId || "video").replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 100);
+      res.setHeader("Content-Disposition", `attachment; filename="${safeName}.mp4"`);
+      res.setHeader("Content-Type", "video/mp4");
+      res.setHeader("Content-Length", String(entry.fileSize || fs.statSync(entry.filePath).size));
+      const stream = fs.createReadStream(entry.filePath);
+      stream.pipe(res);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
+  app.get("/api/vault/download-zip", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const fs = await import("fs");
+      const archiver = (await import("archiver")).default;
+      const gameName = req.query.game as string | undefined;
+
+      const conditions = [
+        eq(contentVaultBackups.userId, userId),
+        eq(contentVaultBackups.status, "downloaded"),
+      ];
+      if (gameName) {
+        conditions.push(eq(contentVaultBackups.gameName, gameName));
+      }
+      const entries = await db.select().from(contentVaultBackups).where(and(...conditions));
+      const validEntries = entries.filter(e => e.filePath && fs.existsSync(e.filePath));
+
+      if (validEntries.length === 0) {
+        return res.status(404).json({ error: "No downloaded files found" });
+      }
+
+      const zipName = gameName
+        ? `vault_${gameName.replace(/[^a-zA-Z0-9]/g, "_")}.zip`
+        : "vault_full_backup.zip";
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
+
+      const archive = archiver("zip", { store: true });
+      archive.on("error", (err: any) => { if (!res.headersSent) res.status(500).end(); });
+      archive.pipe(res);
+
+      for (const entry of validEntries) {
+        const safeName = (entry.title || entry.youtubeId || "video").replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 100);
+        const folder = (entry.gameName || "Uncategorized").replace(/[^a-zA-Z0-9_\-. ]/g, "_");
+        archive.file(entry.filePath!, { name: `${folder}/${safeName}.mp4` });
+      }
+
+      await archive.finalize();
+    } catch (error: any) {
+      if (!res.headersSent) res.status(500).json({ error: "Failed to create zip" });
+    }
+  });
+
   app.put("/api/youtube/video/:channelId/:videoId", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

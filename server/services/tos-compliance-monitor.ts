@@ -186,10 +186,25 @@ Return ONLY valid JSON:
     const parsed = JSON.parse(content);
     const changes: PolicyChange[] = Array.isArray(parsed.changes) ? parsed.changes : [];
 
-    return changes.filter(c =>
+    const validChanges = changes.filter(c =>
       c.platform && c.area && c.summary && c.severity &&
       ["critical", "high", "medium", "low"].includes(c.severity)
     );
+
+    const deduped: PolicyChange[] = [];
+    for (const change of validChanges) {
+      const areaKey = change.area.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 40);
+      const alreadyRecorded = existingRules.some(r =>
+        r.ruleName?.toLowerCase().replace(/[^a-z0-9]/g, "").includes(areaKey) ||
+        areaKey.includes(r.ruleName?.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 20) || "___")
+      );
+      if (!alreadyRecorded) {
+        deduped.push(change);
+      } else {
+        logger.info("Skipping already-known policy area", { area: change.area });
+      }
+    }
+    return deduped;
   } catch (err: any) {
     logger.error("Policy change detection failed", { error: err.message?.substring(0, 200) });
     return [];
@@ -326,16 +341,27 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
 
     if (change.severity === "critical" || change.severity === "high") {
       const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`;
-      const { users } = await import("@shared/schema");
-      const allUsers = await db.select({ id: users.id }).from(users).limit(10);
-      for (const user of allUsers) {
-        await storage.createNotification({
-          userId: user.id,
-          type: "compliance",
-          title: notifTitle,
-          message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
-          severity: change.severity === "critical" ? "critical" : "warning",
-        }).catch(() => undefined);
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60_000);
+      const existingNotif = await db.select({ id: notifications.id }).from(notifications)
+        .where(and(
+          eq(notifications.title, notifTitle),
+          gte(notifications.createdAt, oneDayAgo),
+        ))
+        .limit(1);
+      if (existingNotif.length > 0) {
+        logger.info("Skipping duplicate policy notification", { area: change.area });
+      } else {
+        const { users } = await import("@shared/schema");
+        const allUsers = await db.select({ id: users.id }).from(users).limit(10);
+        for (const user of allUsers) {
+          await storage.createNotification({
+            userId: user.id,
+            type: "compliance",
+            title: notifTitle,
+            message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
+            severity: change.severity === "critical" ? "critical" : "warning",
+          }).catch(() => undefined);
+        }
       }
     }
   } catch (err: any) {

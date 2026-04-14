@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
 import { db } from "./db";
-import { cronJobs, aiResults, aiChains, webhookEvents, channels } from "@shared/schema";
+import { cronJobs, aiResults, aiChains, webhookEvents, channels, users } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import { withCronLock } from "./lib/cron-lock";
@@ -430,11 +430,38 @@ export async function initAutomationEngine() {
       console.log("[VideoSync] Running startup sync...");
       await runVideoSync();
     }, { maxRetries: 2 });
+
+    await selfHealingCore("VaultSync-Startup", async () => {
+      const allChannelRows = await db.select().from(channels);
+      const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+      if (ytChannels.length > 0) {
+        const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
+        const userId = adminRow[0]?.id || ytChannels[0].userId!;
+        const { startVaultSync } = await import("./services/video-vault");
+        console.log("[Vault] Starting automatic vault sync on startup...");
+        await startVaultSync(userId);
+      }
+    }, { maxRetries: 1 });
   }, 15_000);
 
   cron.schedule("0 */2 * * *", async () => {
     await withCronLock("VideoSync", 90 * 60 * 1000, async () => {
       await selfHealingCore("VideoSync", runVideoSync);
+    });
+  });
+
+  cron.schedule("0 */6 * * *", async () => {
+    await withCronLock("VaultSync", 5 * 60 * 60 * 1000, async () => {
+      await selfHealingCore("VaultSync", async () => {
+        const allChannelRows = await db.select().from(channels);
+        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+        if (ytChannels.length > 0) {
+          const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
+          const userId = adminRow[0]?.id || ytChannels[0].userId!;
+          const { startVaultSync } = await import("./services/video-vault");
+          await startVaultSync(userId);
+        }
+      });
     });
   });
 

@@ -7,7 +7,7 @@ import {
   creatorMemory, contentClips, videoVersions, streamChatMessages, chatTopics,
   sponsorshipDeals, platformHealth, collaborationLeads, audienceSegments,
   complianceRules, userFeedback, subscriptions, accessCodes,
-  users, ADMIN_EMAIL,
+  users, ADMIN_EMAIL, contentVaultBackups,
   type User, type AccessCode, type InsertAccessCode,
   expenseRecords, businessVentures, businessGoals, taxEstimates, brandAssets, wellnessChecks, competitorTracks,
   aiResults, cronJobs, aiChains, webhookEvents, knowledgeMilestones,
@@ -72,6 +72,7 @@ import {
   type StudioVideo, type InsertStudioVideo,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
+import { extractGameName } from "./services/video-vault";
 
 export interface IStorage {
   getChannels(): Promise<Channel[]>;
@@ -442,6 +443,47 @@ export class DatabaseStorage implements IStorage {
 
   async createVideo(video: InsertVideo): Promise<Video> {
     const [newVideo] = await db.insert(videos).values(video).returning();
+    try {
+      const [channel] = await db.select().from(channels).where(eq(channels.id, video.channelId));
+      const userId = channel?.userId;
+      if (userId) {
+        const youtubeId = (video.metadata as any)?.youtubeId || `local_${newVideo.id}`;
+        const existing = await db.select({ id: contentVaultBackups.id })
+          .from(contentVaultBackups)
+          .where(and(
+            eq(contentVaultBackups.userId, userId),
+            eq(contentVaultBackups.youtubeId, youtubeId),
+          ));
+        if (existing.length === 0) {
+          const contentType = video.type === "short" ? "short" : video.type === "stream" ? "stream" : "video";
+          const gameName = extractGameName(video.title);
+          await db.insert(contentVaultBackups).values({
+            userId,
+            youtubeId,
+            platform: video.platform || "youtube",
+            contentType,
+            title: video.title,
+            description: video.description || "",
+            gameName,
+            duration: (video.metadata as any)?.duration || "PT0S",
+            metadata: {
+              thumbnailUrl: video.thumbnailUrl || "",
+              viewCount: (video.metadata as any)?.stats?.views || 0,
+              publishedAt: newVideo.publishedAt?.toISOString() || new Date().toISOString(),
+              durationSeconds: 0,
+            },
+            status: video.filePath ? "downloaded" : "indexed",
+            filePath: video.filePath || null,
+            backupUrl: (video.metadata as any)?.youtubeId
+              ? (contentType === "short"
+                ? `https://www.youtube.com/shorts/${(video.metadata as any).youtubeId}`
+                : `https://www.youtube.com/watch?v=${(video.metadata as any).youtubeId}`)
+              : null,
+          });
+        }
+      }
+    } catch (e) {
+    }
     return newVideo;
   }
 
@@ -970,6 +1012,46 @@ export class DatabaseStorage implements IStorage {
 
   async createContentClip(c: InsertContentClip): Promise<ContentClip> {
     const [newClip] = await db.insert(contentClips).values(c).returning();
+    try {
+      const userId = c.userId;
+      let sourceTitle = c.title;
+      let youtubeId = `clip_${newClip.id}`;
+      if (c.sourceVideoId) {
+        const [srcVideo] = await db.select().from(videos).where(eq(videos.id, c.sourceVideoId));
+        if (srcVideo) {
+          const srcYtId = (srcVideo.metadata as any)?.youtubeId;
+          if (srcYtId) youtubeId = `clip_${srcYtId}_${newClip.id}`;
+        }
+      }
+      const existing = await db.select({ id: contentVaultBackups.id })
+        .from(contentVaultBackups)
+        .where(and(
+          eq(contentVaultBackups.userId, userId),
+          eq(contentVaultBackups.youtubeId, youtubeId),
+        ));
+      if (existing.length === 0) {
+        const gameName = extractGameName(sourceTitle);
+        const durationSec = Math.round((c.endTime ?? 30) - (c.startTime ?? 0));
+        await db.insert(contentVaultBackups).values({
+          userId,
+          youtubeId,
+          platform: c.targetPlatform || "youtube",
+          contentType: "short",
+          title: sourceTitle,
+          description: c.description || "",
+          gameName,
+          duration: `PT${durationSec}S`,
+          metadata: {
+            thumbnailUrl: "",
+            viewCount: 0,
+            publishedAt: new Date().toISOString(),
+            durationSeconds: durationSec,
+          },
+          status: "indexed",
+        });
+      }
+    } catch (e) {
+    }
     return newClip;
   }
 

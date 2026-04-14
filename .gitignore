@@ -5,6 +5,13 @@ server/public
 vite.config.ts.*
 *.tar.gz
 
+# Large media directories (not needed in deployment)
+vault/
+clips/
+reels/
+*.mp4
+*.mp4.part
+
 # Environment & secrets
 .env
 .env.local
@@ -35,3 +42,5 @@ Desktop.ini
 # Logs
 *.log
 npm-debug.log*
+
+.git.backup.*
