@@ -20,6 +20,19 @@ export interface StreamEndMetrics {
   streamId?: number;
 }
 
+export interface MidStreamSnapshot {
+  userId: string;
+  platform: string;
+  streamTitle?: string;
+  viewerCount: number;
+  viewerPeak: number;
+  chatMessagesHandled: number;
+  chatSentiment: "positive" | "neutral" | "negative";
+  elapsedMs: number;
+  checkpointNumber: number;
+  viewerHistory?: number[];
+}
+
 interface StreamHistoryEntry {
   peakViewers: number;
   avgViewers: number;
@@ -291,4 +304,155 @@ export async function processStreamLearning(metrics: StreamEndMetrics): Promise<
   }
 
   logger.info(`[${userId.slice(0, 8)}] Stream learning complete — grade: ${grade}, ${tips.length} tips, trend fed to knowledge mesh`);
+}
+
+export interface MidStreamCheckpointResult {
+  liveGrade: string;
+  viewerTrend: "rising" | "falling" | "stable";
+  chatHealthy: boolean;
+  coachingTip: string;
+  tacticalInsights: string[];
+}
+
+export async function processMidStreamCheckpoint(snapshot: MidStreamSnapshot): Promise<MidStreamCheckpointResult> {
+  const { userId, viewerCount, viewerPeak, chatMessagesHandled, chatSentiment, elapsedMs, checkpointNumber } = snapshot;
+  const elapsedMin = Math.round(elapsedMs / 60000);
+  const chatRate = elapsedMin > 0 ? +(chatMessagesHandled / elapsedMin).toFixed(2) : 0;
+
+  logger.info(`[${userId.slice(0, 8)}] Mid-stream checkpoint #${checkpointNumber} — viewers: ${viewerCount}, peak: ${viewerPeak}, chat rate: ${chatRate}/min, elapsed: ${elapsedMin}min`);
+
+  const viewerHistory = snapshot.viewerHistory || [];
+  let viewerTrend: "rising" | "falling" | "stable" = "stable";
+  if (viewerHistory.length >= 3) {
+    const recent = viewerHistory.slice(-3);
+    const older = viewerHistory.slice(-6, -3);
+    if (older.length > 0) {
+      const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
+      const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+      if (recentAvg > olderAvg * 1.15) viewerTrend = "rising";
+      else if (recentAvg < olderAvg * 0.85) viewerTrend = "falling";
+    }
+  }
+
+  const chatHealthy = chatRate >= 0.5 || elapsedMin < 10;
+
+  const history = await getStreamHistory(userId);
+  const avgHistPeak = history.length > 0
+    ? history.reduce((s, h) => s + h.peakViewers, 0) / history.length
+    : 0;
+
+  let liveGrade: string;
+  if (history.length === 0) {
+    liveGrade = viewerPeak >= 15 ? "B+" : viewerPeak >= 8 ? "B" : viewerPeak >= 3 ? "C+" : "C";
+  } else {
+    let score = 50;
+    if (avgHistPeak > 0) score += Math.min(20, Math.max(-20, (viewerPeak / avgHistPeak - 1) * 40));
+    if (chatHealthy) score += 5;
+    if (chatSentiment === "positive") score += 5;
+    if (chatSentiment === "negative") score -= 10;
+    if (viewerTrend === "rising") score += 10;
+    if (viewerTrend === "falling") score -= 10;
+    if (elapsedMin >= 60) score += 5;
+
+    if (score >= 80) liveGrade = "A";
+    else if (score >= 65) liveGrade = "B+";
+    else if (score >= 55) liveGrade = "B";
+    else if (score >= 45) liveGrade = "C+";
+    else if (score >= 35) liveGrade = "C";
+    else liveGrade = "D";
+  }
+
+  const tacticalInsights: string[] = [];
+  if (viewerTrend === "falling") {
+    tacticalInsights.push("Viewers dropping — try a poll, challenge, or shoutout to re-engage.");
+  }
+  if (viewerTrend === "rising") {
+    tacticalInsights.push("Viewers climbing — keep the current energy, consider a call-to-action for subscribers.");
+  }
+  if (!chatHealthy) {
+    tacticalInsights.push("Chat is quiet — ask an open-ended question or start a debate to spark conversation.");
+  }
+  if (chatSentiment === "negative") {
+    tacticalInsights.push("Chat sentiment is negative — acknowledge concerns, pivot energy, or moderate aggressively.");
+  }
+  if (avgHistPeak > 0 && viewerPeak > avgHistPeak * 1.3) {
+    tacticalInsights.push(`Peak (${viewerPeak}) is well above your average (${Math.round(avgHistPeak)}) — capitalize with a raid call or collab mention.`);
+  }
+  if (avgHistPeak > 0 && viewerPeak < avgHistPeak * 0.6) {
+    tacticalInsights.push(`Peak (${viewerPeak}) is below your average (${Math.round(avgHistPeak)}) — try a title/thumbnail refresh or cross-post on socials.`);
+  }
+  if (elapsedMin >= 120 && viewerTrend !== "rising") {
+    tacticalInsights.push("Stream is 2h+ and momentum isn't building — consider wrapping up strong rather than letting it fade.");
+  }
+
+  if (tacticalInsights.length === 0) {
+    tacticalInsights.push("Stream is on track. Maintain consistency and keep interacting with chat.");
+  }
+
+  const coachingTip = tacticalInsights[0];
+
+  try {
+    const { emitLearningSignal } = await import("../kernel/learning");
+    await emitLearningSignal({
+      signalType: "mid_stream_checkpoint",
+      sourceSystem: "stream-learning-engine",
+      userId,
+      payload: {
+        checkpointNumber,
+        elapsedMinutes: elapsedMin,
+        viewerCount,
+        viewerPeak,
+        chatRate,
+        chatSentiment,
+        viewerTrend,
+        liveGrade,
+        chatHealthy,
+        insightCount: tacticalInsights.length,
+      },
+      confidence: Math.min(0.8, 0.4 + checkpointNumber * 0.1),
+      weightClass: "standard",
+    });
+  } catch (err: any) {
+    logger.warn(`[${userId.slice(0, 8)}] Mid-stream signal emit failed: ${err.message}`);
+  }
+
+  try {
+    const { recordEngineKnowledge } = await import("./knowledge-mesh");
+    await recordEngineKnowledge(
+      "stream-learning",
+      userId,
+      "mid_stream_health",
+      `live_checkpoint_${checkpointNumber}`,
+      `Checkpoint #${checkpointNumber} at ${elapsedMin}min: ${viewerCount} viewers (peak ${viewerPeak}), chat rate ${chatRate}/min, sentiment ${chatSentiment}, trend ${viewerTrend}. Live grade: ${liveGrade}. ${coachingTip}`,
+      `viewers=${viewerCount},peak=${viewerPeak},chat=${chatRate}/min,trend=${viewerTrend}`,
+      liveGrade <= "B" ? 70 : 50,
+    );
+  } catch (err: any) {
+    logger.warn(`[${userId.slice(0, 8)}] Mid-stream knowledge mesh failed: ${err.message}`);
+  }
+
+  logger.info(`[${userId.slice(0, 8)}] Mid-stream checkpoint #${checkpointNumber} complete — grade: ${liveGrade}, trend: ${viewerTrend}, tip: "${coachingTip.slice(0, 60)}..."`);
+
+  return { liveGrade, viewerTrend, chatHealthy, coachingTip, tacticalInsights };
+}
+
+export async function getMidStreamCoaching(userId: string): Promise<string | null> {
+  try {
+    const schema = await import("@shared/schema");
+    const rows = await db
+      .select({ insight: schema.engineKnowledge.insight })
+      .from(schema.engineKnowledge)
+      .where(
+        and(
+          eq(schema.engineKnowledge.engineName, "stream-learning"),
+          eq(schema.engineKnowledge.userId, userId),
+          eq(schema.engineKnowledge.knowledgeType, "mid_stream_health"),
+        )
+      )
+      .orderBy(desc(schema.engineKnowledge.updatedAt))
+      .limit(1);
+    return rows[0]?.insight || null;
+  } catch {
+    return null;
+  }
 }

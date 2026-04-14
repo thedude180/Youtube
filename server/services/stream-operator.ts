@@ -250,14 +250,25 @@ export const streamOperator = {
     const viewerDrop = prevViewers > 10 && currentViewers < prevViewers * 0.80; // >20% drop
     const chatRate = 1.5; // Would need message timestamp analysis; keeping as runtime metric
 
+    let learningContext = "";
+    try {
+      const { getMidStreamCoaching } = await import("./stream-learning-engine");
+      const coaching = await getMidStreamCoaching(userId);
+      if (coaching) learningContext = coaching;
+    } catch {}
+
     let engagementMessage = "";
     let reason = "";
     if (viewerDrop) {
-      engagementMessage = "If you're enjoying the stream, don't forget to drop a like! What should we do next?";
-      reason = `Viewer drop detected: ${prevViewers} → ${currentViewers}`;
+      engagementMessage = learningContext
+        ? `Viewers are dropping! ${learningContext.includes("poll") || learningContext.includes("challenge") ? learningContext : "Drop a like if you're enjoying the stream! What should we play next?"}`
+        : "If you're enjoying the stream, don't forget to drop a like! What should we do next?";
+      reason = `Viewer drop detected: ${prevViewers} → ${currentViewers}${learningContext ? " | Learning: " + learningContext.slice(0, 80) : ""}`;
     } else if (chatRate < 2) {
-      engagementMessage = "Chat's looking a bit quiet! What's everyone's favorite game right now?";
-      reason = "Low chat rate detected";
+      engagementMessage = learningContext
+        ? `Chat needs energy! ${learningContext.includes("question") || learningContext.includes("debate") ? learningContext : "What's everyone's favorite game right now?"}`
+        : "Chat's looking a bit quiet! What's everyone's favorite game right now?";
+      reason = `Low chat rate detected${learningContext ? " | Learning: " + learningContext.slice(0, 80) : ""}`;
     }
 
     if (engagementMessage) {

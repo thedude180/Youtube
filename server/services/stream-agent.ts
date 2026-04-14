@@ -40,6 +40,10 @@ interface StreamAgentState {
   intervalHandle: ReturnType<typeof setInterval> | null;
   lastCheckedAt: Date | null;
   lastError: string | null;
+  lastLearningCheckpointAt: Date | null;
+  learningCheckpointCount: number;
+  viewerSamples: number[];
+  latestCoachingTip: string | null;
 }
 
 const agentStates = new Map<string, StreamAgentState>();
@@ -77,6 +81,10 @@ function getOrCreateState(userId: string): StreamAgentState {
       intervalHandle: null,
       lastCheckedAt: null,
       lastError: null,
+      lastLearningCheckpointAt: null,
+      learningCheckpointCount: 0,
+      viewerSamples: [],
+      latestCoachingTip: null,
     });
   }
   return agentStates.get(userId)!;
@@ -91,8 +99,19 @@ function logAction(state: StreamAgentState, action: string, detail?: string) {
 
 async function generateEngagementPrompt(state: StreamAgentState): Promise<string> {
   const openai = getOpenAIClient();
+  const coachingContext = state.latestCoachingTip
+    ? `\nLive learning insight: ${state.latestCoachingTip}`
+    : "";
+  const trendContext = state.viewerSamples.length >= 3
+    ? (() => {
+      const recent = state.viewerSamples.slice(-3);
+      const avg = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
+      const peak = state.viewerPeak;
+      return `\nViewer trend (last 3 samples avg: ${avg}, session peak: ${peak})`;
+    })()
+    : "";
   const prompt = `You are an AI streaming assistant for a gaming streamer. They are LIVE right now playing "${state.streamTitle || "a game"}". 
-Current viewer count: ${state.viewerCount}. Chat sentiment: ${state.chatSentiment}.
+Current viewer count: ${state.viewerCount}. Chat sentiment: ${state.chatSentiment}.${coachingContext}${trendContext}
 Generate ONE short, punchy engagement prompt the streamer can do RIGHT NOW to boost viewer interaction. 
 Examples: "Ask chat what game they want to see next", "Do a 30-second speedrun challenge", "React to a clip", "Run a quick giveaway".
 Response: just the prompt, no extra text, under 15 words.`;
@@ -222,7 +241,41 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         }
       }
 
+      if (state.viewerCount > 0) {
+        state.viewerSamples.push(state.viewerCount);
+        if (state.viewerSamples.length > 30) state.viewerSamples = state.viewerSamples.slice(-30);
+      }
+
       const nowMs = Date.now();
+      const LEARNING_CHECKPOINT_INTERVAL = 30 * 60 * 1000;
+      const shouldCheckpoint = state.streamStartedAt &&
+        (Date.now() - state.streamStartedAt.getTime()) >= 20 * 60 * 1000 &&
+        (!state.lastLearningCheckpointAt || (nowMs - state.lastLearningCheckpointAt.getTime()) >= LEARNING_CHECKPOINT_INTERVAL);
+
+      if (shouldCheckpoint) {
+        state.lastLearningCheckpointAt = new Date();
+        state.learningCheckpointCount++;
+        try {
+          const { processMidStreamCheckpoint } = await import("./stream-learning-engine");
+          const result = await processMidStreamCheckpoint({
+            userId,
+            platform: state.platform || "youtube",
+            streamTitle: state.streamTitle || undefined,
+            viewerCount: state.viewerCount,
+            viewerPeak: state.viewerPeak,
+            chatMessagesHandled: state.chatMessagesHandled,
+            chatSentiment: state.chatSentiment,
+            elapsedMs: state.streamStartedAt ? Date.now() - state.streamStartedAt.getTime() : 0,
+            checkpointNumber: state.learningCheckpointCount,
+            viewerHistory: state.viewerSamples,
+          });
+          state.latestCoachingTip = result.coachingTip;
+          logAction(state, `Live learning checkpoint #${state.learningCheckpointCount}`, `Grade: ${result.liveGrade} | Trend: ${result.viewerTrend} | ${result.coachingTip}`);
+        } catch (err: any) {
+          logger.warn(`[${userId}] Mid-stream learning checkpoint failed: ${err.message}`);
+        }
+      }
+
       const shouldPrompt = !state.lastPromptAt ||
         (nowMs - state.lastPromptAt.getTime()) > 10 * 60 * 1000;
 
@@ -267,6 +320,10 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         }, 5 * 60 * 1000);
 
         state.viewerCount = 0;
+        state.lastLearningCheckpointAt = null;
+        state.learningCheckpointCount = 0;
+        state.viewerSamples = [];
+        state.latestCoachingTip = null;
       } else {
         state.currentAction = "Waiting for your stream to go live";
         state.lastError = null;
@@ -355,6 +412,8 @@ export function getStreamAgentStatus(userId: string) {
     chatMessagesHandled: state.chatMessagesHandled,
     chatSentiment: state.chatSentiment,
     currentAction: state.currentAction,
+    learningCheckpointCount: state.learningCheckpointCount,
+    latestCoachingTip: state.latestCoachingTip,
     actionsLog: state.actionsLog.slice(0, 10),
     postStreamPhase: state.postStreamPhase,
     lastCheckedAt: state.lastCheckedAt,
