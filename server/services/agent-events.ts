@@ -401,6 +401,29 @@ export async function wireAgentCoordination(): Promise<void> {
       }
     }, 5 * 60_000); // Wait 5 min for content to process
 
+    // 2b. Stream Learning Engine (T+5min) — grade stream, feed knowledge mesh + learning signals
+    setTimeout(async () => {
+      try {
+        const { processStreamLearning } = await import("./stream-learning-engine");
+        await processStreamLearning({
+          userId: event.userId,
+          platform: event.payload?.platform || "youtube",
+          streamTitle: event.payload?.streamTitle,
+          videoId: event.payload?.videoId || videoId,
+          viewerPeak: event.payload?.viewerPeak,
+          viewerCount: event.payload?.viewerCount,
+          chatMessagesHandled: event.payload?.chatMessagesHandled,
+          chatSentiment: event.payload?.chatSentiment,
+          streamDurationMs: event.payload?.streamDurationMs,
+          streamStartedAt: event.payload?.streamStartedAt,
+          streamId: event.payload?.streamId,
+        });
+        logger.info(`Stream learning analysis complete for ${event.userId.slice(0, 8)}`);
+      } catch (err: any) {
+        logger.warn(`Stream learning analysis failed: ${err.message}`);
+      }
+    }, 5 * 60_000);
+
     // --- AUTONOMOUS CONTENT FACTORY CASCADE ---
 
     // 3. Shorts Factory (T+2min)

@@ -41,6 +41,7 @@ const RETENTION_RULES: RetentionRule[] = [
   { table: "media_kits",                  timestampCol: "generated_at", retentionDays: 30 },
   { table: "discovered_strategies",       timestampCol: "created_at",   retentionDays: 30 },
   { table: "traffic_strategies",          timestampCol: "created_at",   retentionDays: 30 },
+  { table: "stream_performance_logs",    timestampCol: "created_at",   retentionDays: 90 },
 ];
 
 const BATCH_SIZE = 1000;

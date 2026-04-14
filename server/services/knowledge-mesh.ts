@@ -43,6 +43,7 @@ const ENGINE_REGISTRY = [
   { name: "memory-architect", domains: ["knowledge-compression", "memory-management", "forgetting", "consolidation"] },
   { name: "autonomous-experimenter", domains: ["hypothesis-testing", "a-b-testing", "experiment-design", "validation"] },
   { name: "decision-chronicler", domains: ["decision-audit", "transparency", "accountability", "reasoning-trail"] },
+  { name: "stream-learning", domains: ["stream-performance", "live-engagement", "viewer-trends", "chat-sentiment", "stream-grading"] },
 ] as const;
 
 const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
@@ -117,6 +118,15 @@ const TEACHING_PAIRS: Array<{ from: string; to: string; relevance: string }> = [
 
   { from: "decision-chronicler", to: "self-improvement", relevance: "decision patterns reveal blind spots in autonomous reasoning" },
   { from: "decision-chronicler", to: "infinite-evolution", relevance: "decision quality trends inform overall system health scoring" },
+
+  { from: "stream-learning", to: "self-improvement", relevance: "stream grades and viewer trends drive honest self-assessment of live content" },
+  { from: "stream-learning", to: "growth-flywheel", relevance: "stream-over-stream viewer trends feed compounding growth calculations" },
+  { from: "stream-learning", to: "audience-intelligence", relevance: "chat engagement and sentiment patterns reveal live audience preferences" },
+  { from: "stream-learning", to: "content-grinder", relevance: "stream performance informs which stream moments to extract and distribute" },
+  { from: "stream-learning", to: "analytics-intelligence", relevance: "stream metrics add live performance data to analytics trend analysis" },
+  { from: "stream-learning", to: "revenue-optimizer", relevance: "stream revenue and viewer data inform monetization strategy for live content" },
+  { from: "audience-intelligence", to: "stream-learning", relevance: "audience preferences inform optimal stream timing and engagement tactics" },
+  { from: "performance-feedback", to: "stream-learning", relevance: "VOD performance of stream recordings validates live engagement strategies" },
 ];
 
 function ensureMeshUserRegistered(userId: string) {

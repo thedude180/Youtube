@@ -242,7 +242,18 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       if (state.isLive) {
         state.isLive = false;
         state.postStreamPhase = "processing";
-        fireAgentEvent("stream.ended", userId, { platform: state.platform, streamTitle: state.streamTitle });
+        const streamDurationMs = state.streamStartedAt ? Date.now() - state.streamStartedAt.getTime() : 0;
+        fireAgentEvent("stream.ended", userId, {
+          platform: state.platform,
+          streamTitle: state.streamTitle,
+          videoId: state.videoId,
+          viewerPeak: state.viewerPeak,
+          viewerCount: state.viewerCount,
+          chatMessagesHandled: state.chatMessagesHandled,
+          chatSentiment: state.chatSentiment,
+          streamDurationMs,
+          streamStartedAt: state.streamStartedAt?.toISOString(),
+        });
         logAction(state, "Stream ended", "Post-stream pipeline started automatically");
         logAction(state, "Clipping best moments", "AI scanning VOD for highlights");
         logAction(state, "Scheduling to all platforms", "Clips will post at peak times");
