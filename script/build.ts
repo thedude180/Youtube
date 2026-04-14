@@ -62,6 +62,13 @@ buildAll()
       console.error("\n⚠️  Deploy size check FAILED — fix before deploying");
       process.exit(1);
     }
+
+    console.log("\nsyncing to GitHub...");
+    try {
+      execSync("bash scripts/git-sync.sh", { stdio: "inherit" });
+    } catch {
+      console.warn("\n⚠️  GitHub sync failed — non-blocking, will retry next build");
+    }
   })
   .catch((err) => {
     console.error(err);
