@@ -3,31 +3,16 @@ import { autopilotQueue, users } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordEngineKnowledge } from "./knowledge-mesh";
+import { PLATFORM_DAILY_LIMITS, PLATFORM_MIN_GAP_MS } from "./platform-budget-tracker";
 
 const logger = createLogger("content-distributor");
 
 const DISTRIBUTE_INTERVAL = 30 * 60_000;
 let distributeInterval: ReturnType<typeof setInterval> | null = null;
 
-const PLATFORM_DAILY_LIMITS: Record<string, number> = {
-  youtube: 4,
-  tiktok: 3,
-  x: 5,
-  discord: 2,
-  instagram: 2,
-  kick: 2,
-  rumble: 2,
-};
-
-const PLATFORM_MIN_GAP_MINUTES: Record<string, number> = {
-  youtube: 120,
-  tiktok: 90,
-  x: 45,
-  discord: 180,
-  instagram: 120,
-  kick: 120,
-  rumble: 120,
-};
+const PLATFORM_MIN_GAP_MINUTES: Record<string, number> = Object.fromEntries(
+  Object.entries(PLATFORM_MIN_GAP_MS).map(([k, v]) => [k, Math.round(v / 60_000)])
+);
 
 const PLATFORM_PEAK_HOURS: Record<string, number[]> = {
   youtube: [10, 11, 12, 14, 15, 16, 17, 18, 19, 20],

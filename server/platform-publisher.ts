@@ -408,6 +408,30 @@ export async function publishToplatform(
       };
     }
 
+    try {
+      const { canPostToPlatformToday } = await import("./services/platform-budget-tracker");
+      const budgetCheck = await canPostToPlatformToday(userId, platform);
+      if (!budgetCheck.allowed) {
+        await recordDistributionLearning(userId, platform, "publish_budget_blocked", {
+          allowed: false,
+          trustCost,
+          policyIssues: [`daily budget exhausted: ${budgetCheck.reason}`],
+          connectionStatus: connectionHealth.status,
+        }).catch(() => {});
+        return {
+          success: false,
+          platform,
+          error: `Publishing deferred: ${platform} daily budget reached (${budgetCheck.reason}). Will retry when budget resets.`,
+        };
+      }
+    } catch (budgetErr: any) {
+      return {
+        success: false,
+        platform,
+        error: `Publishing blocked: platform budget check failed (fail-closed): ${budgetErr?.message || "unknown"}`,
+      };
+    }
+
     const gateResult = await checkPublishingGates(userId, platform, {
       title: metadata?.title || content.slice(0, 100),
       description: metadata?.description || content,

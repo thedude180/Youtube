@@ -336,6 +336,27 @@ async function checkQuotaBudget(job: PushJob): Promise<{ allowed: boolean; retry
   }
 }
 
+async function checkPlatformBudget(userId: string, platform: string): Promise<{ allowed: boolean; retryMs?: number }> {
+  try {
+    const { canPostToPlatformToday, getNextPostWindow } = await import("./platform-budget-tracker");
+    const check = await canPostToPlatformToday(userId, platform);
+    if (!check.allowed) {
+      if (check.reason === "min_gap_not_met") {
+        const { getPlatformBudgetStatus } = await import("./platform-budget-tracker");
+        const status = await getPlatformBudgetStatus(userId, platform);
+        const nextWindow = getNextPostWindow(status.lastPostAt, platform);
+        const retryMs = Math.max(60_000, nextWindow.getTime() - Date.now());
+        return { allowed: false, retryMs };
+      }
+      const tomorrowMs = 86400_000 - (Date.now() % 86400_000) + gaussianRandom(15, 5) * 60_000;
+      return { allowed: false, retryMs: Math.max(60_000, tomorrowMs) };
+    }
+    return { allowed: true };
+  } catch {
+    return { allowed: true };
+  }
+}
+
 async function processJob(job: PushJob): Promise<boolean> {
   const check = canExecuteNow(job.userId);
 
@@ -354,6 +375,18 @@ async function processJob(job: PushJob): Promise<boolean> {
     pushQueue.push(job);
     pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
     return false;
+  }
+
+  if (job.platform) {
+    const platformCheck = await checkPlatformBudget(job.userId, job.platform);
+    if (!platformCheck.allowed && job.priority !== "immediate") {
+      const retryMs = platformCheck.retryMs || 60_000;
+      job.scheduledAt = new Date(Date.now() + retryMs);
+      pushQueue.push(job);
+      pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+      console.log(`[PushScheduler] Platform budget exceeded for ${job.platform} (job ${job.id}) — deferring ${retryMs}ms`);
+      return false;
+    }
   }
 
   try {

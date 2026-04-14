@@ -349,22 +349,18 @@ async function generateFullThrottleDistribution(
   let queuedText = 0;
 
   for (const platform of activePlatforms) {
-    const budget = calculateDailyPostBudget(platform);
-
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const [todayCount] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(autopilotQueue)
-      .where(and(
-        eq(autopilotQueue.userId, userId),
-        eq(autopilotQueue.targetPlatform, platform),
-        gte(autopilotQueue.createdAt, todayStart),
-      ));
-
-    if ((todayCount?.count || 0) >= budget && !isPriorityContent) {
-      logger.info("Daily budget reached", { platform, count: todayCount?.count, budget });
-      continue;
+    try {
+      const { canPostToPlatformToday } = await import("./services/platform-budget-tracker");
+      const budgetCheck = await canPostToPlatformToday(userId, platform);
+      if (!budgetCheck.allowed && !isPriorityContent) {
+        logger.info("Platform daily budget exhausted", { platform, reason: budgetCheck.reason, remaining: budgetCheck.remaining });
+        continue;
+      }
+    } catch (err: any) {
+      if (!isPriorityContent) {
+        logger.warn("Platform budget check failed, skipping conservatively", { platform, error: err.message });
+        continue;
+      }
     }
 
     const deliveryType = getContentTypeForPlatform(platform, contentType);

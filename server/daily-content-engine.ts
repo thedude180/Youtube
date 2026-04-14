@@ -622,7 +622,21 @@ async function queueBatchContent(
   }
 
   for (const platform of connectedPlatforms.video) {
-    for (let i = 0; i < plan.shorts.length; i++) {
+    let platformBudgetRemaining = plan.shorts.length;
+    try {
+      const { canPostToPlatformToday } = await import("./services/platform-budget-tracker");
+      const budgetCheck = await canPostToPlatformToday(userId, platform);
+      if (!budgetCheck.allowed) {
+        logger.info("Cross-platform video budget exhausted, skipping", { platform, reason: budgetCheck.reason });
+        continue;
+      }
+      platformBudgetRemaining = Math.min(plan.shorts.length, budgetCheck.remaining);
+    } catch (err: any) {
+      logger.warn("Cross-platform video budget check failed, skipping conservatively", { platform, error: err.message });
+      continue;
+    }
+
+    for (let i = 0; i < Math.min(plan.shorts.length, platformBudgetRemaining); i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
@@ -661,36 +675,58 @@ async function queueBatchContent(
   }
 
   for (const platform of connectedPlatforms.text) {
-    const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
-    const topTags = plan.longForm.tags.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ");
-    const longFormAnnouncement = `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`.substring(0, 1997) + "...";
-
+    let textBudgetRemaining = 1 + plan.shorts.length;
     try {
-      await db.insert(autopilotQueue).values({
-        userId,
-        sourceVideoId: null,
-        type: "cross-post",
-        targetPlatform: platform,
-        content: longFormAnnouncement,
-        caption: `New: ${plan.longForm.title}`,
-        status: "scheduled",
-        scheduledAt: longFormAnnouncementTime,
-        metadata: {
-          contentType: "text-announcement",
-          contentCategory: "text",
-          style: "announcement",
-          aiModel: "gpt-4o-mini",
-          sourceStreamId: stream.stream.id,
-          batchNumber,
-          crossPlatformGroupId: groupId,
-        },
-      } as any);
-      crossPostsQueued++;
+      const { canPostToPlatformToday } = await import("./services/platform-budget-tracker");
+      const budgetCheck = await canPostToPlatformToday(userId, platform);
+      if (!budgetCheck.allowed) {
+        logger.info("Cross-platform text budget exhausted, skipping", { platform, reason: budgetCheck.reason });
+        continue;
+      }
+      textBudgetRemaining = budgetCheck.remaining;
     } catch (err: any) {
-      logger.error("Failed to queue text announcement", { platform, error: err.message });
+      logger.warn("Cross-platform text budget check failed, skipping conservatively", { platform, error: err.message });
+      continue;
     }
 
-    for (let i = 0; i < plan.shorts.length; i++) {
+    if (textBudgetRemaining <= 0) continue;
+
+    const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
+    const topTags = plan.longForm?.tags?.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ") || "";
+    const longFormAnnouncement = plan.longForm
+      ? `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`.substring(0, 1997) + "..."
+      : "";
+
+    if (plan.longForm && longFormAnnouncement && textBudgetRemaining > 0) {
+      try {
+        await db.insert(autopilotQueue).values({
+          userId,
+          sourceVideoId: null,
+          type: "cross-post",
+          targetPlatform: platform,
+          content: longFormAnnouncement,
+          caption: `New: ${plan.longForm.title}`,
+          status: "scheduled",
+          scheduledAt: longFormAnnouncementTime,
+          metadata: {
+            contentType: "text-announcement",
+            contentCategory: "text",
+            style: "announcement",
+            aiModel: "gpt-4o-mini",
+            sourceStreamId: stream.stream.id,
+            batchNumber,
+            crossPlatformGroupId: groupId,
+          },
+        } as any);
+        crossPostsQueued++;
+        textBudgetRemaining--;
+      } catch (err: any) {
+        logger.error("Failed to queue text announcement", { platform, error: err.message });
+      }
+    }
+
+    const textShortsToQueue = Math.min(plan.shorts.length, textBudgetRemaining);
+    for (let i = 0; i < textShortsToQueue; i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 3) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`.substring(0, 1997) + "...";
@@ -726,7 +762,7 @@ async function queueBatchContent(
 
   const batchEnd = stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
   const allSegments = [
-    ...plan.longForm.segments.map(s => ({ start: s.startMinute, end: s.endMinute })),
+    ...(plan.longForm?.segments || []).map(s => ({ start: s.startMinute, end: s.endMinute })),
     ...plan.shorts.map(s => ({ start: s.startMinute, end: s.endMinute })),
   ];
   const maxEndMinute = allSegments.length > 0
