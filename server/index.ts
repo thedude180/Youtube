@@ -1120,6 +1120,7 @@ httpServer.listen(
     // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
     delay(22_000, () => {
       import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine"));
+      import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention"));
       import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(slog("initVodShortsLoopEngine"));
       import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(slog("initVodContinuousEngine"));
       import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(slog("registerApiCache"));
