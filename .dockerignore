@@ -26,4 +26,50 @@ tmp/
 attached_assets/
 screenshots/
 references/
-CREATOROS_MASTER_PROMPT_v15.md
+
+# Source dirs (only dist/ needed at runtime)
+server/
+client/
+shared/
+script/
+scripts/
+
+# Documentation / old prompts
+*.md
+CREATOROS_MASTER_PROMPT_v*
+codebase-context.md
+audit-report.md
+NATIVE_APP_GUIDE.md
+
+# Config files not needed at runtime
+tsconfig.json
+tailwind.config.ts
+vite.config.ts
+capacitor.config.ts
+drizzle.config.ts
+components.json
+postcss.config.js
+theme.json
+
+# Dev-only native bindings (sharp only needs linux-x64)
+node_modules/@img/sharp-darwin-*
+node_modules/@img/sharp-win32-*
+node_modules/@img/sharp-linuxmusl-*
+node_modules/@img/sharp-libvips-linuxmusl-*
+
+# Dev-only packages (not needed after build)
+node_modules/typescript/
+node_modules/vite/
+node_modules/@vitejs/
+node_modules/esbuild/
+node_modules/@esbuild/
+node_modules/drizzle-kit/
+node_modules/tsx/
+node_modules/@types/
+node_modules/lightningcss-*/
+node_modules/postcss/
+node_modules/autoprefixer/
+node_modules/tailwindcss/
+node_modules/@tailwindcss/
+node_modules/@babel/
+node_modules/rimraf/
