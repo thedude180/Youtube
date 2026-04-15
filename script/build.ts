@@ -21,7 +21,28 @@ const allowlist = [
   "zod-validation-error",
 ];
 
+const MEDIA_DIRS = ["vault", "clips", "reels", "recordings", "streams", "downloads"];
+
+async function clearMediaDirs() {
+  for (const dir of MEDIA_DIRS) {
+    try {
+      const { readdirSync, unlinkSync, statSync } = await import("fs");
+      if (!statSync(dir).isDirectory()) continue;
+      const files = readdirSync(dir);
+      let cleared = 0;
+      for (const f of files) {
+        const fp = `${dir}/${f}`;
+        try { if (statSync(fp).isFile()) { unlinkSync(fp); cleared++; } } catch {}
+      }
+      if (cleared > 0) console.log(`cleared ${cleared} files from ${dir}/`);
+    } catch {}
+  }
+}
+
 async function buildAll() {
+  console.log("clearing media directories (re-downloadable)...");
+  await clearMediaDirs();
+
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
