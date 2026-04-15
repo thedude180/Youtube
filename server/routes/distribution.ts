@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { getUserId, requireAuth } from "./helpers";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("distribution-routes");
 
 export function registerDistributionRoutes(app: Express) {
   app.post("/api/distribution/distribute", async (req: Request, res: Response) => {
@@ -342,16 +345,16 @@ export function registerDistributionRoutes(app: Express) {
       ]);
 
       let brandScore = 0;
-      try { brandScore = (await import("../distribution/brand-recognition").then(m => m.scoreBrandConsistency(userId))).overallScore; } catch (err: any) { console.warn("[Distribution] brandScore failed:", err?.message); }
+      try { brandScore = (await import("../distribution/brand-recognition").then(m => m.scoreBrandConsistency(userId))).overallScore; } catch (err: any) { logger.warn("brandScore failed", { error: err?.message }); }
 
       let cadenceSummary = { burnoutRisk: 0, overallHealth: "unknown" };
-      try { cadenceSummary = await import("../distribution/cadence-intelligence").then(m => m.analyzeCadence(userId)).then(r => ({ burnoutRisk: r.burnoutRisk, overallHealth: r.burnoutRisk < 0.3 ? "healthy" : r.burnoutRisk < 0.6 ? "moderate" : "at_risk" })); } catch (err: any) { console.warn("[Distribution] cadenceSummary failed:", err?.message); }
+      try { cadenceSummary = await import("../distribution/cadence-intelligence").then(m => m.analyzeCadence(userId)).then(r => ({ burnoutRisk: r.burnoutRisk, overallHealth: r.burnoutRisk < 0.3 ? "healthy" : r.burnoutRisk < 0.6 ? "moderate" : "at_risk" })); } catch (err: any) { logger.warn("cadenceSummary failed", { error: err?.message }); }
 
       let regulatoryUrgent = 0;
-      try { regulatoryUrgent = (await import("../distribution/regulatory-horizon").then(m => m.scanRegulatoryHorizon(userId))).urgentCount; } catch (err: any) { console.warn("[Distribution] regulatoryUrgent failed:", err?.message); }
+      try { regulatoryUrgent = (await import("../distribution/regulatory-horizon").then(m => m.scanRegulatoryHorizon(userId))).urgentCount; } catch (err: any) { logger.warn("regulatoryUrgent failed", { error: err?.message }); }
 
       let safetyScore = 1;
-      try { safetyScore = (await import("../distribution/geopolitical-safety").then(m => m.checkGeopoliticalSafety(userId, { title: "", description: "", tags: [] }))).overallSafety; } catch (err: any) { console.warn("[Distribution] safetyScore failed:", err?.message); }
+      try { safetyScore = (await import("../distribution/geopolitical-safety").then(m => m.checkGeopoliticalSafety(userId, { title: "", description: "", tags: [] }))).overallSafety; } catch (err: any) { logger.warn("safetyScore failed", { error: err?.message }); }
 
       res.json({
         stats,

@@ -160,7 +160,7 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
             const liveSubs = subs.filter((s: any) => !expiredEndpoints.includes(s.endpoint));
             const updatedPrefs = { ...prefs, pushSubscriptions: liveSubs };
             await db.update(users).set({ userPreferences: updatedPrefs } as any).where(eq(users.id, payload.userId));
-            console.info(`[Notifications] Cleaned up ${expiredEndpoints.length} expired push subscription(s) for user ${payload.userId}`);
+            logger.info(`Cleaned up ${expiredEndpoints.length} expired push subscription(s) for user ${payload.userId}`);
           } catch (cleanupErr) {
             logger.error("[Notifications] Failed to clean up expired subscriptions:", cleanupErr);
           }

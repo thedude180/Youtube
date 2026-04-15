@@ -544,7 +544,7 @@ export async function executePublish(
   const formatted = formatContentForPlatform(platform, content, metadata);
   const formattedContent = formatted.content;
   if (formatted.warnings.length > 0) {
-    console.info(`[Publisher:${platform}] Format warnings:`, formatted.warnings);
+    logger.info(`Format warnings for ${platform}`, { warnings: formatted.warnings });
   }
 
   if (platform === "youtube" || platform === "youtubeshorts") {

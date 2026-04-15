@@ -2,6 +2,9 @@ import { db } from "../db";
 import { distributionEvents } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { recordEngineKnowledge } from "../services/knowledge-mesh";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("distribution-learning");
 
 type LearningSignal = {
   allowed: boolean;
@@ -49,7 +52,7 @@ export async function recordDistributionLearning(
       { platform, ...signal }, confidence, "distribution-learning"
     );
   } catch (err: any) {
-    console.error("[distribution-learning] governance ingestion failed:", err?.message);
+    logger.error("Governance ingestion failed", { error: err?.message });
   }
 
   try {
