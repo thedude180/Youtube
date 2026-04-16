@@ -6,7 +6,7 @@ import { logger } from "./lib/logger";
 import { storage } from "./storage";
 import { OAUTH_CONFIGS } from "./oauth-config";
 
-const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing", "config_missing"]);
+const SILENT_RETRY_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "processing", "config_missing", "unknown"]);
 
 const recentEmailKeys = new Map<string, number>();
 const EMAIL_DEDUP_MS = 24 * 60 * 60 * 1000;
@@ -57,7 +57,7 @@ function diagnoseFailureReason(error: string | undefined, platform: string, plat
   const err = (error || "").toLowerCase();
   const status = (platformStatus || "").toLowerCase();
 
-  if (err.includes("quota") || err.includes("quotaexceeded") || (err.includes("403") && platform === "youtube")) {
+  if (err.includes("quota") || err.includes("quotaexceeded") || (err.includes("403") && platform === "youtube") || err.includes("budget exhausted") || err.includes("circuit breaker")) {
     return { reason: "YouTube API quota exceeded — the upload was blocked because the daily API limit was reached.", fixable: true, category: "quota_cap" };
   }
   if (err.includes("not found") || status === "not_found") {
@@ -348,7 +348,18 @@ export async function verifyRecentPublishedPosts() {
   let failed = 0;
   let pending = 0;
 
+  let quotaBreakerActive = false;
+  try {
+    const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+    quotaBreakerActive = isQuotaBreakerTripped();
+  } catch {}
+
   for (const post of unverifiedPosts) {
+    if (quotaBreakerActive && (post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts")) {
+      pending++;
+      continue;
+    }
+
     const meta = (post.metadata as any) || {};
     const publishResult = meta.publishResult || {};
     const postId = publishResult.postId;
@@ -638,11 +649,25 @@ export async function verifyAllRecentUploads() {
   let pending = 0;
   let skipped = 0;
 
+  let quotaBreakerActive = false;
+  try {
+    const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+    quotaBreakerActive = isQuotaBreakerTripped();
+    if (quotaBreakerActive) {
+      logger.info("[Verifier] YouTube quota breaker active — skipping YouTube verification calls this sweep");
+    }
+  } catch {}
+
   for (const video of recentUploads) {
     const meta = (video.metadata as any) || {};
     const platform = video.platform || "youtube";
     const platformId = meta.youtubeId || meta.tiktokId || meta.platformId;
     if (!platformId) continue;
+
+    if (quotaBreakerActive && (platform === "youtube" || platform === "youtubeshorts")) {
+      pending++;
+      continue;
+    }
 
     const existing = meta.uploadVerification || {};
     if (existing.confirmed === true) {

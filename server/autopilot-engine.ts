@@ -1278,6 +1278,32 @@ export async function processScheduledPosts() {
         continue;
       }
 
+      if (post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts") {
+        try {
+          const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+          if (isQuotaBreakerTripped()) {
+            const { getNextResetTime } = await import("./services/youtube-quota-tracker");
+            const resetTime = getNextResetTime();
+            const deferTo = new Date(resetTime.getTime() + 5 * 60_000);
+            logger.info("YouTube quota breaker active — deferring post until reset", { postId: post.id, deferTo: deferTo.toISOString() });
+            await db.update(autopilotQueue)
+              .set({
+                scheduledAt: deferTo,
+                metadata: {
+                  ...((post.metadata as any) || {}),
+                  quotaDeferred: true,
+                  deferredAt: new Date().toISOString(),
+                  deferredUntil: deferTo.toISOString(),
+                },
+              })
+              .where(eq(autopilotQueue.id, post.id));
+            continue;
+          }
+        } catch (quotaErr: any) {
+          logger.warn("Quota pre-check failed, proceeding cautiously", { postId: post.id, error: quotaErr?.message });
+        }
+      }
+
       const meta = (post.metadata as any) || {};
 
       const { copyrightCheckAndFix } = await import("./services/copyright-check");

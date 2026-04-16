@@ -177,20 +177,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      window.onerror = function(msg, src, line, col, err) {
-        var d = document.getElementById('root');
-        if (d && !d.children.length) {
-          d.innerHTML = '<div style="padding:2rem;background:#0a0a14;color:#ff6b6b;font-family:monospace;min-height:100vh;word-break:break-all;"><h2 style="color:#fff;">CreatorOS Boot Error</h2><p>' + msg + '</p><p>Source: ' + (src||'') + '</p><p>Line: ' + (line||'') + ':' + (col||'') + '</p><p>' + (err&&err.stack?err.stack:'') + '</p></div>';
-        }
-      };
-      window.addEventListener('unhandledrejection', function(e) {
-        var d = document.getElementById('root');
-        if (d && !d.children.length) {
-          d.innerHTML = '<div style="padding:2rem;background:#0a0a14;color:#ff6b6b;font-family:monospace;min-height:100vh;word-break:break-all;"><h2 style="color:#fff;">CreatorOS Promise Error</h2><p>' + (e.reason||'') + '</p><p>' + (e.reason&&e.reason.stack?e.reason.stack:'') + '</p></div>';
-        }
-      });
-    </script>
     <noscript>
       <div style="padding:2rem;text-align:center;font-family:system-ui,sans-serif;color:#fff;background:#0a0a14;">
         <h1>CreatorOS — Your Entire YouTube Team In A Box</h1>

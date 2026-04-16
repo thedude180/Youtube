@@ -37,6 +37,7 @@ const QUOTA_PATTERNS = [
   "quota", "quotaExceeded", "dailyLimitExceeded", "QUOTA_EXCEEDED",
   "daily limit", "daily cap", "upload limit", "usage limit", "API limit",
   "userRateLimitExceeded", "quota exceeded",
+  "trust budget exhausted", "budget exhausted", "circuit breaker",
 ];
 
 const RATE_LIMIT_PATTERNS = [

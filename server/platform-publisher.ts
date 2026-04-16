@@ -347,6 +347,19 @@ export async function publishToplatform(
     const { getConnectionHealth, recordConnectionSuccess, recordConnectionFailure } = await import("./distribution/connection-health");
     const { recordDistributionLearning } = await import("./distribution/distribution-learning");
 
+    if (platform === "youtube" || platform === "youtubeshorts") {
+      try {
+        const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+        if (isQuotaBreakerTripped()) {
+          return {
+            success: false,
+            platform,
+            error: `YouTube API quota exceeded — circuit breaker active until midnight Pacific. Will retry after reset.`,
+          };
+        }
+      } catch {}
+    }
+
     const connectionHealth = getConnectionHealth(platform);
     if (connectionHealth.status === "open") {
       await recordDistributionLearning(userId, platform, "publish_blocked", {
