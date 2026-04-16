@@ -1057,6 +1057,19 @@ httpServer.listen(
       import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
     });
 
+    delay(3_000, () => {
+      import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or }) => {
+        const readCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        const unreadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+        db.delete(notifications).where(or(
+          and(eq(notifications.read, true), lte(notifications.createdAt, readCutoff)),
+          lte(notifications.createdAt, unreadCutoff),
+        )).then((r: any) => {
+          logger.info("Startup notification cleanup complete", { deleted: r?.rowCount || 0 });
+        }).catch((e: any) => logger.warn("Startup notification cleanup failed", { error: String(e) }));
+      }))).catch(slog("startupNotifCleanup"));
+    });
+
     // ── WAVE 2 (T+7s): Event wiring, DLQ, content loops ─────────────────────
     delay(7_000, () => {
       import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
