@@ -369,8 +369,12 @@ export function registerContentRoutes(app: Express) {
         connectionStatus = "disconnected";
       } else if (tokenExpired) {
         connectionStatus = "expired";
-      } else if (guardianStatus) {
-        connectionStatus = guardianStatus;
+      } else if (guardianStatus === "degraded") {
+        connectionStatus = "degraded";
+      } else if (guardianStatus === "expired") {
+        connectionStatus = "expired";
+      } else if (guardianStatus === "disconnected") {
+        connectionStatus = "disconnected";
       } else {
         connectionStatus = "healthy";
       }

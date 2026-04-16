@@ -260,14 +260,19 @@ function PlatformConnectionsCard({
   const healthyCount = health?.platforms?.filter(p => p.status === "healthy").length || 0;
   const totalCount = health?.platforms?.length || 0;
 
-  const getChannelStatus = (platformKey: string): "healthy" | "degraded" | "expired" | "disconnected" => {
+  const KNOWN_STATUSES = ["healthy", "degraded", "expired", "disconnected"] as const;
+  type KnownStatus = typeof KNOWN_STATUSES[number];
+  const normalizeStatus = (s: string | undefined): KnownStatus =>
+    KNOWN_STATUSES.includes(s as KnownStatus) ? (s as KnownStatus) : "healthy";
+
+  const getChannelStatus = (platformKey: string): KnownStatus => {
     const ch = (channels || []).find((c: any) => c.platform === platformKey);
     if (!ch) return "disconnected";
     const chStatus = (ch as any).connectionStatus;
     if (chStatus === "disconnected" || chStatus === "expired" || chStatus === "degraded") return chStatus;
     const hi = getHealthInfo(platformKey);
-    if (hi?.status) return hi.status;
-    return chStatus || "healthy";
+    if (hi?.status) return normalizeStatus(hi.status);
+    return normalizeStatus(chStatus);
   };
 
   const brokenChannels = (channels || []).filter((ch: any) =>
