@@ -1153,6 +1153,13 @@ httpServer.listen(
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
       import("./services/shorts-repurpose-engine").then(m => m.initShortsRepurposeEngine()).catch(slog("initShortsRepurposeEngine"));
+      // Boot-level engines required for full autonomy
+      import("./automation-engine").then(m => m.initAutomationEngine()).catch(slog("initAutomationEngine"));
+      import("./trend-rider-engine").then(m => m.startTrendRiderEngine()).catch(slog("startTrendRiderEngine"));
+      import("./services/trust-governance").then(m => {
+        m.startBudgetResetScheduler();
+        m.startOverrideReportScheduler();
+      }).catch(slog("trust-governance schedulers"));
       import("./auto-thumbnail-engine").then(async m => {
         await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
         const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), 60 * 60_000);
