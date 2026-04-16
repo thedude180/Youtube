@@ -25,7 +25,7 @@ function markChannelDisconnected(channelId: number): void {
   disconnectedChannels.add(channelId);
 }
 
-async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string): Promise<string> {
+async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string, gameName?: string): Promise<string> {
   try {
     const researchSection = researchContext
       ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE:\nYou have studied real successful gaming thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\nAPPLY these research-backed patterns. Do NOT ignore this intelligence — it comes from analyzing what actually works on YouTube right now.`
@@ -62,7 +62,7 @@ RULES FOR THE IMAGE PROMPT:
           content: `Create a thumbnail image generation prompt for this video:
 Title: "${videoTitle}"
 Description: "${(videoDescription || "").substring(0, 300)}"
-Type: ${videoType}
+Type: ${videoType}${gameName ? `\nGame: ${gameName}\n\nCRITICAL: This video is about "${gameName}". The thumbnail MUST visually represent "${gameName}" — its art style, characters, environments, and aesthetic. Do NOT depict any other game.` : ""}
 
 Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. No vertical or square framing.`,
         },
@@ -83,13 +83,16 @@ async function generateAndUploadThumbnail(
   videoDescription: string,
   videoType: string,
   youtubeId: string,
-  channelId: number
+  channelId: number,
+  detectedGameName?: string
 ): Promise<boolean | "channel_disconnected"> {
   if (isChannelDisconnected(channelId)) return "channel_disconnected";
   try {
     let researchContext = "";
     try {
-      const gameName = extractGameName(videoTitle, videoDescription);
+      const gameName = detectedGameName && detectedGameName !== "Unknown" && detectedGameName !== "Gaming" && detectedGameName !== "Uncategorized"
+        ? detectedGameName
+        : extractGameName(videoTitle, videoDescription);
       const { getThumbnailContext } = await import("./services/thumbnail-intelligence");
       researchContext = await getThumbnailContext(userId, gameName);
       if (researchContext) {
@@ -99,7 +102,10 @@ async function generateAndUploadThumbnail(
       logger.debug("Thumbnail intelligence unavailable, proceeding without", { error: err.message?.substring(0, 100) });
     }
 
-    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext);
+    const resolvedGame = detectedGameName && detectedGameName !== "Unknown" && detectedGameName !== "Gaming" && detectedGameName !== "Uncategorized"
+      ? detectedGameName
+      : extractGameName(videoTitle, videoDescription);
+    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext, resolvedGame !== "PS5 Gameplay" ? resolvedGame : undefined);
     if (!prompt) {
       logger.warn("Empty thumbnail prompt, skipping", { videoDbId });
       return false;
@@ -255,7 +261,7 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
           }).where(eq(videos.id, video.id));
           continue;
         }
-        const result = await generateAndUploadThumbnail(userId, video.id, video.title, video.description || "", video.type || "video", youtubeId, ytChannel.id);
+        const result = await generateAndUploadThumbnail(userId, video.id, video.title, video.description || "", video.type || "video", youtubeId, ytChannel.id, meta.gameName);
         if (result === "channel_disconnected") break;
         if (result === true) generated++;
       }
@@ -323,7 +329,8 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
           video.description || "",
           video.type || "video",
           youtubeId,
-          ytChannel.id
+          ytChannel.id,
+          meta.gameName
         );
 
         if (result === "channel_disconnected") break;
@@ -385,7 +392,8 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
       enrichedDescription,
       video.type || "video",
       youtubeId,
-      video.channelId
+      video.channelId,
+      detectedGame
     );
     return result === true;
   } catch (err) {
@@ -458,7 +466,7 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
 
       const result = await generateAndUploadThumbnail(
         userId, video.id, video.title, video.description || "",
-        video.type || "video", youtubeId, video.channelId
+        video.type || "video", youtubeId, video.channelId, meta.gameName
       );
 
       if (result === "channel_disconnected") break;
@@ -496,6 +504,13 @@ function extractGameName(title: string, description: string): string {
     "tekken", "street fighter", "mortal kombat", "diablo", "baldur's gate",
     "starfield", "helldivers", "palworld", "dragon's dogma", "silent hill",
     "alan wake", "the witcher", "red dead redemption", "monster hunter",
+    "battlefield", "fortnite", "apex legends", "overwatch", "destiny",
+    "halo", "doom", "wolfenstein", "far cry", "watch dogs",
+    "rainbow six", "ghost recon", "the division", "just cause",
+    "metal gear", "devil may cry", "bayonetta", "nioh", "persona",
+    "yakuza", "like a dragon", "detroit become human", "until dawn",
+    "days gone", "infamous", "gravity rush", "little big planet",
+    "sackboy", "astro's playroom", "marvel's wolverine", "concord",
   ];
 
   for (const game of knownGames) {
