@@ -1248,6 +1248,12 @@ httpServer.listen(
       } catch (err: any) { logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) }); }
 
       selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
+
+      import("./services/notification-watchdog").then(m => {
+        m.startNotificationWatchdog();
+        m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
+      }).catch(slog("notificationWatchdog"));
+
       logger.info("WARP SPEED BOOT COMPLETE — all 50+ engines online in ~34s");
     });
 
@@ -1650,6 +1656,10 @@ httpServer.listen(
     try {
       const { continuousAuditInterval } = require("./services/continuous-audit");
       clearInterval(continuousAuditInterval);
+    } catch {}
+    try {
+      const { stopNotificationWatchdog } = require("./services/notification-watchdog");
+      stopNotificationWatchdog();
     } catch {}
 
     log("[Server] Background engines stopped");
