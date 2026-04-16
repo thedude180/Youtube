@@ -3,7 +3,7 @@ import { videos, channels, contentClips, autopilotQueue } from "@shared/schema";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import cron from "node-cron";
 import { getOpenAIClient } from "../lib/openai";
-import { canPostToPlatformToday } from "./platform-budget-tracker";
+import { canPostToPlatformToday, enforceCaptionLimit, getPlatformHashtagMax, humanJitterDelayMs } from "./platform-budget-tracker";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("shorts-repurpose-engine");
@@ -157,17 +157,23 @@ Respond in JSON: { "hook": "<first 3-6 words that stop the scroll>", "caption": 
 }
 
 function assembleFinalCaption(p: PlatformCaption, platform: TargetPlatform): string {
+  const maxTags = getPlatformHashtagMax(platform);
   const tags = p.hashtags
     .map(t => (t.startsWith("#") ? t : `#${t}`))
     .filter(t => t.length > 1);
+  let raw: string;
   if (platform === "tiktok") {
-    const required = ["#fyp"];
-    for (const r of required) if (!tags.includes(r)) tags.push(r);
-    return `${p.caption} ${tags.slice(0, 10).join(" ")}`.trim();
+    if (!tags.includes("#fyp")) tags.push("#fyp");
+    raw = `${p.caption} ${tags.slice(0, maxTags).join(" ")}`.trim();
+  } else if (platform === "instagram") {
+    raw = `${p.caption}\n\n${tags.slice(0, maxTags).join(" ")}`.trim();
+  } else if (platform === "x") {
+    raw = `${p.caption} ${tags.slice(0, maxTags).join(" ")}`.trim();
+  } else {
+    raw = p.caption;
   }
-  if (platform === "instagram") return `${p.caption}\n\n${tags.slice(0, 8).join(" ")}`.trim();
-  if (platform === "x") return `${p.caption} ${tags.slice(0, 2).join(" ")}`.trim();
-  return p.caption;
+  // Hard-enforce platform char limit so we never trip a publish-time validator.
+  return enforceCaptionLimit(raw, platform);
 }
 
 async function ensureContentClip(video: Candidate): Promise<number> {
@@ -281,7 +287,9 @@ async function queuePendingTarget(video: Candidate, platform: TargetPlatform): P
       content: caption.slice(0, 1500),
       caption: caption.slice(0, 1500),
       status: "scheduled",
-      scheduledAt: new Date(Date.now() + 5 * 60_000),
+      // Human-jittered offset (gaussian ~7min ±3) so consecutive cross-posts
+      // never land on round-numbered timestamps that look automated.
+      scheduledAt: new Date(Date.now() + humanJitterDelayMs(7, 3)),
       verificationStatus: "unverified",
       metadata: {
         contentType: "short_repurpose",

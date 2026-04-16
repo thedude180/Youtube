@@ -226,3 +226,62 @@ export function getNextPostWindow(lastPostAt: Date | null, platform: string): Da
 }
 
 export { PLATFORM_DAILY_LIMITS, PLATFORM_MIN_GAP_MS };
+
+// Hard per-platform character limits enforced before publish so we never trip
+// platform validation errors (which trigger shadow-flags / abuse heuristics).
+// Numbers track each platform's documented hard cap with a small safety buffer.
+const PLATFORM_CHAR_LIMITS: Record<string, number> = {
+  youtube: 5000,        // description
+  youtubeshorts: 5000,
+  tiktok: 2150,         // hard cap 2200
+  x: 275,               // free tier 280
+  discord: 1950,        // hard cap 2000 for messages
+  instagram: 2150,      // hard cap 2200
+  kick: 1900,
+  rumble: 1900,
+  twitch: 480,          // 500-char post limit
+};
+
+const PLATFORM_HASHTAG_MAX: Record<string, number> = {
+  tiktok: 10,
+  instagram: 8,
+  x: 2,
+  youtube: 15,
+  youtubeshorts: 15,
+  discord: 0,
+  kick: 5,
+  rumble: 5,
+  twitch: 3,
+};
+
+export function getPlatformCharLimit(platform: string): number {
+  return PLATFORM_CHAR_LIMITS[platform] ?? 1500;
+}
+
+export function getPlatformHashtagMax(platform: string): number {
+  return PLATFORM_HASHTAG_MAX[platform] ?? 5;
+}
+
+// Trim a caption to fit a platform's hard limit while preserving as many
+// hashtags as possible. Falls back to a clean truncation with ellipsis.
+export function enforceCaptionLimit(caption: string, platform: string): string {
+  const limit = getPlatformCharLimit(platform);
+  if (caption.length <= limit) return caption;
+  const tagMatch = caption.match(/(?:\s#[\w]+)+\s*$/);
+  if (tagMatch) {
+    const body = caption.slice(0, tagMatch.index).trim();
+    const tags = tagMatch[0].trim();
+    if (tags.length < limit - 4) {
+      const room = limit - tags.length - 2;
+      return `${body.slice(0, Math.max(0, room - 1)).trim()}… ${tags}`.slice(0, limit);
+    }
+  }
+  return `${caption.slice(0, Math.max(0, limit - 1)).trim()}…`;
+}
+
+// Human-like jitter for scheduling: gaussian around the mean offset minutes
+// with reasonable std-dev so consecutive posts never land on round times.
+export function humanJitterDelayMs(meanMinutes: number, stdMinutes = 4): number {
+  const jitterMin = Math.max(1, gaussianRandom(meanMinutes, stdMinutes));
+  return Math.round(jitterMin * 60_000);
+}
