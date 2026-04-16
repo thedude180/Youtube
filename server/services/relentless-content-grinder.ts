@@ -9,6 +9,27 @@ import { storage } from "../storage";
 const logger = createLogger("content-grinder");
 
 const GRIND_INTERVAL_MS = 45 * 60_000;
+
+async function getOptimalClipScheduleTime(userId: string, queuePosition: number): Promise<Date> {
+  try {
+    const { getAudienceDrivenTime } = await import("../human-behavior-engine");
+    const baseTime = await getAudienceDrivenTime({
+      platform: "youtube",
+      userId,
+      contentType: "recycle",
+      urgency: "low",
+    });
+    const offsetMs = queuePosition * (3 * 3600_000 + Math.random() * 3600_000);
+    const scheduled = new Date(baseTime.getTime() + offsetMs);
+    if (scheduled.getTime() < Date.now() + 60_000) {
+      scheduled.setTime(Date.now() + (queuePosition + 1) * 3 * 3600_000 + Math.random() * 3600_000);
+    }
+    return scheduled;
+  } catch (err: any) {
+    logger.warn(`Audience-driven scheduling failed, using fallback: ${err.message}`);
+    return new Date(Date.now() + (queuePosition + 1) * 3 * 3600_000 + Math.random() * 3600_000);
+  }
+}
 let grindInterval: ReturnType<typeof setInterval> | null = null;
 
 interface GrindState {
@@ -213,7 +234,7 @@ Return ONLY valid JSON:
       if (moment.endSec <= moment.startSec || moment.endSec - moment.startSec > 59) continue;
       if (moment.endSec - moment.startSec < 8) continue;
 
-      const scheduleTime = new Date(Date.now() + (queued + 1) * 2 * 3600_000 + Math.random() * 3600_000);
+      const scheduleTime = await getOptimalClipScheduleTime(userId, queued);
       const title = String(moment.title || `${gameName} Moment`).substring(0, 90) + " #Shorts";
       const description = `${moment.hookDescription || ""}\n\n${moment.retentionStrategy || ""}\n\nPure PS5 gameplay — no commentary.\n\n#Shorts #PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`;
 

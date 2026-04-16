@@ -964,6 +964,17 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
 
     const monetizationEnabled = await isMonetizationUnlocked(post.userId, "youtube");
 
+    let scheduledStartTime: string | undefined;
+    try {
+      const { getNextOptimalPublishTime } = await import("./services/upload-scheduler");
+      const optimalTime = await getNextOptimalPublishTime(post.userId, "youtube");
+      if (optimalTime && optimalTime.getTime() > Date.now() + 10 * 60_000) {
+        scheduledStartTime = optimalTime.toISOString();
+      }
+    } catch (err: any) {
+      logger.warn("Failed to get optimal publish time for stream clip, uploading as public", { error: err.message });
+    }
+
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
       description,
@@ -972,12 +983,13 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
       privacyStatus: "public",
       videoFilePath: clipPath,
       enableMonetization: monetizationEnabled,
+      scheduledStartTime,
     });
 
     cleanupClipFile(clipPath);
 
     if (uploadResult) {
-      logger.info("Stream clip uploaded to YouTube", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort });
+      logger.info("Stream clip uploaded to YouTube", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort, scheduled: scheduledStartTime || "immediate" });
 
       try {
         const existingClips = await db.select().from(videos)
@@ -1094,6 +1106,17 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
     const { isMonetizationUnlocked } = await import("./services/monetization-check");
     const monetizationEnabled = await isMonetizationUnlocked(post.userId, "youtube");
 
+    let maxScheduledStartTime: string | undefined;
+    try {
+      const { getNextOptimalPublishTime } = await import("./services/upload-scheduler");
+      const optimalTime = await getNextOptimalPublishTime(post.userId, "youtube");
+      if (optimalTime && optimalTime.getTime() > Date.now() + 10 * 60_000) {
+        maxScheduledStartTime = optimalTime.toISOString();
+      }
+    } catch (err: any) {
+      logger.warn("Failed to get optimal publish time for maximizer clip, uploading as public", { error: err.message });
+    }
+
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title,
       description,
@@ -1102,12 +1125,13 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
       privacyStatus: "public",
       videoFilePath: clipPath,
       enableMonetization: monetizationEnabled,
+      scheduledStartTime: maxScheduledStartTime,
     });
 
     cleanupClipFile(clipPath);
 
     if (uploadResult?.youtubeId) {
-      logger.info("Maximizer clip uploaded", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort, gameName });
+      logger.info("Maximizer clip uploaded", { postId: post.id, youtubeId: uploadResult.youtubeId, isShort, gameName, scheduled: maxScheduledStartTime || "immediate" });
 
       try {
         const clipVideo = await storage.createVideo({
