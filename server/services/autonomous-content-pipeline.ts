@@ -55,6 +55,15 @@ export async function runFullContentOptimization(userId: string, videoId: number
 
     const gameName = meta.gameName || "Gaming";
 
+    if (gameName && gameName !== "Gaming" && gameName !== "Unknown" && gameName !== "Uncategorized") {
+      try {
+        const { persistGameToDatabase } = await import("./web-game-lookup");
+        await persistGameToDatabase(gameName, "content-pipeline");
+      } catch (err: any) {
+        logger.warn(`Content pipeline game persist failed for "${gameName}": ${err.message}`);
+      }
+    }
+
     const aiResult = await executeRoutedAICall(
       { taskType: "autonomous_full_optimize", userId, priority: "high" },
       `You are the autonomous content brain of a YouTube gaming empire. You have learned from hundreds of data points and competitive analysis. Your job is to take new content and make it the BEST version it can be — applying every proven strategy, every core principle, every competitive insight. Think like a human creator who has been doing this for 10 years and knows exactly what works.

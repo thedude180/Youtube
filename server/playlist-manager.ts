@@ -20,12 +20,22 @@ interface GamePlaylistMapping {
 
 async function detectGameFromVideo(video: any): Promise<string> {
   const meta = (video.metadata as any) || {};
-  if (meta.gameName) return meta.gameName.trim().toLowerCase();
+  if (meta.gameName && meta.gameName !== "Unknown" && meta.gameName !== "Uncategorized") {
+    return meta.gameName.trim().toLowerCase();
+  }
 
   const title = (video.title || "").toLowerCase();
   const desc = (video.description || "").toLowerCase();
   const tags = (meta.tags || []).map((t: string) => t.toLowerCase());
   const combined = `${title} ${desc} ${tags.join(" ")}`;
+
+  try {
+    const { detectGameFromLearned } = await import("./services/web-game-lookup");
+    const learnedMatch = detectGameFromLearned(combined);
+    if (learnedMatch) return learnedMatch.toLowerCase();
+  } catch (err: any) {
+    logger.warn(`Learned game detection failed in playlist manager: ${err.message}`);
+  }
 
   const gamePatterns: Record<string, string[]> = {
     "fortnite": ["fortnite"],
@@ -99,6 +109,14 @@ async function detectGameFromVideo(video: any): Promise<string> {
       max_completion_tokens: 4000,
     });
     const detected = response.choices[0]?.message?.content?.trim().toLowerCase() || "general";
+    if (detected !== "general" && detected.length >= 2) {
+      try {
+        const { persistGameToDatabase } = await import("./services/web-game-lookup");
+        await persistGameToDatabase(detected, "playlist-ai-detect");
+      } catch (err: any) {
+        logger.warn(`Playlist game persist failed for "${detected}": ${err.message}`);
+      }
+    }
     return detected.length > 0 && detected.length < 50 ? detected : "general";
   } catch {
     return "general";
@@ -586,6 +604,33 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
     return true;
   } catch (err) {
     logger.error("Single video playlist assignment failed", { videoId, error: String(err) });
+    return false;
+  }
+}
+
+export async function autoAssignVideoToPlaylist(userId: string, videoId: number, gameName: string): Promise<boolean> {
+  try {
+    const userChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+    if (userChannels.length === 0) {
+      logger.warn("No YouTube channel found for auto playlist assignment", { userId });
+      return false;
+    }
+    const channelId = userChannels[0].id;
+
+    const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+    if (!video) return false;
+
+    const meta = (video.metadata as any) || {};
+    if (!meta.detectedGame || meta.detectedGame === "general") {
+      await db.update(videos).set({
+        metadata: { ...meta, detectedGame: gameName },
+      }).where(eq(videos.id, videoId));
+    }
+
+    return await assignSingleVideoToPlaylist(userId, videoId, channelId);
+  } catch (err) {
+    logger.error("Auto playlist assignment failed", { userId, videoId, gameName, error: String(err) });
     return false;
   }
 }

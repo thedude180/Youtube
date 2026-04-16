@@ -1,6 +1,26 @@
 import { createLogger } from "../lib/logger";
+import { db } from "../db";
+import { videos } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const logger = createLogger("agent-events");
+
+const _gameVaultPipelineRunning = new Set<string>();
+const _gameVaultPipelineTTL = new Map<string, number>();
+
+function acquireGameVaultLock(key: string): boolean {
+  const now = Date.now();
+  const expiry = _gameVaultPipelineTTL.get(key);
+  if (expiry && now < expiry) return false;
+  _gameVaultPipelineRunning.add(key);
+  _gameVaultPipelineTTL.set(key, now + 15 * 60_000);
+  return true;
+}
+
+function releaseGameVaultLock(key: string): void {
+  _gameVaultPipelineRunning.delete(key);
+  _gameVaultPipelineTTL.delete(key);
+}
 /**
  * Agent Event Bus — lightweight pub/sub for cross-agent coordination.
  * Agents fire events; other agents subscribe and react immediately.
@@ -556,6 +576,77 @@ export async function wireAgentCoordination(): Promise<void> {
       }, 60 * 60_000);
     }
 
+    // 7b. Game Detection + Vault Save + Playlist Assignment (T+8min)
+    if (videoId) {
+      setTimeout(async () => {
+        const lockKey = `game-vault-playlist:${videoId}`;
+        if (!acquireGameVaultLock(lockKey)) {
+          logger.info(`Game/vault/playlist pipeline already running for video ${videoId}, skipping stream.ended trigger`);
+          return;
+        }
+        try {
+          const parsed = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
+          if (isNaN(parsed)) return;
+
+          const { storage } = await import("../storage");
+          const video = await storage.getVideo(parsed);
+          if (!video) return;
+
+          const meta = (video.metadata as any) || {};
+          let gameName = meta.gameName;
+
+          if (!gameName || gameName === "Unknown" || gameName === "Uncategorized") {
+            try {
+              const { detectGameFromLearned, lookupGameFromWeb, lookupGameWithAI, persistGameToDatabase } = await import("./web-game-lookup");
+              const searchText = `${video.title || ""} ${video.description || ""}`;
+
+              gameName = detectGameFromLearned(searchText);
+
+              if (!gameName) {
+                gameName = await lookupGameFromWeb(searchText);
+              }
+
+              if (!gameName) {
+                gameName = await lookupGameWithAI(video.title || "", video.description || "");
+              }
+
+              if (gameName) {
+                await persistGameToDatabase(gameName, "stream-end-detect");
+                await db.update(videos).set({
+                  metadata: { ...meta, gameName, gameDetectionMethod: "stream-end-auto" },
+                }).where(eq(videos.id, parsed));
+                logger.info(`Post-stream game detected: ${gameName} for video ${parsed}`);
+              }
+            } catch (err: any) {
+              logger.warn(`Post-stream game detection failed: ${err.message}`);
+            }
+          }
+
+          try {
+            const { indexAllChannelVideos } = await import("./video-vault");
+            await indexAllChannelVideos(event.userId);
+            logger.info(`Post-stream vault sync completed for ${event.userId.slice(0, 8)}`);
+          } catch (err: any) {
+            logger.warn(`Post-stream vault sync failed: ${err.message}`);
+          }
+
+          if (gameName && gameName !== "Unknown" && gameName !== "Uncategorized") {
+            try {
+              const { autoAssignVideoToPlaylist } = await import("../playlist-manager");
+              await autoAssignVideoToPlaylist(event.userId, parsed, gameName);
+              logger.info(`Post-stream playlist assignment done: ${gameName} for ${event.userId.slice(0, 8)}`);
+            } catch (err: any) {
+              logger.warn(`Post-stream playlist assignment failed: ${err.message}`);
+            }
+          }
+        } catch (err: any) {
+          logger.warn(`Post-stream game/vault/playlist pipeline failed: ${err.message}`);
+        } finally {
+          releaseGameVaultLock(lockKey);
+        }
+      }, 8 * 60_000);
+    }
+
     // 8. Evergreen Recycler (T+24hr) — repurpose best moments as new content
     if (videoId) {
       setTimeout(async () => {
@@ -698,6 +789,69 @@ export async function wireAgentCoordination(): Promise<void> {
           logger.warn(`Upload SEO optimization failed: ${err.message}`);
         }
       }, 6 * 60_000);
+
+      // T+7min: Game Detection + Vault Save + Playlist Assignment
+      setTimeout(async () => {
+        const lockKey = `game-vault-playlist:${videoId}`;
+        if (!acquireGameVaultLock(lockKey)) {
+          logger.info(`Game/vault/playlist pipeline already running for video ${videoId}, skipping upload.detected trigger`);
+          return;
+        }
+        try {
+          const parsed = parseInt(String(videoId), 10);
+          if (isNaN(parsed)) return;
+
+          const { storage } = await import("../storage");
+          const video = await storage.getVideo(parsed);
+          if (!video) return;
+
+          const meta = (video.metadata as any) || {};
+          let detectedGame = meta.gameName;
+
+          if (!detectedGame || detectedGame === "Unknown" || detectedGame === "Uncategorized") {
+            try {
+              const { detectGameFromLearned, lookupGameFromWeb, lookupGameWithAI, persistGameToDatabase } = await import("./web-game-lookup");
+              const searchText = `${video.title || ""} ${video.description || ""}`;
+
+              detectedGame = detectGameFromLearned(searchText);
+              if (!detectedGame) detectedGame = await lookupGameFromWeb(searchText);
+              if (!detectedGame) detectedGame = await lookupGameWithAI(video.title || "", video.description || "");
+
+              if (detectedGame) {
+                await persistGameToDatabase(detectedGame, "upload-detect");
+                await db.update(videos).set({
+                  metadata: { ...meta, gameName: detectedGame, gameDetectionMethod: "upload-auto" },
+                }).where(eq(videos.id, parsed));
+                logger.info(`Upload game detected: ${detectedGame} for video ${parsed}`);
+              }
+            } catch (err: any) {
+              logger.warn(`Upload game detection failed: ${err.message}`);
+            }
+          }
+
+          try {
+            const { indexAllChannelVideos } = await import("./video-vault");
+            await indexAllChannelVideos(event.userId);
+            logger.info(`Upload vault sync completed for ${event.userId.slice(0, 8)}`);
+          } catch (err: any) {
+            logger.warn(`Upload vault sync failed: ${err.message}`);
+          }
+
+          if (detectedGame && detectedGame !== "Unknown" && detectedGame !== "Uncategorized") {
+            try {
+              const { autoAssignVideoToPlaylist } = await import("../playlist-manager");
+              await autoAssignVideoToPlaylist(event.userId, parsed, detectedGame);
+              logger.info(`Upload playlist assignment done: ${detectedGame} for ${event.userId.slice(0, 8)}`);
+            } catch (err: any) {
+              logger.warn(`Upload playlist assignment failed: ${err.message}`);
+            }
+          }
+        } catch (err: any) {
+          logger.warn(`Upload game/vault/playlist pipeline failed: ${err.message}`);
+        } finally {
+          releaseGameVaultLock(lockKey);
+        }
+      }, 7 * 60_000);
     }
 
     setTimeout(async () => {

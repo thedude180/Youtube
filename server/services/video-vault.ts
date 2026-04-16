@@ -11,6 +11,22 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
 
+let _detectGameFn: ((text: string) => string | null) | null = null;
+let _persistGameFn: ((name: string, source: string) => Promise<void>) | null = null;
+
+async function _loadGameLookupFns(): Promise<void> {
+  try {
+    const mod = await import("./web-game-lookup");
+    await mod.loadLearnedGames();
+    _detectGameFn = mod.detectGameFromLearned;
+    _persistGameFn = mod.persistGameToDatabase;
+  } catch (err: any) {
+    logger.warn(`Failed to load learned games for vault: ${err.message}`);
+  }
+}
+
+_loadGameLookupFns().catch(() => {});
+
 const VAULT_DIR = path.join(process.cwd(), "vault");
 const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 const DOWNLOAD_QUALITY = "18/best[height<=480]/best[height<=720]/best";
@@ -162,6 +178,11 @@ const GAME_PATTERNS: Array<[RegExp, string]> = [
 export function extractGameName(title: string): string {
   if (!title) return "Uncategorized";
 
+  if (_detectGameFn) {
+    const learnedMatch = _detectGameFn(title);
+    if (learnedMatch) return learnedMatch;
+  }
+
   for (const [pattern, gameName] of GAME_PATTERNS) {
     if (pattern.test(title)) {
       return title.replace(pattern, gameName).match(pattern) ? gameName : gameName;
@@ -298,6 +319,11 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
       : new Date().toISOString();
 
     const gameName = extractGameName(video.title);
+    if (gameName && gameName !== "Uncategorized" && _persistGameFn) {
+      _persistGameFn(gameName, "vault-index").catch((err: any) => {
+        logger.warn(`Vault game persist failed for "${gameName}": ${err.message}`);
+      });
+    }
     await db.insert(contentVaultBackups).values({
       userId,
       youtubeId: video.id,
