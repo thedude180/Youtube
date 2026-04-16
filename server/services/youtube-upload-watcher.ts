@@ -60,12 +60,58 @@ async function getAuthenticatedYouTube(channel: any) {
   return google.youtube({ version: "v3", auth: oauth2Client });
 }
 
+async function runQuickGameDetection(userId: string, videoId: number): Promise<string | null> {
+  try {
+    const video = await storage.getVideo(videoId);
+    if (!video) return null;
+    const meta = (video.metadata as any) || {};
+    if (meta.gameName && meta.gameName !== "Unknown" && meta.gameName !== "Gaming") {
+      return meta.gameName;
+    }
+
+    const searchText = `${video.title || ""} ${video.description || ""}`;
+    const { detectGameFromLearned, lookupGameFromWeb, lookupGameWithAI, persistGameToDatabase } = await import("./web-game-lookup");
+
+    const learnedMatch = detectGameFromLearned(searchText);
+    if (learnedMatch) {
+      await persistGameToDatabase(learnedMatch, "learned-cache-pipeline");
+      await storage.updateVideo(videoId, { metadata: { ...meta, gameName: learnedMatch, gameDetectionMethod: "learned-db", gameDetectedAt: new Date().toISOString() } });
+      logger.info(`[${userId}] Quick game detect (learned): "${learnedMatch}" for video ${videoId}`);
+      return learnedMatch;
+    }
+
+    const webGame = await lookupGameFromWeb(searchText);
+    if (webGame) {
+      await persistGameToDatabase(webGame, "web-lookup-pipeline");
+      await storage.updateVideo(videoId, { metadata: { ...meta, gameName: webGame, gameDetectionMethod: "web-lookup", gameDetectedAt: new Date().toISOString() } });
+      logger.info(`[${userId}] Quick game detect (web): "${webGame}" for video ${videoId}`);
+      return webGame;
+    }
+
+    const aiGame = await lookupGameWithAI(video.title || "", video.description || "");
+    if (aiGame) {
+      await persistGameToDatabase(aiGame, "ai-text-pipeline");
+      await storage.updateVideo(videoId, { metadata: { ...meta, gameName: aiGame, gameDetectionMethod: "ai-text-analysis", gameDetectedAt: new Date().toISOString() } });
+      logger.info(`[${userId}] Quick game detect (AI): "${aiGame}" for video ${videoId}`);
+      return aiGame;
+    }
+  } catch (err: any) {
+    logger.warn(`[${userId}] Quick game detection failed for video ${videoId}: ${err.message}`);
+  }
+  return null;
+}
+
 async function runFullEditingPipeline(userId: string, videoId: number, channelId: number): Promise<void> {
   const video = await storage.getVideo(videoId);
   if (!video) return;
 
   const durationSec = (video.metadata as any)?.durationSec || 0;
   const isLongForm = durationSec >= 900;
+
+  const detectedGame = await runQuickGameDetection(userId, videoId);
+  if (detectedGame) {
+    logger.info(`[${userId}] Game "${detectedGame}" identified BEFORE pipeline — SEO + thumbnail will use it`);
+  }
 
   if (isLongForm) {
     try {
@@ -90,8 +136,8 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
 
   try {
     const { vodSEOOptimizer } = await import("./vod-seo-optimizer");
-    vodSEOOptimizer.optimize(userId, videoId).catch(() => undefined);
-    logger.info(`[${userId}] SEO optimization triggered for video ${videoId}`);
+    await vodSEOOptimizer.optimize(userId, videoId);
+    logger.info(`[${userId}] SEO optimization completed for video ${videoId}`);
   } catch (err: any) {
     logger.warn(`[${userId}] SEO optimization failed for video ${videoId}: ${err.message}`);
   }
@@ -108,8 +154,8 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
 
   try {
     const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
-    generateThumbnailForNewVideo(userId, videoId).catch(() => undefined);
-    logger.info(`[${userId}] Thumbnail generation triggered for video ${videoId}`);
+    await generateThumbnailForNewVideo(userId, videoId);
+    logger.info(`[${userId}] Thumbnail generation completed for video ${videoId}`);
   } catch (err: any) {
     logger.warn(`[${userId}] Thumbnail gen failed for video ${videoId}: ${err.message}`);
   }

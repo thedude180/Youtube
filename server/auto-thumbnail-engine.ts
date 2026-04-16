@@ -385,6 +385,16 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
       enrichedDescription = `${enrichedDescription}\n\nThumbnail concept: ${meta.thumbnailConcept}`;
     }
 
+    if (meta.seoTitleHook) {
+      enrichedDescription = `${enrichedDescription}\n\nSEO TITLE HOOK (thumbnail must visually match this promise): ${meta.seoTitleHook}`;
+    }
+
+    const freshVideo = await db.select({ title: videos.title }).from(videos).where(eq(videos.id, videoDbId)).limit(1);
+    if (freshVideo[0] && freshVideo[0].title !== enrichedTitle) {
+      enrichedTitle = freshVideo[0].title;
+      logger.info("Using SEO-optimized title for thumbnail", { videoDbId, optimizedTitle: enrichedTitle.substring(0, 60) });
+    }
+
     const result = await generateAndUploadThumbnail(
       userId,
       videoDbId,

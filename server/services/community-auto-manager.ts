@@ -27,13 +27,25 @@ export class CommunityAutoManager {
 
     logger.info(`Starting Community Auto-Manager for user ${userId}`);
     
-    // Run immediately on start
-    this.runCycle(userId).catch(err => logger.error(`Error in initial community cycle for ${userId}: ${err.message}`));
+    this.shouldPostNow(userId).then(shouldPost => {
+      if (shouldPost) {
+        this.runCycle(userId).catch(err => logger.error(`Error in initial community cycle for ${userId}: ${err.message}`));
+      } else {
+        logger.info(`Deferring initial community cycle for ${userId}: not near audience peak hours`);
+      }
+    }).catch(() => {
+      this.runCycle(userId).catch(err => logger.error(`Error in initial community cycle for ${userId}: ${err.message}`));
+    });
 
-    // Set 8-hour interval (8 * 60 * 60 * 1000 = 28800000 ms)
     const interval = setInterval(() => {
-      this.runCycle(userId).catch(err => logger.error(`Error in community cycle for ${userId}: ${err.message}`));
-    }, 8 * 60 * 60 * 1000);
+      this.shouldPostNow(userId).then(shouldPost => {
+        if (shouldPost) {
+          this.runCycle(userId).catch(err => logger.error(`Error in community cycle for ${userId}: ${err.message}`));
+        }
+      }).catch(() => {
+        this.runCycle(userId).catch(err => logger.error(`Error in community cycle for ${userId}: ${err.message}`));
+      });
+    }, 4 * 60 * 60 * 1000);
 
     this.intervals.set(userId, interval);
   }
@@ -47,6 +59,37 @@ export class CommunityAutoManager {
       clearInterval(interval);
       this.intervals.delete(userId);
       logger.info(`Stopped Community Auto-Manager for user ${userId}`);
+    }
+  }
+
+  private async shouldPostNow(userId: string): Promise<boolean> {
+    try {
+      const { audienceActivityPatterns } = await import("@shared/schema");
+      const { eq: eqOp, and: andOp, desc: descOp } = await import("drizzle-orm");
+      const patterns = await db.select({
+        hourOfDay: audienceActivityPatterns.hourOfDay,
+        activityLevel: audienceActivityPatterns.activityLevel,
+      })
+        .from(audienceActivityPatterns)
+        .where(andOp(
+          eqOp(audienceActivityPatterns.userId, userId),
+          eqOp(audienceActivityPatterns.platform, "youtube"),
+        ))
+        .orderBy(descOp(audienceActivityPatterns.activityLevel))
+        .limit(10);
+
+      if (patterns.length < 3) return true;
+
+      const now = new Date();
+      const currentHour = now.getUTCHours();
+      const peakHours = new Set(patterns.slice(0, 6).map(p => p.hourOfDay));
+      const isNearPeak = peakHours.has(currentHour) || peakHours.has((currentHour + 1) % 24) || peakHours.has((currentHour - 1 + 24) % 24);
+      if (!isNearPeak) {
+        logger.info(`Community post deferred for ${userId}: current hour ${currentHour} not near audience peak hours`);
+      }
+      return isNearPeak;
+    } catch {
+      return true;
     }
   }
 
@@ -99,18 +142,32 @@ export class CommunityAutoManager {
         .where(eq(userAutonomousSettings.userId, userId))
         .limit(1);
 
-      // 3. Generate content with AI
+      // 3. Generate content with AI — enriched with game metadata
       const userChannels = await storage.getChannelsByUser(userId);
       const ytChannel = userChannels.find(c => c.platform === "youtube");
       if (!ytChannel) return;
 
       const recentVideos = await storage.getVideosByUser(userId, 1, 5);
+
+      const videoDetails = recentVideos.map(v => {
+        const meta = (v.metadata as any) || {};
+        const game = meta.gameName && meta.gameName !== "Unknown" && meta.gameName !== "Gaming" ? meta.gameName : null;
+        return `"${v.title}"${game ? ` (${game})` : ""}`;
+      });
+
+      const activeGames = [...new Set(recentVideos
+        .map(v => (v.metadata as any)?.gameName)
+        .filter(g => g && g !== "Unknown" && g !== "Gaming"))];
+      const gameContext = activeGames.length > 0
+        ? `\nGames currently being played: ${activeGames.join(", ")}\nIMPORTANT: Reference the specific game(s) naturally — fans engage more with game-specific content than generic "gaming" posts.`
+        : "";
       
       const openai = getOpenAIClient();
       const basePrompt = `Generate an engaging YouTube community post based on the creator's recent activity.
-      Recent videos: ${recentVideos.map(v => v.title).join(", ")}
+      Recent videos: ${videoDetails.join(", ")}${gameContext}
       
       The post should be conversational, encourage engagement (likes/comments), and provide value or a "behind-the-scenes" feel.
+      If a specific game is being played, reference it naturally (e.g., "That Malenia fight had me sweating" not "Check out my latest video").
       Return the content only, max 500 characters.`;
 
       const prompt = await withCreatorVoice(userId, basePrompt);

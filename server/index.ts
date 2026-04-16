@@ -1459,11 +1459,18 @@ httpServer.listen(
           const channels = await st.getChannelsByUser(userId);
           const ytChannel = channels.find((c: any) => c.platform === "youtube");
           const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
-          if (webhookUrl && payload?.message) {
+          if (webhookUrl) {
+            const gameTitle = payload?.gameTitle;
+            const title = payload?.title || "Live Stream";
+            let message = payload?.message;
+            if (!message) {
+              const gameTag = gameTitle && gameTitle !== "PS5 Gameplay" && gameTitle !== "Unknown" ? ` **${gameTitle}**` : "";
+              message = `🔴 **LIVE NOW!** ${title}${gameTag ? ` — Playing${gameTag}` : ""}\nCome hang out! 🎮`;
+            }
             await fetch(webhookUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content: payload.message }),
+              body: JSON.stringify({ content: message }),
             }).catch(err => logger.warn("[Autonomous] Discord announce webhook failed", { error: String(err) }));
           }
         });
@@ -1482,10 +1489,21 @@ httpServer.listen(
           const ytChannel = chs.find((c: any) => c.platform === "youtube");
           const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
           if (webhookUrl) {
+            let message = payload.caption;
+            const gameTitle = payload.gameTitle || payload.gameName;
+            if (gameTitle && gameTitle !== "Unknown" && gameTitle !== "PS5 Gameplay") {
+              if (!message.includes(gameTitle)) {
+                message = `🎮 **${gameTitle}** | ${message}`;
+              }
+            }
+            const videoUrl = payload.videoUrl || payload.postUrl;
+            if (videoUrl && !message.includes(videoUrl)) {
+              message = `${message}\n${videoUrl}`;
+            }
             await fetch(webhookUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content: payload.caption }),
+              body: JSON.stringify({ content: message }),
             }).catch(err => logger.warn("[Autonomous] publish_to_discord webhook failed", { error: String(err) }));
           }
         });

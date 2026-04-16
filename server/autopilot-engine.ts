@@ -1024,6 +1024,8 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
               sourceVideoTitle: streamVideo.title,
               thumbnailConcept: meta.thumbnailConcept || null,
               categoryId: sourceCategory,
+              gameName: (meta as any)?.gameName || ((streamVideo?.metadata as any)?.gameName) || "PS5 Gameplay",
+              noCommentary: true,
             } as any,
           });
           clipVideoId = clipVideo.id;
@@ -1036,6 +1038,17 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
 
         const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
         generateThumbnailForNewVideo(post.userId, clipVideoId).catch(() => {});
+
+        const clipGameName = (meta as any)?.gameName || ((streamVideo?.metadata as any)?.gameName);
+        if (clipGameName && clipGameName !== "PS5 Gameplay" && clipGameName !== "Unknown") {
+          import("./services/web-game-lookup").then(({ persistGameToDatabase }) => {
+            persistGameToDatabase(clipGameName, "stream-clip-publish").catch(err => {
+              logger.warn("Game persistence failed for stream clip", { gameName: clipGameName, error: String(err).substring(0, 150) });
+            });
+          }).catch(err => {
+            logger.warn("Failed to import web-game-lookup for stream clip game persistence", { error: String(err).substring(0, 100) });
+          });
+        }
 
         import("./publish-verifier").then(({ verifyVideoUpload }) => {
           verifyVideoUpload(clipVideoId, post.userId, uploadResult.youtubeId, "stream_clip_autopilot").catch(err => {
@@ -1161,6 +1174,16 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
 
         const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
         generateThumbnailForNewVideo(post.userId, clipVideo.id).catch(() => {});
+
+        if (gameName && gameName !== "PS5 Gameplay" && gameName !== "Unknown") {
+          import("./services/web-game-lookup").then(({ persistGameToDatabase }) => {
+            persistGameToDatabase(gameName, "maximizer-publish").catch(err => {
+              logger.warn("Game persistence failed for maximizer clip", { gameName, error: String(err).substring(0, 150) });
+            });
+          }).catch(err => {
+            logger.warn("Failed to import web-game-lookup for game persistence", { error: String(err).substring(0, 100) });
+          });
+        }
 
         import("./publish-verifier").then(({ verifyVideoUpload }) => {
           verifyVideoUpload(clipVideo.id, post.userId, uploadResult.youtubeId, "content_maximizer").catch(() => {});

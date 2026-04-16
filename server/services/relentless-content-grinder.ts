@@ -149,6 +149,47 @@ async function checkVideoExhaustion(userId: string, video: any): Promise<number>
   return Math.min(100, extractedRatio + bonusPoints);
 }
 
+async function getRetentionIntelligence(userId: string, gameName: string): Promise<string> {
+  try {
+    const { retentionBeats } = await import("@shared/schema");
+    const { desc: descOp, or: orOp, eq: eqOp } = await import("drizzle-orm");
+    const beats = await db.select({
+      beatType: retentionBeats.beatType,
+      technique: retentionBeats.technique,
+      description: retentionBeats.description,
+      retentionImpact: retentionBeats.retentionImpact,
+      psychologyPrinciple: retentionBeats.psychologyPrinciple,
+    })
+      .from(retentionBeats)
+      .where(orOp(
+        eqOp(retentionBeats.isGlobal, true),
+        eqOp(retentionBeats.userId, userId),
+      ))
+      .orderBy(descOp(retentionBeats.retentionImpact))
+      .limit(8);
+
+    if (beats.length === 0) return "";
+
+    const lines = beats.map(b => `- ${b.beatType}: ${b.technique} (impact: ${b.retentionImpact}) — ${b.description}${b.psychologyPrinciple ? ` [Psychology: ${b.psychologyPrinciple}]` : ""}`);
+    return `\n\nRETENTION INTELLIGENCE (learned from top creators — prioritize clips that use these patterns):\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
+async function getSEOKnowledgeForClips(userId: string, gameName: string): Promise<string> {
+  try {
+    const { getEngineKnowledgeForContext } = await import("./knowledge-mesh");
+    const insights = await getEngineKnowledgeForContext("vod-seo-optimizer", userId, 5);
+    if (insights.length === 0) return "";
+    const relevant = insights.filter(i => i.topic.includes(gameName) || i.topic.includes("title_pattern"));
+    if (relevant.length === 0) return "";
+    return `\n\nSEO TITLE INTELLIGENCE (use these patterns for clip titles):\n${relevant.map(i => `- ${i.insight}`).join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 async function extractUntappedMoments(userId: string, video: any): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 600;
@@ -165,6 +206,9 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
     const m = (c.metadata as any) || {};
     return { start: m.segmentStartSec || 0, end: m.segmentEndSec || 0 };
   }).filter(r => r.end > r.start);
+
+  const retentionContext = await getRetentionIntelligence(userId, gameName);
+  const seoContext = await getSEOKnowledgeForClips(userId, gameName);
 
   const openai = getOpenAIClient();
 
@@ -192,7 +236,7 @@ For NO COMMENTARY PS5 gaming, viral moments include:
 - A clutch dodge or parry at the last possible moment
 - An unexpected enemy ambush
 - Speed-running a section perfectly
-- Any "wait for it..." moment with a payoff
+- Any "wait for it..." moment with a payoff${retentionContext}${seoContext}
 
 VIRAL RULES:
 - First frame must be VISUALLY EXPLOSIVE — no menus, no inventory, no walking
