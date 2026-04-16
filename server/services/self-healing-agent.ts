@@ -118,7 +118,16 @@ export class SelfHealingAgent {
       
       const adminUsers = await db.execute(sql`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
       if (adminUsers.rows.length > 0) {
-        await routeNotification(adminUsers.rows[0].id as string, {
+        const adminId = adminUsers.rows[0].id as string;
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId: adminId,
+          type: "system",
+          title: "Critical Quota Exhaustion",
+          message: `API Quota for ${services} is above 95%. Actions are being throttled.`,
+          severity: "critical",
+        });
+        await routeNotification(adminId, {
           title: "Critical Quota Exhaustion",
           message: `API Quota for ${services} is above 95%. Actions are being throttled.`,
           severity: "critical",

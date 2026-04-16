@@ -123,7 +123,13 @@ Return ONLY valid JSON matching this structure:
         }
       }
 
-      // 6. Notify User
+      await storage.createNotification({
+        userId,
+        type: "content",
+        title: "New 7-Day Growth Plan",
+        message: `I've mapped out your path to ${growthPlanResult.mainFocus || "growth"} for the next week.`,
+        severity: "info",
+      });
       await routeNotification(userId, {
         title: "New 7-Day Growth Plan",
         message: `I've mapped out your path to ${growthPlanResult.mainFocus || "growth"} for the next week.`,

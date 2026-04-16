@@ -171,10 +171,19 @@ Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
       }
 
       if (aiResponse.notify_user && aiResponse.user_message && anomaly.userId) {
+        const notifSeverity = effectiveRisk === "high" ? "critical" : "warning";
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId: anomaly.userId,
+          type: "system",
+          title: "System Maintenance",
+          message: aiResponse.user_message,
+          severity: notifSeverity,
+        });
         await routeNotification(anomaly.userId, {
           title: "System Maintenance",
           message: aiResponse.user_message,
-          severity: effectiveRisk === "high" ? "critical" : "info",
+          severity: notifSeverity,
           category: "system",
         });
       }

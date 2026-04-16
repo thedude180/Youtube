@@ -107,7 +107,14 @@ export class DailyBriefing {
         },
       }).returning();
 
-      // 4. Send Notification
+      const { storage } = await import("../storage");
+      await storage.createNotification({
+        userId,
+        type: "system",
+        title: "Your Daily Autonomous Briefing is Ready",
+        message: "Your AI COO has analyzed the last 24h of activity. Check your dashboard for the full report.",
+        severity: "info",
+      });
       await routeNotification(userId, {
         title: "Your Daily Autonomous Briefing is Ready",
         message: "Your AI COO has analyzed the last 24h of activity. Check your dashboard for the full report.",

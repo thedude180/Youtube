@@ -133,7 +133,13 @@ Return ONLY valid JSON matching this structure:
         }
       }
 
-      // 5. Notify User
+      await storage.createNotification({
+        userId,
+        type: "money",
+        title: "Daily Revenue Strategy Ready",
+        message: strategyResult.summary || "I've analyzed your revenue and prepared today's growth plays.",
+        severity: "info",
+      });
       await routeNotification(userId, {
         title: "Daily Revenue Strategy Ready",
         message: strategyResult.summary || "I've analyzed your revenue and prepared today's growth plays.",

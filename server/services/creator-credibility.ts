@@ -140,11 +140,21 @@ export async function computeCreatorCredibility(userId: string, channelId?: numb
         logger.error("Failed to feed trust decline to exception desk", { error: feedErr?.message });
       }
       try {
+        const trustSeverity = overallScore < trustThreshold * 0.5 ? "critical" : "warning";
+        const trustMsg = `Your creator credibility score dropped by ${decline} points to ${overallScore}. This is below the threshold of ${trustThreshold}.`;
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId,
+          type: "compliance",
+          title: "Trust Score Decline Alert",
+          message: trustMsg,
+          severity: trustSeverity,
+        });
         const { routeNotification } = await import("./notification-system");
         await routeNotification(userId, {
           title: "Trust Score Decline Alert",
-          message: `Your creator credibility score dropped by ${decline} points to ${overallScore}. This is below the threshold of ${trustThreshold}.`,
-          severity: overallScore < trustThreshold * 0.5 ? "critical" : "warning",
+          message: trustMsg,
+          severity: trustSeverity,
           category: "compliance",
         });
       } catch (notifErr: any) {

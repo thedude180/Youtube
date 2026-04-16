@@ -144,6 +144,13 @@ export class CommunityAutoManager {
           response: content
         });
 
+        await storage.createNotification({
+          userId,
+          type: "community",
+          title: "Community Post Ready",
+          message: "An autonomous community post is waiting for your approval.",
+          severity: "info",
+        });
         await routeNotification(userId, {
           title: "Community Post Ready",
           message: "An autonomous community post is waiting for your approval.",

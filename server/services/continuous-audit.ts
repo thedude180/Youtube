@@ -131,9 +131,18 @@ class ContinuousAudit {
         });
         
         if (adminUser) {
+          const auditMsg = `Audit found ${staleChannelTokens} stale tokens and ${stuckInProgressJobs} stuck jobs. Summary: ${aiSummary}`;
+          const { storage } = await import("../storage");
+          await storage.createNotification({
+            userId: adminUser.id,
+            type: "system",
+            title: "Critical System Audit Alert",
+            message: auditMsg,
+            severity: "critical",
+          });
           await routeNotification(adminUser.id, {
             title: "Critical System Audit Alert",
-            message: `Audit found ${staleChannelTokens} stale tokens and ${stuckInProgressJobs} stuck jobs. Summary: ${aiSummary}`,
+            message: auditMsg,
             severity: "critical",
             category: "system"
           });
