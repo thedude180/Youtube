@@ -1304,6 +1304,30 @@ export async function processScheduledPosts() {
         }
       }
 
+      try {
+        const { checkTrustBudget } = await import("./kernel/trust-budget");
+        const trustCost = post.targetPlatform === "youtube" ? 10 : 5;
+        const trustResult = await checkTrustBudget(post.userId, `distribution:${post.targetPlatform}`, trustCost);
+        if (trustResult.blocked) {
+          const deferTo = new Date(Date.now() + 60 * 60_000);
+          logger.info("Trust budget exhausted — deferring post", { postId: post.id, platform: post.targetPlatform, remaining: trustResult.remaining, deferTo: deferTo.toISOString() });
+          await db.update(autopilotQueue)
+            .set({
+              scheduledAt: deferTo,
+              metadata: {
+                ...((post.metadata as any) || {}),
+                trustBudgetDeferred: true,
+                deferredAt: new Date().toISOString(),
+                deferredUntil: deferTo.toISOString(),
+              },
+            })
+            .where(eq(autopilotQueue.id, post.id));
+          continue;
+        }
+      } catch (trustErr: any) {
+        logger.warn("Trust budget pre-check failed, proceeding cautiously", { postId: post.id, platform: post.targetPlatform, error: trustErr?.message });
+      }
+
       const meta = (post.metadata as any) || {};
 
       const { copyrightCheckAndFix } = await import("./services/copyright-check");

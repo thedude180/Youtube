@@ -1064,7 +1064,13 @@ httpServer.listen(
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
       const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(slog("processDeadLetterQueue")); }, DLQ_INTERVAL_MS);
       const digestInterval = setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, DIGEST_INTERVAL_MS);
-      backgroundIntervals.push(dlqInterval, digestInterval);
+      const notifCleanup = setInterval(() => {
+        import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte }) => {
+          const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          db.delete(notifications).where(and(eq(notifications.read, true), lte(notifications.createdAt, cutoff))).then(() => {});
+        }))).catch(slog("notifCleanup"));
+      }, 6 * 60 * 60_000);
+      backgroundIntervals.push(dlqInterval, digestInterval, notifCleanup);
       import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 

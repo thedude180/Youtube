@@ -124,6 +124,8 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
 }
 
 async function scanUserForNewUploads(userId: string): Promise<{ newUploads: number; scanned: number }> {
+  const { isQuotaBreakerTripped: breaker } = await import("./youtube-quota-tracker");
+  if (breaker()) return { newUploads: 0, scanned: 0 };
   const quota = await getQuotaStatus(userId);
   if (quota.remaining < 50) {
     logger.warn(`[${userId}] Upload watcher skipped — quota too low (${quota.remaining} remaining)`);

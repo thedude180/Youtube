@@ -239,6 +239,10 @@ export async function fetchYouTubeChannelInfo(channelId: number) {
 
 export async function refreshChannelStats(channelId: number): Promise<void> {
   try {
+    const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+    if (isQuotaBreakerTripped()) {
+      return;
+    }
     const info = await fetchYouTubeChannelInfo(channelId);
     const updates: any = { lastSyncAt: new Date() };
     if (info.subscriberCount != null) updates.subscriberCount = Number(info.subscriberCount);

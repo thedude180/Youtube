@@ -866,7 +866,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNotifications(userId: string): Promise<Notification[]> {
-    return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+    return await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(100);
   }
 
   async getUnreadCount(userId: string): Promise<number> {

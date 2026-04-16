@@ -56,6 +56,8 @@ async function getAuthenticatedYouTube(channel: any) {
 }
 
 async function scanUserForNewVods(userId: string): Promise<{ newVods: number; scanned: number }> {
+  const { isQuotaBreakerTripped: breaker } = await import("./youtube-quota-tracker");
+  if (breaker()) return { newVods: 0, scanned: 0 };
   const quota = await getQuotaStatus(userId);
   if (quota.remaining < 50) {
     logger.warn(`[${userId}] VOD watcher skipped — quota too low (${quota.remaining} remaining)`);
