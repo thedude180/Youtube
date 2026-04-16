@@ -62,6 +62,12 @@ async function grindUserContent(userId: string): Promise<GrindState> {
     return durSec >= 300 && v.type !== "short" && v.type !== "clip" && !meta.isShort;
   });
 
+  longFormVideos.sort((a: any, b: any) => {
+    const aDate = a.publishedAt ? new Date(a.publishedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+    const bDate = b.publishedAt ? new Date(b.publishedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+    return bDate - aDate;
+  });
+
   if (!longFormVideos.length) return state;
 
   for (const video of longFormVideos) {

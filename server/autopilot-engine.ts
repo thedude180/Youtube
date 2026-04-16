@@ -1180,18 +1180,29 @@ export async function flushQueueToAsap(): Promise<number> {
   try {
     const now = new Date();
     const maxFutureWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const flushPriority = sql`CASE 
+      WHEN ${autopilotQueue.type} = 'go-live' THEN 1
+      WHEN ${autopilotQueue.type} = 'new-video' THEN 2
+      WHEN ${autopilotQueue.type} = 'post-stream' THEN 3
+      WHEN ${autopilotQueue.type} = 'auto-clip' THEN 4
+      WHEN ${autopilotQueue.type} = 'cross-promo' THEN 6
+      WHEN ${autopilotQueue.type} = 'content-recycle' THEN 7
+      WHEN ${autopilotQueue.type} = 'evergreen_recycler' THEN 8
+      ELSE 5
+    END`;
+
     const futurePosts = await db
-      .select({ id: autopilotQueue.id })
+      .select({ id: autopilotQueue.id, type: autopilotQueue.type })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.status, "scheduled"),
         sql`${autopilotQueue.scheduledAt} > NOW()`,
         sql`${autopilotQueue.scheduledAt} < ${maxFutureWindow}`,
-      ));
+      ))
+      .orderBy(flushPriority, autopilotQueue.scheduledAt);
 
     if (futurePosts.length === 0) return 0;
 
-    // Stagger across 5 minutes so publish cron processes them in orderly batches
     const staggerWindowMs = 5 * 60_000;
     await Promise.all(futurePosts.map((post, i) => {
       const jitterMs = (i / futurePosts.length) * staggerWindowMs + Math.random() * 30_000;
@@ -1249,16 +1260,30 @@ export async function processScheduledPosts() {
     logger.warn("Auto-fix pre-scan failed", { error: err.message });
   }
 
+  const contentPriority = sql`CASE 
+    WHEN ${autopilotQueue.type} = 'go-live' THEN 1
+    WHEN ${autopilotQueue.type} = 'new-video' THEN 2
+    WHEN ${autopilotQueue.type} = 'post-stream' THEN 3
+    WHEN ${autopilotQueue.type} = 'auto-clip' THEN 4
+    WHEN ${autopilotQueue.type} = 'cross-promo' THEN 6
+    WHEN ${autopilotQueue.type} = 'content-recycle' THEN 7
+    WHEN ${autopilotQueue.type} = 'evergreen_recycler' THEN 8
+    ELSE 5
+  END`;
+
   const duePosts = await db.select().from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.status, "scheduled"),
       lte(autopilotQueue.scheduledAt, now),
     ))
+    .orderBy(contentPriority, autopilotQueue.scheduledAt)
     .limit(25);
 
   if (duePosts.length === 0) return;
 
-  logger.info("Processing due posts", { count: duePosts.length, isActive });
+  const newContentCount = duePosts.filter(p => ["go-live", "new-video", "post-stream", "auto-clip"].includes(p.type)).length;
+  const recycledCount = duePosts.filter(p => ["content-recycle", "evergreen_recycler"].includes(p.type)).length;
+  logger.info("Processing due posts (new-content-first)", { count: duePosts.length, newContentCount, recycledCount, isActive });
 
   const connectedByUser = new Map<string, Set<string>>();
   const { publishToplatform } = await import("./platform-publisher");
