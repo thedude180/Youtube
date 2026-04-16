@@ -70,7 +70,15 @@ async function publishPendingClips(userId: string): Promise<void> {
     state.clipsAttempted++;
 
     try {
-      const caption = clip.description || clip.title || "Check this out!";
+      const { canPostToPlatformToday, enforceCaptionLimit } = await import("./platform-budget-tracker");
+      const budget = await canPostToPlatformToday(userId, "tiktok");
+      if (!budget.allowed) {
+        state.lastError = `tiktok budget blocked: ${budget.reason}`;
+        logger.info(`[${userId}] TikTok budget blocked (${budget.reason}) — deferring clip ${clip.id}`);
+        break;
+      }
+      const rawCaption = clip.description || clip.title || "Check this out!";
+      const caption = enforceCaptionLimit(rawCaption, "tiktok");
       const result = await publishClipToTikTok(clip.id, userId, caption);
 
       if (result.success) {

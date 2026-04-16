@@ -586,8 +586,19 @@ export function registerClipRoutes(app: Express) {
       if (!clip) return res.status(404).json({ error: "Clip not found" });
 
       const { publishClipToTikTok } = await import("../tiktok-publisher");
+      const { canPostToPlatformToday, enforceCaptionLimit } = await import("../services/platform-budget-tracker");
 
-      const caption = clip.description || clip.title;
+      const budget = await canPostToPlatformToday(userId, "tiktok");
+      if (!budget.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: `TikTok daily budget reached (${budget.reason}). Will resume when window opens.`,
+          reason: budget.reason,
+          remaining: budget.remaining,
+        });
+      }
+
+      const caption = enforceCaptionLimit(clip.description || clip.title || "", "tiktok");
       const result = await publishClipToTikTok(clipId, userId, caption);
 
       if (result.success) {
