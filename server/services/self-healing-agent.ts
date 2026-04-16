@@ -162,7 +162,7 @@ export class SelfHealingAgent {
           userId: row.user_id as string,
           priority: 8,
           payload: { channelId: row.id },
-          dedupeKey: `token_refresh:${row.id}:${Date.now()}`,
+          dedupeKey: `token_refresh:${row.id}`,
         }).catch(() => {});
       }
       logger.info(`[SelfHealingAgent] Queued token refresh for ${expiredChannels.rows.length} channels`);

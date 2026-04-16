@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { notifications } from "@shared/schema";
-import { and, eq, desc, gte, sql, inArray } from "drizzle-orm";
+import { and, eq, desc, gte, sql, inArray, ne } from "drizzle-orm";
 import { classifyFailure } from "../auto-fix-engine";
 import { createLogger } from "../lib/logger";
 
@@ -8,6 +8,8 @@ const logger = createLogger("notification-watchdog");
 
 const SCAN_INTERVAL_MS = 10 * 60_000;
 const LOOKBACK_MS = 30 * 60_000;
+
+const WATCHDOG_TYPE = "watchdog_summary";
 
 interface PatternCluster {
   category: string;
@@ -21,6 +23,8 @@ function clusterNotifications(rows: Array<{ id: number; message: string; type: s
   const buckets = new Map<string, PatternCluster>();
 
   for (const row of rows) {
+    if (row.type === WATCHDOG_TYPE) continue;
+
     const category = classifyFailure(row.message || "");
     const platform = row.metadata?.platformAffected || null;
     const key = `${category}::${platform || "system"}`;
@@ -40,9 +44,9 @@ async function executeAction(cluster: PatternCluster): Promise<string | null> {
   try {
     switch (cluster.category) {
       case "quota_cap": {
-        const { isQuotaBreakerTripped, tripQuotaBreaker } = await import("./youtube-quota-tracker");
+        const { isQuotaBreakerTripped, tripGlobalQuotaBreaker } = await import("./youtube-quota-tracker");
         if (!isQuotaBreakerTripped()) {
-          tripQuotaBreaker();
+          tripGlobalQuotaBreaker();
           return `Tripped quota breaker for ${cluster.platform || "youtube"} (${cluster.count} quota errors detected)`;
         }
         return `Quota breaker already active — ${cluster.count} notifications acknowledged`;
@@ -67,7 +71,7 @@ async function executeAction(cluster: PatternCluster): Promise<string | null> {
             userId: ch.user_id as string,
             priority: 9,
             payload: { channelId: ch.id },
-            dedupeKey: `watchdog_token_refresh:${ch.id}`,
+            dedupeKey: `token_refresh:${ch.id}`,
           }).catch(() => {});
           queued++;
         }
@@ -88,8 +92,8 @@ async function executeAction(cluster: PatternCluster): Promise<string | null> {
       case "video_unavailable":
       case "copyright":
       case "compliance_violation": {
-        const { processAutoFixes } = await import("../auto-fix-engine");
-        await processAutoFixes().catch(() => {});
+        const { runAutoFixCycle } = await import("../auto-fix-engine");
+        await runAutoFixCycle().catch(() => {});
         return `Triggered auto-fix sweep for ${cluster.category} (${cluster.count} content errors)`;
       }
 
@@ -125,6 +129,7 @@ export async function runWatchdogSweep(): Promise<void> {
         and(
           eq(notifications.read, false),
           gte(notifications.createdAt, cutoff),
+          ne(notifications.type, WATCHDOG_TYPE),
         )
       )
       .orderBy(desc(notifications.createdAt))
@@ -167,14 +172,14 @@ export async function runWatchdogSweep(): Promise<void> {
       const adminResult = await db.execute(sql`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
       const adminId = adminResult.rows[0]?.id as string | undefined;
       if (adminId) {
-        const { createNotification } = await import("../autopilot-engine");
-        await createNotification(
-          adminId,
-          "watchdog_summary",
-          `Watchdog: ${actions.length} auto-fixes applied`,
-          actions.join(" | "),
-          "warning"
-        );
+        const { storage } = await import("../storage");
+        await storage.createNotification({
+          userId: adminId,
+          type: WATCHDOG_TYPE,
+          title: `Watchdog: ${actions.length} auto-fixes applied`,
+          message: actions.join(" | "),
+          severity: "info",
+        });
       }
     }
 
