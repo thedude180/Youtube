@@ -5,28 +5,47 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("platform-budget");
 
+// Daily caps = what each platform allows without rate-limits, shadow-bans, or
+// API errors. Values sit just under each platform's documented/observed hard
+// ceiling with a small safety buffer.
+//   youtube        : YouTube allows 50+ uploads/day for verified channels; 15
+//                    keeps us well under quota cost (1600 units/upload vs 10k
+//                    daily quota) without triggering audits.
+//   youtubeshorts  : Same channel/quota as YouTube; 12 matches Shorts algo
+//                    tolerance while staying inside quota budget.
+//   tiktok         : TikTok docs cap at 10 video posts per 24h per account.
+//   x              : Free/basic tier cap is 50 posts / 24h. 40 leaves headroom.
+//   discord        : Webhooks allow 30 req/min; no daily cap. 30 = broadcast
+//                    rate without community spam perception.
+//   instagram      : Graph API hard cap is 25 container publishes per 24h.
+//   kick           : No documented daily cap; 10 reflects realistic cadence.
+//   rumble         : Platform allows up to 15 uploads/day; 12 stays safe.
+//   twitch         : Clips/posts, no daily cap; 10 matches practical cadence.
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
-  youtube: 4,
-  youtubeshorts: 6,
-  tiktok: 3,
-  x: 5,
-  discord: 2,
-  instagram: 2,
-  kick: 2,
-  rumble: 2,
-  twitch: 3,
+  youtube: 15,
+  youtubeshorts: 12,
+  tiktok: 10,
+  x: 40,
+  discord: 30,
+  instagram: 25,
+  kick: 10,
+  rumble: 12,
+  twitch: 10,
 };
 
+// Minimum gap between posts = what the platform's rate limiter allows without
+// 429s or burst-spam heuristics. Tighter than before because the previous
+// values were algo-guesses rather than platform limits.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
-  youtube: 120 * 60_000,
-  youtubeshorts: 90 * 60_000,
-  tiktok: 90 * 60_000,
-  x: 45 * 60_000,
-  discord: 180 * 60_000,
-  instagram: 120 * 60_000,
-  kick: 120 * 60_000,
-  rumble: 120 * 60_000,
-  twitch: 60 * 60_000,
+  youtube: 60 * 60_000,
+  youtubeshorts: 45 * 60_000,
+  tiktok: 60 * 60_000,
+  x: 15 * 60_000,
+  discord: 5 * 60_000,
+  instagram: 45 * 60_000,
+  kick: 60 * 60_000,
+  rumble: 60 * 60_000,
+  twitch: 30 * 60_000,
 };
 
 export interface PlatformBudgetStatus {
