@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +24,14 @@ export class SectionErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(
+      `[SectionErrorBoundary] ${this.props.fallbackTitle || "Section"} crashed:`,
+      error,
+      info.componentStack,
+    );
+  }
+
   handleRetry = () => {
     queryClient.invalidateQueries();
     this.setState({ hasError: false, error: undefined });
@@ -43,6 +51,14 @@ export class SectionErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground">
               {this.props.fallbackTitle || "This section encountered an error"}
             </p>
+            {this.state.error?.message && (
+              <p
+                className="text-xs text-destructive/80 font-mono max-w-md text-center break-words px-2"
+                data-testid="text-section-error-message"
+              >
+                {this.state.error.message}
+              </p>
+            )}
             <div className="flex gap-2 mt-2">
               <Button
                 variant="outline"
