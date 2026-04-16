@@ -1152,6 +1152,7 @@ httpServer.listen(
     delay(25_000, () => {
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
+      import("./services/shorts-repurpose-engine").then(m => m.initShortsRepurposeEngine()).catch(slog("initShortsRepurposeEngine"));
       import("./auto-thumbnail-engine").then(async m => {
         await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
         const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), 60 * 60_000);

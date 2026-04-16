@@ -681,6 +681,19 @@ export async function registerAutomationRoutes(app: Express) {
     }
   });
 
+  app.post("/api/shorts-repurpose/run", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const { runShortsRepurposeForUser } = await import("../services/shorts-repurpose-engine");
+      const result = await runShortsRepurposeForUser(userId);
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      logger.error("[ShortsRepurpose] Manual run error:", err);
+      res.status(500).json({ success: false, message: err?.message || "Run failed" });
+    }
+  });
+
   app.post("/api/reports/daily-upload-digest/test", async (req: any, res) => {
     try {
       const userId = requireAuth(req, res);
