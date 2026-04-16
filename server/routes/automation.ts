@@ -681,6 +681,19 @@ export async function registerAutomationRoutes(app: Express) {
     }
   });
 
+  app.post("/api/reports/daily-upload-digest/test", async (req: any, res) => {
+    try {
+      const userId = requireAuth(req, res);
+      if (!userId) return;
+      const { sendTestDailyDigest } = await import("../services/daily-upload-digest");
+      const result = await sendTestDailyDigest(userId);
+      res.json(result);
+    } catch (err: any) {
+      logger.error("[DailyDigest] Test endpoint error:", err);
+      res.status(500).json({ success: false, message: "Failed to send test digest" });
+    }
+  });
+
   app.get("/api/automation/trend-status", async (req: any, res) => {
     try {
       const userId = requireAuth(req, res);
