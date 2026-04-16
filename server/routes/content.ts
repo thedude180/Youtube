@@ -267,6 +267,13 @@ export function registerContentRoutes(app: Express) {
               video.description || "",
             );
 
+            if (newGame && newGame !== "Unknown") {
+              try {
+                const { persistGameToDatabase } = await import("../services/web-game-lookup");
+                await persistGameToDatabase(newGame, "vision-redetect");
+              } catch {}
+            }
+
             if (newGame !== oldGame) {
               await db.update(videos).set({
                 metadata: {
@@ -323,6 +330,27 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       logger.error("Catalog redetect error:", err);
       res.status(500).json({ message: "Failed to start catalog redetection" });
+    }
+  }));
+
+  app.get("/api/content/game-library", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    try {
+      const { getAllDiscoveredGames, getDiscoveredGamesCount } = await import("../services/web-game-lookup");
+      const [games, count] = await Promise.all([
+        getAllDiscoveredGames(),
+        getDiscoveredGamesCount(),
+      ]);
+
+      res.json({
+        total: count,
+        games,
+      });
+    } catch (err: any) {
+      logger.error("Failed to fetch game library", { error: err.message });
+      res.status(500).json({ message: "Failed to fetch game library" });
     }
   }));
 

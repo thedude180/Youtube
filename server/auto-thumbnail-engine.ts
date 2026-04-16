@@ -493,6 +493,13 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
 
 function extractGameName(title: string, description: string): string {
   const combined = `${title} ${description}`.toLowerCase();
+
+  try {
+    const { detectGameFromLearned } = require("./services/web-game-lookup");
+    const learnedMatch = detectGameFromLearned(combined);
+    if (learnedMatch) return learnedMatch;
+  } catch {}
+
   const knownGames = [
     "god of war", "spider-man", "spiderman", "elden ring", "final fantasy",
     "horizon", "the last of us", "ghost of tsushima", "demon's souls",

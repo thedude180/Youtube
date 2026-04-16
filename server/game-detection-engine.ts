@@ -5,7 +5,7 @@ import { createLogger } from "./lib/logger";
 import { detectGameFromFrames } from "./smart-edit-engine";
 import { downloadSourceVideo } from "./clip-video-processor";
 import { generateVideoMetadata } from "./ai-engine";
-import { lookupGameFromWeb, loadLearnedGames } from "./services/web-game-lookup";
+import { lookupGameFromWeb, loadLearnedGames, detectGameFromLearned, persistGameToDatabase, lookupGameWithAI } from "./services/web-game-lookup";
 import * as fs from "fs";
 
 const logger = createLogger("game-detection-engine");
@@ -85,37 +85,69 @@ async function processUserCatalog(userId: string): Promise<void> {
         continue;
       }
 
-      let sourcePath: string | null = null;
-      let newGame: string;
+      let newGame: string = "Unknown";
+      let detectionMethod: string = "unknown";
       const oldGame = meta?.gameName || "Unknown";
+      const searchText = `${video.title || ""} ${video.description || ""}`;
 
-      try {
-        sourcePath = await downloadSourceVideo(youtubeVideoId, userId);
-      } catch {
-        logger.info("Video download failed, using web lookup for game detection", { videoId: video.id });
-      }
-
-      if (sourcePath) {
-        newGame = await detectGameFromFrames(
-          sourcePath,
-          video.title || "",
-          video.description || "",
-        );
+      const learnedMatch = detectGameFromLearned(searchText);
+      if (learnedMatch) {
+        newGame = learnedMatch;
+        detectionMethod = "learned-db";
+        await persistGameToDatabase(learnedMatch, "learned-cache");
+        logger.info("Game matched from learned database — skipping download", { videoId: video.id, game: learnedMatch });
       } else {
-        const webGame = await lookupGameFromWeb(`${video.title || ""} ${video.description || ""}`);
-        if (webGame) {
-          newGame = webGame;
-          logger.info("Game identified via web lookup (no video download)", { videoId: video.id, game: webGame });
-        } else {
-          newGame = "Unknown";
-          processed++;
-          errors++;
-          await sleep(DELAY_BETWEEN_VIDEOS_MS);
-          continue;
+        let sourcePath: string | null = null;
+
+        try {
+          sourcePath = await downloadSourceVideo(youtubeVideoId, userId);
+        } catch {
+          logger.info("Video download failed, using web lookup for game detection", { videoId: video.id });
+        }
+
+        if (sourcePath) {
+          const visionResult = await detectGameFromFrames(
+            sourcePath,
+            video.title || "",
+            video.description || "",
+          );
+
+          if (visionResult && visionResult !== "Unknown") {
+            newGame = visionResult;
+            detectionMethod = "vision";
+            await persistGameToDatabase(visionResult, "vision");
+          }
+
+          try { fs.unlinkSync(sourcePath); } catch { }
+        }
+
+        if (newGame === "Unknown") {
+          const webGame = await lookupGameFromWeb(searchText);
+          if (webGame) {
+            newGame = webGame;
+            detectionMethod = "web-lookup";
+            logger.info("Game identified via web lookup", { videoId: video.id, game: webGame });
+          }
+        }
+
+        if (newGame === "Unknown") {
+          const aiGame = await lookupGameWithAI(video.title || "", video.description || "");
+          if (aiGame) {
+            newGame = aiGame;
+            detectionMethod = "ai-text-analysis";
+            await persistGameToDatabase(aiGame, "ai-text-analysis");
+            logger.info("Game identified via AI text analysis fallback", { videoId: video.id, game: aiGame });
+          }
         }
       }
 
-      const detectionMethod = sourcePath ? "vision" : "web-lookup";
+      if (newGame === "Unknown") {
+        processed++;
+        errors++;
+        await sleep(DELAY_BETWEEN_VIDEOS_MS);
+        continue;
+      }
+
       await db.update(videos).set({
         metadata: {
           ...meta,
@@ -148,13 +180,13 @@ async function processUserCatalog(userId: string): Promise<void> {
         });
       }
 
-      try { if (sourcePath) fs.unlinkSync(sourcePath); } catch { }
       processed++;
 
       logger.info("Game detected for video", {
         videoId: video.id,
         oldGame,
         newGame,
+        method: detectionMethod,
         changed: oldGame !== newGame,
       });
 

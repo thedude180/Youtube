@@ -80,7 +80,11 @@ function generateSearchPatterns(gameName: string): string[] {
   return [...new Set(patterns)].filter(p => p.length >= 2);
 }
 
-async function persistDiscoveredGame(gameName: string, source: string): Promise<void> {
+export async function persistGameToDatabase(gameName: string, source: string, extra?: { genre?: string; publisher?: string; platform?: string }): Promise<void> {
+  return persistDiscoveredGame(gameName, source, extra);
+}
+
+async function persistDiscoveredGame(gameName: string, source: string, extra?: { genre?: string; publisher?: string; platform?: string }): Promise<void> {
   try {
     const patterns = generateSearchPatterns(gameName);
     const existing = await db.select().from(discoveredGames)
@@ -88,17 +92,24 @@ async function persistDiscoveredGame(gameName: string, source: string): Promise<
       .limit(1);
 
     if (existing.length > 0) {
-      await db.update(discoveredGames).set({
+      const updateFields: any = {
         timesDetected: sql`${discoveredGames.timesDetected} + 1`,
         lastDetectedAt: new Date(),
-      }).where(eq(discoveredGames.officialName, gameName));
+      };
+      if (extra?.genre && !existing[0].genre) updateFields.genre = extra.genre;
+      if (extra?.publisher && !existing[0].publisher) updateFields.publisher = extra.publisher;
+      if (extra?.platform && existing[0].platform === "ps5") updateFields.platform = extra.platform;
+      await db.update(discoveredGames).set(updateFields).where(eq(discoveredGames.officialName, gameName));
     } else {
       await db.insert(discoveredGames).values({
         officialName: gameName,
         searchPatterns: patterns,
         source,
+        genre: extra?.genre || null,
+        publisher: extra?.publisher || null,
+        platform: extra?.platform || "ps5",
       });
-      logger.info("New game persisted to discovered_games", { gameName, patterns, source });
+      logger.info("New game persisted to discovered_games", { gameName, patterns, source, genre: extra?.genre, publisher: extra?.publisher });
     }
 
     learnedGames.set(gameName, patterns);
@@ -158,10 +169,10 @@ export async function lookupGameFromWeb(searchText: string): Promise<string | nu
 
     const wikiResult = await searchWikipediaForGame(keywords);
     if (wikiResult) {
-      logger.info("Game identified via web lookup", { query: keywords, result: wikiResult });
-      setCachedResult(cacheKey, wikiResult);
-      await persistDiscoveredGame(wikiResult, "wikipedia");
-      return wikiResult;
+      logger.info("Game identified via web lookup", { query: keywords, result: wikiResult.name, genre: wikiResult.genre, publisher: wikiResult.publisher });
+      setCachedResult(cacheKey, wikiResult.name);
+      await persistDiscoveredGame(wikiResult.name, "wikipedia", { genre: wikiResult.genre, publisher: wikiResult.publisher });
+      return wikiResult.name;
     }
 
     const ddgResult = await searchDuckDuckGoForGame(keywords);
@@ -206,7 +217,13 @@ function extractGameKeywords(text: string): string {
   return meaningful.slice(0, 6).join(" ");
 }
 
-async function searchWikipediaForGame(query: string): Promise<string | null> {
+interface WikiGameResult {
+  name: string;
+  genre?: string;
+  publisher?: string;
+}
+
+async function searchWikipediaForGame(query: string): Promise<WikiGameResult | null> {
   try {
     const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query + " video game")}&format=json&srlimit=5&utf8=1`;
     const controller = new AbortController();
@@ -240,7 +257,21 @@ async function searchWikipediaForGame(query: string): Promise<string | null> {
           .replace(/\s*\(.*?(video game|game).*?\)/i, "")
           .replace(/\s*\(.*?\d{4}.*?\)/i, "")
           .trim();
-        return cleanTitle;
+
+        const gameResult: WikiGameResult = { name: cleanTitle };
+
+        const genrePatterns = [
+          /(?:action|shooter|rpg|role-playing|adventure|racing|sports|fighting|puzzle|strategy|simulation|horror|survival|stealth|platformer|sandbox|open[- ]world|battle royale|mmo|mmorpg)/i,
+        ];
+        for (const gp of genrePatterns) {
+          const gm = snippet.match(gp);
+          if (gm) { gameResult.genre = gm[0]; break; }
+        }
+
+        const pubMatch = snippet.match(/(?:published|developed)\s+by\s+([^<.]+)/i);
+        if (pubMatch) gameResult.publisher = pubMatch[1].trim().replace(/<[^>]*>/g, "").substring(0, 60);
+
+        return gameResult;
       }
     }
 
@@ -293,5 +324,78 @@ async function searchDuckDuckGoForGame(query: string): Promise<string | null> {
   } catch (err) {
     logger.debug("DuckDuckGo search failed", { error: String(err).slice(0, 100) });
     return null;
+  }
+}
+
+export async function lookupGameWithAI(title: string, description: string): Promise<string | null> {
+  try {
+    const { getOpenAIClient } = await import("../lib/openai");
+    const openai = getOpenAIClient();
+    if (!openai) return null;
+
+    const text = `Title: ${title}\nDescription: ${(description || "").substring(0, 500)}`;
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 200,
+      messages: [
+        {
+          role: "system",
+          content: `You are a video game identification expert. Given a YouTube video title and description, determine which video game is being played. 
+Return ONLY a JSON object with these fields:
+- "gameName": The official full name of the game (e.g., "Battlefield 6", "Grand Theft Auto V", "The Last of Us Part II"). If you cannot confidently identify the game, return null.
+- "genre": The primary genre (e.g., "shooter", "action-adventure", "RPG", "racing"). Null if unknown.
+- "publisher": The game's publisher (e.g., "Electronic Arts", "Rockstar Games"). Null if unknown.
+
+CRITICAL: Only return a game name if you are confident it is correct. Do NOT guess. Return {"gameName": null} if unsure.`,
+        },
+        { role: "user", content: text },
+      ],
+    });
+
+    const content = resp.choices[0]?.message?.content || "";
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```/g, "").trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (parsed.gameName && typeof parsed.gameName === "string" && parsed.gameName.length >= 2) {
+        const gameName = parsed.gameName.trim();
+        await persistDiscoveredGame(gameName, "ai-text-analysis", {
+          genre: parsed.genre || undefined,
+          publisher: parsed.publisher || undefined,
+        });
+        logger.info("AI text analysis identified game", { gameName, genre: parsed.genre, publisher: parsed.publisher });
+        return gameName;
+      }
+    } catch {}
+
+    return null;
+  } catch (err) {
+    logger.debug("AI game lookup failed", { error: String(err).slice(0, 150) });
+    return null;
+  }
+}
+
+export async function getDiscoveredGamesCount(): Promise<number> {
+  try {
+    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(discoveredGames);
+    return row?.count || 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getAllDiscoveredGames(): Promise<Array<{ officialName: string; genre: string | null; publisher: string | null; source: string; timesDetected: number }>> {
+  try {
+    const rows = await db.select({
+      officialName: discoveredGames.officialName,
+      genre: discoveredGames.genre,
+      publisher: discoveredGames.publisher,
+      source: discoveredGames.source,
+      timesDetected: discoveredGames.timesDetected,
+    }).from(discoveredGames).orderBy(sql`${discoveredGames.timesDetected} DESC`).limit(500);
+    return rows;
+  } catch {
+    return [];
   }
 }
