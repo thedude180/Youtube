@@ -4,13 +4,33 @@ let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
+const MAX_PRECALL_WAIT_MS = 30_000;
+
+// Global pre-call throttle: respects the system-wide ai_calls budget so a
+// stampede of engines (we have 60+) cannot blow OpenAI's per-minute limit.
+// If we are over budget we wait (up to MAX_PRECALL_WAIT_MS) instead of firing
+// a doomed request that will come back 429 anyway.
+async function awaitSystemSlot(endpoint: string): Promise<void> {
+  let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
+  const start = Date.now();
+  while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
+    const rl = checkSystemRateLimit("ai_calls");
+    if (rl.allowed) return;
+    const wait = Math.min(rl.retryAfterMs ?? 1000, 5000);
+    await new Promise(r => setTimeout(r, Math.max(wait, 250)));
+  }
+  // Hard-fail rather than silently bypass — caller's catch will record the
+  // failure and the task will be re-tried by its scheduler.
+  throw Object.assign(new Error(`AI throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true, endpoint });
+}
 
 async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      await awaitSystemSlot(endpoint);
       return await fn();
     } catch (err: any) {
       lastErr = err;

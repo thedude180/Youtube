@@ -1,14 +1,14 @@
 import type { Express, Request, Response } from "express";
-import OpenAI from "openai";
 import { chatStorage } from "./storage";
 
 import { createLogger } from "../../lib/logger";
+import { getOpenAIClient } from "../../lib/openai";
 
 const logger = createLogger("routes");
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Route through the wrapped client so chat completions are subject to the
+// global ai_calls throttle and 429 retry-after handling, same as background
+// engines. Previously this raw client bypassed both.
+const openai = getOpenAIClient();
 
 export function registerChatRoutes(app: Express): void {
   // Get all conversations

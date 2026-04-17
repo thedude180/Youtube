@@ -12,13 +12,29 @@ export const CLAUDE_MODELS = {
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 1000;
+const MAX_PRECALL_WAIT_MS = 30_000;
+
+// Same global pre-call throttle as the OpenAI wrapper. Shared budget bucket
+// ("ai_calls") so total AI traffic across providers stays under the cap.
+async function awaitSystemSlot(): Promise<void> {
+  let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
+  const start = Date.now();
+  while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
+    const rl = checkSystemRateLimit("ai_calls");
+    if (rl.allowed) return;
+    const wait = Math.min(rl.retryAfterMs ?? 1000, 5000);
+    await new Promise(r => setTimeout(r, Math.max(wait, 250)));
+  }
+  throw Object.assign(new Error(`Claude throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true });
+}
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      await awaitSystemSlot();
       return await fn();
     } catch (err: any) {
       lastErr = err;
