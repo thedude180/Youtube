@@ -106,7 +106,11 @@ export function getRateLimitPressure(): {
 const systemLimits = new Map<string, SlidingWindow>();
 
 const SYSTEM_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
-  ai_calls: { maxRequests: 60, windowMs: 60000 },
+  // 60/min was too tight: autopilot bursts 25+ videos through optimization in
+  // a single second. gpt-4o-mini's actual provider RPM is much higher (3000+
+  // on tier 1, 30k on tier 5). 250/min gives us headroom for parallel engine
+  // bursts while still preventing a true runaway from blowing the upstream.
+  ai_calls: { maxRequests: 250, windowMs: 60000 },
   db_writes: { maxRequests: 100, windowMs: 60000 },
   api_external: { maxRequests: 50, windowMs: 60000 },
 };

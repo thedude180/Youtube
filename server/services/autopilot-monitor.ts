@@ -1,7 +1,7 @@
 import { db, withRetry } from "../db";
 import { users } from "@shared/models/auth";
-import { streamPipelines, contentPipeline } from "@shared/schema";
-import { eq, and, lt, gte } from "drizzle-orm";
+import { streamPipelines, contentPipeline, autopilotQueue, youtubePushBacklog, channels } from "@shared/schema";
+import { eq, and, lt, gte, sql, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 import { notifyUser, type NotificationSeverity } from "./notifications";
 
@@ -269,6 +269,80 @@ const systemChecks: SystemCheck[] = [
         }
         return { ok: true };
       } catch (err) {
+        return { ok: true };
+      }
+    },
+  },
+  {
+    // Audit-discovered: 521+ autopilot posts and 349 YouTube push-backlog
+    // entries had been silently failing for days with "<platform> is not
+    // connected" / "Channel not connected or missing access token", and the
+    // user was never told. The autopilot path only updates the queue row; no
+    // notification was ever raised. This check surfaces those failures.
+    name: "platform_connections",
+    check: async (userId) => {
+      try {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        // 1. Autopilot queue: any pending or recently-failed posts whose
+        //    error is "<platform> is not connected"?
+        const stuckRows = await db
+          .select({
+            platform: autopilotQueue.targetPlatform,
+            status: autopilotQueue.status,
+            n: sql<number>`count(*)`.as("n"),
+          })
+          .from(autopilotQueue)
+          .where(
+            and(
+              eq(autopilotQueue.userId, userId),
+              gte(autopilotQueue.createdAt, since),
+              inArray(autopilotQueue.status, ["pending", "failed", "permanent_fail"]),
+              sql`${autopilotQueue.errorMessage} ILIKE '%not connected%'`,
+            ),
+          )
+          .groupBy(autopilotQueue.targetPlatform, autopilotQueue.status);
+
+        // 2. YouTube push backlog: failed updates with "Channel not connected"
+        const ytFails = await db
+          .select({ n: sql<number>`count(*)`.as("n") })
+          .from(youtubePushBacklog)
+          .where(
+            and(
+              eq(youtubePushBacklog.userId, userId),
+              eq(youtubePushBacklog.status, "failed"),
+              gte(youtubePushBacklog.createdAt, since),
+              sql`${youtubePushBacklog.lastError} ILIKE '%not connected%'`,
+            ),
+          );
+
+        const platformCounts = new Map<string, number>();
+        for (const row of stuckRows) {
+          platformCounts.set(row.platform, (platformCounts.get(row.platform) ?? 0) + Number(row.n));
+        }
+        const ytPushFails = Number(ytFails[0]?.n ?? 0);
+        if (ytPushFails > 0) {
+          platformCounts.set("youtube", (platformCounts.get("youtube") ?? 0) + ytPushFails);
+        }
+
+        if (platformCounts.size === 0) return { ok: true };
+
+        // Compose a single, actionable message
+        const breakdown = Array.from(platformCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([p, n]) => `${p}: ${n}`)
+          .join(", ");
+        const total = Array.from(platformCounts.values()).reduce((a, b) => a + b, 0);
+        const platformsList = Array.from(platformCounts.keys()).join(", ");
+
+        return {
+          ok: false,
+          // notifyUser dedupes by (userId, title) over 4h, so this won't spam
+          severity: "critical",
+          message: `${total} autopilot posts blocked in the last 24h because these platforms aren't connected: ${platformsList}. Breakdown — ${breakdown}. Reconnect them in Settings → Platforms so the queue can drain.`,
+        };
+      } catch (err: any) {
+        logger.error(`[Autopilot] platform_connections check failed for ${userId}: ${err?.message}`);
         return { ok: true };
       }
     },
