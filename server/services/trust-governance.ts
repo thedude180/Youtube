@@ -298,9 +298,13 @@ export async function evaluateApproval(
   let decision: "approved" | "denied" | "pending_human";
   let reason: string;
 
-  if (tightenMultiplier === 0) {
+  // When trust budget is exhausted, still let GREEN-band actions through —
+  // they are pre-approved low-risk routines (e.g. content_draft) and blocking
+  // them halts autonomous operation without any safety benefit. Only YELLOW
+  // (confidence-gated) and RED (high-risk) actions are denied at exhaustion.
+  if (tightenMultiplier === 0 && rule.bandClass !== "GREEN") {
     decision = "denied";
-    reason = `Trust budget exhausted (${budgetRemaining} remaining) — action blocked`;
+    reason = `Trust budget exhausted (${budgetRemaining} remaining) — ${rule.bandClass} action blocked until reset`;
   } else if (rule.bandClass === "GREEN") {
     decision = "approved";
     reason = "GREEN band — auto-approved";

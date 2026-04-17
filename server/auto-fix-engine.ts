@@ -38,6 +38,12 @@ const QUOTA_PATTERNS = [
   "daily limit", "daily cap", "upload limit", "usage limit", "API limit",
   "userRateLimitExceeded", "quota exceeded",
   "trust budget exhausted", "budget exhausted", "circuit breaker",
+  // Our own platform-budget-tracker deferral messages — these MUST classify
+  // as quota_cap so auto-fix defers until reset instead of burning 3 retries
+  // and abandoning the post.
+  "publishing deferred", "daily budget reached", "daily_limit_reached",
+  "min_gap_not_met", "platform budget", "budget reached", "budget resets",
+  "youtube_quota_exceeded", "youtube_quota_near_limit", "youtube_quota_breaker_tripped",
 ];
 
 const RATE_LIMIT_PATTERNS = [
