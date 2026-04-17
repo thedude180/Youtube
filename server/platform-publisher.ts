@@ -152,12 +152,24 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
     const discordWebhookUrl = (channelData?.platformData as any)?.webhookUrl
       || (channelData?.settings as any)?.webhookUrl;
 
-    if (!discordWebhookUrl) {
+    // Bot-API fallback: if no webhook is configured but the operator has set
+    // DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID env vars (the same secrets the
+    // chat-bridge already uses), post via the Discord REST API instead of
+    // failing. This is what unblocks autopilot Discord posting for the admin
+    // account on day one without requiring a webhook to be created.
+    const botToken = process.env.DISCORD_BOT_TOKEN || null;
+    const botChannelId =
+      (channelData?.platformData as any)?.channelId
+      || (channelData?.settings as any)?.channelId
+      || process.env.DISCORD_CHANNEL_ID
+      || null;
+
+    if (!discordWebhookUrl && (!botToken || !botChannelId)) {
       return {
         success: false,
         platform: "discord",
         skipped: true,
-        error: "Discord requires a webhook URL for posting. Go to Settings > Channels > Discord and add a webhook URL from your Discord server (Server Settings > Integrations > Webhooks).",
+        error: "Discord requires a webhook URL OR a bot token + channel ID. Either add a webhook in Settings > Channels > Discord, or set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID in Secrets.",
       };
     }
 
@@ -181,12 +193,19 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
       discordPayload = { content: discordContent };
     }
 
+    const useWebhook = Boolean(discordWebhookUrl);
+    const targetUrl = useWebhook
+      ? discordWebhookUrl
+      : `https://discord.com/api/v10/channels/${botChannelId}/messages`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (!useWebhook) headers["Authorization"] = `Bot ${botToken}`;
+
     await withRetry(async () => {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 15000);
-      const res = await fetch(discordWebhookUrl, {
+      const res = await fetch(targetUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(discordPayload),
         signal: ctrl.signal,
       });
@@ -196,22 +215,39 @@ async function postToDiscord(accessToken: string, content: string, channelData: 
         const errText = await res.text();
 
         if (res.status === 404) {
-          const nonRetryable: any = new Error("Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord.");
+          const msg = useWebhook
+            ? "Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord."
+            : `Discord channel ${botChannelId} not found. Verify DISCORD_CHANNEL_ID is correct and the bot has been invited to that server with View Channel + Send Messages permission.`;
+          const nonRetryable: any = new Error(msg);
           nonRetryable.status = res.status;
           nonRetryable.nonRetryable = true;
           throw nonRetryable;
         }
 
-        const err: any = new Error(`Discord webhook failed (${res.status}): ${errText.substring(0, 200)}`);
+        if (res.status === 401 || res.status === 403) {
+          const msg = useWebhook
+            ? `Discord webhook auth failed (${res.status}): ${errText.substring(0, 200)}`
+            : `Discord bot auth/permission failed (${res.status}). Verify DISCORD_BOT_TOKEN is valid and the bot has Send Messages permission in channel ${botChannelId}.`;
+          const nonRetryable: any = new Error(msg);
+          nonRetryable.status = res.status;
+          nonRetryable.nonRetryable = true;
+          throw nonRetryable;
+        }
+
+        const err: any = new Error(`Discord ${useWebhook ? "webhook" : "bot post"} failed (${res.status}): ${errText.substring(0, 200)}`);
         err.status = res.status;
         throw err;
       }
-    }, "Discord post", {
+    }, useWebhook ? "Discord webhook post" : "Discord bot post", {
       maxRetries: 3,
       retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
     });
 
-    return { success: true, platform: "discord", postId: `webhook_${Date.now()}` };
+    return {
+      success: true,
+      platform: "discord",
+      postId: `${useWebhook ? "webhook" : "bot"}_${Date.now()}`,
+    };
   } catch (err: any) {
     return { success: false, platform: "discord", error: err.message };
   }
