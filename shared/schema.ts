@@ -843,7 +843,7 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
 export const channelGrowthTracking = pgTable("channel_growth_tracking", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
-  snapshotDate: timestamp("snapshot_date").notNull(),
+  snapshotDate: timestamp("snapshot_date").notNull().defaultNow(),
   period: text("period").notNull().default("daily"),
   baselineViews: integer("baseline_views").default(0),
   baselineSubscribers: integer("baseline_subscribers").default(0),
