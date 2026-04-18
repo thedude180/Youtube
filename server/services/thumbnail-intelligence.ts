@@ -3,7 +3,7 @@ import { thumbnailIntelligence, videos, channels } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
-import { tokenBudget } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 
 const logger = createLogger("thumbnail-intelligence");
 
@@ -178,7 +178,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
       model: "gpt-4o-mini",
       messages: [{
         role: "user",
-        content: `You are a world-class YouTube thumbnail analyst specializing in gaming channels. You've been given reference materials from the web about thumbnails for "${gameName}" and gaming in general.
+        content: `You are a world-class YouTube thumbnail analyst specializing in gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and gaming in general.
 
 REFERENCE IMAGES FOUND (${uniqueRefs.length} results):
 ${uniqueRefs.map((r, i) => `${i + 1}. "${r.title}" — ${r.source}`).join("\n")}
@@ -209,7 +209,7 @@ Return JSON:
     "avoidPatterns": ["clickbait tactics that damage trust — arrows, fake reactions, misleading imagery"]
   },
   "bestPractices": "paragraph — the definitive guide to making thumbnails for this game that get clicks honestly",
-  "gamingNicheInsights": "paragraph — specific to ${gameName} and no-commentary PS5 channels, what visual approaches work best",
+  "gamingNicheInsights": "paragraph — specific to ${sanitizeForPrompt(gameName)} and no-commentary PS5 channels, what visual approaches work best",
   "ctrTactics": "paragraph — proven psychological tactics that increase CTR without being deceptive (contrast, curiosity, visual hierarchy, color blocking)",
   "antiClickbaitGuidelines": "paragraph — how to make thumbnails that promise exactly what the video delivers, building viewer trust and long-term CTR"
 }`,

@@ -8,7 +8,7 @@ import { fetchYouTubeTranscript } from "./youtube";
 import { google } from "googleapis";
 
 import { createLogger } from "./lib/logger";
-import { tokenBudget } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("shorts-pipeline-engine");
 const openai = getOpenAIClient();
@@ -235,11 +235,11 @@ export async function extractClipsFromVideo(
 
   const prompt = `You are a viral shorts/clips extraction expert using proven retention science. Analyze this video and identify 3-8 clip-worthy moments that would perform well as short-form content on TikTok, YouTube Shorts, and Instagram Reels.
 
-Video Title: "${video.title}"
-Description: "${video.description || "Not provided"}"
+Video Title: "${sanitizeForPrompt(video.title)}"
+Description: "${sanitizeForPrompt(video.description || "Not provided")}"
 Duration: ${duration}
 Views: ${views}
-Tags: ${tags}
+Tags: ${sanitizeForPrompt(tags)}
 Type: ${video.type}
 Platform: ${video.platform || "youtube"}
 ${transcriptSection}
@@ -382,9 +382,9 @@ export async function generateClipHook(
 
   const prompt = `You are a viral content hook specialist. Generate an attention-grabbing hook for this short-form clip.
 
-Clip Title: "${clip.title}"
-Clip Description: "${clip.description || ""}"
-Source Video: "${videoTitle}"
+Clip Title: "${sanitizeForPrompt(clip.title)}"
+Clip Description: "${sanitizeForPrompt(clip.description || "")}"
+Source Video: "${sanitizeForPrompt(videoTitle)}"
 Target Platform: ${clip.targetPlatform || "tiktok"}
 
 Create hooks that:
@@ -448,9 +448,9 @@ export async function predictClipVirality(
 
   const prompt = `You are a viral content prediction AI. Predict the virality potential of this clip on a scale of 1-100.
 
-Clip Title: "${clip.title}"
-Clip Description: "${clip.description || ""}"
-Source Video: "${videoTitle}"
+Clip Title: "${sanitizeForPrompt(clip.title)}"
+Clip Description: "${sanitizeForPrompt(clip.description || "")}"
+Source Video: "${sanitizeForPrompt(videoTitle)}"
 Target Platform: ${clip.targetPlatform || "tiktok"}
 Duration: ${clip.endTime && clip.startTime ? Math.round((clip.endTime - clip.startTime)) : "unknown"} seconds
 
@@ -558,7 +558,7 @@ export async function compileAutoReel(
   const topClips = sortedClips.slice(0, 10);
 
   const clipSummary = topClips.map(c =>
-    `- "${c.title}" (score: ${c.optimizationScore || 0}, platform: ${c.targetPlatform || "unknown"}, ${Math.round((c.endTime || 0) - (c.startTime || 0))}s)`
+    `- "${sanitizeForPrompt(c.title)}" (score: ${c.optimizationScore || 0}, platform: ${c.targetPlatform || "unknown"}, ${Math.round((c.endTime || 0) - (c.startTime || 0))}s)`
   ).join("\n");
 
   const prompt = `You are a content compilation expert. Create a compilation reel plan from these top-performing clips.
@@ -566,7 +566,7 @@ export async function compileAutoReel(
 Available Clips:
 ${clipSummary}
 
-${theme ? `Theme/Focus: "${theme}"` : "Select the best combination for maximum engagement."}
+${theme ? `Theme/Focus: "${sanitizeForPrompt(theme)}"` : "Select the best combination for maximum engagement."}
 
 Create a compilation plan as JSON:
 {
@@ -782,17 +782,17 @@ export async function optimizeClipsSEO(
 
   const clipSummary = clips.map((c, i) => ({
     index: i,
-    title: c.title,
-    description: c.description || "",
+    title: sanitizeForPrompt(c.title),
+    description: sanitizeForPrompt(c.description || ""),
     tags: (c.metadata as any)?.tags || [],
     platform: c.targetPlatform,
-    hook: (c.metadata as any)?.hook || "",
+    hook: sanitizeForPrompt((c.metadata as any)?.hook || ""),
     duration: `${Math.round((c.endTime || 0) - (c.startTime || 0))}s`,
   }));
 
   const prompt = `You are a YouTube Shorts SEO specialist for a PS5 no-commentary gaming channel. Optimize these clip titles, descriptions, and tags for maximum YouTube Shorts discoverability.
 
-Source Video: "${sourceVideo.title}"
+Source Video: "${sanitizeForPrompt(sourceVideo.title)}"
 Channel Niche: PS5 Gaming, No Commentary
 
 Clips to optimize:
