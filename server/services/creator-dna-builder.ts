@@ -3,6 +3,7 @@ import { creatorDnaProfiles, type CreatorDnaProfile } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { executeRoutedAICall } from "./ai-model-router";
 import { storage } from "../storage";
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 import { createLogger } from "../lib/logger";
 
@@ -64,7 +65,7 @@ Return a JSON object matching this structure:
   "contentThemes": [{ "topic": "gaming", "sentiment": "positive" }],
   "maturityScore": 0.8
 }`,
-      JSON.stringify({ channelData, videoData })
+      JSON.stringify(sanitizeObjectForPrompt({ channelData, videoData }))
     );
 
     const dnaData = JSON.parse(result.content || "{}");
@@ -142,10 +143,10 @@ export async function withCreatorVoice(userId: string, basePrompt: string): Prom
     voiceBlock = `
 ---
 CREATOR PERSONALITY DNA (Apply this voice to ALL generated content):
-- Tone/Style: ${JSON.stringify(dna.styleVector)}
-- Voice Patterns: ${JSON.stringify(dna.voicePatterns)}
-- Humor: ${JSON.stringify(dna.humorProfile)}
-- Energy Level: ${JSON.stringify(dna.energyMap)}
+- Tone/Style: ${JSON.stringify(sanitizeObjectForPrompt(dna.styleVector))}
+- Voice Patterns: ${JSON.stringify(sanitizeObjectForPrompt(dna.voicePatterns))}
+- Humor: ${JSON.stringify(sanitizeObjectForPrompt(dna.humorProfile))}
+- Energy Level: ${JSON.stringify(sanitizeObjectForPrompt(dna.energyMap))}
 - Key Catchphrases (Use naturally): ${dna.catchphrases.join(", ")}
 - BANNED PHRASES (NEVER USE): ${dna.bannedPhrases.join(", ")}
 - Primary Themes: ${dna.contentThemes.map(t => (t as any).topic).join(", ")}

@@ -163,7 +163,7 @@ const KNOWN_GAMES: Record<string, string[]> = {
 
 export function detectContentContext(title: string, description?: string | null, category?: string | null, metadata?: any): ContentContext {
 // AUDIT FIX: Include metadata in content context signal text for richer niche detection
-  const text = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(description || "")} ${sanitizeForPrompt(category || "")} ${metadata ? JSON.stringify(metadata) : ""}`.toLowerCase();
+  const text = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(description || "")} ${sanitizeForPrompt(category || "")} ${metadata ? JSON.stringify(sanitizeObjectForPrompt(metadata)) : ""}`.toLowerCase();
   const brandKeywords: string[] = metadata?.brandKeywords || [];
 
   if (metadata?.contentNiche) {

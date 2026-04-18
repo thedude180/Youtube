@@ -6,6 +6,7 @@ import {
   contentInsights 
 } from "@shared/schema";
 import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { executeRoutedAICall } from "./ai-model-router";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
@@ -55,9 +56,9 @@ export class GrowthIntelligenceEngine {
       const basePrompt = `Analyze the following channel data, recent video performance, and system insights to generate a 7-day growth plan.
 
 DATA:
-- Channels: ${JSON.stringify(channelData)}
-- Recent Videos: ${JSON.stringify(videoData)}
-- Active Insights: ${JSON.stringify(insights)}
+- Channels: ${JSON.stringify(sanitizeObjectForPrompt(channelData))}
+- Recent Videos: ${JSON.stringify(sanitizeObjectForPrompt(videoData))}
+- Active Insights: ${JSON.stringify(sanitizeObjectForPrompt(insights))}
 
 TASKS:
 1. Identify the single biggest growth lever for this creator right now.

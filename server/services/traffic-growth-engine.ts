@@ -5,7 +5,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 import { createLogger } from "../lib/logger";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("traffic-growth-engine");
 const openai = getOpenAIClient();
@@ -73,13 +73,13 @@ export async function generateTrafficStrategies(userId: string) {
 ${masterWisdom ? "\n" + masterWisdom : ""}${platformInsightsStr}
 
 CHANNEL DATA:
-${JSON.stringify(channelInfo)}
+${JSON.stringify(sanitizeObjectForPrompt(channelInfo))}
 
 RECENT VIDEOS (${videoSummary.length}):
-${JSON.stringify(videoSummary)}
+${JSON.stringify(sanitizeObjectForPrompt(videoSummary))}
 
 TOP PERFORMING KEYWORDS:
-${JSON.stringify(keywordSummary)}
+${JSON.stringify(sanitizeObjectForPrompt(keywordSummary))}
 
 Generate 8-12 specific, actionable strategies across these categories:
 1. ORGANIC SEO (title/tag/description optimization using proven keywords)

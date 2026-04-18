@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { dailyBriefings, autonomousActionLog, growthPlans, revenueStrategies } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
@@ -67,10 +67,10 @@ export class DailyBriefing {
         ${actions.map(a => `- [${sanitizeForPrompt(a.engine)}] ${sanitizeForPrompt(a.action)}: ${a.reasoning || 'No reasoning provided'}`).join('\n')}
 
         Latest Growth Plan:
-        ${growth[0] ? JSON.stringify(growth[0].plan) : 'No new growth plan generated.'}
+        ${growth[0] ? JSON.stringify(sanitizeObjectForPrompt(growth[0].plan)) : 'No new growth plan generated.'}
 
         Latest Revenue Strategy:
-        ${revenue[0] ? JSON.stringify(revenue[0].strategy) : 'No new revenue strategy generated.'}
+        ${revenue[0] ? JSON.stringify(sanitizeObjectForPrompt(revenue[0].strategy)) : 'No new revenue strategy generated.'}
 
         Format the briefing with:
         1. A high-level executive summary (2-3 sentences)

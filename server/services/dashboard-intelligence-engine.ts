@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "../lib/openai";
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { aiInsights, videos, channels, analyticsSnapshots } from "@shared/schema";
 import { eq, desc, and, sql, gte, isNull, or } from "drizzle-orm";
@@ -65,9 +66,9 @@ export async function generateDashboardInsights(userId: string): Promise<{
 
   const prompt = `You are a YouTube/content creator analytics advisor. Analyze this creator's data and generate actionable insights and opportunities.
 
-Channels: ${JSON.stringify(channelSummary)}
-Recent Videos (up to 20): ${JSON.stringify(videoSummary)}
-Analytics Snapshots (last 30 days): ${JSON.stringify(snapshotSummary)}
+Channels: ${JSON.stringify(sanitizeObjectForPrompt(channelSummary))}
+Recent Videos (up to 20): ${JSON.stringify(sanitizeObjectForPrompt(videoSummary))}
+Analytics Snapshots (last 30 days): ${JSON.stringify(sanitizeObjectForPrompt(snapshotSummary))}
 
 Generate a JSON response with:
 1. "insights" - array of observations about their content performance. Each insight has:
@@ -185,8 +186,8 @@ export async function detectTrends(userId: string): Promise<{
   const prompt = `You are a content trend analyst. Analyze this creator's recent performance data and detect trends.
 
 Content Niche(s): ${niches.join(", ") || "general"}
-Recent Videos: ${JSON.stringify(videoData)}
-Performance Timeline: ${JSON.stringify(metricTimeline)}
+Recent Videos: ${JSON.stringify(sanitizeObjectForPrompt(videoData))}
+Performance Timeline: ${JSON.stringify(sanitizeObjectForPrompt(metricTimeline))}
 
 Identify 3-5 trends in their content and performance. For each trend:
 - topic: what the trend is about

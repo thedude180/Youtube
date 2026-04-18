@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue } from "@shared/schema";
 import { eq, desc, and, gte, sql, lt } from "drizzle-orm";
@@ -88,7 +88,7 @@ async function aiAnalyzeCatalog(videos: any[]): Promise<CatalogOpportunity[]> {
         { role: "system", content: JAMIE_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Analyze this YouTube catalog and identify the top ${MAX_OPPORTUNITIES_PER_CYCLE} repurposing opportunities. Return valid JSON matching your output format.\n\nCATALOG:\n${JSON.stringify(videoSummary, null, 2)}`,
+          content: `Analyze this YouTube catalog and identify the top ${MAX_OPPORTUNITIES_PER_CYCLE} repurposing opportunities. Return valid JSON matching your output format.\n\nCATALOG:\n${JSON.stringify(sanitizeObjectForPrompt(videoSummary), null, 2)}`,
         },
       ],
       response_format: { type: "json_object" },

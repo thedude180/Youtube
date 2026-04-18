@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -121,8 +121,8 @@ Be extremely specific and actionable. No generic advice.`;
 
   const pillarsPrompt = `You are a content strategy expert. Based on this niche and brand:
 
-Niche: ${JSON.stringify(nicheAndBrand.niche)}
-Brand: ${JSON.stringify(nicheAndBrand.brandIdentity)}
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(nicheAndBrand.niche))}
+Brand: ${JSON.stringify(sanitizeObjectForPrompt(nicheAndBrand.brandIdentity))}
 
 Create 5 content pillars (recurring content themes/series) and a platform strategy.
 
@@ -193,9 +193,9 @@ Rank platforms by priority (1 = most important). Be specific about WHEN to start
 
   const planPrompt = `You are a content launch strategist. Create a detailed 30-day content plan for a beginner creator.
 
-Niche: ${JSON.stringify(nicheAndBrand.niche)}
-Content Pillars: ${JSON.stringify(pillarsAndPlatform.contentPillars?.map((p: any) => p.name))}
-Platform Priority: ${JSON.stringify(Object.entries(pillarsAndPlatform.platformStrategy || {}).sort((a: any, b: any) => a[1].priority - b[1].priority).map(([k]: any) => k))}
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(nicheAndBrand.niche))}
+Content Pillars: ${JSON.stringify(sanitizeObjectForPrompt(pillarsAndPlatform.contentPillars?.map((p: any) => p.name)))}
+Platform Priority: ${JSON.stringify(sanitizeObjectForPrompt(Object.entries(pillarsAndPlatform.platformStrategy || {}).sort((a: any, b: any) => a[1].priority - b[1].priority).map(([k]: any) => k)))}
 
 Respond with JSON:
 {
@@ -239,8 +239,8 @@ RULES:
 
   const growthPrompt = `You are a creator economy analyst. Build a growth roadmap and monetization timeline.
 
-Niche: ${JSON.stringify(nicheAndBrand.niche)}
-Platforms: ${JSON.stringify(Object.keys(pillarsAndPlatform.platformStrategy || {}))}
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(nicheAndBrand.niche))}
+Platforms: ${JSON.stringify(sanitizeObjectForPrompt(Object.keys(pillarsAndPlatform.platformStrategy || {})))}
 
 Respond with JSON:
 {
@@ -305,7 +305,7 @@ Be realistic with numbers. Don't promise viral success. Base estimates on typica
 
   const formulasPrompt = `You are a viral content expert. Create content formulas and thumbnail strategy for this niche.
 
-Niche: ${JSON.stringify(nicheAndBrand.niche)}
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(nicheAndBrand.niche))}
 Brand Personality: ${nicheAndBrand.brandIdentity?.personality || "Energetic and helpful"}
 
 Respond with JSON:
@@ -430,10 +430,10 @@ export async function generateContentIdeasFromEmpire(userId: string, count: numb
   const prompt = `You are a content idea machine. Based on this creator's empire blueprint, generate ${count} fresh, specific content ideas.
 
 EMPIRE BLUEPRINT:
-- Niche: ${JSON.stringify(blueprint.niche)}
-- Content Pillars: ${JSON.stringify(blueprint.contentPillars?.map((p: any) => ({ name: p.name, description: p.description })))}
+- Niche: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.niche))}
+- Content Pillars: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.contentPillars?.map((p: any) => ({ name: p.name, description: p.description }))))}
 - Brand Personality: ${blueprint.brandIdentity?.personality || "Energetic and helpful"}
-- Content Formulas: ${JSON.stringify(blueprint.contentFormulas?.map((f: any) => ({ name: f.name, hookTemplate: f.hookTemplate })))}
+- Content Formulas: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.contentFormulas?.map((f: any) => ({ name: f.name, hookTemplate: f.hookTemplate }))))}
 
 Generate ${count} content ideas. Each should be UNIQUE and SPECIFIC - not generic suggestions.
 
@@ -499,9 +499,9 @@ Format: ${sanitizeForPrompt(pillar.format)}
 Frequency: ${sanitizeForPrompt(pillar.frequency)}
 
 CREATOR CONTEXT:
-Niche: ${JSON.stringify(blueprint.niche)}
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.niche))}
 Brand: ${blueprint.brandIdentity?.personality || "Energetic and helpful"}
-Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching")}
+Thumbnail Style: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching"))}
 
 Respond with JSON:
 {
@@ -555,11 +555,11 @@ export async function generateLaunchSequence(userId: string) {
   const prompt = `You are a content launch strategist who has orchestrated hundreds of successful creator launches. Build the perfect launch sequence for this creator.
 
 CREATOR'S EMPIRE BLUEPRINT:
-- Niche: ${JSON.stringify(blueprint.niche)}
-- Brand: ${JSON.stringify(blueprint.brandIdentity)}
-- Platforms: ${JSON.stringify(Object.entries(blueprint.platformStrategy || {}).sort((a: any, b: any) => a[1].priority - b[1].priority).map(([k, v]: any) => ({ platform: k, priority: v.priority, role: v.role })))}
-- Content Pillars: ${JSON.stringify(blueprint.contentPillars?.map((p: any) => p.name))}
-- Content Formulas: ${JSON.stringify(blueprint.contentFormulas?.map((f: any) => f.name))}
+- Niche: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.niche))}
+- Brand: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.brandIdentity))}
+- Platforms: ${JSON.stringify(sanitizeObjectForPrompt(Object.entries(blueprint.platformStrategy || {}).sort((a: any, b: any) => a[1].priority - b[1].priority).map(([k, v]: any) => ({ platform: k, priority: v.priority, role: v.role }))))}
+- Content Pillars: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.contentPillars?.map((p: any) => p.name)))}
+- Content Formulas: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.contentFormulas?.map((f: any) => f.name)))}
 
 Create a strategic launch sequence that builds momentum over the first 14 days.
 
@@ -1047,8 +1047,8 @@ export async function createVideoFromIdea(userId: string, contentIdea: {
   const brandContext = blueprint ? `
 Brand Personality: ${blueprint.brandIdentity?.personality || "Energetic and helpful"}
 Content Tone: ${blueprint.brandIdentity?.contentTone || "Casual yet authoritative"}
-Niche: ${JSON.stringify(blueprint.niche?.primary || "general")}
-Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching")}` : "";
+Niche: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.niche?.primary || "general"))}
+Thumbnail Style: ${JSON.stringify(sanitizeObjectForPrompt(blueprint.thumbnailStyle?.overallApproach || "Bold and eye-catching"))}` : "";
 
   let creatorStyleContext = "";
   try {

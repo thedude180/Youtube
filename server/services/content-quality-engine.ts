@@ -1,5 +1,5 @@
 import { getOpenAIClient } from "../lib/openai";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { contentQualityScores, videos } from "@shared/schema";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
@@ -130,7 +130,7 @@ export async function smartSchedule(userId: string, contentType: string, platfor
 Content Type: ${contentType}
 Platform: ${sanitizeForPrompt(platform)}
 Recent Videos (${performanceData.length} total):
-${JSON.stringify(performanceData.slice(0, 20), null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(performanceData.slice(0, 20)), null, 2)}
 
 Respond with this exact JSON structure:
 {

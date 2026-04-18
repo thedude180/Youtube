@@ -16,7 +16,7 @@ import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } f
 import { registerCleanup } from "../services/cleanup-coordinator";
 
 import { createLogger } from "../lib/logger";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("dual-pipeline");
 const PLATFORM_LIMITS = {
@@ -1283,7 +1283,7 @@ Content Category: ${experiment.contentCategory || "general"}
 Platform: ${experiment.platform || "youtube"}
 
 Results by length:
-${JSON.stringify(experiment.results, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(experiment.results), null, 2)}
 
 Determine:
 1. Which length performed best overall (considering views, retention, engagement)

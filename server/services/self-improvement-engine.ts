@@ -8,6 +8,7 @@ import { eq, and, desc, gte, gt, sql, inArray, lt, asc, ne, count, sum, avg, max
 import { createLogger } from "../lib/logger";
 import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
@@ -716,7 +717,7 @@ async function analyzeCrossChannelPerformance(userId: string, userChannels: any[
       const aiResult = await executeRoutedAICall(
         { taskType: "cross_channel_analysis", userId, priority: "low" },
         "You are a multi-channel YouTube growth strategist who thinks like a person running a media empire. Every insight from one channel should feed the others — like cross-training in athletics. Find the DNA of what works and transplant it.",
-        `Source channel top performers (avg ${Math.round(avgViews)} views):\nTitles: ${topTitles}\nGames: ${topGames.join(", ")}\n\nGenerate 2 cross-channel insights. Return JSON array: [{"insightType": "title_pattern|game_selection|upload_timing|thumbnail_style|content_format", "insight": "specific actionable insight", "evidence": {"avgViews": ${Math.round(avgViews)}, "topGames": ${JSON.stringify(topGames)}}, "confidenceScore": 50-100}]`
+        `Source channel top performers (avg ${Math.round(avgViews)} views):\nTitles: ${topTitles}\nGames: ${topGames.join(", ")}\n\nGenerate 2 cross-channel insights. Return JSON array: [{"insightType": "title_pattern|game_selection|upload_timing|thumbnail_style|content_format", "insight": "specific actionable insight", "evidence": {"avgViews": ${Math.round(avgViews)}, "topGames": ${JSON.stringify(sanitizeObjectForPrompt(topGames))}}, "confidenceScore": 50-100}]`
       );
 
       const insights = safeParseJSON(aiResult.content, [] as any[]);
