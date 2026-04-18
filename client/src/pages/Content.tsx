@@ -722,6 +722,17 @@ function LibraryTab() {
     setYtBannerDismissed(true);
   };
 
+  const handleYtBannerConnect = async () => {
+    try {
+      const res = await apiRequest("GET", "/api/youtube/auth");
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setLocation("/settings");
+    }
+  };
+
   const filtered = useMemo(() => {
     if (!videos) return [];
     let list = videos;
@@ -776,7 +787,7 @@ function LibraryTab() {
           <span className="flex-1 text-yellow-700 dark:text-yellow-300">
             Connect YouTube to unlock auto-sync, AI optimization, and upload detection.
           </span>
-          <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs border-yellow-500/40 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-400/20" onClick={() => setLocation("/settings")} data-testid="button-yt-connect-banner">
+          <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs border-yellow-500/40 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-400/20" onClick={handleYtBannerConnect} data-testid="button-yt-connect-banner">
             Connect
           </Button>
           <button onClick={dismissYtBanner} className="shrink-0 text-yellow-600 dark:text-yellow-400 hover:opacity-70" aria-label="Dismiss" data-testid="button-yt-banner-dismiss">

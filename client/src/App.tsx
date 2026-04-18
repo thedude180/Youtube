@@ -660,6 +660,7 @@ function AppContent() {
       queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
       queryClient.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
       setYtModal({ open: true, channelName: channelName || "YouTube" });
+      toast({ title: "YouTube Connected", description: channelName ? `${channelName} is now active.` : "Your channel is connected and running." });
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytNoChannel) {
@@ -754,10 +755,10 @@ function AppContent() {
           </DialogHeader>
           <ul className="mt-1 space-y-2.5">
             {[
-              { icon: Upload, label: "Upload watcher", desc: "New videos are detected and synced automatically" },
-              { icon: Tv2, label: "Live detection", desc: "Goes live? CreatorOS knows instantly" },
-              { icon: Bot, label: "AI optimization", desc: "Titles, descriptions & tags queued for improvement" },
-              { icon: Sparkles, label: "Analytics sync", desc: "Views, likes & revenue pulled on every cycle" },
+              { icon: Upload, label: "Upload watcher (30-min cadence)", desc: "New uploads are detected and synced automatically every 30 minutes" },
+              { icon: Bot, label: "AI game tagging & title optimization", desc: "Titles, descriptions, tags and game names improved by AI on each cycle" },
+              { icon: Sparkles, label: "Clip / Short creation from VODs", desc: "Long videos automatically cut into Shorts and clipped highlights" },
+              { icon: Tv2, label: "Live stream monitoring & broadcast detection", desc: "Goes live? CreatorOS detects it instantly and activates stream tools" },
             ].map(({ icon: Icon, label, desc }) => (
               <li key={label} className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 shrink-0">
