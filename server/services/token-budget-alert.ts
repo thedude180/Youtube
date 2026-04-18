@@ -4,9 +4,14 @@
  * Sends a one-per-engine-per-day email to all admin users when any AI engine
  * crosses the 80% daily token budget threshold.
  *
- * De-duplication is handled in memory by tracking which (engine, utcDay) pairs
- * have already triggered an alert. The set is trimmed of stale days on each
- * check so memory stays bounded.
+ * De-duplication strategy:
+ * - The engine|utcDay key is added to _alertedSet SYNCHRONOUSLY (before any
+ *   awaits) to prevent concurrent invocations from all racing through the guard
+ *   simultaneously — JavaScript's single-threaded event loop guarantees no other
+ *   async frame can run between the .has() check and .add() call.
+ * - If all sends fail (transient error), the key is removed so the next
+ *   consumeBudget() call can retry later that day.
+ * - The set is trimmed of prior-day entries on each check so memory stays bounded.
  */
 
 import { createLogger } from "../lib/logger";
@@ -17,14 +22,26 @@ const logger = createLogger("token-budget-alert");
 const ALERT_THRESHOLD = 0.8;
 
 /**
- * Set of "engine|utcDay" strings that have already received an alert today.
- * Checked before every send to prevent duplicate emails per engine per day.
+ * Set of "engine|utcDay" strings that have already triggered an alert today.
+ * Key is added synchronously before any await to eliminate concurrency races.
+ * Key is removed on total send failure to allow same-day retries.
  */
 const _alertedSet = new Set<string>();
 
 function utcDay(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Derive the app's public base URL using the same env-var pattern as other services. */
+function _appBaseUrl(): string {
+  if (process.env.REPLIT_DOMAINS) {
+    return "https://" + (process.env.REPLIT_DOMAINS.split(",")[0] || "creatoros.replit.app");
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return "https://creatoros.replit.app";
 }
 
 /** Remove stale (not-today) entries to keep the set bounded. */
@@ -51,9 +68,8 @@ async function _getAdminEmails(): Promise<string[]> {
   return Array.from(emails);
 }
 
-function _buildEmailHtml(engine: string, used: number, cap: number): string {
+function _buildEmailHtml(engine: string, used: number, cap: number, settingsUrl: string): string {
   const pct = Math.round((used / cap) * 100);
-  const settingsUrl = "https://creator-os.replit.app/settings/admin-tokens";
   return `
 <!DOCTYPE html>
 <html>
@@ -68,7 +84,7 @@ function _buildEmailHtml(engine: string, used: number, cap: number): string {
       <table width="600" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;overflow:hidden;">
         <tr>
           <td style="background:#dc2626;padding:20px 32px;">
-            <span style="font-size:18px;font-weight:700;color:#fff;">⚠️ CreatorOS — Token Budget Alert</span>
+            <span style="font-size:18px;font-weight:700;color:#fff;">&#9888;&#65039; CreatorOS — Token Budget Alert</span>
           </td>
         </tr>
         <tr>
@@ -91,12 +107,12 @@ function _buildEmailHtml(engine: string, used: number, cap: number): string {
             <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">
               If no action is taken, the engine will stop making AI calls when the cap is reached and resume at UTC midnight when the counter resets.
             </p>
-            <a href="${settingsUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">View Token Budget Settings →</a>
+            <a href="${settingsUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">View Token Budget Settings &#8594;</a>
           </td>
         </tr>
         <tr>
           <td style="padding:16px 32px;background:#0f172a;font-size:12px;color:#475569;text-align:center;">
-            CreatorOS · Alerts are sent once per engine per UTC day · <a href="${settingsUrl}" style="color:#3b82f6;text-decoration:none;">Manage Budgets</a>
+            CreatorOS &middot; Alerts are sent once per engine per UTC day &middot; <a href="${settingsUrl}" style="color:#3b82f6;text-decoration:none;">Manage Budgets</a>
           </td>
         </tr>
       </table>
@@ -111,6 +127,10 @@ function _buildEmailHtml(engine: string, used: number, cap: number): string {
  * Checks if the engine has crossed the 80% threshold and, if this is the first
  * crossing today, sends an email alert to all admin users.
  *
+ * De-duplication is atomic: the key is added to _alertedSet synchronously
+ * (before any await) so concurrent invocations cannot both slip through the
+ * guard. The key is removed on total delivery failure so retries remain possible.
+ *
  * Fire-and-forget — the promise is intentionally not awaited by the caller.
  */
 export async function checkAndAlertTokenBudget(
@@ -123,17 +143,22 @@ export async function checkAndAlertTokenBudget(
   _trimStaleAlerts();
   const key = `${engine}|${utcDay()}`;
   if (_alertedSet.has(key)) return;
-  // NOTE: do NOT add to _alertedSet here — only commit after a successful send
-  // so transient failures don't permanently suppress the day's alert.
+
+  // Pre-mark SYNCHRONOUSLY before any await to prevent concurrent calls from
+  // all passing the guard. If all sends fail, we delete the key below to allow
+  // same-day retries on the next consumeBudget() call.
+  _alertedSet.add(key);
 
   const pct = Math.round((used / cap) * 100);
   logger.warn(`[TokenBudgetAlert] ${engine} at ${pct}% (${used}/${cap}) — sending admin alert`);
+
+  const settingsUrl = `${_appBaseUrl()}/settings/admin-tokens`;
 
   try {
     const { sendGmail } = await import("./gmail-client");
     const adminEmails = await _getAdminEmails();
     const subject = `[CreatorOS] Token Budget Alert: ${engine} at ${pct}%`;
-    const html = _buildEmailHtml(engine, used, cap);
+    const html = _buildEmailHtml(engine, used, cap, settingsUrl);
 
     const results = await Promise.allSettled(
       adminEmails.map(email => sendGmail(email, subject, html))
@@ -141,15 +166,15 @@ export async function checkAndAlertTokenBudget(
 
     const sent = results.filter(r => r.status === "fulfilled" && r.value).length;
     if (sent > 0) {
-      // Only mark as alerted once at least one email is confirmed delivered.
-      // If zero sends succeed, the next consumeBudget call will retry.
-      _alertedSet.add(key);
       logger.info(`[TokenBudgetAlert] Alert sent to ${sent}/${adminEmails.length} admin(s) for engine=${engine}`);
     } else {
+      // All sends failed — remove the pre-mark so the next call can retry.
+      _alertedSet.delete(key);
       logger.warn(`[TokenBudgetAlert] All sends failed for engine=${engine}; will retry on next token consumption`);
     }
   } catch (err: any) {
+    // Remove pre-mark on unexpected errors to allow retry.
+    _alertedSet.delete(key);
     logger.error(`[TokenBudgetAlert] Failed to send alert for ${engine}: ${err?.message ?? err}`);
-    // Do not add to _alertedSet — allow retry on next call.
   }
 }
