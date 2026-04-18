@@ -1486,6 +1486,7 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     logger.warn(`[AITeamEngine] Daily token budget exhausted — skipping task ${task.id} (${task.agentRole})`);
     return { result: { skipped: true, reason: "daily_token_budget_exhausted" } };
   }
+  tokenBudget.consumeBudget("ai-team-engine", 1500);
 
   // callClaude has built-in retry/backoff — no need for a manual retry loop
   const agentResponse = await callClaude({
@@ -1495,7 +1496,6 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     maxTokens: 1500,
     temperature: 0.7,
   });
-  tokenBudget.consumeBudget("ai-team-engine", 1500);
 
   const content = agentResponse.content || "{}";
   let parsed: any;

@@ -80,6 +80,7 @@ Requirements:
       logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping repurpose for video ${videoId}`);
       return { results: [], error: "daily_token_budget_exhausted" };
     }
+    tokenBudget.consumeBudget("repurpose-engine", 4000);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -87,7 +88,6 @@ Requirements:
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
     });
-    tokenBudget.consumeBudget("repurpose-engine", 4000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -205,6 +205,7 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
       logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping B-roll suggestions for video ${videoId}`);
       return { suggestions: [], overallStyle: "", transitionTips: "" };
     }
+    tokenBudget.consumeBudget("repurpose-engine", 2000);
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -212,7 +213,6 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
       response_format: { type: "json_object" },
       max_completion_tokens: 2000,
     });
-    tokenBudget.consumeBudget("repurpose-engine", 2000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");

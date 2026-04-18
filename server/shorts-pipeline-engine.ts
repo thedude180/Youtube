@@ -298,6 +298,7 @@ TikTok-specific optimization (for clips targeting tiktok):
     logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping clip extraction for video ${videoId}`);
     return [];
   }
+  tokenBudget.consumeBudget("shorts-pipeline", 4000);
 
   try {
     const response = await openai.chat.completions.create({
@@ -306,7 +307,6 @@ TikTok-specific optimization (for clips targeting tiktok):
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
     });
-    tokenBudget.consumeBudget("shorts-pipeline", 4000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) return [];
@@ -403,6 +403,7 @@ Return as JSON:
     logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping hook generation for clip ${clipId}`);
     return { hook: "Check this out!", alternatives: [] };
   }
+  tokenBudget.consumeBudget("shorts-pipeline", 500);
 
   try {
     const response = await openai.chat.completions.create({
@@ -411,7 +412,6 @@ Return as JSON:
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
     });
-    tokenBudget.consumeBudget("shorts-pipeline", 500);
 
     const content = response.choices[0]?.message?.content;
     if (!content) return { hook: "Check this out!", alternatives: [] };

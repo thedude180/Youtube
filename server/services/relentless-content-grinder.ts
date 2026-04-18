@@ -216,6 +216,12 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
   const retentionContext = await getRetentionIntelligence(userId, gameName);
   const seoContext = await getSEOKnowledgeForClips(userId, gameName);
 
+  if (!tokenBudget.checkBudget("content-grinder", 3000)) {
+    logger.warn(`[ContentGrinder] extractUntappedMoments: daily budget exhausted, skipping video ${video.id}`);
+    return [];
+  }
+  tokenBudget.consumeBudget("content-grinder", 3000);
+
   try {
     const resp = await callClaude({
       model: CLAUDE_MODELS.sonnet,
@@ -264,7 +270,6 @@ Return ONLY valid JSON:
       maxTokens: 3000,
       temperature: 0.8,
     });
-    tokenBudget.consumeBudget("content-grinder", 3000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);
@@ -328,6 +333,13 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
 
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
   const viewCount = meta.viewCount || meta.views || 0;
+
+  if (!tokenBudget.checkBudget("content-grinder", 2000)) {
+    logger.warn(`[ContentGrinder] viralSEORefresh: daily budget exhausted, skipping video ${video.id}`);
+    return false;
+  }
+  tokenBudget.consumeBudget("content-grinder", 2000);
+
   try {
     const resp = await callClaude({
       model: CLAUDE_MODELS.sonnet,
@@ -364,7 +376,6 @@ Return JSON:
       maxTokens: 2000,
       temperature: 0.7,
     });
-    tokenBudget.consumeBudget("content-grinder", 2000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);
@@ -462,6 +473,13 @@ async function enhanceRetentionPacing(userId: string, video: any): Promise<boole
   if (durSec < 300) return false;
 
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+
+  if (!tokenBudget.checkBudget("content-grinder", 2000)) {
+    logger.warn(`[ContentGrinder] enhanceRetentionPacing: daily budget exhausted, skipping video ${video.id}`);
+    return false;
+  }
+  tokenBudget.consumeBudget("content-grinder", 2000);
+
   try {
     const resp = await callClaude({
       model: CLAUDE_MODELS.sonnet,
@@ -496,7 +514,6 @@ Return JSON:
       maxTokens: 2000,
       temperature: 0.7,
     });
-    tokenBudget.consumeBudget("content-grinder", 2000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);

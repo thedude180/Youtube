@@ -8,7 +8,7 @@ import { shouldRunVodOptimization } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel } from "./ai-engine";
 import { humanizeText } from "./ai-humanizer-engine";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -84,6 +84,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
     logger.warn("[VODOptimizer] Daily token budget exhausted — skipping optimization batch");
     return [];
   }
+  tokenBudget.consumeBudget("vod-optimizer", 4000);
 
   try {
     const response = await openai.chat.completions.create({
@@ -130,7 +131,6 @@ Return ONLY valid JSON array matching this structure:
       temperature: 0.8,
       max_completion_tokens: 3000,
     });
-    tokenBudget.consumeBudget("vod-optimizer", 4000);
 
     const text = response.choices[0]?.message?.content?.trim() || "";
     const jsonMatch = text.match(/\[[\s\S]*\]/);

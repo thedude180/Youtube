@@ -171,6 +171,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
     logger.warn(`[ThumbnailIntelligence] Daily token budget exhausted — skipping research for "${gameName}"`);
     return null;
   }
+  tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
 
   try {
     const resp = await openai.chat.completions.create({
@@ -217,7 +218,6 @@ Return JSON:
       max_completion_tokens: 3000,
       temperature: 0.7,
     });
-    tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
 
     const content = resp.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);

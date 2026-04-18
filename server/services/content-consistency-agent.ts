@@ -286,6 +286,7 @@ Return ONLY valid JSON with these fields:
         logger.warn("[ConsistencyAgent] Daily token budget exhausted — stopping suggestion batch early");
         break;
       }
+      tokenBudget.consumeBudget("content-consistency-agent", 600);
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -294,7 +295,6 @@ Return ONLY valid JSON with these fields:
         max_completion_tokens: 600,
         response_format: { type: "json_object" },
       });
-      tokenBudget.consumeBudget("content-consistency-agent", 600);
 
       const content = response.choices[0]?.message?.content;
       if (content) {
