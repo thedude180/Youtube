@@ -272,16 +272,21 @@ OpenAI, Anthropic, Stripe, Google Mail, GitHub, Replit Auth.
 
 ---
 
-## 10. Vault Auto-Clear (Deployment Safety)
+## 10. Vault Behavior (Dev vs Production)
 
-`vault/` accumulates MP4 downloads from YouTube. 50 GB+ will cause deployment to fail with "Disk quota exceeded."
+`vault/` is the video download directory — behavior intentionally differs by environment.
 
-**Solution already in place in `server/index.ts`:**
-- `clearVault()` runs immediately on every server startup (which happens before every checkpoint)
-- `setInterval(clearVault, 3600000)` runs it hourly during long-running sessions
-- `vault/` is already in `.gitignore`
+**Development (Replit dev workspace):**
+- `clearVault()` runs on every server startup and hourly via setInterval
+- Prevents the dev filesystem from filling with 50 GB+ of MP4s and blocking checkpoints
+- `vault/` is in `.gitignore` so files are never committed
 
-Do not remove this code.
+**Production (deployed app):**
+- Vault is intentionally **never cleared automatically**
+- The owner uses the deployed vault to accumulate downloaded videos and transfer them to an external hard drive — this is core functionality
+- The `NODE_ENV === "production"` guard inside `clearVault()` in `server/index.ts` makes it a no-op in prod
+
+Do not remove the NODE_ENV guard. Do not auto-clear vault in production under any circumstances.
 
 ---
 

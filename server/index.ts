@@ -42,12 +42,18 @@ import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } fr
 import fs from "fs";
 import path from "path";
 
-// ── VAULT AUTO-CLEAR ──────────────────────────────────────────────────────────
-// The vault/ directory accumulates large MP4 files downloaded from YouTube.
-// Keeping them on disk causes deployment to fail with "Disk quota exceeded".
-// We wipe vault/ on every server startup AND on a 1-hour interval so the
-// filesystem stays clean at all times — no manual intervention needed.
+// ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
+// In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
+// environment from hitting disk quota (50 GB+ of MP4s accumulate fast).
+//
+// In PRODUCTION: vault/ is intentionally preserved. The deployed app downloads
+// videos there so the owner can browse and download them to an external drive.
+// Never clear vault/ in production.
 function clearVault(): void {
+  if (process.env.NODE_ENV === "production") {
+    process.stdout.write("[vault-cleanup] Production env — vault preserved for downloads, skipping cleanup\n");
+    return;
+  }
   try {
     const vaultDir = path.resolve(process.cwd(), "vault");
     if (!fs.existsSync(vaultDir)) return;
@@ -67,15 +73,15 @@ function clearVault(): void {
       } catch { /* skip locked/missing file */ }
     }
     if (cleared > 0) {
-      process.stdout.write(`[vault-cleanup] Removed ${cleared} item(s) from vault/\n`);
+      process.stdout.write(`[vault-cleanup] Dev cleanup: removed ${cleared} item(s) from vault/\n`);
     }
   } catch (err: any) {
     process.stdout.write(`[vault-cleanup] Warning: ${err?.message}\n`);
   }
 }
 
-clearVault(); // run immediately on startup
-setInterval(clearVault, 60 * 60 * 1000); // run every hour
+clearVault(); // run immediately on startup (dev only)
+setInterval(clearVault, 60 * 60 * 1000); // run every hour (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { healthBrain } from "./services/health-brain";
