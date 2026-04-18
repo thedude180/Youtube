@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { 
   revenueStrategies, 

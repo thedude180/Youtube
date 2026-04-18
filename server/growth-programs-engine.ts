@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { db } from "./db";
 import { platformGrowthPrograms, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";

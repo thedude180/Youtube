@@ -5,7 +5,7 @@ import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
-import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 
 const logger = createLogger("content-grinder");
 

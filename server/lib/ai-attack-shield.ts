@@ -855,6 +855,7 @@ const DAILY_CAPS: Record<string, number> = {
   "autopilot":                80_000,
   "tos-monitor":              20_000,
   "marketer-engine":          80_000,
+  "auto-thumbnail":           15_000,
 };
 
 const DEFAULT_DAILY_CAP = 20_000;

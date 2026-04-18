@@ -8,7 +8,7 @@ import { fetchYouTubeTranscript } from "./youtube";
 import { google } from "googleapis";
 
 import { createLogger } from "./lib/logger";
-import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("shorts-pipeline-engine");
 const openai = getOpenAIClient();

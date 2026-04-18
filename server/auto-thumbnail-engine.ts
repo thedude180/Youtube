@@ -2,7 +2,7 @@ import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
 import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getQuotaStatus, trackQuotaUsage, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
@@ -13,6 +13,10 @@ const openai = getOpenAIClient();
 const MAX_THUMBNAILS_PER_RUN = 3;
 const disconnectedChannels = new Set<number>();
 let disconnectedChannelsTTL = 0;
+
+const THUMBNAIL_PROMPT_TOKENS = 400;
+const THUMBNAIL_RATE_LIMIT_COOLDOWN_MS = 10 * 60_000;
+let thumbnailRateLimitCooldownUntil = 0;
 
 function isChannelDisconnected(channelId: number): boolean {
   if (Date.now() > disconnectedChannelsTTL) {
@@ -27,6 +31,16 @@ function markChannelDisconnected(channelId: number): void {
 }
 
 async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string, gameName?: string): Promise<string> {
+  if (Date.now() < thumbnailRateLimitCooldownUntil) {
+    logger.info("Auto-thumbnail in rate-limit cooldown — skipping prompt generation", {
+      cooldownRemainingMs: thumbnailRateLimitCooldownUntil - Date.now(),
+    });
+    return "";
+  }
+  if (!tokenBudget.checkBudget("auto-thumbnail", THUMBNAIL_PROMPT_TOKENS)) {
+    logger.info("Auto-thumbnail daily token budget exhausted — skipping prompt generation");
+    return "";
+  }
   try {
     const researchSection = researchContext
       ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE:\nYou have studied real successful gaming thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\nAPPLY these research-backed patterns. Do NOT ignore this intelligence — it comes from analyzing what actually works on YouTube right now.`
@@ -70,9 +84,21 @@ Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16
       ],
       max_completion_tokens: 400,
     });
-    return response.choices[0]?.message?.content?.trim() || "";
-  } catch (err) {
-    logger.error("Failed to generate thumbnail prompt", { error: String(err) });
+    const result = response.choices[0]?.message?.content?.trim() || "";
+    if (result) {
+      tokenBudget.consumeBudget("auto-thumbnail", response.usage?.total_tokens ?? THUMBNAIL_PROMPT_TOKENS);
+    }
+    return result;
+  } catch (err: any) {
+    const msg = String(err?.message || err);
+    if (msg.includes("429") || msg.toLowerCase().includes("rate limit")) {
+      thumbnailRateLimitCooldownUntil = Date.now() + THUMBNAIL_RATE_LIMIT_COOLDOWN_MS;
+      logger.warn("Auto-thumbnail hit 429 rate limit — pausing for 10 minutes", {
+        cooldownUntil: new Date(thumbnailRateLimitCooldownUntil).toISOString(),
+      });
+    } else {
+      logger.error("Failed to generate thumbnail prompt", { error: msg.substring(0, 200) });
+    }
     return "";
   }
 }

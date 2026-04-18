@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";

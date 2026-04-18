@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";

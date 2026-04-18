@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, gte, sql } from "drizzle-orm";

@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";

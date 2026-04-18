@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { videos } from "@shared/schema";
@@ -116,6 +116,10 @@ function hoursFromNow(n: number): Date {
 }
 
 async function optimizeLiveStreamSEO(userId: string, videoId: string | number, gameName: string, currentTitle: string): Promise<void> {
+  if (!tokenBudget.checkBudget("autopilot", 1500)) {
+    logger.info(`[SEO] Token budget exhausted — skipping SEO optimization for video ${videoId}`);
+    return;
+  }
   const { getOpenAIClient } = await import("../lib/openai");
   const openai = getOpenAIClient();
 
@@ -157,6 +161,7 @@ Return JSON:
     temperature: 0.7,
   });
 
+  tokenBudget.consumeBudget("autopilot", resp.usage?.total_tokens ?? 1500);
   const content = resp.choices[0]?.message?.content || "{}";
   const parsed = JSON.parse(content);
 

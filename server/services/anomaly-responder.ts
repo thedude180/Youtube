@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { healthBrain } from "./health-brain";
 import { jobQueue } from "./intelligent-job-queue";
 import { db } from "../db";

@@ -443,6 +443,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     .where(eq(contentVaultBackups.id, vaultEntry.id));
 
   let lastErr = "";
+  let allBotDetected = true;
   for (const playerClient of PLAYER_CLIENTS) {
     try {
       await tryYtDlpDownload(url, outputPath, playerClient, authArgs);
@@ -458,6 +459,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
         }
       }
       lastErr = "Output file not found after download";
+      allBotDetected = false;
     } catch (err: any) {
       lastErr = String(err?.message || err).substring(0, 600);
 
@@ -474,8 +476,19 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
         continue;
       }
 
+      allBotDetected = false;
       logger.warn(`[Vault] ${playerClient} failed for ${youtubeId}: ${lastErr.substring(0, 120)}`);
     }
+  }
+
+  // If every player client was rejected by bot detection, skip permanently —
+  // YouTube won't allow unauthenticated yt-dlp access and retrying wastes resources.
+  if (allBotDetected) {
+    logger.warn(`[Vault] All clients blocked by bot detection for ${youtubeId} — skipping (no cookie auth available)`);
+    await db.update(contentVaultBackups)
+      .set({ status: "skipped", downloadError: "YouTube bot detection — yt-dlp blocked on all clients (no cookie auth)" })
+      .where(eq(contentVaultBackups.id, vaultEntry.id));
+    return false;
   }
 
   const existingMeta = (vaultEntry.metadata as Record<string, any>) || {};

@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";

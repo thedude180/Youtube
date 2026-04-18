@@ -1,5 +1,5 @@
 import { getOpenAIClient } from "./lib/openai";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
 import {

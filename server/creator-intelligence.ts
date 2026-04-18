@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 

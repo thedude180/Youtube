@@ -1,3 +1,4 @@
+import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { complianceRules, channels, complianceChecks } from "@shared/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
