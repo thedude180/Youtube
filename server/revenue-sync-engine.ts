@@ -56,41 +56,13 @@ async function syncYouTubeRevenue(channel: Channel, userId: string): Promise<Rev
         result.totalAmount += amount;
       }
     } else {
-      const monthlyUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channel.channelId}&key=`;
-      const statsRes = await withRetry(() => fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics,contentDetails&id=${channel.channelId}`, {
-        headers: { Authorization: `Bearer ${channel.accessToken}` },
-      }), { label: "YouTube channel stats API" });
-      if (statsRes.ok) {
-        const statsData = await statsRes.json() as any;
-        const stats = statsData.items?.[0]?.statistics;
-        if (stats) {
-          const viewCount = parseInt(stats.viewCount || "0", 10);
-          const estimatedCPM = 3.5;
-          const estimatedMonthlyRevenue = (viewCount / 1000) * estimatedCPM / 12;
-
-          if (estimatedMonthlyRevenue > 0) {
-            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-            const externalId = `yt-est-${channel.channelId}-${monthKey}`;
-            const existing = await storage.getRevenueByExternalId(userId, externalId);
-            if (!existing) {
-              await storage.createRevenueRecord({
-                userId,
-                platform: "youtube",
-                source: "Estimated Ad Revenue",
-                amount: Math.round(estimatedMonthlyRevenue * 100) / 100,
-                currency: "USD",
-                period: monthKey,
-                syncSource: "auto-estimated",
-                externalId,
-                metadata: { syncedAt: new Date().toISOString(), views: viewCount, estimatedRevenue: estimatedMonthlyRevenue },
-                recordedAt: new Date(),
-              });
-              result.recordsSynced++;
-              result.totalAmount += estimatedMonthlyRevenue;
-            }
-          }
-        }
+      const analyticsStatus = analyticsRes.status;
+      if (analyticsStatus === 403 || analyticsStatus === 401) {
+        result.error = "YouTube monetization analytics not accessible — channel may not be in YouTube Partner Program or monetary scope is missing";
+      } else {
+        result.error = `YouTube Analytics API returned status ${analyticsStatus} — skipping revenue sync`;
       }
+      logger.warn("YouTube Analytics API unavailable for revenue sync", { channelId: channel.channelId, status: analyticsStatus });
     }
 
     const memberUrl = `https://www.googleapis.com/youtube/v3/membershipsLevels?part=snippet`;

@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { requireAuth, parseNumericId, asyncHandler } from "./helpers";
 import type { StudioVideo } from "@shared/schema";
 import { createLogger } from "../lib/logger";
+import { fetchChannelCTR } from "../services/youtube-analytics";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -381,12 +382,14 @@ export function registerStudioRoutes(app: Express) {
 
       const meta = getMeta(studioVideo);
       const existingOptions = meta.thumbnailOptions || [];
-      const ctrEstimate = 4 + Math.random() * 8;
+
+      const ctrData = await fetchChannelCTR(userId).catch(() => ({ ctr: null, impressions: 0, source: "none" as const }));
+      const predictedCtr = ctrData.ctr ?? undefined;
 
       existingOptions.push({
         url: dataUrl,
         prompt: promptToUse,
-        predictedCtr: Math.round(ctrEstimate * 10) / 10,
+        ...(predictedCtr != null ? { predictedCtr } : {}),
       });
 
       await storage.updateStudioVideo(id, {
@@ -400,7 +403,7 @@ export function registerStudioRoutes(app: Express) {
         thumbnail: {
           url: dataUrl,
           prompt: promptToUse,
-          predictedCtr: Math.round(ctrEstimate * 10) / 10,
+          ...(predictedCtr != null ? { predictedCtr } : {}),
         },
       });
     } catch (err: unknown) {
