@@ -1096,6 +1096,7 @@ httpServer.listen(
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
+      import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
       storage.deleteOldTokenBudgetUsage(30).then(n => {
         if (n > 0) logger.info("Pruned old token budget usage rows", { deleted: n });
       }).catch(err => logger.warn("Token budget usage cleanup failed", { error: String(err) }));

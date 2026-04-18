@@ -160,6 +160,100 @@ const injectionStats: InjectionCounter = {
   recentEvents: [],
 };
 
+// How many days of injection history to load at startup (env-configurable).
+const INJECTION_RETENTION_DAYS = parseInt(process.env.INJECTION_RETENTION_DAYS ?? "30", 10);
+
+// Lazy cached DB module to avoid circular deps at require time.
+let _injectionDb: typeof import("../db") | null = null;
+let _injectionSchema: typeof import("@shared/schema") | null = null;
+async function _getInjectionDb() {
+  if (!_injectionDb)     _injectionDb     = await import("../db");
+  if (!_injectionSchema) _injectionSchema = await import("@shared/schema");
+  return { db: _injectionDb.db, securityEvents: _injectionSchema.securityEvents };
+}
+
+/** Async fire-and-forget — persist one injection event to security_events. */
+function _persistInjectionEvent(event: InjectionEvent): void {
+  _getInjectionDb()
+    .then(({ db, securityEvents }) => {
+      db.insert(securityEvents).values({
+        userId:    event.userId === "unknown" ? null : event.userId,
+        eventType: "prompt_injection",
+        severity:  "warning",
+        details: {
+          engine:          event.engine,
+          redactedInput:   event.redactedInput,
+          patternsMatched: event.patternsMatched,
+        },
+        blocked:   false,
+        createdAt: new Date(event.detectedAt),
+      }).catch((err: any) => {
+        logger.warn("[AIShield] Failed to persist injection event", { error: err?.message });
+      });
+    })
+    .catch((err: any) => {
+      logger.warn("[AIShield] DB module unavailable for injection persist", { error: err?.message });
+    });
+}
+
+/**
+ * Rehydrate injection counters from security_events on server startup.
+ * Queries the last INJECTION_RETENTION_DAYS days, rebuilds total/byEngine/byUser
+ * and the recent-events ring buffer.  Called once from server/index.ts Wave 1.
+ */
+export async function rehydrateInjectionStats(): Promise<void> {
+  try {
+    const { db, securityEvents } = await _getInjectionDb();
+    const { eq, gte, and, desc } = await import("drizzle-orm");
+
+    const cutoff = new Date(Date.now() - INJECTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({
+        userId:    securityEvents.userId,
+        details:   securityEvents.details,
+        createdAt: securityEvents.createdAt,
+      })
+      .from(securityEvents)
+      .where(and(
+        eq(securityEvents.eventType, "prompt_injection"),
+        gte(securityEvents.createdAt, cutoff),
+      ))
+      .orderBy(desc(securityEvents.createdAt))
+      .limit(10_000); // safety cap
+
+    let loaded = 0;
+    for (const row of rows) {
+      const ts = row.createdAt ? new Date(row.createdAt).getTime() : Date.now();
+
+      const d = (row.details ?? {}) as Record<string, any>;
+      const engine  = typeof d.engine === "string" ? d.engine : "unknown";
+      const userId  = row.userId ?? "unknown";
+
+      injectionStats.total += 1;
+      injectionStats.byEngine[engine] = (injectionStats.byEngine[engine] ?? 0) + 1;
+      injectionStats.byUser[userId]   = (injectionStats.byUser[userId]   ?? 0) + 1;
+
+      if (injectionStats.recentEvents.length < MAX_RECENT_EVENTS) {
+        injectionStats.recentEvents.push({
+          userId,
+          engine,
+          redactedInput:   typeof d.redactedInput === "string" ? d.redactedInput : "",
+          patternsMatched: Array.isArray(d.patternsMatched) ? d.patternsMatched : [],
+          detectedAt: ts,
+        });
+      }
+      loaded++;
+    }
+
+    // DB rows come back newest-first; push to array preserves that order.
+    // recentEvents is expected newest-first (index 0 = most recent).
+    logger.info(`[AIShield] Injection stats rehydrated: ${loaded} event(s) from last ${INJECTION_RETENTION_DAYS} days`);
+  } catch (err: any) {
+    logger.warn(`[AIShield] Injection stats rehydration failed (proceeding empty): ${err?.message ?? err}`);
+  }
+}
+
 const MAX_RECENT_EVENTS = 100;
 
 // ── Injection-spike alerting ──────────────────────────────────────────────────
@@ -310,6 +404,9 @@ export function sanitizeForPrompt(input: unknown, maxLengthOrContext: number | S
     if (injectionStats.recentEvents.length > MAX_RECENT_EVENTS) {
       injectionStats.recentEvents.length = MAX_RECENT_EVENTS;
     }
+
+    // Persist async so detection latency is unaffected.
+    _persistInjectionEvent(event);
   }
 
   return clean.substring(0, maxLength);
