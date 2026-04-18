@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, ADMIN_EMAIL } from "@shared/schema";
+import { eq, or } from "drizzle-orm";
 import { checkInjectionSpike, getSpikeConfig } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
@@ -11,13 +11,19 @@ const POLL_INTERVAL_MS = parseInt(process.env.INJECTION_SPIKE_POLL_MS ?? "60000"
 
 let _intervalId: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * Returns IDs of all admin users. Matches ADMIN_EMAIL (the email-based admin
+ * used by requireAdmin in route helpers) AND any user with role='admin' set
+ * in the DB, so both identity patterns are covered.
+ */
 async function getAdminUserIds(): Promise<string[]> {
   try {
     const admins = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.role, "admin"));
-    return admins.map(a => a.id);
+      .where(or(eq(users.email, ADMIN_EMAIL), eq(users.role, "admin")));
+    const uniqueIds = [...new Set(admins.map(a => a.id))];
+    return uniqueIds;
   } catch (err: any) {
     logger.warn("[InjectionSpikeMonitor] Failed to fetch admin users", { error: err.message });
     return [];

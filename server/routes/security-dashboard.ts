@@ -608,8 +608,14 @@ Return JSON with these exact fields:
       return res.status(400).json({ error: "Provide at least one of: threshold, windowMs, cooldownMs" });
     }
 
-    const hasNaN = Object.values(patch).some(v => Number.isNaN(v));
-    if (hasNaN) return res.status(400).json({ error: "All values must be numeric" });
+    const invalid = Object.entries(patch).find(
+      ([, v]) => !Number.isFinite(v) || v <= 0 || !Number.isInteger(v)
+    );
+    if (invalid) {
+      return res.status(400).json({
+        error: `Invalid value for '${invalid[0]}': must be a positive integer (milliseconds for *Ms fields)`,
+      });
+    }
 
     const updated = setSpikeConfig(patch);
     logger.info("[SecurityDashboard] Admin updated spike config", { userId, patch, updated });
