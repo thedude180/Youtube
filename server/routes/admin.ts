@@ -326,7 +326,7 @@ export function registerAdminRoutes(app: Express) {
     if (!userId) return;
     try {
       const { tokenBudget } = await import("../lib/ai-attack-shield");
-      const snapshot = tokenBudget.getSnapshot();
+      const snapshot = await tokenBudget.getSnapshot();
       res.json(snapshot);
     } catch (e: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });

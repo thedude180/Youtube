@@ -1,5 +1,5 @@
 
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, real, index, uniqueIndex, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -9625,3 +9625,16 @@ export const originalityResearch = pgTable("originality_research", {
   index("or_user_idx").on(t.userId),
   index("or_type_idx").on(t.contentType),
 ]);
+
+export const tokenBudgetUsage = pgTable("token_budget_usage", {
+  engine: varchar("engine", { length: 100 }).notNull(),
+  day: varchar("day", { length: 10 }).notNull(),
+  used: integer("used").notNull().default(0),
+  lastThrottledAt: bigint("last_throttled_at", { mode: "number" }),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("tbu_engine_day_idx").on(t.engine, t.day),
+]);
+
+export type TokenBudgetUsageRow = typeof tokenBudgetUsage.$inferSelect;
+

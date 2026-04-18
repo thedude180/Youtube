@@ -70,6 +70,7 @@ import {
   type TeamActivityLogEntry, type InsertTeamActivityLog,
   studioVideos,
   type StudioVideo, type InsertStudioVideo,
+  tokenBudgetUsage,
 } from "@shared/schema";
 import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
 import { extractGameName } from "./services/video-vault";
@@ -338,6 +339,9 @@ export interface IStorage {
   createStudioVideo(v: InsertStudioVideo): Promise<StudioVideo>;
   updateStudioVideo(id: number, updates: Partial<InsertStudioVideo>): Promise<StudioVideo>;
   deleteStudioVideo(id: number): Promise<void>;
+
+  getTokenBudgetUsage(day: string): Promise<{ engine: string; used: number; lastThrottledAt: number | null }[]>;
+  upsertTokenBudgetUsage(engine: string, day: string, used: number, lastThrottledAt?: number | null): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1843,6 +1847,28 @@ export class DatabaseStorage implements IStorage {
 
   async deleteStudioVideo(id: number): Promise<void> {
     await db.delete(studioVideos).where(eq(studioVideos.id, id));
+  }
+
+  async getTokenBudgetUsage(day: string): Promise<{ engine: string; used: number; lastThrottledAt: number | null }[]> {
+    const rows = await db.select().from(tokenBudgetUsage).where(eq(tokenBudgetUsage.day, day));
+    return rows.map(r => ({
+      engine: r.engine,
+      used: r.used,
+      lastThrottledAt: r.lastThrottledAt ?? null,
+    }));
+  }
+
+  async upsertTokenBudgetUsage(engine: string, day: string, used: number, lastThrottledAt?: number | null): Promise<void> {
+    await db.insert(tokenBudgetUsage)
+      .values({ engine, day, used, lastThrottledAt: lastThrottledAt ?? null, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [tokenBudgetUsage.engine, tokenBudgetUsage.day],
+        set: {
+          used: sql`GREATEST(${tokenBudgetUsage.used}, EXCLUDED.used)`,
+          lastThrottledAt: sql`CASE WHEN ${tokenBudgetUsage.lastThrottledAt} IS NULL THEN EXCLUDED.last_throttled_at WHEN EXCLUDED.last_throttled_at IS NULL THEN ${tokenBudgetUsage.lastThrottledAt} ELSE GREATEST(${tokenBudgetUsage.lastThrottledAt}, EXCLUDED.last_throttled_at) END`,
+          updatedAt: sql`NOW()`,
+        },
+      });
   }
 }
 

@@ -535,6 +535,13 @@ class TokenBudgetGuard {
   private budgets = new Map<string, BudgetEntry>();
   /** Tracks the timestamp of the most recent throttle event per engine (rolling, not reset daily). */
   private lastThrottledAt = new Map<string, number>();
+  /** Resolves when rehydrate() has completed (success or failure). */
+  readonly ready: Promise<void>;
+  private _rehydrateResolve!: () => void;
+
+  constructor() {
+    this.ready = new Promise<void>(resolve => { this._rehydrateResolve = resolve; });
+  }
 
   private entry(engine: string): BudgetEntry {
     const today = utcDayString();
@@ -544,6 +551,40 @@ class TokenBudgetGuard {
       this.budgets.set(engine, e);
     }
     return e;
+  }
+
+  private persistAsync(engine: string, used: number, lastThrottledAt?: number | null): void {
+    const day = utcDayString();
+    import("../storage").then(({ storage }) => {
+      storage.upsertTokenBudgetUsage(engine, day, used, lastThrottledAt).catch(err => {
+        logger.warn(`[TokenBudget] Failed to persist usage for ${engine}: ${err?.message ?? err}`);
+      });
+    }).catch(err => {
+      logger.warn(`[TokenBudget] Failed to import storage for persistence: ${err?.message ?? err}`);
+    });
+  }
+
+  /**
+   * Rehydrate in-memory counters from the database for today's UTC day.
+   * Call this once at server startup so counters survive restarts.
+   */
+  async rehydrate(): Promise<void> {
+    try {
+      const { storage } = await import("../storage");
+      const today = utcDayString();
+      const rows = await storage.getTokenBudgetUsage(today);
+      for (const row of rows) {
+        this.budgets.set(row.engine, { used: row.used, day: today });
+        if (row.lastThrottledAt !== null) {
+          this.lastThrottledAt.set(row.engine, row.lastThrottledAt);
+        }
+      }
+      logger.info(`[TokenBudget] Rehydrated ${rows.length} engine(s) from DB for ${today}`);
+    } catch (err: any) {
+      logger.warn(`[TokenBudget] Rehydration failed (proceeding with empty counters): ${err?.message ?? err}`);
+    } finally {
+      this._rehydrateResolve();
+    }
   }
 
   /**
@@ -556,7 +597,9 @@ class TokenBudgetGuard {
     const e = this.entry(engine);
     if (e.used + estimatedTokens > cap) {
       logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
-      this.lastThrottledAt.set(engine, Date.now());
+      const now = Date.now();
+      this.lastThrottledAt.set(engine, now);
+      this.persistAsync(engine, e.used, now);
       return false;
     }
     return true;
@@ -569,19 +612,36 @@ class TokenBudgetGuard {
   consumeBudget(engine: string, tokens: number): void {
     const e = this.entry(engine);
     e.used += tokens;
+    this.persistAsync(engine, e.used, this.lastThrottledAt.get(engine) ?? null);
   }
 
-  /** Returns current usage snapshot for all engines (useful for health endpoints). */
-  getSnapshot(): Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> {
+  /**
+   * Returns current usage snapshot for all engines by reading from the
+   * persistent store (database). Falls back to in-memory values if the DB
+   * query fails so the endpoint remains available during DB hiccups.
+   */
+  async getSnapshot(): Promise<Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }>> {
     const today = utcDayString();
     const now = Date.now();
     const window24h = 24 * 60 * 60 * 1000;
+
+    let dbRows: { engine: string; used: number; lastThrottledAt: number | null }[] = [];
+    try {
+      const { storage } = await import("../storage");
+      dbRows = await storage.getTokenBudgetUsage(today);
+    } catch (err: any) {
+      logger.warn(`[TokenBudget] getSnapshot DB read failed, falling back to in-memory: ${err?.message ?? err}`);
+    }
+
+    const dbByEngine = new Map(dbRows.map(r => [r.engine, r]));
     const out: Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> = {};
     for (const [eng, cap] of Object.entries(DAILY_CAPS)) {
-      const e = this.budgets.get(eng);
-      const lastTs = this.lastThrottledAt.get(eng) ?? null;
+      const dbRow = dbByEngine.get(eng);
+      const memEntry = this.budgets.get(eng);
+      const used = dbRow ? dbRow.used : (memEntry?.day === today ? memEntry.used : 0);
+      const lastTs = dbRow?.lastThrottledAt ?? this.lastThrottledAt.get(eng) ?? null;
       out[eng] = {
-        used: e?.day === today ? e.used : 0,
+        used,
         cap,
         day: today,
         throttledInLast24h: lastTs !== null && now - lastTs <= window24h,
