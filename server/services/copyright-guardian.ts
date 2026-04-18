@@ -341,7 +341,7 @@ export async function startCopyrightGuardian(userId: string): Promise<void> {
 
   setTimeout(() => {
     runGuardianScan(userId).catch(() => {});
-  }, 30_000);
+  }, jitter(30_000));
 
   state.intervalHandle = setInterval(() => {
     runGuardianScan(userId).catch(() => {});

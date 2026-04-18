@@ -3,7 +3,7 @@ import { streams, trendOverrides, autopilotQueue, videos } from "@shared/schema"
 import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { detectContentContext, type ContentContext } from "./ai-engine";
 import { getOpenAIClient } from "./lib/openai";
-
+import { jitter } from "./lib/timer-utils";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("trend-rider-engine");
@@ -327,5 +327,5 @@ export function startTrendRiderEngine(): void {
     } catch (err) {
       logger.error("Trend lifecycle update failed", { error: String(err) });
     }
-  }, TREND_CHECK_INTERVAL_MS);
+  }, jitter(TREND_CHECK_INTERVAL_MS));
 }

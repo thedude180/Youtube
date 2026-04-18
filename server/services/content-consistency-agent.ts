@@ -399,7 +399,7 @@ export async function startConsistencyAgent(userId: string): Promise<void> {
   const state = getOrInitState(userId);
   if (state.intervalHandle) return;
 
-  setTimeout(() => runConsistencyCheck(userId).catch(() => {}), 45_000);
+  setTimeout(() => runConsistencyCheck(userId).catch(() => {}), jitter(45_000));
 
   state.intervalHandle = setInterval(() => {
     runConsistencyCheck(userId).catch(() => {});

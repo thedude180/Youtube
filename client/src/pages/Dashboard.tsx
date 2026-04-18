@@ -110,7 +110,7 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
 function TaskResultModal({ task, onClose }: { task: any; onClose: () => void }) {
   const { data: result, isLoading } = useQuery<any>({
     queryKey: ["/api/agents/tasks", task?.id, "result"],
-    queryFn: () => fetch(`/api/agents/tasks/${task.id}/result`).then(res => res.json()),
+    queryFn: () => fetch(`/api/agents/tasks/${task.id}/result`, { credentials: "include" }).then(res => res.json()),
     enabled: !!task?.id,
   });
 
@@ -261,7 +261,7 @@ export default function TeamDashboard() {
 
   const { data: activities, isLoading: activitiesLoading } = useQuery<any[]>({
     queryKey: ["/api/agents/activities"],
-    queryFn: () => fetch("/api/agents/activities?limit=40").then(r => r.json()),
+    queryFn: () => fetch("/api/agents/activities?limit=40", { credentials: "include" }).then(r => r.json()),
     refetchInterval: 2 * 60_000,
     staleTime: 60_000,
   });

@@ -627,7 +627,7 @@ export function startInfiniteEvolution(): void {
     runEvolutionCycle().catch(err =>
       logger.warn("Initial evolution cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, 300_000);
+  }, jitter(300_000));
 
   evolutionInterval = setInterval(() => {
     runEvolutionCycle().catch(err =>

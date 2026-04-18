@@ -1597,7 +1597,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     return await db.select().from(users)
+      .where(
+        sql`${users.updatedAt} >= ${cutoff}
+            OR ${users.createdAt} >= ${cutoff}
+            OR ${users.id} IN (SELECT DISTINCT user_id FROM channels WHERE user_id IS NOT NULL)`
+      )
       .orderBy(desc(users.createdAt))
       .limit(500);
   }

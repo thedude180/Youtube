@@ -3982,7 +3982,7 @@ export const notificationPreferences = pgTable("notification_preferences", {
   categories: jsonb("categories").$type<Record<string, boolean>>().default({}),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  userIdx: index("notif_prefs_user_idx").on(table.userId),
+  userIdx: uniqueIndex("notif_prefs_user_idx").on(table.userId),
 }));
 
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
@@ -9374,7 +9374,7 @@ export const empireMetrics = pgTable("empire_metrics", {
 export const videoCatalogLinks = pgTable("video_catalog_links", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
-  channelId: integer("channel_id").notNull(),
+  channelId: integer("channel_id").notNull().references(() => channels.id, { onDelete: "cascade" }),
   platform: text("platform").notNull().default("youtube"),
   platformVideoId: text("platform_video_id").notNull().default(""),
   youtubeId: text("youtube_id").notNull(),
@@ -9412,6 +9412,8 @@ export const videoCatalogLinks = pgTable("video_catalog_links", {
   index("vcl_scheduled_idx").on(t.scheduledForUpload),
   index("vcl_platform_idx").on(t.platform),
   index("vcl_platform_video_idx").on(t.platformVideoId),
+  index("vcl_channel_editing_idx").on(t.channelId, t.editingStatus),
+  index("vcl_user_channel_idx").on(t.userId, t.channelId),
 ]);
 
 export const insertVideoCatalogLinkSchema = createInsertSchema(videoCatalogLinks).omit({ id: true, createdAt: true, updatedAt: true });

@@ -2,6 +2,7 @@ import { db } from "./db";
 import { marketingCampaigns, marketingConfig, channels, videos, trafficStrategies, keywordInsights, notifications, aiResults, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
@@ -110,14 +111,14 @@ async function gatherMarketingIntelligence(userId: string) {
       views: ytChannel.viewCount || 0,
     } : null,
     recentVideos: recentVideos.map(v => ({
-      title: v.title,
+      title: sanitizeForPrompt(v.title, 150),
       type: v.type,
       views: (v.metadata as any)?.viewCount || 0,
       likes: (v.metadata as any)?.likeCount || 0,
       publishedAt: v.publishedAt || v.createdAt,
     })),
-    topKeywords: topKeywords.map(k => ({ keyword: k.keyword, score: k.score, trend: k.trend })),
-    activeStrategies: activeStrategies.map(s => ({ type: s.strategyType, title: s.title, priority: s.priority })),
+    topKeywords: topKeywords.map(k => ({ keyword: sanitizeForPrompt(k.keyword, 80), score: k.score, trend: k.trend })),
+    activeStrategies: activeStrategies.map(s => ({ type: s.strategyType, title: sanitizeForPrompt(s.title, 100), priority: s.priority })),
     activeCampaigns: activeCampaigns.length,
     pendingContent: pendingQueue[0]?.count || 0,
     connectedPlatforms: userChannels.map(c => c.platform),
