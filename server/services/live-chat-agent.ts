@@ -203,7 +203,7 @@ Bad responses (DO NOT do this):
     });
 
     session.recentContext = chattyMessages.slice(-5).map(m =>
-      `${m.authorDetails?.displayName || "viewer"}: ${m.snippet?.textMessageDetails?.messageText || ""}`
+      `${sanitizeForPrompt(m.authorDetails?.displayName || "viewer", 50)}: ${sanitizeForPrompt(m.snippet?.textMessageDetails?.messageText || "", 300)}`
     );
 
     if (questions.length > 0) {
