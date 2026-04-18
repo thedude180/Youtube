@@ -667,7 +667,7 @@ export async function getConnectionHealth(userId: string): Promise<{
   return {
     platforms: Array.from(platformMap.values()),
     guardianStatus: {
-      isRunning: !!guardianInterval,
+      isRunning: !!guardianStop,
       cycleIntervalMin: GUARDIAN_CYCLE_MS / 60000,
       fastRecoveryIntervalMin: FAST_RECOVERY_CYCLE_MS / 60000,
       lastStatsRefreshAt: lastStatsRefresh > 0 ? new Date(lastStatsRefresh).toISOString() : null,
