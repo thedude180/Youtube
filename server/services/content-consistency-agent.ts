@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
 import { jitter } from "../lib/timer-utils";
-import { tokenBudget } from "../lib/ai-attack-shield";
+import { tokenBudget, sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("consistency-agent");
 

@@ -13,7 +13,7 @@ import {
   Shield, Monitor, Smartphone, MapPin, Clock, AlertTriangle,
   Download, HardDrive, LogOut, ShieldCheck, ShieldAlert,
   CheckCircle2, XCircle, Info, Key, Copy, Trash2,
-  Activity, Ban, Zap, Lock, Eye,
+  Activity, Ban, Zap, Lock, Eye, Syringe, Users, Bot,
 } from "lucide-react";
 
 function SecurityOverviewSection() {
@@ -692,12 +692,135 @@ function DataActionsSection() {
   );
 }
 
+function InjectionAttemptsSection() {
+  const { data: stats, isLoading, isError } = useQuery<any>({
+    queryKey: ["/api/security/injection-stats"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 3 * 60_000,
+    retry: false,
+  });
+
+  if (isLoading) return <Skeleton className="h-40" data-testid="skeleton-injection-stats" />;
+  if (isError || !stats) return null;
+
+  const byEngine: Record<string, number> = stats.byEngine || {};
+  const byUser: Record<string, number> = stats.byUser || {};
+  const recentEvents: any[] = Array.isArray(stats.recentEvents) ? stats.recentEvents : [];
+  const total: number = stats.total || 0;
+  const uniqueUsers = Object.keys(byUser).length;
+  const engineEntries = Object.entries(byEngine).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <Card data-testid="card-injection-attempts">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 p-3">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <Syringe className="h-3.5 w-3.5 text-orange-400" />
+          Injection Attempts
+        </CardTitle>
+        <Badge
+          variant="secondary"
+          className={`text-xs no-default-hover-elevate ${total > 0 ? "bg-orange-500/10 text-orange-400" : "bg-emerald-500/10 text-emerald-500"}`}
+          data-testid="badge-injection-total"
+        >
+          {total} detected
+        </Badge>
+      </CardHeader>
+      <CardContent className="p-2 pt-0 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="p-2 rounded bg-secondary/30 text-center" data-testid="metric-injection-total">
+            <Syringe className="w-3.5 h-3.5 text-orange-400 mx-auto mb-1" />
+            <p className="text-lg font-bold" data-testid="text-injection-count">{total}</p>
+            <p className="text-xs text-muted-foreground">Total</p>
+          </div>
+          <div className="p-2 rounded bg-secondary/30 text-center" data-testid="metric-injection-engines">
+            <Bot className="w-3.5 h-3.5 text-muted-foreground mx-auto mb-1" />
+            <p className="text-lg font-bold" data-testid="text-injection-engines">{engineEntries.length}</p>
+            <p className="text-xs text-muted-foreground">Engines Hit</p>
+          </div>
+          <div className="p-2 rounded bg-secondary/30 text-center" data-testid="metric-injection-users">
+            <Users className="w-3.5 h-3.5 text-muted-foreground mx-auto mb-1" />
+            <p className="text-lg font-bold" data-testid="text-injection-users">{uniqueUsers}</p>
+            <p className="text-xs text-muted-foreground">Users Affected</p>
+          </div>
+        </div>
+
+        {engineEntries.length > 0 && (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">By Engine</p>
+            <div className="space-y-1" data-testid="list-injection-by-engine">
+              {engineEntries.map(([engine, count]) => {
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={engine} className="flex items-center gap-2" data-testid={`row-engine-${engine}`}>
+                    <span className="text-xs font-mono text-muted-foreground w-28 truncate shrink-0" data-testid={`text-engine-name-${engine}`}>{engine}</span>
+                    <div className="flex-1 h-1.5 rounded bg-secondary/50 overflow-hidden">
+                      <div
+                        className="h-full rounded bg-orange-400/60"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <Badge variant="secondary" className="text-xs no-default-hover-elevate bg-orange-500/10 text-orange-400 shrink-0" data-testid={`badge-engine-count-${engine}`}>
+                      {count}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {recentEvents.length > 0 ? (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">Recent Events</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" data-testid="table-injection-events">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left p-1.5 font-medium">Time</th>
+                    <th className="text-left p-1.5 font-medium">Engine</th>
+                    <th className="text-left p-1.5 font-medium">User</th>
+                    <th className="text-left p-1.5 font-medium">Input (redacted)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentEvents.map((evt: any, i: number) => (
+                    <tr key={i} className="border-b border-border/30" data-testid={`row-injection-event-${i}`}>
+                      <td className="p-1.5 text-muted-foreground whitespace-nowrap" data-testid={`text-injection-time-${i}`}>
+                        {evt.detectedAt ? new Date(evt.detectedAt).toLocaleString() : "—"}
+                      </td>
+                      <td className="p-1.5 font-mono" data-testid={`text-injection-engine-${i}`}>
+                        {evt.engine || "unknown"}
+                      </td>
+                      <td className="p-1.5 text-muted-foreground font-mono truncate max-w-[80px]" data-testid={`text-injection-user-${i}`}>
+                        {evt.userId || "—"}
+                      </td>
+                      <td className="p-1.5 text-muted-foreground/70 truncate max-w-[140px]" data-testid={`text-injection-input-${i}`}>
+                        {evt.redactedInput || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-4">
+            <CheckCircle2 className="w-6 h-6 text-emerald-500/20 mb-1" />
+            <p className="text-xs text-muted-foreground" data-testid="text-no-injection-events">No injection attempts detected</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SecurityTab() {
   const { isAdvanced } = useAdvancedMode();
 
   return (
     <div className="space-y-3" data-testid="security-tab">
       <SecurityOverviewSection />
+      {isAdvanced && <InjectionAttemptsSection />}
       <CircuitBreakersSection />
       <ApiKeysSection />
       <TwoFactorSection />

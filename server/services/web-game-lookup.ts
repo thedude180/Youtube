@@ -2,6 +2,7 @@ import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { discoveredGames } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("web-game-lookup");
 

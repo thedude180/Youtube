@@ -2,7 +2,7 @@ import { db } from "../db";
 import { complianceRules, discoveredStrategies, notifications } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
-import { tokenBudget } from "../lib/ai-attack-shield";
+import { tokenBudget, sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 
