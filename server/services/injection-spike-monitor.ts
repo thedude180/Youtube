@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { checkInjectionSpike } from "../lib/ai-attack-shield";
+import { checkInjectionSpike, getSpikeConfig } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 
@@ -37,7 +37,13 @@ async function tick(): Promise<void> {
       return;
     }
 
-    const title = `Injection Attack Spike Detected`;
+    // Include a time bucket in the title so each cooldown period generates
+    // a unique notification title, bypassing storage.createNotification's
+    // 4-hour same-title deduplication guard.
+    const config = getSpikeConfig();
+    const bucketMs = Math.max(config.cooldownMs, 4 * 60 * 60 * 1000);
+    const bucket = Math.floor(Date.now() / bucketMs);
+    const title = `Injection Attack Spike Detected #${bucket}`;
     const message = `${spike.count} prompt injection attempt${spike.count !== 1 ? "s" : ""} detected in the last ${windowMinutes} minute${windowMinutes !== 1 ? "s" : ""} (threshold: ${spike.threshold}). ${spike.uniqueUsers} unique user${spike.uniqueUsers !== 1 ? "s" : ""} affected.`;
 
     await Promise.allSettled(

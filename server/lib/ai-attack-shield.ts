@@ -163,11 +163,31 @@ const injectionStats: InjectionCounter = {
 const MAX_RECENT_EVENTS = 100;
 
 // ── Injection-spike alerting ──────────────────────────────────────────────────
-// Configurable via environment variables so admins can tune without a code push.
-const SPIKE_THRESHOLD = parseInt(process.env.INJECTION_SPIKE_THRESHOLD ?? "5", 10);
-const SPIKE_WINDOW_MS = parseInt(process.env.INJECTION_SPIKE_WINDOW_MS ?? "300000", 10); // 5 min
-const SPIKE_COOLDOWN_MS = parseInt(process.env.INJECTION_SPIKE_COOLDOWN_MS ?? "1800000", 10); // 30 min
+// Environment variables set the startup defaults; admins can override at runtime
+// via the PATCH /api/security/injection-spike-config endpoint without redeploying.
+export interface SpikeConfig {
+  threshold: number;
+  windowMs: number;
+  cooldownMs: number;
+}
+const spikeConfig: SpikeConfig = {
+  threshold:  parseInt(process.env.INJECTION_SPIKE_THRESHOLD  ?? "5",       10),
+  windowMs:   parseInt(process.env.INJECTION_SPIKE_WINDOW_MS  ?? "300000",  10), // 5 min
+  cooldownMs: parseInt(process.env.INJECTION_SPIKE_COOLDOWN_MS ?? "1800000", 10), // 30 min
+};
 let lastSpikeAlertAt = 0;
+
+export function getSpikeConfig(): SpikeConfig {
+  return { ...spikeConfig };
+}
+
+export function setSpikeConfig(patch: Partial<SpikeConfig>): SpikeConfig {
+  if (patch.threshold  !== undefined) spikeConfig.threshold  = Math.max(1, patch.threshold);
+  if (patch.windowMs   !== undefined) spikeConfig.windowMs   = Math.max(60_000, patch.windowMs);
+  if (patch.cooldownMs !== undefined) spikeConfig.cooldownMs = Math.max(60_000, patch.cooldownMs);
+  logger.info("[AIShield] Spike alert config updated", { ...spikeConfig });
+  return { ...spikeConfig };
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const REDACT_EMAIL = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
@@ -203,30 +223,32 @@ export interface InjectionSpikeResult {
 /**
  * checkInjectionSpike — call periodically (e.g. every 60s) to detect
  * bursts of injection attempts. Returns shouldAlert=true at most once
- * per SPIKE_COOLDOWN_MS interval so notifications aren't spammed.
+ * per spikeConfig.cooldownMs interval so notifications aren't spammed.
+ * Uses the live spikeConfig so admin PATCH calls take effect immediately.
  */
 export function checkInjectionSpike(): InjectionSpikeResult {
   const now = Date.now();
-  const cutoff = now - SPIKE_WINDOW_MS;
+  const { threshold, windowMs, cooldownMs } = spikeConfig;
+  const cutoff = now - windowMs;
 
   const windowEvents = injectionStats.recentEvents.filter(e => e.detectedAt >= cutoff);
   const count = windowEvents.length;
   const uniqueUsers = new Set(windowEvents.map(e => e.userId)).size;
 
-  const cooldownExpired = now - lastSpikeAlertAt > SPIKE_COOLDOWN_MS;
-  const shouldAlert = count >= SPIKE_THRESHOLD && cooldownExpired;
+  const cooldownExpired = now - lastSpikeAlertAt > cooldownMs;
+  const shouldAlert = count >= threshold && cooldownExpired;
 
   if (shouldAlert) {
     lastSpikeAlertAt = now;
-    logger.warn(`[AIShield] Injection spike detected: ${count} attempts in ${Math.round(SPIKE_WINDOW_MS / 60_000)} minutes`, {
+    logger.warn(`[AIShield] Injection spike detected: ${count} attempts in ${Math.round(windowMs / 60_000)} minutes`, {
       count,
-      threshold: SPIKE_THRESHOLD,
-      windowMs: SPIKE_WINDOW_MS,
+      threshold,
+      windowMs,
       uniqueUsers,
     });
   }
 
-  return { shouldAlert, count, windowMs: SPIKE_WINDOW_MS, threshold: SPIKE_THRESHOLD, uniqueUsers };
+  return { shouldAlert, count, windowMs, threshold, uniqueUsers };
 }
 
 export interface SanitizeContext {

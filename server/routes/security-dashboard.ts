@@ -11,7 +11,7 @@ import { securityEvents } from "@shared/schema";
 import { desc, eq, gte, and, count, sql, inArray } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
-import { sanitizeForPrompt, getInjectionStats, tokenBudget } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, getInjectionStats, tokenBudget, getSpikeConfig, setSpikeConfig } from "../lib/ai-attack-shield";
 import { getLearningStats } from "../lib/threat-learning-engine";
 
 const logger = createLogger("security-dashboard");
@@ -575,5 +575,50 @@ Return JSON with these exact fields:
       logger.warn("[SecurityDashboard] Failed to fetch injection summary", { err });
       res.status(500).json({ error: "Failed to load security summary" });
     }
+  });
+
+  // GET  /api/security/injection-spike-config — returns live thresholds
+  app.get("/api/security/injection-spike-config", (req: any, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const config = getSpikeConfig();
+    res.json({
+      threshold:  config.threshold,
+      windowMs:   config.windowMs,
+      cooldownMs: config.cooldownMs,
+      windowMinutes:   Math.round(config.windowMs   / 60_000),
+      cooldownMinutes: Math.round(config.cooldownMs / 60_000),
+    });
+  });
+
+  // PATCH /api/security/injection-spike-config — update thresholds at runtime
+  // without redeploying. Changes are in-memory and reset on server restart.
+  app.patch("/api/security/injection-spike-config", (req: any, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+
+    const { threshold, windowMs, cooldownMs } = req.body ?? {};
+    const patch: Record<string, number> = {};
+
+    if (threshold  !== undefined) patch.threshold  = Number(threshold);
+    if (windowMs   !== undefined) patch.windowMs   = Number(windowMs);
+    if (cooldownMs !== undefined) patch.cooldownMs = Number(cooldownMs);
+
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: "Provide at least one of: threshold, windowMs, cooldownMs" });
+    }
+
+    const hasNaN = Object.values(patch).some(v => Number.isNaN(v));
+    if (hasNaN) return res.status(400).json({ error: "All values must be numeric" });
+
+    const updated = setSpikeConfig(patch);
+    logger.info("[SecurityDashboard] Admin updated spike config", { userId, patch, updated });
+    res.json({
+      threshold:  updated.threshold,
+      windowMs:   updated.windowMs,
+      cooldownMs: updated.cooldownMs,
+      windowMinutes:   Math.round(updated.windowMs   / 60_000),
+      cooldownMinutes: Math.round(updated.cooldownMs / 60_000),
+    });
   });
 }
