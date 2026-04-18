@@ -172,6 +172,20 @@ async function _getInjectionDb() {
   return { db: _injectionDb.db, securityEvents: _injectionSchema.securityEvents };
 }
 
+// ── Rehydration concurrency guard ────────────────────────────────────────────
+// While rehydrateInjectionStats() is running, new events must not increment
+// the in-memory counters that are being overwritten by DB values. Instead they
+// are queued here and applied atomically once the DB load finishes.
+let _rehydrating = false;
+const _midRehydrateQueue: Array<{ engine: string; userId: string }> = [];
+
+/** Increment the three aggregate counters (total/byEngine/byUser). */
+function _applyToStats(engine: string, userId: string): void {
+  injectionStats.total += 1;
+  injectionStats.byEngine[engine] = (injectionStats.byEngine[engine] ?? 0) + 1;
+  injectionStats.byUser[userId]   = (injectionStats.byUser[userId]   ?? 0) + 1;
+}
+
 /** Async fire-and-forget — persist one injection event to security_events. */
 function _persistInjectionEvent(event: InjectionEvent): void {
   _getInjectionDb()
@@ -200,25 +214,29 @@ function _persistInjectionEvent(event: InjectionEvent): void {
  * Rehydrate injection counters from security_events on server startup.
  *
  * Design decisions:
- * - Totals (total/byEngine/byUser) are ALL-TIME cumulative — no retention window.
- *   The 30-day window applies only to which events appear in recentEvents.
- * - After loading DB aggregates, any in-memory events that arrived in the boot
- *   window AND whose async DB writes have not yet committed (detectedAt is newer
- *   than the most recent persisted event) are re-applied as deltas so no event
- *   is silently dropped even in the rare async-write-lag edge case.
+ * - Sets _rehydrating=true before any awaits. New injection events during this
+ *   window are queued in _midRehydrateQueue and applied atomically in `finally`
+ *   so the DB load cannot overwrite live traffic.
+ * - Boot-window events (before rehydrate was called) are reconciled by comparing
+ *   their detectedAt against the latest DB event — events newer than DB are
+ *   re-applied in case their async write hadn't committed yet.
+ * - Totals are ALL-TIME cumulative (no retention window) for accuracy.
+ *   The retention window applies only to which events appear in recentEvents.
  *
  * Called once from server/index.ts Wave 1 (T+5s).
  */
 export async function rehydrateInjectionStats(): Promise<void> {
+  // Snapshot pre-rehydrate ring buffer before touching state.
+  const bootWindowEvents = injectionStats.recentEvents.slice();
+
+  // Activate lock: new detections will be buffered, not applied directly.
+  _rehydrating = true;
+
   try {
     const { db, securityEvents } = await _getInjectionDb();
     const { eq, gte, and, desc, count, sql } = await import("drizzle-orm");
 
-    // Snapshot boot-window events BEFORE we reset, so we can reconcile deltas
-    // for any async writes that haven't committed to DB yet.
-    const bootWindowEvents = injectionStats.recentEvents.slice();
-
-    // Reset in-memory state so we can replace with authoritative DB values.
+    // Reset in-memory state — DB values will replace everything.
     injectionStats.total    = 0;
     injectionStats.byEngine = {};
     injectionStats.byUser   = {};
@@ -226,14 +244,14 @@ export async function rehydrateInjectionStats(): Promise<void> {
 
     const allTimeWhere = eq(securityEvents.eventType, "prompt_injection");
 
-    // ── 1. ALL-TIME total count (no retention window — cumulative accuracy) ───
+    // ── 1. ALL-TIME total (no window — cumulative accuracy) ───────────────────
     const [totalRow] = await db
       .select({ total: count() })
       .from(securityEvents)
       .where(allTimeWhere);
     injectionStats.total = totalRow?.total ?? 0;
 
-    // ── 2. ALL-TIME per-engine counts (GROUP BY on jsonb field) ──────────────
+    // ── 2. ALL-TIME per-engine counts ─────────────────────────────────────────
     const engineRows = await db
       .select({
         engine: sql<string>`${securityEvents.details}->>'engine'`.as("engine"),
@@ -280,18 +298,15 @@ export async function rehydrateInjectionStats(): Promise<void> {
     }
 
     // ── 5. Reconcile boot-window events not yet committed to DB ───────────────
-    // If a boot-window event's write hadn't committed before our queries ran,
-    // its detectedAt will be newer than the latest DB event — re-apply it so it
-    // isn't silently dropped.
+    // Events detected before rehydrate started whose async writes hadn't
+    // committed yet (detectedAt > latestDbEventTime) must be re-applied.
     const latestDbTime = injectionStats.recentEvents.length > 0
       ? injectionStats.recentEvents[0].detectedAt
       : 0;
     let reconciled = 0;
     for (const ev of bootWindowEvents) {
       if (ev.detectedAt > latestDbTime) {
-        injectionStats.total += 1;
-        injectionStats.byEngine[ev.engine] = (injectionStats.byEngine[ev.engine] ?? 0) + 1;
-        injectionStats.byUser[ev.userId]   = (injectionStats.byUser[ev.userId]   ?? 0) + 1;
+        _applyToStats(ev.engine, ev.userId);
         reconciled++;
       }
     }
@@ -304,6 +319,13 @@ export async function rehydrateInjectionStats(): Promise<void> {
     );
   } catch (err: any) {
     logger.warn(`[AIShield] Injection stats rehydration failed (proceeding empty): ${err?.message ?? err}`);
+  } finally {
+    // Unlock and drain the mid-rehydrate queue atomically.
+    _rehydrating = false;
+    for (const delta of _midRehydrateQueue) {
+      _applyToStats(delta.engine, delta.userId);
+    }
+    _midRehydrateQueue.length = 0;
   }
 }
 
@@ -442,10 +464,6 @@ export function sanitizeForPrompt(input: unknown, maxLengthOrContext: number | S
       patternsMatched: matchedPatterns.length,
     });
 
-    injectionStats.total += 1;
-    injectionStats.byEngine[engine] = (injectionStats.byEngine[engine] ?? 0) + 1;
-    injectionStats.byUser[userId] = (injectionStats.byUser[userId] ?? 0) + 1;
-
     const event: InjectionEvent = {
       userId,
       engine,
@@ -453,6 +471,15 @@ export function sanitizeForPrompt(input: unknown, maxLengthOrContext: number | S
       patternsMatched: matchedPatterns,
       detectedAt: Date.now(),
     };
+
+    if (_rehydrating) {
+      // Rehydration is mid-flight — queue the delta so it's applied atomically
+      // after DB values are written, preventing the DB load from overwriting it.
+      _midRehydrateQueue.push({ engine, userId });
+    } else {
+      _applyToStats(engine, userId);
+    }
+
     injectionStats.recentEvents.unshift(event);
     if (injectionStats.recentEvents.length > MAX_RECENT_EVENTS) {
       injectionStats.recentEvents.length = MAX_RECENT_EVENTS;
