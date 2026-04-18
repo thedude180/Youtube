@@ -520,6 +520,8 @@ function utcDayString(): string {
 
 class TokenBudgetGuard {
   private budgets = new Map<string, BudgetEntry>();
+  /** Tracks the timestamp of the most recent throttle event per engine (rolling, not reset daily). */
+  private lastThrottledAt = new Map<string, number>();
 
   private entry(engine: string): BudgetEntry {
     const today = utcDayString();
@@ -534,12 +536,14 @@ class TokenBudgetGuard {
   /**
    * Check whether an engine has remaining budget for an estimated token cost.
    * Returns true (allowed) or false (exhausted — caller should skip and log).
+   * When throttled, records the timestamp so getSnapshot() can surface it.
    */
   checkBudget(engine: string, estimatedTokens = 2000): boolean {
     const cap = DAILY_CAPS[engine] ?? DEFAULT_DAILY_CAP;
     const e = this.entry(engine);
     if (e.used + estimatedTokens > cap) {
       logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
+      this.lastThrottledAt.set(engine, Date.now());
       return false;
     }
     return true;
@@ -555,12 +559,21 @@ class TokenBudgetGuard {
   }
 
   /** Returns current usage snapshot for all engines (useful for health endpoints). */
-  getSnapshot(): Record<string, { used: number; cap: number; day: string }> {
+  getSnapshot(): Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> {
     const today = utcDayString();
-    const out: Record<string, { used: number; cap: number; day: string }> = {};
+    const now = Date.now();
+    const window24h = 24 * 60 * 60 * 1000;
+    const out: Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> = {};
     for (const [eng, cap] of Object.entries(DAILY_CAPS)) {
       const e = this.budgets.get(eng);
-      out[eng] = { used: e?.day === today ? e.used : 0, cap, day: today };
+      const lastTs = this.lastThrottledAt.get(eng) ?? null;
+      out[eng] = {
+        used: e?.day === today ? e.used : 0,
+        cap,
+        day: today,
+        throttledInLast24h: lastTs !== null && now - lastTs <= window24h,
+        lastThrottledAt: lastTs,
+      };
     }
     return out;
   }

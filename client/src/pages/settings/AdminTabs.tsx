@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
@@ -458,5 +458,122 @@ function AdminSystemHealthTab() {
   );
 }
 
-export { AdminCodesTab, AdminUsersTab, AdminSystemHealthTab };
+interface BudgetEngineInfo {
+  used: number;
+  cap: number;
+  day: string;
+  throttledInLast24h: boolean;
+  lastThrottledAt: number | null;
+}
+
+function AdminTokenBudgetTab() {
+  const { data, isLoading, refetch, isFetching } = useQuery<Record<string, BudgetEngineInfo>>({
+    queryKey: ["/api/admin/token-budget"],
+    refetchInterval: 60_000,
+  });
+
+  const now = new Date();
+  const nextResetUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const msUntilReset = nextResetUtc.getTime() - now.getTime();
+  const hoursLeft = Math.floor(msUntilReset / 3_600_000);
+  const minutesLeft = Math.floor((msUntilReset % 3_600_000) / 60_000);
+  const resetCountdown = `${hoursLeft}h ${minutesLeft}m`;
+  const resetTimestamp = nextResetUtc.toISOString().replace("T", " ").slice(0, 16) + " UTC";
+
+  const utcDate = data ? Object.values(data)[0]?.day ?? "" : "";
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-48 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  const entries = data ? Object.entries(data) : [];
+
+  return (
+    <div className="space-y-4" data-testid="admin-token-budget">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Coins className="w-5 h-5" />
+          AI Token Budget
+        </h3>
+        <div className="flex items-center gap-3 flex-wrap">
+          {utcDate && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="text-budget-reset">
+              <Clock className="h-3 w-3" />
+              Resets at {resetTimestamp} (in {resetCountdown})
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            data-testid="button-refresh-token-budget"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <Card data-testid="card-token-budget">
+        <CardContent className="pt-4">
+          {entries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No budget data available yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {entries.map(([engine, info]) => {
+                const pct = info.cap > 0 ? Math.min(100, Math.round((info.used / info.cap) * 100)) : 0;
+                const throttled = info.throttledInLast24h;
+                return (
+                  <div
+                    key={engine}
+                    className={`p-3 rounded-md ${throttled ? "bg-red-500/10 border border-red-500/30" : "bg-muted/40"}`}
+                    data-testid={`budget-row-${engine}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {throttled && <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />}
+                        <span className="text-sm font-medium" data-testid={`text-engine-name-${engine}`}>{engine}</span>
+                        {throttled && (
+                          <Badge variant="destructive" className="text-xs" data-testid={`badge-throttled-${engine}`}>
+                            Throttled
+                          </Badge>
+                        )}
+                        {throttled && info.lastThrottledAt && (
+                          <span className="text-xs text-red-400/70" data-testid={`text-throttled-at-${engine}`}>
+                            last at {new Date(info.lastThrottledAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs font-mono ${throttled ? "text-red-400" : "text-muted-foreground"}`}
+                        data-testid={`text-budget-usage-${engine}`}
+                      >
+                        {info.used.toLocaleString()} / {info.cap.toLocaleString()} tokens ({pct}%)
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${throttled ? "bg-red-500" : pct >= 80 ? "bg-amber-400" : "bg-emerald-400"}`}
+                        style={{ width: `${pct}%` }}
+                        data-testid={`bar-budget-${engine}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export { AdminCodesTab, AdminUsersTab, AdminSystemHealthTab, AdminTokenBudgetTab };
 export default SubscriptionTab;

@@ -321,6 +321,18 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/token-budget", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const { tokenBudget } = await import("../lib/ai-attack-shield");
+      const snapshot = tokenBudget.getSnapshot();
+      res.json(snapshot);
+    } catch (e: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
   app.get("/api/user/export", async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
