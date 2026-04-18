@@ -51,6 +51,25 @@ export function AppSidebar() {
     staleTime: 60_000,
   });
 
+  const { data: profile } = useQuery<any>({
+    queryKey: ["/api/user/profile"],
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+
+  const isAdmin = profile?.role === "admin";
+
+  const { data: tokenBudget } = useQuery<Record<string, { used: number; cap: number; day: string }>>({
+    queryKey: ["/api/admin/token-budget"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
+    enabled: isAdmin,
+  });
+
+  const hasTokenWarning = isAdmin && !!tokenBudget && Object.values(tokenBudget).some(
+    (info) => info.cap > 0 && info.used / info.cap >= 0.8
+  );
+
   const activeAgents = agentStatus?.filter((a: any) => a.status === "active").length ?? 0;
   const totalAgents = agentStatus?.length ?? 14;
 
@@ -97,6 +116,9 @@ export function AppSidebar() {
                     <span className={`font-medium transition-colors duration-150 ${active ? "text-foreground" : ""}`}>{item.label}</span>
                     {item.href === "/stream" && stats?.isLive && (
                       <span className="ml-auto text-[9px] font-bold text-red-400 bg-red-500/15 border border-red-500/25 px-1.5 py-0.5 rounded-full animate-pulse">LIVE</span>
+                    )}
+                    {item.href === "/settings" && hasTokenWarning && (
+                      <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_hsl(0_84%_60%/0.6)] animate-pulse" data-testid="badge-settings-token-warning" />
                     )}
                   </Link>
                 </SidebarMenuButton>
