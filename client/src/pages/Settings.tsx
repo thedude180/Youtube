@@ -389,7 +389,15 @@ function PlatformConnectionsCard({
                           </Badge>
                         </div>
                         {status === "disconnected" ? (
-                          <p className="text-xs text-amber-400 mt-0.5">No OAuth token — click Connect to authorize</p>
+                          <div className="mt-0.5">
+                            <p className="text-xs text-amber-400">No OAuth token — click Connect to authorize</p>
+                            {p.isYouTube && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Google Cloud Console → OAuth → Redirect URI:{" "}
+                                <span className="font-mono text-primary/80 break-all">{window.location.origin}/api/youtube/callback</span>
+                              </p>
+                            )}
+                          </div>
                         ) : status === "expired" ? (
                           <p className="text-xs text-red-400 mt-0.5">Token expired — click Reconnect to re-authorize</p>
                         ) : hi ? (

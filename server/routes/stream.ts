@@ -786,28 +786,46 @@ export function registerStreamRoutes(app: Express) {
     if (!userId) return;
     try {
       const result = await cached(`youtube-live-status:${userId}`, 10, async () => {
-        const channels = await storage.getChannelsByUser(userId);
-        const ytChannel = channels.find(c => c.platform === "youtube" && c.accessToken);
-        if (!ytChannel) {
-          return { connected: false, broadcasts: [], activeStream: null };
+        const userChannels = await storage.getChannelsByUser(userId);
+        const ytChannelAuth = userChannels.find(c => c.platform === "youtube" && c.accessToken);
+        const ytChannelAny = userChannels.find(c => c.platform === "youtube");
+
+        const streamList = await storage.getStreams(userId);
+        const liveStream = streamList.find((s: any) => s.status === "live");
+
+        if (!ytChannelAuth) {
+          // No OAuth token — attempt public detection via watch-page RSS if we have a channel ID
+          if (ytChannelAny?.channelId) {
+            const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAny.channelId);
+            const broadcasts = isLive
+              ? [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }]
+              : [];
+            return {
+              connected: false,
+              oauthRequired: true,
+              channelName: ytChannelAny.channelName,
+              broadcasts,
+              activeStream: liveStream || null,
+              detectionMethod: "rss_public",
+            };
+          }
+          return { connected: false, oauthRequired: true, broadcasts: [], activeStream: liveStream || null };
         }
 
         const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
         let broadcasts: any[] = [];
         let detectionMethod = "api";
         if (quota.remaining > 5) {
-          broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
-        } else if (ytChannel.channelId) {
+          broadcasts = await checkYouTubeLiveBroadcasts(ytChannelAuth.id);
+        } else if (ytChannelAuth.channelId) {
           detectionMethod = "rss";
-          const isLive = await checkYouTubeLiveViaWatchPage(ytChannel.channelId);
+          const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAuth.channelId);
           if (isLive) broadcasts = [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }];
         }
-        const streamList = await storage.getStreams(userId);
-        const liveStream = streamList.find((s: any) => s.status === "live");
 
         return {
           connected: true,
-          channelName: ytChannel.channelName,
+          channelName: ytChannelAuth.channelName,
           broadcasts,
           activeStream: liveStream || null,
           detectionMethod,
@@ -825,23 +843,40 @@ export function registerStreamRoutes(app: Express) {
     if (!userId) return;
     try {
       const userChannels = await storage.getChannelsByUser(userId);
-      const ytChannel = userChannels.find((c: any) => c.platform === "youtube" && c.accessToken);
-      if (!ytChannel) {
-        return res.json({ detected: false, reason: "YouTube not connected" });
-      }
+      const ytChannelAuth = userChannels.find((c: any) => c.platform === "youtube" && c.accessToken);
+      const ytChannelAny = userChannels.find((c: any) => c.platform === "youtube");
 
       const streamList = await storage.getStreams(userId);
       const existingLive = streamList.find((s: any) => s.status === "live");
+
+      if (!ytChannelAuth) {
+        // No OAuth — fall back to public watch-page detection using stored channel ID
+        if (ytChannelAny?.channelId) {
+          const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAny.channelId);
+          const broadcasts = isLive
+            ? [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }]
+            : [];
+          return res.json({
+            detected: isLive || !!existingLive,
+            detectionMethod: "rss_public",
+            oauthRequired: true,
+            broadcasts,
+            activeStream: existingLive || null,
+            message: "Connect YouTube in Settings for full live detection.",
+          });
+        }
+        return res.json({ detected: false, oauthRequired: true, reason: "YouTube not connected" });
+      }
 
       const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
       let broadcasts: any[] = [];
       let detectionMethod = "db";
       if (quota.remaining > 5) {
-        broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+        broadcasts = await checkYouTubeLiveBroadcasts(ytChannelAuth.id);
         detectionMethod = "api";
-      } else if (ytChannel.channelId) {
+      } else if (ytChannelAuth.channelId) {
         detectionMethod = "rss";
-        const isLive = await checkYouTubeLiveViaWatchPage(ytChannel.channelId);
+        const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAuth.channelId);
         if (isLive) broadcasts = [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }];
       }
 
