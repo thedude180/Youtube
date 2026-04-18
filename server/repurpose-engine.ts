@@ -6,6 +6,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 import { createLogger } from "./lib/logger";
+import { tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("repurpose-engine");
 const openai = getOpenAIClient();
@@ -75,12 +76,18 @@ Requirements:
 - Tweet threads should be 5-10 tweets
 - Email sequences should have 3-5 emails`;
 
+    if (!tokenBudget.checkBudget("repurpose-engine", 4000)) {
+      logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping repurpose for video ${videoId}`);
+      return { results: [], error: "daily_token_budget_exhausted" };
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
+    tokenBudget.consumeBudget("repurpose-engine", 4000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -194,12 +201,18 @@ Suggest B-roll as JSON:
 
 Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and production value.`;
 
+    if (!tokenBudget.checkBudget("repurpose-engine", 2000)) {
+      logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping B-roll suggestions for video ${videoId}`);
+      return { suggestions: [], overallStyle: "", transitionTips: "" };
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 2000,
     });
+    tokenBudget.consumeBudget("repurpose-engine", 2000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");

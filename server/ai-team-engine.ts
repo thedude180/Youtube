@@ -1482,6 +1482,11 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     ? `\n\n=== DIRECT HANDOFF FROM COLLEAGUE ===\nYou received this task directly from another agent. Their full output:\n${JSON.stringify((task.payload as any).parentResult, null, 2).substring(0, 1000)}\nBuild directly on their work — do not repeat it, advance it.\n=== END HANDOFF ===`
     : "";
 
+  if (!tokenBudget.checkBudget("ai-team-engine", 1500)) {
+    logger.warn(`[AITeamEngine] Daily token budget exhausted — skipping task ${task.id} (${task.agentRole})`);
+    return { result: { skipped: true, reason: "daily_token_budget_exhausted" } };
+  }
+
   // callClaude has built-in retry/backoff — no need for a manual retry loop
   const agentResponse = await callClaude({
     model: CLAUDE_MODELS.sonnet,
@@ -1490,6 +1495,7 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     maxTokens: 1500,
     temperature: 0.7,
   });
+  tokenBudget.consumeBudget("ai-team-engine", 1500);
 
   const content = agentResponse.content || "{}";
   let parsed: any;

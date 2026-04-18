@@ -8,6 +8,7 @@ import { fetchYouTubeTranscript } from "./youtube";
 import { google } from "googleapis";
 
 import { createLogger } from "./lib/logger";
+import { tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("shorts-pipeline-engine");
 const openai = getOpenAIClient();
@@ -293,13 +294,19 @@ TikTok-specific optimization (for clips targeting tiktok):
 - Optimize for vertical 9:16 format
 - Prioritize moments with strong visual movement or reactions`;
 
+  if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping clip extraction for video ${videoId}`);
+    return [];
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
+    tokenBudget.consumeBudget("shorts-pipeline", 4000);
 
     const content = response.choices[0]?.message?.content;
     if (!content) return [];
@@ -392,13 +399,19 @@ Return as JSON:
   "alternatives": ["hook 2", "hook 3", "hook 4"]
 }`;
 
+  if (!tokenBudget.checkBudget("shorts-pipeline", 500)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping hook generation for clip ${clipId}`);
+    return { hook: "Check this out!", alternatives: [] };
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 500,
     });
+    tokenBudget.consumeBudget("shorts-pipeline", 500);
 
     const content = response.choices[0]?.message?.content;
     if (!content) return { hook: "Check this out!", alternatives: [] };

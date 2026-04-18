@@ -80,6 +80,11 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
 
   const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
 
+  if (!tokenBudget.checkBudget("vod-optimizer", 4000)) {
+    logger.warn("[VODOptimizer] Daily token budget exhausted — skipping optimization batch");
+    return [];
+  }
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -125,6 +130,7 @@ Return ONLY valid JSON array matching this structure:
       temperature: 0.8,
       max_completion_tokens: 3000,
     });
+    tokenBudget.consumeBudget("vod-optimizer", 4000);
 
     const text = response.choices[0]?.message?.content?.trim() || "";
     const jsonMatch = text.match(/\[[\s\S]*\]/);

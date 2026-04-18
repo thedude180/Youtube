@@ -499,6 +499,7 @@ const DAILY_CAPS: Record<string, number> = {
   "content-consistency-agent": 30_000,
   "shorts-pipeline":          40_000,
   "thumbnail-intelligence":   20_000,
+  "repurpose-engine":         30_000,
 };
 
 const DEFAULT_DAILY_CAP = 20_000;

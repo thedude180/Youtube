@@ -2,6 +2,7 @@ import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
 import { jitter } from "../lib/timer-utils";
+import { tokenBudget } from "../lib/ai-attack-shield";
 
 const logger = createLogger("consistency-agent");
 
@@ -281,6 +282,11 @@ Return ONLY valid JSON with these fields:
   "suggestedTags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]
 }`;
 
+      if (!tokenBudget.checkBudget("content-consistency-agent", 600)) {
+        logger.warn("[ConsistencyAgent] Daily token budget exhausted — stopping suggestion batch early");
+        break;
+      }
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
@@ -288,6 +294,7 @@ Return ONLY valid JSON with these fields:
         max_completion_tokens: 600,
         response_format: { type: "json_object" },
       });
+      tokenBudget.consumeBudget("content-consistency-agent", 600);
 
       const content = response.choices[0]?.message?.content;
       if (content) {

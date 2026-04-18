@@ -3,6 +3,7 @@ import { thumbnailIntelligence, videos, channels } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
+import { tokenBudget } from "../lib/ai-attack-shield";
 
 const logger = createLogger("thumbnail-intelligence");
 
@@ -166,6 +167,11 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
 
   const openai = getOpenAIClient();
 
+  if (!tokenBudget.checkBudget("thumbnail-intelligence", 2000)) {
+    logger.warn(`[ThumbnailIntelligence] Daily token budget exhausted — skipping research for "${gameName}"`);
+    return null;
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -211,6 +217,7 @@ Return JSON:
       max_completion_tokens: 3000,
       temperature: 0.7,
     });
+    tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
 
     const content = resp.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);
