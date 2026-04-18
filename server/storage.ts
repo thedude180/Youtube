@@ -72,7 +72,7 @@ import {
   type StudioVideo, type InsertStudioVideo,
   tokenBudgetUsage,
 } from "@shared/schema";
-import { eq, desc, sql, and, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, sql, and, gte, lte, lt, inArray } from "drizzle-orm";
 import { extractGameName } from "./services/video-vault";
 
 import { createLogger } from "./lib/logger";
@@ -342,6 +342,7 @@ export interface IStorage {
 
   getTokenBudgetUsage(day: string): Promise<{ engine: string; used: number; lastThrottledAt: number | null }[]>;
   upsertTokenBudgetUsage(engine: string, day: string, used: number, lastThrottledAt?: number | null): Promise<void>;
+  deleteOldTokenBudgetUsage(olderThanDays: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1869,6 +1870,16 @@ export class DatabaseStorage implements IStorage {
           updatedAt: sql`NOW()`,
         },
       });
+  }
+
+  async deleteOldTokenBudgetUsage(olderThanDays: number): Promise<number> {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() - olderThanDays);
+    const cutoffDay = cutoff.toISOString().slice(0, 10);
+    const deleted = await db.delete(tokenBudgetUsage)
+      .where(lt(tokenBudgetUsage.day, cutoffDay))
+      .returning({ engine: tokenBudgetUsage.engine });
+    return deleted.length;
   }
 }
 

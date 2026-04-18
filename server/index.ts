@@ -448,6 +448,11 @@ registerCleanup("authRateLimit", () => {
     if (now - entry.windowStart > AUTH_RATE_WINDOW) authRateLimitMap.delete(key);
   }
 }, 30_000);
+registerCleanup("tokenBudgetUsageRetention", () => {
+  storage.deleteOldTokenBudgetUsage(30).then(n => {
+    if (n > 0) logger.info("Daily token budget usage pruned", { deleted: n });
+  }).catch(err => logger.warn("Daily token budget usage cleanup failed", { error: String(err) }));
+}, 24 * 60 * 60_000);
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
@@ -1091,6 +1096,9 @@ httpServer.listen(
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
+      storage.deleteOldTokenBudgetUsage(30).then(n => {
+        if (n > 0) logger.info("Pruned old token budget usage rows", { deleted: n });
+      }).catch(err => logger.warn("Token budget usage cleanup failed", { error: String(err) }));
       try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
       try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
