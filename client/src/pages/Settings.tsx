@@ -185,7 +185,7 @@ function PlatformConnectionsCard({
         return;
       }
       const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
-      const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+      const res = await apiRequest("GET", endpoint);
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
       window.location.href = url;
@@ -219,7 +219,7 @@ function PlatformConnectionsCard({
         return;
       }
       const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
-      const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+      const res = await apiRequest("GET", endpoint);
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
       window.location.href = url;
@@ -550,7 +550,7 @@ function GeneralTab() {
           return;
         }
         const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${reconnectPlatform}/auth`;
-        const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
+        const res = await apiRequest("GET", endpoint);
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
         const { url } = await res.json();
         window.location.href = url;

@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { Component, Suspense, useEffect, useState, useCallback } from "react";
+import { Component, Suspense, useEffect, useState, useCallback, useRef } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -22,8 +22,10 @@ import { supportedLanguages } from "@/i18n";
 import {
   Loader2, Zap, Sun, Moon, Search, Keyboard, ChevronRight,
   Users, Video, Radio, DollarSign, Settings as SettingsIcon, Clock,
+  CheckCircle2, Sparkles, Upload, Tv2, Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
@@ -579,6 +581,7 @@ function AppContent() {
   const [location, setLocation] = useLocation();
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
   const [needsPreChannelLaunch, setNeedsPreChannelLaunch] = useState(false);
+  const [ytModal, setYtModal] = useState<{ open: boolean; channelName: string }>({ open: false, channelName: "" });
 
   useEffect(() => {
     const lang = supportedLanguages.find((l) => l.code === i18n.language);
@@ -655,7 +658,8 @@ function AppContent() {
     if (ytConnected) {
       queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
       queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
-      toast({ title: `YouTube Connected`, description: channelName ? `${channelName} linked successfully.` : "Your channel is now connected." });
+      queryClient.invalidateQueries({ queryKey: ["/api/youtube/live-status"] });
+      setYtModal({ open: true, channelName: channelName || "YouTube" });
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytNoChannel) {

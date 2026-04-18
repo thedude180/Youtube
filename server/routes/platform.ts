@@ -158,6 +158,19 @@ export async function registerPlatformRoutes(app: Express) {
       delete (req.session as any).youtubeOAuthUserId;
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform: "youtube" });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform: "youtube" });
+
+      // Kick off the upload watcher + initial scan immediately — don't wait for next login
+      setImmediate(async () => {
+        try {
+          const { startUploadWatcher, scanUserNow } = await import("../services/youtube-upload-watcher");
+          await startUploadWatcher(userId!);
+          await scanUserNow(userId!);
+          logger.info(`[YouTube] Upload watcher started and initial scan complete for ${userId}`);
+        } catch (e) {
+          logger.warn(`[YouTube] Upload watcher post-connect start failed for ${userId}:`, e);
+        }
+      });
+
       res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
     } catch (error: any) {
       logger.error("YouTube OAuth callback error:", error);
