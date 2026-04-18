@@ -200,12 +200,12 @@ function _persistInjectionEvent(event: InjectionEvent): void {
  * Rehydrate injection counters from security_events on server startup.
  *
  * Design decisions:
- * - Resets in-memory state FIRST so any events that arrived in the 5s boot
- *   window before rehydration are overwritten by authoritative DB state,
- *   preventing double-counting.
- * - Uses DB-side aggregates (COUNT + GROUP BY) for total/byEngine/byUser so
- *   accuracy is not bounded by a fetch limit — the DB counts everything.
- * - Fetches the most recent 100 rows separately for the recentEvents ring buffer.
+ * - Totals (total/byEngine/byUser) are ALL-TIME cumulative — no retention window.
+ *   The 30-day window applies only to which events appear in recentEvents.
+ * - After loading DB aggregates, any in-memory events that arrived in the boot
+ *   window AND whose async DB writes have not yet committed (detectedAt is newer
+ *   than the most recent persisted event) are re-applied as deltas so no event
+ *   is silently dropped even in the rare async-write-lag edge case.
  *
  * Called once from server/index.ts Wave 1 (T+5s).
  */
@@ -214,52 +214,50 @@ export async function rehydrateInjectionStats(): Promise<void> {
     const { db, securityEvents } = await _getInjectionDb();
     const { eq, gte, and, desc, count, sql } = await import("drizzle-orm");
 
-    const cutoff = new Date(Date.now() - INJECTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-    const baseWhere = and(
-      eq(securityEvents.eventType, "prompt_injection"),
-      gte(securityEvents.createdAt, cutoff),
-    );
+    // Snapshot boot-window events BEFORE we reset, so we can reconcile deltas
+    // for any async writes that haven't committed to DB yet.
+    const bootWindowEvents = injectionStats.recentEvents.slice();
 
-    // ── Reset in-memory state before rebuilding ───────────────────────────────
-    // Authoritative DB values override anything accumulated in the 5s boot window.
+    // Reset in-memory state so we can replace with authoritative DB values.
     injectionStats.total    = 0;
     injectionStats.byEngine = {};
     injectionStats.byUser   = {};
     injectionStats.recentEvents = [];
 
-    // ── 1. Total count ────────────────────────────────────────────────────────
+    const allTimeWhere = eq(securityEvents.eventType, "prompt_injection");
+
+    // ── 1. ALL-TIME total count (no retention window — cumulative accuracy) ───
     const [totalRow] = await db
       .select({ total: count() })
       .from(securityEvents)
-      .where(baseWhere);
+      .where(allTimeWhere);
     injectionStats.total = totalRow?.total ?? 0;
 
-    // ── 2. Per-engine counts (GROUP BY via raw sql on jsonb field) ────────────
+    // ── 2. ALL-TIME per-engine counts (GROUP BY on jsonb field) ──────────────
     const engineRows = await db
       .select({
         engine: sql<string>`${securityEvents.details}->>'engine'`.as("engine"),
         n:      count(),
       })
       .from(securityEvents)
-      .where(baseWhere)
+      .where(allTimeWhere)
       .groupBy(sql`${securityEvents.details}->>'engine'`);
     for (const row of engineRows) {
-      const eng = row.engine ?? "unknown";
-      injectionStats.byEngine[eng] = row.n;
+      injectionStats.byEngine[row.engine ?? "unknown"] = row.n;
     }
 
-    // ── 3. Per-user counts ────────────────────────────────────────────────────
+    // ── 3. ALL-TIME per-user counts ───────────────────────────────────────────
     const userRows = await db
       .select({ userId: securityEvents.userId, n: count() })
       .from(securityEvents)
-      .where(baseWhere)
+      .where(allTimeWhere)
       .groupBy(securityEvents.userId);
     for (const row of userRows) {
-      const uid = row.userId ?? "unknown";
-      injectionStats.byUser[uid] = row.n;
+      injectionStats.byUser[row.userId ?? "unknown"] = row.n;
     }
 
-    // ── 4. Recent-events ring buffer (newest MAX_RECENT_EVENTS rows) ──────────
+    // ── 4. Recent-events ring buffer (windowed to INJECTION_RETENTION_DAYS) ───
+    const retentionCutoff = new Date(Date.now() - INJECTION_RETENTION_DAYS * 24 * 60 * 60 * 1000);
     const recentRows = await db
       .select({
         userId:    securityEvents.userId,
@@ -267,11 +265,11 @@ export async function rehydrateInjectionStats(): Promise<void> {
         createdAt: securityEvents.createdAt,
       })
       .from(securityEvents)
-      .where(baseWhere)
+      .where(and(allTimeWhere, gte(securityEvents.createdAt, retentionCutoff)))
       .orderBy(desc(securityEvents.createdAt))
       .limit(MAX_RECENT_EVENTS);
     for (const row of recentRows) {
-      const d  = (row.details ?? {}) as Record<string, any>;
+      const d = (row.details ?? {}) as Record<string, any>;
       injectionStats.recentEvents.push({
         userId:          row.userId ?? "unknown",
         engine:          typeof d.engine === "string" ? d.engine : "unknown",
@@ -281,11 +279,28 @@ export async function rehydrateInjectionStats(): Promise<void> {
       });
     }
 
+    // ── 5. Reconcile boot-window events not yet committed to DB ───────────────
+    // If a boot-window event's write hadn't committed before our queries ran,
+    // its detectedAt will be newer than the latest DB event — re-apply it so it
+    // isn't silently dropped.
+    const latestDbTime = injectionStats.recentEvents.length > 0
+      ? injectionStats.recentEvents[0].detectedAt
+      : 0;
+    let reconciled = 0;
+    for (const ev of bootWindowEvents) {
+      if (ev.detectedAt > latestDbTime) {
+        injectionStats.total += 1;
+        injectionStats.byEngine[ev.engine] = (injectionStats.byEngine[ev.engine] ?? 0) + 1;
+        injectionStats.byUser[ev.userId]   = (injectionStats.byUser[ev.userId]   ?? 0) + 1;
+        reconciled++;
+      }
+    }
+
     logger.info(
       `[AIShield] Injection stats rehydrated: total=${injectionStats.total}, ` +
       `engines=${Object.keys(injectionStats.byEngine).length}, ` +
       `users=${Object.keys(injectionStats.byUser).length}, ` +
-      `recent=${injectionStats.recentEvents.length} (last ${INJECTION_RETENTION_DAYS} days)`
+      `recent=${injectionStats.recentEvents.length}, reconciled=${reconciled}`
     );
   } catch (err: any) {
     logger.warn(`[AIShield] Injection stats rehydration failed (proceeding empty): ${err?.message ?? err}`);
