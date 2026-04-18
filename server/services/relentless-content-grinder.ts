@@ -5,7 +5,7 @@ import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 
 const logger = createLogger("content-grinder");
 
@@ -91,6 +91,11 @@ async function grindUserContent(userId: string): Promise<GrindState> {
   });
 
   if (!longFormVideos.length) return state;
+
+  if (!tokenBudget.checkBudget("content-grinder", 2000)) {
+    logger.warn(`[ContentGrinder] Daily token budget exhausted for user ${userId} — skipping grind cycle`);
+    return state;
+  }
 
   for (const video of longFormVideos) {
     try {
@@ -259,6 +264,7 @@ Return ONLY valid JSON:
       maxTokens: 3000,
       temperature: 0.8,
     });
+    tokenBudget.consumeBudget("content-grinder", 3000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);
@@ -358,6 +364,7 @@ Return JSON:
       maxTokens: 2000,
       temperature: 0.7,
     });
+    tokenBudget.consumeBudget("content-grinder", 2000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);
@@ -489,6 +496,7 @@ Return JSON:
       maxTokens: 2000,
       temperature: 0.7,
     });
+    tokenBudget.consumeBudget("content-grinder", 2000);
 
     const content = resp.content || "{}";
     const parsed = JSON.parse(content);

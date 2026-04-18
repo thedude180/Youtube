@@ -474,3 +474,91 @@ export function adaptiveLearningGuard(): (req: Request, res: Response, next: Nex
     next();
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TokenBudgetGuard — per-engine daily token budget enforcer
+//
+// Prevents background AI engines from hammering rate limits by tracking an
+// estimated token spend per engine each UTC day. When an engine exceeds its
+// cap, calls to checkBudget() return false and the engine skips gracefully.
+//
+// Usage:
+//   import { tokenBudget } from "../lib/ai-attack-shield";
+//   if (!tokenBudget.checkBudget("my-engine", 3000)) {
+//     logger.warn("Daily token budget exhausted, skipping");
+//     return;
+//   }
+//   // … make AI call …
+//   tokenBudget.consumeBudget("my-engine", actualTokensUsed ?? 3000);
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DAILY_CAPS: Record<string, number> = {
+  "content-grinder":          50_000,
+  "ai-team-engine":          100_000,
+  "vod-optimizer":            50_000,
+  "content-consistency-agent": 30_000,
+  "shorts-pipeline":          40_000,
+  "thumbnail-intelligence":   20_000,
+};
+
+const DEFAULT_DAILY_CAP = 20_000;
+
+interface BudgetEntry {
+  used: number;
+  day: string;
+}
+
+function utcDayString(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+class TokenBudgetGuard {
+  private budgets = new Map<string, BudgetEntry>();
+
+  private entry(engine: string): BudgetEntry {
+    const today = utcDayString();
+    let e = this.budgets.get(engine);
+    if (!e || e.day !== today) {
+      e = { used: 0, day: today };
+      this.budgets.set(engine, e);
+    }
+    return e;
+  }
+
+  /**
+   * Check whether an engine has remaining budget for an estimated token cost.
+   * Returns true (allowed) or false (exhausted — caller should skip and log).
+   */
+  checkBudget(engine: string, estimatedTokens = 2000): boolean {
+    const cap = DAILY_CAPS[engine] ?? DEFAULT_DAILY_CAP;
+    const e = this.entry(engine);
+    if (e.used + estimatedTokens > cap) {
+      logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Record token consumption after a successful AI call.
+   * If actualTokens is unknown, pass the estimated cost used in checkBudget.
+   */
+  consumeBudget(engine: string, tokens: number): void {
+    const e = this.entry(engine);
+    e.used += tokens;
+  }
+
+  /** Returns current usage snapshot for all engines (useful for health endpoints). */
+  getSnapshot(): Record<string, { used: number; cap: number; day: string }> {
+    const today = utcDayString();
+    const out: Record<string, { used: number; cap: number; day: string }> = {};
+    for (const [eng, cap] of Object.entries(DAILY_CAPS)) {
+      const e = this.budgets.get(eng);
+      out[eng] = { used: e?.day === today ? e.used : 0, cap, day: today };
+    }
+    return out;
+  }
+}
+
+export const tokenBudget = new TokenBudgetGuard();

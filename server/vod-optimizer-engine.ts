@@ -8,6 +8,7 @@ import { shouldRunVodOptimization } from "./priority-orchestrator";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel } from "./ai-engine";
 import { humanizeText } from "./ai-humanizer-engine";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("vod-optimizer");
 const openai = getOpenAIClient();
@@ -66,7 +67,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
     const meta = v.metadata as any;
     const contentCtx = detectContentContext(v.title, v.description, meta?.contentCategory, meta);
     const topicLabel = contentCtx.topicName ? ` | Topic: ${contentCtx.topicName}` : "";
-    return `${i + 1}. Title: "${v.title}" | Views: ${meta?.viewCount || 0} | Likes: ${meta?.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(meta?.tags as string[] || []).join(", ") || "none"} | Description: ${(v.description || "").substring(0, 150)}${topicLabel}`;
+    return `${i + 1}. Title: "${sanitizeForPrompt(v.title, 200)}" | Views: ${meta?.viewCount || 0} | Likes: ${meta?.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(meta?.tags as string[] || []).join(", ") || "none"} | Description: ${sanitizeForPrompt(v.description || "", 150)}${topicLabel}`;
   }).join("\n");
 
   const topicNames = [...Array.from(new Set(vods.map(v => {
