@@ -30,13 +30,13 @@ export async function analyzeChannelKeywords(userId: string) {
 
   const videoData = recentVideos.map(v => ({
     id: v.id,
-    title: v.title,
-    tags: (v.metadata as any)?.tags || [],
+    title: sanitizeForPrompt(v.title, 200),
+    tags: ((v.metadata as any)?.tags || []).map((t: string) => sanitizeForPrompt(t, 80)),
     views: (v.metadata as any)?.viewCount || (v.metadata as any)?.stats?.views || 0,
     ctr: (v.metadata as any)?.stats?.ctr || 0,
     watchTime: (v.metadata as any)?.stats?.avgWatchTime || 0,
     likes: (v.metadata as any)?.likeCount || (v.metadata as any)?.stats?.likes || 0,
-    description: v.description?.slice(0, 200) || "",
+    description: sanitizeForPrompt(v.description?.slice(0, 200) || "", 200),
   }));
 
   const prompt = `You are a YouTube SEO analyst. Analyze these videos and their performance to identify which keywords and topics are driving the best results.
