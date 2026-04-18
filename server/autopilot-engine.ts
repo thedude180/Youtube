@@ -145,16 +145,30 @@ function getPlatformsForContentType(contentType: string, connectedPlatforms: Set
   return { videoPlatforms, textPlatforms };
 }
 
+// Cache connected-platforms lookups for 30 seconds.
+// The autopilot processes many videos in parallel for the same user — without
+// this cache every video fires its own DB query simultaneously, exhausting the
+// 5-connection pool and causing "timeout exceeded when trying to connect" errors
+// in production. 30s TTL is safe because platform connections change rarely.
+const _connectedPlatformsCache = new Map<string, { result: Set<string>; expiresAt: number }>();
+
 async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
+  const now = Date.now();
+  const cached = _connectedPlatformsCache.get(userId);
+  if (cached && cached.expiresAt > now) return cached.result;
+
   const userChannels = await withRetry(() => db.select({ platform: channels.platform, accessToken: channels.accessToken, platformData: channels.platformData })
     .from(channels)
     .where(eq(channels.userId, userId)), "autopilot-connected-platforms");
-  return new Set(userChannels.filter(c => {
+  const result = new Set(userChannels.filter(c => {
     if (!c.accessToken) return false;
     const pd = (c.platformData || {}) as any;
     if (pd._connectionStatus === "expired") return false;
     return true;
   }).map(c => c.platform));
+
+  _connectedPlatformsCache.set(userId, { result, expiresAt: now + 30_000 });
+  return result;
 }
 
 async function getAutopilotConfig(userId: string, feature: AutopilotFeature) {
