@@ -3,7 +3,7 @@ import { db } from "../db";
 import { eq, and, desc, gte, lte, sql, asc } from "drizzle-orm";
 import { requireAuth, asyncHandler } from "./helpers";
 import { cached } from "../lib/cache";
-import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 const logger = createLogger("growth-tracking");
 import {
@@ -344,7 +344,6 @@ export function registerGrowthTrackingRoutes(app: Express) {
 
       let aiInsights = null;
       try {
-        const openai = getOpenAIClient();
         const prompt = buildTrajectoryPrompt({
           totalViews, totalSubs, totalVideos, optimizations,
           growthRates, subsGrowthRates,
@@ -353,15 +352,14 @@ export function registerGrowthTrackingRoutes(app: Express) {
           platforms: userChannels.map(c => c.platform),
         });
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-          max_completion_tokens: 1200,
+        const claudeResp = await callClaude({
+          model: CLAUDE_MODELS.sonnet,
+          prompt,
+          maxTokens: 1200,
           temperature: 0.7,
-          response_format: { type: "json_object" },
         });
 
-        const content = completion.choices[0]?.message?.content;
+        const content = claudeResp.content;
         if (content) {
           try {
             const parsed = JSON.parse(content);
@@ -500,20 +498,15 @@ export function registerGrowthTrackingRoutes(app: Express) {
 
       let dailyActions: { action: string; priority: "high" | "medium" | "low"; category: string; impact: string }[] = [];
       try {
-        const openai = getOpenAIClient();
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{
-            role: "user",
-            content: `You are a world-class YouTube growth coach. Generate exactly 5 specific daily actions for today for a creator with ${totalSubs} subscribers, ${totalViews} views, ${totalVideos} videos across ${userChannels.length} platform(s), currently in "${inflection.currentPhase}" growth phase. ${plateau.detected ? `They are in a ${plateau.severity} plateau for ${plateau.durationDays} days.` : ""}
+        const dailyActionsResp = await callClaude({
+          model: CLAUDE_MODELS.sonnet,
+          prompt: `You are a world-class YouTube growth coach. Generate exactly 5 specific daily actions for today for a creator with ${totalSubs} subscribers, ${totalViews} views, ${totalVideos} videos across ${userChannels.length} platform(s), currently in "${inflection.currentPhase}" growth phase. ${plateau.detected ? `They are in a ${plateau.severity} plateau for ${plateau.durationDays} days.` : ""}
 Their next milestone is ${nextMilestone.label} (${nextMilestone.threshold} subscribers, currently at ${totalSubs}).
-Return JSON: {"actions":[{"action":"specific action","priority":"high|medium|low","category":"content|seo|engagement|growth|optimization","impact":"expected impact"}]}`
-          }],
-          max_completion_tokens: 600,
+Return ONLY valid JSON: {"actions":[{"action":"specific action","priority":"high|medium|low","category":"content|seo|engagement|growth|optimization","impact":"expected impact"}]}`,
+          maxTokens: 800,
           temperature: 0.8,
-          response_format: { type: "json_object" },
         });
-        const content = completion.choices[0]?.message?.content;
+        const content = dailyActionsResp.content;
         if (content) {
           const parsed = JSON.parse(content);
           dailyActions = Array.isArray(parsed.actions) ? parsed.actions.slice(0, 5).map((a: any) => ({
@@ -617,8 +610,7 @@ Return JSON: {"actions":[{"action":"specific action","priority":"high|medium|low
       let weeklyPlan: { day: string; focus: string; action: string }[] = [];
 
       try {
-        const openai = getOpenAIClient();
-        const prompt = `You are a world-class creator coach who has helped channels grow from 0 to millions. You are coaching a creator with ${totalSubs.toLocaleString()} subscribers, ${totalViews.toLocaleString()} total views, and ${totalVideos} videos across ${platformCount} platform(s). They are in the "${currentTier.label}" tier (${currentTier.range}). Their next level is "${nextTier.label}" (${nextTier.range}).
+        const coachPrompt = `You are a world-class creator coach who has helped channels grow from 0 to millions. You are coaching a creator with ${totalSubs.toLocaleString()} subscribers, ${totalViews.toLocaleString()} total views, and ${totalVideos} videos across ${platformCount} platform(s). They are in the "${currentTier.label}" tier (${currentTier.range}). Their next level is "${nextTier.label}" (${nextTier.range}).
 
 Generate a JSON response with:
 1. "coachMessage": A 2-3 sentence personalized coaching message that is direct, motivating, and specific to their EXACT stage. Reference their actual numbers. Sound like a mentor who has seen it all.
@@ -627,15 +619,14 @@ Generate a JSON response with:
 
 Return ONLY valid JSON.`;
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
-          max_completion_tokens: 900,
+        const coachResp = await callClaude({
+          model: CLAUDE_MODELS.sonnet,
+          prompt: coachPrompt,
+          maxTokens: 1200,
           temperature: 0.85,
-          response_format: { type: "json_object" },
         });
 
-        const parsed = JSON.parse(completion.choices[0]?.message?.content || "{}");
+        const parsed = JSON.parse(coachResp.content || "{}");
         coachMessage = parsed.coachMessage || "";
         powerMoves = Array.isArray(parsed.powerMoves) ? parsed.powerMoves.slice(0, 3) : [];
         weeklyPlan = Array.isArray(parsed.weeklyPlan) ? parsed.weeklyPlan.slice(0, 7) : [];

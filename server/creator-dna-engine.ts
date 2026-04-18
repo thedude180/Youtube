@@ -1,11 +1,9 @@
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { creatorDnaProfiles, videos, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 import { humanizeText } from "./ai-humanizer-engine";
-
-const openai = getOpenAIClient();
 
 export async function buildDnaProfile(userId: string) {
   const userChannels = await db
@@ -107,14 +105,13 @@ Respond as JSON:
   "maturityScore": number
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+  const response = await callClaude({
+    model: CLAUDE_MODELS.opus,
+    prompt,
+    maxTokens: 4000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for DNA profile");
 
   const dna = JSON.parse(content);
@@ -217,14 +214,13 @@ Respond as JSON:
   "maturityScore": number
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+  const response = await callClaude({
+    model: CLAUDE_MODELS.opus,
+    prompt,
+    maxTokens: 4000,
   });
 
-  const responseContent = response.choices[0]?.message?.content;
+  const responseContent = response.content;
   if (!responseContent) throw new Error("No response from AI for DNA update");
 
   const updates = JSON.parse(responseContent);
@@ -297,14 +293,13 @@ Respond as JSON:
   "toneNotes": "brief note on the tone choices made"
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: aiPrompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+  const response = await callClaude({
+    model: CLAUDE_MODELS.opus,
+    prompt: aiPrompt,
+    maxTokens: 4000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for voice generation");
 
   const parsed = JSON.parse(content);

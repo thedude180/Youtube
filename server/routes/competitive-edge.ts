@@ -2,7 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { eq, and, desc, sql, gte, lt, asc, isNotNull } from "drizzle-orm";
 import { experiments, creatorDnaProfiles, sponsorshipDeals, copyrightClaims, usageMetrics, videos, channels, autopilotQueue, notifications, videoUpdateHistory, users, TEAM_ROLES } from "@shared/schema";
-import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { sendSSEEvent } from "./events";
 import { getUserId } from "./helpers";
@@ -342,13 +342,13 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
       const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
       const platforms = userChannels.map(c => c.platform);
       const niches = userChannels.map(c => c.contentNiche).filter(Boolean);
-      const openai = getOpenAIClient();
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: `You are a sponsorship matching AI. Find 5 brand sponsor matches for a creator with ${totalSubs} subscribers across ${platforms.join(", ")}. Niche: ${niches.join(", ") || "general"}. Return JSON: {"matches":[{"brand":"name","fitScore":0-100,"estimatedValue":number,"contactInfo":"email or site","reasoning":"why they match"}]}` }],
-        response_format: { type: "json_object" }, max_completion_tokens: 800, temperature: 0.7,
+      const completion = await callClaude({
+        model: CLAUDE_MODELS.opus,
+        prompt: `You are a sponsorship matching AI. Find 5 brand sponsor matches for a creator with ${totalSubs} subscribers across ${platforms.join(", ")}. Niche: ${niches.join(", ") || "general"}. Return ONLY valid JSON: {"matches":[{"brand":"name","fitScore":0-100,"estimatedValue":number,"contactInfo":"email or site","reasoning":"why they match"}]}`,
+        maxTokens: 1500,
+        temperature: 0.7,
       });
-      const content = completion.choices[0]?.message?.content;
+      const content = completion.content;
       let parsed = { matches: [] };
       if (content) { try { parsed = JSON.parse(content); } catch { /* malformed AI response */ } }
       res.json(parsed);

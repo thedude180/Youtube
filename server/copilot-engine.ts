@@ -1,10 +1,8 @@
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { liveCopilotSuggestions } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
-
-const openai = getOpenAIClient();
 
 const SUGGESTION_TYPES = ["talking_point", "engagement_tactic", "raid_target", "content_pivot", "energy_boost"] as const;
 const PRIORITY_LEVELS = ["low", "medium", "high", "urgent"] as const;
@@ -28,12 +26,9 @@ export async function generateLiveSuggestion(
 
   const recentTypes = recentSuggestions.map((s) => s.suggestionType);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are the world's best live stream performance coach — a team of elite experts working in real-time to maximize every second of this broadcast:
+  const response = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    system: `You are the world's best live stream performance coach — a team of elite experts working in real-time to maximize every second of this broadcast:
 
 🎙️ WORLD'S #1 LIVE ENTERTAINMENT DIRECTOR: You know exactly when to shift energy, introduce interactive segments, and create "must-clip" moments that viewers share. You read audience energy like a concert conductor.
 
@@ -51,11 +46,10 @@ Guidelines:
 - engagement_tactic: Interactive activities engineered for maximum participation (polls, predictions, challenges, chat games)
 - raid_target: Strategic raid targets that maximize network growth and reciprocal raids
 - content_pivot: Data-driven pivots based on viewer retention patterns and chat velocity
-- energy_boost: Performance coaching — pace changes, hydration, audience interaction resets`,
-      },
-      {
-        role: "user",
-        content: `Current stream state:
+- energy_boost: Performance coaching — pace changes, hydration, audience interaction resets
+
+Respond with valid JSON only.`,
+    prompt: `Current stream state:
 - Viewer count: ${context.viewerCount}
 - Chat sentiment: ${context.chatSentiment}
 - Current topic: ${context.currentTopic}
@@ -69,13 +63,10 @@ Generate a single real-time suggestion. Avoid repeating recent suggestion types 
   "priority": "one of: ${PRIORITY_LEVELS.join(", ")}",
   "reasoning": "brief explanation of why this suggestion now"
 }`,
-      },
-    ],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 6000,
+    maxTokens: 2000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for live suggestion");
 
   const parsed = JSON.parse(content);
@@ -144,12 +135,9 @@ export async function generateStreamRecap(userId: string, streamId: number) {
       ? usedSuggestions.reduce((sum, s) => sum + (s.impactScore || 0), 0) / usedSuggestions.length
       : 0;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "user",
-        content: `Generate a post-stream recap based on copilot suggestions used during the stream.
+  const response = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    prompt: `Generate a post-stream recap based on copilot suggestions used during the stream.
 
 Total suggestions given: ${suggestions.length}
 Suggestions used: ${usedSuggestions.length}
@@ -162,7 +150,7 @@ ${usedSuggestions.map((s) => `- [${s.suggestionType}] ${s.content} (impact: ${s.
 Skipped suggestions:
 ${unusedSuggestions.map((s) => `- [${s.suggestionType}] ${s.content}`).join("\n")}
 
-Respond as JSON:
+Respond with valid JSON only:
 {
   "summary": "2-3 sentence recap of the stream's copilot performance",
   "topMoments": ["list of key moments where suggestions had impact"],
@@ -170,13 +158,10 @@ Respond as JSON:
   "suggestedGoals": ["specific goals for the next stream"],
   "engagementScore": 0-100
 }`,
-      },
-    ],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    maxTokens: 2000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for stream recap");
 
   const recap = JSON.parse(content);

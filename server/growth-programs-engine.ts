@@ -1,13 +1,12 @@
 import { db } from "./db";
 import { platformGrowthPrograms, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { getCreatorStyleContext } from "./creator-intelligence";
 
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("growth-programs-engine");
-const openai = getOpenAIClient();
 
 interface ProgramDefinition {
   platform: string;
@@ -376,14 +375,13 @@ Respond as JSON:
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) return null;
 
     const recommendations = JSON.parse(content);
@@ -778,14 +776,13 @@ Respond as JSON:
 }`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) return null;
     return JSON.parse(content);
   } catch (err) {

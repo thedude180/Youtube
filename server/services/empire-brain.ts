@@ -5,7 +5,7 @@ import {
   channels, videos, revenueRecords,
 } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
@@ -144,14 +144,10 @@ async function generateIndustryPlaybook(industry: string, businessType: string):
   const industryConfig = INDUSTRY_REGISTRY[industry];
   if (!industryConfig) return;
 
-  const openai = getOpenAIClient();
-
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You are a business operations AI. Generate a comprehensive playbook for running a "${businessType}" business in the "${industryConfig.label}" industry.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt: `You are a business operations AI. Generate a comprehensive playbook for running a "${businessType}" business in the "${industryConfig.label}" industry.
 
 The playbook should be autonomous — designed for an AI system to execute without human intervention.
 
@@ -172,13 +168,11 @@ Return ONLY valid JSON:
 }
 
 Generate 5-8 strategies, 5-8 automation rules, 4-6 KPIs, and 3-5 content templates.`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 3000,
+      maxTokens: 3000,
       temperature: 0.7,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
 
     await db.insert(industryPlaybooks).values({
@@ -295,8 +289,6 @@ async function executePlaybookActions(business: any): Promise<void> {
 async function crossPollinateInsights(userId: string, businesses: any[]): Promise<void> {
   if (businesses.length < 2) return;
 
-  const openai = getOpenAIClient();
-
   const businessSummaries = businesses.map(b => ({
     id: b.id,
     name: b.name,
@@ -307,11 +299,9 @@ async function crossPollinateInsights(userId: string, businesses: any[]): Promis
   }));
 
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You manage a business empire with ${businesses.length} businesses:
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt: `You manage a business empire with ${businesses.length} businesses:
 
 ${JSON.stringify(businessSummaries, null, 2)}
 
@@ -331,13 +321,11 @@ Return ONLY valid JSON:
     }
   ]
 }`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000,
+      maxTokens: 2000,
       temperature: 0.7,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
     const insights = Array.isArray(parsed.insights) ? parsed.insights : [];
 
@@ -434,27 +422,21 @@ export async function adaptBusinessToIndustry(businessId: number, userId: string
 
   if (recentOps.length < 5) return;
 
-  const openai = getOpenAIClient();
-
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `Analyze recent operations for "${business[0].name}" (${business[0].industry} / ${business[0].businessType}) and suggest adaptations.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt: `Analyze recent operations for "${business[0].name}" (${business[0].industry} / ${business[0].businessType}) and suggest adaptations.
 
 Recent operations: ${JSON.stringify(recentOps.slice(0, 10).map(o => ({ type: o.operationType, status: o.status, metrics: o.metrics })))}
 
 What should the AI focus on differently? What's working? What needs changing?
 
-Return JSON: {"adaptations": [{"parameter": "string", "currentApproach": "string", "suggestedApproach": "string", "reason": "string"}]}`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 1500,
+Return ONLY valid JSON: {"adaptations": [{"parameter": "string", "currentApproach": "string", "suggestedApproach": "string", "reason": "string"}]}`,
+      maxTokens: 1500,
       temperature: 0.7,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
     const adaptations = Array.isArray(parsed.adaptations) ? parsed.adaptations : [];
 
@@ -658,15 +640,12 @@ export async function assessExpansionReadiness(userId: string): Promise<Expansio
     revenueImpact: "$1,000-5,000/month from courses and coaching packages",
   });
 
-  const openai = getOpenAIClient();
   let aiRecommendation = "";
 
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You are the AI business advisor for a gaming YouTube channel empire. Based on these metrics, give a personalized 3-4 sentence recommendation on what to do next for expansion.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.opus,
+      prompt: `You are the AI business advisor for a gaming YouTube channel empire. Based on these metrics, give a personalized 3-4 sentence recommendation on what to do next for expansion.
 
 Current state:
 - Channels: ${userChannels.length}
@@ -681,11 +660,10 @@ Current state:
 Pillar scores: ${JSON.stringify(pillars.map(p => ({ name: p.name, score: p.score, status: p.status })))}
 
 Be specific, actionable, and encouraging. Mention the single best next move.`,
-      }],
-      max_completion_tokens: 500,
+      maxTokens: 800,
       temperature: 0.7,
     });
-    aiRecommendation = resp.choices[0]?.message?.content || "";
+    aiRecommendation = resp.content || "";
   } catch {
     aiRecommendation = overallScore >= 75
       ? "Your foundation is solid. Consider launching a second channel in a complementary niche to multiply your reach."

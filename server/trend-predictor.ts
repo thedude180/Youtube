@@ -1,10 +1,8 @@
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { predictiveTrends, videos, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
-
-const openai = getOpenAIClient();
 
 export async function scanForTrends(userId: string, platform?: string) {
   const userChannels = await db
@@ -69,14 +67,13 @@ Respond as JSON:
   ]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+  const response = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    prompt,
+    maxTokens: 4000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for trend scan");
 
   const result = JSON.parse(content);
@@ -191,14 +188,13 @@ Respond as JSON:
   ]
 }`;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+  const response = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    prompt,
+    maxTokens: 4000,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) throw new Error("No response from AI for trend content");
 
   const result = JSON.parse(content);

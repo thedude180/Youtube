@@ -686,6 +686,7 @@ export const revenueRecords = pgTable("revenue_records", {
 }, (table) => ({
   userIdIdx: index("revenue_records_user_id_idx").on(table.userId),
   revenueRecords_userId_recordedAt_idx: index("revenueRecords_userId_recordedAt_idx").on(table.userId, table.recordedAt),
+  revenueRecords_user_external_unique_idx: uniqueIndex("revenue_records_user_external_unique_idx").on(table.userId, table.externalId),
 }));
 
 export const reconciliationActions = pgTable("reconciliation_actions", {

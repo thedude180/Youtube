@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -14,7 +14,6 @@ import { eq, desc, and, gte, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("optimization-engine");
-const openai = getOpenAIClient();
 
 const SUB_ENGINES = [
   "metadata_optimizer", "ab_test_engine", "trending_injector", "performance_decay_detector",
@@ -180,14 +179,13 @@ Provide your response as JSON:
   "reasoning": "Why these changes improve discoverability"
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -254,14 +252,13 @@ Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -320,14 +317,13 @@ Respond as JSON:
   "relevanceScore": 0.8
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -420,14 +416,13 @@ Respond as JSON:
   "prediction": "Brief explanation of viral potential"
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -486,14 +481,13 @@ For each tag, evaluate its current health. Respond as JSON:
 
 Evaluate up to 15 most important tags.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -557,14 +551,13 @@ Based on the content type, topic, and engagement ratio, predict the sentiment di
   "totalComments": ${commentCount}
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -623,14 +616,13 @@ Identify 2-3 current algorithm behaviors or recent changes. Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -787,14 +779,13 @@ For each video, classify as evergreen or not. Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -868,14 +859,13 @@ Identify pairs of videos that may be cannibalizing each other's performance. Res
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -948,14 +938,13 @@ Predict trends that are emerging or about to emerge. Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -1024,14 +1013,13 @@ Build a comprehensive Content DNA profile as JSON:
   "confidence": 0.75
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -1106,14 +1094,13 @@ Suggest specific changes to improve CTR. Respond as JSON:
   "reasoning": "Why these changes will improve CTR"
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -1191,14 +1178,13 @@ Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -1371,14 +1357,13 @@ Find 5 content gaps with high demand. Respond as JSON:
   ]
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 
@@ -1439,14 +1424,13 @@ Respond as JSON:
 
 Include 8-10 best practices, 3-4 recent changes, 5 dos and 5 don'ts.`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+    const response = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
+    const content = response.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
 

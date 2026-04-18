@@ -2,7 +2,7 @@ import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, ne, lt } from "drizzle-orm";
 import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users, managedPlaylists } from "@shared/schema";
 import type { AiAgentTask, TeamMember } from "@shared/schema";
-import { getOpenAIClient } from "./lib/openai";
+import { callClaude, CLAUDE_MODELS } from "./lib/claude";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import cron from "node-cron";
@@ -1481,66 +1481,16 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     ? `\n\n=== DIRECT HANDOFF FROM COLLEAGUE ===\nYou received this task directly from another agent. Their full output:\n${JSON.stringify((task.payload as any).parentResult, null, 2).substring(0, 1000)}\nBuild directly on their work — do not repeat it, advance it.\n=== END HANDOFF ===`
     : "";
 
-  const openai = getOpenAIClient();
-  const messages = [
-    { role: "system" as const, content: agentConfig.systemPrompt },
-    {
-      role: "user" as const,
-      content: `CHANNEL CONTEXT:\n${channelCtx}${teamCtx}${parentResult}\n\nYOUR TASK:\nTitle: ${task.title}\nType: ${task.taskType}\nAdditional Details: ${JSON.stringify(task.payload || {})}\n\nExecute this task at the highest possible level. Apply your full expertise. If your work should be followed up by a specific colleague (e.g., your research needs a script, your script needs SEO optimization), specify the handoff. Do not hand off if the task is self-contained.`
-    }
-  ];
+  // callClaude has built-in retry/backoff — no need for a manual retry loop
+  const agentResponse = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    system: agentConfig.systemPrompt + "\n\nRespond with valid JSON only.",
+    prompt: `CHANNEL CONTEXT:\n${channelCtx}${teamCtx}${parentResult}\n\nYOUR TASK:\nTitle: ${task.title}\nType: ${task.taskType}\nAdditional Details: ${JSON.stringify(task.payload || {})}\n\nExecute this task at the highest possible level. Apply your full expertise. If your work should be followed up by a specific colleague (e.g., your research needs a script, your script needs SEO optimization), specify the handoff. Do not hand off if the task is self-contained.`,
+    maxTokens: 1500,
+    temperature: 0.7,
+  });
 
-  // Retry on 429 (rate limit) with exponential backoff that respects the
-  // retry-after header. Without this every single agent task was permafailing
-  // during OpenAI rate-limit windows and being silently marked "completed"
-  // with a useless error summary.
-  const MAX_429_RETRIES = 3;
-  let response: any;
-  let lastErr: any = null;
-  for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
-    try {
-      response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.7,
-        max_completion_tokens: 1500,
-        response_format: { type: "json_object" },
-      });
-      lastErr = null;
-      break;
-    } catch (aiErr: any) {
-      lastErr = aiErr;
-      const status = aiErr?.status || aiErr?.response?.status;
-      const msg = String(aiErr?.message || "");
-      const is429 = status === 429 || /429|rate limit|rate_limit/i.test(msg);
-      if (!is429 || attempt === MAX_429_RETRIES) break;
-      // Honor retry-after header if provided, else exponential backoff with jitter
-      const headerRetry = parseFloat(
-        aiErr?.headers?.["retry-after"] ||
-        aiErr?.response?.headers?.["retry-after"] ||
-        "0"
-      );
-      const baseDelay = Math.max(
-        (Number.isFinite(headerRetry) && headerRetry > 0 ? headerRetry : 0) * 1000,
-        2000 * Math.pow(2, attempt),
-      );
-      const jitter = Math.floor(Math.random() * 1500);
-      const wait = baseDelay + jitter;
-      logger.warn(`[ai-team] Agent ${task.agentRole} hit 429 (attempt ${attempt + 1}/${MAX_429_RETRIES + 1}), retrying in ${wait}ms`);
-      await new Promise(r => setTimeout(r, wait));
-    }
-  }
-
-  if (lastErr || !response) {
-    const msg = lastErr?.message || "AI call failed (unknown)";
-    logger.error(`[ai-team] Agent ${task.agentRole} AI call permanently failed:`, msg);
-    // Throw so the outer task-loop catch marks status="failed" (and re-queues
-    // logic can detect it) instead of silently writing status="completed"
-    // with an error string, which polluted the team activity feed.
-    throw new Error(`AI call failed: ${msg}`);
-  }
-
-  const content = response.choices[0]?.message?.content || "{}";
+  const content = agentResponse.content || "{}";
   let parsed: any;
   try {
     parsed = JSON.parse(content);

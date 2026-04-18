@@ -31,17 +31,23 @@ interface TaskMapping {
 }
 
 const TASK_MAPPINGS: Record<string, TaskMapping> = {
+  // Fast background tasks — gpt-4o-mini is right for these (high volume, low latency, no quality gap)
   quick_suggestion:       { model: "gpt-4o-mini",              maxTokens: 512,  temperature: 0.7, priority: "low" },
-  title_optimization:     { model: "gpt-4o-mini",              maxTokens: 1024, temperature: 0.8, priority: "medium" },
-  content_analysis:       { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.3, priority: "medium" },
-  strategy_planning:      { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.7, priority: "high" },
-  script_writing:         { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.9, priority: "high" },
-  competitor_analysis:    { model: "gpt-4o",                   maxTokens: 4096, temperature: 0.4, priority: "high" },
-  copilot_chat:           { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.7, priority: "medium" },
   memory_distillation:    { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.3, priority: "low" },
   quality_scoring:        { model: "gpt-4o-mini",              maxTokens: 1024, temperature: 0.2, priority: "medium" },
-  trend_detection:        { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.4, priority: "medium" },
 
+  // Content & optimization tasks — Claude Sonnet: best-in-class writing and SEO intelligence
+  title_optimization:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
+  content_analysis:       { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.3, priority: "medium" },
+  copilot_chat:           { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.7, priority: "medium" },
+  trend_detection:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+
+  // Deep strategic tasks — Claude Opus: strongest reasoning for decisions that drive real growth
+  strategy_planning:      { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.7, priority: "high" },
+  script_writing:         { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.9, priority: "high" },
+  competitor_analysis:    { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.4, priority: "high" },
+
+  // Already on best models
   creator_dna_analysis:   { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 2000, temperature: 0.3, priority: "high" },
   revenue_strategy:       { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 3000, temperature: 0.5, priority: "high" },
   growth_planning:        { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 3000, temperature: 0.5, priority: "high" },

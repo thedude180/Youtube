@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { copilotConversations, videos, channels, scheduleItems } from "@shared/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -195,17 +196,12 @@ async function executeSuggestContentIdeas(userId: string, args: Record<string, a
     .limit(5);
   const recentTitles = recentVids.map(v => v.title).join(", ");
 
-  const openai = getOpenAIClient();
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{
-      role: "user",
-      content: `Generate ${count} content ideas for a ${niche} creator. Their recent videos: ${recentTitles || "none yet"}. Return as JSON array of objects with "title", "description", "format" (video/short/stream), and "estimatedEngagement" (high/medium/low).`
-    }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 6000
+  const response = await callClaude({
+    model: CLAUDE_MODELS.sonnet,
+    prompt: `Generate ${count} content ideas for a ${niche} creator. Their recent videos: ${recentTitles || "none yet"}. Return ONLY valid JSON: {"ideas": [{"title": "string", "description": "string", "format": "video"|"short"|"stream", "estimatedEngagement": "high"|"medium"|"low"}]}`,
+    maxTokens: 2000,
   });
-  const content = response.choices[0]?.message?.content;
+  const content = response.content;
   if (!content) return { ideas: [] };
   try { return JSON.parse(content); } catch { return { ideas: [] }; }
 }
@@ -324,7 +320,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
 
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages,
       tools: toolDefinitions,
       max_completion_tokens: 4000,
@@ -357,9 +353,9 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       }
 
       const followUp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: toolMessages,
-        max_completion_tokens: 16000
+        max_completion_tokens: 4000
       });
 
       const responseContent = followUp.choices[0]?.message?.content || "I processed your request but couldn't generate a response.";

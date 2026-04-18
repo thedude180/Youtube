@@ -794,6 +794,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRevenueRecord(record: InsertRevenueRecord): Promise<RevenueRecord> {
+    if (record.externalId && record.userId) {
+      const [newRecord] = await db.insert(revenueRecords)
+        .values(record)
+        .onConflictDoNothing({ target: [revenueRecords.userId, revenueRecords.externalId] })
+        .returning();
+      if (newRecord) return newRecord;
+      const existing = await this.getRevenueByExternalId(record.userId, record.externalId);
+      if (existing) return existing;
+    }
     const [newRecord] = await db.insert(revenueRecords).values(record).returning();
     return newRecord;
   }

@@ -33,7 +33,14 @@ import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
 import { useTranslation } from "react-i18next";
 
-type AIResponse = any;
+interface AIToolResponse { [key: string]: unknown; }
+type AIResponse = AIToolResponse | null;
+
+interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; }
+interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, unknown>; }
+interface MultistreamStatus { relaying: boolean; startedAt?: string; destinations?: Array<{ platform: string; status: string; viewers?: number }>; error?: string; }
+interface RelayDestData { destinations: Array<{ platform: string; url: string; label?: string; status?: string }>; }
+interface UneditedVod { id: number; title: string; youtubeId?: string; streamedAt?: string; duration?: number; thumbnailUrl?: string; }
 
 export default function StreamCenter() {
   const { t } = useTranslation();
@@ -636,30 +643,30 @@ export default function StreamCenter() {
   const { data: streamList = [], isLoading: streamsLoading, error: streamsError } = useQuery<Stream[]>({ queryKey: ["/api/streams"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const { data: connectedChannels = [], error: channelsError } = useQuery<Channel[]>({ queryKey: ["/api/channels"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const ytLivePoll = useAdaptiveInterval(120_000);
-  const { data: ytLiveStatus } = useQuery<any>({
+  const { data: ytLiveStatus } = useQuery<YTLiveStatus>({
     queryKey: ["/api/youtube/live-status"],
     refetchInterval: ytLivePoll,
   });
 
-  const { data: streamAgent, refetch: refetchAgent } = useQuery<any>({
+  const { data: streamAgent, refetch: refetchAgent } = useQuery<StreamAgentStatus>({
     queryKey: ["/api/stream-agent/status"],
     refetchInterval: 60_000,
   });
 
-  const { data: multistreamStatus, refetch: refetchMultistream } = useQuery<any>({
+  const { data: multistreamStatus, refetch: refetchMultistream } = useQuery<MultistreamStatus>({
     queryKey: ["/api/multistream/status"],
     refetchInterval: 60_000,
     enabled: isActiveMode,
   });
 
-  const { data: relayDestData } = useQuery<any>({
+  const { data: relayDestData } = useQuery<RelayDestData>({
     queryKey: ["/api/multistream/destinations"],
     refetchInterval: 3 * 60_000,
     enabled: isActiveMode,
   });
-  const relayDests: any[] = relayDestData?.destinations ?? [];
+  const relayDests = relayDestData?.destinations ?? [];
 
-  const { data: uneditedVods = [], refetch: refetchUnedited } = useQuery<any[]>({
+  const { data: uneditedVods = [], refetch: refetchUnedited } = useQuery<UneditedVod[]>({
     queryKey: ["/api/stream/unedited-vods"],
     refetchInterval: 5 * 60_000,
     staleTime: 2 * 60_000,

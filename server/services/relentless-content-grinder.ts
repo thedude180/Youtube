@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { videos, channels, autopilotQueue, videoCatalogLinks, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, ne, sql, count, or } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
@@ -211,14 +211,10 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
   const retentionContext = await getRetentionIntelligence(userId, gameName);
   const seoContext = await getSEOKnowledgeForClips(userId, gameName);
 
-  const openai = getOpenAIClient();
-
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You are the most aggressive content extraction AI. Your goal: squeeze EVERY last piece of viral content from this video. Leave NOTHING on the table.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt: `You are the most aggressive content extraction AI. Your goal: squeeze EVERY last piece of viral content from this video. Leave NOTHING on the table.
 
 VIDEO: "${sanitizeForPrompt(video.title, 200)}" (${sanitizeForPrompt(gameName, 100)})
 Duration: ${Math.floor(durSec / 60)} minutes
@@ -260,13 +256,11 @@ Return ONLY valid JSON:
   ],
   "exhaustionEstimate": 0-100
 }`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 3000,
+      maxTokens: 3000,
       temperature: 0.8,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
     const moments = Array.isArray(parsed.moments) ? parsed.moments : [];
 
@@ -297,7 +291,7 @@ Return ONLY valid JSON:
             contentType: "youtube-short",
             contentCategory: "video",
             style: "viral-grinder",
-            aiModel: "gpt-4o-mini",
+            aiModel: CLAUDE_MODELS.sonnet,
             sourceYoutubeId: youtubeId,
             segmentStartSec: moment.startSec,
             segmentEndSec: moment.endSec,
@@ -328,14 +322,10 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
 
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
   const viewCount = meta.viewCount || meta.views || 0;
-  const openai = getOpenAIClient();
-
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You are the #1 YouTube SEO expert. Your titles get 3-5x more clicks than average. Optimize this video for MAXIMUM virality and watch time.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt: `You are the #1 YouTube SEO expert. Your titles get 3-5x more clicks than average. Optimize this video for MAXIMUM virality and watch time.
 
 CURRENT TITLE: "${sanitizeForPrompt(video.title, 200)}"
 CURRENT DESCRIPTION: "${sanitizeForPrompt(video.description || "", 500)}"
@@ -365,13 +355,11 @@ Return JSON:
   "seoScore": 1-100,
   "viralPotential": "string — why this will perform"
 }`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000,
+      maxTokens: 2000,
       temperature: 0.7,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
 
     if (parsed.title && parsed.description) {
@@ -467,14 +455,10 @@ async function enhanceRetentionPacing(userId: string, video: any): Promise<boole
   if (durSec < 300) return false;
 
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
-  const openai = getOpenAIClient();
-
   try {
-    const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{
-        role: "user",
-        content: `You are a YouTube retention expert. For a ${Math.floor(durSec / 60)}-minute NO COMMENTARY ${gameName} gameplay video, design the optimal pacing strategy to maximize watch time.
+    const resp = await callClaude({
+      model: CLAUDE_MODELS.sonnet,
+      prompt: `You are a YouTube retention expert. For a ${Math.floor(durSec / 60)}-minute NO COMMENTARY ${gameName} gameplay video, design the optimal pacing strategy to maximize watch time.
 
 VIDEO: "${video.title}"
 Current description: "${(video.description || "").substring(0, 300)}"
@@ -502,13 +486,11 @@ Return JSON:
   "retentionScore": 1-100,
   "predictedAvgViewDuration": "string — percentage of video"
 }`,
-      }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000,
+      maxTokens: 2000,
       temperature: 0.7,
     });
 
-    const content = resp.choices[0]?.message?.content || "{}";
+    const content = resp.content || "{}";
     const parsed = JSON.parse(content);
 
     const chapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];

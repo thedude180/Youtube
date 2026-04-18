@@ -1128,15 +1128,11 @@ export function registerAiRoutes(app: Express) {
       const { niche, customIdea } = req.body;
       const topic = customIdea || niche || "general content creation";
 
-      const { getOpenAIClient } = await import("../lib/openai");
-      const openai = getOpenAIClient();
+      const { callClaude, CLAUDE_MODELS } = await import("../lib/claude");
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert YouTube creator strategist. Generate a comprehensive plan for a new creator starting from scratch. Respond as JSON with this structure:
+      const response = await callClaude({
+        model: CLAUDE_MODELS.sonnet,
+        system: `You are an expert YouTube creator strategist. Generate a comprehensive plan for a new creator starting from scratch. Respond with valid JSON only using this structure:
 {
   "channelName": "creative and memorable channel name suggestion",
   "channelDescription": "compelling channel description for YouTube about page (2-3 sentences)",
@@ -1146,16 +1142,12 @@ export function registerAiRoutes(app: Express) {
   "brandingTips": "3-4 tips for visual branding (colors, thumbnail style, intro style)",
   "nicheAnalysis": "brief analysis of the niche - competition level, audience size, monetization potential"
 }`,
-          },
-          {
-            role: "user",
-            content: `Create a complete YouTube channel plan for someone interested in: ${topic}. Make the video ideas specific, searchable, and designed to attract initial viewers. The channel name should be catchy and brandable.`,
-          },
-        ],
-        response_format: { type: "json_object" },
+        prompt: `Create a complete YouTube channel plan for someone interested in: ${topic}. Make the video ideas specific, searchable, and designed to attract initial viewers. The channel name should be catchy and brandable. Respond with valid JSON only.`,
+        maxTokens: 4000,
+        temperature: 0.8,
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.content;
       if (!content) {
         return res.json({
           channelName: `${topic} Creator`,
