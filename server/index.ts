@@ -39,6 +39,45 @@ import { startThreatLearningEngine, stopThreatLearningEngine, getLearningStats }
 import { startResilienceWatchdog, stopResilienceWatchdog, getResilienceStatus, registerMap, registerCache, checkDbPool } from "./services/resilience-core";
 import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/cleanup-coordinator";
 import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
+import fs from "fs";
+import path from "path";
+
+// ── VAULT AUTO-CLEAR ──────────────────────────────────────────────────────────
+// The vault/ directory accumulates large MP4 files downloaded from YouTube.
+// Keeping them on disk causes deployment to fail with "Disk quota exceeded".
+// We wipe vault/ on every server startup AND on a 1-hour interval so the
+// filesystem stays clean at all times — no manual intervention needed.
+function clearVault(): void {
+  try {
+    const vaultDir = path.resolve(process.cwd(), "vault");
+    if (!fs.existsSync(vaultDir)) return;
+    const files = fs.readdirSync(vaultDir);
+    if (files.length === 0) return;
+    let cleared = 0;
+    for (const file of files) {
+      try {
+        const full = path.join(vaultDir, file);
+        const stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+          fs.rmSync(full, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(full);
+        }
+        cleared++;
+      } catch { /* skip locked/missing file */ }
+    }
+    if (cleared > 0) {
+      process.stdout.write(`[vault-cleanup] Removed ${cleared} item(s) from vault/\n`);
+    }
+  } catch (err: any) {
+    process.stdout.write(`[vault-cleanup] Warning: ${err?.message}\n`);
+  }
+}
+
+clearVault(); // run immediately on startup
+setInterval(clearVault, 60 * 60 * 1000); // run every hour
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { healthBrain } from "./services/health-brain";
 import { memoryGuardian, getMemoryStats } from "./services/memory-guardian";
 import { adaptiveThrottle } from "./services/adaptive-throttle";
