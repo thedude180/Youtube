@@ -232,6 +232,35 @@ export default function TeamDashboard() {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [dismissedBanners, setDismissedBanners] = useState<string[]>([]);
 
+  const { data: profile } = useQuery<any>({
+    queryKey: ["/api/user/profile"],
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+
+  const isAdmin = profile?.role === "admin";
+
+  const { data: tokenBudget } = useQuery<Record<string, { used: number; cap: number; day: string }>>({
+    queryKey: ["/api/admin/token-budget"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
+    enabled: isAdmin,
+  });
+
+  const nearLimitEngines = tokenBudget
+    ? Object.entries(tokenBudget)
+        .filter(([, info]) => info.cap > 0 && info.used / info.cap >= 0.8)
+        .map(([engine]) => engine)
+    : [];
+
+  const budgetDay = tokenBudget ? (Object.values(tokenBudget)[0]?.day ?? "") : "";
+
+  useEffect(() => {
+    if (budgetDay) {
+      setDismissedBanners(prev => prev.filter(b => b !== "token-budget"));
+    }
+  }, [budgetDay]);
+
   const syncChannelsMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/sync/channels");
@@ -356,6 +385,31 @@ export default function TeamDashboard() {
             </div>
             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           </a>
+        )}
+        {nearLimitEngines.length > 0 && !dismissedBanners.includes("token-budget") && (
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30" data-testid="banner-token-budget-warning">
+            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-500 leading-none">
+                {nearLimitEngines.length === 1
+                  ? `AI engine "${nearLimitEngines[0]}" is near its daily token limit`
+                  : `${nearLimitEngines.length} AI engines are near their daily token limits`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Over 80% of the daily budget has been consumed.{" "}
+                <a href="/settings/admin-tokens" className="font-medium underline underline-offset-2">View Token Budget</a>
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setDismissedBanners([...dismissedBanners, "token-budget"])}
+              data-testid="button-dismiss-token-budget-banner"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         )}
         <FirstLiveMission />
 
