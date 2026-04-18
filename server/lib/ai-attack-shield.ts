@@ -1033,6 +1033,10 @@ class TokenBudgetGuard {
     const e = this.entry(engine);
     e.used += tokens;
     this.markDirty(engine);
+    const cap = DAILY_CAPS[engine] ?? DEFAULT_DAILY_CAP;
+    import("../services/token-budget-alert")
+      .then(m => m.checkAndAlertTokenBudget(engine, e.used, cap))
+      .catch(() => { /* alert failures must never surface to callers */ });
   }
 
   /**
