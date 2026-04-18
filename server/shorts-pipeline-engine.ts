@@ -472,12 +472,18 @@ Return as JSON:
   "reasoning": "brief explanation"
 }`;
 
+  if (!tokenBudget.checkBudget("shorts-pipeline", 500)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping virality prediction for clip ${clipId}`);
+    return { score: 50, factors: { hookStrength: 50, trendAlignment: 50, audienceMatch: 50, platformFit: 50 } };
+  }
+  tokenBudget.consumeBudget("shorts-pipeline", 500);
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 500,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -573,12 +579,25 @@ Create a compilation plan as JSON:
   "compilationPlan": "detailed plan for assembling the reel"
 }`;
 
+  if (!tokenBudget.checkBudget("shorts-pipeline", 1000)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping auto reel compilation`);
+    const fallback = topClips.slice(0, 5);
+    return {
+      reelTitle: "Best Moments Compilation",
+      clips: fallback,
+      totalDuration: Math.round(fallback.reduce((s, c) => s + ((c.endTime || 0) - (c.startTime || 0)), 0)),
+      platforms: ["tiktok", "youtube_shorts", "reels"],
+      compilationPlan: "Top clips selected by viral score.",
+    };
+  }
+  tokenBudget.consumeBudget("shorts-pipeline", 1000);
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 1000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -803,12 +822,18 @@ Return as JSON:
   ]
 }`;
 
+  if (!tokenBudget.checkBudget("shorts-pipeline", 2000)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping SEO optimization for ${clips.length} clips`);
+    return clips;
+  }
+  tokenBudget.consumeBudget("shorts-pipeline", 2000);
+
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;

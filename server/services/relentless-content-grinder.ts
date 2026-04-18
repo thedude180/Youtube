@@ -218,7 +218,7 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
 
   if (!tokenBudget.checkBudget("content-grinder", 3000)) {
     logger.warn(`[ContentGrinder] extractUntappedMoments: daily budget exhausted, skipping video ${video.id}`);
-    return [];
+    return 0;
   }
   tokenBudget.consumeBudget("content-grinder", 3000);
 
