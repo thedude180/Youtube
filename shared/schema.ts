@@ -824,7 +824,7 @@ export const abTests = pgTable("ab_tests", {
 export const analyticsSnapshots = pgTable("analytics_snapshots", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
-  snapshotDate: timestamp("snapshot_date").notNull(),
+  snapshotDate: timestamp("snapshot_date").notNull().defaultNow(),
   metrics: jsonb("metrics").$type<{
     totalViews: number;
     totalSubscribers: number;

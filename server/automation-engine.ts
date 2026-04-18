@@ -742,7 +742,7 @@ export async function initAutomationEngine() {
               },
             });
           } catch (snapErr: any) {
-            logger.error(`[AnalyticsSnapshot] Failed for ${userId}:`, snapErr.message);
+            logger.error(`[AnalyticsSnapshot] Failed for ${userId}`, snapErr instanceof Error ? snapErr : { message: String(snapErr) });
           }
         }
       });
