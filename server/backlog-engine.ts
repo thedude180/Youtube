@@ -1,6 +1,32 @@
 import { storage } from "./storage";
 import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectContentContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
+import { tokenBudget } from "./lib/ai-attack-shield";
+
+// ── Viral-optimization concurrency semaphore ─────────────────────────────────
+// Prevents concurrent AI hammering when autopilot processes many videos at once.
+const VIRAL_OPT_MAX_CONCURRENT = 2;
+let _viralOptActive = 0;
+const _viralOptQueue: Array<() => void> = [];
+
+function _acquireViralOpt(): Promise<void> {
+  if (_viralOptActive < VIRAL_OPT_MAX_CONCURRENT) {
+    _viralOptActive++;
+    return Promise.resolve();
+  }
+  return new Promise<void>(resolve => _viralOptQueue.push(resolve));
+}
+
+function _releaseViralOpt(): void {
+  const next = _viralOptQueue.shift();
+  if (next) {
+    // Keep the counter as-is; pass the slot directly to the next waiter
+    next();
+  } else {
+    _viralOptActive--;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 type ProcessingState = "idle" | "processing" | "paused" | "stream_active";
 
@@ -800,6 +826,11 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   seoScore: number;
   error?: string;
 }> {
+  // Early budget check — reject immediately if daily cap exhausted (don't queue in semaphore)
+  if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
+    return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Daily viral-optimizer budget exhausted" };
+  }
+
   const video = await storage.getVideo(videoId);
   if (!video) return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Video not found" };
 
@@ -838,20 +869,28 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
 
   const contentCtx = detectContentContext(currentTitle, currentDescription, meta.contentCategory, meta);
 
-  const suggestions = await generateVideoMetadata({
-    title: currentTitle,
-    description: currentDescription,
-    type: video.type || "long",
-    metadata: {
-      ...meta,
-      tags: currentTags,
-      liveStats: currentStats,
-      youtubeCategory: liveYouTubeData?.categoryId,
-      publishedAt: liveYouTubeData?.publishedAt || meta.publishedAt,
-      duration: liveYouTubeData?.duration || meta.duration,
-    },
-    platform: video.platform || "youtube",
-  }, userId);
+  await _acquireViralOpt();
+  let suggestions: any;
+  try {
+    suggestions = await generateVideoMetadata({
+      title: currentTitle,
+      description: currentDescription,
+      type: video.type || "long",
+      metadata: {
+        ...meta,
+        tags: currentTags,
+        liveStats: currentStats,
+        youtubeCategory: liveYouTubeData?.categoryId,
+        publishedAt: liveYouTubeData?.publishedAt || meta.publishedAt,
+        duration: liveYouTubeData?.duration || meta.duration,
+      },
+      platform: video.platform || "youtube",
+    }, userId);
+  } finally {
+    // 800ms spacing between releases to prevent burst hammering
+    await new Promise(r => setTimeout(r, 800));
+    _releaseViralOpt();
+  }
 
   const newMetadata: any = {
     ...meta,

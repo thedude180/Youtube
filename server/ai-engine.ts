@@ -1,6 +1,7 @@
 import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { detectGameFromLearned } from "./services/web-game-lookup";
+import { tokenBudget } from "./lib/ai-attack-shield";
 
 import { createLogger } from "./lib/logger";
 
@@ -419,12 +420,20 @@ Provide your response as JSON with exactly these fields:
   }${contentCtx.topicName ? `,\n  "detectedTopic": "${contentCtx.topicName}"` : ''}${contentCtx.niche !== 'general' ? `,\n  "contentNiche": "${contentCtx.niche}"` : ''}
 }`;
 
+  const VIRAL_META_ESTIMATED_TOKENS = 3000;
+  if (!tokenBudget.checkBudget("viral-optimizer", VIRAL_META_ESTIMATED_TOKENS)) {
+    throw new Error("Daily viral-optimizer token budget exhausted. Will retry tomorrow.");
+  }
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 3000,
   });
+
+  const actualTokens = response.usage?.total_tokens ?? VIRAL_META_ESTIMATED_TOKENS;
+  tokenBudget.consumeBudget("viral-optimizer", actualTokens);
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("No response from AI");

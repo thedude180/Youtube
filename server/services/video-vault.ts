@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { contentVaultBackups } from "@shared/schema";
+import { contentVaultBackups, channels } from "@shared/schema";
 import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
@@ -367,7 +367,22 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   return { indexed: uniqueVideos.length, newlyAdded };
 }
 
-async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$inferSelect): Promise<boolean> {
+async function getVaultYouTubeToken(userId: string): Promise<string | null> {
+  try {
+    const [ch] = await db
+      .select({ accessToken: channels.accessToken, tokenExpiresAt: channels.tokenExpiresAt })
+      .from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+      .limit(1);
+    if (!ch?.accessToken) return null;
+    if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date()) return null;
+    return ch.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$inferSelect, accessToken?: string | null): Promise<boolean> {
   const youtubeId = vaultEntry.youtubeId;
   if (!youtubeId) return false;
 
@@ -396,6 +411,10 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       .set({ status: "downloading", downloadError: null })
       .where(eq(contentVaultBackups.id, vaultEntry.id));
 
+    const authArgs: string[] = accessToken
+      ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
+      : [];
+
     await execFileAsync(ytDlpBin, [
       "-f", DOWNLOAD_QUALITY,
       "--merge-output-format", "mp4",
@@ -404,6 +423,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       "--no-playlist",
       "--retries", "3",
       "--extractor-args", `youtube:player_client=${PLAYER_CLIENT}`,
+      ...authArgs,
       url,
     ], { timeout: 600_000 });
 
@@ -439,6 +459,14 @@ export async function processVaultDownloads(userId: string): Promise<void> {
   isVaultRunning = true;
   logger.info("[Vault] Starting background download processor...");
 
+  // Fetch YouTube OAuth token once for the whole session
+  const accessToken = await getVaultYouTubeToken(userId);
+  if (accessToken) {
+    logger.info("[Vault] YouTube OAuth token found — downloads will be authenticated");
+  } else {
+    logger.warn("[Vault] No valid YouTube OAuth token — downloads may fail for private/restricted videos");
+  }
+
   try {
     let consecutiveFailures = 0;
     const MAX_CONSECUTIVE_FAILURES = 5;
@@ -465,7 +493,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
         break;
       }
 
-      const success = await downloadSingleVideo(next);
+      const success = await downloadSingleVideo(next, accessToken);
       if (success) {
         consecutiveFailures = 0;
       } else {

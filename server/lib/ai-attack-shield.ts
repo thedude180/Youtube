@@ -500,6 +500,10 @@ const DAILY_CAPS: Record<string, number> = {
   "shorts-pipeline":          40_000,
   "thumbnail-intelligence":   20_000,
   "repurpose-engine":         30_000,
+  "viral-optimizer":         150_000,
+  "autopilot":                80_000,
+  "tos-monitor":              20_000,
+  "marketer-engine":          80_000,
 };
 
 const DEFAULT_DAILY_CAP = 20_000;

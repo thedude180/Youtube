@@ -2,7 +2,7 @@ import { db } from "./db";
 import { marketingCampaigns, marketingConfig, channels, videos, trafficStrategies, keywordInsights, notifications, aiResults, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
@@ -289,12 +289,18 @@ Respond with JSON:
   "crossPlatformSchedule": { "platform": "posting frequency and strategy" }
 }`;
 
+  if (!tokenBudget.checkBudget("marketer-engine", 4000)) {
+    logger.warn("[MarketerEngine] Daily budget exhausted — skipping campaign generation");
+    return null;
+  }
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 12000,
+    max_completion_tokens: 4000,
   });
+  tokenBudget.consumeBudget("marketer-engine", response.usage?.total_tokens ?? 4000);
 
   const content = response.choices[0]?.message?.content;
   if (!content) return null;
@@ -437,12 +443,18 @@ Respond with JSON:
   "estimatedMonthlyROI": "expected return description"
 }`;
 
+  if (!tokenBudget.checkBudget("marketer-engine", 4000)) {
+    logger.warn("[MarketerEngine] Daily budget exhausted — skipping paid campaign generation");
+    return null;
+  }
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 12000,
+    max_completion_tokens: 4000,
   });
+  tokenBudget.consumeBudget("marketer-engine", response.usage?.total_tokens ?? 4000);
 
   const content = response.choices[0]?.message?.content;
   if (!content) return null;

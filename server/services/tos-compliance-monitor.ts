@@ -2,6 +2,7 @@ import { db } from "../db";
 import { complianceRules, discoveredStrategies, notifications } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
+import { tokenBudget } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 
@@ -173,14 +174,20 @@ Return ONLY valid JSON:
   "allClear": boolean
 }`;
 
+  if (!tokenBudget.checkBudget("tos-monitor", 2000)) {
+    logger.warn("[TosMonitor] Daily budget exhausted — skipping policy check");
+    return [];
+  }
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 3000,
+      max_completion_tokens: 2000,
       temperature: 0.3,
     });
+    tokenBudget.consumeBudget("tos-monitor", resp.usage?.total_tokens ?? 2000);
 
     const content = resp.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);
@@ -434,9 +441,12 @@ export function startTOSComplianceMonitor(): void {
 
   refreshUploadSafetyLimits();
 
-  runTOSComplianceCheck().catch(err =>
-    logger.warn("Initial TOS check failed", { error: String(err).substring(0, 200) })
-  );
+  // Delay initial check to avoid startup AI burst (runs 8-10 min after boot)
+  setTimeout(() => {
+    runTOSComplianceCheck().catch(err =>
+      logger.warn("Initial TOS check failed", { error: String(err).substring(0, 200) })
+    );
+  }, 8 * 60_000 + Math.floor(Math.random() * 2 * 60_000));
 
   monitorInterval = setInterval(() => {
     runTOSComplianceCheck().catch(err =>

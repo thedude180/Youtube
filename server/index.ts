@@ -1206,27 +1206,34 @@ httpServer.listen(
         m.startBudgetResetScheduler();
         m.startOverrideReportScheduler();
       }).catch(slog("trust-governance schedulers"));
+      // Stagger AI-intensive engines: spread initial runs over 2-10 min to avoid startup 429 storms
+      const stagger = (minMs: number) => minMs + Math.floor(Math.random() * 120_000);
       import("./auto-thumbnail-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(2 * 60_000)));
         await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
         const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("auto-thumbnail-engine import"));
       import("./marketer-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(3 * 60_000)));
         await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
         const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("marketer-engine import"));
       import("./daily-content-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(5 * 60_000)));
         await m.runDailyContentGeneration().catch(slog("runDailyContentGeneration"));
         const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), jitter(3 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("daily-content-engine import"));
       import("./playlist-manager").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(6 * 60_000)));
         await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));
         const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), jitter(6 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("playlist-manager import"));
       import("./vod-optimizer-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(7 * 60_000)));
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
         const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(2 * 60 * 60_000));
         backgroundIntervals.push(iv);
@@ -1242,12 +1249,13 @@ httpServer.listen(
     delay(28_000, () => {
       import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
       import("./smart-edit-engine").then(async m => {
+        await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
         const { db: database } = await import("./db");
         const { users } = await import("@shared/schema");
         const allUsers = await database.select({ id: users.id }).from(users).limit(50);
         for (const u of allUsers) {
           m.initSmartEditForAllLongVideos(u.id).catch(slog(`smartEdit(${u.id})`));
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 5000));
         }
       }).catch(slog("smart-edit-engine import"));
       import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine"));
