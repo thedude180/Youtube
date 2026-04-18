@@ -15,6 +15,7 @@
  *  - Rate-limited to avoid OpenAI overload (5 videos/minute)
  */
 
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
@@ -120,7 +121,7 @@ async function generateFullFix(
 ): Promise<{ title: string; description: string; tags: string[] } | null> {
   try {
     const openai = getOpenAIClient();
-    const issueList = detectedIssues.map(i => `• [${i.severity}] ${i.description}`).join("\n");
+    const issueList = detectedIssues.map(i => `• [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -144,9 +145,9 @@ Respond ONLY with valid JSON — no explanation, no markdown.`,
         },
         {
           role: "user",
-          content: `Platform: ${platform}
+          content: `Platform: ${sanitizeForPrompt(platform)}
 
-ORIGINAL TITLE: ${title}
+ORIGINAL TITLE: ${sanitizeForPrompt(title)}
 ORIGINAL DESCRIPTION: ${(description || "").substring(0, 800)}
 ORIGINAL TAGS: ${(tags || []).join(", ")}
 
@@ -190,7 +191,7 @@ async function scanAndFixVideo(
   const tags: string[] = meta.tags || [];
   const platform = video.platform || "youtube";
 
-  const fullText = `${title} ${description} ${tags.join(" ")}`;
+  const fullText = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(description)} ${tags.join(" ")}`;
 
   const checkResult = await runCopyrightCheck(fullText, null, platform, {
     title,
@@ -202,7 +203,7 @@ async function scanAndFixVideo(
     title,
     platform,
     riskLevel: checkResult.riskLevel,
-    issues: checkResult.issues.map(i => `[${i.severity}] ${i.description}`),
+    issues: checkResult.issues.map(i => `[${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`),
     status: "pending",
     originalTitle: title,
     originalDescription: description,
@@ -254,7 +255,7 @@ async function scanAndFixVideo(
         issue.fixedAt = new Date();
         issue.autoFixed = true;
         state.autoFixed++;
-        logger.info(`[${userId}] Copyright Guardian auto-fixed video ${video.id}: "${title}" → "${fix.title}"`);
+        logger.info(`[${userId}] Copyright Guardian auto-fixed video ${video.id}: "${sanitizeForPrompt(title)}" → "${sanitizeForPrompt(fix.title)}"`);
       } catch (err: any) {
         logger.warn(`[${userId}] Failed to apply copyright fix to video ${video.id}: ${err.message}`);
         issue.status = "review_needed";

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, contentClips, autopilotQueue } from "@shared/schema";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
@@ -119,21 +120,21 @@ async function generatePlatformCaption(
 ): Promise<PlatformCaption | null> {
   try {
     const openai = getOpenAIClient();
-    const ctxTags = video.tags.slice(0, 8).join(", ");
+    const ctxTags = sanitizeForPrompt(video.tags.slice(0, 8).join(", "));
     const prompt = `You are a viral short-form content strategist for a no-commentary PS5 gaming channel.
 
 Source YouTube Short:
-- Title: "${video.title}"
-- Game: ${video.gameName || "unknown"}
+- Title: "${sanitizeForPrompt(video.title)}"
+- Game: ${sanitizeForPrompt(video.gameName || "unknown")}
 - Tags: ${ctxTags || "none"}
-- Description: ${(video.description || "").slice(0, 300)}
+- Description: ${sanitizeForPrompt((video.description || "").slice(0, 300))}
 
 Target platform: ${platform.toUpperCase()}
 
 Platform rules:
 ${VIRAL_GUIDE[platform]}
 
-Craft a platform-native caption that will go viral on ${platform.toUpperCase()}. The caption must be distinctly different from the YouTube title — rewrite for ${platform} voice and audience. Do NOT mention "YouTube" or "my channel" or "subscribe".
+Craft a platform-native caption that will go viral on ${platform.toUpperCase()}. The caption must be distinctly different from the YouTube title — rewrite for ${sanitizeForPrompt(platform)} voice and audience. Do NOT mention "YouTube" or "my channel" or "subscribe".
 
 Respond in JSON: { "hook": "<first 3-6 words that stop the scroll>", "caption": "<the full caption copy, platform-ready>", "hashtags": ["<hashtag>", ...] }`;
 

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -195,7 +196,7 @@ Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of
           {
             role: "user",
             content: [
-              { type: "text", text: `Video title: "${title}"\nDescription: "${(description || "").slice(0, 200)}"\n\nIdentify the game from these ${frames.length} gameplay frames:` },
+              { type: "text", text: `Video title: "${sanitizeForPrompt(title)}"\nDescription: "${(description || "").slice(0, 200)}"\n\nIdentify the game from these ${frames.length} gameplay frames:` },
               ...imageContent,
             ],
           },
@@ -219,7 +220,7 @@ Return ONLY the official game name as a plain string (e.g. "Elden Ring", "God of
 }
 
 async function detectGameNameFromText(title: string, description: string): Promise<string> {
-  const combined = `${title} ${description || ""}`;
+  const combined = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(description || "")}`;
 
   const webGame = await lookupGameFromWeb(combined);
   if (webGame) {
@@ -232,7 +233,7 @@ async function detectGameNameFromText(title: string, description: string): Promi
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: `Extract the PS5 game name ONLY if it is explicitly mentioned in the title or description. Do NOT guess or infer a game that is not clearly named. If the game name is not clearly stated in the text, return exactly "Unknown". Return ONLY the official game name as a plain string.` },
-        { role: "user", content: `Title: ${title}\nDescription: ${(description || "").slice(0, 300)}` },
+        { role: "user", content: `Title: ${sanitizeForPrompt(title)}\nDescription: ${(description || "").slice(0, 300)}` },
       ],
       max_completion_tokens: 30,
     });
@@ -274,7 +275,7 @@ async function identifyGamingHighlights(
 
   const prompt = `You are an expert no-commentary PS5 gaming highlight reel editor.
 
-VIDEO: "${title}" (${gameName})
+VIDEO: "${sanitizeForPrompt(title)}" (${sanitizeForPrompt(gameName)})
 Total duration: ${Math.round(totalDurationSec / 60)} minutes
 
 Highest-intensity minute windows detected by audio energy and scene change analysis:
@@ -284,7 +285,7 @@ ${learningContext ? `CHANNEL LEARNING CONTEXT:\n${learningContext}\n` : ""}
 
 Select the ${Math.min(MAX_SEGMENTS, top12.length)} best non-overlapping segments for a highlight reel.
 Each segment must be ${MIN_SEGMENT_SEC}-${MAX_SEGMENT_SEC} seconds long.
-Use your knowledge of ${gameName} to understand what likely happens at each intensity peak (boss fights, clutch moments, intense action, progression milestones).
+Use your knowledge of ${sanitizeForPrompt(gameName)} to understand what likely happens at each intensity peak (boss fights, clutch moments, intense action, progression milestones).
 Prefer segments that are spaced throughout the video for variety.
 
 Return ONLY valid JSON array:
@@ -428,13 +429,13 @@ async function generateHighlightMetadata(
     const mins = Math.floor(s.startSec / 60);
     const secs = s.startSec % 60;
     const ts = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-    return `${ts} ${s.label}`;
+    return `${ts} ${sanitizeForPrompt(s.label)}`;
   });
 
   const prompt = `Generate YouTube metadata for a no-commentary PS5 gaming highlight reel.
 
-Game: ${gameName}
-Source video: "${videoTitle}"
+Game: ${sanitizeForPrompt(gameName)}
+Source video: "${sanitizeForPrompt(videoTitle)}"
 Segments (${segments.length} highlights):
 ${chapterLines.join("\n")}
 
@@ -459,14 +460,14 @@ Return JSON: {"title": "...", "description": "...", "tags": ["..."]}`;
     const data = JSON.parse(resp.choices[0]?.message?.content || "{}");
     const chapterBlock = "\n\nCHAPTERS:\n" + chapterLines.join("\n");
     return {
-      title: (data.title || `${gameName} Best Moments – PS5 Highlights`).slice(0, 100),
-      description: ((data.description || `Epic ${gameName} highlights.`) + chapterBlock).slice(0, 5000),
+      title: (data.title || `${sanitizeForPrompt(gameName)} Best Moments – PS5 Highlights`).slice(0, 100),
+      description: ((data.description || `Epic ${sanitizeForPrompt(gameName)} highlights.`) + chapterBlock).slice(0, 5000),
       tags: (data.tags || [gameName, "ps5", "gameplay", "highlights", "no commentary"]).slice(0, 30),
     };
   } catch {
     const chapterBlock = "\n\nCHAPTERS:\n" + chapterLines.join("\n");
     return {
-      title: `${gameName} Best Moments – PS5 Highlights`.slice(0, 100),
+      title: `${sanitizeForPrompt(gameName)} Best Moments – PS5 Highlights`.slice(0, 100),
       description: (`The best moments from ${videoTitle}.` + chapterBlock).slice(0, 5000),
       tags: [gameName, "ps5", "gameplay", "highlights", "no commentary", "gaming"],
     };
@@ -671,9 +672,9 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       .where(eq(aiAgentTasks.id, agentTaskId));
 
     await recordLearningEvent(userId, "smart_edit_completed", "highlight_reel_uploaded", {
-      finding: `Smart edit completed for ${gameName}: ${segments.length} segments, uploaded as ${metadata.title}`,
-      evidence: [`Game: ${gameName}`, `Segments: ${segments.length}`, `Duration: ${Math.round(actualDuration / 60)}min source`],
-      recommendation: `Continue producing highlight reels for ${gameName} — automated editing working`,
+      finding: `Smart edit completed for ${sanitizeForPrompt(gameName)}: ${segments.length} segments, uploaded as ${sanitizeForPrompt(metadata.title)}`,
+      evidence: [`Game: ${sanitizeForPrompt(gameName)}`, `Segments: ${segments.length}`, `Duration: ${Math.round(actualDuration / 60)}min source`],
+      recommendation: `Continue producing highlight reels for ${sanitizeForPrompt(gameName)} — automated editing working`,
       platform: "youtube",
     });
 
@@ -716,8 +717,8 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       userId,
       agentName: "smart-edit-engine",
       payloadType: "job-result",
-      title: `Smart Edit: ${metadata.title}`,
-      body: `Extracted ${segments.length} highlight segments from ${gameName}. Uploaded to YouTube as ${newYoutubeId}.`,
+      title: `Smart Edit: ${sanitizeForPrompt(metadata.title)}`,
+      body: `Extracted ${segments.length} highlight segments from ${sanitizeForPrompt(gameName)}. Uploaded to YouTube as ${newYoutubeId}.`,
       metadata: { videoId, youtubeId: newYoutubeId, gameName, segmentCount: segments.length },
     }).catch(err => logger.warn("UI payload write failed", { error: String(err).substring(0, 200) }));
 

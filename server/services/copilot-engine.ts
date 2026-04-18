@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { getOpenAIClient } from "../lib/openai";
 import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
@@ -198,7 +199,7 @@ async function executeSuggestContentIdeas(userId: string, args: Record<string, a
 
   const response = await callClaude({
     model: CLAUDE_MODELS.sonnet,
-    prompt: `Generate ${count} content ideas for a ${niche} creator. Their recent videos: ${recentTitles || "none yet"}. Return ONLY valid JSON: {"ideas": [{"title": "string", "description": "string", "format": "video"|"short"|"stream", "estimatedEngagement": "high"|"medium"|"low"}]}`,
+    prompt: `Generate ${count} content ideas for a ${sanitizeForPrompt(niche)} creator. Their recent videos: ${recentTitles || "none yet"}. Return ONLY valid JSON: {"ideas": [{"title": "string", "description": "string", "format": "video"|"short"|"stream", "estimatedEngagement": "high"|"medium"|"low"}]}`,
     maxTokens: 2000,
   });
   const content = response.content;
@@ -259,7 +260,7 @@ async function executeTool(userId: string, toolName: string, args: Record<string
 async function buildSystemPrompt(userId: string): Promise<string> {
   const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
   const channelInfo = userChannels.map(ch =>
-    `- ${ch.channelName} (${ch.platform}): ${ch.subscriberCount ?? 0} subscribers, ${ch.videoCount ?? 0} videos, ${ch.viewCount ?? 0} total views, niche: ${ch.contentNiche ?? "general"}`
+    `- ${sanitizeForPrompt(ch.channelName)} (${sanitizeForPrompt(ch.platform)}): ${ch.subscriberCount ?? 0} subscribers, ${ch.videoCount ?? 0} videos, ${ch.viewCount ?? 0} total views, niche: ${ch.contentNiche ?? "general"}`
   ).join("\n");
 
   const channelIds = userChannels.map(c => c.id);
@@ -272,7 +273,7 @@ async function buildSystemPrompt(userId: string): Promise<string> {
     if (recentVids.length > 0) {
       recentVideoInfo = "\n\nRecent videos:\n" + recentVids.map(v => {
         const views = v.metadata?.stats?.views ?? v.metadata?.viewCount ?? 0;
-        return `- "${v.title}" (${v.platform}, ${views} views)`;
+        return `- "${sanitizeForPrompt(v.title)}" (${sanitizeForPrompt(v.platform)}, ${views} views)`;
       }).join("\n");
     }
   }

@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "./lib/openai";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -37,10 +38,11 @@ export async function getOptimalPostingTimes(userId: string, platform: string) {
     const userVideos = await storage.getVideosByUser(userId);
     const videoSummary = userVideos.slice(0, 20).map(v => {
       const stats = v.metadata?.stats;
-      return `"${v.title}" - published: ${v.publishedAt || "unknown"}, views: ${stats?.views || "N/A"}`;
+      return `"${sanitizeForPrompt(v.title)}" - published: ${v.publishedAt || "unknown"}, views: ${stats?.views || "N/A"}`;
     }).join("\n");
 
-    const prompt = `You are a social media scheduling expert. Recommend optimal posting times for ${platform}.
+    const safePlatform = sanitizeForPrompt(platform);
+    const prompt = `You are a social media scheduling expert. Recommend optimal posting times for ${safePlatform}.
 
 Creator's recent videos:
 ${videoSummary || "No videos yet"}
@@ -56,10 +58,10 @@ Generate optimal posting times as JSON:
     }
   ],
   "timezone": "Recommended timezone consideration",
-  "generalTips": ["3 tips for ${platform} scheduling"]
+  "generalTips": ["3 tips for ${safePlatform} scheduling"]
 }
 
-Provide 5-7 optimal posting slots based on ${platform}'s known best practices and the creator's content type.`;
+Provide 5-7 optimal posting slots based on ${safePlatform}'s known best practices and the creator's content type.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -138,7 +140,7 @@ Scheduled items: ${scheduleHistory.length}
 
 Video titles and dates:
 ${recentVideos.slice(0, 20).map(v =>
-  `- "${v.title}" (${v.type}) - ${v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "unknown"}`
+  `- "${sanitizeForPrompt(v.title)}" (${sanitizeForPrompt(v.type)}) - ${v.createdAt ? new Date(v.createdAt).toLocaleDateString() : "unknown"}`
 ).join("\n") || "No recent videos"}
 
 Analyze and recommend as JSON:
@@ -215,7 +217,7 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
 
       const item = await storage.createScheduleItem({
         userId,
-        title: `${video.title} - ${platform}`,
+        title: `${sanitizeForPrompt(video.title)} - ${sanitizeForPrompt(platform)}`,
         type: video.type,
         platform,
         videoId,
@@ -246,7 +248,7 @@ export async function getScheduleRecommendations(userId: string) {
 
 Upcoming scheduled items: ${upcomingItems.length}
 ${upcomingItems.slice(0, 15).map(s =>
-  `- "${s.title}" on ${s.platform} at ${s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "unscheduled"} (${s.status})`
+  `- "${sanitizeForPrompt(s.title)}" on ${sanitizeForPrompt(s.platform)} at ${s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "unscheduled"} (${sanitizeForPrompt(s.status)})`
 ).join("\n") || "No upcoming items"}
 
 Total videos available: ${userVideos.length}

@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "../lib/openai";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { contentQualityScores, videos } from "@shared/schema";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
@@ -35,8 +36,8 @@ export async function scoreContentQuality(userId: string, videoId: number): Prom
       {
         role: "user",
         content: `Analyze this video content quality:
-Title: "${video.title}"
-Description: "${video.description || "None"}"
+Title: "${sanitizeForPrompt(video.title)}"
+Description: "${sanitizeForPrompt(video.description || "None")}"
 Tags: ${tags.length > 0 ? tags.join(", ") : "None"}
 Platform: ${video.platform || "youtube"}
 
@@ -127,7 +128,7 @@ export async function smartSchedule(userId: string, contentType: string, platfor
         content: `Based on this creator's past performance data, recommend the optimal posting time.
 
 Content Type: ${contentType}
-Platform: ${platform}
+Platform: ${sanitizeForPrompt(platform)}
 Recent Videos (${performanceData.length} total):
 ${JSON.stringify(performanceData.slice(0, 20), null, 2)}
 
@@ -172,12 +173,12 @@ export async function getPlatformOptimizations(platform: string, content: { titl
   let tagsOptimized = content.tags ? [...content.tags] : [];
 
   if (titleOptimized.length > constraints.title) {
-    issues.push(`Title exceeds ${constraints.title} character limit (${titleOptimized.length} chars)`);
+    issues.push(`Title exceeds ${sanitizeForPrompt(constraints.title)} character limit (${titleOptimized.length} chars)`);
     titleOptimized = titleOptimized.substring(0, constraints.title - 3) + "...";
   }
 
   if (descriptionOptimized.length > constraints.description) {
-    issues.push(`Description exceeds ${constraints.description} character limit (${descriptionOptimized.length} chars)`);
+    issues.push(`Description exceeds ${sanitizeForPrompt(constraints.description)} character limit (${descriptionOptimized.length} chars)`);
     descriptionOptimized = descriptionOptimized.substring(0, constraints.description - 3) + "...";
   }
 

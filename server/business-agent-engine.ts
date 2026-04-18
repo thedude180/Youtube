@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
@@ -155,7 +156,7 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
       temperature: 0.8,
     });
 
-    const finding = response.choices[0]?.message?.content?.trim() ?? `${agentConfig.taskDescription} completed — no issues detected.`;
+    const finding = response.choices[0]?.message?.content?.trim() ?? `${sanitizeForPrompt(agentConfig.taskDescription)} completed — no issues detected.`;
 
     await storage.createAgentActivity({
       userId,
@@ -170,16 +171,16 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
       },
     });
 
-    logger.info(`[business-agent] ${agentConfig.agentId} completed for user ${userId}`);
+    logger.info(`[business-agent] ${sanitizeForPrompt(agentConfig.agentId)} completed for user ${userId}`);
   } catch (err: any) {
-    logger.error(`[business-agent] ${agentConfig.agentId} failed: ${err.message}`);
+    logger.error(`[business-agent] ${sanitizeForPrompt(agentConfig.agentId)} failed: ${sanitizeForPrompt(err.message)}`);
     await storage.createAgentActivity({
       userId,
       agentId: agentConfig.agentId,
       action: agentConfig.taskDescription,
       target: "creator-business",
       status: "completed",
-      details: { description: `${agentConfig.name} scan completed — monitoring active.`, impact: "audit" },
+      details: { description: `${sanitizeForPrompt(agentConfig.name)} scan completed — monitoring active.`, impact: "audit" },
     });
   }
 }

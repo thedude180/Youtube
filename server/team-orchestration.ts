@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
@@ -365,7 +366,7 @@ async function runPhaseAgent(userId: string, agentId: string, phase: string, pre
   const allAgentConfigs = { ...BUSINESS_AGENTS, ...LEGAL_AGENTS, ...TAX_AGENTS } as Record<string, any>;
   const agentConfig = allAgentConfigs[agentId];
   const systemPrompt = agentConfig?.systemPrompt
-    ?? `You are ${org.name}, ${org.title} at a creator media company. ${org.specialty ?? ""}
+    ?? `You are ${sanitizeForPrompt(org.name)}, ${sanitizeForPrompt(org.title)} at a creator media company. ${org.specialty ?? ""}
 Generate a 1-sentence autonomous finding about your domain. Start with an action verb. No greeting.`;
 
   try {
@@ -384,12 +385,12 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
       temperature: 0.8,
     });
 
-    const finding = response.choices[0]?.message?.content?.trim() ?? `${org.name} completed ${phase}.`;
+    const finding = response.choices[0]?.message?.content?.trim() ?? `${sanitizeForPrompt(org.name)} completed ${phase}.`;
 
     await storage.createAgentActivity({
       userId,
       agentId,
-      action: `[${phase}] ${org.title} completed`,
+      action: `[${phase}] ${sanitizeForPrompt(org.title)} completed`,
       target: "company-cycle",
       status: "completed",
       details: {
@@ -404,21 +405,21 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
 
     return finding;
   } catch (err: any) {
-    logger.error(`[team-ops] ${agentId} failed: ${err.message}`);
+    logger.error(`[team-ops] ${agentId} failed: ${sanitizeForPrompt(err.message)}`);
     await storage.createAgentActivity({
       userId,
       agentId,
-      action: `[${phase}] ${org.title} completed`,
+      action: `[${phase}] ${sanitizeForPrompt(org.title)} completed`,
       target: "company-cycle",
       status: "completed",
       details: {
-        description: `${org.name} scan complete — monitoring active.`,
+        description: `${sanitizeForPrompt(org.name)} scan complete — monitoring active.`,
         impact: "team-ops",
         phase,
         department: org.department,
       },
     });
-    return `${org.name} scan complete.`;
+    return `${sanitizeForPrompt(org.name)} scan complete.`;
   }
 }
 

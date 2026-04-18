@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -97,8 +98,8 @@ export async function generateOutreachDraft(candidateId: number) {
         role: "user",
         content: `Write a professional but friendly outreach message to a potential collaboration partner.
 
-Target creator: ${candidate.candidateName}
-Platform: ${candidate.platform}
+Target creator: ${sanitizeForPrompt(candidate.candidateName)}
+Platform: ${sanitizeForPrompt(candidate.platform)}
 Their audience size: ${candidate.subscriberCount || "unknown"}
 Suggested collab formats: ${formats.join(", ")}
 Compatibility score: ${candidate.compatibilityScore || "high"}
@@ -166,8 +167,8 @@ export async function suggestCollabFormats(userId: string, candidateId: number) 
         role: "user",
         content: `Suggest detailed collaboration formats for two creators working together.
 
-Creator's collab partner: ${candidate.candidateName}
-Platform: ${candidate.platform}
+Creator's collab partner: ${sanitizeForPrompt(candidate.candidateName)}
+Platform: ${sanitizeForPrompt(candidate.platform)}
 Audience overlap: ${candidate.audienceOverlap || "moderate"}
 Compatibility: ${candidate.compatibilityScore || "high"}
 

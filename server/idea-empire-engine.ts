@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -77,7 +78,7 @@ export async function buildEmpireFromIdea(userId: string, idea: string) {
 
   const youtubeContext = await getYouTubeLearningContext(userId, idea);
 
-  const nicheAndBrandPrompt = `You are an elite content strategy consultant who has helped hundreds of creators build million-subscriber channels from scratch. A complete beginner has come to you with this idea: "${idea}"
+  const nicheAndBrandPrompt = `You are an elite content strategy consultant who has helped hundreds of creators build million-subscriber channels from scratch. A complete beginner has come to you with this idea: "${sanitizeForPrompt(idea)}"
 
 ${youtubeContext ? `YOUTUBE INTELLIGENCE (use this to inform your strategy):\n${youtubeContext}\n` : ""}
 
@@ -411,7 +412,7 @@ Every formula should be so specific that a beginner can follow it like a recipe.
 
   sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "started", message: "Auto-creating videos and spawning VOD pipelines from your blueprint..." });
   autoLaunchEmpireContent(userId, 3).then(launchResult => {
-    sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "completed", message: `Auto-launched ${launchResult.totalLaunched} videos into VOD pipelines!` });
+    sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "completed", message: `Auto-launched ${sanitizeForPrompt(launchResult.totalLaunched)} videos into VOD pipelines!` });
   }).catch(err => {
     logger.error(`[Empire] Auto-launch failed for user ${userId}:`, err.message);
     sendSSEEvent(userId, "empire-progress", { step: "auto-video", status: "error", message: "Auto-launch encountered an issue but your blueprint is saved." });
@@ -492,10 +493,10 @@ export async function expandEmpirePillar(userId: string, pillarIndex: number) {
   const prompt = `You are an SEO and content strategy expert. Expand this content pillar into 10 fully developed video ideas with complete SEO strategy.
 
 CONTENT PILLAR:
-Name: ${pillar.name}
-Description: ${pillar.description}
-Format: ${pillar.format}
-Frequency: ${pillar.frequency}
+Name: ${sanitizeForPrompt(pillar.name)}
+Description: ${sanitizeForPrompt(pillar.description)}
+Format: ${sanitizeForPrompt(pillar.format)}
+Frequency: ${sanitizeForPrompt(pillar.frequency)}
 
 CREATOR CONTEXT:
 Niche: ${JSON.stringify(blueprint.niche)}
@@ -504,7 +505,7 @@ Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "
 
 Respond with JSON:
 {
-  "pillarName": "${pillar.name}",
+  "pillarName": "${sanitizeForPrompt(pillar.name)}",
   "videoIdeas": [
     {
       "title": "Specific, SEO-optimized, click-worthy title",
@@ -1073,7 +1074,7 @@ Thumbnail Style: ${JSON.stringify(blueprint.thumbnailStyle?.overallApproach || "
     learnedKeywordContext = await getKeywordContext(userId);
   } catch { /* no keyword data yet */ }
 
-  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: `Writing video script (Creator Skill: ${skillInfo.label}, Video #${videosCreated + 1})...` });
+  sendSSEEvent(userId, "video-creation-progress", { step: "script", status: "started", message: `Writing video script (Creator Skill: ${sanitizeForPrompt(skillInfo.label)}, Video #${videosCreated + 1})...` });
 
   const humanBehaviorContext = generateHumanWritingContext(contentIdea.platform || "YouTube", contentIdea.format || "long-form");
 
@@ -1087,7 +1088,7 @@ ${youtubeLearnContext ? `\nYOUTUBE INTELLIGENCE (use to inform quality at the cr
 ${learnedKeywordContext}
 
 CRITICAL SKILL-BASED QUALITY RULE:
-The creator's skill level is ${skillInfo.level}/100 (${skillInfo.label}). Quality multiplier: ${skillInfo.qualityMultiplier}.
+The creator's skill level is ${sanitizeForPrompt(skillInfo.level)}/100 (${sanitizeForPrompt(skillInfo.label)}). Quality multiplier: ${sanitizeForPrompt(skillInfo.qualityMultiplier)}.
 - At low skill levels, content should have REALISTIC imperfections matching a real beginner
 - The quality of hooks, titles, scripts, thumbnails, and SEO should all reflect this skill level
 - Do NOT produce polished, professional content for a beginner - that's unrealistic and will trigger suspicion
@@ -1095,7 +1096,7 @@ The creator's skill level is ${skillInfo.level}/100 (${skillInfo.label}). Qualit
 - Think about what video #${videosCreated + 1} from a real creator looks like
 
 VIDEO CONCEPT:
-Title: "${contentIdea.title}"
+Title: "${sanitizeForPrompt(contentIdea.title)}"
 Description: ${contentIdea.description || "Not provided"}
 Format: ${contentIdea.format || "long-form"}
 Target Platform: ${contentIdea.platform || "YouTube"}
@@ -1335,14 +1336,14 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
 }) {
   const platform = contentIdea.platform?.toLowerCase() || "youtube";
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "started", message: `Calculating human-realistic schedule for "${contentIdea.title}"...` });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "started", message: `Calculating human-realistic schedule for "${sanitizeForPrompt(contentIdea.title)}"...` });
 
   const scheduleInfo = generateHumanScheduleInfo(userId, platform);
   const activityWindow = getActivityWindow();
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "completed", message: `Scheduled for ${scheduleInfo.scheduledTime.toLocaleString()} (${scheduleInfo.peakHourTarget ? "peak hours" : "off-peak"}, ${scheduleInfo.humanDelay} from now)` });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "human-timing", status: "completed", message: `Scheduled for ${scheduleInfo.scheduledTime.toLocaleString()} (${scheduleInfo.peakHourTarget ? "peak hours" : "off-peak"}, ${sanitizeForPrompt(scheduleInfo.humanDelay)} from now)` });
 
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Writing human-authentic script for "${contentIdea.title}" (anti-AI detection active, ${FULL_BANNED_AI_PHRASES.length} phrases blocked)...` });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "video-creation", status: "started", message: `Writing human-authentic script for "${sanitizeForPrompt(contentIdea.title)}" (anti-AI detection active, ${FULL_BANNED_AI_PHRASES.length} phrases blocked)...` });
 
   const videoPackage = await createVideoFromIdea(userId, contentIdea);
 
@@ -1437,7 +1438,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
         scheduledPublishTime: scheduleInfo.scheduledTime.toISOString(),
         privacyStatus: "public",
       });
-      sendSSEEvent(userId, "empire-auto-pipeline", { step: "upload-queued", status: "completed", message: `Video "${finalTitle}" queued for YouTube upload with human-realistic timing` });
+      sendSSEEvent(userId, "empire-auto-pipeline", { step: "upload-queued", status: "completed", message: `Video "${sanitizeForPrompt(finalTitle)}" queued for YouTube upload with human-realistic timing` });
     } catch (err: any) {
       logger.error(`[Empire] Failed to queue video upload:`, err.message);
     }
@@ -1453,7 +1454,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
   }
 
   const distributionPlatforms = Object.keys(distributionSchedule);
-  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned for "${finalTitle}" with human-realistic scheduling across ${distributionPlatforms.length + 1} platforms!` });
+  sendSSEEvent(userId, "empire-auto-pipeline", { step: "vod-spawn", status: "completed", message: `VOD pipeline #${pipeline.id} spawned for "${sanitizeForPrompt(finalTitle)}" with human-realistic scheduling across ${distributionPlatforms.length + 1} platforms!` });
 
   return {
     videoPackage,
@@ -1484,7 +1485,7 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
 
   const activityWindow = getActivityWindow();
   if (!activityWindow.isActive) {
-    sendSSEEvent(userId, "empire-auto-launch", { step: "human-behavior", status: "in_progress", message: `Outside waking hours (${activityWindow.start}:00-${activityWindow.end}:00). Queuing for next active window for stealth.` });
+    sendSSEEvent(userId, "empire-auto-launch", { step: "human-behavior", status: "in_progress", message: `Outside waking hours (${sanitizeForPrompt(activityWindow.start)}:00-${sanitizeForPrompt(activityWindow.end)}:00). Queuing for next active window for stealth.` });
   }
 
   const contentIdeas: Array<{ title: string; description: string; pillar: string; format: string; platform: string }> = [];
@@ -1496,7 +1497,7 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
     if (content && content.title && content.title !== "N/A" && content.type !== "post") {
       contentIdeas.push({
         title: content.title,
-        description: content.description || `Content from Day ${day.day}: ${day.theme}`,
+        description: content.description || `Content from Day ${sanitizeForPrompt(day.day)}: ${sanitizeForPrompt(day.theme)}`,
         pillar: day.theme || "General",
         format: content.type === "stream" ? "live" : content.type === "short" ? "short" : "long-form",
         platform: content.platform || "YouTube",
@@ -1558,13 +1559,13 @@ export async function autoLaunchEmpireContent(userId: string, count: number = 3)
       urgency: i === 0 ? "normal" : "low",
     });
 
-    sendSSEEvent(userId, "empire-auto-launch", { step: "creating", status: "in_progress", message: `Creating video ${i + 1}/${contentIdeas.length}: "${idea.title}" (publish: ${scheduledTime.toLocaleString()})...`, progress: Math.round(((i) / contentIdeas.length) * 100) });
+    sendSSEEvent(userId, "empire-auto-launch", { step: "creating", status: "in_progress", message: `Creating video ${i + 1}/${contentIdeas.length}: "${sanitizeForPrompt(idea.title)}" (publish: ${scheduledTime.toLocaleString()})...`, progress: Math.round(((i) / contentIdeas.length) * 100) });
 
     try {
       const result = await createVideoAndSpawnPipeline(userId, idea);
       results.push({ success: true, ...result });
     } catch (err: any) {
-      logger.error(`[Empire] Failed to create video for "${idea.title}":`, err.message);
+      logger.error(`[Empire] Failed to create video for "${sanitizeForPrompt(idea.title)}":`, err.message);
       results.push({ success: false, title: idea.title, error: err.message });
     }
   }
@@ -1608,7 +1609,7 @@ export async function getVideoCreations(userId: string) {
     .from(aiResults)
     .where(and(
       eq(aiResults.userId, userId),
-      sql`${aiResults.featureKey} LIKE 'video-creation-%'`
+      sql`${sanitizeForPrompt(aiResults.featureKey)} LIKE 'video-creation-%'`
     ))
     .orderBy(desc(aiResults.createdAt))
     .limit(20);

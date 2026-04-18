@@ -44,7 +44,7 @@ async function searchBraveImages(query: string): Promise<Array<{ url: string; ti
     });
 
     if (!resp.ok) {
-      logger.debug(`Brave direct search failed: ${resp.status}`);
+      logger.debug(`Brave direct search failed: ${sanitizeForPrompt(resp.status)}`);
       return await searchBraveViaProxy(query);
     }
 
@@ -100,7 +100,7 @@ async function searchWebForThumbnailArticles(query: string): Promise<string> {
     const data = await resp.json() as any;
     const results = data?.query?.search || [];
     return results.map((r: any) =>
-      `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
+      `${sanitizeForPrompt(r.title)}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
     ).join("\n");
   } catch {
     return "";
@@ -141,7 +141,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
     };
   }
 
-  logger.info(`Researching thumbnails for "${gameName}"`, { userId: userId.substring(0, 8) });
+  logger.info(`Researching thumbnails for "${sanitizeForPrompt(gameName)}"`, { userId: userId.substring(0, 8) });
 
   const queryFns = THUMBNAIL_RESEARCH_QUERIES.slice(0, 4);
   const allReferences: Array<{ url: string; title: string; source: string }> = [];
@@ -158,7 +158,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
     .slice(0, 15);
 
   const webArticles = await searchWebForThumbnailArticles(
-    `YouTube thumbnail design CTR optimization gaming ${gameName}`
+    `YouTube thumbnail design CTR optimization gaming ${sanitizeForPrompt(gameName)}`
   );
 
   const generalArticles = await searchWebForThumbnailArticles(
@@ -168,7 +168,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
   const openai = getOpenAIClient();
 
   if (!tokenBudget.checkBudget("thumbnail-intelligence", 2000)) {
-    logger.warn(`[ThumbnailIntelligence] Daily token budget exhausted — skipping research for "${gameName}"`);
+    logger.warn(`[ThumbnailIntelligence] Daily token budget exhausted — skipping research for "${sanitizeForPrompt(gameName)}"`);
     return null;
   }
   tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
@@ -181,7 +181,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
         content: `You are a world-class YouTube thumbnail analyst specializing in gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and gaming in general.
 
 REFERENCE IMAGES FOUND (${uniqueRefs.length} results):
-${uniqueRefs.map((r, i) => `${i + 1}. "${r.title}" — ${r.source}`).join("\n")}
+${uniqueRefs.map((r, i) => `${i + 1}. "${sanitizeForPrompt(r.title)}" — ${sanitizeForPrompt(r.source)}`).join("\n")}
 
 WEB RESEARCH:
 ${webArticles || "No specific articles found"}
@@ -234,7 +234,7 @@ Return JSON:
     await db.insert(thumbnailIntelligence).values({
       userId,
       gameName: gameName.toLowerCase().trim(),
-      researchQuery: `${gameName} thumbnail research`,
+      researchQuery: `${sanitizeForPrompt(gameName)} thumbnail research`,
       referenceImages: uniqueRefs as any,
       patterns: parsed.patterns as any,
       bestPractices: intel.bestPractices,
@@ -244,7 +244,7 @@ Return JSON:
       expiresAt: new Date(Date.now() + RESEARCH_CACHE_HOURS * 3600_000),
     });
 
-    logger.info(`Thumbnail intelligence cached for "${gameName}": ${uniqueRefs.length} references, patterns extracted`, { userId: userId.substring(0, 8) });
+    logger.info(`Thumbnail intelligence cached for "${sanitizeForPrompt(gameName)}": ${uniqueRefs.length} references, patterns extracted`, { userId: userId.substring(0, 8) });
     return intel;
   } catch (err: any) {
     logger.warn(`Thumbnail intelligence analysis failed: ${err.message?.substring(0, 200)}`);
@@ -259,37 +259,37 @@ export async function getThumbnailContext(userId: string, gameName: string): Pro
   const parts: string[] = [];
 
   if (intel.bestPractices) {
-    parts.push(`THUMBNAIL BEST PRACTICES (from web research):\n${intel.bestPractices}`);
+    parts.push(`THUMBNAIL BEST PRACTICES (from web research):\n${sanitizeForPrompt(intel.bestPractices)}`);
   }
 
   if (intel.gamingInsights) {
-    parts.push(`GAME-SPECIFIC INSIGHTS for ${gameName}:\n${intel.gamingInsights}`);
+    parts.push(`GAME-SPECIFIC INSIGHTS for ${sanitizeForPrompt(gameName)}:\n${sanitizeForPrompt(intel.gamingInsights)}`);
   }
 
   if (intel.ctrTactics) {
-    parts.push(`CTR TACTICS (proven to work):\n${intel.ctrTactics}`);
+    parts.push(`CTR TACTICS (proven to work):\n${sanitizeForPrompt(intel.ctrTactics)}`);
   }
 
   if (intel.antiClickbait) {
-    parts.push(`ANTI-CLICKBAIT RULES:\n${intel.antiClickbait}`);
+    parts.push(`ANTI-CLICKBAIT RULES:\n${sanitizeForPrompt(intel.antiClickbait)}`);
   }
 
   const patterns = intel.patterns;
   if (patterns) {
     if (patterns.colorSchemes?.length) {
-      parts.push(`COLOR SCHEMES that work: ${patterns.colorSchemes.join("; ")}`);
+      parts.push(`COLOR SCHEMES that work: ${sanitizeForPrompt(patterns.colorSchemes.join("; "))}`);
     }
     if (patterns.compositions?.length) {
-      parts.push(`COMPOSITION PATTERNS: ${patterns.compositions.join("; ")}`);
+      parts.push(`COMPOSITION PATTERNS: ${sanitizeForPrompt(patterns.compositions.join("; "))}`);
     }
     if (patterns.emotionalTriggers?.length) {
-      parts.push(`EMOTIONAL TRIGGERS: ${patterns.emotionalTriggers.join("; ")}`);
+      parts.push(`EMOTIONAL TRIGGERS: ${sanitizeForPrompt(patterns.emotionalTriggers.join("; "))}`);
     }
     if (patterns.commonElements?.length) {
-      parts.push(`COMMON WINNING ELEMENTS: ${patterns.commonElements.join("; ")}`);
+      parts.push(`COMMON WINNING ELEMENTS: ${sanitizeForPrompt(patterns.commonElements.join("; "))}`);
     }
     if (patterns.avoidPatterns?.length) {
-      parts.push(`AVOID (clickbait/trust-damaging): ${patterns.avoidPatterns.join("; ")}`);
+      parts.push(`AVOID (clickbait/trust-damaging): ${sanitizeForPrompt(patterns.avoidPatterns.join("; "))}`);
     }
   }
 

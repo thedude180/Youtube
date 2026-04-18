@@ -1,4 +1,5 @@
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
@@ -37,7 +38,7 @@ export class MultiPlatformDistributor {
         ? "\n\nLEARNED PLATFORM INTELLIGENCE:\n" + platformKnowledge.map(k => `• [${k.confidence}%] ${k.insight.substring(0, 120)}`).join("\n")
         : "";
 
-      const basePrompt = `Generate engaging, platform-specific captions for a highlight clip titled "${clipPayload.title}" from the game "${clipPayload.gameTitle}".
+      const basePrompt = `Generate engaging, platform-specific captions for a highlight clip titled "${sanitizeForPrompt(clipPayload.title)}" from the game "${sanitizeForPrompt(clipPayload.gameTitle)}".
 Platforms: ${platforms.join(", ")}
 ${masterWisdom ? "\n" + masterWisdom : ""}${platformContext}
 
@@ -75,7 +76,7 @@ Return a JSON object where keys are platform names and values are the generated 
 
           const health = getConnectionHealth(platform);
           if (health.status === "open") {
-            logger.warn(`[MultiPlatformDistributor] Skipping ${platform} — circuit breaker open`);
+            logger.warn(`[MultiPlatformDistributor] Skipping ${sanitizeForPrompt(platform)} — circuit breaker open`);
             await recordDistributionLearning(userId, platform, "distribute_blocked", {
               allowed: false, trustCost, policyIssues: ["circuit breaker open"], connectionStatus: "open",
             }).catch(() => {});
@@ -85,16 +86,16 @@ Return a JSON object where keys are platform names and values are the generated 
           if (governanceAllowed) {
             try {
               const { checkTrustBudget } = await import("../kernel/trust-budget");
-              const trustResult = await checkTrustBudget(userId, `distribution:${platform}`, trustCost);
+              const trustResult = await checkTrustBudget(userId, `distribution:${sanitizeForPrompt(platform)}`, trustCost);
               if (trustResult.blocked) {
-                logger.warn(`[MultiPlatformDistributor] Trust budget blocked ${platform}`);
+                logger.warn(`[MultiPlatformDistributor] Trust budget blocked ${sanitizeForPrompt(platform)}`);
                 await recordDistributionLearning(userId, platform, "distribute_trust_blocked", {
                   allowed: false, trustCost, policyIssues: ["trust budget exhausted"], connectionStatus: health.status,
                 }).catch(() => {});
                 governanceAllowed = false;
               }
             } catch (trustErr: any) {
-              logger.warn(`[MultiPlatformDistributor] Trust budget check error for ${platform}: ${trustErr?.message}`);
+              logger.warn(`[MultiPlatformDistributor] Trust budget check error for ${sanitizeForPrompt(platform)}: ${trustErr?.message}`);
               await recordDistributionLearning(userId, platform, "distribute_trust_error", {
                 allowed: false, trustCost, policyIssues: ["trust budget check error"], connectionStatus: health.status,
               }).catch(() => {});
@@ -105,16 +106,16 @@ Return a JSON object where keys are platform names and values are the generated 
           if (governanceAllowed) {
             try {
               const { probeCapability } = await import("../kernel/capability-probe");
-              const probe = await probeCapability(platform, `${platform}:publish`, undefined, userId);
+              const probe = await probeCapability(platform, `${sanitizeForPrompt(platform)}:publish`, undefined, userId);
               if (probe.probeResult === "error") {
-                logger.warn(`[MultiPlatformDistributor] Capability probe failed for ${platform}`);
+                logger.warn(`[MultiPlatformDistributor] Capability probe failed for ${sanitizeForPrompt(platform)}`);
                 await recordDistributionLearning(userId, platform, "distribute_capability_failed", {
                   allowed: false, trustCost, policyIssues: ["capability probe failed"], connectionStatus: health.status,
                 }).catch(() => {});
                 governanceAllowed = false;
               }
             } catch (probeErr: any) {
-              logger.warn(`[MultiPlatformDistributor] Capability probe error for ${platform}: ${probeErr?.message}`);
+              logger.warn(`[MultiPlatformDistributor] Capability probe error for ${sanitizeForPrompt(platform)}: ${probeErr?.message}`);
               await recordDistributionLearning(userId, platform, "distribute_capability_error", {
                 allowed: false, trustCost, policyIssues: ["capability probe error"], connectionStatus: health.status,
               }).catch(() => {});
@@ -129,7 +130,7 @@ Return a JSON object where keys are platform names and values are the generated 
               tags: clipPayload.tags,
             });
             if (!gateResult.passed) {
-              logger.warn(`[MultiPlatformDistributor] Policy blocked ${platform}: ${gateResult.issues.join(", ")}`);
+              logger.warn(`[MultiPlatformDistributor] Policy blocked ${sanitizeForPrompt(platform)}: ${gateResult.issues.join(", ")}`);
               await recordDistributionLearning(userId, platform, "distribute_policy_blocked", {
                 allowed: false, trustCost, policyIssues: gateResult.issues, connectionStatus: health.status,
               }).catch(() => {});
@@ -137,14 +138,14 @@ Return a JSON object where keys are platform names and values are the generated 
             }
           }
         } catch (err: any) {
-          logger.warn(`[MultiPlatformDistributor] Governance pipeline error for ${platform}, blocking: ${err.message}`);
+          logger.warn(`[MultiPlatformDistributor] Governance pipeline error for ${sanitizeForPrompt(platform)}, blocking: ${err.message}`);
           governanceAllowed = false;
         }
 
         if (!governanceAllowed) continue;
 
         await jobQueue.enqueue({
-          type: requireApproval ? "queue_for_approval" : `publish_to_${platform}`,
+          type: requireApproval ? "queue_for_approval" : `publish_to_${sanitizeForPrompt(platform)}`,
           userId,
           priority: 7,
           payload: {
@@ -168,7 +169,7 @@ Return a JSON object where keys are platform names and values are the generated 
       });
 
       for (const platform of platforms) {
-        recordEngineKnowledge("content-grinder", userId, "distribution_action", `${platform}_distribution`, `Distributed "${clipPayload.title}" to ${platform}. ${requireApproval ? "Awaiting approval" : "Auto-published"}.`, `Game: ${clipPayload.gameTitle || "unknown"}, platforms: ${platforms.join(",")}`, 55).catch(() => {});
+        recordEngineKnowledge("content-grinder", userId, "distribution_action", `${sanitizeForPrompt(platform)}_distribution`, `Distributed "${sanitizeForPrompt(clipPayload.title)}" to ${sanitizeForPrompt(platform)}. ${requireApproval ? "Awaiting approval" : "Auto-published"}.`, `Game: ${clipPayload.gameTitle || "unknown"}, platforms: ${platforms.join(",")}`, 55).catch(() => {});
       }
 
     } catch (err: any) {

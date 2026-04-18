@@ -4,6 +4,7 @@ import { eq, and, desc, lte, sql, gte, inArray } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 
@@ -78,7 +79,7 @@ async function getTrafficStrategyContext(userId: string): Promise<string> {
       .orderBy(desc(trafficStrategies.priority))
       .limit(3);
     if (activeStrategies.length === 0) return "";
-    const lines = activeStrategies.map(s => `- ${s.strategyType}: ${s.title}${s.description ? ` (${s.description.slice(0, 100)})` : ""}`);
+    const lines = activeStrategies.map(s => `- ${sanitizeForPrompt(s.strategyType)}: ${sanitizeForPrompt(s.title)}${s.description ? ` (${sanitizeForPrompt(s.description.slice(0, 100))})` : ""}`);
     return `CURRENT TRAFFIC GROWTH FOCUS (align content with these strategies when naturally relevant):\n${lines.join("\n")}\nOnly reference these themes if they fit the content naturally — never force them.`;
   } catch {
     return "";
@@ -288,7 +289,7 @@ async function getAutopilotDailyCount(userId: string): Promise<number> {
     .where(and(
       eq(autopilotQueue.userId, userId),
       eq(autopilotQueue.status, "scheduled"),
-      sql`${autopilotQueue.targetPlatform} != 'youtube'`,
+      sql`${sanitizeForPrompt(autopilotQueue.targetPlatform)} != 'youtube'`,
       gte(autopilotQueue.scheduledAt, todayStart),
       lte(autopilotQueue.scheduledAt, todayEnd),
     ));
@@ -451,7 +452,7 @@ async function generateFullThrottleDistribution(
       type: effectiveQueueType,
       targetPlatform: platform,
       content: result.content,
-      caption: `${isVideoDelivery ? "video" : "text"}: ${video.title}`,
+      caption: `${isVideoDelivery ? "video" : "text"}: ${sanitizeForPrompt(video.title)}`,
       status: "scheduled",
       scheduledAt: finalSchedule,
       metadata: {
@@ -476,7 +477,7 @@ async function generateFullThrottleDistribution(
   const totalQueued = queuedVideo + queuedText;
   if (totalQueued > 0) {
     await createNotification(userId, "autopilot", "Content distributed",
-      `${totalQueued} platform${totalQueued !== 1 ? "s" : ""} queued for "${video.title}" — ${queuedVideo} video, ${queuedText} text-optimized — audience-driven scheduling`,
+      `${totalQueued} platform${totalQueued !== 1 ? "s" : ""} queued for "${sanitizeForPrompt(video.title)}" — ${queuedVideo} video, ${queuedText} text-optimized — audience-driven scheduling`,
       "info");
   }
 }
@@ -518,7 +519,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
     type: "discord-announce" as any,
     targetPlatform: "discord",
     content: result.content,
-    caption: `Discord announcement for: ${video.title}`,
+    caption: `Discord announcement for: ${sanitizeForPrompt(video.title)}`,
     status: "scheduled",
     scheduledAt,
     metadata: {
@@ -705,7 +706,7 @@ export async function processCommentResponses(userId: string) {
 
       const existing = await db.select({ id: commentResponses.id }).from(commentResponses)
         .where(
-          sql`${commentResponses.userId} = ${userId} AND ${commentResponses.metadata}->>'commentId' = ${comment.commentId}`
+          sql`${commentResponses.userId} = ${userId} AND ${sanitizeForPrompt(commentResponses.metadata)}->>'commentId' = ${sanitizeForPrompt(comment.commentId)}`
         )
         .limit(1);
 
@@ -725,7 +726,7 @@ CRITICAL RULES:
 - NEVER sound corporate, formal, or like a brand account
 - Vary response length and style from reply to reply`;
 
-      const prompt = `Comment on your video "${video.title}" by ${comment.author}: "${comment.text}"
+      const prompt = `Comment on your video "${sanitizeForPrompt(video.title)}" by ${sanitizeForPrompt(comment.author)}: "${sanitizeForPrompt(comment.text)}"
 
 Write a quick reply as yourself. Output ONLY the reply text.`;
 
@@ -853,7 +854,7 @@ export async function processCrossPromotion(userId: string) {
 
 function sanitizeErrorForNotification(rawError: string, platform: string): string {
   if (rawError.includes("not connected") || rawError.includes("Connect your account")) {
-    return `${platform} is not connected. Go to Settings → Platforms to connect your account.`;
+    return `${sanitizeForPrompt(platform)} is not connected. Go to Settings → Platforms to connect your account.`;
   }
   if (rawError.includes("No YouTube channel") || rawError.includes("No YouTube")) {
     return "YouTube channel not connected. Connect your YouTube account in Settings to enable uploads.";
@@ -862,16 +863,16 @@ function sanitizeErrorForNotification(rawError: string, platform: string): strin
     return "YouTube API quota temporarily exceeded. Uploads will automatically retry when quota resets.";
   }
   if (rawError.includes("token") && (rawError.includes("expired") || rawError.includes("invalid") || rawError.includes("revoked"))) {
-    return `Your ${platform} connection needs to be refreshed. Go to Settings → Platforms to reconnect.`;
+    return `Your ${sanitizeForPrompt(platform)} connection needs to be refreshed. Go to Settings → Platforms to reconnect.`;
   }
   if (rawError.includes("yt-dlp") || rawError.includes("Command failed")) {
     return `Video source temporarily unavailable for clip extraction. The system will automatically retry. If this persists, the source video may have restrictions.`;
   }
   if (rawError.includes("quota") || rawError.includes("rateLimitExceeded")) {
-    return `${platform} API quota reached. Posts will resume automatically when the quota resets.`;
+    return `${sanitizeForPrompt(platform)} API quota reached. Posts will resume automatically when the quota resets.`;
   }
   if (rawError.includes("token") || rawError.includes("auth") || rawError.includes("401") || rawError.includes("403")) {
-    return `${platform} authentication needs refreshing. Please reconnect your ${platform} account in Settings.`;
+    return `${sanitizeForPrompt(platform)} authentication needs refreshing. Please reconnect your ${sanitizeForPrompt(platform)} account in Settings.`;
   }
   if (rawError.includes("Copyright") || rawError.includes("copyright")) {
     return rawError;
@@ -880,7 +881,7 @@ function sanitizeErrorForNotification(rawError: string, platform: string): strin
     return rawError.substring(0, 147) + "...";
   }
   // Guard: never return empty string — the notifications table has a NOT NULL constraint
-  return rawError || `Publishing to ${platform} failed. The system will retry automatically.`;
+  return rawError || `Publishing to ${sanitizeForPrompt(platform)} failed. The system will retry automatically.`;
 }
 
 async function handleStreamClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
@@ -1009,7 +1010,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
         const existingClips = await db.select().from(videos)
           .where(and(
             eq(videos.channelId, ytChannel.id),
-            sql`${videos.metadata}->>'youtubeId' = ${uploadResult.youtubeId}`,
+            sql`${sanitizeForPrompt(videos.metadata)}->>'youtubeId' = ${sanitizeForPrompt(uploadResult.youtubeId)}`,
           ))
           .limit(1);
         const alreadyExists = existingClips[0];
@@ -1082,7 +1083,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
       return {
         success: true,
         postId: uploadResult.youtubeId,
-        postUrl: `https://www.youtube.com/watch?v=${uploadResult.youtubeId}`,
+        postUrl: `https://www.youtube.com/watch?v=${sanitizeForPrompt(uploadResult.youtubeId)}`,
       };
     }
 
@@ -1114,7 +1115,7 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
     const sourcePath = await downloadSourceVideo(sourceYoutubeId, post.userId);
     const clipPath = await cutClipFromVideo(sourcePath, startSec, endSec, post.id);
 
-    let title = (post.caption || `${gameName} Gameplay`).substring(0, isShort ? 95 : 100);
+    let title = (post.caption || `${sanitizeForPrompt(gameName)} Gameplay`).substring(0, isShort ? 95 : 100);
     let description = post.content || "";
     const tags: string[] = meta.tags || [];
 
@@ -1221,7 +1222,7 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
       return {
         success: true,
         postId: uploadResult.youtubeId,
-        postUrl: `https://www.youtube.com/watch?v=${uploadResult.youtubeId}`,
+        postUrl: `https://www.youtube.com/watch?v=${sanitizeForPrompt(uploadResult.youtubeId)}`,
       };
     }
 
@@ -1242,13 +1243,13 @@ export async function flushQueueToAsap(): Promise<number> {
     const now = new Date();
     const maxFutureWindow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const flushPriority = sql`CASE 
-      WHEN ${autopilotQueue.type} = 'go-live' THEN 1
-      WHEN ${autopilotQueue.type} = 'new-video' THEN 2
-      WHEN ${autopilotQueue.type} = 'post-stream' THEN 3
-      WHEN ${autopilotQueue.type} = 'auto-clip' THEN 4
-      WHEN ${autopilotQueue.type} = 'cross-promo' THEN 6
-      WHEN ${autopilotQueue.type} = 'content-recycle' THEN 7
-      WHEN ${autopilotQueue.type} = 'evergreen_recycler' THEN 8
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'go-live' THEN 1
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'new-video' THEN 2
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'post-stream' THEN 3
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'auto-clip' THEN 4
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'cross-promo' THEN 6
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'content-recycle' THEN 7
+      WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'evergreen_recycler' THEN 8
       ELSE 5
     END`;
 
@@ -1284,7 +1285,7 @@ export async function flushQueueToAsap(): Promise<number> {
       .where(and(
         eq(autopilotQueue.status, "failed"),
         eq(autopilotQueue.type, "auto-clip" as any),
-        sql`${autopilotQueue.errorMessage} ILIKE '%yt_shorts_duration%' OR ${autopilotQueue.errorMessage} ILIKE '%Shorts must be 60 seconds%'`,
+        sql`${sanitizeForPrompt(autopilotQueue.errorMessage)} ILIKE '%yt_shorts_duration%' OR ${sanitizeForPrompt(autopilotQueue.errorMessage)} ILIKE '%Shorts must be 60 seconds%'`,
       ));
 
     if (falselyBlocked.length > 0) {
@@ -1296,7 +1297,7 @@ export async function flushQueueToAsap(): Promise<number> {
             status: "scheduled",
             scheduledAt: asapTime,
             errorMessage: null,
-            metadata: sql`${autopilotQueue.metadata} - 'complianceBlocked' - 'violations'`,
+            metadata: sql`${sanitizeForPrompt(autopilotQueue.metadata)} - 'complianceBlocked' - 'violations'`,
           })
           .where(eq(autopilotQueue.id, post.id));
       }));
@@ -1322,13 +1323,13 @@ export async function processScheduledPosts() {
   }
 
   const contentPriority = sql`CASE 
-    WHEN ${autopilotQueue.type} = 'go-live' THEN 1
-    WHEN ${autopilotQueue.type} = 'new-video' THEN 2
-    WHEN ${autopilotQueue.type} = 'post-stream' THEN 3
-    WHEN ${autopilotQueue.type} = 'auto-clip' THEN 4
-    WHEN ${autopilotQueue.type} = 'cross-promo' THEN 6
-    WHEN ${autopilotQueue.type} = 'content-recycle' THEN 7
-    WHEN ${autopilotQueue.type} = 'evergreen_recycler' THEN 8
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'go-live' THEN 1
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'new-video' THEN 2
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'post-stream' THEN 3
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'auto-clip' THEN 4
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'cross-promo' THEN 6
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'content-recycle' THEN 7
+    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'evergreen_recycler' THEN 8
     ELSE 5
   END`;
 
@@ -1359,7 +1360,7 @@ export async function processScheduledPosts() {
       if (!connected.has(post.targetPlatform)) {
         logger.info("Platform not connected, cancelling post", { platform: post.targetPlatform, userId: post.userId, postId: post.id });
         await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: `${post.targetPlatform} is not connected. Connect your account to enable posting.` })
+          .set({ status: "failed", errorMessage: `${sanitizeForPrompt(post.targetPlatform)} is not connected. Connect your account to enable posting.` })
           .where(eq(autopilotQueue.id, post.id));
         continue;
       }
@@ -1393,7 +1394,7 @@ export async function processScheduledPosts() {
       try {
         const { checkTrustBudget } = await import("./kernel/trust-budget");
         const trustCost = post.targetPlatform === "youtube" ? 10 : 5;
-        const trustResult = await checkTrustBudget(post.userId, `distribution:${post.targetPlatform}`, trustCost);
+        const trustResult = await checkTrustBudget(post.userId, `distribution:${sanitizeForPrompt(post.targetPlatform)}`, trustCost);
         if (trustResult.blocked) {
           const deferTo = new Date(Date.now() + 60 * 60_000);
           logger.info("Trust budget exhausted — deferring post", { postId: post.id, platform: post.targetPlatform, remaining: trustResult.remaining, deferTo: deferTo.toISOString() });
@@ -1446,7 +1447,7 @@ export async function processScheduledPosts() {
           })
           .where(eq(autopilotQueue.id, post.id));
         await createNotification(post.userId, "compliance", "Content blocked by copyright check",
-          `A post to ${post.targetPlatform} was blocked to protect your account: ${copyrightResult.issues[0]?.description || "Copyright risk detected"}`, "warning");
+          `A post to ${sanitizeForPrompt(post.targetPlatform)} was blocked to protect your account: ${copyrightResult.issues[0]?.description || "Copyright risk detected"}`, "warning");
         continue;
       }
 
@@ -1572,8 +1573,8 @@ export async function processScheduledPosts() {
           });
         }
 
-        await createNotification(post.userId, "autopilot", `Posted to ${post.targetPlatform}`,
-          `Content published${result.postUrl ? `: ${result.postUrl}` : ""} — verifying...`, "info");
+        await createNotification(post.userId, "autopilot", `Posted to ${sanitizeForPrompt(post.targetPlatform)}`,
+          `Content published${result.postUrl ? `: ${sanitizeForPrompt(result.postUrl)}` : ""} — verifying...`, "info");
       } else if (result.skipped) {
         logger.info("Post skipped (platform not applicable)", { postId: post.id, platform: post.targetPlatform, reason: result.error });
         await db.update(autopilotQueue)
@@ -1599,7 +1600,7 @@ export async function processScheduledPosts() {
         const silentCategories = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap", "video_unavailable", "compliance_violation"]);
         if (retryCount === 0 && !silentCategories.has(failureCategory)) {
           const friendlyError = getAutoFixSummary(failureCategory, post.targetPlatform);
-          await createNotification(post.userId, "autopilot", `Issue with ${post.targetPlatform} post`,
+          await createNotification(post.userId, "autopilot", `Issue with ${sanitizeForPrompt(post.targetPlatform)} post`,
             friendlyError, "warning");
         }
       }
@@ -1622,7 +1623,7 @@ export async function processScheduledPosts() {
       const silentCatch = new Set(["config_missing", "auth_expired", "unknown", "network", "platform_down", "rate_limit", "quota_cap", "video_unavailable", "compliance_violation"]);
       if (retryCount === 0 && !silentCatch.has(failureCategory)) {
         const friendlyError = sanitizeErrorForNotification(errorMsg, post.targetPlatform);
-        await createNotification(post.userId, "autopilot", `Failed to post to ${post.targetPlatform}`, friendlyError, "warning");
+        await createNotification(post.userId, "autopilot", `Failed to post to ${sanitizeForPrompt(post.targetPlatform)}`, friendlyError, "warning");
       }
     }
   }
@@ -1705,7 +1706,7 @@ export async function getAutopilotStats(userId: string) {
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${autopilotQueue.status} IN ('publishing', 'processing', 'generating', 'queued')`
+      sql`${sanitizeForPrompt(autopilotQueue.status)} IN ('publishing', 'processing', 'generating', 'queued')`
     ));
 
   const [commentCount] = await db
@@ -1791,7 +1792,7 @@ export async function updateAutopilotFeatureConfig(userId: string, feature: stri
 
 export async function createNotification(userId: string, type: string, title: string, message: string, severity: string) {
   if (severity === "info") return;
-  const safeMessage = message || `${title} — the system is handling this automatically.`;
+  const safeMessage = message || `${sanitizeForPrompt(title)} — the system is handling this automatically.`;
   const safeTitle = title || "System notification";
   await storage.createNotification({ userId, type, title: safeTitle, message: safeMessage, severity });
   sendSSEEvent(userId, "notification", { type: "new" });

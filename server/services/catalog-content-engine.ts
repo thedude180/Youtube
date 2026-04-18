@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue } from "@shared/schema";
 import { eq, desc, and, gte, sql, lt } from "drizzle-orm";
@@ -96,7 +97,7 @@ async function aiAnalyzeCatalog(videos: any[]): Promise<CatalogOpportunity[]> {
     const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
     return (parsed.catalog_opportunities as CatalogOpportunity[]) || [];
   } catch (err: any) {
-    logger.warn(`AI catalog analysis failed: ${err.message}`);
+    logger.warn(`AI catalog analysis failed: ${sanitizeForPrompt(err.message)}`);
     return [];
   }
 }
@@ -151,7 +152,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
         eq(videos.channelId, channel.id),
         eq(videos.platform, "youtube"),
       ))
-      .orderBy(desc(sql`COALESCE((${videos.metadata}->>'viewCount')::int, 0)`))
+      .orderBy(desc(sql`COALESCE((${sanitizeForPrompt(videos.metadata)}->>'viewCount')::int, 0)`))
       .limit(50);
 
     if (allVideos.length === 0) {
@@ -187,7 +188,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
           type: repurposeTypeToQueueType(opp.repurposeType),
           targetPlatform: platformToTarget(opp.platform),
           content: opp.editingBrief,
-          caption: `[${opp.repurposeType.replace(/_/g, " ").toUpperCase()}] ${opp.sourceVideoTitle}`,
+          caption: `[${opp.repurposeType.replace(/_/g, " ").toUpperCase()}] ${sanitizeForPrompt(opp.sourceVideoTitle)}`,
           status: opp.urgency === "immediate" ? "pending" : "scheduled",
           scheduledAt: opp.urgency === "immediate" ? new Date() : peakHourSlot(i, itemsToQueue.length),
           metadata: {
@@ -198,7 +199,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
           },
         });
       } catch (insertErr: any) {
-        logger.warn(`[${userId}] Failed to queue opportunity: ${insertErr.message}`);
+        logger.warn(`[${userId}] Failed to queue opportunity: ${sanitizeForPrompt(insertErr.message)}`);
       }
     }
 
@@ -227,7 +228,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
 
     logger.info(`[${userId}] Catalog cycle complete — queued ${itemsToQueue.length} items`);
   } catch (err: any) {
-    logger.error(`[${userId}] Catalog cycle error: ${err.message}`);
+    logger.error(`[${userId}] Catalog cycle error: ${sanitizeForPrompt(err.message)}`);
     sendSSEEvent(userId, "catalog-engine", { status: "error", error: err.message });
   } finally {
     runningCycles.delete(userId);
@@ -249,7 +250,7 @@ export function initCatalogEngineForUser(userId: string): void {
       try {
         await runCatalogCycle(userId);
       } catch (err: any) {
-        logger.warn(`[${userId}] Catalog engine tick error: ${err.message}`);
+        logger.warn(`[${userId}] Catalog engine tick error: ${sanitizeForPrompt(err.message)}`);
       }
       scheduleNext();
     }, interval);
@@ -260,7 +261,7 @@ export function initCatalogEngineForUser(userId: string): void {
     try {
       await runCatalogCycle(userId);
     } catch (err: any) {
-      logger.warn(`[${userId}] Catalog engine init error: ${err.message}`);
+      logger.warn(`[${userId}] Catalog engine init error: ${sanitizeForPrompt(err.message)}`);
     }
     scheduleNext();
   }, randomDelay);

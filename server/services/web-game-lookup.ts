@@ -333,7 +333,7 @@ export async function lookupGameWithAI(title: string, description: string): Prom
     const openai = getOpenAIClient();
     if (!openai) return null;
 
-    const text = `Title: ${title}\nDescription: ${(description || "").substring(0, 500)}`;
+    const text = `Title: ${sanitizeForPrompt(title)}\nDescription: ${(description || "").substring(0, 500)}`;
 
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { systemImprovements, discoveredStrategies, users, channels, videos, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
@@ -119,7 +120,7 @@ async function evolveAllSystems(userId: string): Promise<void> {
       await improveSystem(userId, system);
       await new Promise(r => setTimeout(r, 2000));
     } catch (err: any) {
-      logger.warn(`[${userId.substring(0, 8)}] Failed to improve ${system.domain}: ${err.message?.substring(0, 200)}`);
+      logger.warn(`[${userId.substring(0, 8)}] Failed to improve ${sanitizeForPrompt(system.domain)}: ${err.message?.substring(0, 200)}`);
     }
   }
 
@@ -208,18 +209,18 @@ async function improveSystem(userId: string, system: SystemAudit): Promise<void>
       model: "gpt-4o-mini",
       messages: [{
         role: "user",
-        content: `You are an AI system architect that continuously improves itself. You are analyzing the "${domainConfig.label}" subsystem.
+        content: `You are an AI system architect that continuously improves itself. You are analyzing the "${sanitizeForPrompt(domainConfig.label)}" subsystem.
 
-DOMAIN: ${domainConfig.description}
-CURRENT SCORE: ${system.score}/100
-RECENT IMPROVEMENTS: ${system.recentImprovements} in last 30 days
-ACTIVE STRATEGIES: ${system.activeStrategies}
+DOMAIN: ${sanitizeForPrompt(domainConfig.description)}
+CURRENT SCORE: ${sanitizeForPrompt(system.score)}/100
+RECENT IMPROVEMENTS: ${sanitizeForPrompt(system.recentImprovements)} in last 30 days
+ACTIVE STRATEGIES: ${sanitizeForPrompt(system.activeStrategies)}
 
 Existing strategies (what's already working):
-${existingStrategies.map(s => `- ${s.title} (${s.effectiveness}% effective, used ${s.timesApplied}x)`).join("\n") || "None discovered yet"}
+${existingStrategies.map(s => `- ${sanitizeForPrompt(s.title)} (${sanitizeForPrompt(s.effectiveness)}% effective, used ${sanitizeForPrompt(s.timesApplied)}x)`).join("\n") || "None discovered yet"}
 
 Recent improvements made:
-${recentImprovements.map(i => `- ${i.improvementType}: ${(i.afterState || "").substring(0, 100)}`).join("\n") || "No recent improvements"}
+${recentImprovements.map(i => `- ${sanitizeForPrompt(i.improvementType)}: ${(i.afterState || "").substring(0, 100)}`).join("\n") || "No recent improvements"}
 
 Performance data:
 ${JSON.stringify(performanceData, null, 2)}
@@ -274,8 +275,8 @@ Return JSON:
         userId,
         improvementType: "system_evolution",
         area: system.domain,
-        beforeState: parsed.diagnosis?.substring(0, 500) || `Score: ${system.score}`,
-        afterState: `${imp.title}: ${imp.description}`.substring(0, 500),
+        beforeState: parsed.diagnosis?.substring(0, 500) || `Score: ${sanitizeForPrompt(system.score)}`,
+        afterState: `${sanitizeForPrompt(imp.title)}: ${sanitizeForPrompt(imp.description)}`.substring(0, 500),
         triggerEvent: "infinite_evolution_cycle",
         engineSource: "infinite-evolution-engine",
         appliedAcrossChannels: true,
@@ -301,16 +302,16 @@ Return JSON:
         metadata: { priority: strat.priority, fromEvolution: true },
       } as any).catch(() => undefined);
 
-      await recordEngineKnowledge("infinite-evolution", userId, "evolved_strategy", system.domain, String(strat.title).substring(0, 200) + ": " + String(strat.description).substring(0, 200), `From system audit score ${system.score}, priority: ${strat.priority}`, 55);
+      await recordEngineKnowledge("infinite-evolution", userId, "evolved_strategy", system.domain, String(strat.title).substring(0, 200) + ": " + String(strat.description).substring(0, 200), `From system audit score ${sanitizeForPrompt(system.score)}, priority: ${sanitizeForPrompt(strat.priority)}`, 55);
     }
 
     for (const imp of improvements.slice(0, 2)) {
-      await recordEngineKnowledge("infinite-evolution", userId, "system_improvement", system.domain, `${imp.title}: ${imp.description}`.substring(0, 400), `Expected impact: ${imp.expectedImpact}, metric: ${imp.metric}`, 60);
+      await recordEngineKnowledge("infinite-evolution", userId, "system_improvement", system.domain, `${sanitizeForPrompt(imp.title)}: ${sanitizeForPrompt(imp.description)}`.substring(0, 400), `Expected impact: ${sanitizeForPrompt(imp.expectedImpact)}, metric: ${sanitizeForPrompt(imp.metric)}`, 60);
     }
 
-    logger.info(`[${userId.substring(0, 8)}] Evolved ${system.domain}: ${improvements.length} improvements, ${newStrategies.length} new strategies`);
+    logger.info(`[${userId.substring(0, 8)}] Evolved ${sanitizeForPrompt(system.domain)}: ${improvements.length} improvements, ${newStrategies.length} new strategies`);
   } catch (err: any) {
-    logger.warn(`[${userId.substring(0, 8)}] System improvement failed for ${system.domain}: ${err.message?.substring(0, 200)}`);
+    logger.warn(`[${userId.substring(0, 8)}] System improvement failed for ${sanitizeForPrompt(system.domain)}: ${err.message?.substring(0, 200)}`);
   }
 }
 
@@ -526,10 +527,10 @@ async function crossSystemLearning(userId: string, systemHealth: SystemAudit[]):
         content: `You are a systems architect. Analyze what makes strong systems strong and apply those patterns to weak systems.
 
 STRONG SYSTEMS (score 70+):
-${topPerformers.map(s => `- ${s.label}: score ${s.score}, ${s.recentImprovements} recent improvements, ${s.activeStrategies} strategies`).join("\n")}
+${topPerformers.map(s => `- ${sanitizeForPrompt(s.label)}: score ${sanitizeForPrompt(s.score)}, ${sanitizeForPrompt(s.recentImprovements)} recent improvements, ${sanitizeForPrompt(s.activeStrategies)} strategies`).join("\n")}
 
 WEAK SYSTEMS (score <40):
-${underperformers.map(s => `- ${s.label}: score ${s.score}, ${s.recentImprovements} recent improvements, ${s.activeStrategies} strategies`).join("\n")}
+${underperformers.map(s => `- ${sanitizeForPrompt(s.label)}: score ${sanitizeForPrompt(s.score)}, ${sanitizeForPrompt(s.recentImprovements)} recent improvements, ${sanitizeForPrompt(s.activeStrategies)} strategies`).join("\n")}
 
 What patterns from the strong systems can be transferred to fix the weak ones?
 
@@ -561,8 +562,8 @@ Return JSON:
         userId,
         improvementType: "cross_system_transfer",
         area: String(transfer.toSystem || "general").substring(0, 100),
-        beforeState: `Pattern from ${transfer.fromSystem}: ${transfer.pattern}`.substring(0, 500),
-        afterState: `Applied to ${transfer.toSystem}: ${transfer.application}`.substring(0, 500),
+        beforeState: `Pattern from ${sanitizeForPrompt(transfer.fromSystem)}: ${sanitizeForPrompt(transfer.pattern)}`.substring(0, 500),
+        afterState: `Applied to ${sanitizeForPrompt(transfer.toSystem)}: ${sanitizeForPrompt(transfer.application)}`.substring(0, 500),
         triggerEvent: "cross_system_learning",
         engineSource: "infinite-evolution-engine",
         appliedAcrossChannels: true,

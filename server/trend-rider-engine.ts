@@ -5,6 +5,7 @@ import { detectContentContext, type ContentContext } from "./ai-engine";
 import { getOpenAIClient } from "./lib/openai";
 import { jitter } from "./lib/timer-utils";
 import { createLogger } from "./lib/logger";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("trend-rider-engine");
 const openai = getOpenAIClient();
@@ -52,7 +53,7 @@ export async function detectTrendFromStream(userId: string, stream: typeof strea
       model: "gpt-4o-mini",
       messages: [{
         role: "system",
-        content: `You are a trend analysis expert. Determine if "${topic}" is currently trending or recently released. Consider:
+        content: `You are a trend analysis expert. Determine if "${sanitizeForPrompt(topic)}" is currently trending or recently released. Consider:
 - Is this a newly released game/product/show/event?
 - Is there current buzz/hype around this topic?
 - Would creating content about this NOW give a first-mover advantage?
@@ -66,7 +67,7 @@ Respond with JSON only:
 }`,
       }, {
         role: "user",
-        content: `Topic: "${topic}"\nNiche: ${ctx.niche}\nStream title: "${stream.title}"\nPrevious topics: ${previousTopics.slice(0, 5).join(", ") || "none"}\nCurrent date: ${new Date().toISOString().split("T")[0]}`,
+        content: `Topic: "${sanitizeForPrompt(topic)}"\nNiche: ${sanitizeForPrompt(ctx.niche)}\nStream title: "${sanitizeForPrompt(stream.title)}"\nPrevious topics: ${previousTopics.slice(0, 5).join(", ") || "none"}\nCurrent date: ${new Date().toISOString().split("T")[0]}`,
       }],
       temperature: 0.3,
       response_format: { type: "json_object" },
@@ -232,8 +233,8 @@ export async function updateTrendLifecycles(): Promise<void> {
         .from(streams)
         .where(and(
           eq(streams.userId, override.userId),
-          sql`(${streams.title} ILIKE ${'%' + override.topic + '%'} OR ${streams.category} ILIKE ${'%' + override.topic + '%'})`,
-          sql`COALESCE(${streams.startedAt}, ${streams.createdAt}) > NOW() - INTERVAL '48 hours'`,
+          sql`(${sanitizeForPrompt(streams.title)} ILIKE ${'%' + override.topic + '%'} OR ${sanitizeForPrompt(streams.category)} ILIKE ${'%' + override.topic + '%'})`,
+          sql`COALESCE(${sanitizeForPrompt(streams.startedAt)}, ${streams.createdAt}) > NOW() - INTERVAL '48 hours'`,
         ));
 
       if ((recentStreams[0]?.count || 0) === 0 && ageDays >= 3) {
@@ -291,7 +292,7 @@ export async function getTrendStatus(userId: string): Promise<{
     .where(and(
       eq(trendOverrides.userId, userId),
       eq(trendOverrides.status, "ended"),
-      sql`${trendOverrides.endedAt} > NOW() - INTERVAL '30 days'`,
+      sql`${sanitizeForPrompt(trendOverrides.endedAt)} > NOW() - INTERVAL '30 days'`,
     ))
     .orderBy(desc(trendOverrides.endedAt))
     .limit(5);

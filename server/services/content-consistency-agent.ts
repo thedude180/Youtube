@@ -184,7 +184,7 @@ async function fillGaps(userId: string, gaps: Date[]): Promise<number> {
           } as any,
         });
         filled++;
-        logger.info(`[${userId}] Filled gap ${gap.toDateString()} with "${video.title}"`);
+        logger.info(`[${userId}] Filled gap ${gap.toDateString()} with "${sanitizeForPrompt(video.title)}"`);
       } catch (err: any) {
         logger.warn(`[${userId}] Failed to schedule video ${video.id}: ${err.message}`);
       }
@@ -272,7 +272,7 @@ async function generateAISuggestions(userId: string, issues: VideoRecommendation
     try {
       const prompt = `You are an expert YouTube SEO strategist. Given this video title, generate improved metadata.
 
-Video title: "${issue.title}"
+Video title: "${sanitizeForPrompt(issue.title)}"
 Issue: ${issue.issue} — ${issue.suggestion}
 
 Return ONLY valid JSON with these fields:

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { autopilotQueue, channels } from "@shared/schema";
@@ -348,7 +349,7 @@ VIDEO LINK STRATEGY:${videoUrl ? `
 - No specific video link available — write a general post about this content
 - Direct people to find it on YouTube or the relevant platform naturally`}
 
-${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${platform} (DO NOT repeat similar wording or structure):\n${recentTexts.slice(0, 5).map((t, i) => `${i + 1}. "${t}"`).join("\n")}` : ""}${keywordContext ? `\n\n${keywordContext}` : ""}${trafficStrategyContext ? `\n\n${trafficStrategyContext}` : ""}`;
+${recentTexts.length > 0 ? `\nIMPORTANT - Your recent posts on ${sanitizeForPrompt(platform)} (DO NOT repeat similar wording or structure):\n${recentTexts.slice(0, 5).map((t, i) => `${i + 1}. "${t}"`).join("\n")}` : ""}${keywordContext ? `\n\n${keywordContext}` : ""}${trafficStrategyContext ? `\n\n${trafficStrategyContext}` : ""}`;
 
   const prompt = buildPromptForType(contentType, videoTitle, videoDescription, videoType, platform, angle);
 
@@ -403,56 +404,57 @@ function buildPromptForType(
   platform: string,
   angle: string,
 ): string {
+  const safeDescription = sanitizeForPrompt(description);
   switch (contentType) {
     case "new-video":
-      return `You just uploaded a new ${videoType} to YouTube called "${title}".
-${description ? `It's about: ${description}` : ""}
-Write a ${platform} post about it using the "${angle}" angle.
+      return `You just uploaded a new ${videoType} to YouTube called "${sanitizeForPrompt(title)}".
+${safeDescription ? `It's about: ${safeDescription}` : ""}
+Write a ${sanitizeForPrompt(platform)} post about it using the "${sanitizeForPrompt(angle)}" angle.
 Sound like you literally just finished editing and are excited/relieved/proud.
 Your goal: make people curious enough to click the video link that will appear right below your post.
 Tease, hint, or react — but don't summarize the whole video. Leave something for them to discover.
 Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "recycle":
-      return `You have an older video called "${title}" that you want more people to see.
-${description ? `It covers: ${description}` : ""}
-Write a ${platform} post that makes this feel relevant RIGHT NOW using the "${angle}" angle.
+      return `You have an older video called "${sanitizeForPrompt(title)}" that you want more people to see.
+${safeDescription ? `It covers: ${safeDescription}` : ""}
+Write a ${sanitizeForPrompt(platform)} post that makes this feel relevant RIGHT NOW using the "${sanitizeForPrompt(angle)}" angle.
 Do NOT mention it's an old video. Frame it as if you're just thinking about this topic.
 Your goal: spark curiosity so people click the video link that will appear right below your post.
 Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "cross-promo":
-      return `Your content "${title}" is doing well and you want to drive more engagement.
-Write a ${platform} post that references this content from the "${angle}" angle.
+      return `Your content "${sanitizeForPrompt(title)}" is doing well and you want to drive more engagement.
+Write a ${sanitizeForPrompt(platform)} post that references this content from the "${sanitizeForPrompt(angle)}" angle.
 Don't be salesy. Sound like you're genuinely continuing a conversation about this topic.
 Your goal: make people want to watch the video — the link will appear right below your post.
 Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     case "engagement":
-      return `Write a ${platform} post related to the topic of "${title}" that drives engagement.
-Use the "${angle}" approach. Ask a question, share an opinion, or start a discussion.
+      return `Write a ${sanitizeForPrompt(platform)} post related to the topic of "${sanitizeForPrompt(title)}" that drives engagement.
+Use the "${sanitizeForPrompt(angle)}" approach. Ask a question, share an opinion, or start a discussion.
 This should feel like an organic thought, not a content strategy post.
 Output ONLY the post text. No quotes around it.`;
 
     case "go-live":
-      return `You are ABOUT TO GO LIVE streaming "${title}" right now.
-${description ? `The stream is about: ${description}` : ""}
-Write a ${platform} post announcing you're going live using the "${angle}" angle.
+      return `You are ABOUT TO GO LIVE streaming "${sanitizeForPrompt(title)}" right now.
+${safeDescription ? `The stream is about: ${safeDescription}` : ""}
+Write a ${sanitizeForPrompt(platform)} post announcing you're going live using the "${sanitizeForPrompt(angle)}" angle.
 Sound hyped but natural - like you literally just hit "go live" and are telling people.
 Include urgency ("live rn", "get in here", "happening now") but keep it YOUR voice.
 Output ONLY the post text. No quotes around it.`;
 
     case "post-stream":
-      return `You just FINISHED a live stream called "${title}".
-${description ? `The stream covered: ${description}` : ""}
-Write a ${platform} post about highlights or moments from the stream using the "${angle}" angle.
+      return `You just FINISHED a live stream called "${sanitizeForPrompt(title)}".
+${safeDescription ? `The stream covered: ${safeDescription}` : ""}
+Write a ${sanitizeForPrompt(platform)} post about highlights or moments from the stream using the "${sanitizeForPrompt(angle)}" angle.
 Sound like you're decompressing after streaming - tired but satisfied energy.
 Reference specific-sounding moments even if vague ("that clutch play", "the ending though").
 Your goal: make people who missed the stream want to watch the VOD — the link will appear below.
 Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 
     default:
-      return `Write a natural ${platform} post about "${title}". Output ONLY the post text.`;
+      return `Write a natural ${sanitizeForPrompt(platform)} post about "${sanitizeForPrompt(title)}". Output ONLY the post text.`;
   }
 }
 
@@ -562,7 +564,7 @@ export async function checkContentSafety(content: string, userId: string, platfo
 
   for (const phrase of BANNED_AI_PHRASES) {
     if (lower.includes(phrase.toLowerCase())) {
-      issues.push(`Contains detectable phrase: "${phrase}"`);
+      issues.push(`Contains detectable phrase: "${sanitizeForPrompt(phrase)}"`);
     }
   }
 
@@ -626,7 +628,7 @@ export async function getStealthReport(userId: string): Promise<{
       const score = calculateStealthScore(post.content, platform);
       totalScore += score;
       if (score < 0.7) {
-        allIssues.push(`[${platform}] Low stealth score on: "${post.content.substring(0, 50)}..."`);
+        allIssues.push(`[${sanitizeForPrompt(platform)}] Low stealth score on: "${post.content.substring(0, 50)}..."`);
       }
     }
 
@@ -647,7 +649,7 @@ export async function getStealthReport(userId: string): Promise<{
       }
     }
     if (pairwiseUniqueness < 0.5) {
-      allIssues.push(`[${platform}] Posts are too similar to each other`);
+      allIssues.push(`[${sanitizeForPrompt(platform)}] Posts are too similar to each other`);
       grade = String.fromCharCode(Math.min(grade.charCodeAt(0) + 1, 70));
     }
 

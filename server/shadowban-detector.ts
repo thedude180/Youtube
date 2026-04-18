@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -12,7 +13,7 @@ export async function scanForAnomalies(userId: string, platform: string) {
     messages: [
       {
         role: "user",
-        content: `You are a reach anomaly detection system for content creators. Analyze potential reach issues on ${platform} for a creator.
+        content: `You are a reach anomaly detection system for content creators. Analyze potential reach issues on ${sanitizeForPrompt(platform)} for a creator.
 
 Anomaly types to check:
 - reach_drop: Sudden decrease in content reach compared to baseline
@@ -116,13 +117,13 @@ export async function generateRecoveryPlan(anomalyId: number) {
     messages: [
       {
         role: "user",
-        content: `You are a platform recovery specialist. A creator has a reach anomaly on ${anomaly.platform}:
+        content: `You are a platform recovery specialist. A creator has a reach anomaly on ${sanitizeForPrompt(anomaly.platform)}:
 
-Type: ${anomaly.anomalyType}
-Expected Reach: ${anomaly.expectedReach}
-Actual Reach: ${anomaly.actualReach}
-Deviation: ${anomaly.deviationPct}%
-Shadow Ban Suspected: ${anomaly.isShadowBan}
+Type: ${sanitizeForPrompt(anomaly.anomalyType)}
+Expected Reach: ${sanitizeForPrompt(anomaly.expectedReach)}
+Actual Reach: ${sanitizeForPrompt(anomaly.actualReach)}
+Deviation: ${sanitizeForPrompt(anomaly.deviationPct)}%
+Shadow Ban Suspected: ${sanitizeForPrompt(anomaly.isShadowBan)}
 Evidence: ${JSON.stringify(anomaly.evidence)}
 
 Create a detailed recovery plan. Return JSON:
@@ -174,7 +175,7 @@ export async function checkShadowBanStatus(userId: string, platform: string) {
     messages: [
       {
         role: "user",
-        content: `You are a shadow ban detection expert. Perform a quick shadow ban assessment for a creator on ${platform}.
+        content: `You are a shadow ban detection expert. Perform a quick shadow ban assessment for a creator on ${sanitizeForPrompt(platform)}.
 
 Analyze common shadow ban indicators:
 1. Content not appearing in hashtag feeds

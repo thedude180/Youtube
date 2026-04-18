@@ -66,7 +66,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
   const vodList = vods.map((v, i) => {
     const meta = v.metadata as any;
     const contentCtx = detectContentContext(v.title, v.description, meta?.contentCategory, meta);
-    const topicLabel = contentCtx.topicName ? ` | Topic: ${contentCtx.topicName}` : "";
+    const topicLabel = contentCtx.topicName ? ` | Topic: ${sanitizeForPrompt(contentCtx.topicName)}` : "";
     return `${i + 1}. Title: "${sanitizeForPrompt(v.title, 200)}" | Views: ${meta?.viewCount || 0} | Likes: ${meta?.likeCount || 0} | Duration: ${meta?.duration || "unknown"} | Published: ${v.publishedAt || v.createdAt} | Tags: ${(meta?.tags as string[] || []).join(", ") || "none"} | Description: ${sanitizeForPrompt(v.description || "", 150)}${topicLabel}`;
   }).join("\n");
 
@@ -189,7 +189,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
           strategyNotes: opt.strategyNotes,
           expectedImpact: opt.expectedImpact,
         }),
-        caption: `VOD Optimize: ${opt.originalTitle} → ${opt.newTitle}`,
+        caption: `VOD Optimize: ${sanitizeForPrompt(opt.originalTitle)} → ${sanitizeForPrompt(opt.newTitle)}`,
         status: "pending",
         scheduledAt: new Date(Date.now() + Math.random() * 60 * 60 * 1000),
         metadata: {
@@ -208,7 +208,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
             metadata: {
               ...meta,
               autoThumbnailGenerated: false,
-              thumbnailRefreshReason: `VOD optimization: ${opt.strategyNotes}`,
+              thumbnailRefreshReason: `VOD optimization: ${sanitizeForPrompt(opt.strategyNotes)}`,
             },
           }).where(eq(videos.id, opt.videoId));
         }

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { dailyBriefings, autonomousActionLog, growthPlans, revenueStrategies } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
@@ -63,7 +64,7 @@ export class DailyBriefing {
         Your task is to generate a concise, professional daily briefing based on the following activity from the last 24 hours.
 
         Autonomous Actions Taken:
-        ${actions.map(a => `- [${a.engine}] ${a.action}: ${a.reasoning || 'No reasoning provided'}`).join('\n')}
+        ${actions.map(a => `- [${sanitizeForPrompt(a.engine)}] ${sanitizeForPrompt(a.action)}: ${a.reasoning || 'No reasoning provided'}`).join('\n')}
 
         Latest Growth Plan:
         ${growth[0] ? JSON.stringify(growth[0].plan) : 'No new growth plan generated.'}
@@ -124,7 +125,7 @@ export class DailyBriefing {
 
       logger.info(`Daily briefing generated and sent for user ${userId}`);
     } catch (err: any) {
-      logger.error(`Failed to generate daily briefing for user ${userId}: ${err.message}`);
+      logger.error(`Failed to generate daily briefing for user ${userId}: ${sanitizeForPrompt(err.message)}`);
     }
   }
 

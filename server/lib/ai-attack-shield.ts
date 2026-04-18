@@ -145,12 +145,25 @@ function stripAdversarialChars(str: string): string {
  * hijack the model's instructions.
  */
 export function sanitizeForPrompt(input: unknown, maxLength = 2000): string {
+  if (typeof input === "number" || typeof input === "boolean") return String(input);
   if (typeof input !== "string") return "";
   let clean = stripAdversarialChars(input);
   for (const pattern of PROMPT_INJECTION_PATTERNS) {
     clean = clean.replace(pattern, "[FILTERED]");
   }
   return clean.substring(0, maxLength);
+}
+
+export function sanitizeObjectForPrompt<T>(obj: T): T {
+  if (typeof obj === "string") return sanitizeForPrompt(obj) as unknown as T;
+  if (typeof obj === "number" || typeof obj === "boolean") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeObjectForPrompt) as unknown as T;
+  if (obj && typeof obj === "object") {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, sanitizeObjectForPrompt(v)])
+    ) as T;
+  }
+  return obj;
 }
 
 function scanForPromptInjection(value: unknown, depth = 0): boolean {

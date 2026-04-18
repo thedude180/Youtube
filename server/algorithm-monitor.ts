@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -12,7 +13,7 @@ export async function scanAlgorithmChanges(platform: string) {
     messages: [
       {
         role: "user",
-        content: `You are a platform algorithm analyst. Analyze the current state of the ${platform} algorithm and detect any recent changes or shifts that would affect content creators.
+        content: `You are a platform algorithm analyst. Analyze the current state of the ${sanitizeForPrompt(platform)} algorithm and detect any recent changes or shifts that would affect content creators.
 
 Consider these signal types:
 - ranking_change: Changes to how content is ranked in feeds/search
@@ -95,11 +96,11 @@ export async function generateAdaptationStrategy(signalId: number) {
     messages: [
       {
         role: "user",
-        content: `You are a content strategy advisor. An algorithm change was detected on ${signal.platform}:
+        content: `You are a content strategy advisor. An algorithm change was detected on ${sanitizeForPrompt(signal.platform)}:
 
-Signal Type: ${signal.signalType}
-Description: ${signal.description}
-Severity: ${signal.severity}
+Signal Type: ${sanitizeForPrompt(signal.signalType)}
+Description: ${sanitizeForPrompt(signal.description)}
+Severity: ${sanitizeForPrompt(signal.severity)}
 Affected Metrics: ${(signal.affectedMetrics || []).join(", ")}
 
 Create a detailed adaptation strategy. Return JSON:
@@ -151,10 +152,10 @@ export async function autoAdaptPipeline(userId: string, signalId: number) {
         role: "user",
         content: `You are a pipeline automation expert. Based on this algorithm change, determine what automatic adjustments should be made to a creator's content pipeline.
 
-Platform: ${signal.platform}
-Signal Type: ${signal.signalType}
-Description: ${signal.description}
-Severity: ${signal.severity}
+Platform: ${sanitizeForPrompt(signal.platform)}
+Signal Type: ${sanitizeForPrompt(signal.signalType)}
+Description: ${sanitizeForPrompt(signal.description)}
+Severity: ${sanitizeForPrompt(signal.severity)}
 
 Return JSON:
 {

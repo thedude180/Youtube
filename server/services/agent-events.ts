@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { videos } from "@shared/schema";
@@ -130,8 +131,8 @@ async function optimizeLiveStreamSEO(userId: string, videoId: string | number, g
       role: "user",
       content: `You are a YouTube live stream SEO expert for a NO COMMENTARY PS5 gaming channel. Optimize the live stream metadata to maximize discoverability and click-through rate.
 
-GAME: ${gameName}
-CURRENT TITLE: "${currentTitle}"
+GAME: ${sanitizeForPrompt(gameName)}
+CURRENT TITLE: "${sanitizeForPrompt(currentTitle)}"
 STREAM TYPE: Live gameplay, no commentary, PS5
 
 ${thumbnailContext ? `THUMBNAIL INTELLIGENCE (from web research):\n${thumbnailContext.substring(0, 1500)}\n\nUse these visual insights to inform the description — reference the visual experience viewers will get.` : ""}
@@ -203,7 +204,7 @@ Return JSON:
     }
   } catch {}
 
-  logger.info(`Live stream SEO applied: "${parsed.optimizedTitle}"`, { userId: userId.slice(0, 8) });
+  logger.info(`Live stream SEO applied: "${sanitizeForPrompt(parsed.optimizedTitle)}"`, { userId: userId.slice(0, 8) });
 }
 
 /**
@@ -263,7 +264,7 @@ export async function wireAgentCoordination(): Promise<void> {
           const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
           const intel = await researchThumbnailsForGame(event.userId, gameTitle);
           if (intel) {
-            logger.info(`Pre-stream thumbnail intelligence cached for "${gameTitle}" — ${intel.references.length} references — ${event.userId.slice(0, 8)}`);
+            logger.info(`Pre-stream thumbnail intelligence cached for "${sanitizeForPrompt(gameTitle)}" — ${intel.references.length} references — ${event.userId.slice(0, 8)}`);
           }
         } catch (err: any) {
           logger.warn(`Pre-stream thumbnail research failed: ${err.message}`);
@@ -615,7 +616,7 @@ export async function wireAgentCoordination(): Promise<void> {
                 await db.update(videos).set({
                   metadata: { ...meta, gameName, gameDetectionMethod: "stream-end-auto" },
                 }).where(eq(videos.id, parsed));
-                logger.info(`Post-stream game detected: ${gameName} for video ${parsed}`);
+                logger.info(`Post-stream game detected: ${sanitizeForPrompt(gameName)} for video ${parsed}`);
               }
             } catch (err: any) {
               logger.warn(`Post-stream game detection failed: ${err.message}`);
@@ -634,7 +635,7 @@ export async function wireAgentCoordination(): Promise<void> {
             try {
               const { autoAssignVideoToPlaylist } = await import("../playlist-manager");
               await autoAssignVideoToPlaylist(event.userId, parsed, gameName);
-              logger.info(`Post-stream playlist assignment done: ${gameName} for ${event.userId.slice(0, 8)}`);
+              logger.info(`Post-stream playlist assignment done: ${sanitizeForPrompt(gameName)} for ${event.userId.slice(0, 8)}`);
             } catch (err: any) {
               logger.warn(`Post-stream playlist assignment failed: ${err.message}`);
             }

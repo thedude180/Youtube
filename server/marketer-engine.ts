@@ -233,16 +233,16 @@ async function generateOrganicCampaign(
 CHANNEL DATA:
 ${JSON.stringify(intel.ytChannel || intel.channels[0] || {}, null, 2)}
 
-CONNECTED PLATFORMS: ${intel.connectedPlatforms.join(", ")}
+CONNECTED PLATFORMS: ${sanitizeForPrompt(intel.connectedPlatforms.join(", "))}
 
 RECENT VIDEOS (${intel.recentVideos.length}):
 ${JSON.stringify(intel.recentVideos.slice(0, 10), null, 2)}
 
-TOP KEYWORDS: ${intel.topKeywords.map(k => `${k.keyword} (score:${k.score})`).join(", ")}
+TOP KEYWORDS: ${intel.topKeywords.map(k => `${sanitizeForPrompt(k.keyword)} (score:${sanitizeForPrompt(k.score)})`).join(", ")}
 
 ACTIVE STRATEGIES: ${intel.activeStrategies.map(s => s.title).join(", ") || "None yet"}
 
-PENDING CONTENT IN QUEUE: ${intel.pendingContent}
+PENDING CONTENT IN QUEUE: ${sanitizeForPrompt(intel.pendingContent)}
 
 ENABLED ORGANIC STRATEGIES: ${enabledStrategies.join(", ")}
 
@@ -314,7 +314,7 @@ Respond with JSON:
     status: "active",
     mode: "organic",
     strategies: {
-      organic: (plan.immediateActions || []).map((a: any) => `[${a.strategy}] ${a.action}`),
+      organic: (plan.immediateActions || []).map((a: any) => `[${sanitizeForPrompt(a.strategy)}] ${sanitizeForPrompt(a.action)}`),
       paid: [],
       platforms: intel.connectedPlatforms,
       audiences: plan.audienceGrowthTactics || [],
@@ -383,7 +383,7 @@ ENABLED AD PLATFORMS: ${enabledAdPlatforms.join(", ")}
 TARGET AUDIENCE: ${JSON.stringify(targetAudience)}
 TOP PERFORMING VIDEOS: ${JSON.stringify(topVideos)}
 TOP KEYWORDS: ${intel.topKeywords.map(k => k.keyword).join(", ")}
-CONNECTED PLATFORMS: ${intel.connectedPlatforms.join(", ")}
+CONNECTED PLATFORMS: ${sanitizeForPrompt(intel.connectedPlatforms.join(", "))}
 
 ${retentionContext}
 
@@ -471,7 +471,7 @@ Respond with JSON:
     spent: 0,
     strategies: {
       organic: [],
-      paid: (plan.campaigns || []).map((c: any) => `[${c.platform}] ${c.type}: ${c.objective}`),
+      paid: (plan.campaigns || []).map((c: any) => `[${sanitizeForPrompt(c.platform)}] ${sanitizeForPrompt(c.type)}: ${sanitizeForPrompt(c.objective)}`),
       platforms: enabledAdPlatforms,
       audiences: (plan.campaigns || []).flatMap((c: any) => c.targeting?.audiences || []),
       keywords: intel.topKeywords.map(k => k.keyword),

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { google } from "googleapis";
 import { storage } from "../storage";
 import { getAuthenticatedClient } from "../youtube";
@@ -41,7 +42,7 @@ export const streamOperator = {
       return;
     }
 
-    logger.info(`[StreamOperator] Starting operation for user ${userId} on chat ${context.liveChatId}`);
+    logger.info(`[StreamOperator] Starting operation for user ${userId} on chat ${sanitizeForPrompt(context.liveChatId)}`);
 
     const state: StreamState = {
       userId,
@@ -56,10 +57,10 @@ export const streamOperator = {
     };
 
     // Run immediately then start interval
-    this.runCycle(state).catch(err => logger.error(`[StreamOperator] Initial cycle error: ${err.message}`));
+    this.runCycle(state).catch(err => logger.error(`[StreamOperator] Initial cycle error: ${sanitizeForPrompt(err.message)}`));
 
     state.interval = setInterval(() => {
-      this.runCycle(state).catch(err => logger.error(`[StreamOperator] Cycle error: ${err.message}`));
+      this.runCycle(state).catch(err => logger.error(`[StreamOperator] Cycle error: ${sanitizeForPrompt(err.message)}`));
     }, 3 * 60 * 1000); // 3-minute interval
 
     activeOperators.set(userId, state);
@@ -93,7 +94,7 @@ export const streamOperator = {
         await this.assessEngagement(state);
         // Cross-post live announcement to X/Discord every 10min
         await this.crossPostLiveAnnouncements(state).catch(e =>
-          logger.warn(`[StreamOperator] crossPostLiveAnnouncements failed: ${e.message}`)
+          logger.warn(`[StreamOperator] crossPostLiveAnnouncements failed: ${sanitizeForPrompt(e.message)}`)
         );
         state.lastMetricsAssessmentAt = now;
         state.lastCrossPostAt = now;
@@ -108,7 +109,7 @@ export const streamOperator = {
           priority: 3,
         });
         await this.updateDiscordServer(state).catch(e =>
-          logger.warn(`[StreamOperator] updateDiscordServer failed: ${e.message}`)
+          logger.warn(`[StreamOperator] updateDiscordServer failed: ${sanitizeForPrompt(e.message)}`)
         );
         state.lastMidStreamHighlightAt = now;
         state.lastDiscordUpdateAt = now;
@@ -122,7 +123,7 @@ export const streamOperator = {
       }
 
     } catch (err: any) {
-      logger.error(`[StreamOperator] Error in runCycle for ${userId}: ${err.message}`);
+      logger.error(`[StreamOperator] Error in runCycle for ${userId}: ${sanitizeForPrompt(err.message)}`);
     }
   },
 
@@ -179,7 +180,7 @@ export const streamOperator = {
       const authorName = msg.authorDetails?.displayName;
       if (!userMessage) continue;
 
-      const basePrompt = `Generate a short, engaging response (max 200 chars) to this live chat message from ${authorName}: "${userMessage}". Keep it relevant to a gaming stream.`;
+      const basePrompt = `Generate a short, engaging response (max 200 chars) to this live chat message from ${authorName}: "${sanitizeForPrompt(userMessage)}". Keep it relevant to a gaming stream.`;
       const promptWithVoice = await withCreatorVoice(userId, basePrompt);
 
       const openai = getOpenAIClient();
@@ -272,7 +273,7 @@ export const streamOperator = {
     }
 
     if (engagementMessage) {
-      const promptWithVoice = await withCreatorVoice(userId, `Humanize this engagement prompt while keeping it short: "${engagementMessage}"`);
+      const promptWithVoice = await withCreatorVoice(userId, `Humanize this engagement prompt while keeping it short: "${sanitizeForPrompt(engagementMessage)}"`);
       const openai = getOpenAIClient();
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -380,7 +381,7 @@ export const streamOperator = {
         publishedContent: message,
       });
     } catch (err: any) {
-      logger.warn(`[StreamOperator] Discord webhook post failed: ${err.message}`);
+      logger.warn(`[StreamOperator] Discord webhook post failed: ${sanitizeForPrompt(err.message)}`);
     }
   },
 };

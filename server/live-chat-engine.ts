@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { db } from "./db";
 import { liveChatMessages, streams, streamDestinations } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
@@ -151,14 +152,14 @@ export async function processLiveChatMessage(
 
   const chatContext = recentMessages
     .reverse()
-    .map(m => `${m.author}: ${m.message}`)
+    .map(m => `${sanitizeForPrompt(m.author)}: ${sanitizeForPrompt(m.message)}`)
     .join("\n");
 
   const creatorTone = await getCreatorTone(userId);
   const platformStyle = PLATFORM_CHAT_STYLE[platform] || PLATFORM_CHAT_STYLE.youtube;
 
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-  const streamContext = stream ? `Currently streaming: "${stream.title}" (${stream.category || "Gaming"})` : "";
+  const streamContext = stream ? `Currently streaming: "${sanitizeForPrompt(stream.title)}" (${stream.category || "Gaming"})` : "";
 
   const systemMsg = `You ARE this creator responding in live chat during a stream. First person. Your voice.
 ${creatorTone}
@@ -179,7 +180,7 @@ CRITICAL RULES:
 - NEVER sound like a bot or brand account
 - Vary your response style - don't always start the same way`;
 
-  const prompt = `Recent chat:\n${chatContext}\n\nRespond to ${author}'s message: "${message}"\n\nOutput ONLY your reply. No quotes.`;
+  const prompt = `Recent chat:\n${chatContext}\n\nRespond to ${author}'s message: "${sanitizeForPrompt(message)}"\n\nOutput ONLY your reply. No quotes.`;
 
   try {
     const response = await openai.chat.completions.create({

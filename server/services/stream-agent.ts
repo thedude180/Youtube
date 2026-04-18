@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { db } from "../db";
 import { streams } from "@shared/schema";
@@ -98,7 +99,7 @@ function logAction(state: StreamAgentState, action: string, detail?: string) {
 async function generateEngagementPrompt(state: StreamAgentState): Promise<string> {
   const openai = getOpenAIClient();
   const coachingContext = state.latestCoachingTip
-    ? `\nLive learning insight: ${state.latestCoachingTip}`
+    ? `\nLive learning insight: ${sanitizeForPrompt(state.latestCoachingTip)}`
     : "";
   const trendContext = state.viewerSamples.length >= 3
     ? (() => {
@@ -108,8 +109,8 @@ async function generateEngagementPrompt(state: StreamAgentState): Promise<string
       return `\nViewer trend (last 3 samples avg: ${avg}, session peak: ${peak})`;
     })()
     : "";
-  const prompt = `You are an AI streaming assistant for a gaming streamer. They are LIVE right now playing "${state.streamTitle || "a game"}". 
-Current viewer count: ${state.viewerCount}. Chat sentiment: ${state.chatSentiment}.${coachingContext}${trendContext}
+  const prompt = `You are an AI streaming assistant for a gaming streamer. They are LIVE right now playing "${sanitizeForPrompt(state.streamTitle || "a game")}". 
+Current viewer count: ${sanitizeForPrompt(state.viewerCount)}. Chat sentiment: ${sanitizeForPrompt(state.chatSentiment)}.${coachingContext}${trendContext}
 Generate ONE short, punchy engagement prompt the streamer can do RIGHT NOW to boost viewer interaction. 
 Examples: "Ask chat what game they want to see next", "Do a 30-second speedrun challenge", "React to a clip", "Run a quick giveaway".
 Response: just the prompt, no extra text, under 15 words.`;
@@ -162,10 +163,10 @@ async function checkAndEngageStream(userId: string): Promise<void> {
                 detectedVideoId = activeBroadcast.videoId || activeBroadcast.id || null;
               }
             } catch (apiErr: any) {
-              logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${apiErr.message}`);
+              logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${sanitizeForPrompt(apiErr.message)}`);
             }
           } else {
-            logger.warn(`[${userId}] YouTube quota low (${quota.remaining}) — using RSS fallback for live detection`);
+            logger.warn(`[${userId}] YouTube quota low (${sanitizeForPrompt(quota.remaining)}) — using RSS fallback for live detection`);
           }
 
           // Watch-page fallback: zero-quota — checks RSS feed for recent videos, then confirms "isLive":true on watch page
@@ -181,7 +182,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
                 logger.info(`[${userId}] Watch-page check: channel ${ytChannel.channelId} is not live`);
               }
             } catch (checkErr: any) {
-              logger.warn(`[${userId}] Watch-page fallback failed: ${checkErr.message}`);
+              logger.warn(`[${userId}] Watch-page fallback failed: ${sanitizeForPrompt(checkErr.message)}`);
             }
           }
 
@@ -204,7 +205,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
           }
         }
       } catch (ytErr: any) {
-        logger.warn(`[${userId}] Live detection error: ${ytErr.message}`);
+        logger.warn(`[${userId}] Live detection error: ${sanitizeForPrompt(ytErr.message)}`);
       }
     }
 
@@ -223,7 +224,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       if (wasOffline) {
         const hasRealConfirmation = !!detectedVideoId || (liveStream.startedAt && (Date.now() - new Date(liveStream.startedAt).getTime()) < 30 * 60_000);
         if (hasRealConfirmation) {
-          logAction(state, "You went live!", `Detected on ${state.platform}`);
+          logAction(state, "You went live!", `Detected on ${sanitizeForPrompt(state.platform)}`);
           logAction(state, "AI chat responder active", "Responding to viewers in your voice");
           logAction(state, "Chat moderation enabled", "Watching for toxic content");
           logAction(state, "Viewer monitoring started", "Tracking engagement in real time");
@@ -269,9 +270,9 @@ async function checkAndEngageStream(userId: string): Promise<void> {
             viewerHistory: state.viewerSamples,
           });
           state.latestCoachingTip = result.coachingTip;
-          logAction(state, `Live learning checkpoint #${state.learningCheckpointCount}`, `Grade: ${result.liveGrade} | Trend: ${result.viewerTrend} | ${result.coachingTip}`);
+          logAction(state, `Live learning checkpoint #${sanitizeForPrompt(state.learningCheckpointCount)}`, `Grade: ${sanitizeForPrompt(result.liveGrade)} | Trend: ${sanitizeForPrompt(result.viewerTrend)} | ${sanitizeForPrompt(result.coachingTip)}`);
         } catch (err: any) {
-          logger.warn(`[${userId}] Mid-stream learning checkpoint failed: ${err.message}`);
+          logger.warn(`[${userId}] Mid-stream learning checkpoint failed: ${sanitizeForPrompt(err.message)}`);
         }
       }
 
@@ -287,7 +288,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
 
         
       } else {
-        logAction(state, "Monitoring your stream", `Viewers: ${state.viewerCount} | Sentiment: ${state.chatSentiment}`);
+        logAction(state, "Monitoring your stream", `Viewers: ${sanitizeForPrompt(state.viewerCount)} | Sentiment: ${sanitizeForPrompt(state.chatSentiment)}`);
       }
 
     } else {
@@ -439,7 +440,7 @@ export async function bootstrapStreamAgents(): Promise<void> {
         try {
           await startStreamAgent(user.id);
         } catch (err: any) {
-          logger.warn(`Bootstrap failed for ${user.id}: ${err.message}`);
+          logger.warn(`Bootstrap failed for ${user.id}: ${sanitizeForPrompt(err.message)}`);
         }
       }, i * 3000);
     }
@@ -454,6 +455,6 @@ export async function initStreamAgentForUser(userId: string): Promise<void> {
   try {
     await startStreamAgent(userId);
   } catch (err: any) {
-    logger.warn(`Init failed for ${userId}: ${err.message}`);
+    logger.warn(`Init failed for ${userId}: ${sanitizeForPrompt(err.message)}`);
   }
 }

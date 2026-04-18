@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db, withRetry } from "./db";
 import { notifications } from "@shared/schema";
@@ -126,12 +127,12 @@ async function recordFailure(sub: SubsystemHealth, error: Error): Promise<void> 
       await db.insert(notifications).values({
         userId,
         type: "system_alert",
-        title: `⚠️ Subsystem "${sub.name}" critically failed`,
+        title: `⚠️ Subsystem "${sanitizeForPrompt(sub.name)}" critically failed`,
         message: `${sub.consecutiveFailures} consecutive failures. Last error: ${error.message.substring(0, 200)}. Self-healing active.`,
         severity: "critical",
       });
     } catch (notifErr) {
-      logger.error(`[SelfHealing] Failed to create critical failure notification for "${sub.name}":`, notifErr);
+      logger.error(`[SelfHealing] Failed to create critical failure notification for "${sanitizeForPrompt(sub.name)}":`, notifErr);
     }
   }
 }
@@ -146,7 +147,7 @@ async function generateQuickDiagnosis(subsystemName: string, error: Error): Prom
       },
       {
         role: "user",
-        content: `Subsystem "${subsystemName}" failed. Error: ${error.message.substring(0, 500)}`,
+        content: `Subsystem "${sanitizeForPrompt(subsystemName)}" failed. Error: ${error.message.substring(0, 500)}`,
       },
     ],
     response_format: { type: "json_object" },
@@ -190,7 +191,7 @@ export async function selfHealingCore<T>(
         // Suppress esbuild service errors — transient dev-mode artifact, not a real failure
         const isTransformError = error?.message?.includes("service is no longer running") || error?.name === "TransformError";
         if (!options?.silent && !isTransformError) {
-          logger.error(`[SelfHealing] ❌ "${subsystemName}" failed after ${maxRetries + 1} attempts: ${error.message}`);
+          logger.error(`[SelfHealing] ❌ "${sanitizeForPrompt(subsystemName)}" failed after ${maxRetries + 1} attempts: ${error.message}`);
         }
         return null;
       }

@@ -2,6 +2,7 @@ import { db } from "./db";
 import { vodShortsLoopRuns, videos, channels, contentClips, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, lt, asc, sql, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
 import { recordHeartbeat } from "./services/engine-heartbeat";
@@ -148,7 +149,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
           content: `You are the world's #1 YouTube title optimization AI. Generate 3 A/B test title variants that maximize CTR. Use power words, numbers, curiosity gaps, and emotional triggers. Return JSON: {variants: [{title, strategy, expectedCtrLift}], analysis: string}.`
         }, {
           role: "user",
-          content: `Current title: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
+          content: `Current title: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.viewCount || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
         }],
         max_completion_tokens: 4000,
         response_format: { type: "json_object" },
@@ -198,7 +199,7 @@ CRITICAL YOUTUBE POLICY REQUIREMENTS (April 2026):
 Return JSON: {optimizedDescription, keywords: string[], hashtags: string[], seoScore: number}.`
         }, {
           role: "user",
-          content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 500)}". Optimize for YouTube search.`
+          content: `Title: "${sanitizeForPrompt(video.title)}". Description: "${sanitizeForPrompt((video.description || "").slice(0, 500))}". Optimize for YouTube search.`
         }],
         max_completion_tokens: 6000,
         response_format: { type: "json_object" },
@@ -240,7 +241,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
           content: `You are a world-class thumbnail design AI. Analyze this video and suggest 3 thumbnail concepts that maximize CTR. Consider: bold text overlays, expressive faces, bright colors, contrast, curiosity elements. Return JSON: {concepts: [{description, textOverlay, colorScheme, emotionalTrigger, expectedCtrLift}]}.`
         }, {
           role: "user",
-          content: `Video: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Current thumbnail: ${video.thumbnailUrl || "none"}. Design concepts for maximum CTR.`
+          content: `Video: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.viewCount || 0} views). Current thumbnail: ${video.thumbnailUrl || "none"}. Design concepts for maximum CTR.`
         }],
         max_completion_tokens: 4000,
         response_format: { type: "json_object" },
@@ -280,7 +281,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           content: `You are a viral Shorts/TikTok AI expert. Identify the top 3 most viral-worthy moments from this video for YouTube Shorts. Each should be 15-60 seconds, start with a strong hook, and end with a cliffhanger or punchline. Return JSON: {shorts: [{title, hookLine, startTimeSec, endTimeSec, viralScore, platform: "youtube-shorts"|"tiktok"|"reels"}]}.`
         }, {
           role: "user",
-          content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral Short clips.`
+          content: `Video: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${sanitizeForPrompt((video.description || "").slice(0, 200))}. Extract the most viral Short clips.`
         }],
         max_completion_tokens: 4000,
         response_format: { type: "json_object" },
@@ -295,7 +296,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
         await db.insert(contentClips).values({
           userId,
           sourceVideoId: video.id,
-          title: short.title || `Short from ${video.title}`,
+          title: short.title || `Short from ${sanitizeForPrompt(video.title)}`,
           targetPlatform: "youtube-shorts",
           status: "ai_ready",
           startTime: startT,
@@ -331,7 +332,7 @@ async function runCrossPlatformDistribution(userId: string): Promise<any> {
         sourceVideoId: clip.sourceVideoId,
         type: "cross-promo",
         targetPlatform: platform,
-        content: `${clip.title} | Watch full video on YouTube!`,
+        content: `${sanitizeForPrompt(clip.title)} | Watch full video on YouTube!`,
         caption: clip.title || "New Short",
         status: "scheduled",
         scheduledAt: new Date(Date.now() + Math.random() * 7200000),

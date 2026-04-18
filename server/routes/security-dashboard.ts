@@ -11,6 +11,7 @@ import { securityEvents } from "@shared/schema";
 import { desc, eq, gte, and, count, sql, inArray } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("security-dashboard");
 export function registerSecurityDashboardRoutes(app: Express) {
@@ -342,13 +343,18 @@ export function registerSecurityDashboardRoutes(app: Express) {
       const { getOpenAIClient } = await import("../lib/openai");
       const openai = getOpenAIClient();
 
+      const safeTitle = sanitizeForPrompt(title);
+      const safeDescription = sanitizeForPrompt(description || "");
+      const safeTags = sanitizeForPrompt(tags || "");
+      const safeCategory = sanitizeForPrompt(category || "");
+
       const prompt = `Analyze this content and predict its performance. Return ONLY valid JSON.
 
-Title: ${title}
-${description ? `Description: ${description}` : ""}
-Platform: ${platform || "youtube"}
-${tags ? `Tags: ${tags}` : ""}
-${category ? `Category: ${category}` : ""}
+Title: ${safeTitle}
+${safeDescription ? `Description: ${safeDescription}` : ""}
+Platform: ${sanitizeForPrompt(platform || "youtube")}
+${safeTags ? `Tags: ${safeTags}` : ""}
+${safeCategory ? `Category: ${safeCategory}` : ""}
 
 Return JSON with these exact fields:
 {

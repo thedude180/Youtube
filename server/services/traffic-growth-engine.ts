@@ -5,6 +5,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 import { createLogger } from "../lib/logger";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("traffic-growth-engine");
 const openai = getOpenAIClient();
@@ -65,7 +66,7 @@ export async function generateTrafficStrategies(userId: string) {
   const masterWisdom = await getMasterKnowledgeForPrompt(userId, 6);
   const crossPlatformKnowledge = await getEngineKnowledgeForContext("content-grinder", userId, 8);
   const platformInsightsStr = crossPlatformKnowledge.length > 0
-    ? "\n\nCROSS-PLATFORM INTELLIGENCE (learned from distribution results):\n" + crossPlatformKnowledge.map(k => `• [${k.confidence}%] ${k.topic}: ${k.insight.substring(0, 150)}`).join("\n")
+    ? "\n\nCROSS-PLATFORM INTELLIGENCE (learned from distribution results):\n" + crossPlatformKnowledge.map(k => `• [${sanitizeForPrompt(k.confidence)}%] ${sanitizeForPrompt(k.topic)}: ${k.insight.substring(0, 150)}`).join("\n")
     : "";
 
   const prompt = `You are a multi-platform growth strategist. Create actionable, 100% legitimate traffic strategies across ALL platforms (YouTube, TikTok, X, Discord, Instagram, Kick, Rumble). Every strategy must comply with each platform's Terms of Service. ZERO bots, sub4sub, view exchanges, clickfarms, or any artificial inflation.
@@ -158,7 +159,7 @@ Respond with JSON:
   ];
 
   plan.strategies = (plan.strategies || []).filter((strategy: any) => {
-    const text = `${strategy.title} ${strategy.description} ${JSON.stringify(strategy.actions || [])}`.toLowerCase();
+    const text = `${sanitizeForPrompt(strategy.title)} ${sanitizeForPrompt(strategy.description)} ${JSON.stringify(strategy.actions || [])}`.toLowerCase();
     const hasBanned = BANNED_TACTICS.some(t => text.includes(t));
     return !hasBanned;
   });
@@ -226,7 +227,7 @@ Respond with JSON:
   for (const strategy of (plan.strategies || []).slice(0, 5)) {
     if (strategy.priority >= 7) {
       const platform = strategy.platform || "youtube";
-      recordEngineKnowledge("content-grinder", userId, "traffic_strategy", `${platform}_${strategy.type}`, `${strategy.title}: ${strategy.description}`.substring(0, 400), `Priority: ${strategy.priority}/10, impact: ${strategy.estimatedImpact}, platform: ${platform}`, Math.min(90, 40 + strategy.priority * 5)).catch(() => {});
+      recordEngineKnowledge("content-grinder", userId, "traffic_strategy", `${sanitizeForPrompt(platform)}_${sanitizeForPrompt(strategy.type)}`, `${sanitizeForPrompt(strategy.title)}: ${sanitizeForPrompt(strategy.description)}`.substring(0, 400), `Priority: ${sanitizeForPrompt(strategy.priority)}/10, impact: ${sanitizeForPrompt(strategy.estimatedImpact)}, platform: ${sanitizeForPrompt(platform)}`, Math.min(90, 40 + strategy.priority * 5)).catch(() => {});
     }
   }
 
@@ -261,12 +262,12 @@ export async function autoApplyKeywordsToNewVideo(
   const relevancePrompt = `You are a YouTube SEO expert. A new video is being created. Your job is to determine which proven keywords from the creator's keyword bank are RELEVANT to this specific video's topic.
 
 VIDEO BEING CREATED:
-Title: "${videoTitle}"
-Description: "${currentDescription.slice(0, 500)}"
+Title: "${sanitizeForPrompt(videoTitle)}"
+Description: "${sanitizeForPrompt(currentDescription.slice(0, 500))}"
 Current Tags: ${currentTags.join(", ")}
 
 KEYWORD BANK (proven to drive traffic on this channel):
-${provenKeywords.map(k => `- "${k.keyword}" (score: ${k.score}, category: ${k.category})`).join("\n")}
+${provenKeywords.map(k => `- "${sanitizeForPrompt(k.keyword)}" (score: ${sanitizeForPrompt(k.score)}, category: ${sanitizeForPrompt(k.category)})`).join("\n")}
 
 Rules:
 - ONLY select keywords that are genuinely related to this video's subject matter

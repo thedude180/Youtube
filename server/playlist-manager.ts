@@ -2,6 +2,7 @@ import { db } from "./db";
 import { videos, channels, managedPlaylists, playlistItems, notifications } from "@shared/schema";
 import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
 
@@ -27,14 +28,14 @@ async function detectGameFromVideo(video: any): Promise<string> {
   const title = (video.title || "").toLowerCase();
   const desc = (video.description || "").toLowerCase();
   const tags = (meta.tags || []).map((t: string) => t.toLowerCase());
-  const combined = `${title} ${desc} ${tags.join(" ")}`;
+  const combined = `${sanitizeForPrompt(title)} ${desc} ${tags.join(" ")}`;
 
   try {
     const { detectGameFromLearned } = await import("./services/web-game-lookup");
     const learnedMatch = detectGameFromLearned(combined);
     if (learnedMatch) return learnedMatch.toLowerCase();
   } catch (err: any) {
-    logger.warn(`Learned game detection failed in playlist manager: ${err.message}`);
+    logger.warn(`Learned game detection failed in playlist manager: ${sanitizeForPrompt(err.message)}`);
   }
 
   const gamePatterns: Record<string, string[]> = {
@@ -103,7 +104,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
         },
         {
           role: "user",
-          content: `Title: ${video.title || "unknown"}\nDescription: ${(video.description || "").substring(0, 200)}\nTags: ${tags.slice(0, 10).join(", ")}`,
+          content: `Title: ${sanitizeForPrompt(video.title || "unknown")}\nDescription: ${sanitizeForPrompt((video.description || "").substring(0, 200))}\nTags: ${tags.slice(0, 10).join(", ")}`,
         },
       ],
       max_completion_tokens: 4000,
@@ -114,7 +115,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
         const { persistGameToDatabase } = await import("./services/web-game-lookup");
         await persistGameToDatabase(detected, "playlist-ai-detect");
       } catch (err: any) {
-        logger.warn(`Playlist game persist failed for "${detected}": ${err.message}`);
+        logger.warn(`Playlist game persist failed for "${detected}": ${sanitizeForPrompt(err.message)}`);
       }
     }
     return detected.length > 0 && detected.length < 50 ? detected : "general";
@@ -402,7 +403,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${channels.accessToken} IS NOT NULL`,
+        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) return { assigned: 0, playlistsCreated: 0 };
@@ -460,7 +461,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
         });
 
         await db.update(managedPlaylists).set({
-          videoCount: sql`${managedPlaylists.videoCount} + 1`,
+          videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
           lastUpdatedAt: new Date(),
         }).where(eq(managedPlaylists.id, mapping.playlistId));
 
@@ -589,7 +590,7 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
     }
 
     await db.update(managedPlaylists).set({
-      videoCount: sql`${managedPlaylists.videoCount} + 1`,
+      videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
       lastUpdatedAt: new Date(),
     }).where(eq(managedPlaylists.id, mapping.playlistId));
 

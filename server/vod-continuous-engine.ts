@@ -4,6 +4,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, lt, notInArray, sql, gte, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { sendSSEEvent } from "./routes/events";
 import { recordHeartbeat } from "./services/engine-heartbeat";
@@ -50,7 +51,7 @@ async function getAlreadyQueuedVideoIds(userId: string): Promise<Set<number>> {
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${autopilotQueue.type} IN ('vod-long-form', 'vod-short', 'vod-shorts-upload')`,
+      sql`${sanitizeForPrompt(autopilotQueue.type)} IN ('vod-long-form', 'vod-short', 'vod-shorts-upload')`,
       gte(autopilotQueue.createdAt, new Date(Date.now() - 7 * 86400_000)),
     ));
   return new Set(queued.map(q => q.sourceVideoId).filter(Boolean) as number[]);
@@ -64,7 +65,7 @@ async function getTodayUploadCount(userId: string, type: "long" | "short"): Prom
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${autopilotQueue.type} = ${queueType}`,
+      sql`${sanitizeForPrompt(autopilotQueue.type)} = ${queueType}`,
       gte(autopilotQueue.createdAt, midnight),
     ));
   return Number(rows[0]?.count ?? 0);
@@ -79,7 +80,7 @@ async function aiEditVideo(video: any): Promise<{ title: string; description: st
         content: `You are the world's #1 YouTube content editor. Given a video, produce an optimized title, SEO description, tags, and thumbnail concept that maximise CTR and watch time. Return JSON: { title: string, description: string, tags: string[], thumbnailConcept: string }.`,
       }, {
         role: "user",
-        content: `Title: "${video.title}". Description: "${(video.description || "").slice(0, 400)}". Views: ${(video.metadata as any)?.viewCount || 0}. Duration: ${(video.metadata as any)?.duration || "unknown"}. Edit for maximum performance.`,
+        content: `Title: "${sanitizeForPrompt(video.title)}". Description: "${sanitizeForPrompt((video.description || "").slice(0, 400))}". Views: ${(video.metadata as any)?.viewCount || 0}. Duration: ${(video.metadata as any)?.duration || "unknown"}. Edit for maximum performance.`,
       }],
       max_completion_tokens: 6000,
       response_format: { type: "json_object" },
@@ -99,7 +100,7 @@ async function aiExtractShorts(video: any): Promise<Array<{ title: string; start
         content: `You are a viral Shorts/TikTok extraction AI. Identify 3 viral-worthy moments from this video. Each must be 15-59 seconds, start with a strong hook, end with a cliffhanger or punchline. Return JSON: { shorts: [{ title, startSec, endSec, hook, viralScore }] }.`,
       }, {
         role: "user",
-        content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral moments.`,
+        content: `Video: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${sanitizeForPrompt((video.description || "").slice(0, 200))}. Extract the most viral moments.`,
       }],
       max_completion_tokens: 4000,
       response_format: { type: "json_object" },
@@ -205,7 +206,7 @@ async function runCycle(userId: string) {
           const [clip] = await db.insert(contentClips).values({
             userId,
             sourceVideoId: video.id,
-            title: short.title || `Short from ${video.title}`,
+            title: short.title || `Short from ${sanitizeForPrompt(video.title)}`,
             targetPlatform: "youtube-shorts",
             status: "pending",
             startTime: short.startSec || 0,
@@ -231,7 +232,7 @@ async function runCycle(userId: string) {
               type: "vod-short",
               targetPlatform: platform,
               content: short.hook || short.title,
-              caption: short.title || `${video.title} #Shorts`,
+              caption: short.title || `${sanitizeForPrompt(video.title)} #Shorts`,
               status: "scheduled",
               scheduledAt,
               metadata: {

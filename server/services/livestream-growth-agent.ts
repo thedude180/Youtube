@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, streams, autopilotQueue, autopilotConfig } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
@@ -57,8 +58,8 @@ async function isSocialBlastEnabled(userId: string): Promise<boolean> {
 function buildPrompt(session: LiveGrowthSession, liveYouTubeContext?: string): string {
   const liveMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
   return `The streamer is LIVE right now. Here is the current situation:
-- Stream title: "${session.streamTitle}"
-- Current viewers: ${session.viewerCount}
+- Stream title: "${sanitizeForPrompt(session.streamTitle)}"
+- Current viewers: ${sanitizeForPrompt(session.viewerCount)}
 - Stream running for: ${liveMinutes} minutes
 - Cycle #${session.cycleCount + 1} (every 15 min)
 ${liveYouTubeContext ? `\nLIVE YOUTUBE DATA:\n${liveYouTubeContext}` : ""}
@@ -83,11 +84,11 @@ async function fetchLiveYouTubeContext(session: LiveGrowthSession): Promise<stri
     if (!session.broadcastId || session.broadcastId.length < 5) return "";
     const details = await fetchYouTubeVideoDetails(session.channelId, session.broadcastId);
     if (!details) return "";
-    return `Current YouTube Title: "${details.title}"
+    return `Current YouTube Title: "${sanitizeForPrompt(details.title)}"
 Current Description: "${details.description.substring(0, 300)}"
 Current Tags: ${details.tags.slice(0, 10).join(", ")}
-Views: ${details.viewCount} | Likes: ${details.likeCount} | Comments: ${details.commentCount}
-Category: ${details.categoryId}`;
+Views: ${details.viewCount} | Likes: ${details.likeCount} | Comments: ${sanitizeForPrompt(details.commentCount)}
+Category: ${sanitizeForPrompt(details.categoryId)}`;
   } catch {
     return "";
   }
@@ -138,7 +139,7 @@ Return ONLY valid JSON, no markdown.`;
     const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
     return parsed;
   } catch (err: any) {
-    logger.warn(`[${session.userId}] AI live update failed: ${err.message}`);
+    logger.warn(`[${session.userId}] AI live update failed: ${sanitizeForPrompt(err.message)}`);
     return null;
   }
 }
@@ -179,7 +180,7 @@ async function queueSocialPost(
       },
     });
   } catch (err: any) {
-    logger.warn(`[${userId}] Failed to queue ${platform} post: ${err.message}`);
+    logger.warn(`[${userId}] Failed to queue ${sanitizeForPrompt(platform)} post: ${sanitizeForPrompt(err.message)}`);
   }
 }
 
@@ -199,9 +200,9 @@ async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
           description: update.optimizedDescription,
           tags: update.optimizedTags.slice(0, 30),
         });
-        logger.info(`[${session.userId}] YouTube live title updated: "${update.optimizedTitle.slice(0, 60)}..."`);
+        logger.info(`[${session.userId}] YouTube live title updated: "${sanitizeForPrompt(update.optimizedTitle.slice(0, 60))}..."`);
       } catch (ytErr: any) {
-        logger.warn(`[${session.userId}] YouTube SEO update failed: ${ytErr.message}`);
+        logger.warn(`[${session.userId}] YouTube SEO update failed: ${sanitizeForPrompt(ytErr.message)}`);
       }
     }
 
@@ -215,7 +216,7 @@ async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
         target: `Live stream: ${session.streamTitle?.slice(0, 50)}`,
         status: "completed",
         details: {
-          description: `Updated live stream SEO — Viewers: ${session.viewerCount} | Urgency: ${update.urgency}`,
+          description: `Updated live stream SEO — Viewers: ${sanitizeForPrompt(session.viewerCount)} | Urgency: ${sanitizeForPrompt(update.urgency)}`,
           impact: update.viewerStrategy,
           metrics: { viewerCount: session.viewerCount, cycleNumber: session.cycleCount },
         },
@@ -223,7 +224,7 @@ async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
     }
 
   } catch (err: any) {
-    logger.warn(`[${session.userId}] SEO update cycle failed: ${err.message}`);
+    logger.warn(`[${session.userId}] SEO update cycle failed: ${sanitizeForPrompt(err.message)}`);
   }
 }
 
@@ -268,10 +269,10 @@ async function runSocialBlast(session: LiveGrowthSession): Promise<void> {
       .filter(([p, c]) => c && c.length > 0 && !connected.has(p))
       .map(([p]) => p);
 
-    logger.info(`[${session.userId}] Social blast queued — ${queued} posts to [${platformNames.join(", ")}] (viewers: ${session.viewerCount})${skipped.length > 0 ? ` | Skipped (not connected): ${skipped.join(", ")}` : ""}`);
+    logger.info(`[${session.userId}] Social blast queued — ${queued} posts to [${platformNames.join(", ")}] (viewers: ${sanitizeForPrompt(session.viewerCount)})${skipped.length > 0 ? ` | Skipped (not connected): ${skipped.join(", ")}` : ""}`);
 
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Social blast cycle failed: ${err.message}`);
+    logger.warn(`[${session.userId}] Social blast cycle failed: ${sanitizeForPrompt(err.message)}`);
   }
 }
 
@@ -318,7 +319,7 @@ async function startLiveGrowthSession(
     if (current) await runSocialBlast(current);
   }, SOCIAL_BLAST_INTERVAL_MS);
 
-  logger.info(`[${userId}] Live growth session active — broadcast: ${broadcastId}, title: "${streamTitle}"`);
+  logger.info(`[${userId}] Live growth session active — broadcast: ${broadcastId}, title: "${sanitizeForPrompt(streamTitle)}"`);
 }
 
 export function stopLiveGrowthSession(userId: string): void {
@@ -329,7 +330,7 @@ export function stopLiveGrowthSession(userId: string): void {
   if (session.socialTimer) clearInterval(session.socialTimer);
   activeSessions.delete(userId);
 
-  logger.info(`[${userId}] Live growth session stopped — ${session.cycleCount} SEO cycles ran`);
+  logger.info(`[${userId}] Live growth session stopped — ${sanitizeForPrompt(session.cycleCount)} SEO cycles ran`);
 }
 
 export function updateLiveGrowthViewerCount(userId: string, viewerCount: number): void {
@@ -374,7 +375,7 @@ export function initLivestreamGrowthAgent(): void {
       try {
         await startLiveGrowthSession(userId, broadcastId, streamTitle);
       } catch (err: any) {
-        logger.warn(`[${userId}] Failed to start live growth session: ${err.message}`);
+        logger.warn(`[${userId}] Failed to start live growth session: ${sanitizeForPrompt(err.message)}`);
       }
     }, 10_000);
   });

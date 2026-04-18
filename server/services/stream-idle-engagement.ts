@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, streams, liveCommunityActions, videos, sponsorshipDeals } from "@shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
@@ -153,7 +154,7 @@ const activeSessions = new Map<string, IdleSession>();
 let eventsRegistered = false;
 
 function detectCategory(title: string, category?: string | null): StreamCategory {
-  const text = `${title} ${category || ""}`.toLowerCase();
+  const text = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(category || "")}`.toLowerCase();
 
   if (text.includes("no commentary") || text.includes("no comment") || text.includes("no talking") ||
       text.includes("ambient") || text.includes("full gameplay") || text.includes("no voice")) {
@@ -215,7 +216,7 @@ async function postChatMessage(yt: any, liveChatId: string, message: string): Pr
     });
     return true;
   } catch (err: any) {
-    logger.warn(`Chat post failed: ${err.message}`);
+    logger.warn(`Chat post failed: ${sanitizeForPrompt(err.message)}`);
     return false;
   }
 }
@@ -229,7 +230,7 @@ async function tryAcquireChatId(session: IdleSession): Promise<boolean> {
   const chatId = await getLiveChatId(session.channelDbId);
   if (chatId) {
     session.liveChatId = chatId;
-    logger.info(`[${session.userId}] Acquired live chat ID on retry ${session.chatIdRetries}`);
+    logger.info(`[${session.userId}] Acquired live chat ID on retry ${sanitizeForPrompt(session.chatIdRetries)}`);
     return true;
   }
   return false;
@@ -262,7 +263,7 @@ async function checkChatActivity(session: IdleSession): Promise<void> {
       session.lastChatActivityAt = now;
     }
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Activity check failed: ${err.message}`);
+    logger.warn(`[${session.userId}] Activity check failed: ${sanitizeForPrompt(err.message)}`);
   }
 }
 
@@ -310,7 +311,7 @@ async function generateEngagementMessage(session: IdleSession): Promise<string |
       chosenStyle = stylePool.find(s => s !== "video_promo" && s !== "sponsor_shoutout") || "game_question";
     } else {
       const pick = vids[Math.floor(Math.random() * Math.min(vids.length, 5))];
-      contextExtra = `\nVideo to promote: "${pick.title}" — link: https://youtu.be/${pick.youtubeId}`;
+      contextExtra = `\nVideo to promote: "${sanitizeForPrompt(pick.title)}" — link: https://youtu.be/${sanitizeForPrompt(pick.youtubeId)}`;
     }
   }
 
@@ -320,7 +321,7 @@ async function generateEngagementMessage(session: IdleSession): Promise<string |
       chosenStyle = stylePool.find(s => s !== "video_promo" && s !== "sponsor_shoutout") || "game_question";
     } else {
       const pick = sponsors[Math.floor(Math.random() * sponsors.length)];
-      contextExtra = `\nSponsor to mention: ${pick.brandName}${pick.notes ? ` — context: ${pick.notes.slice(0, 100)}` : ""}`;
+      contextExtra = `\nSponsor to mention: ${sanitizeForPrompt(pick.brandName)}${pick.notes ? ` — context: ${sanitizeForPrompt(pick.notes.slice(0, 100))}` : ""}`;
     }
   }
 
@@ -369,7 +370,7 @@ async function generateEngagementMessage(session: IdleSession): Promise<string |
 
   const prompt = await withCreatorVoice(
     session.userId,
-    `You are the chat moderator for a PS5 gaming live stream called "${session.streamTitle}".
+    `You are the chat moderator for a PS5 gaming live stream called "${sanitizeForPrompt(session.streamTitle)}".
 
 ${categoryPrompts[session.category]}
 
@@ -403,7 +404,7 @@ Message:`
     if (!message || message.length < 5) return null;
     return message.slice(0, 200);
   } catch (err: any) {
-    logger.warn(`AI generation failed: ${err.message}`);
+    logger.warn(`AI generation failed: ${sanitizeForPrompt(err.message)}`);
     return null;
   }
 }
@@ -452,7 +453,7 @@ async function runIdleCheck(session: IdleSession): Promise<void> {
       session.lastEngagementAt = now;
       session.engagementCount++;
 
-      logger.info(`[${session.userId}] Idle engagement posted (#${session.engagementCount}): ${message.slice(0, 60)}...`);
+      logger.info(`[${session.userId}] Idle engagement posted (#${sanitizeForPrompt(session.engagementCount)}): ${message.slice(0, 60)}...`);
 
       sendSSEEvent(session.userId, "idle-engagement", {
         action: "engagement_posted",
@@ -463,7 +464,7 @@ async function runIdleCheck(session: IdleSession): Promise<void> {
       });
     }
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Failed to post engagement: ${err.message}`);
+    logger.warn(`[${session.userId}] Failed to post engagement: ${sanitizeForPrompt(err.message)}`);
   }
   } finally {
     session.isChecking = false;
@@ -506,11 +507,11 @@ async function startIdleSession(userId: string, channelDbId: number, streamTitle
 
   session.checkTimer = setInterval(() => {
     runIdleCheck(session).catch(err => {
-      logger.warn(`[${userId}] Idle check error: ${err.message}`);
+      logger.warn(`[${userId}] Idle check error: ${sanitizeForPrompt(err.message)}`);
     });
   }, 60_000);
 
-  logger.info(`[${userId}] Idle engagement started — category: ${category}, idle threshold: ${config.idleThresholdMs / 1000}s, max: ${config.maxPerStream}/stream`);
+  logger.info(`[${userId}] Idle engagement started — category: ${sanitizeForPrompt(category)}, idle threshold: ${config.idleThresholdMs / 1000}s, max: ${sanitizeForPrompt(config.maxPerStream)}/stream`);
 }
 
 export function stopIdleSession(userId: string): void {
@@ -519,7 +520,7 @@ export function stopIdleSession(userId: string): void {
   if (session.checkTimer) clearInterval(session.checkTimer);
   if (session.activityTimer) clearInterval(session.activityTimer);
   activeSessions.delete(userId);
-  logger.info(`[${userId}] Idle engagement stopped — ${session.engagementCount} engagement messages posted`);
+  logger.info(`[${userId}] Idle engagement stopped — ${sanitizeForPrompt(session.engagementCount)} engagement messages posted`);
 }
 
 export function getIdleSessionStatus(userId: string): {
@@ -574,7 +575,7 @@ export function initIdleEngagement(): void {
           await startIdleSession(userId, ch.id, streamTitle, streamCategory);
         }
       } catch (err: any) {
-        logger.warn(`[${userId}] Idle engagement start failed: ${err.message}`);
+        logger.warn(`[${userId}] Idle engagement start failed: ${sanitizeForPrompt(err.message)}`);
       }
     }, 60_000);
   });

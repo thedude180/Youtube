@@ -1,4 +1,5 @@
 import { getOpenAIClient } from "./lib/openai";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -26,10 +27,10 @@ export async function suggestAdBreaks(userId: string, videoId: number) {
 
     const prompt = `You are a YouTube monetization expert. Suggest optimal ad break placements for this video.
 
-Video Title: "${video.title}"
+Video Title: "${sanitizeForPrompt(video.title)}"
 Video Type: ${video.type}
 Duration: ${duration}
-Description: "${video.description || "None"}"
+Description: "${sanitizeForPrompt(video.description || "None")}"
 
 Suggest ad break placements as JSON:
 {
@@ -340,11 +341,11 @@ export async function generateInvoice(userId: string, sponsorDealId: number) {
 
     const prompt = `You are a professional invoicing assistant for content creators. Generate invoice line items for this sponsorship deal.
 
-Brand: "${deal.brandName || "Unknown Brand"}"
+Brand: "${sanitizeForPrompt(deal.brandName || "Unknown Brand")}"
 Deal Value: $${deal.dealValue || 0}
 Deal Type: ${"sponsorship"}
 Deliverables: ${JSON.stringify(deal.deliverables || [])}
-Notes: ${deal.notes || "None"}
+Notes: ${sanitizeForPrompt(deal.notes || "None")}
 
 Generate invoice details as JSON:
 {
@@ -430,7 +431,7 @@ export async function analyzeDeal(userId: string, dealId: number) {
     const prompt = `You are a creator sponsorship advisor. Analyze if this deal is fair.
 
 DEAL DETAILS:
-- Brand: "${deal.brandName || "Unknown"}"
+- Brand: "${sanitizeForPrompt(deal.brandName || "Unknown")}"
 - Offered Value: $${deal.dealValue || 0}
 - Deal Type: ${"sponsorship"}
 - Deliverables: ${JSON.stringify(deal.deliverables || [])}

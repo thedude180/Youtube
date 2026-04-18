@@ -8,6 +8,7 @@ import { channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getAuthenticatedClient } from "../youtube";
 import { getOpenAIClient } from "../lib/openai";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
@@ -70,7 +71,7 @@ async function postChatMessage(yt: any, liveChatId: string, message: string): Pr
     });
     return true;
   } catch (err: any) {
-    logger.warn(`Chat post failed: ${err.message}`);
+    logger.warn(`Chat post failed: ${sanitizeForPrompt(err.message)}`);
     return false;
   }
 }
@@ -79,7 +80,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
   let webContext = "";
 
   try {
-    const searchQuery = `${question} ${gameName} PS5`;
+    const searchQuery = `${question} ${sanitizeForPrompt(gameName)} PS5`;
     const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&format=json&srlimit=3&utf8=1`;
     const resp = await fetch(wikiUrl, {
       signal: AbortSignal.timeout(8000),
@@ -90,7 +91,7 @@ async function researchQuestion(question: string, gameName: string): Promise<str
       const data = await resp.json() as any;
       const results = data?.query?.search || [];
       webContext = results.map((r: any) =>
-        `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
+        `${sanitizeForPrompt(r.title)}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
       ).join("\n");
     }
   } catch (err: any) { logger.warn("[LiveChat] Wikipedia search failed:", err?.message || err); }
@@ -167,19 +168,19 @@ async function processChatCycle(session: ChatSession): Promise<void> {
         temperature: 0.9,
         messages: [{
           role: "user",
-          content: `You are a chill gamer hanging out in a live stream chat for "${streamTitle}" (${gameName}, PS5, no commentary).
+          content: `You are a chill gamer hanging out in a live stream chat for "${sanitizeForPrompt(streamTitle)}" (${sanitizeForPrompt(gameName)}, PS5, no commentary).
 
-${author} just ${type === "newSponsorEvent" ? "became a channel member" : type === "superChatEvent" ? "sent a Super Chat" : "hit a membership milestone"}.
+${sanitizeForPrompt(author)} just ${type === "newSponsorEvent" ? "became a channel member" : type === "superChatEvent" ? "sent a Super Chat" : "hit a membership milestone"}.
 
 Write a SHORT, casual thank you. Sound like a real person — not a bot. No excessive caps, no emoji spam, no "INSANE" or "LEGEND" cringe. Just genuine appreciation like a friend would say it. Keep it to 1 sentence, under 120 characters.
 
 Examples of good responses:
-- "yo ${author} welcome aboard, good to have you here"
-- "appreciate that ${author}, for real"  
-- "ayyy ${author} thanks for the support, means a lot"
+- "yo ${sanitizeForPrompt(author)} welcome aboard, good to have you here"
+- "appreciate that ${sanitizeForPrompt(author)}, for real"  
+- "ayyy ${sanitizeForPrompt(author)} thanks for the support, means a lot"
 
 Bad responses (DO NOT do this):
-- "HUGE welcome to ${author}!! You're OFFICIALLY part of the squad!! 🙌🎉💪"
+- "HUGE welcome to ${sanitizeForPrompt(author)}!! You're OFFICIALLY part of the squad!! 🙌🎉💪"
 - "That's INSANE, thank you so much! You're a LEGEND!"`,
         }],
       });
@@ -226,12 +227,12 @@ Bad responses (DO NOT do this):
           temperature: 0.85,
           messages: [{
             role: "user",
-            content: `You are a knowledgeable gamer chatting in a live stream for "${streamTitle}" (${gameName}, PS5, no commentary channel).
+            content: `You are a knowledgeable gamer chatting in a live stream for "${sanitizeForPrompt(streamTitle)}" (${sanitizeForPrompt(gameName)}, PS5, no commentary channel).
 
-${author} asked: "${questionText}"
+${sanitizeForPrompt(author)} asked: "${sanitizeForPrompt(questionText)}"
 
 ${researchContext ? `RESEARCH (use this to give an accurate answer):\n${researchContext.substring(0, 800)}\n` : ""}
-${recentChat ? `Recent chat context:\n${recentChat}\n` : ""}
+${recentChat ? `Recent chat context:\n${sanitizeForPrompt(recentChat)}\n` : ""}
 
 RULES — you MUST follow these:
 1. Sound like a REAL PERSON chatting, not an AI assistant
@@ -300,7 +301,7 @@ Bad responses (NEVER do this):
     });
 
   } catch (err: any) {
-    logger.warn(`[${userId}] Chat cycle failed: ${err.message}`);
+    logger.warn(`[${userId}] Chat cycle failed: ${sanitizeForPrompt(err.message)}`);
   }
 }
 
@@ -372,7 +373,7 @@ export function initLiveChatAgent(): void {
           .limit(1);
         if (ch) await startChatSession(userId, ch.id, streamTitle, gameName);
       } catch (err: any) {
-        logger.warn(`[${userId}] Chat agent start failed: ${err.message}`);
+        logger.warn(`[${userId}] Chat agent start failed: ${sanitizeForPrompt(err.message)}`);
       }
     }, 30_000);
   });

@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
 
@@ -73,7 +74,7 @@ function scanKeywords(text: string, keywords: string[], type: CopyrightIssue["ty
       seen.add(kw);
       issues.push({
         type,
-        description: `Contains "${kw}" — may trigger copyright detection`,
+        description: `Contains "${sanitizeForPrompt(kw)}" — may trigger copyright detection`,
         severity,
         matchedTerm: kw,
       });
@@ -103,7 +104,7 @@ function checkTrademarkSafety(text: string): CopyrightIssue[] {
       }
       issues.push({
         type: "trademark",
-        description: `Contains "${risky}" which may trigger platform flags`,
+        description: `Contains "${sanitizeForPrompt(risky)}" which may trigger platform flags`,
         severity: gaming ? "low" : "high",
         matchedTerm: risky,
       });
@@ -172,7 +173,7 @@ async function runAICopyrightReview(
 ): Promise<CopyrightCheckResult | null> {
   const openai = getOpenAIClient();
 
-  const issuesSummary = keywordIssues.map(i => `- [${i.severity}] ${i.description}`).join("\n");
+  const issuesSummary = keywordIssues.map(i => `- [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -181,7 +182,7 @@ async function runAICopyrightReview(
     messages: [
       {
         role: "system",
-        content: `You are a content copyright compliance expert. Analyze content for copyright/trademark risks BEFORE it gets published to ${platform}. 
+        content: `You are a content copyright compliance expert. Analyze content for copyright/trademark risks BEFORE it gets published to ${sanitizeForPrompt(platform)}. 
 
 Your job:
 1. Determine if the content is SAFE to publish or needs changes
@@ -202,7 +203,7 @@ Respond in valid JSON:
       {
         role: "user",
         content: `CONTENT TO CHECK:
-Platform: ${platform}
+Platform: ${sanitizeForPrompt(platform)}
 Content: ${(content || "").substring(0, 1500)}
 Caption: ${(caption || "").substring(0, 500)}
 

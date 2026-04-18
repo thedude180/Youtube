@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
@@ -103,7 +104,7 @@ Respond with JSON:
     const existing = await db.select().from(keywordInsights)
       .where(and(
         eq(keywordInsights.userId, userId),
-        sql`LOWER(${keywordInsights.keyword}) = LOWER(${kw.keyword})`,
+        sql`LOWER(${sanitizeForPrompt(keywordInsights.keyword)}) = LOWER(${sanitizeForPrompt(kw.keyword)})`,
       ))
       .limit(1);
 
@@ -136,7 +137,7 @@ Respond with JSON:
       } catch (e: any) {
         if (e?.code === "23505") {
           await db.update(keywordInsights).set({ ...data, lastAnalyzedAt: new Date() })
-            .where(and(eq(keywordInsights.userId, userId), sql`LOWER(${keywordInsights.keyword}) = LOWER(${data.keyword})`));
+            .where(and(eq(keywordInsights.userId, userId), sql`LOWER(${sanitizeForPrompt(keywordInsights.keyword)}) = LOWER(${sanitizeForPrompt(data.keyword)})`));
         } else { throw e; }
       }
     }
@@ -146,7 +147,7 @@ Respond with JSON:
     const existing = await db.select().from(keywordInsights)
       .where(and(
         eq(keywordInsights.userId, userId),
-        sql`LOWER(${keywordInsights.keyword}) = LOWER(${opp.keyword})`,
+        sql`LOWER(${sanitizeForPrompt(keywordInsights.keyword)}) = LOWER(${sanitizeForPrompt(opp.keyword)})`,
       ))
       .limit(1);
 
@@ -236,7 +237,7 @@ export async function refreshKeywordScores(userId: string) {
   const staleKeywords = await db.select().from(keywordInsights)
     .where(and(
       eq(keywordInsights.userId, userId),
-      sql`${keywordInsights.lastAnalyzedAt} < ${sevenDaysAgo}`,
+      sql`${sanitizeForPrompt(keywordInsights.lastAnalyzedAt)} < ${sevenDaysAgo}`,
     ));
 
   if (staleKeywords.length > 0) {

@@ -6,7 +6,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 import { createLogger } from "./lib/logger";
-import { tokenBudget } from "./lib/ai-attack-shield";
+import { tokenBudget, sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("repurpose-engine");
 const openai = getOpenAIClient();
@@ -45,9 +45,9 @@ export async function repurposeVideo(userId: string, videoId: number, formats: s
 
     const prompt = `You are a content repurposing expert using proven retention science. Transform this video into multiple content formats.
 
-Video Title: "${video.title}"
-Video Description: "${video.description || "None provided"}"
-Video Type: ${video.type}
+Video Title: "${sanitizeForPrompt(video.title)}"
+Video Description: "${sanitizeForPrompt(video.description || "None provided")}"
+Video Type: ${sanitizeForPrompt(video.type)}
 Tags: ${video.metadata?.tags?.join(", ") || "None"}
 ${retentionContext}
 
@@ -108,7 +108,7 @@ Requirements:
             userId,
             sourceVideoId: videoId,
             format,
-            title: formatResult.title || `${video.title} - ${format}`,
+            title: formatResult.title || `${sanitizeForPrompt(video.title)} - ${format}`,
             content: formatResult.content || "",
             platform: formatResult.platform || format,
             status: "draft",
@@ -179,9 +179,9 @@ export async function suggestBRoll(userId: string, videoId: number) {
 
     const prompt = `You are a professional video editor. Suggest B-roll footage ideas for this video.
 
-Video Title: "${video.title}"
-Video Description: "${video.description || "None"}"
-Video Type: ${video.type}
+Video Title: "${sanitizeForPrompt(video.title)}"
+Video Description: "${sanitizeForPrompt(video.description || "None")}"
+Video Type: ${sanitizeForPrompt(video.type)}
 Tags: ${video.metadata?.tags?.join(", ") || "None"}
 
 Suggest B-roll as JSON:

@@ -4,6 +4,7 @@
  * Delivers the final ranked list the moment the stream ends.
  * Uses AI to identify channels with the highest audience overlap and networking value.
  */
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -54,8 +55,8 @@ async function generateRaidList(session: RaidSession): Promise<RaidTarget[]> {
         content: `You are Devon Hall — a live stream raid scout and network builder for a PS5 gaming channel.
 Your job: identify the best raid targets at the end of this stream.
 
-Channel: "${session.channelName}"
-Stream: "${session.streamTitle}"
+Channel: "${sanitizeForPrompt(session.channelName)}"
+Stream: "${sanitizeForPrompt(session.streamTitle)}"
 Stream duration: ${streamMinutes} minutes
 
 Generate a ranked list of 5 raid target recommendations. Consider:
@@ -88,7 +89,7 @@ Return JSON:
     const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
     return (parsed.raidTargets as RaidTarget[]) || [];
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Raid list AI failed: ${err.message}`);
+    logger.warn(`[${session.userId}] Raid list AI failed: ${sanitizeForPrompt(err.message)}`);
     return [];
   }
 }
@@ -111,16 +112,16 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
   const top = session.raidList[0];
   const listText = session.raidList
     .slice(0, 5)
-    .map((t, i) => `${i + 1}. ${t.channelName} (${t.estimatedViewers} viewers) — ${t.reason}`)
+    .map((t, i) => `${i + 1}. ${sanitizeForPrompt(t.channelName)} (${sanitizeForPrompt(t.estimatedViewers)} viewers) — ${sanitizeForPrompt(t.reason)}`)
     .join("\n");
 
-  const notificationMessage = `🎯 RAID TARGETS READY\n\nTop pick: ${top.channelName}\n${top.reason}\n\nFull list:\n${listText}`;
+  const notificationMessage = `🎯 RAID TARGETS READY\n\nTop pick: ${sanitizeForPrompt(top.channelName)}\n${sanitizeForPrompt(top.reason)}\n\nFull list:\n${listText}`;
 
   try {
     await storage.createNotification({
       userId: session.userId,
       type: "raid_scout",
-      title: `Raid ${top.channelName}? Devon's raid list is ready`,
+      title: `Raid ${sanitizeForPrompt(top.channelName)}? Devon's raid list is ready`,
       message: notificationMessage,
       severity: "info",
     });
@@ -132,12 +133,12 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
     const twitchChannel = userChannels[0];
 
     if (twitchChannel?.accessToken && process.env.TWITCH_CLIENT_ID) {
-      logger.info(`[${session.userId}] Attempting to execute Twitch raid for ${top.channelName}`);
+      logger.info(`[${session.userId}] Attempting to execute Twitch raid for ${sanitizeForPrompt(top.channelName)}`);
       
       // 1. Get target broadcaster ID
-      const searchRes = await fetch(`https://api.twitch.tv/helix/users?login=${top.channelName}`, {
+      const searchRes = await fetch(`https://api.twitch.tv/helix/users?login=${sanitizeForPrompt(top.channelName)}`, {
         headers: {
-          "Authorization": `Bearer ${twitchChannel.accessToken}`,
+          "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
           "Client-Id": process.env.TWITCH_CLIENT_ID
         }
       });
@@ -151,26 +152,26 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
           const raidRes = await fetch(`https://api.twitch.tv/helix/raids?from_broadcaster_id=${twitchChannel.channelId}&to_broadcaster_id=${targetId}`, {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${twitchChannel.accessToken}`,
+              "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
               "Client-Id": process.env.TWITCH_CLIENT_ID
             }
           });
           
           if (raidRes.ok) {
-            logger.info(`[${session.userId}] Twitch raid started successfully for ${top.channelName}`);
+            logger.info(`[${session.userId}] Twitch raid started successfully for ${sanitizeForPrompt(top.channelName)}`);
           } else {
             const raidErr = await raidRes.text();
-            logger.warn(`[${session.userId}] Twitch raid start failed: ${raidRes.status} ${raidErr}`);
+            logger.warn(`[${session.userId}] Twitch raid start failed: ${sanitizeForPrompt(raidRes.status)} ${raidErr}`);
           }
         } else {
-          logger.warn(`[${session.userId}] Could not find Twitch ID for channel: ${top.channelName}`);
+          logger.warn(`[${session.userId}] Could not find Twitch ID for channel: ${sanitizeForPrompt(top.channelName)}`);
         }
       } else {
-        logger.warn(`[${session.userId}] Twitch user search failed: ${searchRes.status}`);
+        logger.warn(`[${session.userId}] Twitch user search failed: ${sanitizeForPrompt(searchRes.status)}`);
       }
     }
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Twitch raid execution error: ${err.message}`);
+    logger.warn(`[${session.userId}] Twitch raid execution error: ${sanitizeForPrompt(err.message)}`);
   }
 
   await storage.createAgentActivity({
@@ -180,7 +181,7 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
     target: top.channelName,
     status: "completed",
     details: {
-      description: `Devon delivered final raid recommendations — ${session.raidList.length} targets, top pick: ${top.channelName}`,
+      description: `Devon delivered final raid recommendations — ${session.raidList.length} targets, top pick: ${sanitizeForPrompt(top.channelName)}`,
       impact: "Raid-ready — execute now for maximum audience growth",
       metrics: { targetsReady: session.raidList.length, streamDurationMins: Math.round((Date.now() - session.startedAt.getTime()) / 60000) },
     },
@@ -225,11 +226,11 @@ async function startRaidSession(
   session.timer = setInterval(async () => {
     const current = activeSessions.get(userId);
     if (current) await runScoutCycle(current).catch(err =>
-      logger.warn(`[${userId}] Scout cycle error: ${err.message}`)
+      logger.warn(`[${userId}] Scout cycle error: ${sanitizeForPrompt(err.message)}`)
     );
   }, SCOUT_INTERVAL_MS);
 
-  logger.info(`[${userId}] Raid Scout started for "${streamTitle}"`);
+  logger.info(`[${userId}] Raid Scout started for "${sanitizeForPrompt(streamTitle)}"`);
 }
 
 async function stopRaidSession(userId: string): Promise<void> {
@@ -239,7 +240,7 @@ async function stopRaidSession(userId: string): Promise<void> {
   activeSessions.delete(userId);
 
   await deliverFinalRaidList(session).catch(err =>
-    logger.warn(`[${userId}] Final raid list delivery failed: ${err.message}`)
+    logger.warn(`[${userId}] Final raid list delivery failed: ${sanitizeForPrompt(err.message)}`)
   );
 
   logger.info(`[${userId}] Raid session ended — ${session.raidList.length} targets ready`);
@@ -258,14 +259,14 @@ export function initLiveRaidScout(): void {
       try {
         await startRaidSession(userId, streamTitle);
       } catch (err: any) {
-        logger.warn(`[${userId}] Raid scout start failed: ${err.message}`);
+        logger.warn(`[${userId}] Raid scout start failed: ${sanitizeForPrompt(err.message)}`);
       }
     }, 20_000);
   });
 
   onAgentEvent("stream.ended", async (event) => {
     await stopRaidSession(event.userId).catch(err =>
-      logger.warn(`[${event.userId}] Raid session stop failed: ${err.message}`)
+      logger.warn(`[${event.userId}] Raid session stop failed: ${sanitizeForPrompt(err.message)}`)
     );
   });
 

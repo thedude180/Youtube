@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -80,7 +81,7 @@ async function getLongTermMemory(userId: string) {
         .limit(10),
       db.select().from(learningInsights)
         .where(eq(learningInsights.userId, userId))
-        .orderBy(desc(sql`${learningInsights.confidence} * COALESCE(${learningInsights.sampleSize}, 1)`))
+        .orderBy(desc(sql`${sanitizeForPrompt(learningInsights.confidence)} * COALESCE(${sanitizeForPrompt(learningInsights.sampleSize)}, 1)`))
         .limit(30),
     ]);
     return {
@@ -114,16 +115,16 @@ export async function generateDailyBriefing(userId: string): Promise<{
     ]);
 
     const latestMetrics = shortTerm.recentSnapshots[0]?.metrics;
-    const activitySummary = shortTerm.recentActivities.map(a => `${a.agentId}: ${a.action}`).slice(0, 5).join("; ");
-    const abTestResults = mediumTerm.weeklyAbTests.filter(t => t.winner).map(t => `A/B test on video ${t.videoId}: variant ${t.winner} won`).join("; ");
-    const trendList = trending.map(t => `${t.topic} (score: ${t.trendScore})`).join(", ");
+    const activitySummary = shortTerm.recentActivities.map(a => `${sanitizeForPrompt(a.agentId)}: ${sanitizeForPrompt(a.action)}`).slice(0, 5).join("; ");
+    const abTestResults = mediumTerm.weeklyAbTests.filter(t => t.winner).map(t => `A/B test on video ${t.videoId}: variant ${sanitizeForPrompt(t.winner)} won`).join("; ");
+    const trendList = trending.map(t => `${sanitizeForPrompt(t.topic)} (score: ${sanitizeForPrompt(t.trendScore)})`).join(", ");
     const totalRevenue = mediumTerm.weeklyRevenue.reduce((sum, r) => sum + (r.amount || 0), 0);
 
     const prompt = `You are a creator's daily intelligence briefing system. Generate a concise 3-sentence briefing based on this data.
 
 OVERNIGHT ACTIVITY (last 24h):
 - Agent actions: ${activitySummary || "No activity"}
-- Latest metrics: ${latestMetrics ? `${latestMetrics.totalViews} total views, ${latestMetrics.totalSubscribers} subs, $${latestMetrics.totalRevenue} revenue` : "No metrics available"}
+- Latest metrics: ${latestMetrics ? `${sanitizeForPrompt(latestMetrics.totalViews)} total views, ${sanitizeForPrompt(latestMetrics.totalSubscribers)} subs, $${latestMetrics.totalRevenue} revenue` : "No metrics available"}
 - New insights: ${shortTerm.recentInsights.length} learning events recorded
 
 WEEKLY CONTEXT:
@@ -259,7 +260,7 @@ export async function getLearningContext(userId: string): Promise<string> {
     const [insights, dna, styleMemory, youtubeContext] = await Promise.all([
       db.select().from(learningInsights)
         .where(eq(learningInsights.userId, userId))
-        .orderBy(desc(sql`${learningInsights.confidence} * COALESCE(${learningInsights.sampleSize}, 1)`))
+        .orderBy(desc(sql`${sanitizeForPrompt(learningInsights.confidence)} * COALESCE(${sanitizeForPrompt(learningInsights.sampleSize)}, 1)`))
         .limit(15),
       db.select().from(contentDnaProfiles)
         .where(eq(contentDnaProfiles.userId, userId))
@@ -298,11 +299,11 @@ export async function getLearningContext(userId: string): Promise<string> {
     if (profile?.profileData) {
       parts.push("\nCONTENT DNA:");
       const pd = profile.profileData;
-      if (pd.topFormats?.length) parts.push(`- Top formats: ${pd.topFormats.join(", ")}`);
-      if (pd.tonalPattern) parts.push(`- Tonal pattern: ${pd.tonalPattern}`);
-      if (pd.bestHooks?.length) parts.push(`- Best hooks: ${pd.bestHooks.join(", ")}`);
-      if (pd.bestPostingTimes?.length) parts.push(`- Best posting times: ${pd.bestPostingTimes.join(", ")}`);
-      if (pd.uniqueStrengths?.length) parts.push(`- Unique strengths: ${pd.uniqueStrengths.join(", ")}`);
+      if (pd.topFormats?.length) parts.push(`- Top formats: ${sanitizeForPrompt(pd.topFormats.join(", "))}`);
+      if (pd.tonalPattern) parts.push(`- Tonal pattern: ${sanitizeForPrompt(pd.tonalPattern)}`);
+      if (pd.bestHooks?.length) parts.push(`- Best hooks: ${sanitizeForPrompt(pd.bestHooks.join(", "))}`);
+      if (pd.bestPostingTimes?.length) parts.push(`- Best posting times: ${sanitizeForPrompt(pd.bestPostingTimes.join(", "))}`);
+      if (pd.uniqueStrengths?.length) parts.push(`- Unique strengths: ${sanitizeForPrompt(pd.uniqueStrengths.join(", "))}`);
     }
 
     if (styleMemory.length > 0) {
@@ -611,7 +612,7 @@ export async function processActionItems(userId: string): Promise<Array<{
       if (hoursUntil < 24 && hoursUntil > 0) {
         actionItems.push({
           type: "schedule_approval",
-          title: `Approve scheduled content: ${item.title}`,
+          title: `Approve scheduled content: ${sanitizeForPrompt(item.title)}`,
           description: `Scheduled for ${new Date(item.scheduledAt!).toLocaleDateString()}. Review and approve before it goes live.`,
           priority: "high",
           source: "schedule",
@@ -623,7 +624,7 @@ export async function processActionItems(userId: string): Promise<Array<{
       if (insight.data?.recommendation) {
         actionItems.push({
           type: "insight_action",
-          title: `Act on insight: ${insight.pattern}`,
+          title: `Act on insight: ${sanitizeForPrompt(insight.pattern)}`,
           description: insight.data.recommendation,
           priority: (insight.confidence || 0) >= 0.85 ? "high" : "medium",
           source: "learning_engine",
@@ -634,8 +635,8 @@ export async function processActionItems(userId: string): Promise<Array<{
     for (const deal of pendingDeals) {
       actionItems.push({
         type: "sponsorship_review",
-        title: `Review sponsorship: ${deal.brandName}`,
-        description: `${deal.brandName} deal worth $${deal.dealValue || 0}. Needs your decision.`,
+        title: `Review sponsorship: ${sanitizeForPrompt(deal.brandName)}`,
+        description: `${sanitizeForPrompt(deal.brandName)} deal worth $${deal.dealValue || 0}. Needs your decision.`,
         priority: "high",
         source: "sponsorships",
       });
@@ -722,8 +723,8 @@ export async function getContentDnaProfile(userId: string): Promise<{
       tags: v.metadata?.tags?.slice(0, 5),
     }));
 
-    const styleSummary = styleMemory.map(m => `${m.key}: ${m.value}`).join("\n");
-    const insightSummary = insights.map(i => `${i.category}: ${i.data?.finding}`).slice(0, 10).join("\n");
+    const styleSummary = styleMemory.map(m => `${sanitizeForPrompt(m.key)}: ${sanitizeForPrompt(m.value)}`).join("\n");
+    const insightSummary = insights.map(i => `${sanitizeForPrompt(i.category)}: ${i.data?.finding}`).slice(0, 10).join("\n");
 
     const prompt = `Analyze this creator's content and build their Content DNA profile.
 

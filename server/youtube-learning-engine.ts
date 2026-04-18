@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
@@ -24,7 +25,7 @@ async function aiGenerate(prompt: string): Promise<any> {
 export async function researchYouTubeNiche(userId: string, niche: string): Promise<any> {
   const prompt = `You are a YouTube algorithm expert and content research analyst who has studied thousands of successful YouTube channels. Research this niche deeply using your knowledge of YouTube trends, successful creators, and content patterns.
 
-NICHE TO RESEARCH: "${niche}"
+NICHE TO RESEARCH: "${sanitizeForPrompt(niche)}"
 
 Analyze YouTube as if you were studying the platform's top performers in this niche. Use your knowledge of real YouTube trends, successful video formats, and what actually works on the platform.
 
@@ -100,8 +101,8 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
   try {
     if (research.nicheAnalysis?.topPerformingFormats) {
       await recordLearningEvent(userId, "content_format_performance", "youtube_top_formats", {
-        finding: `Top performing formats in ${niche}: ${research.nicheAnalysis.topPerformingFormats.join(", ")}`,
-        evidence: [`YouTube niche research for ${niche}`],
+        finding: `Top performing formats in ${sanitizeForPrompt(niche)}: ${sanitizeForPrompt(research.nicheAnalysis.topPerformingFormats.join(", "))}`,
+        evidence: [`YouTube niche research for ${sanitizeForPrompt(niche)}`],
         recommendation: `Focus on these formats: ${research.nicheAnalysis.topPerformingFormats.slice(0, 3).join(", ")}`,
         platform: "youtube",
       });
@@ -109,7 +110,7 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
 
     if (research.nicheAnalysis?.titlePatterns) {
       await recordLearningEvent(userId, "title_performance", "youtube_title_patterns", {
-        finding: `High-CTR title patterns: ${research.nicheAnalysis.titlePatterns.join("; ")}`,
+        finding: `High-CTR title patterns: ${sanitizeForPrompt(research.nicheAnalysis.titlePatterns.join("; "))}`,
         evidence: [`YouTube pattern analysis`],
         recommendation: `Use these title patterns as templates, especially: ${research.nicheAnalysis.titlePatterns[0]}`,
         platform: "youtube",
@@ -118,7 +119,7 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
 
     if (research.nicheAnalysis?.hookStyles) {
       await recordLearningEvent(userId, "retention_patterns", "youtube_hook_styles", {
-        finding: `Effective hooks for ${niche}: ${research.nicheAnalysis.hookStyles.join("; ")}`,
+        finding: `Effective hooks for ${sanitizeForPrompt(niche)}: ${sanitizeForPrompt(research.nicheAnalysis.hookStyles.join("; "))}`,
         evidence: [`YouTube retention research`],
         recommendation: `Open videos with these hook styles to maximize 30-second retention`,
         platform: "youtube",
@@ -127,17 +128,17 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
 
     if (research.nicheAnalysis?.commonMistakes) {
       await recordLearningEvent(userId, "creator_pitfalls", "youtube_common_mistakes", {
-        finding: `Common mistakes to avoid: ${research.nicheAnalysis.commonMistakes.join("; ")}`,
+        finding: `Common mistakes to avoid: ${sanitizeForPrompt(research.nicheAnalysis.commonMistakes.join("; "))}`,
         evidence: [`YouTube competitor analysis`],
-        recommendation: `Actively avoid these mistakes that plague new creators in ${niche}`,
+        recommendation: `Actively avoid these mistakes that plague new creators in ${sanitizeForPrompt(niche)}`,
         platform: "youtube",
       });
     }
 
     if (research.nicheAnalysis?.algorithmInsights) {
       await recordLearningEvent(userId, "algorithm_patterns", "youtube_algorithm_factors", {
-        finding: `Algorithm favors: ${research.nicheAnalysis.algorithmInsights.join("; ")}`,
-        evidence: [`YouTube algorithm analysis for ${niche}`],
+        finding: `Algorithm favors: ${sanitizeForPrompt(research.nicheAnalysis.algorithmInsights.join("; "))}`,
+        evidence: [`YouTube algorithm analysis for ${sanitizeForPrompt(niche)}`],
         recommendation: `Optimize content for these algorithm signals`,
         platform: "youtube",
       });
@@ -145,8 +146,8 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
 
     if (research.contentGaps) {
       await recordLearningEvent(userId, "content_opportunities", "youtube_content_gaps", {
-        finding: `Underserved content areas: ${research.contentGaps.join("; ")}`,
-        evidence: [`Gap analysis in ${niche}`],
+        finding: `Underserved content areas: ${sanitizeForPrompt(research.contentGaps.join("; "))}`,
+        evidence: [`Gap analysis in ${sanitizeForPrompt(niche)}`],
         recommendation: `Target these gaps for faster growth with less competition`,
         platform: "youtube",
       });
@@ -154,8 +155,8 @@ async function seedLearningFromResearch(userId: string, niche: string, research:
 
     if (research.monetizationInsights?.bestRevenueStreams) {
       await recordLearningEvent(userId, "monetization_patterns", "youtube_revenue_streams", {
-        finding: `Best revenue streams for ${niche}: ${research.monetizationInsights.bestRevenueStreams.join(", ")}`,
-        evidence: [`Monetization research for ${niche}`],
+        finding: `Best revenue streams for ${sanitizeForPrompt(niche)}: ${sanitizeForPrompt(research.monetizationInsights.bestRevenueStreams.join(", "))}`,
+        evidence: [`Monetization research for ${sanitizeForPrompt(niche)}`],
         recommendation: `Focus monetization efforts on: ${research.monetizationInsights.bestRevenueStreams[0]}`,
         platform: "youtube",
       });
@@ -181,7 +182,7 @@ export async function analyzeVideoPerformanceAndLearn(userId: string, videoId: n
     const prompt = `You are a YouTube analytics expert studying this video's performance to improve future content.
 
 VIDEO DATA:
-- Title: "${video.title}"
+- Title: "${sanitizeForPrompt(video.title)}"
 - Views: ${stats.views || 0}
 - Likes: ${stats.likes || 0}
 - Comments: ${stats.comments || 0}
@@ -216,7 +217,7 @@ Respond with JSON:
       for (const insight of analysis.whatWorked) {
         await recordLearningEvent(userId, "content_type_performance", `video_success_pattern`, {
           finding: insight,
-          evidence: [`Video #${videoId}: "${video.title}" - Grade: ${analysis.performanceGrade}`],
+          evidence: [`Video #${videoId}: "${sanitizeForPrompt(video.title)}" - Grade: ${sanitizeForPrompt(analysis.performanceGrade)}`],
           recommendation: "Continue using this approach",
           platform: video.platform || "youtube",
         });
@@ -227,7 +228,7 @@ Respond with JSON:
       for (const insight of analysis.whatFailed) {
         await recordLearningEvent(userId, "content_type_performance", `video_improvement_area`, {
           finding: `Underperformed: ${insight}`,
-          evidence: [`Video #${videoId}: "${video.title}"`],
+          evidence: [`Video #${videoId}: "${sanitizeForPrompt(video.title)}"`],
           recommendation: analysis.improvements?.[0] || "Iterate and improve",
           platform: video.platform || "youtube",
         });
@@ -273,7 +274,7 @@ export async function refreshYouTubeResearch(userId: string, niche: string): Pro
 
   const prompt = `You are a YouTube research analyst updating your niche research based on the creator's actual performance data.
 
-NICHE: "${niche}"
+NICHE: "${sanitizeForPrompt(niche)}"
 PREVIOUS RESEARCH HIGHLIGHTS: ${existing ? JSON.stringify({
     topFormats: existing.nicheAnalysis?.topPerformingFormats,
     titlePatterns: existing.nicheAnalysis?.titlePatterns,
@@ -329,7 +330,7 @@ Respond with JSON:
 
   if (updated.updatedInsights?.newTrends) {
     await recordLearningEvent(userId, "trend_analysis", "youtube_new_trends", {
-      finding: `New trends: ${updated.updatedInsights.newTrends.join("; ")}`,
+      finding: `New trends: ${sanitizeForPrompt(updated.updatedInsights.newTrends.join("; "))}`,
       evidence: [`Research refresh at ${new Date().toISOString()}`],
       recommendation: `Incorporate these emerging trends into upcoming content`,
       platform: "youtube",
@@ -339,7 +340,7 @@ Respond with JSON:
   if (updated.updatedInsights?.externalVideoSources) {
     for (const source of updated.updatedInsights.externalVideoSources) {
       await recordLearningEvent(userId, "external_learning", `external_source_${source.source?.replace(/\s/g, '_')?.toLowerCase()?.slice(0, 30)}`, {
-        finding: `Study ${source.source}: ${source.whatToLearn}`,
+        finding: `Study ${sanitizeForPrompt(source.source)}: ${sanitizeForPrompt(source.whatToLearn)}`,
         evidence: [`Cross-platform research`],
         recommendation: source.howToApply,
       });
@@ -373,7 +374,7 @@ export function getCreatorMaturityPrompt(videosCreated: number): string {
 
   if (skill.level <= 5) {
     return `
-CREATOR MATURITY: COMPLETE BEGINNER (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: COMPLETE BEGINNER (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator has NEVER made a video before. Their first few videos should be ROUGH:
 - Awkward intros ("uh, hey, so this is my first video...")
 - No consistent branding or style yet
@@ -392,7 +393,7 @@ THINK: Like the very first video a 19-year-old uploads to YouTube from their bed
 
   if (skill.level <= 18) {
     return `
-CREATOR MATURITY: NOVICE (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: NOVICE (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator has a few videos under their belt. They're learning but still rough:
 - Starting to develop a greeting/opening style but inconsistent
 - Structure is better but still wanders off topic
@@ -409,7 +410,7 @@ THINK: A creator who's uploaded 5-10 videos. They're getting the hang of recordi
 
   if (skill.level <= 38) {
     return `
-CREATOR MATURITY: DEVELOPING (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: DEVELOPING (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator is finding their voice and getting more comfortable:
 - Developing a recognizable opening and closing style
 - Content structure is more focused, fewer tangents
@@ -426,7 +427,7 @@ THINK: A creator 3-6 months in who's starting to "get it" but still has clear ro
 
   if (skill.level <= 58) {
     return `
-CREATOR MATURITY: INTERMEDIATE (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: INTERMEDIATE (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator has solid skills and is building momentum:
 - Clear brand identity and consistent personality
 - Good video structure with strong hooks and pacing
@@ -443,7 +444,7 @@ THINK: A creator 6-12 months in who's clearly improved and starting to build a r
 
   if (skill.level <= 78) {
     return `
-CREATOR MATURITY: SKILLED (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: SKILLED (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator produces consistently good content:
 - Professional-level structure and pacing
 - Distinctive style that's immediately recognizable
@@ -458,7 +459,7 @@ THINK: A creator 1-2 years in who's found their groove. Their content is consist
   }
 
   return `
-CREATOR MATURITY: ADVANCED/EXPERT (Video #${videosCreated + 1}, Skill Level ${skill.level}/100)
+CREATOR MATURITY: ADVANCED/EXPERT (Video #${videosCreated + 1}, Skill Level ${sanitizeForPrompt(skill.level)}/100)
 This creator produces high-quality, polished content:
 - Expert-level production and storytelling
 - Unique, instantly recognizable brand
@@ -477,7 +478,7 @@ export async function getCreatorVideosCreated(userId: string): Promise<number> {
       .from(aiResults)
       .where(and(
         eq(aiResults.userId, userId),
-        sql`${aiResults.featureKey} LIKE 'video-creation-%'`
+        sql`${sanitizeForPrompt(aiResults.featureKey)} LIKE 'video-creation-%'`
       ));
     return Number(result[0]?.count) || 0;
   } catch {
@@ -493,7 +494,7 @@ export async function getYouTubeLearningContext(userId: string, niche?: string):
     if (research?.nicheAnalysis) {
       parts.push("YOUTUBE NICHE INTELLIGENCE (from YouTube research):");
       if (research.nicheAnalysis.topPerformingFormats) {
-        parts.push(`- Top formats: ${research.nicheAnalysis.topPerformingFormats.join(", ")}`);
+        parts.push(`- Top formats: ${sanitizeForPrompt(research.nicheAnalysis.topPerformingFormats.join(", "))}`);
       }
       if (research.nicheAnalysis.titlePatterns) {
         parts.push(`- Proven title patterns: ${research.nicheAnalysis.titlePatterns.slice(0, 3).join("; ")}`);
@@ -505,7 +506,7 @@ export async function getYouTubeLearningContext(userId: string, niche?: string):
         parts.push(`- Avoid: ${research.nicheAnalysis.commonMistakes.slice(0, 3).join("; ")}`);
       }
       if (research.nicheAnalysis.averageVideoLength) {
-        parts.push(`- Ideal video length: ${research.nicheAnalysis.averageVideoLength}`);
+        parts.push(`- Ideal video length: ${sanitizeForPrompt(research.nicheAnalysis.averageVideoLength)}`);
       }
     }
 
@@ -516,8 +517,8 @@ export async function getYouTubeLearningContext(userId: string, niche?: string):
     if (research?.crossPlatformInsights) {
       parts.push("\nCROSS-PLATFORM ADAPTATION:");
       const cpi = research.crossPlatformInsights;
-      if (cpi.tiktokAngle) parts.push(`- TikTok: ${cpi.tiktokAngle}`);
-      if (cpi.twitchAngle) parts.push(`- Twitch: ${cpi.twitchAngle}`);
+      if (cpi.tiktokAngle) parts.push(`- TikTok: ${sanitizeForPrompt(cpi.tiktokAngle)}`);
+      if (cpi.twitchAngle) parts.push(`- Twitch: ${sanitizeForPrompt(cpi.twitchAngle)}`);
     }
 
     const updates = await db.select().from(aiResults)
@@ -533,7 +534,7 @@ export async function getYouTubeLearningContext(userId: string, niche?: string):
       if (update?.updatedInsights?.externalVideoSources) {
         parts.push("EXTERNAL VIDEO SOURCES TO STUDY:");
         for (const src of update.updatedInsights.externalVideoSources.slice(0, 2)) {
-          parts.push(`- ${src.source}: ${src.whatToLearn}`);
+          parts.push(`- ${sanitizeForPrompt(src.source)}: ${sanitizeForPrompt(src.whatToLearn)}`);
         }
       }
     }

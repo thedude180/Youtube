@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments, discoveredStrategies, notifications, users } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
@@ -193,7 +194,7 @@ async function assessChannelHealth(userId: string): Promise<ChannelHealthReport>
     },
   };
 
-  recordEngineKnowledge("media-command", userId, "channel_health", `health_grade_${report.grade}`, `Channel health: ${report.grade} (${report.score}/100). Cadence: ${report.uploadCadence.actual}/day. Mix: ${shorts.length} shorts, ${longForm.length} long, ${streams.length} streams. Strike risk: ${report.strikeRisk.level}`, `${report.uploadCadence.recommendation} | ${report.contentMix.recommendation}`, report.score).catch(() => {});
+  recordEngineKnowledge("media-command", userId, "channel_health", `health_grade_${sanitizeForPrompt(report.grade)}`, `Channel health: ${sanitizeForPrompt(report.grade)} (${sanitizeForPrompt(report.score)}/100). Cadence: ${sanitizeForPrompt(report.uploadCadence.actual)}/day. Mix: ${shorts.length} shorts, ${longForm.length} long, ${streams.length} streams. Strike risk: ${sanitizeForPrompt(report.strikeRisk.level)}`, `${sanitizeForPrompt(report.uploadCadence.recommendation)} | ${sanitizeForPrompt(report.contentMix.recommendation)}`, report.score).catch(() => {});
 
   return report;
 }
@@ -336,12 +337,12 @@ async function generateStrategicDirectives(
         content: `You are the head of a YouTube media company managing a no-commentary PS5 gaming channel.
 
 CHANNEL HEALTH:
-- Score: ${health.score}/100 (Grade: ${health.grade})
-- Uploads/day: ${health.uploadCadence.actual} (optimal: ${cadence.optimalUploadsPerDay})
-- Content mix: ${health.contentMix.shorts} shorts, ${health.contentMix.longForm} long-form, ${health.contentMix.streams} streams (30 days)
-- Mid-roll eligible: ${health.revenueOptimization.midrollEligible}
-- Compliance: ${health.complianceStatus.violations} violations
-- Strike risk: ${health.strikeRisk.level} (${health.strikeRisk.factors.join(", ") || "none"})
+- Score: ${sanitizeForPrompt(health.score)}/100 (Grade: ${sanitizeForPrompt(health.grade)})
+- Uploads/day: ${sanitizeForPrompt(health.uploadCadence.actual)} (optimal: ${sanitizeForPrompt(cadence.optimalUploadsPerDay)})
+- Content mix: ${sanitizeForPrompt(health.contentMix.shorts)} shorts, ${sanitizeForPrompt(health.contentMix.longForm)} long-form, ${sanitizeForPrompt(health.contentMix.streams)} streams (30 days)
+- Mid-roll eligible: ${sanitizeForPrompt(health.revenueOptimization.midrollEligible)}
+- Compliance: ${sanitizeForPrompt(health.complianceStatus.violations)} violations
+- Strike risk: ${sanitizeForPrompt(health.strikeRisk.level)} (${health.strikeRisk.factors.join(", ") || "none"})
 
 CURRENT TOS RULES:
 ${JSON.stringify(rules, null, 2)}
@@ -366,7 +367,7 @@ Return ONLY valid JSON:
         userId,
         strategyType: "media_command_directive",
         title: String(directive.title || "Strategic Directive").substring(0, 200),
-        description: `${directive.action}\n\nExpected Impact: ${directive.expectedImpact}`,
+        description: `${sanitizeForPrompt(directive.action)}\n\nExpected Impact: ${sanitizeForPrompt(directive.expectedImpact)}`,
         source: "media-command-center",
         applicableTo: ["all"],
         effectiveness: 0,

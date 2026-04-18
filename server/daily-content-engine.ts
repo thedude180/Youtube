@@ -10,6 +10,7 @@ import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { detectGamingContext, buildGamingPromptSection, detectContentContext, buildContentPromptSection, getNicheLabel, ContentContext } from "./ai-engine";
 import { getActiveTrendOverride, getCooldownTrendOverrides, selectStreamByTrend, onStreamDetected } from "./trend-rider-engine";
 import { storage } from "./storage";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClient();
@@ -419,15 +420,15 @@ async function generateBatchPlan(
 4. Content Editor: Identifies the most exciting, funny, or dramatic moments in gameplay footage — the highlights viewers want to watch and share.
 
 STREAM INFO:
-- Title: "${stream.stream.title}"
-- Total Duration: ${stream.totalMinutes} minutes
+- Title: "${sanitizeForPrompt(stream.stream.title)}"
+- Total Duration: ${sanitizeForPrompt(stream.totalMinutes)} minutes
 - Current Segment: ${segStart} min to ${segEnd} min (${availableMinutes} min available)
 - Batch #${batchNumber} from this stream
 ${buildContentPromptSection(detectContentContext(stream.stream.title, null, (stream.stream as any).category || null, { gameName: (stream.stream as any).gameName || null }))}
 ${retentionContext}
 
 CONTENT-ADAPTIVE REQUIREMENTS:
-- ALL content MUST be specifically about what happened in "${stream.stream.title}" — reference the actual topic, specific moments, and events.
+- ALL content MUST be specifically about what happened in "${sanitizeForPrompt(stream.stream.title)}" — reference the actual topic, specific moments, and events.
 - Do NOT create generic content. Every title, description, hook, and caption must relate to the SPECIFIC content of this stream segment.
 - Use niche-specific terminology and community language relevant to this stream.
 
@@ -482,7 +483,7 @@ Return ONLY valid JSON:
         },
         {
           role: "user",
-          content: `Create Batch #${batchNumber} YouTube content from stream "${stream.stream.title}". Use footage from minute ${segStart} to minute ${segEnd}. This is ${availableMinutes} minutes of footage. Make it feel fresh — these are brand new videos, not "part 2". Think of unique angles, compilation themes, or highlight moments.`
+          content: `Create Batch #${batchNumber} YouTube content from stream "${sanitizeForPrompt(stream.stream.title)}". Use footage from minute ${segStart} to minute ${segEnd}. This is ${availableMinutes} minutes of footage. Make it feel fresh — these are brand new videos, not "part 2". Think of unique angles, compilation themes, or highlight moments.`
         }
       ],
       temperature: 0.85,
@@ -595,7 +596,7 @@ async function queueBatchContent(
         sourceVideoId: null,
         type: "auto-clip",
         targetPlatform: "youtube",
-        content: `${short.title}\n\n${short.description}\n\n${short.hashtags.join(" ")}`,
+        content: `${sanitizeForPrompt(short.title)}\n\n${sanitizeForPrompt(short.description)}\n\n${sanitizeForPrompt(short.hashtags.join(" "))}`,
         caption: short.title,
         status: "scheduled",
         scheduledAt: shortTime,
@@ -640,7 +641,7 @@ async function queueBatchContent(
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 2) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
       const platformCaption = platform === "tiktok"
-        ? `${short.title} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #fyp`
+        ? `${sanitizeForPrompt(short.title)} ${short.hashtags.map(h => `#${h.replace('#', '')}`).join(" ")} #fyp`
         : short.title;
 
       try {
@@ -649,7 +650,7 @@ async function queueBatchContent(
           sourceVideoId: null,
           type: "auto-clip",
           targetPlatform: platform,
-          content: `${short.title}\n\n${short.description}\n\n${short.hashtags.join(" ")}`,
+          content: `${sanitizeForPrompt(short.title)}\n\n${sanitizeForPrompt(short.description)}\n\n${sanitizeForPrompt(short.hashtags.join(" "))}`,
           caption: short.title,
           status: "scheduled",
           scheduledAt: crossTime,
@@ -694,7 +695,7 @@ async function queueBatchContent(
     const longFormAnnouncementTime = new Date(longFormTime.getTime() + 15 * 60 * 1000 + Math.random() * 30 * 60 * 1000);
     const topTags = plan.longForm?.tags?.slice(0, 3).map(t => `#${t.replace('#', '').replace(/\s+/g, '')}`).join(" ") || "";
     const longFormAnnouncement = plan.longForm
-      ? `**NEW VIDEO**\n\n**${plan.longForm.title}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`.substring(0, 1997) + "..."
+      ? `**NEW VIDEO**\n\n**${sanitizeForPrompt(plan.longForm.title)}**\n\n${plan.longForm.description.substring(0, 800)}\n\n${topTags}\n\nWatch now on YouTube!`.substring(0, 1997) + "..."
       : "";
 
     if (plan.longForm && longFormAnnouncement && textBudgetRemaining > 0) {
@@ -705,7 +706,7 @@ async function queueBatchContent(
           type: "cross-post",
           targetPlatform: platform,
           content: longFormAnnouncement,
-          caption: `New: ${plan.longForm.title}`,
+          caption: `New: ${sanitizeForPrompt(plan.longForm.title)}`,
           status: "scheduled",
           scheduledAt: longFormAnnouncementTime,
           metadata: {
@@ -729,7 +730,7 @@ async function queueBatchContent(
     for (let i = 0; i < textShortsToQueue; i++) {
       const short = plan.shorts[i];
       const crossTime = new Date(longFormTime.getTime() + (i + 3) * 60 * 60 * 1000 + Math.random() * 45 * 60 * 1000);
-      const textContent = `**${short.title}**\n\n${short.hook}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`.substring(0, 1997) + "...";
+      const textContent = `**${sanitizeForPrompt(short.title)}**\n\n${sanitizeForPrompt(short.hook)}\n\n${short.hashtags.slice(0, 5).join(" ")}\n\nCheck it out on YouTube!`.substring(0, 1997) + "...";
 
       try {
         await db.insert(autopilotQueue).values({
@@ -833,11 +834,11 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
     const dayOffset = await getNextAvailableDayOffset(userId);
 
     const existingBatches = await db
-      .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
+      .select({ count: sql<number>`count(DISTINCT (${sanitizeForPrompt(autopilotQueue.metadata)}->>'batchNumber'))::int` })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.userId, userId),
-        sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+        sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
       ));
 
     const batchNumber = (existingBatches[0]?.count || 0) + 1;
@@ -977,11 +978,11 @@ export async function runDailyContentGeneration(): Promise<void> {
           const dayOffset = await getNextAvailableDayOffset(userId);
 
           const existingBatches = await db
-            .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
+            .select({ count: sql<number>`count(DISTINCT (${sanitizeForPrompt(autopilotQueue.metadata)}->>'batchNumber'))::int` })
             .from(autopilotQueue)
             .where(and(
               eq(autopilotQueue.userId, userId),
-              sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+              sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
             ));
 
           const batchNumber = (existingBatches[0]?.count || 0) + 1;
@@ -1136,7 +1137,7 @@ export async function getStreamExhaustStatus(userId: string): Promise<{
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${autopilotQueue.metadata}->>'sourceStreamId' IS NOT NULL`,
+      sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' IS NOT NULL`,
     ));
 
   return {

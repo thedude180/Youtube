@@ -4,6 +4,7 @@
  * Immediately queues TikTok/Shorts posts for any hot moment while still live.
  * Saves timestamped markers for post-stream VOD clipping.
  */
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, autopilotQueue } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -51,7 +52,7 @@ async function generateMomentBlast(session: ClipSession): Promise<{
         content: `You are Mila Reyes — a live moment hunter for a PS5 gaming streamer. 
 Your job: identify what is likely the most exciting moment happening right now in the stream and create content around it.
 
-Stream: "${session.streamTitle}"
+Stream: "${sanitizeForPrompt(session.streamTitle)}"
 Running for: ${streamMinutes} minutes
 Previous clips this stream: ${session.clipMarkers.length}
 
@@ -146,7 +147,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
       target: `Clip #${session.clipMarkers.length}`,
       status: "completed",
       details: {
-        description: `High-viral moment captured: "${moment.momentDescription}" | Viral score: ${moment.viralScore}`,
+        description: `High-viral moment captured: "${sanitizeForPrompt(moment.momentDescription)}" | Viral score: ${moment.viralScore}`,
         impact: "TikTok + Discord blast queued immediately",
         metrics: {
           totalClipsThisStream: session.clipMarkers.length,
@@ -157,7 +158,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
     });
   }
 
-  logger.info(`[${session.userId}] Clip #${session.clipMarkers.length} captured — "${moment.momentDescription}"`);
+  logger.info(`[${session.userId}] Clip #${session.clipMarkers.length} captured — "${sanitizeForPrompt(moment.momentDescription)}"`);
 }
 
 async function startClipSession(
@@ -197,7 +198,7 @@ async function startClipSession(
     );
   }, SCAN_INTERVAL_MS);
 
-  logger.info(`[${userId}] Clip Highlighter started for "${streamTitle}"`);
+  logger.info(`[${userId}] Clip Highlighter started for "${sanitizeForPrompt(streamTitle)}"`);
 }
 
 function stopClipSession(userId: string): void {

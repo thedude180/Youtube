@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
@@ -193,7 +194,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
 
     const scheduleTime = new Date(Date.now() + (i + 1) * 3600_000 + Math.random() * 1800_000);
     const title = `${moment.title.substring(0, 80)}${NO_COMMENTARY_TITLE_SUFFIX} #Shorts`;
-    const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${video.title}\n\n#Shorts #PS5 #NoCommentary #${gameName.replace(/\s+/g, "")}`;
+    const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#Shorts #PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")}`;
 
     try {
       await db.insert(autopilotQueue).values({
@@ -258,8 +259,8 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
 
         const scheduleTime = new Date(Date.now() + (i + 1) * 86400_000 + Math.random() * 14400_000);
         const partNum = i + 1;
-        const title = `${gameName} Full Gameplay Part ${partNum}${NO_COMMENTARY_TITLE_SUFFIX}`;
-        const description = `${NO_COMMENTARY_DESC_HEADER}${gameName} pure gameplay walkthrough — Part ${partNum}.\n\nTimestamps:\n0:00 Start\n\nFrom: ${video.title}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`;
+        const title = `${sanitizeForPrompt(gameName)} Full Gameplay Part ${partNum}${NO_COMMENTARY_TITLE_SUFFIX}`;
+        const description = `${NO_COMMENTARY_DESC_HEADER}${sanitizeForPrompt(gameName)} pure gameplay walkthrough — Part ${partNum}.\n\nTimestamps:\n0:00 Start\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")} #Gaming`;
 
         try {
           await db.insert(autopilotQueue).values({
@@ -316,7 +317,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
         const moment = longForms[i];
         const scheduleTime = new Date(Date.now() + (i + 1) * 86400_000 + Math.random() * 14400_000);
         const title = `${moment.title.substring(0, 80)}${NO_COMMENTARY_TITLE_SUFFIX}`;
-        const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${video.title}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")}`;
+        const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")}`;
 
         try {
           await db.insert(autopilotQueue).values({
@@ -377,7 +378,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     userId,
     engine: "content-maximizer",
     action: "maximize_content",
-    reasoning: `Extracted ${shortsQueued} shorts + ${longFormsQueued} long-forms from ${durationMin}min ${gameName} video. ${experimentsCreated} duration experiments created. Optimal short: ${preference.shortOptimalSec}s (confidence: ${Math.round(preference.confidence * 100)}%)`,
+    reasoning: `Extracted ${shortsQueued} shorts + ${longFormsQueued} long-forms from ${durationMin}min ${sanitizeForPrompt(gameName)} video. ${experimentsCreated} duration experiments created. Optimal short: ${preference.shortOptimalSec}s (confidence: ${Math.round(preference.confidence * 100)}%)`,
     payload: { videoId, shortsQueued, longFormsQueued, experimentsCreated, durationMin, gameName },
   });
 
@@ -397,7 +398,7 @@ async function identifyAllUsableMoments(
 
   const prompt = `You are a content extraction expert for a NO COMMENTARY PS5 gaming YouTube channel.
 
-VIDEO: "${video.title}" (${gameName})
+VIDEO: "${sanitizeForPrompt(video.title)}" (${sanitizeForPrompt(gameName)})
 Total duration: ${durationMin} minutes
 Channel style: Pure gameplay, NO commentary, NO talking — viewers come for immersive, uninterrupted gameplay.
 
@@ -452,7 +453,7 @@ Return ONLY valid JSON:
       moments.push({
         startSec: Math.max(0, s.startSec),
         endSec: Math.min(durationSec, s.endSec),
-        title: String(s.title || `${gameName} Highlight`).slice(0, 100),
+        title: String(s.title || `${sanitizeForPrompt(gameName)} Highlight`).slice(0, 100),
         type: "short",
         intensity: Math.min(10, Math.max(1, s.intensity || 5)),
         reasoning: String(s.reasoning || "").slice(0, 200),
@@ -468,7 +469,7 @@ Return ONLY valid JSON:
         moments.push({
           startSec: Math.max(0, lf.startSec),
           endSec: Math.min(durationSec, lf.endSec),
-          title: String(lf.title || `${gameName} Gameplay`).slice(0, 100),
+          title: String(lf.title || `${sanitizeForPrompt(gameName)} Gameplay`).slice(0, 100),
           type: "long-form",
           intensity: Math.min(10, Math.max(1, lf.intensity || 5)),
           reasoning: String(lf.reasoning || "").slice(0, 200),
@@ -495,7 +496,7 @@ function generateFallbackMoments(durationSec: number, gameName: string): Extract
     moments.push({
       startSec: startMin * 60,
       endSec: startMin * 60 + duration,
-      title: `${gameName} Intense Moment ${i + 1}`,
+      title: `${sanitizeForPrompt(gameName)} Intense Moment ${i + 1}`,
       type: "short",
       intensity: 5,
       reasoning: "Auto-selected evenly spaced moment",
@@ -508,7 +509,7 @@ function generateFallbackMoments(durationSec: number, gameName: string): Extract
       moments.push({
         startSec: i * 3600,
         endSec: (i + 1) * 3600,
-        title: `${gameName} Full Gameplay Part ${i + 1}`,
+        title: `${sanitizeForPrompt(gameName)} Full Gameplay Part ${i + 1}`,
         type: "long-form",
         intensity: 5,
         reasoning: "Auto-split into 60-minute sections",

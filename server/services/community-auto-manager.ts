@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { 
   autonomousActionLog, 
@@ -152,14 +153,14 @@ export class CommunityAutoManager {
       const videoDetails = recentVideos.map(v => {
         const meta = (v.metadata as any) || {};
         const game = meta.gameName && meta.gameName !== "Unknown" && meta.gameName !== "Gaming" ? meta.gameName : null;
-        return `"${v.title}"${game ? ` (${game})` : ""}`;
+        return `"${sanitizeForPrompt(v.title)}"${game ? ` (${sanitizeForPrompt(game)})` : ""}`;
       });
 
       const activeGames = [...new Set(recentVideos
         .map(v => (v.metadata as any)?.gameName)
         .filter(g => g && g !== "Unknown" && g !== "Gaming"))];
       const gameContext = activeGames.length > 0
-        ? `\nGames currently being played: ${activeGames.join(", ")}\nIMPORTANT: Reference the specific game(s) naturally — fans engage more with game-specific content than generic "gaming" posts.`
+        ? `\nGames currently being played: ${activeGames.map(g => sanitizeForPrompt(g)).join(", ")}\nIMPORTANT: Reference the specific game(s) naturally — fans engage more with game-specific content than generic "gaming" posts.`
         : "";
       
       const openai = getOpenAIClient();

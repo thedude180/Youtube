@@ -6,6 +6,7 @@ import { db } from "../db";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { expenseRecords, businessVentures, businessGoals, taxEstimates, sponsorshipDeals, affiliateLinks, channels, revenueRecords } from "@shared/schema";
 import { requireAuth, requireAdmin, requireTier, parseNumericId, asyncHandler, getUserEmail } from "./helpers";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { cached } from "../lib/cache";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
@@ -237,8 +238,8 @@ export function registerMoneyRoutes(app: Express) {
         }],
         mode: 'payment',
         customer_email: customerEmail || undefined,
-        success_url: `${req.protocol}://${req.get('host')}/money?payment=success`,
-        cancel_url: `${req.protocol}://${req.get('host')}/money?payment=cancelled`,
+        success_url: `${sanitizeForPrompt(req.protocol)}://${req.get('host')}/money?payment=success`,
+        cancel_url: `${sanitizeForPrompt(req.protocol)}://${req.get('host')}/money?payment=cancelled`,
         metadata: { creatorUserId: userId },
       });
 
@@ -812,7 +813,7 @@ export function registerMoneyRoutes(app: Express) {
     const user = await storage.getUser(userId);
     const userChannels = await db.select({ channelName: channels.channelName, platform: channels.platform, subscriberCount: channels.subscriberCount })
       .from(channels).where(eq(channels.userId, userId)).limit(5);
-    const channelCtx = userChannels.map(c => `${c.platform}: ${c.channelName} (${(c.subscriberCount || 0).toLocaleString()} subs)`).join(", ");
+    const channelCtx = userChannels.map(c => `${sanitizeForPrompt(c.platform)}: ${sanitizeForPrompt(c.channelName)} (${(c.subscriberCount || 0).toLocaleString()} subs)`).join(", ");
 
     const { getOpenAIClient } = await import("../lib/openai");
     const openai = getOpenAIClient();
@@ -822,10 +823,10 @@ export function registerMoneyRoutes(app: Express) {
       messages: [{
         role: "user",
         content: `Write a professional sponsorship outreach email from a gaming/PS5 content creator to a potential brand partner.
-Brand: ${deal.brandName}
-Deal value in mind: ${deal.dealValue ? `$${deal.dealValue}` : "to be negotiated"}
-Creator channels: ${channelCtx || "gaming content creator"}
-Notes about this deal: ${deal.notes || "none"}
+Brand: ${sanitizeForPrompt(deal.brandName)}
+Deal value in mind: ${deal.dealValue ? `$${sanitizeForPrompt(deal.dealValue)}` : "to be negotiated"}
+Creator channels: ${sanitizeForPrompt(channelCtx || "gaming content creator")}
+Notes about this deal: ${sanitizeForPrompt(deal.notes || "none")}
 
 Write a short, confident, human-sounding outreach email (not stiff corporate language). Include subject line.
 Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follow-up timing" }`
@@ -1392,7 +1393,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       const totalRevenue = records.reduce((sum, r) => sum + (r.amount || 0), 0);
       const platformSources = new Map<string, number>();
       for (const r of records) {
-        const key = `${r.platform}:${r.source}`;
+        const key = `${sanitizeForPrompt(r.platform)}:${sanitizeForPrompt(r.source)}`;
         platformSources.set(key, (platformSources.get(key) || 0) + (r.amount || 0));
       }
 
@@ -1470,7 +1471,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
           opportunities.push({
             type: "monetize",
             title: `Monetize ${pLabel}`,
-            description: `You're connected to ${pLabel}${channelNames ? ` (${channelNames})` : ""} but haven't earned from it yet. ${info?.methods?.length ? `Available methods: ${info.methods.join(", ")}.` : ""}`,
+            description: `You're connected to ${pLabel}${channelNames ? ` (${channelNames})` : ""} but haven't earned from it yet. ${info?.methods?.length ? `Available methods: ${sanitizeForPrompt(info.methods.join(", "))}.` : ""}`,
             platform: p,
             estimatedImpact: "New revenue stream",
             priority: "high",
@@ -1572,12 +1573,12 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
           opportunities.push({
             type: "optimize",
             title: `Double Down on ${source}`,
-            description: `${source} from ${platform} is your top earner at $${amount.toFixed(0)} (${pctOfTotal}% of total revenue). Focused optimization could grow this stream significantly.`,
+            description: `${source} from ${sanitizeForPrompt(platform)} is your top earner at $${amount.toFixed(0)} (${pctOfTotal}% of total revenue). Focused optimization could grow this stream significantly.`,
             platform,
             estimatedImpact: `+$${Math.round(amount * 0.5)}/mo potential`,
             priority: "medium",
-            channelContext: `Your ${platform} ${source} revenue is $${amount.toFixed(2)} across ${records.filter(r => r.platform === platform && r.source === source).length} records. This is your strongest revenue channel.`,
-            audienceRelevance: `Your audience is already responding well to ${source} on ${platform}. Doubling down means optimizing what's proven to work rather than experimenting with unknowns.`,
+            channelContext: `Your ${sanitizeForPrompt(platform)} ${source} revenue is $${amount.toFixed(2)} across ${records.filter(r => r.platform === platform && r.source === source).length} records. This is your strongest revenue channel.`,
+            audienceRelevance: `Your audience is already responding well to ${source} on ${sanitizeForPrompt(platform)}. Doubling down means optimizing what's proven to work rather than experimenting with unknowns.`,
             steps: [`Analyze your top-performing ${source} content to find patterns`, `Create more content in the same style/format`, `Test different approaches to increase per-viewer ${source} revenue`, `Track growth weekly and adjust strategy`],
           });
         }

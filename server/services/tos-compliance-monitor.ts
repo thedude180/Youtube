@@ -136,7 +136,7 @@ async function detectPolicyChanges(): Promise<PolicyChange[]> {
     .limit(50);
 
   const knownRulesSummary = existingRules
-    .map(r => `[${r.platform}] ${r.ruleName}: ${r.description} (severity: ${r.severity})`)
+    .map(r => `[${sanitizeForPrompt(r.platform)}] ${sanitizeForPrompt(r.ruleName)}: ${sanitizeForPrompt(r.description)} (severity: ${sanitizeForPrompt(r.severity)})`)
     .join("\n");
 
   const prompt = `You are a YouTube/TikTok platform policy compliance expert monitoring for CHANGES in platform terms of service.
@@ -256,7 +256,7 @@ async function generateAdaptations(change: PolicyChange): Promise<SystemAdaptati
         parameter: "shortsEnabled",
         oldValue: "true",
         newValue: "paused",
-        reason: `Critical Shorts policy change: ${change.summary}`,
+        reason: `Critical Shorts policy change: ${sanitizeForPrompt(change.summary)}`,
       });
     }
   }
@@ -278,7 +278,7 @@ async function generateAdaptations(change: PolicyChange): Promise<SystemAdaptati
         parameter: "minActionGapMs",
         oldValue: String(adaptiveRules.get("minActionGapMs") || 45000),
         newValue: String(Math.max(60000, (adaptiveRules.get("minActionGapMs") || 45000) + 30000)),
-        reason: `Automation policy tightened: ${change.summary}`,
+        reason: `Automation policy tightened: ${sanitizeForPrompt(change.summary)}`,
       });
     }
   }
@@ -312,8 +312,8 @@ async function applyAdaptation(adaptation: SystemAdaptation, change: PolicyChang
   try {
     await db.insert(discoveredStrategies).values({
       strategyType: "tos_adaptation",
-      title: `TOS: ${adaptation.parameter} adjusted`,
-      description: `${adaptation.engine}: ${adaptation.parameter} changed from ${adaptation.oldValue} to ${adaptation.newValue}. Reason: ${adaptation.reason}`,
+      title: `TOS: ${sanitizeForPrompt(adaptation.parameter)} adjusted`,
+      description: `${sanitizeForPrompt(adaptation.engine)}: ${sanitizeForPrompt(adaptation.parameter)} changed from ${sanitizeForPrompt(adaptation.oldValue)} to ${sanitizeForPrompt(adaptation.newValue)}. Reason: ${sanitizeForPrompt(adaptation.reason)}`,
       source: "tos-compliance-monitor",
       applicableTo: [adaptation.engine],
       effectiveness: 0,
@@ -333,13 +333,13 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
     const existingRule = await db.select({ id: complianceRules.id }).from(complianceRules)
       .where(and(
         eq(complianceRules.platform, change.platform),
-        sql`${complianceRules.ruleName} ILIKE ${`%${change.area.substring(0, 30)}%`}`,
+        sql`${sanitizeForPrompt(complianceRules.ruleName)} ILIKE ${`%${change.area.substring(0, 30)}%`}`,
       ))
       .limit(1);
 
     if (existingRule.length > 0) {
       await db.update(complianceRules).set({
-        description: `${change.summary} | Impact: ${change.impact} | Action: ${change.requiredAction}`,
+        description: `${sanitizeForPrompt(change.summary)} | Impact: ${sanitizeForPrompt(change.impact)} | Action: ${sanitizeForPrompt(change.requiredAction)}`,
         severity: change.severity as any,
         lastUpdated: new Date(),
       }).where(eq(complianceRules.id, existingRule[0].id));
@@ -347,8 +347,8 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
       await db.insert(complianceRules).values({
         platform: change.platform,
         ruleCategory: change.area,
-        ruleName: `${change.area} - ${change.changeType}`,
-        description: `${change.summary} | Impact: ${change.impact} | Action: ${change.requiredAction}`,
+        ruleName: `${sanitizeForPrompt(change.area)} - ${sanitizeForPrompt(change.changeType)}`,
+        description: `${sanitizeForPrompt(change.summary)} | Impact: ${sanitizeForPrompt(change.impact)} | Action: ${sanitizeForPrompt(change.requiredAction)}`,
         severity: change.severity as any,
         keywords: change.affectedEngines || [],
         isActive: true,
@@ -368,10 +368,10 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
         return;
       }
 
-      const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${change.area}`;
+      const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${sanitizeForPrompt(change.area)}`;
       const existingNotif = await db.select({ id: notifications.id }).from(notifications)
         .where(and(
-          sql`${notifications.title} ILIKE ${`%Policy Change%`}`,
+          sql`${sanitizeForPrompt(notifications.title)} ILIKE ${`%Policy Change%`}`,
           gte(notifications.createdAt, oneDayAgo),
         ))
         .limit(1);
@@ -385,7 +385,7 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
             userId: user.id,
             type: "compliance",
             title: notifTitle,
-            message: `${change.summary}\n\nImpact: ${change.impact}\n\nAction taken: ${change.requiredAction}`,
+            message: `${sanitizeForPrompt(change.summary)}\n\nImpact: ${sanitizeForPrompt(change.impact)}\n\nAction taken: ${sanitizeForPrompt(change.requiredAction)}`,
             severity: change.severity === "critical" ? "critical" : "warning",
           }).catch(() => undefined);
         }

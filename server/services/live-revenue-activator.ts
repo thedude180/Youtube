@@ -4,6 +4,7 @@
  * Triggers revenue-driving actions at 50, 100, 250, 500, and 1000 concurrent viewers.
  * Also runs periodic membership and channel join prompts.
  */
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, autopilotQueue } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -53,8 +54,8 @@ async function generateMilestoneContent(
         content: `You are Jade Kim — a live stream revenue activator for a PS5 gaming channel.
 The stream just hit ${milestone} concurrent viewers! This is a milestone moment.
 
-Stream: "${session.streamTitle}"
-Channel: "${session.channelName}"
+Stream: "${sanitizeForPrompt(session.streamTitle)}"
+Channel: "${sanitizeForPrompt(session.channelName)}"
 
 Generate hype content for this milestone. Return JSON:
 {
@@ -84,7 +85,7 @@ async function generateMembershipPrompt(session: RevenueSession): Promise<{
       messages: [{
         role: "user",
         content: `Generate a natural, non-pushy membership/channel join prompt for a PS5 gaming live stream.
-Stream: "${session.streamTitle}", running ${streamMins} minutes, ~${session.viewerCount} viewers.
+Stream: "${sanitizeForPrompt(session.streamTitle)}", running ${streamMins} minutes, ~${sanitizeForPrompt(session.viewerCount)} viewers.
 
 Return JSON:
 {
@@ -108,7 +109,7 @@ async function checkMilestones(session: RevenueSession): Promise<void> {
       const content = await generateMilestoneContent(session, milestone);
       if (!content) continue;
 
-      const streamUrl = `https://youtu.be/${session.broadcastId}`;
+      const streamUrl = `https://youtu.be/${sanitizeForPrompt(session.broadcastId)}`;
 
       for (const [platform, text] of [
         ["discord", content.discordPost.replace("STREAM_LINK", streamUrl)],
@@ -130,7 +131,7 @@ async function checkMilestones(session: RevenueSession): Promise<void> {
             },
           });
         } catch (err: any) {
-          logger.warn(`[${session.userId}] Milestone post queue failed: ${err.message}`);
+          logger.warn(`[${session.userId}] Milestone post queue failed: ${sanitizeForPrompt(err.message)}`);
         }
       }
 
@@ -197,7 +198,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
         logger.info(`[${session.userId}] Membership prompt posted to YouTube chat`);
       }
     } catch (err: any) {
-      logger.warn(`[${session.userId}] YouTube chat post failed: ${err.message}`);
+      logger.warn(`[${session.userId}] YouTube chat post failed: ${sanitizeForPrompt(err.message)}`);
     }
   }
 
@@ -218,13 +219,13 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
       },
     });
   } catch (err: any) {
-    logger.warn(`[${session.userId}] Membership prompt queue failed: ${err.message}`);
+    logger.warn(`[${session.userId}] Membership prompt queue failed: ${sanitizeForPrompt(err.message)}`);
   }
 
   session.revenueActions++;
   session.lastMembershipPromptAt = Date.now();
 
-  logger.info(`[${session.userId}] Membership prompt sent (${session.viewerCount} viewers)`);
+  logger.info(`[${session.userId}] Membership prompt sent (${sanitizeForPrompt(session.viewerCount)} viewers)`);
 }
 
 export function updateLiveViewerCount(userId: string, viewerCount: number): void {
@@ -268,7 +269,7 @@ async function startRevenueSession(
   session.viewerCheckTimer = setInterval(async () => {
     const current = activeSessions.get(userId);
     if (current) await checkMilestones(current).catch(err =>
-      logger.warn(`[${userId}] Milestone check error: ${err.message}`)
+      logger.warn(`[${userId}] Milestone check error: ${sanitizeForPrompt(err.message)}`)
     );
   }, VIEWER_CHECK_INTERVAL_MS);
 
@@ -276,12 +277,12 @@ async function startRevenueSession(
     const current = activeSessions.get(userId);
     if (current && Date.now() - current.lastMembershipPromptAt >= MEMBERSHIP_PROMPT_INTERVAL_MS) {
       await runMembershipPrompt(current).catch(err =>
-        logger.warn(`[${userId}] Membership prompt error: ${err.message}`)
+        logger.warn(`[${userId}] Membership prompt error: ${sanitizeForPrompt(err.message)}`)
       );
     }
   }, MEMBERSHIP_PROMPT_INTERVAL_MS);
 
-  logger.info(`[${userId}] Revenue Pulse started for "${streamTitle}"`);
+  logger.info(`[${userId}] Revenue Pulse started for "${sanitizeForPrompt(streamTitle)}"`);
 }
 
 function stopRevenueSession(userId: string): void {
@@ -290,7 +291,7 @@ function stopRevenueSession(userId: string): void {
   if (session.viewerCheckTimer) clearInterval(session.viewerCheckTimer);
   if (session.membershipTimer) clearInterval(session.membershipTimer);
   activeSessions.delete(userId);
-  logger.info(`[${userId}] Revenue session ended — ${session.revenueActions} revenue actions taken`);
+  logger.info(`[${userId}] Revenue session ended — ${sanitizeForPrompt(session.revenueActions)} revenue actions taken`);
 }
 
 export function initLiveRevenueActivator(): void {
@@ -307,7 +308,7 @@ export function initLiveRevenueActivator(): void {
       try {
         await startRevenueSession(userId, broadcastId, streamTitle);
       } catch (err: any) {
-        logger.warn(`[${userId}] Revenue activator start failed: ${err.message}`);
+        logger.warn(`[${userId}] Revenue activator start failed: ${sanitizeForPrompt(err.message)}`);
       }
     }, 25_000);
   });

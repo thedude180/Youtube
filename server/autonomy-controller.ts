@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { db } from "./db";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { channels, videos, autopilotConfig, autopilotQueue, engineHeartbeats,
@@ -75,7 +76,7 @@ async function recordHeartbeat(engineName: string, status: string, durationMs?: 
         status,
         lastRunAt: new Date(),
         lastDurationMs: durationMs || null,
-        failureCount: error ? sql`${engineHeartbeats.failureCount} + 1` : 0,
+        failureCount: error ? sql`${sanitizeForPrompt(engineHeartbeats.failureCount)} + 1` : 0,
         lastError: error || null,
       }).where(eq(engineHeartbeats.engineName, engineName));
     } else {
@@ -126,7 +127,7 @@ async function runEngineWithAI(engineName: string, userId: string): Promise<{ ac
       max_completion_tokens: 500,
     });
   } catch (aiErr: any) {
-    throw new Error(`AI call failed for engine ${engineName}: ${aiErr.message}`);
+    throw new Error(`AI call failed for engine ${engineName}: ${sanitizeForPrompt(aiErr.message)}`);
   }
 
   const resultText = response.choices[0]?.message?.content || "{}";
@@ -238,7 +239,7 @@ async function runAutonomyCycle() {
         }).where(eq(autonomyEngineConfig.id, engine.id));
 
         await recordHeartbeat(engine.engineName, "completed", durationMs);
-        logger.info(`${engine.engineName} completed in ${durationMs}ms (${actionsExecuted} actions)`);
+        logger.info(`${sanitizeForPrompt(engine.engineName)} completed in ${durationMs}ms (${actionsExecuted} actions)`);
 
       } catch (error: any) {
         const durationMs = Date.now() - startMs;
@@ -265,12 +266,12 @@ async function runAutonomyCycle() {
         const isTransientAIError = /429|rate.?limit|quota|too many requests|retry.?after/i.test(error.message);
         if (failureCount >= 3 && !isTransientAIError) {
           await notifyExceptionOnly(userId, engine.engineName, "critical",
-            `Engine ${engine.engineName} has failed ${failureCount} times. Last error: ${error.message}`);
+            `Engine ${sanitizeForPrompt(engine.engineName)} has failed ${failureCount} times. Last error: ${sanitizeForPrompt(error.message)}`);
         } else if (isTransientAIError) {
-          logger.info(`[AutonomyController] Suppressing notification for transient AI rate-limit on ${engine.engineName} (attempt ${failureCount})`);
+          logger.info(`[AutonomyController] Suppressing notification for transient AI rate-limit on ${sanitizeForPrompt(engine.engineName)} (attempt ${failureCount})`);
         }
 
-        logger.error(`${engine.engineName} FAILED: ${error.message}`);
+        logger.error(`${sanitizeForPrompt(engine.engineName)} FAILED: ${sanitizeForPrompt(error.message)}`);
       }
     }
   }

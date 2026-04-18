@@ -8,6 +8,7 @@ import {
 import { eq, desc, and, sql } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("youtube-manager");
 const openai = getOpenAIClient();
@@ -52,7 +53,7 @@ export async function autoOrganizePlaylists(userId: string) {
 
     const userVideos = await storage.getVideosByUser(userId);
     const videoSummary = userVideos.slice(0, 50).map(v =>
-      `- "${v.title}" (${v.type}, tags: ${v.metadata?.tags?.join(", ") || "none"})`
+      `- "${sanitizeForPrompt(v.title)}" (${sanitizeForPrompt(v.type)}, tags: ${sanitizeForPrompt(v.metadata?.tags?.join(", ") || "none")})`
     ).join("\n");
 
     const existingPlaylists = await db.select().from(managedPlaylists)
@@ -63,7 +64,7 @@ export async function autoOrganizePlaylists(userId: string) {
 Videos:
 ${videoSummary || "No videos yet"}
 
-Existing playlists: ${existingPlaylists.map(p => p.title).join(", ") || "None"}
+Existing playlists: ${sanitizeForPrompt(existingPlaylists.map(p => p.title).join(", ")) || "None"}
 
 Suggest playlist groupings as JSON:
 {
@@ -124,7 +125,7 @@ export async function addToPlaylist(playlistId: number, videoId: number, positio
 
     await db.update(managedPlaylists)
       .set({
-        videoCount: sql`${managedPlaylists.videoCount} + 1`,
+        videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
         lastUpdatedAt: new Date(),
       })
       .where(eq(managedPlaylists.id, playlistId));
@@ -155,11 +156,11 @@ export async function getPlaylistSeoScore(playlistId: number) {
 
     const prompt = `You are a YouTube SEO expert. Score this playlist's SEO effectiveness.
 
-Playlist Title: "${playlist.title}"
-Playlist Description: "${playlist.description || "None"}"
-Strategy: ${playlist.strategy}
+Playlist Title: "${sanitizeForPrompt(playlist.title)}"
+Playlist Description: "${sanitizeForPrompt(playlist.description || "None")}"
+Strategy: ${sanitizeForPrompt(playlist.strategy)}
 Videos (${playlistVideos.length}):
-${playlistVideos.map((v, i) => `${i + 1}. "${v.title}" - tags: ${v.metadata?.tags?.join(", ") || "none"}`).join("\n")}
+${playlistVideos.map((v, i) => `${i + 1}. "${sanitizeForPrompt(v.title)}" - tags: ${sanitizeForPrompt(v.metadata?.tags?.join(", ") || "none")}`).join("\n")}
 
 Score and analyze as JSON:
 {
@@ -232,7 +233,7 @@ export async function generatePinnedComment(userId: string, videoId: number) {
       .where(eq(linkedChannels.userId, userId));
 
     const linksContext = socialLinks.map(l =>
-      `${l.platform}: ${l.profileUrl || l.username || "connected"}`
+      `${sanitizeForPrompt(l.platform)}: ${l.profileUrl || l.username || "connected"}`
     ).join(", ");
 
     const contentType = detectVideoContentType({ title: video.title, description: video.description, metadata: video.metadata });
@@ -262,10 +263,10 @@ export async function generatePinnedComment(userId: string, videoId: number) {
 
     const prompt = `You are a YouTube engagement expert. Generate a pinned comment for this video that maximizes engagement.
 
-Video Title: "${video.title}"
-Video Description: "${(video.description || "None").substring(0, 300)}"
+Video Title: "${sanitizeForPrompt(video.title)}"
+Video Description: "${sanitizeForPrompt((video.description || "None").substring(0, 300))}"
 Content Type: ${contentType}
-Creator's channels: ${userChannels.map(c => c.channelName).join(", ") || "ET Gaming 274"}
+Creator's channels: ${sanitizeForPrompt(userChannels.map(c => c.channelName).join(", ")) || "ET Gaming 274"}
 Social links: ${linksContext || "None provided"}
 
 ${typeGuidance[contentType]}
@@ -315,9 +316,9 @@ export async function buildDescriptionLinks(userId: string) {
     const prompt = `You are a YouTube description optimization expert. Build a reusable description template with social links.
 
 Creator's platforms:
-${linksData.map(l => `- ${l.platform}: ${l.url || l.username || "connected"}`).join("\n") || "No links provided"}
+${linksData.map(l => `- ${sanitizeForPrompt(l.platform)}: ${l.url || l.username || "connected"}`).join("\n") || "No links provided"}
 
-YouTube channels: ${userChannels.map(c => c.channelName).join(", ") || "None"}
+YouTube channels: ${sanitizeForPrompt(userChannels.map(c => c.channelName).join(", ")) || "None"}
 
 Generate as JSON:
 {
@@ -370,10 +371,10 @@ export async function generateMultiLanguageMetadata(
 
     const prompt = `You are a professional translator specializing in YouTube SEO. Translate this video's metadata into the requested languages while maintaining SEO effectiveness.
 
-Original Title: "${video.title}"
-Original Description: "${video.description || "None"}"
+Original Title: "${sanitizeForPrompt(video.title)}"
+Original Description: "${sanitizeForPrompt(video.description || "None")}"
 Original Tags: ${video.metadata?.tags?.join(", ") || "None"}
-Target Languages: ${languages.join(", ")}
+Target Languages: ${sanitizeForPrompt(languages.join(", "))}
 
 Generate translations as JSON:
 {

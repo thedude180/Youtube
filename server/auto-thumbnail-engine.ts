@@ -2,6 +2,7 @@ import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
 import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
 import { getOpenAIClient } from "./lib/openai";
+import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getQuotaStatus, trackQuotaUsage, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
@@ -60,9 +61,9 @@ RULES FOR THE IMAGE PROMPT:
         {
           role: "user",
           content: `Create a thumbnail image generation prompt for this video:
-Title: "${videoTitle}"
-Description: "${(videoDescription || "").substring(0, 300)}"
-Type: ${videoType}${gameName ? `\nGame: ${gameName}\n\nCRITICAL: This video is about "${gameName}". The thumbnail MUST visually represent "${gameName}" — its art style, characters, environments, and aesthetic. Do NOT depict any other game.` : ""}
+Title: "${sanitizeForPrompt(videoTitle)}"
+Description: "${sanitizeForPrompt((videoDescription || "").substring(0, 300))}"
+Type: ${videoType}${gameName ? `\nGame: ${sanitizeForPrompt(gameName)}\n\nCRITICAL: This video is about "${sanitizeForPrompt(gameName)}". The thumbnail MUST visually represent "${sanitizeForPrompt(gameName)}" — its art style, characters, environments, and aesthetic. Do NOT depict any other game.` : ""}
 
 Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. No vertical or square framing.`,
         },
@@ -229,7 +230,7 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${channels.accessToken} IS NOT NULL`,
+        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) {
@@ -280,7 +281,7 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
     const ytChannels = await db.select().from(channels)
       .where(and(
         eq(channels.platform, "youtube"),
-        sql`${channels.accessToken} IS NOT NULL`,
+        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
         sql`${channels.userId} IS NOT NULL`,
       ));
 
@@ -376,17 +377,17 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
       const [sourceVideo] = await db.select().from(videos).where(eq(videos.id, meta.sourceVideoId));
       if (sourceVideo) {
         if (!enrichedDescription || enrichedDescription.length < 30) {
-          enrichedDescription = `${enrichedDescription ? enrichedDescription + " | " : ""}From: ${sourceVideo.title}. ${(sourceVideo.description || "").substring(0, 200)}`;
+          enrichedDescription = `${enrichedDescription ? enrichedDescription + " | " : ""}From: ${sanitizeForPrompt(sourceVideo.title)}. ${(sourceVideo.description || "").substring(0, 200)}`;
         }
       }
     }
 
     if (meta.thumbnailConcept) {
-      enrichedDescription = `${enrichedDescription}\n\nThumbnail concept: ${meta.thumbnailConcept}`;
+      enrichedDescription = `${enrichedDescription}\n\nThumbnail concept: ${sanitizeForPrompt(meta.thumbnailConcept)}`;
     }
 
     if (meta.seoTitleHook) {
-      enrichedDescription = `${enrichedDescription}\n\nSEO TITLE HOOK (thumbnail must visually match this promise): ${meta.seoTitleHook}`;
+      enrichedDescription = `${enrichedDescription}\n\nSEO TITLE HOOK (thumbnail must visually match this promise): ${sanitizeForPrompt(meta.seoTitleHook)}`;
     }
 
     const freshVideo = await db.select({ title: videos.title }).from(videos).where(eq(videos.id, videoDbId)).limit(1);
@@ -423,7 +424,7 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${channels.accessToken} IS NOT NULL`,
+        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) return 0;
@@ -502,7 +503,7 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
 }
 
 function extractGameName(title: string, description: string): string {
-  const combined = `${title} ${description}`.toLowerCase();
+  const combined = `${sanitizeForPrompt(title)} ${sanitizeForPrompt(description)}`.toLowerCase();
 
   try {
     const { detectGameFromLearned } = require("./services/web-game-lookup");

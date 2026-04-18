@@ -1,3 +1,4 @@
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { db } from "../db";
@@ -22,22 +23,22 @@ export async function getCreatorContext(userId: string): Promise<string> {
     const profile = profileRows[0];
 
     if (profile) {
-      if (profile.niche) parts.push(`Creator Niche: ${profile.niche}`);
+      if (profile.niche) parts.push(`Creator Niche: ${sanitizeForPrompt(profile.niche)}`);
       if (profile.contentStyle) {
         const style = profile.contentStyle;
-        if (style.tone) parts.push(`Preferred Tone: ${style.tone}`);
-        if (style.energy) parts.push(`Energy Level: ${style.energy}`);
-        if (style.humor) parts.push(`Humor Style: ${style.humor}`);
-        if (style.formality) parts.push(`Formality: ${style.formality}`);
-        if (style.signaturePhrases?.length) parts.push(`Signature Phrases: ${style.signaturePhrases.join(", ")}`);
-        if (style.avoidWords?.length) parts.push(`Words to Avoid: ${style.avoidWords.join(", ")}`);
+        if (style.tone) parts.push(`Preferred Tone: ${sanitizeForPrompt(style.tone)}`);
+        if (style.energy) parts.push(`Energy Level: ${sanitizeForPrompt(style.energy)}`);
+        if (style.humor) parts.push(`Humor Style: ${sanitizeForPrompt(style.humor)}`);
+        if (style.formality) parts.push(`Formality: ${sanitizeForPrompt(style.formality)}`);
+        if (style.signaturePhrases?.length) parts.push(`Signature Phrases: ${sanitizeForPrompt(style.signaturePhrases.join(", "))}`);
+        if (style.avoidWords?.length) parts.push(`Words to Avoid: ${sanitizeForPrompt(style.avoidWords.join(", "))}`);
       }
       if (profile.audienceProfile) {
         const aud = profile.audienceProfile;
         const audParts: string[] = [];
-        if (aud.primaryAge) audParts.push(`age ${aud.primaryAge}`);
-        if (aud.primaryRegion) audParts.push(`region ${aud.primaryRegion}`);
-        if (aud.interests?.length) audParts.push(`interests: ${aud.interests.join(", ")}`);
+        if (aud.primaryAge) audParts.push(`age ${sanitizeForPrompt(aud.primaryAge)}`);
+        if (aud.primaryRegion) audParts.push(`region ${sanitizeForPrompt(aud.primaryRegion)}`);
+        if (aud.interests?.length) audParts.push(`interests: ${sanitizeForPrompt(aud.interests.join(", "))}`);
         if (audParts.length) parts.push(`Audience: ${audParts.join(", ")}`);
       }
       if (profile.performanceBaseline) {
@@ -49,7 +50,7 @@ export async function getCreatorContext(userId: string): Promise<string> {
         if (perfParts.length) parts.push(`Performance Baseline: ${perfParts.join(", ")}`);
       }
       if (profile.learningLog?.topPatterns?.length) {
-        parts.push(`Top Patterns: ${profile.learningLog.topPatterns.join("; ")}`);
+        parts.push(`Top Patterns: ${sanitizeForPrompt(profile.learningLog.topPatterns.join("; "))}`);
       }
     }
 
@@ -66,7 +67,7 @@ export async function getCreatorContext(userId: string): Promise<string> {
         .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
         .slice(0, 5);
       if (highConfidence.length > 0) {
-        parts.push(`${type}: ${highConfidence.map(i => `${i.key}: ${i.value}`).join("; ")}`);
+        parts.push(`${type}: ${highConfidence.map(i => `${sanitizeForPrompt(i.key)}: ${sanitizeForPrompt(i.value)}`).join("; ")}`);
       }
     }
 
@@ -115,10 +116,10 @@ export async function distillCreatorMemory(userId: string): Promise<void> {
     const analysisPrompt = `Analyze this creator's content patterns. Be concise.
 
 Top performing content (${topPerformers.length} videos, avg views: ${Math.round(avgViews)}):
-${topPerformers.map(v => `- "${v.title}" (${v.views} views, ${v.likes} likes, ${v.type})`).join("\n")}
+${topPerformers.map(v => `- "${sanitizeForPrompt(v.title)}" (${v.views} views, ${v.likes} likes, ${sanitizeForPrompt(v.type)})`).join("\n")}
 
 Underperforming content (${bottomPerformers.length} videos):
-${bottomPerformers.map(v => `- "${v.title}" (${v.views} views, ${v.type})`).join("\n")}
+${bottomPerformers.map(v => `- "${sanitizeForPrompt(v.title)}" (${v.views} views, ${sanitizeForPrompt(v.type)})`).join("\n")}
 
 All content niches: ${[...new Set(videoData.map(v => v.platform))].join(", ")}
 Total videos analyzed: ${videoData.length}
@@ -251,13 +252,13 @@ export async function learnFromContent(
       if (ratio >= 2) {
         insights.push({
           key: `high_performer_${videoId}`,
-          value: `Title "${video.title}" got ${ratio.toFixed(1)}x average views (${performance.views} vs avg ${Math.round(avgViews)})`,
+          value: `Title "${sanitizeForPrompt(video.title)}" got ${ratio.toFixed(1)}x average views (${performance.views} vs avg ${Math.round(avgViews)})`,
           confidence: Math.min(0.95, 0.6 + ratio * 0.1),
         });
       } else if (ratio <= 0.3 && performance.views > 0) {
         insights.push({
           key: `low_performer_${videoId}`,
-          value: `Title "${video.title}" underperformed at ${(ratio * 100).toFixed(0)}% of average views`,
+          value: `Title "${sanitizeForPrompt(video.title)}" underperformed at ${(ratio * 100).toFixed(0)}% of average views`,
           confidence: 0.7,
         });
       }
@@ -268,7 +269,7 @@ export async function learnFromContent(
       if (ctrRatio >= 1.5) {
         insights.push({
           key: `high_ctr_${videoId}`,
-          value: `Title "${video.title}" had ${ctrRatio.toFixed(1)}x average CTR (${(performance.ctr * 100).toFixed(1)}%)`,
+          value: `Title "${sanitizeForPrompt(video.title)}" had ${ctrRatio.toFixed(1)}x average CTR (${(performance.ctr * 100).toFixed(1)}%)`,
           confidence: 0.8,
         });
       }
@@ -277,7 +278,7 @@ export async function learnFromContent(
     if (performance.retention && performance.retention > 0.5) {
       insights.push({
         key: `good_retention_${videoId}`,
-        value: `Video "${video.title}" retained ${(performance.retention * 100).toFixed(0)}% of viewers`,
+        value: `Video "${sanitizeForPrompt(video.title)}" retained ${(performance.retention * 100).toFixed(0)}% of viewers`,
         confidence: 0.75,
       });
     }
