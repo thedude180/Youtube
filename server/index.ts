@@ -41,6 +41,7 @@ import { startCleanupCoordinator, stopCleanupCoordinator } from "./services/clea
 import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } from "fs";
 import fs from "fs";
 import path from "path";
+import { jitter } from "./lib/timer-utils";
 
 // ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
 // In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
@@ -1120,14 +1121,14 @@ httpServer.listen(
       import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
-      const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(slog("processDeadLetterQueue")); }, DLQ_INTERVAL_MS);
-      const digestInterval = setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, DIGEST_INTERVAL_MS);
+      const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(slog("processDeadLetterQueue")); }, jitter(DLQ_INTERVAL_MS));
+      const digestInterval = setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, jitter(DIGEST_INTERVAL_MS));
       const notifCleanup = setInterval(() => {
         import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte }) => {
           const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
           db.delete(notifications).where(and(eq(notifications.read, true), lte(notifications.createdAt, cutoff))).then(() => {});
         }))).catch(slog("notifCleanup"));
-      }, 6 * 60 * 60_000);
+      }, jitter(6 * 60 * 60_000));
       backgroundIntervals.push(dlqInterval, digestInterval, notifCleanup);
       import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
@@ -1137,7 +1138,7 @@ httpServer.listen(
       const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "90000");
       const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(slog("liveDetectionPoll")); };
       pollLive();
-      const liveInterval = setInterval(pollLive, LIVE_POLL_MS);
+      const liveInterval = setInterval(pollLive, jitter(LIVE_POLL_MS));
       backgroundIntervals.push(liveInterval);
       logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
 
@@ -1207,32 +1208,32 @@ httpServer.listen(
       }).catch(slog("trust-governance schedulers"));
       import("./auto-thumbnail-engine").then(async m => {
         await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
-        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), 60 * 60_000);
+        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("auto-thumbnail-engine import"));
       import("./marketer-engine").then(async m => {
         await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
-        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), 90 * 60_000);
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("marketer-engine import"));
       import("./daily-content-engine").then(async m => {
         await m.runDailyContentGeneration().catch(slog("runDailyContentGeneration"));
-        const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), 3 * 60 * 60_000);
+        const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), jitter(3 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("daily-content-engine import"));
       import("./playlist-manager").then(async m => {
         await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));
-        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), 6 * 60 * 60_000);
+        const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), jitter(6 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("playlist-manager import"));
       import("./vod-optimizer-engine").then(async m => {
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
-        const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), 2 * 60 * 60_000);
+        const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(2 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("vod-optimizer-engine import"));
       import("./token-refresh").then(async m => {
         await m.keepAliveAllTokens().catch(slog("keepAliveAllTokens"));
-        const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), 12 * 60 * 60_000);
+        const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("token-refresh import"));
     });

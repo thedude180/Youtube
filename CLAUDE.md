@@ -322,11 +322,29 @@ Do not remove the NODE_ENV guard. Do not auto-clear vault in production under an
 - Export `start<Name>()` and `stop<Name>()`
 - Register start and stop in `server/index.ts` alongside existing services
 - Log using `createLogger("service-name")`
+- **ALWAYS use `setJitteredInterval` from `server/lib/timer-utils.ts`** instead of `setInterval` for recurring loops. It fires each cycle at ±20% of the base period so the cadence looks organic and avoids thundering-herd bursts.
 
 ### Adding a new AI call
 - Use the wrapped client from `server/lib/openai.ts` or `server/lib/claude.ts`
 - Throw on error — never return fake or partial data
 - If hitting rate limits, reduce engine concurrency — do not raise the 250/min system limit
+
+### Timer utility (`server/lib/timer-utils.ts`)
+| Export | Purpose |
+|---|---|
+| `jitter(ms, factor=0.2)` | Returns `ms ±20%` — use once at startup to randomise a fixed `setInterval` delay |
+| `setJitteredInterval(fn, ms, factor=0.2)` | Recursive setTimeout that re-jitters on every cycle; returns a stop function |
+
+**Which to use:**
+- New services → `setJitteredInterval` (varies every cycle, best for long-running loops)
+- Legacy `setInterval` in `server/index.ts` → wrapped with `jitter()` once at boot (good enough)
+
+### Fixing tsx cache quota errors (EDQUOT on /tmp)
+If the server fails to start with `Error: listen UNKNOWN: unknown error /tmp/tsx-1000/<pid>.pipe` and `errno: -122`:
+```bash
+rm -rf /tmp/tsx-1000/
+```
+This clears stale IPC socket files that tsx accumulates. Happens after many rapid restarts.
 
 ---
 

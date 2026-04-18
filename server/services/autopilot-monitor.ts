@@ -4,6 +4,7 @@ import { streamPipelines, contentPipeline, autopilotQueue, youtubePushBacklog, c
 import { eq, and, lt, gte, sql, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 import { notifyUser, type NotificationSeverity } from "./notifications";
+import { setJitteredInterval } from "../lib/timer-utils";
 
 interface HealthCheckResult {
   ok: boolean;
@@ -349,7 +350,7 @@ const systemChecks: SystemCheck[] = [
   },
 ];
 
-let monitorInterval: ReturnType<typeof setInterval> | null = null;
+let monitorStop: (() => void) | null = null;
 
 async function runHealthChecks(): Promise<void> {
   const startTime = Date.now();
@@ -400,19 +401,25 @@ async function runHealthChecks(): Promise<void> {
 }
 
 export function startAutopilotMonitor(): void {
-  if (monitorInterval) return;
+  if (monitorStop) return;
 
-  setTimeout(() => runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) })), 60_000);
+  // Initial run after 60s so the server finishes booting first
+  setTimeout(
+    () => runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) })),
+    60_000,
+  );
 
-  monitorInterval = setInterval(() => {
-    runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) }));
-  }, 30 * 60 * 1000);
+  // Jittered interval — fires every ~30 min ±6 min so the pattern looks organic
+  monitorStop = setJitteredInterval(
+    () => runHealthChecks().catch((err) => logger.error("Health check failed", { error: String(err) })),
+    30 * 60 * 1000,
+  );
 }
 
 export function stopAutopilotMonitor(): void {
-  if (monitorInterval) {
-    clearInterval(monitorInterval);
-    monitorInterval = null;
+  if (monitorStop) {
+    monitorStop();
+    monitorStop = null;
   }
 }
 

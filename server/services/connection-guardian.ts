@@ -6,12 +6,15 @@ import { storage } from "../storage";
 import { markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 import { createLogger } from "../lib/logger";
+import { setJitteredInterval } from "../lib/timer-utils";
 
 const logger = createLogger("connection-guardian");
-let guardianInterval: ReturnType<typeof setInterval> | null = null;
-let fastRecoveryInterval: ReturnType<typeof setInterval> | null = null;
-const GUARDIAN_CYCLE_MS = 15 * 60 * 1000;
-const FAST_RECOVERY_CYCLE_MS = 5 * 60 * 1000;
+let guardianStop: (() => void) | null = null;
+let fastRecoveryStop: (() => void) | null = null;
+// Base intervals — each cycle fires at ±20% of these values so the cadence
+// looks organic and avoids synchronized stampedes with other engines.
+const GUARDIAN_CYCLE_MS = 15 * 60 * 1000;      // ~15 min ±3 min
+const FAST_RECOVERY_CYCLE_MS = 5 * 60 * 1000;  // ~5 min  ±1 min
 const TOKEN_PREEMPTIVE_BUFFER_MS = 24 * 60 * 60 * 1000;
 
 // Require 15 consecutive failures before accepting a token as permanently dead.
@@ -528,20 +531,24 @@ async function fastRecoverBrokenConnections(): Promise<number> {
 let initialKickoffTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export function startConnectionGuardian(): void {
-  if (guardianInterval) return;
+  if (guardianStop) return;
 
+  // Delay first cycle so the server finishes booting before guardian hits DB
   initialKickoffTimeout = setTimeout(() => {
     initialKickoffTimeout = null;
     runGuardianCycle().catch((err) => logger.error("Guardian cycle failed", { error: String(err) }));
   }, 30_000);
 
-  guardianInterval = setInterval(() => {
-    runGuardianCycle().catch((err) => logger.error("Guardian cycle failed", { error: String(err) }));
-  }, GUARDIAN_CYCLE_MS);
+  // Use jittered intervals so cycles look organic (±20% of base period)
+  guardianStop = setJitteredInterval(
+    () => runGuardianCycle().catch((err) => logger.error("Guardian cycle failed", { error: String(err) })),
+    GUARDIAN_CYCLE_MS,
+  );
 
-  fastRecoveryInterval = setInterval(() => {
-    fastRecoverBrokenConnections().catch((err) => logger.error("Fast recovery failed", { error: String(err) }));
-  }, FAST_RECOVERY_CYCLE_MS);
+  fastRecoveryStop = setJitteredInterval(
+    () => fastRecoverBrokenConnections().catch((err) => logger.error("Fast recovery failed", { error: String(err) })),
+    FAST_RECOVERY_CYCLE_MS,
+  );
 }
 
 export function stopConnectionGuardian(): void {
@@ -549,13 +556,13 @@ export function stopConnectionGuardian(): void {
     clearTimeout(initialKickoffTimeout);
     initialKickoffTimeout = null;
   }
-  if (guardianInterval) {
-    clearInterval(guardianInterval);
-    guardianInterval = null;
+  if (guardianStop) {
+    guardianStop();
+    guardianStop = null;
   }
-  if (fastRecoveryInterval) {
-    clearInterval(fastRecoveryInterval);
-    fastRecoveryInterval = null;
+  if (fastRecoveryStop) {
+    fastRecoveryStop();
+    fastRecoveryStop = null;
   }
 }
 
