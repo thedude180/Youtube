@@ -755,10 +755,10 @@ function AppContent() {
           </DialogHeader>
           <ul className="mt-1 space-y-2.5">
             {[
-              { icon: Upload, label: "Upload watcher (30-min cadence)", desc: "New uploads are detected and synced automatically every 30 minutes" },
+              { icon: Upload, label: "Upload watcher (30-min cadence)", desc: "New uploads detected and synced; scheduled content auto-published to YouTube" },
               { icon: Bot, label: "AI game tagging & title optimization", desc: "Titles, descriptions, tags and game names improved by AI on each cycle" },
-              { icon: Sparkles, label: "Clip / Short creation from VODs", desc: "Long videos automatically cut into Shorts and clipped highlights" },
-              { icon: Tv2, label: "Live stream monitoring & broadcast detection", desc: "Goes live? CreatorOS detects it instantly and activates stream tools" },
+              { icon: Sparkles, label: "Clip / Short creation from VODs", desc: "Long videos automatically cut into Shorts and clipped highlights for upload" },
+              { icon: Tv2, label: "Live stream monitoring & broadcast API", desc: "Goes live? Detected via broadcast API instantly — stream tools activate automatically" },
             ].map(({ icon: Icon, label, desc }) => (
               <li key={label} className="flex items-start gap-3">
                 <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 shrink-0">

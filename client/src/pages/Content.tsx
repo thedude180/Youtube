@@ -724,7 +724,7 @@ function LibraryTab() {
 
   const handleYtBannerConnect = async () => {
     try {
-      const res = await apiRequest("GET", "/api/youtube/auth");
+      const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
       window.location.href = url;
