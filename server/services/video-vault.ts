@@ -32,7 +32,21 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 const DOWNLOAD_QUALITY = "18/best[height<=480]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
 const DOWNLOAD_DELAY_MS = 10_000;
-const PLAYER_CLIENT = "android_vr";
+const PLAYER_CLIENTS = ["android_vr", "ios", "mweb"];
+
+const LIVE_EVENT_PATTERNS = [
+  /live event will begin/i,
+  /this video is not available/i,
+  /premiere.*(not yet|in a few|upcoming)/i,
+  /this video has not yet/i,
+  /is an upcoming/i,
+];
+const BOT_DETECTION_PATTERNS = [
+  /sign in to confirm.*bot/i,
+  /confirm you're not a bot/i,
+  /cookies.*authentication/i,
+  /use --cookies/i,
+];
 
 const ytDlpBin = (() => {
   const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
@@ -382,6 +396,20 @@ async function getVaultYouTubeToken(userId: string): Promise<string | null> {
   }
 }
 
+async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
+  await execFileAsync(ytDlpBin, [
+    "-f", DOWNLOAD_QUALITY,
+    "--merge-output-format", "mp4",
+    "-o", outputPath,
+    "--no-warnings",
+    "--no-playlist",
+    "--retries", "2",
+    "--extractor-args", `youtube:player_client=${playerClient}`,
+    ...authArgs,
+    url,
+  ], { timeout: 600_000 });
+}
+
 async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$inferSelect, accessToken?: string | null): Promise<boolean> {
   const youtubeId = vaultEntry.youtubeId;
   if (!youtubeId) return false;
@@ -406,48 +434,55 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   }
 
   const url = `https://www.youtube.com/watch?v=${youtubeId}`;
-  try {
-    await db.update(contentVaultBackups)
-      .set({ status: "downloading", downloadError: null })
-      .where(eq(contentVaultBackups.id, vaultEntry.id));
+  const authArgs: string[] = accessToken
+    ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
+    : [];
 
-    const authArgs: string[] = accessToken
-      ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
-      : [];
+  await db.update(contentVaultBackups)
+    .set({ status: "downloading", downloadError: null })
+    .where(eq(contentVaultBackups.id, vaultEntry.id));
 
-    await execFileAsync(ytDlpBin, [
-      "-f", DOWNLOAD_QUALITY,
-      "--merge-output-format", "mp4",
-      "-o", outputPath,
-      "--no-warnings",
-      "--no-playlist",
-      "--retries", "3",
-      "--extractor-args", `youtube:player_client=${PLAYER_CLIENT}`,
-      ...authArgs,
-      url,
-    ], { timeout: 600_000 });
+  let lastErr = "";
+  for (const playerClient of PLAYER_CLIENTS) {
+    try {
+      await tryYtDlpDownload(url, outputPath, playerClient, authArgs);
 
-    if (fs.existsSync(outputPath)) {
-      const stat = fs.statSync(outputPath);
-      await db.update(contentVaultBackups)
-        .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
-        .where(eq(contentVaultBackups.id, vaultEntry.id));
-      logger.info(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
-      return true;
-    } else {
-      await db.update(contentVaultBackups)
-        .set({ status: "failed", downloadError: "Output file not found after download" })
-        .where(eq(contentVaultBackups.id, vaultEntry.id));
-      return false;
+      if (fs.existsSync(outputPath)) {
+        const stat = fs.statSync(outputPath);
+        if (stat.size > 1024) {
+          await db.update(contentVaultBackups)
+            .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
+            .where(eq(contentVaultBackups.id, vaultEntry.id));
+          logger.info(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} via ${playerClient} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+          return true;
+        }
+      }
+      lastErr = "Output file not found after download";
+    } catch (err: any) {
+      lastErr = String(err?.message || err).substring(0, 600);
+
+      if (LIVE_EVENT_PATTERNS.some(p => p.test(lastErr))) {
+        logger.info(`[Vault] Skipping live/upcoming video: ${youtubeId}`);
+        await db.update(contentVaultBackups)
+          .set({ status: "skipped", downloadError: "Live or upcoming event — cannot download" })
+          .where(eq(contentVaultBackups.id, vaultEntry.id));
+        return false;
+      }
+
+      if (BOT_DETECTION_PATTERNS.some(p => p.test(lastErr))) {
+        logger.warn(`[Vault] Bot detection on ${youtubeId} with ${playerClient}, trying next client...`);
+        continue;
+      }
+
+      logger.warn(`[Vault] ${playerClient} failed for ${youtubeId}: ${lastErr.substring(0, 120)}`);
     }
-  } catch (err: any) {
-    const errMsg = String(err?.message || err).substring(0, 500);
-    await db.update(contentVaultBackups)
-      .set({ status: "failed", downloadError: errMsg })
-      .where(eq(contentVaultBackups.id, vaultEntry.id));
-    logger.error(`[Vault] Download failed for ${youtubeId}: ${errMsg.substring(0, 100)}`);
-    return false;
   }
+
+  await db.update(contentVaultBackups)
+    .set({ status: "failed", downloadError: lastErr.substring(0, 500) })
+    .where(eq(contentVaultBackups.id, vaultEntry.id));
+  logger.error(`[Vault] All clients failed for ${youtubeId}: ${lastErr.substring(0, 100)}`);
+  return false;
 }
 
 export async function processVaultDownloads(userId: string): Promise<void> {
