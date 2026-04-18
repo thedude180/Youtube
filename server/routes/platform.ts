@@ -1066,6 +1066,9 @@ export async function registerPlatformRoutes(app: Express) {
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
+  // In-memory job status tracker for bulk pin operations
+  const bulkPinJobs = new Map<string, { total: number; processed: number; pinned: number; skipped: number; failed: number; done: boolean; error?: string }>();
+
   app.post("/api/youtube-manager/pin-all-videos", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
@@ -1073,7 +1076,7 @@ export async function registerPlatformRoutes(app: Express) {
       const userChannels = await db.select().from(channels)
         .where(eq(channels.userId, userId));
       const channelIds = userChannels.map(c => c.id);
-      
+
       const userVideos = await db.select().from(videos)
         .where(and(inArray(videos.channelId, channelIds), eq(videos.platform, "youtube")))
         .orderBy(desc(videos.createdAt));
@@ -1087,47 +1090,60 @@ export async function registerPlatformRoutes(app: Express) {
         return;
       }
 
-      let processed = 0;
-      let pinned = 0;
-      let skipped = 0;
-      let failed = 0;
+      const jobId = `${userId}-${Date.now()}`;
+      const jobState = { total: userVideos.length, processed: 0, pinned: 0, skipped: 0, failed: 0, done: false };
+      bulkPinJobs.set(jobId, jobState);
 
-      for (const video of userVideos) {
-        const meta = video.metadata as any;
-        const youtubeVideoId = meta?.youtubeVideoId;
-        if (!youtubeVideoId) { skipped++; continue; }
-        if (meta?.pinnedCommentId) { skipped++; continue; }
+      // Respond immediately — processing happens in the background
+      res.json({ success: true, jobId, total: userVideos.length, message: `Queued ${userVideos.length} videos for pinned comment generation` });
 
-        try {
-          const result = await generatePinnedComment(userId, video.id);
-          if (!result?.comment) { skipped++; continue; }
+      // Background processing — not awaited
+      (async () => {
+        const { postAndPinComment } = await import("../youtube");
+        for (const video of userVideos) {
+          const meta = video.metadata as any;
+          const youtubeVideoId = meta?.youtubeVideoId;
+          if (!youtubeVideoId || meta?.pinnedCommentId) { jobState.skipped++; jobState.processed++; continue; }
+          try {
+            const result = await generatePinnedComment(userId, video.id);
+            if (!result?.comment) { jobState.skipped++; jobState.processed++; continue; }
 
-          const { postAndPinComment } = await import("../youtube");
-          const pinResult = await postAndPinComment(ytChannel.id, youtubeVideoId, result.comment);
-
-          if (pinResult.success) {
-            await db.update(videos).set({
-              metadata: { ...meta, pinnedCommentId: pinResult.commentId, pinnedCommentText: result.comment },
-            }).where(eq(videos.id, video.id));
-            pinned++;
-          } else {
-            failed++;
+            const pinResult = await postAndPinComment(ytChannel.id, youtubeVideoId, result.comment);
+            if (pinResult.success) {
+              await db.update(videos).set({
+                metadata: { ...meta, pinnedCommentId: pinResult.commentId, pinnedCommentText: result.comment },
+              }).where(eq(videos.id, video.id));
+              jobState.pinned++;
+            } else {
+              jobState.failed++;
+            }
+          } catch (err: any) {
+            logger.error(`[PinAll] Failed for video ${video.id}:`, err.message);
+            jobState.failed++;
           }
-          processed++;
-
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        } catch (err: any) {
-          logger.error(`[PinAll] Failed for video ${video.id}:`, err.message);
-          failed++;
-          processed++;
+          jobState.processed++;
+          // 8-second gap per video to stay within YouTube API quota
+          await new Promise(resolve => setTimeout(resolve, 8000));
         }
-      }
-
-      res.json({ success: true, total: userVideos.length, processed, pinned, skipped, failed });
+        jobState.done = true;
+        logger.info(`[PinAll] Job ${jobId} complete`, { pinned: jobState.pinned, skipped: jobState.skipped, failed: jobState.failed });
+      })().catch(err => {
+        jobState.done = true;
+        jobState.error = err.message;
+        logger.error(`[PinAll] Job ${jobId} crashed:`, err.message);
+      });
     } catch (error: any) {
       logger.error("Error:", error);
       res.status(500).json({ message: "An internal error occurred. Please try again." });
     }
+  });
+
+  app.get("/api/youtube-manager/pin-all-videos/status/:jobId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const job = bulkPinJobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json(job);
   });
 
   app.get("/api/youtube-manager/description-links", async (req, res) => {

@@ -202,6 +202,26 @@ Score and analyze as JSON:
   }
 }
 
+function detectVideoContentType(video: { title: string; description?: string | null; metadata?: any }): "live_stream" | "clip" | "short" | "regular" {
+  const meta = video.metadata as any || {};
+  const title = (video.title || "").toLowerCase();
+
+  if (meta.isLive === true || meta.videoType === "live_stream" ||
+      /\b(full\s*stream|live\s*stream|live\s*vod|vod|full\s*vod|\bstream\b|\blive\b)\b/.test(title)) {
+    return "live_stream";
+  }
+  if (meta.videoType === "short" || /\b(#shorts?|short\s*form|60\s*sec)\b/.test(title) ||
+      (meta.duration && Number(meta.duration) <= 60)) {
+    return "short";
+  }
+  if (meta.videoType === "clip" ||
+      /\b(clip|highlight|moment|best\s*(moment|play|kills?)|montage|compilation|funniest|reaction)\b/.test(title) ||
+      (meta.duration && Number(meta.duration) <= 300)) {
+    return "clip";
+  }
+  return "regular";
+}
+
 export async function generatePinnedComment(userId: string, videoId: number) {
   try {
     const video = await storage.getVideo(videoId);
@@ -215,31 +235,53 @@ export async function generatePinnedComment(userId: string, videoId: number) {
       `${l.platform}: ${l.profileUrl || l.username || "connected"}`
     ).join(", ");
 
+    const contentType = detectVideoContentType({ title: video.title, description: video.description, metadata: video.metadata });
+
+    const typeGuidance: Record<string, string> = {
+      live_stream: `This is a live stream VOD. The comment should:
+- Mention key timestamps or moments from the stream (if known from title/description)
+- Ask viewers which part they enjoyed most
+- Promote upcoming live stream schedule
+- CTA: "Follow/subscribe to catch us live next time!"`,
+      clip: `This is a highlight clip. The comment should:
+- Reference the specific moment shown in the clip
+- Ask viewers to share their reaction
+- Direct them to the full video or channel
+- CTA: "Watch the full stream/video on the channel!"`,
+      short: `This is a YouTube Short. The comment should:
+- Be very brief and punchy (max 200 chars)
+- Start with a bold statement or question
+- Drive to subscribe for more
+- CTA: "Subscribe for daily clips!"`,
+      regular: `This is a regular video. The comment should:
+- Start with a question or bold statement about the video content
+- Include a clear CTA (subscribe, comment, share)
+- Reference specific content from the video
+- Keep it authentic and not spammy`,
+    };
+
     const prompt = `You are a YouTube engagement expert. Generate a pinned comment for this video that maximizes engagement.
 
 Video Title: "${video.title}"
-Video Description: "${video.description || "None"}"
-Creator's channels: ${userChannels.map(c => c.channelName).join(", ") || "Unknown"}
+Video Description: "${(video.description || "None").substring(0, 300)}"
+Content Type: ${contentType}
+Creator's channels: ${userChannels.map(c => c.channelName).join(", ") || "ET Gaming 274"}
 Social links: ${linksContext || "None provided"}
 
-Generate as JSON:
-{
-  "comment": "The full pinned comment text. Include: engagement hook (question or CTA), brief value-add, timestamps reference if applicable, social links if available. Keep under 500 characters for mobile readability.",
-  "strategy": "Brief explanation of why this comment will drive engagement",
-  "expectedImpact": "Estimated impact on engagement metrics"
-}
+${typeGuidance[contentType]}
 
-Best practices:
-- Start with a question or bold statement
-- Include a clear CTA (subscribe, comment, share)
-- Reference specific content from the video
-- Keep it authentic and not spammy`;
+Generate as JSON with exactly these fields:
+{
+  "comment": "The full pinned comment text. Max 450 characters. Must be type-appropriate per the guidance above.",
+  "strategy": "One sentence: why this comment drives engagement for this content type",
+  "expectedImpact": "Brief impact estimate"
+}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 600,
     });
 
     const content = response.choices[0]?.message?.content;

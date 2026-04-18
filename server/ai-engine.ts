@@ -357,6 +357,36 @@ Apply these proven retention patterns to ALL content. Every video must hook in f
     }
   }
 
+  // Build content-type-specific optimization rules
+  const detectedContentType = video.metadata?.detectedContentType as string | undefined;
+  let contentTypeSection = "";
+  if (detectedContentType === "live_stream") {
+    contentTypeSection = `
+CONTENT TYPE: LIVE STREAM VOD — APPLY THESE RULES:
+- Title format: "[Game/Event] Live Stream | [Hook] | ET Gaming 274" OR "FULL STREAM: [Hook]"
+- Description MUST open with live stream timestamp highlights (e.g., "0:00 Stream Start | 12:30 Clutch Moment | 45:00 Final Boss")
+- Tags MUST include: "full stream", "live stream", "gaming live", "vod", "[game name] live"
+- Optimize for VOD discovery — viewers searching for archived streams
+- Suggest pinning a "timestamps" comment for navigation`;
+  } else if (detectedContentType === "clip") {
+    contentTypeSection = `
+CONTENT TYPE: HIGHLIGHT CLIP — APPLY THESE RULES:
+- Title format: "[Specific Moment] in [Game] 😱" or "[Moment] that [Reaction]"
+- Keep titles under 60 characters — clips get shared and titles are truncated on mobile
+- Description should reference the full stream/video this clip came from with a link placeholder
+- Tags MUST include: "gaming clips", "highlights", "[game] clips", "funny moments", "[game] highlights"
+- Focus on virality: hook within first 5 seconds, single punchy moment
+- Thumbnail should capture the PEAK moment with high emotion`;
+  } else if (detectedContentType === "short") {
+    contentTypeSection = `
+CONTENT TYPE: YOUTUBE SHORT — APPLY THESE RULES:
+- Title must be under 50 characters, hook in first 3 words
+- Description under 100 characters with 3 hashtags maximum — always include #Shorts
+- Tags: max 5, include "#Shorts", the game name, and "gaming"
+- Optimize for vertical feed discovery — high tempo, single payoff moment
+- No chapter timestamps needed`;
+  }
+
   const prompt = `You are a world-class ${platformName} content strategist combining the expertise of:
 - A top-tier YouTube SEO specialist (vidIQ/TubeBuddy level)
 - A retention science expert who studies MrBeast, The Fat Electrician, and top 0.1% creators
@@ -364,7 +394,7 @@ Apply these proven retention patterns to ALL content. Every video must hook in f
 - A growth hacker who understands algorithmic content distribution
 
 Video Title: "${video.title}"
-Video Type: ${video.type}
+Video Type: ${video.type}${detectedContentType ? ` (${detectedContentType})` : ''}
 Platform: ${platformName}
 Content Niche: ${nicheLabel}
 Current Description: "${video.description || 'None provided'}"
@@ -375,7 +405,7 @@ ${video.metadata?.liveStats ? `Current Performance: ${video.metadata.liveStats.v
 ${video.metadata?.publishedAt ? `Published: ${video.metadata.publishedAt}` : ''}
 ${contentCtx.topicName ? `Topic/Subject: "${contentCtx.topicName}"` : ''}
 ${contentCtx.niche !== 'general' ? `Content Category: ${contentCtx.niche}` : ''}
-${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}
+${contentSection}${creatorContext ? `\n\n${creatorContext}` : ''}${learnedKeywordCtx}${retentionContext}${contentTypeSection}
 
 CRITICAL: Your optimization MUST be specifically relevant to THIS video's actual content. Analyze the title, description, and tags to understand exactly what this clip/video shows. Your SEO, thumbnails, and all recommendations must match the actual gameplay, moments, or content depicted — NOT generic gaming advice.
 

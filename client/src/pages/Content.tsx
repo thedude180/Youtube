@@ -18,6 +18,7 @@ import {
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
   Sparkles, Shield, Monitor, RefreshCw, Download, Globe, Layers,
+  MessageCircle, Pin,
 } from "lucide-react";
 import { SiTwitch, SiKick } from "react-icons/si";
 import { format } from "date-fns";
@@ -746,6 +747,35 @@ function LibraryTab() {
     return list;
   }, [videos, typeFilter, searchQuery]);
 
+  const [pinJobId, setPinJobId] = useState<string | null>(null);
+  const { data: pinJobStatus } = useQuery<any>({
+    queryKey: ["/api/youtube-manager/pin-all-videos/status", pinJobId],
+    queryFn: () => fetch(`/api/youtube-manager/pin-all-videos/status/${pinJobId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!pinJobId,
+    refetchInterval: (data) => (data?.state?.data?.done ? false : 5000),
+  });
+
+  const pinAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/youtube-manager/pin-all-videos");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        setPinJobId(data.jobId);
+        toast({
+          title: "Pinned Comment Job Started",
+          description: `Generating AI-written pinned comments for ${data.total} videos. This runs in the background — check back in a few minutes.`,
+        });
+      } else {
+        toast({ title: "Cannot pin comments", description: data.error || "Connect your YouTube channel first.", variant: "destructive" });
+      }
+    },
+    onError: () => {
+      toast({ title: "Failed to start pin job", description: "Please try again.", variant: "destructive" });
+    },
+  });
+
   const bulkSeoMutation = useMutation({
     mutationFn: async (videoIds: number[]) => {
       const res = await apiRequest("POST", "/api/content/bulk-seo-optimize", { videoIds });
@@ -834,8 +864,44 @@ function LibraryTab() {
             <CheckSquare className="h-3.5 w-3.5 mr-1.5" />
             {isSelectMode ? "Cancel" : "Select"}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pinAllMutation.isPending || (!!pinJobId && !pinJobStatus?.done)}
+            onClick={() => pinAllMutation.mutate()}
+            data-testid="button-pin-all-videos"
+            aria-label="Pin AI-written comment on all videos"
+            title="Generate and pin an AI-written comment on every video, optimized for its content type (live VOD, clip, short, or regular)"
+          >
+            {pinAllMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Pin className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Pin All
+          </Button>
         </div>
       </div>
+
+      {pinJobId && pinJobStatus && (
+        <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm" data-testid="banner-pin-job-status">
+          {pinJobStatus.done ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          ) : (
+            <Loader2 className="h-4 w-4 text-primary shrink-0 animate-spin" />
+          )}
+          <span className="flex-1 text-foreground/80">
+            {pinJobStatus.done
+              ? `Pinned comments complete — ${pinJobStatus.pinned ?? 0} pinned, ${pinJobStatus.failed ?? 0} failed`
+              : `Pinning comments… ${pinJobStatus.processed ?? 0} / ${pinJobStatus.total ?? "?"} videos`}
+          </span>
+          {pinJobStatus.done && (
+            <button onClick={() => setPinJobId(null)} className="text-muted-foreground hover:opacity-70" aria-label="Dismiss" data-testid="button-pin-status-dismiss">
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-2" role="status" aria-label="Loading videos">

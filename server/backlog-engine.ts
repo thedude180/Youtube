@@ -869,6 +869,23 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
 
   const contentCtx = detectContentContext(currentTitle, currentDescription, meta.contentCategory, meta);
 
+  // Detect content type: live stream VOD, clip, short, or regular video
+  const titleLower = currentTitle.toLowerCase();
+  const durationSec = Number(liveYouTubeData?.duration || meta.duration || 0);
+  let detectedContentType: string;
+  if (meta.isLive === true || meta.videoType === "live_stream" ||
+      /\b(full\s*stream|live\s*stream|live\s*vod|\bvod\b|full\s*vod|\bstream\b|\blive\b)/.test(titleLower)) {
+    detectedContentType = "live_stream";
+  } else if (meta.videoType === "short" || /\b(#shorts?|short\s*form)/.test(titleLower) || (durationSec > 0 && durationSec <= 60)) {
+    detectedContentType = "short";
+  } else if (meta.videoType === "clip" ||
+      /\b(clip|highlight|moment|best\s*(moment|play|kills?)|montage|compilation|funniest|reaction)/.test(titleLower) ||
+      (durationSec > 0 && durationSec <= 300)) {
+    detectedContentType = "clip";
+  } else {
+    detectedContentType = "regular";
+  }
+
   await _acquireViralOpt();
   let suggestions: any;
   try {
@@ -883,6 +900,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
         youtubeCategory: liveYouTubeData?.categoryId,
         publishedAt: liveYouTubeData?.publishedAt || meta.publishedAt,
         duration: liveYouTubeData?.duration || meta.duration,
+        detectedContentType,
       },
       platform: video.platform || "youtube",
     }, userId);
