@@ -693,21 +693,33 @@ function DataActionsSection() {
 }
 
 function InjectionAttemptsSection() {
-  const { data: stats, isLoading, isError } = useQuery<any>({
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery<any>({
     queryKey: ["/api/security/injection-stats"],
     refetchInterval: 5 * 60_000,
     staleTime: 3 * 60_000,
     retry: false,
   });
 
+  const { data: summary, isLoading: summaryLoading } = useQuery<any>({
+    queryKey: ["/api/security/injection-summary"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 3 * 60_000,
+    retry: false,
+  });
+
+  const isLoading = statsLoading || summaryLoading;
+
   if (isLoading) return <Skeleton className="h-40" data-testid="skeleton-injection-stats" />;
-  if (isError || !stats) return null;
+  if (statsError || !stats) return null;
 
   const byEngine: Record<string, number> = stats.byEngine || {};
   const byUser: Record<string, number> = stats.byUser || {};
   const recentEvents: any[] = Array.isArray(stats.recentEvents) ? stats.recentEvents : [];
-  const total: number = stats.total || 0;
-  const uniqueUsers = Object.keys(byUser).length;
+
+  const injSummary = summary?.injectionAttempts;
+  const total: number = injSummary?.total ?? stats.total ?? 0;
+  const uniqueUsers: number = injSummary?.uniqueUsersAffected ?? Object.keys(byUser).length;
+  const lastDetectedAt: string | null = injSummary?.lastDetectedAt ?? null;
   const engineEntries = Object.entries(byEngine).sort((a, b) => b[1] - a[1]);
 
   return (
@@ -716,6 +728,11 @@ function InjectionAttemptsSection() {
         <CardTitle className="text-sm flex items-center gap-1.5">
           <Syringe className="h-3.5 w-3.5 text-orange-400" />
           Injection Attempts
+          {lastDetectedAt && (
+            <span className="text-xs font-normal text-muted-foreground ml-1" data-testid="text-injection-last-detected">
+              — last {new Date(lastDetectedAt).toLocaleTimeString()}
+            </span>
+          )}
         </CardTitle>
         <Badge
           variant="secondary"
@@ -820,7 +837,7 @@ export default function SecurityTab() {
   return (
     <div className="space-y-3" data-testid="security-tab">
       <SecurityOverviewSection />
-      {isAdvanced && <InjectionAttemptsSection />}
+      <InjectionAttemptsSection />
       <CircuitBreakersSection />
       <ApiKeysSection />
       <TwoFactorSection />
