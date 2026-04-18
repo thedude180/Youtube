@@ -342,6 +342,8 @@ export interface IStorage {
 
   getTokenBudgetUsage(day: string): Promise<{ engine: string; used: number; lastThrottledAt: number | null }[]>;
   upsertTokenBudgetUsage(engine: string, day: string, used: number, lastThrottledAt?: number | null): Promise<void>;
+  getTokenBudgetAlertSentAt(engine: string, day: string): Promise<number | null>;
+  setTokenBudgetAlertSent(engine: string, day: string, sentAt: number): Promise<void>;
   deleteOldTokenBudgetUsage(olderThanDays: number): Promise<number>;
 }
 
@@ -1869,6 +1871,22 @@ export class DatabaseStorage implements IStorage {
           lastThrottledAt: sql`CASE WHEN ${tokenBudgetUsage.lastThrottledAt} IS NULL THEN EXCLUDED.last_throttled_at WHEN EXCLUDED.last_throttled_at IS NULL THEN ${tokenBudgetUsage.lastThrottledAt} ELSE GREATEST(${tokenBudgetUsage.lastThrottledAt}, EXCLUDED.last_throttled_at) END`,
           updatedAt: sql`NOW()`,
         },
+      });
+  }
+
+  async getTokenBudgetAlertSentAt(engine: string, day: string): Promise<number | null> {
+    const [row] = await db.select({ lastAlertSentAt: tokenBudgetUsage.lastAlertSentAt })
+      .from(tokenBudgetUsage)
+      .where(and(eq(tokenBudgetUsage.engine, engine), eq(tokenBudgetUsage.day, day)));
+    return row?.lastAlertSentAt ?? null;
+  }
+
+  async setTokenBudgetAlertSent(engine: string, day: string, sentAt: number): Promise<void> {
+    await db.insert(tokenBudgetUsage)
+      .values({ engine, day, used: 0, lastAlertSentAt: sentAt, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [tokenBudgetUsage.engine, tokenBudgetUsage.day],
+        set: { lastAlertSentAt: sentAt, updatedAt: sql`NOW()` },
       });
   }
 

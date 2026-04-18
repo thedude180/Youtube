@@ -9631,6 +9631,7 @@ export const tokenBudgetUsage = pgTable("token_budget_usage", {
   day: varchar("day", { length: 10 }).notNull(),
   used: integer("used").notNull().default(0),
   lastThrottledAt: bigint("last_throttled_at", { mode: "number" }),
+  lastAlertSentAt: bigint("last_alert_sent_at", { mode: "number" }),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
   uniqueIndex("tbu_engine_day_idx").on(t.engine, t.day),
