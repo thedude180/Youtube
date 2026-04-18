@@ -6,3 +6,9 @@ id = "lBF__v4vxEBYQ4fRCqtGk"
 uri = "file://CREATOROS_MASTER_PROMPT_v9.md"
 type = "text"
 title = "CreatorOS Master Prompt v9.0 (Consolidated)"
+
+[[outputs]]
+id = "_IXF3MoiPN_2Wd9hLlFNT"
+uri = "file://CLAUDE.md"
+type = "text"
+title = "CreatorOS — Claude AI Context File"
