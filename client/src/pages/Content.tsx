@@ -710,8 +710,17 @@ function LibraryTab() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedVideoIds, setSelectedVideoIds] = useState<number[]>([]);
+  const [ytBannerDismissed, setYtBannerDismissed] = useState(() => sessionStorage.getItem("yt_connect_banner_dismissed") === "1");
   const { toast } = useToast();
   const { data: videos, isLoading, error } = useVideos();
+  const [, setLocation] = useLocation();
+  const { data: linkedChannels } = useQuery<any[]>({ queryKey: ["/api/linked-channels"], staleTime: 60_000 });
+  const hasYtOauth = (linkedChannels || []).some((c: any) => c.platform === "youtube" && c.accessToken);
+
+  const dismissYtBanner = () => {
+    sessionStorage.setItem("yt_connect_banner_dismissed", "1");
+    setYtBannerDismissed(true);
+  };
 
   const filtered = useMemo(() => {
     if (!videos) return [];
@@ -761,6 +770,20 @@ function LibraryTab() {
 
   return (
     <div className="space-y-3 pb-20">
+      {!hasYtOauth && !ytBannerDismissed && (
+        <div className="flex items-center gap-3 rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2.5 text-sm" data-testid="banner-yt-connect">
+          <Zap className="h-4 w-4 text-yellow-500 shrink-0" />
+          <span className="flex-1 text-yellow-700 dark:text-yellow-300">
+            Connect YouTube to unlock auto-sync, AI optimization, and upload detection.
+          </span>
+          <Button size="sm" variant="outline" className="shrink-0 h-7 text-xs border-yellow-500/40 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-400/20" onClick={() => setLocation("/settings")} data-testid="button-yt-connect-banner">
+            Connect
+          </Button>
+          <button onClick={dismissYtBanner} className="shrink-0 text-yellow-600 dark:text-yellow-400 hover:opacity-70" aria-label="Dismiss" data-testid="button-yt-banner-dismiss">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

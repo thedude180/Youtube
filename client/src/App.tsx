@@ -738,7 +738,50 @@ function AppContent() {
     return <Suspense fallback={loader}><Onboarding onComplete={completeOnboarding} /></Suspense>;
   }
 
-  return <AuthenticatedApp />;
+  return (
+    <>
+      <AuthenticatedApp />
+      <Dialog open={ytModal.open} onOpenChange={(open) => setYtModal(m => ({ ...m, open }))}>
+        <DialogContent className="max-w-md" data-testid="dialog-yt-connected">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              YouTube Connected
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
+              {ytModal.channelName} is now linked. Everything below activated immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="mt-1 space-y-2.5">
+            {[
+              { icon: Upload, label: "Upload watcher", desc: "New videos are detected and synced automatically" },
+              { icon: Tv2, label: "Live detection", desc: "Goes live? CreatorOS knows instantly" },
+              { icon: Bot, label: "AI optimization", desc: "Titles, descriptions & tags queued for improvement" },
+              { icon: Sparkles, label: "Analytics sync", desc: "Views, likes & revenue pulled on every cycle" },
+            ].map(({ icon: Icon, label, desc }) => (
+              <li key={label} className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 shrink-0">
+                  <Icon className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium leading-none">{label}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={() => setYtModal(m => ({ ...m, open: false }))} data-testid="button-yt-modal-dismiss">
+              Done
+            </Button>
+            <Button size="sm" onClick={() => { setYtModal(m => ({ ...m, open: false })); window.location.pathname = "/content"; }} data-testid="button-yt-modal-go-content">
+              Go to Content
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 offlineEngine.start();
