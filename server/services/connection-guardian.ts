@@ -171,16 +171,47 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
             }).where(eq(channels.id, ch.id));
             failed++;
 
-            if (failures <= 5) {
-              logger.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
-            }
+            logger.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
 
-            if (failures >= PERMANENT_FAILURE_THRESHOLD && ch.userId) {
+            // Escalating notifications: 3 → warning, 8 → urgent, 15 → critical
+            if (ch.userId) {
               try {
-                const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
-                await proactiveTokenHealthCheck();
-              } catch (reconnectErr) {
-                logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, reconnectErr);
+                if (failures === 3) {
+                  await storage.createNotification({
+                    userId: ch.userId,
+                    type: "connection_warning",
+                    title: `${ch.platform} connection degraded`,
+                    message: `${ch.channelName} has failed to verify ${failures} times. It will attempt auto-recovery — no action needed yet.`,
+                    severity: "warning",
+                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                  });
+                } else if (failures === 8) {
+                  await storage.createNotification({
+                    userId: ch.userId,
+                    type: "connection_urgent",
+                    title: `${ch.platform} connection failing repeatedly`,
+                    message: `${ch.channelName} has now failed ${failures} consecutive checks. Please review your OAuth tokens in Settings → Connections.`,
+                    severity: "error",
+                    actionUrl: "/settings",
+                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                  });
+                } else if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+                  await storage.createNotification({
+                    userId: ch.userId,
+                    type: "connection_critical",
+                    title: `${ch.platform} connection permanently expired`,
+                    message: `${ch.channelName} could not be refreshed after ${failures} attempts. Reconnect this platform immediately to restore autopilot.`,
+                    severity: "error",
+                    actionUrl: "/settings",
+                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                  });
+                  const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
+                  await proactiveTokenHealthCheck().catch((e: Error) =>
+                    logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, e)
+                  );
+                }
+              } catch (notifErr) {
+                logger.error("[ConnectionGuardian] Failed to send escalating notification:", notifErr);
               }
             }
           }

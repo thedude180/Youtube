@@ -5,6 +5,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("content-grinder");
 
@@ -219,7 +220,7 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
         role: "user",
         content: `You are the most aggressive content extraction AI. Your goal: squeeze EVERY last piece of viral content from this video. Leave NOTHING on the table.
 
-VIDEO: "${video.title}" (${gameName})
+VIDEO: "${sanitizeForPrompt(video.title, 200)}" (${sanitizeForPrompt(gameName, 100)})
 Duration: ${Math.floor(durSec / 60)} minutes
 Already extracted clips: ${existingClips.length}
 Already covered time ranges: ${JSON.stringify(coveredRanges.slice(0, 20))}
@@ -336,9 +337,9 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
         role: "user",
         content: `You are the #1 YouTube SEO expert. Your titles get 3-5x more clicks than average. Optimize this video for MAXIMUM virality and watch time.
 
-CURRENT TITLE: "${video.title}"
-CURRENT DESCRIPTION: "${(video.description || "").substring(0, 500)}"
-GAME: ${gameName}
+CURRENT TITLE: "${sanitizeForPrompt(video.title, 200)}"
+CURRENT DESCRIPTION: "${sanitizeForPrompt(video.description || "", 500)}"
+GAME: ${sanitizeForPrompt(gameName, 100)}
 VIEWS SO FAR: ${viewCount.toLocaleString()}
 STYLE: No commentary PS5 gameplay
 

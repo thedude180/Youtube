@@ -4,6 +4,7 @@ import { eq, and, desc, gte, sql, count } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
+import { jitter } from "../lib/timer-utils";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
@@ -632,7 +633,7 @@ export function startInfiniteEvolution(): void {
     runEvolutionCycle().catch(err =>
       logger.warn("Periodic evolution cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, EVOLUTION_CYCLE_MS);
+  }, jitter(EVOLUTION_CYCLE_MS));
 
   logger.info("Infinite Evolution Engine started (4h cycle) — every system improves, forever");
 }

@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
+import { jitter } from "../lib/timer-utils";
 
 const logger = createLogger("consistency-agent");
 
@@ -402,7 +403,7 @@ export async function startConsistencyAgent(userId: string): Promise<void> {
 
   state.intervalHandle = setInterval(() => {
     runConsistencyCheck(userId).catch(() => {});
-  }, RUN_INTERVAL_MS);
+  }, jitter(RUN_INTERVAL_MS));
 
   state.nextRunAt = new Date(Date.now() + RUN_INTERVAL_MS);
   logger.info(`[${userId}] Content Consistency Agent armed — runs every ${RUN_INTERVAL_MS / 3600000}h`);

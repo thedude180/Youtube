@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -81,16 +82,17 @@ export class VODSEOOptimizer {
       logger.info(`[VODSEOOptimizer] Optimizing metadata for video ${videoId}: ${video.title}`);
 
       const gameName = video.metadata?.gameName;
-      const gameContext = gameName && gameName !== "Unknown" && gameName !== "Gaming"
-        ? `Game/Category: ${gameName}\n\nCRITICAL: The detected game is "${gameName}". The optimized title and description MUST reference "${gameName}" — do NOT substitute a different game name.`
+      const safeGameName = sanitizeForPrompt(gameName || "", 100);
+      const gameContext = safeGameName && safeGameName !== "Unknown" && safeGameName !== "Gaming"
+        ? `Game/Category: ${safeGameName}\n\nCRITICAL: The detected game is "${safeGameName}". The optimized title and description MUST reference "${safeGameName}" — do NOT substitute a different game name.`
         : `Game/Category: Unknown\n\nThe game has not been confidently identified. Do NOT guess or fabricate a game name. Use generic gaming terms instead.`;
 
       const seoLearnings = await getSEOLearnings(userId);
       const visualContext = await getThumbnailVisualContext(userId, gameName || "");
 
       const basePrompt = `You are an SEO expert for YouTube. Optimize the following video metadata:
-Current Title: ${video.title}
-Current Description: ${video.description || "None"}
+Current Title: ${sanitizeForPrompt(video.title, 200)}
+Current Description: ${sanitizeForPrompt(video.description || "None", 500)}
 ${gameContext}${seoLearnings}${visualContext}
 
 Return a JSON object with:

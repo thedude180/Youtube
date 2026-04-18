@@ -3,6 +3,7 @@ import { db } from "../db";
 import { streamDestinations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { jitter } from "../lib/timer-utils";
 
 const logger = createLogger("multistream");
 
@@ -205,7 +206,7 @@ function startHealthMonitor(state: RelayState): void {
       });
       attemptReconnect(state);
     }
-  }, HEALTH_CHECK_INTERVAL_MS);
+  }, jitter(HEALTH_CHECK_INTERVAL_MS));
 }
 
 async function attemptReconnect(state: RelayState): Promise<void> {

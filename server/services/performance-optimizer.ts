@@ -2,6 +2,7 @@ import { db } from "../db";
 import { eq, desc } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
+import { jitter } from "../lib/timer-utils";
 
 const logger = createLogger("performance-optimizer");
 interface DedupeEntry<T> {
@@ -26,7 +27,7 @@ export function createRequestDeduplicator<T>(): {
         cache.delete(key);
       }
     }
-  }, 30000);
+  }, jitter(30_000));
 
   if (cleanup.unref) {
     cleanup.unref();

@@ -1337,7 +1337,7 @@ export const businessDetails = pgTable("business_details", {
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
-  userIdIdx: index("business_details_user_id_idx").on(table.userId),
+  userIdIdx: uniqueIndex("business_details_user_id_idx").on(table.userId),
 }));
 
 export const insertBusinessDetailsSchema = createInsertSchema(businessDetails).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2519,7 +2519,7 @@ export const localizationRecommendations = pgTable("localization_recommendations
   source: text("source").notNull().default("ai-audience-analyzer"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
-  userIdIdx: index("localization_recommendations_user_id_idx").on(table.userId),
+  userIdIdx: uniqueIndex("localization_recommendations_user_id_idx").on(table.userId),
 }));
 
 // === AUTOPILOT SYSTEM TABLES ===

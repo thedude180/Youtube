@@ -327,7 +327,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       model: "gpt-4o-mini",
       messages,
       tools: toolDefinitions,
-      max_completion_tokens: 16000
+      max_completion_tokens: 4000,
     });
 
     const choice = completion.choices[0];

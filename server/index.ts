@@ -82,7 +82,7 @@ function clearVault(): void {
 }
 
 clearVault(); // run immediately on startup (dev only)
-setInterval(clearVault, 60 * 60 * 1000); // run every hour (dev only)
+setInterval(clearVault, jitter(60 * 60 * 1000)); // run ~every hour (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { healthBrain } from "./services/health-brain";
@@ -533,7 +533,7 @@ app.get("/api/system/live", (req: Request, res: Response) => {
     }
   };
 
-  const interval = setInterval(sendStatus, 30000);
+  const interval = setInterval(sendStatus, jitter(30_000));
   sendStatus();
 
   req.on('close', () => {

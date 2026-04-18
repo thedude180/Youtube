@@ -901,7 +901,7 @@ export default function StreamCenter() {
                         {entry.detail && <p className="text-[10px] text-muted-foreground truncate">{entry.detail}</p>}
                       </div>
                       <p className="text-[9px] text-muted-foreground/50 shrink-0">
-                        {new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {entry.time ? new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
                       </p>
                     </div>
                   ))}

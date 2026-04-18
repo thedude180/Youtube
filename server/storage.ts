@@ -1545,20 +1545,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertBusinessDetails(userId: string, details: Partial<InsertBusinessDetails>): Promise<BusinessDetails> {
-    const existing = await this.getBusinessDetails(userId);
-    return await db.transaction(async (tx) => {
-      if (existing) {
-        const [updated] = await tx.update(businessDetails)
-          .set({ ...details, updatedAt: new Date() })
-          .where(eq(businessDetails.id, existing.id))
-          .returning();
-        return updated;
-      }
-      const [created] = await tx.insert(businessDetails)
-        .values({ ...details, userId } as InsertBusinessDetails)
-        .returning();
-      return created;
-    });
+    const [result] = await db.insert(businessDetails)
+      .values({ ...details, userId } as InsertBusinessDetails)
+      .onConflictDoUpdate({
+        target: businessDetails.userId,
+        set: { ...details, updatedAt: new Date() },
+      })
+      .returning();
+    return result;
   }
 
   async updateBusinessDetailsSteps(id: number, steps: any[]): Promise<BusinessDetails> {
@@ -1583,18 +1577,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertLocalizationRecommendations(userId: string, data: InsertLocalizationRecommendation): Promise<LocalizationRecommendation> {
-    const existing = await this.getLocalizationRecommendations(userId);
-    return await db.transaction(async (tx) => {
-      if (existing) {
-        const [updated] = await tx.update(localizationRecommendations)
-          .set({ recommendedLanguages: data.recommendedLanguages, trafficData: data.trafficData, source: data.source, updatedAt: new Date() })
-          .where(eq(localizationRecommendations.id, existing.id))
-          .returning();
-        return updated;
-      }
-      const [created] = await tx.insert(localizationRecommendations).values({ ...data, userId }).returning();
-      return created;
-    });
+    const [result] = await db.insert(localizationRecommendations)
+      .values({ ...data, userId })
+      .onConflictDoUpdate({
+        target: localizationRecommendations.userId,
+        set: { recommendedLanguages: data.recommendedLanguages, trafficData: data.trafficData, source: data.source, updatedAt: new Date() },
+      })
+      .returning();
+    return result;
   }
   async getUser(userId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -1607,7 +1597,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+    return await db.select().from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(500);
   }
 
   async updateUserRole(userId: string, role: string, tier: string): Promise<User> {
@@ -1746,20 +1738,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertNotificationPreferences(userId: string, prefs: any): Promise<any> {
-    const existing = await this.getNotificationPreferences(userId);
-    return await db.transaction(async (tx) => {
-      if (existing) {
-        const [updated] = await tx.update(notificationPreferences)
-          .set({ ...prefs, updatedAt: new Date() })
-          .where(eq(notificationPreferences.userId, userId))
-          .returning();
-        return updated;
-      }
-      const [created] = await tx.insert(notificationPreferences)
-        .values({ ...prefs, userId })
-        .returning();
-      return created;
-    });
+    const [result] = await db.insert(notificationPreferences)
+      .values({ ...prefs, userId })
+      .onConflictDoUpdate({
+        target: notificationPreferences.userId,
+        set: { ...prefs, updatedAt: new Date() },
+      })
+      .returning();
+    return result;
   }
 
   async getTeamMembers(ownerId: string): Promise<TeamMember[]> {

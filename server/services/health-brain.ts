@@ -1,5 +1,6 @@
 import { pool } from "../db";
 import { createLogger } from "../lib/logger";
+import { jitter } from "../lib/timer-utils";
 
 const logger = createLogger("health-brain");
 
@@ -198,7 +199,7 @@ class HealthBrain {
 
 export const healthBrain = new HealthBrain();
 
-// 15s tick — self-managing, non-overlapping
+// ~15s tick with ±20% jitter — self-managing, non-overlapping
 let tickRunning = false;
 setInterval(async () => {
   if (tickRunning) return;
@@ -207,4 +208,4 @@ setInterval(async () => {
     // Never let tick crash the interval
     logger.error("[HealthBrain] Tick error:", e.message);
   } finally { tickRunning = false; }
-}, 15_000);
+}, jitter(15_000));

@@ -136,6 +136,23 @@ function stripAdversarialChars(str: string): string {
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
+/**
+ * sanitizeForPrompt — call this on ANY user-provided string before
+ * interpolating it into an AI prompt in background engines.
+ *
+ * Strips zero-width / adversarial chars, neutralises injection patterns,
+ * and truncates to a safe length so rogue titles/descriptions cannot
+ * hijack the model's instructions.
+ */
+export function sanitizeForPrompt(input: unknown, maxLength = 2000): string {
+  if (typeof input !== "string") return "";
+  let clean = stripAdversarialChars(input);
+  for (const pattern of PROMPT_INJECTION_PATTERNS) {
+    clean = clean.replace(pattern, "[FILTERED]");
+  }
+  return clean.substring(0, maxLength);
+}
+
 function scanForPromptInjection(value: unknown, depth = 0): boolean {
   if (depth > 6) return false;
   if (typeof value === "string") {

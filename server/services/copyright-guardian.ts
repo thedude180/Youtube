@@ -18,6 +18,7 @@
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClient } from "../lib/openai";
+import { jitter } from "../lib/timer-utils";
 import { runCopyrightCheck } from "./copyright-check";
 import type { CopyrightIssue } from "./copyright-check";
 
@@ -344,7 +345,7 @@ export async function startCopyrightGuardian(userId: string): Promise<void> {
 
   state.intervalHandle = setInterval(() => {
     runGuardianScan(userId).catch(() => {});
-  }, SCAN_INTERVAL_MS);
+  }, jitter(SCAN_INTERVAL_MS));
 
   logger.info(`[${userId}] Copyright Guardian started — scanning every ${SCAN_INTERVAL_MS / 3600000}h`);
 }
