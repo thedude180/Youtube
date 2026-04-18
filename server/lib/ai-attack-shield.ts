@@ -699,9 +699,100 @@ class TokenBudgetGuard {
   /** Resolves when rehydrate() has completed (success or failure). */
   readonly ready: Promise<void>;
   private _rehydrateResolve!: () => void;
+  /**
+   * Dirty-write queue. Keyed by `engine|day` so a day-rollover cannot overwrite
+   * a prior-day entry before it has been flushed: both coexist in the map and
+   * both are written to the DB in the next flush cycle.
+   */
+  private dirty = new Map<string, { engine: string; day: string; used: number; lastThrottledAt: number | null }>();
+  /** Cached storage module reference, populated during rehydrate(). */
+  private storageModule: { storage: import("../storage").IStorage } | null = null;
+  /** Background flush interval handle. */
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
+
+  private static readonly FLUSH_INTERVAL_MS = 30_000;
 
   constructor() {
     this.ready = new Promise<void>(resolve => { this._rehydrateResolve = resolve; });
+    this._startFlushTimer();
+  }
+
+  private _startFlushTimer(): void {
+    this.flushTimer = setInterval(() => { this.flush(); }, TokenBudgetGuard.FLUSH_INTERVAL_MS);
+    if (typeof this.flushTimer.unref === "function") this.flushTimer.unref();
+  }
+
+  private async _getStorage(): Promise<{ storage: import("../storage").IStorage }> {
+    if (!this.storageModule) {
+      this.storageModule = await import("../storage");
+    }
+    return this.storageModule;
+  }
+
+  /**
+   * Snapshot the current in-memory state for an engine into the dirty queue.
+   * The snapshot captures the entry's own `day` field so a UTC midnight rollover
+   * cannot cause prior-day usage to be written into the new day's row.
+   */
+  private markDirty(engine: string): void {
+    const e = this.budgets.get(engine);
+    if (!e) return;
+    const key = `${engine}|${e.day}`;
+    this.dirty.set(key, {
+      engine,
+      day: e.day,
+      used: e.used,
+      lastThrottledAt: this.lastThrottledAt.get(engine) ?? null,
+    });
+  }
+
+  /**
+   * Flush all dirty entries to the database. Each entry is written using the
+   * day that was captured at dirty-mark time, not the current UTC day, so
+   * rollover correctness is preserved. All writes run concurrently via
+   * Promise.allSettled. Failed entries are restored to the dirty queue for retry
+   * on the next flush cycle rather than being silently dropped.
+   *
+   * Call this on graceful shutdown (before closing the DB pool) to ensure the
+   * final state is persisted.
+   */
+  async flush(): Promise<void> {
+    if (this.dirty.size === 0) return;
+    const toFlush = new Map(this.dirty);
+    this.dirty.clear();
+
+    let mod: { storage: import("../storage").IStorage };
+    try {
+      mod = await this._getStorage();
+    } catch (err: any) {
+      logger.warn(`[TokenBudget] Flush failed to load storage: ${err?.message ?? err}`);
+      for (const [key, snap] of toFlush) {
+        if (!this.dirty.has(key)) this.dirty.set(key, snap);
+      }
+      return;
+    }
+
+    const entries = Array.from(toFlush.entries());
+    const results = await Promise.allSettled(
+      entries.map(([, snap]) =>
+        mod.storage.upsertTokenBudgetUsage(snap.engine, snap.day, snap.used, snap.lastThrottledAt)
+      )
+    );
+
+    let failCount = 0;
+    entries.forEach(([key, snap], i) => {
+      if (results[i].status === "rejected") {
+        const reason = (results[i] as PromiseRejectedResult).reason;
+        logger.warn(`[TokenBudget] Failed to persist usage for ${snap.engine} (${snap.day}): ${reason?.message ?? reason}`);
+        if (!this.dirty.has(key)) this.dirty.set(key, snap);
+        failCount++;
+      }
+    });
+
+    const flushed = entries.length - failCount;
+    if (flushed > 0) {
+      logger.info(`[TokenBudget] Flushed ${flushed} engine-day(s) to DB${failCount > 0 ? ` (${failCount} failed, will retry)` : ""}`);
+    }
   }
 
   private entry(engine: string): BudgetEntry {
@@ -714,26 +805,16 @@ class TokenBudgetGuard {
     return e;
   }
 
-  private persistAsync(engine: string, used: number, lastThrottledAt?: number | null): void {
-    const day = utcDayString();
-    import("../storage").then(({ storage }) => {
-      storage.upsertTokenBudgetUsage(engine, day, used, lastThrottledAt).catch(err => {
-        logger.warn(`[TokenBudget] Failed to persist usage for ${engine}: ${err?.message ?? err}`);
-      });
-    }).catch(err => {
-      logger.warn(`[TokenBudget] Failed to import storage for persistence: ${err?.message ?? err}`);
-    });
-  }
-
   /**
    * Rehydrate in-memory counters from the database for today's UTC day.
    * Call this once at server startup so counters survive restarts.
+   * Also caches the storage module to avoid repeated dynamic imports.
    */
   async rehydrate(): Promise<void> {
     try {
-      const { storage } = await import("../storage");
+      const mod = await this._getStorage();
       const today = utcDayString();
-      const rows = await storage.getTokenBudgetUsage(today);
+      const rows = await mod.storage.getTokenBudgetUsage(today);
       for (const row of rows) {
         this.budgets.set(row.engine, { used: row.used, day: today });
         if (row.lastThrottledAt !== null) {
@@ -758,9 +839,8 @@ class TokenBudgetGuard {
     const e = this.entry(engine);
     if (e.used + estimatedTokens > cap) {
       logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
-      const now = Date.now();
-      this.lastThrottledAt.set(engine, now);
-      this.persistAsync(engine, e.used, now);
+      this.lastThrottledAt.set(engine, Date.now());
+      this.markDirty(engine);
       return false;
     }
     return true;
@@ -768,18 +848,20 @@ class TokenBudgetGuard {
 
   /**
    * Record token consumption after a successful AI call.
+   * Updates in-memory state immediately; the background flush timer persists
+   * changes to the database every ~30 seconds.
    * If actualTokens is unknown, pass the estimated cost used in checkBudget.
    */
   consumeBudget(engine: string, tokens: number): void {
     const e = this.entry(engine);
     e.used += tokens;
-    this.persistAsync(engine, e.used, this.lastThrottledAt.get(engine) ?? null);
+    this.markDirty(engine);
   }
 
   /**
-   * Returns current usage snapshot for all engines by reading from the
-   * persistent store (database). Falls back to in-memory values if the DB
-   * query fails so the endpoint remains available during DB hiccups.
+   * Returns current usage snapshot for all engines. Reads from the database
+   * so callers see the latest persisted state, falling back to in-memory
+   * values (which include any unflushed updates) if the DB query fails.
    */
   async getSnapshot(): Promise<Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }>> {
     const today = utcDayString();
@@ -788,8 +870,8 @@ class TokenBudgetGuard {
 
     let dbRows: { engine: string; used: number; lastThrottledAt: number | null }[] = [];
     try {
-      const { storage } = await import("../storage");
-      dbRows = await storage.getTokenBudgetUsage(today);
+      const mod = await this._getStorage();
+      dbRows = await mod.storage.getTokenBudgetUsage(today);
     } catch (err: any) {
       logger.warn(`[TokenBudget] getSnapshot DB read failed, falling back to in-memory: ${err?.message ?? err}`);
     }

@@ -1772,6 +1772,11 @@ httpServer.listen(
     const shutdownTimer = setTimeout(async () => {
       log(`[Server] Shutdown timeout (${shutdownTimeoutMs}ms) reached, closing database...`);
       try {
+        await tokenBudget.flush();
+      } catch (err) {
+        logger.error("[Server] Error flushing token budget on shutdown", { error: String(err) });
+      }
+      try {
         await pool.end();
         log("[Server] Database pool closed");
       } catch (err) {
@@ -1784,6 +1789,11 @@ httpServer.listen(
     // Also handle immediate exit if server closes quickly
     httpServer.on("close", async () => {
       clearTimeout(shutdownTimer);
+      try {
+        await tokenBudget.flush();
+      } catch (err) {
+        logger.error("[Server] Error flushing token budget on shutdown", { error: String(err) });
+      }
       try {
         await pool.end();
         log("[Server] Database pool closed");
