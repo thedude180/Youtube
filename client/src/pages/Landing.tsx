@@ -20,6 +20,7 @@ import { usePageTitle } from "@/hooks/use-page-title";
 import { useToast } from "@/hooks/use-toast";
 import { AuthForm } from "@/components/AuthForm";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 
 function LiveStatsBar() {
   return (
@@ -386,6 +387,20 @@ export default function Landing() {
   const heroRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  const { data: authConfig } = useQuery<{ mode: "replit" | "oauth" }>({
+    queryKey: ["/api/auth/mode"],
+    staleTime: Infinity,
+  });
+  const isReplitMode = authConfig?.mode === "replit";
+
+  const handleSignIn = () => {
+    if (isReplitMode) {
+      window.location.href = "/api/login";
+    } else {
+      setShowAuthForm(true);
+    }
+  };
+
   usePageTitle("AI-Powered Creator Management Platform", "CreatorOS replaces your entire creator team with 832 AI features. Manage content, streaming, revenue, and growth across 25 platforms on full autopilot.");
 
   useEffect(() => {
@@ -710,14 +725,14 @@ export default function Landing() {
             <a href="/pricing">
               <Button data-testid="button-nav-pricing" variant="ghost" size="sm">{t('landing.pricing')}</Button>
             </a>
-            <Button data-testid="button-sign-in-nav" size="sm" className="glow-sm" onClick={() => setShowAuthForm(true)}>
+            <Button data-testid="button-sign-in-nav" size="sm" className="glow-sm" onClick={handleSignIn}>
               {t('landing.signIn')}
             </Button>
           </div>
         </div>
       </nav>
 
-      {showAuthForm && (
+      {!isReplitMode && showAuthForm && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md"
           data-testid="modal-auth"
@@ -1215,7 +1230,7 @@ export default function Landing() {
             {t('landing.ctaSubtitle')}
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button data-testid="button-cta-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={() => setShowAuthForm(true)}>
+            <Button data-testid="button-cta-get-started" size="lg" className="text-base glow border-glow-animated group" onClick={handleSignIn}>
               {t('landing.getStartedFreeCta')}
               <ArrowRight className="h-4 w-4 ml-2 transition-transform group-hover:translate-x-1" />
             </Button>

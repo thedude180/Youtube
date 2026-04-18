@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import type { Server } from "http";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth/index";
+import { setupAuth, registerAuthRoutes, registerSharedAuthRoutes } from "./replit_integrations/auth/index";
 import { storage } from "./storage";
 import { registerMap } from "./services/resilience-core";
 import { createLogger } from "./lib/logger";
@@ -117,12 +117,22 @@ registerCleanup("routesRateLimit", () => {
 
 export const routeIntervals: ReturnType<typeof setInterval>[] = [];
 
+const IS_DEV = !process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
-  registerAuthRoutes(app);
+  registerSharedAuthRoutes(app);
+
+  if (!IS_DEV) {
+    registerAuthRoutes(app);
+  }
+
+  app.get("/api/auth/mode", (_req, res) => {
+    res.json({ mode: IS_DEV ? "replit" : "oauth" });
+  });
 
   createAsyncSafeApp(app);
 

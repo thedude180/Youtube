@@ -301,6 +301,9 @@ export function registerAuthRoutes(app: Express): void {
     }
   });
 
+}
+
+export function registerSharedAuthRoutes(app: Express): void {
   app.get("/api/auth/user", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
