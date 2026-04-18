@@ -1173,6 +1173,7 @@ httpServer.listen(
     delay(16_000, () => {
       tokenBudget.ready.then(() => {
         startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
+        import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
         try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
         import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine"));
         import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine"));

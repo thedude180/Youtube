@@ -162,6 +162,14 @@ const injectionStats: InjectionCounter = {
 
 const MAX_RECENT_EVENTS = 100;
 
+// ── Injection-spike alerting ──────────────────────────────────────────────────
+// Configurable via environment variables so admins can tune without a code push.
+const SPIKE_THRESHOLD = parseInt(process.env.INJECTION_SPIKE_THRESHOLD ?? "5", 10);
+const SPIKE_WINDOW_MS = parseInt(process.env.INJECTION_SPIKE_WINDOW_MS ?? "300000", 10); // 5 min
+const SPIKE_COOLDOWN_MS = parseInt(process.env.INJECTION_SPIKE_COOLDOWN_MS ?? "1800000", 10); // 30 min
+let lastSpikeAlertAt = 0;
+// ─────────────────────────────────────────────────────────────────────────────
+
 const REDACT_EMAIL = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 const REDACT_TOKEN = /[a-zA-Z0-9_\-]{20,}/g;
 
@@ -182,6 +190,43 @@ export function getInjectionStats(): InjectionCounter {
     byUser: { ...injectionStats.byUser },
     recentEvents: injectionStats.recentEvents.slice(),
   };
+}
+
+export interface InjectionSpikeResult {
+  shouldAlert: boolean;
+  count: number;
+  windowMs: number;
+  threshold: number;
+  uniqueUsers: number;
+}
+
+/**
+ * checkInjectionSpike — call periodically (e.g. every 60s) to detect
+ * bursts of injection attempts. Returns shouldAlert=true at most once
+ * per SPIKE_COOLDOWN_MS interval so notifications aren't spammed.
+ */
+export function checkInjectionSpike(): InjectionSpikeResult {
+  const now = Date.now();
+  const cutoff = now - SPIKE_WINDOW_MS;
+
+  const windowEvents = injectionStats.recentEvents.filter(e => e.detectedAt >= cutoff);
+  const count = windowEvents.length;
+  const uniqueUsers = new Set(windowEvents.map(e => e.userId)).size;
+
+  const cooldownExpired = now - lastSpikeAlertAt > SPIKE_COOLDOWN_MS;
+  const shouldAlert = count >= SPIKE_THRESHOLD && cooldownExpired;
+
+  if (shouldAlert) {
+    lastSpikeAlertAt = now;
+    logger.warn(`[AIShield] Injection spike detected: ${count} attempts in ${Math.round(SPIKE_WINDOW_MS / 60_000)} minutes`, {
+      count,
+      threshold: SPIKE_THRESHOLD,
+      windowMs: SPIKE_WINDOW_MS,
+      uniqueUsers,
+    });
+  }
+
+  return { shouldAlert, count, windowMs: SPIKE_WINDOW_MS, threshold: SPIKE_THRESHOLD, uniqueUsers };
 }
 
 export interface SanitizeContext {
