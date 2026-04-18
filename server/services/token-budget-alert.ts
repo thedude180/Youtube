@@ -123,7 +123,8 @@ export async function checkAndAlertTokenBudget(
   _trimStaleAlerts();
   const key = `${engine}|${utcDay()}`;
   if (_alertedSet.has(key)) return;
-  _alertedSet.add(key);
+  // NOTE: do NOT add to _alertedSet here — only commit after a successful send
+  // so transient failures don't permanently suppress the day's alert.
 
   const pct = Math.round((used / cap) * 100);
   logger.warn(`[TokenBudgetAlert] ${engine} at ${pct}% (${used}/${cap}) — sending admin alert`);
@@ -139,8 +140,16 @@ export async function checkAndAlertTokenBudget(
     );
 
     const sent = results.filter(r => r.status === "fulfilled" && r.value).length;
-    logger.info(`[TokenBudgetAlert] Alert sent to ${sent}/${adminEmails.length} admin(s) for engine=${engine}`);
+    if (sent > 0) {
+      // Only mark as alerted once at least one email is confirmed delivered.
+      // If zero sends succeed, the next consumeBudget call will retry.
+      _alertedSet.add(key);
+      logger.info(`[TokenBudgetAlert] Alert sent to ${sent}/${adminEmails.length} admin(s) for engine=${engine}`);
+    } else {
+      logger.warn(`[TokenBudgetAlert] All sends failed for engine=${engine}; will retry on next token consumption`);
+    }
   } catch (err: any) {
     logger.error(`[TokenBudgetAlert] Failed to send alert for ${engine}: ${err?.message ?? err}`);
+    // Do not add to _alertedSet — allow retry on next call.
   }
 }
