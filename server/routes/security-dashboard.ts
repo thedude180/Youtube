@@ -11,7 +11,8 @@ import { securityEvents } from "@shared/schema";
 import { desc, eq, gte, and, count, sql, inArray } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, getInjectionStats, tokenBudget } from "../lib/ai-attack-shield";
+import { getLearningStats } from "../lib/threat-learning-engine";
 
 const logger = createLogger("security-dashboard");
 export function registerSecurityDashboardRoutes(app: Express) {
@@ -343,16 +344,17 @@ export function registerSecurityDashboardRoutes(app: Express) {
       const { getOpenAIClient } = await import("../lib/openai");
       const openai = getOpenAIClient();
 
-      const safeTitle = sanitizeForPrompt(title);
-      const safeDescription = sanitizeForPrompt(description || "");
-      const safeTags = sanitizeForPrompt(tags || "");
-      const safeCategory = sanitizeForPrompt(category || "");
+      const ctx = { userId, engine: "predict-performance" };
+      const safeTitle = sanitizeForPrompt(title, ctx);
+      const safeDescription = sanitizeForPrompt(description || "", ctx);
+      const safeTags = sanitizeForPrompt(tags || "", ctx);
+      const safeCategory = sanitizeForPrompt(category || "", ctx);
 
       const prompt = `Analyze this content and predict its performance. Return ONLY valid JSON.
 
 Title: ${safeTitle}
 ${safeDescription ? `Description: ${safeDescription}` : ""}
-Platform: ${sanitizeForPrompt(platform || "youtube")}
+Platform: ${sanitizeForPrompt(platform || "youtube", ctx)}
 ${safeTags ? `Tags: ${safeTags}` : ""}
 ${safeCategory ? `Category: ${safeCategory}` : ""}
 
@@ -524,6 +526,54 @@ Return JSON with these exact fields:
       res.json(predictions);
     } catch (err) {
       res.status(500).json({ error: "Failed to load predictions" });
+    }
+  });
+
+  app.get("/api/security/injection-stats", async (req: any, res) => {
+    try {
+      const userId = requireAdmin(req, res);
+      if (!userId) return;
+      const stats = getInjectionStats();
+      res.json({
+        total: stats.total,
+        byEngine: stats.byEngine,
+        byUser: stats.byUser,
+        recentEvents: stats.recentEvents.slice(0, 20),
+      });
+    } catch (err) {
+      logger.warn("[SecurityDashboard] Failed to fetch injection stats", { err });
+      res.status(500).json({ error: "Failed to load injection stats" });
+    }
+  });
+
+  app.get("/api/security/injection-summary", async (req: any, res) => {
+    try {
+      const userId = requireAdmin(req, res);
+      if (!userId) return;
+
+      const [stats, threatStats, budgetSnapshot] = await Promise.allSettled([
+        Promise.resolve(getInjectionStats()),
+        Promise.resolve(getLearningStats()),
+        tokenBudget.getSnapshot(),
+      ]);
+
+      res.json({
+        injectionAttempts: stats.status === "fulfilled"
+          ? {
+              total: stats.value.total,
+              topEngines: Object.entries(stats.value.byEngine)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5),
+              uniqueUsersAffected: Object.keys(stats.value.byUser).length,
+              lastDetectedAt: stats.value.recentEvents[0]?.detectedAt ?? null,
+            }
+          : null,
+        threatLearning: threatStats.status === "fulfilled" ? threatStats.value : null,
+        tokenBudget: budgetSnapshot.status === "fulfilled" ? budgetSnapshot.value : null,
+      });
+    } catch (err) {
+      logger.warn("[SecurityDashboard] Failed to fetch injection summary", { err });
+      res.status(500).json({ error: "Failed to load security summary" });
     }
   });
 }

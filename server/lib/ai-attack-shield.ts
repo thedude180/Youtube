@@ -136,6 +136,59 @@ function stripAdversarialChars(str: string): string {
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 }
 
+// ─── Injection attempt tracking ─────────────────────────────────────────────
+
+interface InjectionEvent {
+  userId: string;
+  engine: string;
+  redactedInput: string;
+  patternsMatched: string[];
+  detectedAt: number;
+}
+
+interface InjectionCounter {
+  total: number;
+  byEngine: Record<string, number>;
+  byUser: Record<string, number>;
+  recentEvents: InjectionEvent[];
+}
+
+const injectionStats: InjectionCounter = {
+  total: 0,
+  byEngine: {},
+  byUser: {},
+  recentEvents: [],
+};
+
+const MAX_RECENT_EVENTS = 100;
+
+const REDACT_EMAIL = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+const REDACT_TOKEN = /[a-zA-Z0-9_\-]{20,}/g;
+
+function redactInput(input: string): string {
+  let preview = input
+    .substring(0, 120)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(REDACT_EMAIL, "[EMAIL]")
+    .replace(REDACT_TOKEN, "[TOKEN]");
+  return input.length > 120 ? `${preview}…` : preview;
+}
+
+export function getInjectionStats(): InjectionCounter {
+  return {
+    total: injectionStats.total,
+    byEngine: { ...injectionStats.byEngine },
+    byUser: { ...injectionStats.byUser },
+    recentEvents: injectionStats.recentEvents.slice(),
+  };
+}
+
+export interface SanitizeContext {
+  userId?: string;
+  engine?: string;
+}
+
 /**
  * sanitizeForPrompt — call this on ANY user-provided string before
  * interpolating it into an AI prompt in background engines.
@@ -143,14 +196,55 @@ function stripAdversarialChars(str: string): string {
  * Strips zero-width / adversarial chars, neutralises injection patterns,
  * and truncates to a safe length so rogue titles/descriptions cannot
  * hijack the model's instructions.
+ *
+ * Pass an optional `context` to enable detection logging (userId + engine).
  */
-export function sanitizeForPrompt(input: unknown, maxLength = 2000): string {
+export function sanitizeForPrompt(input: unknown, maxLengthOrContext: number | SanitizeContext = 2000, maxLengthIfContext = 2000): string {
+  const ctx: SanitizeContext = typeof maxLengthOrContext === "object" ? maxLengthOrContext : {};
+  const maxLength: number = typeof maxLengthOrContext === "number" ? maxLengthOrContext : maxLengthIfContext;
+
   if (typeof input === "number" || typeof input === "boolean") return String(input);
   if (typeof input !== "string") return "";
+
   let clean = stripAdversarialChars(input);
+  const matchedPatterns: string[] = [];
+
   for (const pattern of PROMPT_INJECTION_PATTERNS) {
+    if (pattern.test(clean)) {
+      matchedPatterns.push(pattern.source);
+    }
     clean = clean.replace(pattern, "[FILTERED]");
   }
+
+  if (matchedPatterns.length > 0) {
+    const userId = ctx.userId ?? "unknown";
+    const engine = ctx.engine ?? "unknown";
+    const redacted = redactInput(input);
+
+    logger.warn(`[AIShield] Prompt injection detected in sanitizeForPrompt`, {
+      userId,
+      engine,
+      redactedInput: redacted,
+      patternsMatched: matchedPatterns.length,
+    });
+
+    injectionStats.total += 1;
+    injectionStats.byEngine[engine] = (injectionStats.byEngine[engine] ?? 0) + 1;
+    injectionStats.byUser[userId] = (injectionStats.byUser[userId] ?? 0) + 1;
+
+    const event: InjectionEvent = {
+      userId,
+      engine,
+      redactedInput: redacted,
+      patternsMatched: matchedPatterns,
+      detectedAt: Date.now(),
+    };
+    injectionStats.recentEvents.unshift(event);
+    if (injectionStats.recentEvents.length > MAX_RECENT_EVENTS) {
+      injectionStats.recentEvents.length = MAX_RECENT_EVENTS;
+    }
+  }
+
   return clean.substring(0, maxLength);
 }
 
