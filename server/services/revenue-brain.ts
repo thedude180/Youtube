@@ -74,9 +74,9 @@ export class RevenueBrain {
       const basePrompt = `Analyze the following revenue and channel data to generate a 24-hour revenue optimization strategy.
 
 DATA:
-- Channels: ${JSON.stringify(channelData)}
-- Recent Streams: ${JSON.stringify(streamData)}
-- 30-Day Revenue: ${JSON.stringify(revenueSummary)}
+- Channels: ${JSON.stringify(sanitizeObjectForPrompt(channelData))}
+- Recent Streams: ${JSON.stringify(sanitizeObjectForPrompt(streamData))}
+- 30-Day Revenue: ${JSON.stringify(sanitizeObjectForPrompt(revenueSummary))}
 
 TASKS:
 1. Identify missing revenue opportunities (sponsorships, merch, digital products).

@@ -54,7 +54,7 @@ export async function scanForCompoundingOpportunities(userId: string) {
 Analyze these videos and identify the best candidates for content compounding (re-promotion through metadata refresh):
 
 Videos:
-${JSON.stringify(videoSummaries, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(videoSummaries), null, 2)}
 
 For each opportunity, determine:
 1. Which video could benefit from a refresh

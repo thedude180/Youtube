@@ -279,7 +279,7 @@ VIDEO: "${sanitizeForPrompt(title)}" (${sanitizeForPrompt(gameName)})
 Total duration: ${Math.round(totalDurationSec / 60)} minutes
 
 Highest-intensity minute windows detected by audio energy and scene change analysis:
-${JSON.stringify(minuteData, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(minuteData), null, 2)}
 
 ${learningContext ? `CHANNEL LEARNING CONTEXT:\n${learningContext}\n` : ""}
 

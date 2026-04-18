@@ -231,12 +231,12 @@ async function generateOrganicCampaign(
   const prompt = `You are an elite autonomous content marketer managing a creator's entire marketing operation. Your role covers EVERY aspect of organic growth — no gaps, no missed opportunities.
 
 CHANNEL DATA:
-${JSON.stringify(intel.ytChannel || intel.channels[0] || {}, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(intel.ytChannel || intel.channels[0] || {}), null, 2)}
 
 CONNECTED PLATFORMS: ${sanitizeForPrompt(intel.connectedPlatforms.join(", "))}
 
 RECENT VIDEOS (${intel.recentVideos.length}):
-${JSON.stringify(intel.recentVideos.slice(0, 10), null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(intel.recentVideos.slice(0, 10)), null, 2)}
 
 TOP KEYWORDS: ${intel.topKeywords.map(k => `${sanitizeForPrompt(k.keyword)} (score:${sanitizeForPrompt(k.score)})`).join(", ")}
 
@@ -377,11 +377,11 @@ async function generatePaidAdCampaign(
 
 IMPORTANT: You are creating STRATEGY and AD COPY only. The creator will set up the actual ads on the ad platform manually or through their ad account. Your job is to provide the complete blueprint.
 
-CHANNEL: ${JSON.stringify(intel.ytChannel || intel.channels[0] || {})}
+CHANNEL: ${JSON.stringify(sanitizeObjectForPrompt(intel.ytChannel || intel.channels[0] || {}))}
 MONTHLY AD BUDGET: $${budget}
 ENABLED AD PLATFORMS: ${enabledAdPlatforms.join(", ")}
-TARGET AUDIENCE: ${JSON.stringify(targetAudience)}
-TOP PERFORMING VIDEOS: ${JSON.stringify(topVideos)}
+TARGET AUDIENCE: ${JSON.stringify(sanitizeObjectForPrompt(targetAudience))}
+TOP PERFORMING VIDEOS: ${JSON.stringify(sanitizeObjectForPrompt(topVideos))}
 TOP KEYWORDS: ${intel.topKeywords.map(k => k.keyword).join(", ")}
 CONNECTED PLATFORMS: ${sanitizeForPrompt(intel.connectedPlatforms.join(", "))}
 

@@ -69,7 +69,7 @@ When a user submits feedback about an improvement:
 4. Check if similar issues have been reported before
 
 Recent feedback for context:
-${JSON.stringify(recentCategories, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(recentCategories), null, 2)}
 
 Respond in JSON format only.`,
         },

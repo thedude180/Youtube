@@ -163,7 +163,7 @@ Be precise and current. If a policy was recently updated (2024-2026), note that.
             content: `Provide the latest ${policyConfig.name} compliance rules for these policy areas:
 ${policyConfig.policyAreas.map(a => `- ${a}`).join("\n")}
 
-Current platform limits we enforce: ${JSON.stringify(limits, null, 2)}
+Current platform limits we enforce: ${JSON.stringify(sanitizeObjectForPrompt(limits), null, 2)}
 
 Existing rules we have:
 ${existingRuleSummary}

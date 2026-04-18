@@ -129,7 +129,7 @@ Response must be in JSON format:
 Type: ${anomaly.type}
 Description: ${anomaly.description}
 Recurring: ${recurrence.recurring} (${recurrence.count} occurrences)
-Context: ${JSON.stringify({ healthStatus, anomalyData: anomaly.data })}`
+Context: ${JSON.stringify(sanitizeObjectForPrompt({ healthStatus, anomalyData: anomaly.data }))}`
       );
 
       if (!aiResponse) {

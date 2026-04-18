@@ -223,7 +223,7 @@ Recent improvements made:
 ${recentImprovements.map(i => `- ${sanitizeForPrompt(i.improvementType)}: ${(i.afterState || "").substring(0, 100)}`).join("\n") || "No recent improvements"}
 
 Performance data:
-${JSON.stringify(performanceData, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(performanceData), null, 2)}
 
 YOUR MISSION: Find ways to make this system BETTER. Think beyond incremental — look for breakthrough improvements.
 

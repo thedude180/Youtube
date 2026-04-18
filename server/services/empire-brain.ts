@@ -303,7 +303,7 @@ async function crossPollinateInsights(userId: string, businesses: any[]): Promis
       model: CLAUDE_MODELS.opus,
       prompt: `You manage a business empire with ${businesses.length} businesses:
 
-${JSON.stringify(businessSummaries, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(businessSummaries), null, 2)}
 
 Find cross-business synergies and insights that can be transferred between them.
 Look for: shared audiences, content repurposing, cross-promotion, shared learnings, resource optimization.
@@ -427,7 +427,7 @@ export async function adaptBusinessToIndustry(businessId: number, userId: string
       model: CLAUDE_MODELS.opus,
       prompt: `Analyze recent operations for "${business[0].name}" (${business[0].industry} / ${business[0].businessType}) and suggest adaptations.
 
-Recent operations: ${JSON.stringify(recentOps.slice(0, 10).map(o => ({ type: o.operationType, status: o.status, metrics: o.metrics })))}
+Recent operations: ${JSON.stringify(sanitizeObjectForPrompt(recentOps.slice(0, 10).map(o => ({ type: o.operationType, status: o.status, metrics: o.metrics }))))}
 
 What should the AI focus on differently? What's working? What needs changing?
 
@@ -657,7 +657,7 @@ Current state:
 - Overall readiness score: ${overallScore}/100
 - Verdict: ${overallVerdict}
 
-Pillar scores: ${JSON.stringify(pillars.map(p => ({ name: p.name, score: p.score, status: p.status })))}
+Pillar scores: ${JSON.stringify(sanitizeObjectForPrompt(pillars.map(p => ({ name: p.name, score: p.score, status: p.status }))))}
 
 Be specific, actionable, and encouraging. Mention the single best next move.`,
       maxTokens: 800,

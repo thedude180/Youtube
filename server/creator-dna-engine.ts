@@ -37,7 +37,7 @@ export async function buildDnaProfile(userId: string) {
   const prompt = `You are a creator DNA analyst. Deeply analyze this creator's content to extract their unique creative fingerprint - their style, voice, humor, energy, and patterns.
 
 CONTENT SAMPLES (${contentSamples.length} pieces):
-${JSON.stringify(contentSamples, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(contentSamples), null, 2)}
 
 Build a comprehensive DNA profile with:
 
@@ -191,15 +191,15 @@ export async function updateDnaFromContent(userId: string, content: any) {
   const prompt = `You are a creator DNA analyst. A creator has published new content. Update their DNA profile based on this new data point.
 
 CURRENT DNA PROFILE:
-- Style Vector: ${JSON.stringify(existing.styleVector)}
-- Voice Patterns: ${JSON.stringify(existing.voicePatterns)}
-- Humor Profile: ${JSON.stringify(existing.humorProfile)}
-- Energy Map: ${JSON.stringify(existing.energyMap)}
-- Catchphrases: ${JSON.stringify(existing.catchphrases)}
+- Style Vector: ${JSON.stringify(sanitizeObjectForPrompt(existing.styleVector))}
+- Voice Patterns: ${JSON.stringify(sanitizeObjectForPrompt(existing.voicePatterns))}
+- Humor Profile: ${JSON.stringify(sanitizeObjectForPrompt(existing.humorProfile))}
+- Energy Map: ${JSON.stringify(sanitizeObjectForPrompt(existing.energyMap))}
+- Catchphrases: ${JSON.stringify(sanitizeObjectForPrompt(existing.catchphrases))}
 - Sample Count: ${existing.sampleCount}
 
 NEW CONTENT:
-${JSON.stringify(content)}
+${JSON.stringify(sanitizeObjectForPrompt(content))}
 
 Incrementally adjust the profile. Small refinements only - don't overhaul based on one piece of content. Return updated values:
 
@@ -263,13 +263,13 @@ export async function generateInCreatorVoice(userId: string, prompt: string) {
   if (profile) {
     voiceContext = `
 CREATOR DNA PROFILE:
-- Style: ${JSON.stringify(profile.styleVector)}
-- Voice: ${JSON.stringify(profile.voicePatterns)}
-- Humor: ${JSON.stringify(profile.humorProfile)}
-- Energy: ${JSON.stringify(profile.energyMap)}
-- Catchphrases they use: ${JSON.stringify(profile.catchphrases)}
-- Phrases they NEVER use: ${JSON.stringify(profile.bannedPhrases)}
-- Content themes: ${JSON.stringify(profile.contentThemes)}
+- Style: ${JSON.stringify(sanitizeObjectForPrompt(profile.styleVector))}
+- Voice: ${JSON.stringify(sanitizeObjectForPrompt(profile.voicePatterns))}
+- Humor: ${JSON.stringify(sanitizeObjectForPrompt(profile.humorProfile))}
+- Energy: ${JSON.stringify(sanitizeObjectForPrompt(profile.energyMap))}
+- Catchphrases they use: ${JSON.stringify(sanitizeObjectForPrompt(profile.catchphrases))}
+- Phrases they NEVER use: ${JSON.stringify(sanitizeObjectForPrompt(profile.bannedPhrases))}
+- Content themes: ${JSON.stringify(sanitizeObjectForPrompt(profile.contentThemes))}
 
 CRITICAL RULES:
 - Match their exact tone, vocabulary level, and sentence structure

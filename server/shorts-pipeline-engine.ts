@@ -796,7 +796,7 @@ Source Video: "${sanitizeForPrompt(sourceVideo.title)}"
 Channel Niche: PS5 Gaming, No Commentary
 
 Clips to optimize:
-${JSON.stringify(clipSummary, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(clipSummary), null, 2)}
 
 SEO Rules (STRICT):
 - Titles must be DESCRIPTIVE and SPECIFIC — tell viewers exactly what happens

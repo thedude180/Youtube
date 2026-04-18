@@ -28,7 +28,7 @@ export async function runStyleScan(userId: string, channelId: number): Promise<S
   const prompt = `You are a writing style analyst. Analyze these video titles, descriptions, and tags from a single creator and identify their unique writing style.
 
 Content samples:
-${JSON.stringify(contentSamples, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(contentSamples), null, 2)}
 
 Provide your analysis as JSON with exactly these fields:
 {

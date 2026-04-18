@@ -349,10 +349,10 @@ CREATOR INFO:
 ${creatorCtx || "New creator"}
 
 CONNECTED CHANNELS:
-${JSON.stringify(channelInfo, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(channelInfo), null, 2)}
 
 AVAILABLE PROGRAMS AND STATUS:
-${JSON.stringify(programSummary, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(programSummary), null, 2)}
 
 For each program that the creator hasn't qualified for yet, provide specific strategies to reach eligibility. For programs they qualify for, provide optimization strategies.
 

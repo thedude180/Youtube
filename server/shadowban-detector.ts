@@ -124,7 +124,7 @@ Expected Reach: ${sanitizeForPrompt(anomaly.expectedReach)}
 Actual Reach: ${sanitizeForPrompt(anomaly.actualReach)}
 Deviation: ${sanitizeForPrompt(anomaly.deviationPct)}%
 Shadow Ban Suspected: ${sanitizeForPrompt(anomaly.isShadowBan)}
-Evidence: ${JSON.stringify(anomaly.evidence)}
+Evidence: ${JSON.stringify(sanitizeObjectForPrompt(anomaly.evidence))}
 
 Create a detailed recovery plan. Return JSON:
 {

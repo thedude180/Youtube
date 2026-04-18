@@ -173,7 +173,7 @@ export async function analyzeVideoPerformanceAndLearn(userId: string, videoId: n
 
     const existingResearch = await getYouTubeResearch(userId);
     const nicheContext = existingResearch
-      ? `\nNICHE CONTEXT:\n${JSON.stringify(existingResearch.nicheAnalysis || {})}`
+      ? `\nNICHE CONTEXT:\n${JSON.stringify(sanitizeObjectForPrompt(existingResearch.nicheAnalysis || {}))}`
       : "";
 
     const stats = video.metadata?.stats;
@@ -282,7 +282,7 @@ PREVIOUS RESEARCH HIGHLIGHTS: ${existing ? JSON.stringify({
   }) : "No previous research"}
 
 CREATOR'S ACTUAL VIDEO PERFORMANCE (most recent ${videoSummary.length} videos):
-${JSON.stringify(videoSummary)}
+${JSON.stringify(sanitizeObjectForPrompt(videoSummary))}
 
 Based on how their videos are actually performing vs the niche benchmarks, update the research with PERSONALIZED insights.
 

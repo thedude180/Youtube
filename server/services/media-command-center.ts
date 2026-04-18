@@ -345,7 +345,7 @@ CHANNEL HEALTH:
 - Strike risk: ${sanitizeForPrompt(health.strikeRisk.level)} (${health.strikeRisk.factors.join(", ") || "none"})
 
 CURRENT TOS RULES:
-${JSON.stringify(rules, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(rules), null, 2)}
 
 Generate 3 actionable strategic directives to improve channel performance while staying 100% TOS compliant.
 Focus on: growth, revenue, and compliance.

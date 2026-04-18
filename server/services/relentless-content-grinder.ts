@@ -235,7 +235,7 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
 VIDEO: "${sanitizeForPrompt(video.title, 200)}" (${sanitizeForPrompt(gameName, 100)})
 Duration: ${Math.floor(durSec / 60)} minutes
 Already extracted clips: ${existingClips.length}
-Already covered time ranges: ${JSON.stringify(coveredRanges.slice(0, 20))}
+Already covered time ranges: ${JSON.stringify(sanitizeObjectForPrompt(coveredRanges.slice(0, 20)))}
 
 Find moments in the UNCOVERED time ranges that can become viral Shorts or clips.
 

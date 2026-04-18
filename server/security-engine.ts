@@ -367,7 +367,7 @@ export async function learnFromAttack(eventId: number) {
         },
         {
           role: "user",
-          content: `Analyze this security event and create a defense rule:\n\nEvent Type: ${event.eventType}\nSeverity: ${event.severity}\nEndpoint: ${event.endpoint}\nIP: ${event.ipAddress}\nUser Agent: ${event.userAgent}\nDetails: ${JSON.stringify(event.details)}\nBlocked: ${event.blocked}`,
+          content: `Analyze this security event and create a defense rule:\n\nEvent Type: ${event.eventType}\nSeverity: ${event.severity}\nEndpoint: ${event.endpoint}\nIP: ${event.ipAddress}\nUser Agent: ${event.userAgent}\nDetails: ${JSON.stringify(sanitizeObjectForPrompt(event.details))}\nBlocked: ${event.blocked}`,
         },
       ],
       max_completion_tokens: 4000,

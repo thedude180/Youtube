@@ -106,7 +106,7 @@ CURRENT DATA (last 6 months):
 - Total revenue: $${totalRevenue.toFixed(2)} (${verificationRate.toFixed(0)}% verified, ${(100 - verificationRate).toFixed(0)}% estimated)
 - Verified revenue: $${verifiedRevenue.toFixed(2)}
 - Estimated (unverified) revenue: $${estimatedRevenue.toFixed(2)}
-- Revenue by source: ${JSON.stringify(revenueBySource)}
+- Revenue by source: ${JSON.stringify(sanitizeObjectForPrompt(revenueBySource))}
 - Monthly average: $${(totalRevenue / 6).toFixed(2)}
 - Current subscribers: ${latestMetrics?.totalSubscribers || "unknown"}
 - Current monthly views: ${latestMetrics?.totalViews || "unknown"}
@@ -344,7 +344,7 @@ export async function generateInvoice(userId: string, sponsorDealId: number) {
 Brand: "${sanitizeForPrompt(deal.brandName || "Unknown Brand")}"
 Deal Value: $${deal.dealValue || 0}
 Deal Type: ${"sponsorship"}
-Deliverables: ${JSON.stringify(deal.deliverables || [])}
+Deliverables: ${JSON.stringify(sanitizeObjectForPrompt(deal.deliverables || []))}
 Notes: ${sanitizeForPrompt(deal.notes || "None")}
 
 Generate invoice details as JSON:
@@ -434,7 +434,7 @@ DEAL DETAILS:
 - Brand: "${sanitizeForPrompt(deal.brandName || "Unknown")}"
 - Offered Value: $${deal.dealValue || 0}
 - Deal Type: ${"sponsorship"}
-- Deliverables: ${JSON.stringify(deal.deliverables || [])}
+- Deliverables: ${JSON.stringify(sanitizeObjectForPrompt(deal.deliverables || []))}
 - Timeline: ${deal.endDate ? new Date(deal.endDate).toLocaleDateString() : "No deadline"}
 
 CREATOR METRICS:

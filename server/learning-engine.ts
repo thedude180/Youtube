@@ -729,7 +729,7 @@ export async function getContentDnaProfile(userId: string): Promise<{
     const prompt = `Analyze this creator's content and build their Content DNA profile.
 
 VIDEOS (${userVideos.length} total):
-${JSON.stringify(videoSummary, null, 1)}
+${JSON.stringify(sanitizeObjectForPrompt(videoSummary), null, 1)}
 
 STYLE PROFILE:
 ${styleSummary || "Not analyzed yet"}

@@ -33,8 +33,8 @@ export async function scanForTrends(userId: string, platform?: string) {
   const prompt = `You are an expert trend analyst for content creators. Analyze the creator's content landscape and predict 5-8 upcoming trends they should capitalize on.
 
 CREATOR CONTEXT:
-Channels: ${JSON.stringify(channelContext)}
-Recent content: ${JSON.stringify(contentSummary.slice(0, 30))}
+Channels: ${JSON.stringify(sanitizeObjectForPrompt(channelContext))}
+Recent content: ${JSON.stringify(sanitizeObjectForPrompt(contentSummary.slice(0, 30)))}
 ${platform ? `Focus platform: ${platform}` : "Analyze across all platforms"}
 
 For each trend, provide realistic data including:
@@ -162,7 +162,7 @@ TREND:
 - Days Until Peak: ${trend.predictedPeakAt ? Math.ceil((new Date(trend.predictedPeakAt).getTime() - Date.now()) / 86400000) : "unknown"}
 - Confidence: ${(trend.confidence || 0) * 100}%
 - Velocity: ${trend.velocity}
-- Signals: ${JSON.stringify(trend.signals)}
+- Signals: ${JSON.stringify(sanitizeObjectForPrompt(trend.signals))}
 
 For each content idea provide:
 - Title (click-worthy, platform-optimized)

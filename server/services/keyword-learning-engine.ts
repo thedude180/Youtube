@@ -42,7 +42,7 @@ export async function analyzeChannelKeywords(userId: string) {
   const prompt = `You are a YouTube SEO analyst. Analyze these videos and their performance to identify which keywords and topics are driving the best results.
 
 VIDEOS DATA:
-${JSON.stringify(videoData, null, 2)}
+${JSON.stringify(sanitizeObjectForPrompt(videoData), null, 2)}
 
 Analyze patterns in titles, tags, and descriptions. Identify:
 1. Which keywords appear in the highest-performing videos
