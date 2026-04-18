@@ -230,7 +230,7 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
+        sql`${channels.accessToken} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) {
@@ -281,7 +281,7 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
     const ytChannels = await db.select().from(channels)
       .where(and(
         eq(channels.platform, "youtube"),
-        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
+        sql`${channels.accessToken} IS NOT NULL`,
         sql`${channels.userId} IS NOT NULL`,
       ));
 
@@ -424,7 +424,7 @@ export async function regenerateThumbnailsForUnderperformers(userId: string): Pr
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
+        sql`${channels.accessToken} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) return 0;

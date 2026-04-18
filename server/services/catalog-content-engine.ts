@@ -152,7 +152,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
         eq(videos.channelId, channel.id),
         eq(videos.platform, "youtube"),
       ))
-      .orderBy(desc(sql`COALESCE((${sanitizeForPrompt(videos.metadata)}->>'viewCount')::int, 0)`))
+      .orderBy(desc(sql`COALESCE((${videos.metadata}->>'viewCount')::int, 0)`))
       .limit(50);
 
     if (allVideos.length === 0) {

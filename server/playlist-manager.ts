@@ -403,7 +403,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
       .where(and(
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
-        sql`${sanitizeForPrompt(channels.accessToken)} IS NOT NULL`,
+        sql`${channels.accessToken} IS NOT NULL`,
       ));
 
     if (ytChannels.length === 0) return { assigned: 0, playlistsCreated: 0 };
@@ -461,7 +461,7 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
         });
 
         await db.update(managedPlaylists).set({
-          videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
+          videoCount: sql`${managedPlaylists.videoCount} + 1`,
           lastUpdatedAt: new Date(),
         }).where(eq(managedPlaylists.id, mapping.playlistId));
 
@@ -590,7 +590,7 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
     }
 
     await db.update(managedPlaylists).set({
-      videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
+      videoCount: sql`${managedPlaylists.videoCount} + 1`,
       lastUpdatedAt: new Date(),
     }).where(eq(managedPlaylists.id, mapping.playlistId));
 

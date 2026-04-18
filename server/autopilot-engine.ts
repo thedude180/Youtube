@@ -289,7 +289,7 @@ async function getAutopilotDailyCount(userId: string): Promise<number> {
     .where(and(
       eq(autopilotQueue.userId, userId),
       eq(autopilotQueue.status, "scheduled"),
-      sql`${sanitizeForPrompt(autopilotQueue.targetPlatform)} != 'youtube'`,
+      sql`${autopilotQueue.targetPlatform} != 'youtube'`,
       gte(autopilotQueue.scheduledAt, todayStart),
       lte(autopilotQueue.scheduledAt, todayEnd),
     ));
@@ -706,7 +706,7 @@ export async function processCommentResponses(userId: string) {
 
       const existing = await db.select({ id: commentResponses.id }).from(commentResponses)
         .where(
-          sql`${commentResponses.userId} = ${userId} AND ${sanitizeForPrompt(commentResponses.metadata)}->>'commentId' = ${sanitizeForPrompt(comment.commentId)}`
+          sql`${commentResponses.userId} = ${userId} AND ${commentResponses.metadata}->>'commentId' = ${comment.commentId}`
         )
         .limit(1);
 
@@ -1010,7 +1010,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
         const existingClips = await db.select().from(videos)
           .where(and(
             eq(videos.channelId, ytChannel.id),
-            sql`${sanitizeForPrompt(videos.metadata)}->>'youtubeId' = ${sanitizeForPrompt(uploadResult.youtubeId)}`,
+            sql`${videos.metadata}->>'youtubeId' = ${uploadResult.youtubeId}`,
           ))
           .limit(1);
         const alreadyExists = existingClips[0];
@@ -1285,7 +1285,7 @@ export async function flushQueueToAsap(): Promise<number> {
       .where(and(
         eq(autopilotQueue.status, "failed"),
         eq(autopilotQueue.type, "auto-clip" as any),
-        sql`${sanitizeForPrompt(autopilotQueue.errorMessage)} ILIKE '%yt_shorts_duration%' OR ${sanitizeForPrompt(autopilotQueue.errorMessage)} ILIKE '%Shorts must be 60 seconds%'`,
+        sql`${autopilotQueue.errorMessage} ILIKE '%yt_shorts_duration%' OR ${autopilotQueue.errorMessage} ILIKE '%Shorts must be 60 seconds%'`,
       ));
 
     if (falselyBlocked.length > 0) {
@@ -1297,7 +1297,7 @@ export async function flushQueueToAsap(): Promise<number> {
             status: "scheduled",
             scheduledAt: asapTime,
             errorMessage: null,
-            metadata: sql`${sanitizeForPrompt(autopilotQueue.metadata)} - 'complianceBlocked' - 'violations'`,
+            metadata: sql`${autopilotQueue.metadata} - 'complianceBlocked' - 'violations'`,
           })
           .where(eq(autopilotQueue.id, post.id));
       }));
@@ -1706,7 +1706,7 @@ export async function getAutopilotStats(userId: string) {
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${sanitizeForPrompt(autopilotQueue.status)} IN ('publishing', 'processing', 'generating', 'queued')`
+      sql`${autopilotQueue.status} IN ('publishing', 'processing', 'generating', 'queued')`
     ));
 
   const [commentCount] = await db

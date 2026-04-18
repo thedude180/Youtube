@@ -478,7 +478,7 @@ export async function getCreatorVideosCreated(userId: string): Promise<number> {
       .from(aiResults)
       .where(and(
         eq(aiResults.userId, userId),
-        sql`${sanitizeForPrompt(aiResults.featureKey)} LIKE 'video-creation-%'`
+        sql`${aiResults.featureKey} LIKE 'video-creation-%'`
       ));
     return Number(result[0]?.count) || 0;
   } catch {

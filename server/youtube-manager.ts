@@ -125,7 +125,7 @@ export async function addToPlaylist(playlistId: number, videoId: number, positio
 
     await db.update(managedPlaylists)
       .set({
-        videoCount: sql`${sanitizeForPrompt(managedPlaylists.videoCount)} + 1`,
+        videoCount: sql`${managedPlaylists.videoCount} + 1`,
         lastUpdatedAt: new Date(),
       })
       .where(eq(managedPlaylists.id, playlistId));

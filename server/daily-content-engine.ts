@@ -834,11 +834,11 @@ export async function runSingleBatchForUser(userId: string): Promise<{ didWork: 
     const dayOffset = await getNextAvailableDayOffset(userId);
 
     const existingBatches = await db
-      .select({ count: sql<number>`count(DISTINCT (${sanitizeForPrompt(autopilotQueue.metadata)}->>'batchNumber'))::int` })
+      .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.userId, userId),
-        sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+        sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
       ));
 
     const batchNumber = (existingBatches[0]?.count || 0) + 1;
@@ -978,11 +978,11 @@ export async function runDailyContentGeneration(): Promise<void> {
           const dayOffset = await getNextAvailableDayOffset(userId);
 
           const existingBatches = await db
-            .select({ count: sql<number>`count(DISTINCT (${sanitizeForPrompt(autopilotQueue.metadata)}->>'batchNumber'))::int` })
+            .select({ count: sql<number>`count(DISTINCT (${autopilotQueue.metadata}->>'batchNumber'))::int` })
             .from(autopilotQueue)
             .where(and(
               eq(autopilotQueue.userId, userId),
-              sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
+              sql`${autopilotQueue.metadata}->>'sourceStreamId' = ${String(streamData.stream.id)}`,
             ));
 
           const batchNumber = (existingBatches[0]?.count || 0) + 1;
@@ -1137,7 +1137,7 @@ export async function getStreamExhaustStatus(userId: string): Promise<{
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${sanitizeForPrompt(autopilotQueue.metadata)}->>'sourceStreamId' IS NOT NULL`,
+      sql`${autopilotQueue.metadata}->>'sourceStreamId' IS NOT NULL`,
     ));
 
   return {

@@ -81,7 +81,7 @@ async function getLongTermMemory(userId: string) {
         .limit(10),
       db.select().from(learningInsights)
         .where(eq(learningInsights.userId, userId))
-        .orderBy(desc(sql`${sanitizeForPrompt(learningInsights.confidence)} * COALESCE(${sanitizeForPrompt(learningInsights.sampleSize)}, 1)`))
+        .orderBy(desc(sql`${learningInsights.confidence} * COALESCE(${learningInsights.sampleSize}, 1)`))
         .limit(30),
     ]);
     return {
@@ -260,7 +260,7 @@ export async function getLearningContext(userId: string): Promise<string> {
     const [insights, dna, styleMemory, youtubeContext] = await Promise.all([
       db.select().from(learningInsights)
         .where(eq(learningInsights.userId, userId))
-        .orderBy(desc(sql`${sanitizeForPrompt(learningInsights.confidence)} * COALESCE(${sanitizeForPrompt(learningInsights.sampleSize)}, 1)`))
+        .orderBy(desc(sql`${learningInsights.confidence} * COALESCE(${learningInsights.sampleSize}, 1)`))
         .limit(15),
       db.select().from(contentDnaProfiles)
         .where(eq(contentDnaProfiles.userId, userId))

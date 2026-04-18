@@ -333,7 +333,7 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
     const existingRule = await db.select({ id: complianceRules.id }).from(complianceRules)
       .where(and(
         eq(complianceRules.platform, change.platform),
-        sql`${sanitizeForPrompt(complianceRules.ruleName)} ILIKE ${`%${change.area.substring(0, 30)}%`}`,
+        sql`${complianceRules.ruleName} ILIKE ${`%${change.area.substring(0, 30)}%`}`,
       ))
       .limit(1);
 
@@ -371,7 +371,7 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
       const notifTitle = `⚠️ ${change.platform.toUpperCase()} Policy Change: ${sanitizeForPrompt(change.area)}`;
       const existingNotif = await db.select({ id: notifications.id }).from(notifications)
         .where(and(
-          sql`${sanitizeForPrompt(notifications.title)} ILIKE ${`%Policy Change%`}`,
+          sql`${notifications.title} ILIKE ${`%Policy Change%`}`,
           gte(notifications.createdAt, oneDayAgo),
         ))
         .limit(1);

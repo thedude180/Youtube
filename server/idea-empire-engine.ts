@@ -1609,7 +1609,7 @@ export async function getVideoCreations(userId: string) {
     .from(aiResults)
     .where(and(
       eq(aiResults.userId, userId),
-      sql`${sanitizeForPrompt(aiResults.featureKey)} LIKE 'video-creation-%'`
+      sql`${aiResults.featureKey} LIKE 'video-creation-%'`
     ))
     .orderBy(desc(aiResults.createdAt))
     .limit(20);

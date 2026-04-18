@@ -76,7 +76,7 @@ async function recordHeartbeat(engineName: string, status: string, durationMs?: 
         status,
         lastRunAt: new Date(),
         lastDurationMs: durationMs || null,
-        failureCount: error ? sql`${sanitizeForPrompt(engineHeartbeats.failureCount)} + 1` : 0,
+        failureCount: error ? sql`${engineHeartbeats.failureCount} + 1` : 0,
         lastError: error || null,
       }).where(eq(engineHeartbeats.engineName, engineName));
     } else {

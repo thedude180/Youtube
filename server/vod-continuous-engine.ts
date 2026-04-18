@@ -51,7 +51,7 @@ async function getAlreadyQueuedVideoIds(userId: string): Promise<Set<number>> {
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${sanitizeForPrompt(autopilotQueue.type)} IN ('vod-long-form', 'vod-short', 'vod-shorts-upload')`,
+      sql`${autopilotQueue.type} IN ('vod-long-form', 'vod-short', 'vod-shorts-upload')`,
       gte(autopilotQueue.createdAt, new Date(Date.now() - 7 * 86400_000)),
     ));
   return new Set(queued.map(q => q.sourceVideoId).filter(Boolean) as number[]);
@@ -65,7 +65,7 @@ async function getTodayUploadCount(userId: string, type: "long" | "short"): Prom
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      sql`${sanitizeForPrompt(autopilotQueue.type)} = ${queueType}`,
+      sql`${autopilotQueue.type} = ${queueType}`,
       gte(autopilotQueue.createdAt, midnight),
     ));
   return Number(rows[0]?.count ?? 0);

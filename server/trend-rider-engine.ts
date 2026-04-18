@@ -233,8 +233,8 @@ export async function updateTrendLifecycles(): Promise<void> {
         .from(streams)
         .where(and(
           eq(streams.userId, override.userId),
-          sql`(${sanitizeForPrompt(streams.title)} ILIKE ${'%' + override.topic + '%'} OR ${sanitizeForPrompt(streams.category)} ILIKE ${'%' + override.topic + '%'})`,
-          sql`COALESCE(${sanitizeForPrompt(streams.startedAt)}, ${streams.createdAt}) > NOW() - INTERVAL '48 hours'`,
+          sql`(${streams.title} ILIKE ${'%' + override.topic + '%'} OR ${streams.category} ILIKE ${'%' + override.topic + '%'})`,
+          sql`COALESCE(${streams.startedAt}, ${streams.createdAt}) > NOW() - INTERVAL '48 hours'`,
         ));
 
       if ((recentStreams[0]?.count || 0) === 0 && ageDays >= 3) {
@@ -292,7 +292,7 @@ export async function getTrendStatus(userId: string): Promise<{
     .where(and(
       eq(trendOverrides.userId, userId),
       eq(trendOverrides.status, "ended"),
-      sql`${sanitizeForPrompt(trendOverrides.endedAt)} > NOW() - INTERVAL '30 days'`,
+      sql`${trendOverrides.endedAt} > NOW() - INTERVAL '30 days'`,
     ))
     .orderBy(desc(trendOverrides.endedAt))
     .limit(5);

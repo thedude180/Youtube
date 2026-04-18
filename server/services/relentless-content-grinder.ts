@@ -11,6 +11,11 @@ const logger = createLogger("content-grinder");
 
 const GRIND_INTERVAL_MS = 45 * 60_000;
 
+// Track when the thumbnail-intelligence token budget was last exhausted per user.
+// If exhausted, skip all thumbnail research for that user for the rest of the day
+// to avoid hammering the budget check on every video in the loop.
+const thumbnailBudgetExhaustedAt: Map<string, number> = new Map();
+
 async function getOptimalClipScheduleTime(userId: string, queuePosition: number): Promise<Date> {
   try {
     const { getAudienceDrivenTime } = await import("../human-behavior-engine");
@@ -431,14 +436,27 @@ async function viralThumbnailRedesign(userId: string, video: any): Promise<boole
   const ctr = meta.ctr || 0;
   if (viewCount > 1000 && ctr > 6) return false;
 
+  // If the thumbnail-intelligence token budget was already exhausted this cycle,
+  // skip research for all remaining videos rather than hammering the check on each one.
+  const exhaustedAt = thumbnailBudgetExhaustedAt.get(userId) ?? 0;
+  if (Date.now() - exhaustedAt < 23 * 3600_000) return false;
+
   try {
     let researchNote = "";
     try {
-      const gameName = meta.gameName || meta.game || "PS5 Gameplay";
-      const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
-      const intel = await researchThumbnailsForGame(userId, gameName);
-      if (intel) {
-        researchNote = `Web-researched: ${intel.references.length} reference thumbnails studied`;
+      // Only attempt research when we have a real game name — avoid sending the generic
+      // "PS5 Gameplay" placeholder string to the AI for every untagged video.
+      const gameName = meta.gameName || meta.game || null;
+      if (gameName) {
+        const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
+        const intel = await researchThumbnailsForGame(userId, gameName);
+        if (intel) {
+          researchNote = `Web-researched: ${intel.references.length} reference thumbnails studied`;
+        } else {
+          // null return means budget exhausted — mark and stop for this cycle
+          thumbnailBudgetExhaustedAt.set(userId, Date.now());
+          return false;
+        }
       }
     } catch {}
 

@@ -596,8 +596,8 @@ async function executeStreamPipelineInBackground(
         const cleanTitle = sourceTitle.replace(/^\[VOD\]\s*/i, "").trim();
         const videoMatch = await db.select().from(videos)
           .where(and(
-            sql`(${sanitizeForPrompt(videos.title)} = ${cleanTitle} OR ${sanitizeForPrompt(videos.title)} = ${sourceTitle})`,
-            sql`${sanitizeForPrompt(videos.metadata)} IS NOT NULL`,
+            sql`(${videos.title} = ${cleanTitle} OR ${videos.title} = ${sourceTitle})`,
+            sql`${videos.metadata} IS NOT NULL`,
           ))
           .orderBy(desc(videos.createdAt))
           .limit(1);
@@ -776,7 +776,7 @@ export function registerDualPipelineRoutes(app: Express) {
     const active = await db.select().from(streamPipelines)
       .where(and(
         eq(streamPipelines.userId, userId),
-        sql`${sanitizeForPrompt(streamPipelines.status)} IN ('processing', 'queued')`
+        sql`${streamPipelines.status} IN ('processing', 'queued')`
       ))
       .orderBy(desc(streamPipelines.createdAt));
     res.json(active);
@@ -1516,7 +1516,7 @@ Return JSON: {
     const activePipelines = await db.select().from(streamPipelines)
       .where(and(
         eq(streamPipelines.userId, userId),
-        sql`${sanitizeForPrompt(streamPipelines.status)} IN ('processing', 'queued', 'waiting')`
+        sql`${streamPipelines.status} IN ('processing', 'queued', 'waiting')`
       ))
       .orderBy(desc(streamPipelines.createdAt))
       .limit(20);
