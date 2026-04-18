@@ -44,7 +44,7 @@ Return JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -143,7 +143,7 @@ Create a detailed recovery plan. Return JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -202,7 +202,7 @@ Return JSON:
       },
     ],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content;

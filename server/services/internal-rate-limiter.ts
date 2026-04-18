@@ -106,11 +106,11 @@ export function getRateLimitPressure(): {
 const systemLimits = new Map<string, SlidingWindow>();
 
 const SYSTEM_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
-  // Lowered from 250 → 60 after adding a 2-slot semaphore to viralOptimizeVideo.
-  // The old burst of 25+ concurrent videos per second is gone; 60/min is now
-  // sufficient for legitimate throughput and prevents startup hammering of
-  // OpenAI's per-minute rate limit across 60+ background engines.
-  ai_calls: { maxRequests: 60, windowMs: 60000 },
+  // Conservative limit matching the Replit AI proxy's observed per-minute cap.
+  // The 1-slot semaphore in ai-semaphore.ts enforces serialization, but the
+  // sliding-window here provides a secondary guard that prevents any backlog
+  // burst from exceeding the proxy's rate limit after the grace period ends.
+  ai_calls: { maxRequests: 15, windowMs: 60000 },
   db_writes: { maxRequests: 100, windowMs: 60000 },
   api_external: { maxRequests: 50, windowMs: 60000 },
 };

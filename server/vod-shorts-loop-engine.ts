@@ -150,7 +150,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
           role: "user",
           content: `Current title: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Category: ${(video.metadata as any)?.category || "general"}. Optimize for maximum CTR.`
         }],
-        max_completion_tokens: 16000,
+        max_completion_tokens: 4000,
         response_format: { type: "json_object" },
       });
 
@@ -242,7 +242,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
           role: "user",
           content: `Video: "${video.title}" (${(video.metadata as any)?.viewCount || 0} views). Current thumbnail: ${video.thumbnailUrl || "none"}. Design concepts for maximum CTR.`
         }],
-        max_completion_tokens: 16000,
+        max_completion_tokens: 4000,
         response_format: { type: "json_object" },
       });
 
@@ -282,7 +282,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           role: "user",
           content: `Video: "${video.title}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${(video.description || "").slice(0, 200)}. Extract the most viral Short clips.`
         }],
-        max_completion_tokens: 16000,
+        max_completion_tokens: 4000,
         response_format: { type: "json_object" },
       });
 

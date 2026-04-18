@@ -478,10 +478,16 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     }
   }
 
+  const existingMeta = (vaultEntry.metadata as Record<string, any>) || {};
+  const failCount = (existingMeta.failCount || 0) + 1;
   await db.update(contentVaultBackups)
-    .set({ status: "failed", downloadError: lastErr.substring(0, 500) })
+    .set({
+      status: "failed",
+      downloadError: lastErr.substring(0, 500),
+      metadata: { ...existingMeta, lastFailedAt: new Date().toISOString(), failCount },
+    })
     .where(eq(contentVaultBackups.id, vaultEntry.id));
-  logger.error(`[Vault] All clients failed for ${youtubeId}: ${lastErr.substring(0, 100)}`);
+  logger.error(`[Vault] All clients failed for ${youtubeId} (attempt ${failCount}): ${lastErr.substring(0, 100)}`);
   return false;
 }
 
@@ -517,14 +523,23 @@ export async function processVaultDownloads(userId: string): Promise<void> {
         .from(contentVaultBackups)
         .where(and(
           eq(contentVaultBackups.userId, userId),
-          inArray(contentVaultBackups.status, ["indexed", "failed"]),
           sql`${contentVaultBackups.youtubeId} NOT LIKE 'local_%'`,
           sql`${contentVaultBackups.youtubeId} NOT LIKE 'clip_%'`,
+          sql`(
+            ${contentVaultBackups.status} = 'indexed'
+            OR (
+              ${contentVaultBackups.status} = 'failed'
+              AND (
+                ${contentVaultBackups.metadata}->>'lastFailedAt' IS NULL
+                OR (${contentVaultBackups.metadata}->>'lastFailedAt')::timestamptz < NOW() - INTERVAL '2 hours'
+              )
+            )
+          )`,
         ))
         .limit(1);
 
       if (!next) {
-        logger.info("[Vault] All indexed/failed videos have been processed");
+        logger.info("[Vault] No eligible videos to download (all processed or in cooldown)");
         break;
       }
 

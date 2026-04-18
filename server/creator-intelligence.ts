@@ -45,7 +45,7 @@ Provide your analysis as JSON with exactly these fields:
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content;
@@ -237,7 +237,7 @@ Provide your response as JSON with exactly this field:
     model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
-    max_completion_tokens: 16000,
+    max_completion_tokens: 4000,
   });
 
   const content = response.choices[0]?.message?.content;

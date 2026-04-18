@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
 import { createLogger } from ".//logger";
 
@@ -12,31 +13,41 @@ export const CLAUDE_MODELS = {
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-const MAX_RETRIES = 5;
-const BASE_DELAY_MS = 1000;
-const MAX_PRECALL_WAIT_MS = 30_000;
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
+const MAX_PRECALL_WAIT_MS = 120_000;
 
-// Same global pre-call throttle as the OpenAI wrapper. Shared budget bucket
-// ("ai_calls") so total AI traffic across providers stays under the cap.
+// Shared concurrent-call semaphore (same pool as OpenAI — combined limit of 4
+// in-flight requests across ALL AI providers).
 async function awaitSystemSlot(): Promise<void> {
-  let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
-  const start = Date.now();
-  while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
-    const rl = checkSystemRateLimit("ai_calls");
-    if (rl.allowed) return;
-    const wait = Math.min(rl.retryAfterMs ?? 1000, 5000);
-    await new Promise(r => setTimeout(r, Math.max(wait, 250)));
+  await acquireAISlot();
+  try {
+    let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
+    const start = Date.now();
+    while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
+      const rl = checkSystemRateLimit("ai_calls");
+      if (rl.allowed) return;
+      const wait = Math.min(rl.retryAfterMs ?? 2000, 8000);
+      await new Promise(r => setTimeout(r, Math.max(wait, 500)));
+    }
+    releaseAISlot();
+    throw Object.assign(new Error(`Claude throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true });
+  } catch (err: any) {
+    if (!err.throttled) releaseAISlot();
+    throw err;
   }
-  throw Object.assign(new Error(`Claude throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true });
 }
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    await awaitSystemSlot();
     try {
-      await awaitSystemSlot();
-      return await fn();
+      const result = await fn();
+      releaseAISlot();
+      return result;
     } catch (err: any) {
+      releaseAISlot();
       lastErr = err;
       const status = err?.status ?? err?.statusCode ?? 0;
       const isRetryable =
@@ -57,7 +68,10 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
           }
         }
       }
-      await new Promise((r) => setTimeout(r, retryAfterMs));
+      if (status === 429) {
+        notifyRateLimit(rawRetryAfter && retryAfterMs > 10_000 ? retryAfterMs : undefined);
+      }
+      await new Promise((r) => setTimeout(r, retryAfterMs + Math.random() * 1_000));
     }
   }
   throw lastErr;

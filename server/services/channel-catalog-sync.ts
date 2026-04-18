@@ -59,8 +59,10 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
   errors: number;
 }> {
   const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    logger.warn(`[${userId}] No GOOGLE_API_KEY for public catalog sync`);
+  const oauthToken = (channel as any).accessToken as string | undefined;
+
+  if (!apiKey && !oauthToken) {
+    logger.warn(`[${userId}] No GOOGLE_API_KEY or OAuth token for public catalog sync — skipping`);
     return { total: 0, newLinks: 0, updated: 0, errors: 0 };
   }
 
@@ -69,6 +71,11 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     logger.warn(`[${userId}] No channel ID for public sync`);
     return { total: 0, newLinks: 0, updated: 0, errors: 0 };
   }
+
+  // Build request headers: prefer OAuth (no key param needed), fall back to API key
+  const buildHeaders = (): Record<string, string> =>
+    oauthToken ? { Authorization: `Bearer ${oauthToken}` } : {};
+  const keyParam = apiKey && !oauthToken ? `&key=${apiKey}` : "";
 
   try {
     const isUcId = channelIdentifier.startsWith("UC");
@@ -81,8 +88,8 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
 
     let chItem: any = null;
     for (const param of lookupStrategies) {
-      const chUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&${param}&key=${apiKey}`;
-      const chResp = await fetch(chUrl, { signal: AbortSignal.timeout(15000) });
+      const chUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&${param}${keyParam}`;
+      const chResp = await fetch(chUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
       if (!chResp.ok) continue;
       const chData = await chResp.json() as any;
       if (chData.items?.[0]) {
@@ -122,8 +129,8 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     let pages = 0;
 
     do {
-      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}&key=${apiKey}`;
-      const plResp = await fetch(plUrl, { signal: AbortSignal.timeout(15000) });
+      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}${keyParam}`;
+      const plResp = await fetch(plUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
       if (!plResp.ok) {
         logger.warn(`[${userId}] Playlist fetch failed: ${plResp.status}`);
         break;
@@ -153,8 +160,8 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     for (let i = 0; i < allVideoIds.length; i += 50) {
       const batch = allVideoIds.slice(i, i + 50);
       try {
-        const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${batch.join(",")}&key=${apiKey}`;
-        const vResp = await fetch(vUrl, { signal: AbortSignal.timeout(20000) });
+        const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${batch.join(",")}${keyParam}`;
+        const vResp = await fetch(vUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(20000) });
         if (!vResp.ok) {
           logger.warn(`[${userId}] Video detail fetch failed at batch ${i}: ${vResp.status}`);
           errors += batch.length;
@@ -523,12 +530,19 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
         logger.warn(`[${userId}] Thumbnail gen failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);
       }
 
-      try {
-        const { repurposeVideo } = await import("../repurpose-engine");
-        await repurposeVideo(userId, dbVideo.id, ["blog", "twitter_thread", "instagram_caption"]);
-        editingResult.repurposed = true;
-      } catch (err: any) {
-        logger.warn(`[${userId}] Repurpose failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);
+      // Only repurpose videos published within the last 30 days to avoid a
+      // backfill storm on historical catalog items.
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60_000);
+      const isRecent = link.publishedAt && new Date(link.publishedAt) > thirtyDaysAgo;
+      if (isRecent) {
+        try {
+          const { repurposeVideo } = await import("../repurpose-engine");
+          // Fire-and-forget: don't block catalog processing on repurpose completion
+          repurposeVideo(userId, dbVideo.id, ["blog", "twitter_thread", "instagram_caption"]).catch(() => undefined);
+          editingResult.repurposed = true;
+        } catch (err: any) {
+          logger.warn(`[${userId}] Repurpose failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);
+        }
       }
 
       await db.update(videoCatalogLinks).set({
@@ -977,7 +991,7 @@ export function startCatalogSync(): void {
     runCatalogCycle().catch(err =>
       logger.warn("Initial catalog cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, 180_000);
+  }, 600_000); // 10 minutes: let all engines stabilize before first heavy sync
 
   syncInterval = setInterval(() => {
     runCatalogCycle().catch(err =>

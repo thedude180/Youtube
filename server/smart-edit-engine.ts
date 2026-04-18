@@ -753,19 +753,32 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
   }
 }
 
+// Per-user cooldown tracker: when trust budget is exhausted, we don't retry
+// for at least BUDGET_EXHAUSTED_COOLDOWN_MS to stop log-spamming.
+const budgetExhaustedUntil = new Map<string, number>();
+const BUDGET_EXHAUSTED_COOLDOWN_MS = 60 * 60_000; // 1 hour
+
 export async function processSmartEditQueue(userId: string, correlationId?: string): Promise<void> {
   if (activeJobs.has(userId)) {
     logger.debug("Smart edit queue already processing for user", { userId });
     return;
   }
 
+  // Respect per-user cooldown — don't even acquire the slot if we know the
+  // budget is exhausted; just bail silently until the cooldown lifts.
+  const cooldownUntil = budgetExhaustedUntil.get(userId) ?? 0;
+  if (Date.now() < cooldownUntil) return;
+
   activeJobs.add(userId);
+  let budgetBlocked = false;
   try {
     const trustResult: TrustBudgetResult = await checkTrustBudget(userId, "smart-edit-engine", 5).catch((): TrustBudgetResult => ({
       remaining: 100, blocked: false, periodId: 0, deductionsCount: 0, totalDeducted: 0,
     }));
     if (trustResult.blocked) {
-      logger.warn("Smart edit blocked by trust budget exhaustion", { userId });
+      budgetBlocked = true;
+      budgetExhaustedUntil.set(userId, Date.now() + BUDGET_EXHAUSTED_COOLDOWN_MS);
+      logger.warn("Smart edit blocked by trust budget exhaustion — cooling down 1 hour", { userId });
       return;
     }
 
@@ -807,13 +820,17 @@ export async function processSmartEditQueue(userId: string, correlationId?: stri
   } finally {
     activeJobs.delete(userId);
 
-    const [remaining] = await db.select({ count: sql<number>`count(*)::int` })
-      .from(autopilotQueue)
-      .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.type, "smart-edit"), eq(autopilotQueue.status, "pending")));
+    // Only reschedule if budget was not the blocker — otherwise the 1-hour
+    // cooldown above will gate future attempts.
+    if (!budgetBlocked) {
+      const [remaining] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.type, "smart-edit"), eq(autopilotQueue.status, "pending")));
 
-    if ((remaining?.count || 0) > 0) {
-      const delay = 60_000 + Math.random() * 120_000;
-      setTimeout(() => processSmartEditQueue(userId).catch(() => undefined), delay);
+      if ((remaining?.count || 0) > 0) {
+        const delay = 60_000 + Math.random() * 120_000;
+        setTimeout(() => processSmartEditQueue(userId).catch(() => undefined), delay);
+      }
     }
   }
 }

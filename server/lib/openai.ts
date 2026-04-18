@@ -1,57 +1,71 @@
 import OpenAI from "openai";
+import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
 
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-const MAX_RETRIES = 5;
-const BASE_DELAY_MS = 1000;
-const MAX_PRECALL_WAIT_MS = 30_000;
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
+const MAX_PRECALL_WAIT_MS = 120_000; // 2 minutes — engines wait in queue
 
-// Global pre-call throttle: respects the system-wide ai_calls budget so a
-// stampede of engines (we have 60+) cannot blow OpenAI's per-minute limit.
-// If we are over budget we wait (up to MAX_PRECALL_WAIT_MS) instead of firing
-// a doomed request that will come back 429 anyway.
+// Global pre-call throttle: acquires a shared concurrent slot (shared with
+// Claude so OpenAI + Claude combined never exceed MAX_CONCURRENT_AI = 4)
+// then also verifies the sliding-window rate limit budget.
 async function awaitSystemSlot(endpoint: string): Promise<void> {
-  let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
-  const start = Date.now();
-  while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
-    const rl = checkSystemRateLimit("ai_calls");
-    if (rl.allowed) return;
-    const wait = Math.min(rl.retryAfterMs ?? 1000, 5000);
-    await new Promise(r => setTimeout(r, Math.max(wait, 250)));
+  await acquireAISlot();
+  try {
+    let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
+    const start = Date.now();
+    while (Date.now() - start < MAX_PRECALL_WAIT_MS) {
+      const rl = checkSystemRateLimit("ai_calls");
+      if (rl.allowed) return;
+      const wait = Math.min(rl.retryAfterMs ?? 2000, 8000);
+      await new Promise(r => setTimeout(r, Math.max(wait, 500)));
+    }
+    releaseAISlot();
+    throw Object.assign(new Error(`AI throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true, endpoint });
+  } catch (err: any) {
+    if (!err.throttled) releaseAISlot();
+    throw err;
   }
-  // Hard-fail rather than silently bypass — caller's catch will record the
-  // failure and the task will be re-tried by its scheduler.
-  throw Object.assign(new Error(`AI throttled: system ai_calls budget exhausted (>${MAX_PRECALL_WAIT_MS}ms wait)`), { status: 429, throttled: true, endpoint });
 }
 
 async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    // Acquire a slot before each attempt — slots are released in the finally below
+    await awaitSystemSlot(endpoint);
     try {
-      await awaitSystemSlot(endpoint);
-      return await fn();
+      const result = await fn();
+      releaseAISlot(); // success — free the slot immediately
+      return result;
     } catch (err: any) {
+      releaseAISlot(); // always release on error too
       lastErr = err;
       const status = err?.status ?? err?.statusCode ?? 0;
       const isRetryable = RETRYABLE_STATUS_CODES.has(status) || err?.code === "ECONNRESET" || err?.code === "ETIMEDOUT";
       if (!isRetryable || attempt === MAX_RETRIES) throw err;
-      // AUDIT FIX: Handle HTTP-date format in retry-after header, not just integer seconds
       const rawRetryAfter = err?.headers?.["retry-after"];
       let retryAfterMs = BASE_DELAY_MS * Math.pow(2, attempt);
       if (rawRetryAfter) {
         const secs = parseInt(rawRetryAfter, 10);
         if (!isNaN(secs)) {
-          retryAfterMs = Math.min(secs * 1000, 60_000);
+          retryAfterMs = Math.min(secs * 1000, 120_000);
         } else {
           const parsed = new Date(rawRetryAfter);
           if (!isNaN(parsed.getTime())) {
-            retryAfterMs = Math.min(Math.max(parsed.getTime() - Date.now(), 0), 60_000);
+            retryAfterMs = Math.min(Math.max(parsed.getTime() - Date.now(), 0), 120_000);
           }
         }
       }
-      await new Promise(r => setTimeout(r, retryAfterMs));
+      // Notify circuit-breaker so ALL callers back off when the proxy is rate-limiting.
+      // Only pass the proxy's retry-after hint when it's substantial (> 10s); otherwise
+      // notifyRateLimit() with no argument uses the 65s default — much safer than 2-3s.
+      if (status === 429) {
+        notifyRateLimit(rawRetryAfter && retryAfterMs > 10_000 ? retryAfterMs : undefined);
+      }
+      await new Promise(r => setTimeout(r, retryAfterMs + Math.random() * 1_000));
     }
   }
   throw lastErr;

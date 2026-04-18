@@ -65,7 +65,7 @@ Provide 5-7 optimal posting slots based on ${platform}'s known best practices an
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -167,7 +167,7 @@ Analyze and recommend as JSON:
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;
@@ -272,7 +272,7 @@ Analyze and recommend as JSON:
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 16000,
+      max_completion_tokens: 4000,
     });
 
     const content = response.choices[0]?.message?.content;
