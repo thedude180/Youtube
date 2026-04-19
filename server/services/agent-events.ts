@@ -753,6 +753,11 @@ export async function wireAgentCoordination(): Promise<void> {
 
       setTimeout(async () => {
         try {
+          const { isLiveStreamActive } = await import("../priority-orchestrator");
+          if (isLiveStreamActive(event.userId)) {
+            logger.info(`Upload autonomous pipeline skipped — stream active for ${event.userId.slice(0, 8)}`);
+            return;
+          }
           const parsed = parseInt(String(videoId), 10);
           if (!isNaN(parsed)) {
             const { runFullContentOptimization } = await import("./autonomous-content-pipeline");
@@ -767,6 +772,11 @@ export async function wireAgentCoordination(): Promise<void> {
       // T+4min: Research thumbnails for this game + generate research-backed thumbnail
       setTimeout(async () => {
         try {
+          const { isLiveStreamActive } = await import("../priority-orchestrator");
+          if (isLiveStreamActive(event.userId)) {
+            logger.info(`Upload thumbnail generation skipped — stream active for ${event.userId.slice(0, 8)}`);
+            return;
+          }
           try {
             const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
             await researchThumbnailsForGame(event.userId, gameTitle);
@@ -782,6 +792,11 @@ export async function wireAgentCoordination(): Promise<void> {
       // T+6min: Viral SEO optimization with thumbnail intelligence context
       setTimeout(async () => {
         try {
+          const { isLiveStreamActive } = await import("../priority-orchestrator");
+          if (isLiveStreamActive(event.userId)) {
+            logger.info(`Upload SEO skipped — stream active for ${event.userId.slice(0, 8)}`);
+            return;
+          }
           const parsed = parseInt(String(videoId), 10);
           if (!isNaN(parsed)) {
             const { storage } = await import("../storage");

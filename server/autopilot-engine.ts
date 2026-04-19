@@ -218,6 +218,21 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
 
   if (!isVideoPostable(video)) return;
 
+  // If a live stream is in progress, defer all heavy AI work so the streaming
+  // path always has full AI budget available for announcements and live ops.
+  try {
+    const { isLiveStreamActive } = await import("./priority-orchestrator");
+    if (isLiveStreamActive(userId)) {
+      logger.info("Stream active — deferring new-video AI pipeline 2h", { videoId, userId });
+      setTimeout(() => {
+        processNewVideoUpload(userId, videoId).catch(err =>
+          logger.warn("Deferred new-video upload pipeline failed", { videoId, error: String(err).substring(0, 200) })
+        );
+      }, 2 * 60 * 60_000);
+      return;
+    }
+  } catch {}
+
   const creatorTone = await getCreatorTone(userId);
 
   const autoClipConfig = await getAutopilotConfig(userId, "auto-clip");
@@ -260,19 +275,28 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
     }).catch(() => undefined);
   }
 
-  import("./backlog-engine").then(m => {
-    m.viralOptimizeVideo(userId, videoId)
-      .then(result => {
-        if (result.optimized) {
-          logger.info("Viral optimization completed for new video", {
-            videoId,
-            seoScore: result.seoScore,
-            youtubeUpdated: result.youtubeUpdated,
-            thumbnailQueued: result.thumbnailQueued,
-          });
-        }
-      })
-      .catch(err => logger.warn("Viral optimization failed for new video", { videoId, error: String(err).substring(0, 200) }));
+  // Only run viral optimization for new videos when not streaming — the
+  // priority-orchestrator's "livestream" mode already handles stream-time
+  // optimization via viralOptimizeVideo in agent-events.ts at T+45s / T+18min.
+  import("./priority-orchestrator").then(({ isLiveStreamActive }) => {
+    if (isLiveStreamActive(userId)) {
+      logger.info("Stream active — skipping viral opt for new video (will run post-stream)", { videoId });
+      return;
+    }
+    import("./backlog-engine").then(m => {
+      m.viralOptimizeVideo(userId, videoId)
+        .then(result => {
+          if (result.optimized) {
+            logger.info("Viral optimization completed for new video", {
+              videoId,
+              seoScore: result.seoScore,
+              youtubeUpdated: result.youtubeUpdated,
+              thumbnailQueued: result.thumbnailQueued,
+            });
+          }
+        })
+        .catch(err => logger.warn("Viral optimization failed for new video", { videoId, error: String(err).substring(0, 200) }));
+    }).catch(() => undefined);
   }).catch(() => undefined);
 }
 

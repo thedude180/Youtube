@@ -105,6 +105,20 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
   const video = await storage.getVideo(videoId);
   if (!video) return;
 
+  // Defer heavy AI work when streaming is active to protect announcement budget.
+  try {
+    const { isLiveStreamActive } = await import("../priority-orchestrator");
+    if (isLiveStreamActive(userId)) {
+      logger.info(`[${userId}] Stream active — deferring editing pipeline for video ${videoId} by 2h`);
+      setTimeout(() => {
+        runFullEditingPipeline(userId, videoId, channelId).catch(err =>
+          logger.warn(`[${userId}] Deferred editing pipeline failed for video ${videoId}: ${err.message?.substring(0, 200)}`)
+        );
+      }, 2 * 60 * 60_000);
+      return;
+    }
+  } catch {}
+
   const durationSec = (video.metadata as any)?.durationSec || 0;
   const isLongForm = durationSec >= 900;
 
@@ -268,15 +282,27 @@ async function scanUserForNewUploads(userId: string): Promise<{ newUploads: numb
   }
 
   if (createdVideoIds.length > 0) {
-    for (const videoId of createdVideoIds) {
-      fireAgentEvent("upload.detected", userId, { videoId, count: createdVideoIds.length });
-    }
+    // Stagger event firing so per-video setTimeout cascades don't all start
+    // at the same moment and collide in the same AI budget windows.
+    createdVideoIds.forEach((videoId, index) => {
+      const delayMs = index * 8_000;
+      setTimeout(() => {
+        fireAgentEvent("upload.detected", userId, { videoId, count: createdVideoIds.length });
+      }, delayMs);
+    });
 
-    for (const videoId of createdVideoIds) {
+    // Process editing pipelines one at a time with a gap between each video
+    // to avoid hammering the AI API with concurrent requests.
+    const INTER_VIDEO_DELAY_MS = 10_000;
+    for (let i = 0; i < createdVideoIds.length; i++) {
+      const videoId = createdVideoIds[i];
       try {
         await runFullEditingPipeline(userId, videoId, ytChannel.id);
       } catch (err: any) {
         logger.warn(`[${userId}] Full editing pipeline failed for video ${videoId}: ${err.message?.substring(0, 200)}`);
+      }
+      if (i < createdVideoIds.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, INTER_VIDEO_DELAY_MS));
       }
     }
   }
