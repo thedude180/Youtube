@@ -322,6 +322,8 @@ export async function registerRoutes(
           error: "upgrade_required",
           message: "This feature requires a paid subscription. Please upgrade your plan.",
           currentTier: "free",
+          requiredTier: "starter",
+          upgradeUrl: "/settings?tab=billing",
         });
       }
     } catch (err) { logger.error("Tier check error", { error: String(err) }); }
