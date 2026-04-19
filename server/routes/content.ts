@@ -120,6 +120,9 @@ export function registerContentRoutes(app: Express) {
   const bulkRateLimit = rateLimitEndpoint(5, 60000);
 
   app.post("/api/auto-connect-youtube", writeRateLimit, asyncHandler(async (req, res) => {
+    if (process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "Not found" });
+    }
     const userId = requireAuth(req, res);
     if (!userId) return;
     const email = getUserEmail(req);

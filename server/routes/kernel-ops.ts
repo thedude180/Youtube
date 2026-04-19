@@ -84,7 +84,7 @@ export function registerKernelOpsRoutes(app: Express) {
     }
   });
 
-  if (!process.env.REPLIT_DEPLOYMENT) {
+  if (!process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production") {
     app.post("/api/__test/kernel/send-agent-message", async (req: Request, res: Response) => {
       try {
         const { from, to, userId, messageType, payload } = req.body;

@@ -456,7 +456,6 @@ registerCleanup("tokenBudgetUsageRetention", () => {
 
 app.use("/api", async (req: Request, res: Response, next: NextFunction) => {
   if (req.path === "/health" || req.path === "/stripe/webhook") return next();
-  if (!process.env.REPLIT_DEPLOYMENT && req.path.startsWith("/__test/")) return next();
   const ip = req.ip || req.socket.remoteAddress || "anon";
   if (!process.env.REPLIT_DEPLOYMENT && (ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1")) return next();
 
@@ -998,7 +997,7 @@ app.post("/api/system/clear-stuck-jobs", async (req: Request, res: Response) => 
   if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
   try {
     const dbUser = await storage.getUser(user.claims.sub);
-    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+    if (!dbUser || dbUser.role !== "admin") {
       return res.status(403).json({ error: "Admin access required" });
     }
   } catch { return res.status(403).json({ error: "Admin access required" }); }
@@ -1015,7 +1014,7 @@ app.post("/api/system/drain-webhooks", async (req: Request, res: Response) => {
   if (!user?.claims?.sub) return res.status(401).json({ error: "Authentication required" });
   try {
     const dbUser = await storage.getUser(user.claims.sub);
-    if (!dbUser || dbUser.email?.toLowerCase() !== "thedude180@gmail.com") {
+    if (!dbUser || dbUser.role !== "admin") {
       return res.status(403).json({ error: "Admin access required" });
     }
   } catch { return res.status(403).json({ error: "Admin access required" }); }

@@ -32,7 +32,6 @@ import { registerAutonomyRoutes } from "./routes/autonomy";
 import { registerLegalTaxRoutes } from "./routes/legal-tax";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
-import { registerTestAuthRoutes } from "./routes/test-auth";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
 import { registerMultistreamRoutes } from "./routes/multistream";
 import { registerCommandCenterRoutes } from "./routes/command-center";
@@ -174,8 +173,7 @@ export async function registerRoutes(
   };
 
   const GOVERNANCE_EXEMPT_PATHS = [
-    "/api/login", "/api/logout", "/api/auth", "/api/callback", "/api/test-auth",
-    "/api/__test",
+    "/api/login", "/api/logout", "/api/auth", "/api/callback",
     "/api/resilience/safe-mode/exit",
     "/api/resilience/safe-mode/enter",
     "/api/kernel/trust-budget/reset",
@@ -295,9 +293,6 @@ export async function registerRoutes(
     "/api/notifications/vapid-public-key",
   ]);
   const PUBLIC_API_PREFIXES = ["/api/auth", "/api/stripe"];
-  if (!process.env.REPLIT_DEPLOYMENT) {
-    PUBLIC_API_PREFIXES.push("/api/__test");
-  }
 
   app.use("/api", (req: any, res, next) => {
     const fullPath = `/api${req.path}`;
@@ -363,7 +358,6 @@ export async function registerRoutes(
   registerCommandCenterRoutes(app);
   app.use("/api/live-crew", liveCrewRoutes);
   registerKernelOpsRoutes(app);
-  registerTestAuthRoutes(app);
   registerKernelRoutes(app);
   registerContentCoreRoutes(app);
   registerLiveOpsRoutes(app);
