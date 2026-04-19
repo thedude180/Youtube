@@ -33,6 +33,12 @@ const KNOWN_SAFE_PATTERNS = [
   "/api/stripe/",                       // billing infrastructure
   "/api/billing/",                      // billing infrastructure
   "/api/affiliate-links",               // billing infrastructure
+  // FREE_AI_ROUTES whitelist (routes.ts) — explicitly whitelisted for free tier
+  "/api/ai/content-ideas",              // free tier AI feature
+  "/api/ai/dashboard-actions",          // free tier AI feature
+  "/api/ai/advisor",                    // free tier AI feature
+  "/api/ai/daily-briefing",             // free tier AI feature
+  "/api/ai/health-score",               // free tier AI feature
 ];
 
 let totalViolations = 0;

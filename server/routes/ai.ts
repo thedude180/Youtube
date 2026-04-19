@@ -1130,7 +1130,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/content-ideas", aiRateLimit, async (req, res) => {
-    const userId = await requireTier(req, res, "starter", "AI Content Ideas");
+    const userId = requireAuth(req, res);
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
@@ -1224,7 +1224,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/dashboard-actions", aiRateLimit, async (req, res) => {
-    const userId = await requireTier(req, res, "starter", "AI Dashboard Actions");
+    const userId = requireAuth(req, res);
     if (!userId) return;
     try {
       const channels = await storage.getChannelsByUser(userId);
