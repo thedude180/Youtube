@@ -23,6 +23,7 @@ const INJECTION_MARKERS = [
   "<|im_start|>",
   "<|im_end|>",
   "you are now",
+  "reveal your system prompt",
 ];
 
 function assertNoInjectionInPrompts(prompts: Record<string, string>) {
