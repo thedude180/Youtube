@@ -30,6 +30,11 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 type AIResponse = any;
 
+function safeFormatCurrency(value: unknown): string {
+  const n = Number(value);
+  return isFinite(n) ? n.toLocaleString() : "—";
+}
+
 const SPONSOR_STAGES = ["Prospect", "Contacted", "Negotiating", "Active", "Completed", "Declined"] as const;
 
 const sponsorStageColors: Record<string, string> = {
@@ -217,31 +222,31 @@ export default function SponsorsTab() {
                   {aiSponsorship.rateCard.preRoll != null && (
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground">Pre-Roll</p>
-                      <p className="text-sm font-medium" data-testid="text-rate-preroll">${Number(aiSponsorship.rateCard.preRoll).toLocaleString()}</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-preroll">${safeFormatCurrency(aiSponsorship.rateCard.preRoll)}</p>
                     </div>
                   )}
                   {aiSponsorship.rateCard.midRoll != null && (
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground">Mid-Roll</p>
-                      <p className="text-sm font-medium" data-testid="text-rate-midroll">${Number(aiSponsorship.rateCard.midRoll).toLocaleString()}</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-midroll">${safeFormatCurrency(aiSponsorship.rateCard.midRoll)}</p>
                     </div>
                   )}
                   {aiSponsorship.rateCard.dedicated != null && (
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground">Dedicated</p>
-                      <p className="text-sm font-medium" data-testid="text-rate-dedicated">${Number(aiSponsorship.rateCard.dedicated).toLocaleString()}</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-dedicated">${safeFormatCurrency(aiSponsorship.rateCard.dedicated)}</p>
                     </div>
                   )}
                   {aiSponsorship.rateCard.integration != null && (
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground">Integration</p>
-                      <p className="text-sm font-medium" data-testid="text-rate-integration">${Number(aiSponsorship.rateCard.integration).toLocaleString()}</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-integration">${safeFormatCurrency(aiSponsorship.rateCard.integration)}</p>
                     </div>
                   )}
                   {aiSponsorship.rateCard.shortsMention != null && (
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground">Shorts Mention</p>
-                      <p className="text-sm font-medium" data-testid="text-rate-shorts">${Number(aiSponsorship.rateCard.shortsMention).toLocaleString()}</p>
+                      <p className="text-sm font-medium" data-testid="text-rate-shorts">${safeFormatCurrency(aiSponsorship.rateCard.shortsMention)}</p>
                     </div>
                   )}
                 </div>
@@ -270,7 +275,7 @@ export default function SponsorsTab() {
                         )}
                         {brand.estimatedBudget != null && (
                           <span className="text-xs text-muted-foreground" data-testid={`text-brand-budget-${idx}`}>
-                            ${Number(brand.estimatedBudget).toLocaleString()}
+                            ${safeFormatCurrency(brand.estimatedBudget)}
                           </span>
                         )}
                       </div>
@@ -432,7 +437,7 @@ export default function SponsorsTab() {
                       </div>
                       {pkg.price != null && (
                         <span className="text-sm font-semibold text-emerald-400 shrink-0" data-testid={`text-package-price-${idx}`}>
-                          ${Number(pkg.price).toLocaleString()}
+                          ${safeFormatCurrency(pkg.price)}
                         </span>
                       )}
                     </div>

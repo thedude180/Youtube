@@ -18,7 +18,7 @@ import {
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
   Sparkles, Shield, Monitor, RefreshCw, Download, Globe, Layers,
-  MessageCircle, Pin,
+  MessageCircle, Pin, LayoutKanban,
 } from "lucide-react";
 import { SiTwitch, SiKick } from "react-icons/si";
 import { format } from "date-fns";
@@ -32,7 +32,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useChannels } from "@/hooks/use-channels";
 import { SiYoutube } from "react-icons/si";
 
-type ContentTab = "library" | "catalogs" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta";
+type ContentTab = "library" | "catalogs" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta" | "pipeline";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
@@ -40,6 +40,7 @@ const CalendarTab = lazyRetry(() => import("./content/CalendarTab"));
 const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntelligenceTab"));
 const ContentRevenueTab = lazyRetry(() => import("./content/ContentRevenueTab"));
 const CTAPlannerTab = lazyRetry(() => import("./content/CTAPlannerTab"));
+const ProductionPipelineTab = lazyRetry(() => import("./content/PipelineTab"));
 
 function ContentStatsStrip() {
   const { data: videos, isLoading } = useVideos();
@@ -92,7 +93,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "catalogs", "updated", "channels", "calendar", "intelligence", "revenue", "cta"];
+  const validTabs: ContentTab[] = ["library", "catalogs", "updated", "channels", "calendar", "intelligence", "revenue", "cta", "pipeline"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -133,6 +134,9 @@ export default function Content() {
             <TabsTrigger value="cta" data-testid="tab-cta" aria-label="CTA planner tab">
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />CTAs
             </TabsTrigger>
+            <TabsTrigger value="pipeline" data-testid="tab-pipeline" aria-label="Production pipeline tab">
+              <LayoutKanban className="h-3.5 w-3.5 mr-1.5" />Pipeline
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -170,6 +174,11 @@ export default function Content() {
         <TabsContent value="cta" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <CTAPlannerTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="pipeline" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <ProductionPipelineTab />
           </Suspense>
         </TabsContent>
       </Tabs>
