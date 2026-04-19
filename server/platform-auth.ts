@@ -3,6 +3,9 @@ import type { Express } from "express";
 import { OAUTH_CONFIGS, type OAuthPlatformConfig } from "./oauth-config";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { storage } from "./storage";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
+import { channels } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { createLogger } from "./lib/logger";
 
@@ -221,7 +224,59 @@ export function setupPlatformAuth(app: Express) {
           });
         }
 
-        // ── CASE 2: Not logged in — find or create user ────────────────────────
+        // ── CASE 2: Not logged in ──────────────────────────────────────────────
+        // Before creating a new user, check if this platform+channelId is already
+        // connected to an existing CreatorOS account (e.g. user linked TikTok in
+        // settings while logged in as Google). If so, log them into that account.
+        const [linkedChannel] = await db
+          .select()
+          .from(channels)
+          .where(and(eq(channels.platform, platform as Platform), eq(channels.channelId, platformUser.id)))
+          .limit(1);
+
+        if (linkedChannel) {
+          const linkedUser = await authStorage.getUser(linkedChannel.userId);
+          if (linkedUser) {
+            // Update the stored tokens so they stay fresh
+            try {
+              await storage.updateChannel(linkedChannel.id, {
+                accessToken,
+                refreshToken: tokenData.refresh_token || (linkedChannel as any).refreshToken || null,
+                tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000),
+                channelName: platformUser.displayName || platformUser.username || (linkedChannel as any).channelName || platform,
+              });
+            } catch (e) {
+              authLogger.warn("Token refresh on linked channel failed", { platform, error: String(e) });
+            }
+
+            const sessionUser = {
+              claims: {
+                sub: linkedUser.id,
+                email: linkedUser.email || `${platformUser.id}@${platform}.oauth`,
+                first_name: linkedUser.firstName || platformUser.displayName || platform,
+                last_name: linkedUser.lastName || null,
+              },
+              access_token: accessToken,
+              refresh_token: tokenData.refresh_token ?? null,
+              expires_at: Math.floor(Date.now() / 1000) + (tokenData.expires_in || 3600),
+              auth_provider: platform,
+            };
+
+            return req.login(sessionUser, (loginErr) => {
+              if (loginErr) {
+                authLogger.error("Linked account login failed", { platform, error: String(loginErr) });
+                return res.redirect(`/?auth_error=login_failed`);
+              }
+              authLogger.info("Logged into linked account via platform", { platform, linkedUserId: linkedUser.id });
+              return req.session.save((saveErr) => {
+                if (saveErr) authLogger.error("Session save error after linked login", { platform });
+                res.redirect("/");
+              });
+            });
+          }
+        }
+
+        // No existing link — find or create a platform-native account
         const userId = `${platform}_${platformUser.id}`;
         const email = userInfoData.email || `${platformUser.id}@${platform}.oauth`;
         const displayName = platformUser.displayName || platformUser.username || platform;
