@@ -3,10 +3,11 @@ import { db } from "../db";
 import {
   trustBudgetRecords, trustBudgetPeriods, approvalMatrixRules, approvalDecisions,
   governanceAuditLogs, channelImmuneEvents, communityTrustSignals,
-  operatorOverrideRecords, overrideReasonRecords,
+  operatorOverrideRecords, overrideReasonRecords, cronLocks,
 } from "@shared/schema";
 import { eq, and, desc, gte, sql, count, avg, lte, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { withCronLock } from "../lib/cron-lock";
 
 const logger = createLogger("trust-governance");
 
@@ -928,34 +929,35 @@ export async function resetExpiredBudgets(): Promise<number> {
   return resetCount;
 }
 
+const BUDGET_RESET_LOCK_NAME = "budget-reset";
+
 export function startBudgetResetScheduler(): void {
   if (resetIntervalHandle) return;
   const intervalMs = BUDGET_RESET_INTERVAL_HOURS * 3600_000;
 
-  // On startup, check the DB for unprocessed expired periods (persisted state).
-  // If any exist the server missed the previous interval (e.g. due to restart)
-  // and we must run the reset immediately before arming the new interval.
-  db.select({ id: trustBudgetPeriods.id })
-    .from(trustBudgetPeriods)
-    .where(and(
-      lte(trustBudgetPeriods.periodEnd, new Date()),
-      sql`${trustBudgetPeriods.metadata}->>'resetProcessed' IS NULL`,
-    ))
+  // On startup, read the explicit persisted lastResetAt from cronLocks.
+  // If the reset has never run or ran > 24 h ago, trigger it immediately
+  // so a restarted server does not silently skip an overdue period.
+  db.select({ lastCompletedAt: cronLocks.lastCompletedAt })
+    .from(cronLocks)
+    .where(eq(cronLocks.jobName, BUDGET_RESET_LOCK_NAME))
     .limit(1)
     .then(rows => {
-      if (rows.length > 0) {
-        logger.info("Startup: unprocessed expired budget periods found — running immediate reset");
-        resetExpiredBudgets().catch(err => logger.error("Startup budget reset failed:", err));
+      const lastResetAt = rows[0]?.lastCompletedAt ?? null;
+      const overdue = !lastResetAt || Date.now() - lastResetAt.getTime() >= intervalMs;
+      if (overdue) {
+        logger.info("Startup: budget reset overdue (lastResetAt=%s) — running immediately", lastResetAt?.toISOString() ?? "never");
+        withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, resetExpiredBudgets)
+          .catch(err => logger.error("Startup budget reset failed:", err));
       }
     })
     .catch(err => logger.error("Startup budget reset check failed:", err));
 
-  resetIntervalHandle = setInterval(async () => {
-    try {
-      await resetExpiredBudgets();
-    } catch (err) {
-      logger.error("Budget reset scheduler failed:", err);
-    }
+  // Periodic interval — also wrapped in withCronLock so lastCompletedAt is
+  // persisted after each run, serving as the authoritative lastResetAt record.
+  resetIntervalHandle = setInterval(() => {
+    withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, resetExpiredBudgets)
+      .catch(err => logger.error("Budget reset scheduler failed:", err));
   }, intervalMs);
   logger.info(`Budget reset scheduler started (interval: ${BUDGET_RESET_INTERVAL_HOURS}h)`);
 }
