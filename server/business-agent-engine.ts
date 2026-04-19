@@ -185,29 +185,40 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
   }
 }
 
-export async function runBusinessAgentCycle(userId: string): Promise<void> {
-  try {
-    const cutoff = new Date(Date.now() - MIN_BIZ_CYCLE_GAP_MINUTES * 60 * 1000);
-    const [recent] = await db
-      .select({ id: aiAgentActivities.id })
-      .from(aiAgentActivities)
-      .where(
-        and(
-          eq(aiAgentActivities.agentId, "biz-strategy"),
-          eq(aiAgentActivities.status, "completed"),
-          gt(aiAgentActivities.createdAt!, cutoff)
-        )
-      )
-      .limit(1);
-    if (recent) {
-      logger.info(`[${userId}] Business agent cycle skipped — last run was less than ${MIN_BIZ_CYCLE_GAP_MINUTES} min ago`);
-      return;
-    }
-  } catch {}
+const _activeBizCycles = new Set<string>();
 
-  for (const agent of Object.values(BUSINESS_AGENTS)) {
-    await runSingleAgentTask(userId, agent);
-    await new Promise(r => setTimeout(r, 300));
+export async function runBusinessAgentCycle(userId: string): Promise<void> {
+  if (_activeBizCycles.has(userId)) {
+    logger.info(`[${userId}] Business agent cycle already in progress — skipping concurrent start`);
+    return;
+  }
+  _activeBizCycles.add(userId);
+  try {
+    try {
+      const cutoff = new Date(Date.now() - MIN_BIZ_CYCLE_GAP_MINUTES * 60 * 1000);
+      const [recent] = await db
+        .select({ id: aiAgentActivities.id })
+        .from(aiAgentActivities)
+        .where(
+          and(
+            eq(aiAgentActivities.agentId, "biz-strategy"),
+            eq(aiAgentActivities.status, "completed"),
+            gt(aiAgentActivities.createdAt!, cutoff)
+          )
+        )
+        .limit(1);
+      if (recent) {
+        logger.info(`[${userId}] Business agent cycle skipped — last run was less than ${MIN_BIZ_CYCLE_GAP_MINUTES} min ago`);
+        return;
+      }
+    } catch {}
+
+    for (const agent of Object.values(BUSINESS_AGENTS)) {
+      await runSingleAgentTask(userId, agent);
+      await new Promise(r => setTimeout(r, 300));
+    }
+  } finally {
+    _activeBizCycles.delete(userId);
   }
 }
 

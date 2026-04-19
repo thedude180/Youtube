@@ -1371,24 +1371,45 @@ export async function processScheduledPosts() {
     logger.warn("Auto-fix pre-scan failed", { error: err.message });
   }
 
-  const contentPriority = sql`CASE 
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'go-live' THEN 1
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'new-video' THEN 2
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'post-stream' THEN 3
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'auto-clip' THEN 4
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'cross-promo' THEN 6
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'content-recycle' THEN 7
-    WHEN ${sanitizeForPrompt(autopilotQueue.type)} = 'evergreen_recycler' THEN 8
-    ELSE 5
-  END`;
+  // Recovery: posts stuck in 'processing' longer than 10 min (from a crashed
+  // previous run) are reset to 'scheduled' so they are retried next cycle.
+  const recovered = await db.execute(sql`
+    UPDATE autopilot_queue
+    SET status = 'scheduled'
+    WHERE status = 'processing' AND scheduled_at < NOW() - INTERVAL '10 minutes'
+  `).catch((err: any) => {
+    logger.warn("Could not recover stuck processing posts", { error: err?.message });
+    return { rowCount: 0 };
+  });
+  if ((recovered.rowCount ?? 0) > 0) {
+    logger.warn("Recovered stuck processing posts to scheduled", { count: recovered.rowCount });
+  }
 
-  const duePosts = await db.select().from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.status, "scheduled"),
-      lte(autopilotQueue.scheduledAt, now),
-    ))
-    .orderBy(contentPriority, autopilotQueue.scheduledAt)
-    .limit(25);
+  // Atomically claim due posts using FOR UPDATE SKIP LOCKED so two concurrent
+  // executions cannot pick up the same posts twice.
+  const claimResult = await db.execute(sql`
+    UPDATE autopilot_queue
+    SET status = 'processing'
+    WHERE id IN (
+      SELECT id FROM autopilot_queue
+      WHERE status = 'scheduled' AND scheduled_at <= NOW()
+      ORDER BY
+        CASE type
+          WHEN 'go-live'            THEN 1
+          WHEN 'new-video'          THEN 2
+          WHEN 'post-stream'        THEN 3
+          WHEN 'auto-clip'          THEN 4
+          WHEN 'cross-promo'        THEN 6
+          WHEN 'content-recycle'    THEN 7
+          WHEN 'evergreen_recycler' THEN 8
+          ELSE 5
+        END, scheduled_at
+      LIMIT 25
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
+  `);
+  const duePosts = (claimResult.rows ?? []) as any[];
 
   if (duePosts.length === 0) return;
 
@@ -1424,6 +1445,7 @@ export async function processScheduledPosts() {
             logger.info("YouTube quota breaker active — deferring post until reset", { postId: post.id, deferTo: deferTo.toISOString() });
             await db.update(autopilotQueue)
               .set({
+                status: "scheduled" as any,
                 scheduledAt: deferTo,
                 metadata: {
                   ...((post.metadata as any) || {}),
@@ -1449,6 +1471,7 @@ export async function processScheduledPosts() {
           logger.info("Trust budget exhausted — deferring post", { postId: post.id, platform: post.targetPlatform, remaining: trustResult.remaining, deferTo: deferTo.toISOString() });
           await db.update(autopilotQueue)
             .set({
+              status: "scheduled" as any,
               scheduledAt: deferTo,
               metadata: {
                 ...((post.metadata as any) || {}),

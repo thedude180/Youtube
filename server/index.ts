@@ -1096,9 +1096,6 @@ httpServer.listen(
     delay(5_000, () => {
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
-      storage.deleteOldTokenBudgetUsage(30).then(n => {
-        if (n > 0) logger.info("Pruned old token budget usage rows", { deleted: n });
-      }).catch(err => logger.warn("Token budget usage cleanup failed", { error: String(err) }));
       try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
       try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));

@@ -164,7 +164,9 @@ class IntelligentJobQueue {
           logger.error(`[JobQueue] Job ${job.id} exceeded max retries and failed`);
         }
       } finally {
-        this.processNext(type).catch(() => {});
+        this.processNext(type).catch((err: any) => {
+          logger.warn(`[JobQueue] Error triggering next job for ${type}: ${err?.message}`);
+        });
       }
     } catch (err: any) {
       logger.error(`[JobQueue] Fatal error in processNext for ${type}: ${err.message}`);

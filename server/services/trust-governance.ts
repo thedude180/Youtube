@@ -931,6 +931,11 @@ export async function resetExpiredBudgets(): Promise<number> {
 export function startBudgetResetScheduler(): void {
   if (resetIntervalHandle) return;
   const intervalMs = BUDGET_RESET_INTERVAL_HOURS * 3600_000;
+
+  // Run immediately so a reset is not skipped when the server restarts before
+  // the previous interval could fire (pure setInterval resets on every boot).
+  resetExpiredBudgets().catch(err => logger.error("Startup budget reset failed:", err));
+
   resetIntervalHandle = setInterval(async () => {
     try {
       await resetExpiredBudgets();
