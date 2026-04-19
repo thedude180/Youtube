@@ -163,7 +163,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/bulk-seo-optimize", writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "SEO Optimizer");
     if (!userId) return;
 
     const schema = z.object({
@@ -219,7 +219,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/catalog-redetect", writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "SEO Optimizer");
     if (!userId) return;
 
     try {
@@ -337,7 +337,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content/game-library", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
 
     try {
@@ -358,7 +358,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.channels.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
     const userChannels = await storage.getChannelsByUser(userId);
     const now = new Date();
@@ -392,7 +392,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.channels.create.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
     try {
       const input = api.channels.create.input.parse(req.body);
@@ -415,7 +415,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.put(api.channels.update.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -448,7 +448,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.delete("/api/channels/:id", deleteRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -475,7 +475,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.videos.create.path, contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const input = api.videos.create.input.parse(req.body);
@@ -507,7 +507,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/videos/updated", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const syncLogs = await storage.getAuditLogsByUser(userId, "platform_sync_push");
@@ -518,7 +518,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/videos/update-history", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const youtubeVideoId = req.query.youtubeVideoId as string | undefined;
@@ -615,7 +615,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/videos/processing", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const pipelines = await db.select().from(contentPipeline)
@@ -631,7 +631,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.videos.get.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const videoId = parseNumericId(req.params.id as string, res, "video ID");
     if (videoId === null) return;
@@ -649,7 +649,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.put(api.videos.update.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const vidId = parseNumericId(req.params.id as string, res, "video ID");
     if (vidId === null) return;
@@ -705,7 +705,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.delete(api.videos.delete.path, deleteRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const delId = parseNumericId(req.params.id as string, res, "video ID");
     if (delId === null) return;
@@ -840,7 +840,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.insights.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Tools");
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
@@ -905,7 +905,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.compliance.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "free", "Compliance Checks");
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
@@ -982,7 +982,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.strategies.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
     if (channelId !== undefined && isNaN(channelId)) return res.status(400).json({ error: "Invalid channelId" });
@@ -1057,7 +1057,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.put(api.strategies.updateStatus.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -1073,7 +1073,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.advisor.ask.path, contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Tools");
     if (!userId) return;
     const schema = z.object({
       question: z.string().min(1, "Question is required"),
@@ -1110,7 +1110,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.backlog.optimize.path, bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const schema = z.object({
       channelId: z.number().optional(),
@@ -1215,7 +1215,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.backlog.status.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const { getBacklogStatus } = await import("../backlog-manager");
@@ -1240,7 +1240,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.backlog.autoStart.path, bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const schema = z.object({
       mode: z.enum(["deep", "quick"]).optional().default("deep"),
@@ -1271,7 +1271,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.backlog.engineStatus.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const status = await getBacklogStatus(userId);
@@ -1282,28 +1282,28 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.backlog.pause.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const success = await pauseBacklog(userId);
     res.json({ success });
   }));
 
   app.post(api.backlog.resume.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const success = await resumeBacklog(userId);
     res.json({ success });
   }));
 
   app.get(api.backlog.videoScores.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const scores = await getVideosWithScores(userId);
     res.json(scores);
   }));
 
   app.post(api.backlog.bulkOptimize.path, bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const schema = z.object({
       videoIds: z.array(z.number()).min(1),
@@ -1331,7 +1331,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.backlog.autoSchedule.path, bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const scheduled = await autoScheduleOptimizedContent(userId);
@@ -1342,14 +1342,14 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.backlog.staleVideos.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const stale = await getStaleVideos(userId);
     res.json(stale);
   }));
 
   app.post(api.backlog.viralReprocess.path, bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const result = await reprocessBackCatalog(userId);
@@ -1370,7 +1370,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.backlog.viralOptimizeSingle.path, writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const schema = z.object({ videoId: z.number() });
     const parsed = schema.safeParse(req.body);
@@ -1387,7 +1387,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post(api.thumbnails.generate.path, contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "AI Thumbnail Concepts");
     if (!userId) return;
     const schema = z.object({
       videoId: z.number().optional(),
@@ -1453,7 +1453,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content-ideas", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     const status = req.query.status as string | undefined;
     const ideas = await storage.getContentIdeas(userId, status);
@@ -1461,7 +1461,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content-ideas", contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     const schema = z.object({
       title: z.string().min(1).max(500),
@@ -1485,7 +1485,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.put("/api/content-ideas/:id", writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -1509,7 +1509,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.delete("/api/content-ideas/:id", deleteRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -1520,7 +1520,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/video-versions/:videoId", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
     if (videoId === null) return;
@@ -1529,7 +1529,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content-clips", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const sourceVideoId = req.query.sourceVideoId ? Number(req.query.sourceVideoId) : undefined;
     if (sourceVideoId !== undefined && isNaN(sourceVideoId)) return res.status(400).json({ error: "Invalid sourceVideoId" });
@@ -1538,7 +1538,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content-clips", contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const schema = z.object({
       sourceVideoId: z.number().optional(),
@@ -1563,14 +1563,14 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/collaboration-leads", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Collaboration Manager");
     if (!userId) return;
     const leads = await storage.getCollaborationLeads(userId);
     res.json(leads);
   }));
 
   app.post("/api/collaboration-leads", writeRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Collaboration Manager");
     if (!userId) return;
     const schema = z.object({
       name: z.string().min(1).max(500),
@@ -1594,7 +1594,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/compliance-rules", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "free", "Compliance Checks");
     if (!userId) return;
     const platform = req.query.platform as string | undefined;
     const rules = await storage.getComplianceRules(platform);
@@ -1602,7 +1602,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/localization/recommendations", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Content Localization");
     if (!userId) return;
     try {
       const rec = await storage.getLocalizationRecommendations(userId);
@@ -1611,7 +1611,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/calendar/uploads", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Content Calendar");
     if (!userId) return;
     try {
       const cleaned = await cached(`calendar-uploads:${userId}`, 10, async () => {
@@ -1856,7 +1856,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/calendar/horizon", asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Content Calendar");
     if (!userId) return;
     const now = new Date();
     const items = await db.select({
@@ -1901,7 +1901,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.patch("/api/calendar/approve/:id", asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Content Calendar");
     if (!userId) return;
     const id = parseNumericId(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid id" });
@@ -1914,7 +1914,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/keywords/insights", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Keyword Research");
     if (!userId) return;
     try {
       const keywords = await db.select().from(keywordInsights)
@@ -1928,7 +1928,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/keywords/analyze", contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "AI Keyword Research");
     if (!userId) return;
     try {
       const { analyzeChannelKeywords } = await import("../services/keyword-learning-engine");
@@ -1941,7 +1941,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/traffic/strategies", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     try {
       const strategies = await db.select().from(trafficStrategies)
@@ -1955,7 +1955,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/traffic/generate", contentRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
     try {
       const { generateTrafficStrategies } = await import("../services/traffic-growth-engine");
@@ -1968,7 +1968,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/calendar/schedule-pipelines", bulkRateLimit, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Content Calendar");
     if (!userId) return;
     try {
       const { startDate } = req.body;
@@ -2103,7 +2103,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content/export/videos", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const allVideos = await storage.getVideosByUser(userId);
     const csvHeader = "id,title,platform,channelId,type,status,createdAt\n";
@@ -2116,7 +2116,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content/export/analytics", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const allVideos = await storage.getVideosByUser(userId);
     const platformBreakdown: Record<string, { count: number }> = {};
@@ -2133,7 +2133,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/bulk-update", bulkRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const bulkSchema = z.object({ videoIds: z.array(z.number()).min(1).max(50), updates: z.object({ tags: z.array(z.string()).optional(), addTags: z.array(z.string()).optional(), status: z.string().optional() }).optional().default({}) });
@@ -2168,7 +2168,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/bulk-optimize", bulkRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "SEO Optimizer");
     if (!userId) return;
     try {
       const { videoIds } = req.body;
@@ -2189,7 +2189,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/optimize-shorts-crossplatform", bulkRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const allVideos: any[] = [];
@@ -2233,7 +2233,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/create-approval", writeRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const { contentType, contentId, title, generatedContent } = req.body;
@@ -2246,7 +2246,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/ab-tests/create", writeRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const { videoId, variantA, variantB, testType } = req.body;
@@ -2260,7 +2260,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/ab-tests/:id/resolve", writeRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const { winnerVariant, variantAMetrics, variantBMetrics } = req.body;
@@ -2273,7 +2273,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/from-url", writeRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Pipeline Execution");
     if (!userId) return;
     try {
       const urlSchema = z.object({
@@ -2419,7 +2419,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/videos/:id/smart-edit", writeRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Pipeline Execution");
     if (!userId) return;
     try {
       const videoId = parseNumericId(req.params.id);
@@ -2446,7 +2446,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get("/api/content/smart-edit/jobs", asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     try {
       const { getSmartEditJobs } = await import("../smart-edit-engine");
@@ -2458,7 +2458,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.post("/api/content/smart-edit/batch", bulkRateLimit, asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Pipeline Execution");
     if (!userId) return;
     try {
       const { initSmartEditForAllLongVideos } = await import("../smart-edit-engine");
@@ -2471,7 +2471,7 @@ export function registerContentRoutes(app: Express) {
 
   app.get("/api/seo/scores/me", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "pro", "SEO Optimizer");
       if (!userId) return;
       const videos = await storage.getVideos(userId);
       const scores = videos.slice(0, 20).map((v: any) => ({
@@ -2491,7 +2491,7 @@ export function registerContentRoutes(app: Express) {
 
   app.get("/api/seo/rankings/me", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "pro", "SEO Optimizer");
       if (!userId) return;
       res.json([]);
     } catch {
@@ -2501,7 +2501,7 @@ export function registerContentRoutes(app: Express) {
 
   app.post("/api/seo/rankings", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "pro", "SEO Optimizer");
       if (!userId) return;
       const { keyword } = req.body || {};
       if (!keyword) return res.status(400).json({ error: "Keyword required" });
@@ -2513,7 +2513,7 @@ export function registerContentRoutes(app: Express) {
 
   app.get("/api/seo/opportunities/me", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "pro", "SEO Optimizer");
       if (!userId) return;
       res.json([]);
     } catch {
