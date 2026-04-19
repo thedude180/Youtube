@@ -1070,7 +1070,7 @@ export function registerAiRoutes(app: Express) {
   });
 
   app.post("/api/ai/categorize-expenses", aiRateLimit, async (req, res) => {
-    const userId = await requireTier(req, res, "starter", "AI Financial Tools");
+    const userId = await requireTier(req, res, "pro", "Financial AI Tools");
     if (!userId) return;
     try {
       const { expenses } = req.body;
