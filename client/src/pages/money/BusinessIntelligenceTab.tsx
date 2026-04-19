@@ -8,6 +8,15 @@ import {
   Target, Activity, Zap, Heart, BookOpen, Briefcase
 } from "lucide-react";
 
+function safeNum(val: unknown, fallback = 0): number {
+  const n = Number(val);
+  return isFinite(n) ? n : fallback;
+}
+
+function safeStr(val: unknown, fallback = "unknown"): string {
+  return typeof val === "string" && val.length > 0 ? val : fallback;
+}
+
 function LoadingCard({ title }: { title: string }) {
   return (
     <Card className="card-empire" data-testid={`card-${title.toLowerCase().replace(/\s+/g, "-")}-loading`}>
@@ -116,17 +125,27 @@ function DashboardSummaryCard() {
   if (isLoading) return <LoadingCard title="Dashboard Summary" />;
   if (isError || !data) return <ErrorCard title="Dashboard Summary" icon={<Brain className="h-4 w-4 text-primary" />} />;
 
-  const grade = data.sellability?.grade || "F";
+  const grade = safeStr(data.sellability?.grade, "F");
   const gradeColor = grade.startsWith("A") ? "text-emerald-400" :
     grade.startsWith("B") ? "text-blue-400" :
     grade.startsWith("C") ? "text-amber-400" : "text-red-400";
 
-  const riskLevel = data.riskProfile?.level || "high";
+  const riskLevel = safeStr(data.riskProfile?.level, "high");
   const riskColor = riskLevel === "low" ? "text-emerald-400" :
     riskLevel === "moderate" ? "text-amber-400" : "text-red-400";
 
-  const capitalColor = data.capitalHealth === "healthy" ? "text-emerald-400" :
-    data.capitalHealth === "stretched" ? "text-amber-400" : "text-red-400";
+  const capitalHealth = safeStr(data.capitalHealth, "unknown");
+  const capitalColor = capitalHealth === "healthy" ? "text-emerald-400" :
+    capitalHealth === "stretched" ? "text-amber-400" : "text-red-400";
+
+  const estimatedValue = safeNum(data.valuation?.estimatedValue);
+  const valuationMethodology = safeStr(data.valuation?.methodology, "SDE");
+  const sellabilityScore = safeNum(data.sellability?.overallScore);
+  const verificationRate = safeNum(data.revenueTruth?.verificationRate);
+  const confidenceLabel = safeStr(data.revenueTruth?.confidenceLabel, "unverified");
+  const aiDisplacementRisk = safeStr(data.aiDisplacementRisk);
+  const moatStrength = safeStr(data.moatStrength);
+  const wellnessLevel = safeStr(data.wellnessLevel);
 
   return (
     <Card className="card-empire col-span-full" data-testid="card-dashboard-summary">
@@ -143,12 +162,12 @@ function DashboardSummaryCard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="space-y-1" data-testid="stat-valuation">
             <div className="text-xs text-muted-foreground">Estimated Value</div>
-            <div className="text-xl font-bold">${(data.valuation?.estimatedValue || 0).toLocaleString()}</div>
-            <div className="text-[10px] text-muted-foreground">{data.valuation?.methodology || "SDE"}</div>
+            <div className="text-xl font-bold">${estimatedValue.toLocaleString()}</div>
+            <div className="text-[10px] text-muted-foreground">{valuationMethodology}</div>
           </div>
           <div className="space-y-1" data-testid="stat-sellability">
             <div className="text-xs text-muted-foreground">Sellability Score</div>
-            <div className={`text-xl font-bold ${gradeColor}`}>{data.sellability?.overallScore || 0}/100</div>
+            <div className={`text-xl font-bold ${gradeColor}`}>{sellabilityScore}/100</div>
           </div>
           <div className="space-y-1" data-testid="stat-risk-profile">
             <div className="text-xs text-muted-foreground">Risk Profile</div>
@@ -156,26 +175,26 @@ function DashboardSummaryCard() {
           </div>
           <div className="space-y-1" data-testid="stat-revenue-truth">
             <div className="text-xs text-muted-foreground">Revenue Verified</div>
-            <div className="text-xl font-bold">{(data.revenueTruth?.verificationRate || 0).toFixed(0)}%</div>
-            <div className="text-[10px] text-muted-foreground">{data.revenueTruth?.confidenceLabel || "unverified"}</div>
+            <div className="text-xl font-bold">{verificationRate.toFixed(0)}%</div>
+            <div className="text-[10px] text-muted-foreground">{confidenceLabel}</div>
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-3 border-t border-border/50">
           <div className="space-y-1" data-testid="stat-ai-displacement">
             <div className="text-xs text-muted-foreground">AI Displacement</div>
-            <div className="text-sm font-semibold capitalize">{data.aiDisplacementRisk || "unknown"}</div>
+            <div className="text-sm font-semibold capitalize">{aiDisplacementRisk}</div>
           </div>
           <div className="space-y-1" data-testid="stat-moat">
             <div className="text-xs text-muted-foreground">Moat Strength</div>
-            <div className="text-sm font-semibold capitalize">{data.moatStrength || "unknown"}</div>
+            <div className="text-sm font-semibold capitalize">{moatStrength}</div>
           </div>
           <div className="space-y-1" data-testid="stat-wellness">
             <div className="text-xs text-muted-foreground">Wellness</div>
-            <div className="text-sm font-semibold capitalize">{data.wellnessLevel || "unknown"}</div>
+            <div className="text-sm font-semibold capitalize">{wellnessLevel}</div>
           </div>
           <div className="space-y-1" data-testid="stat-capital-health">
             <div className="text-xs text-muted-foreground">Capital Health</div>
-            <div className={`text-sm font-semibold capitalize ${capitalColor}`}>{data.capitalHealth || "unknown"}</div>
+            <div className={`text-sm font-semibold capitalize ${capitalColor}`}>{capitalHealth}</div>
           </div>
         </div>
       </CardContent>
