@@ -39,6 +39,7 @@ export async function getWebhookHealth(userId: string): Promise<{
   let failed = 0;
 
   for (const r of records) {
+    if (!r.provider) continue;
     if (!byProvider[r.provider]) byProvider[r.provider] = { total: 0, success: 0, failed: 0 };
     byProvider[r.provider].total++;
     if (r.deliveryStatus === "success") {

@@ -6,7 +6,6 @@ import { cronJobs, aiResults, aiChains, webhookEvents, channels, users } from "@
 import { eq } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import { withCronLock } from "./lib/cron-lock";
-import { logger } from "./lib/logger";
 import {
   aiVideoTranslator, aiSubtitleGenerator, aiLocalizationAdvisor,
   aiMultiLangSeo, aiDubbingScriptGenerator, aiCulturalAdaptation,
@@ -712,8 +711,10 @@ export async function initAutomationEngine() {
       await selfHealingCore("ComplianceDriftScan", async () => {
         const { getDriftSummary } = await import("./services/compliance-drift-detector");
         const summary = await getDriftSummary();
-        if (summary.critical > 0 || summary.high > 0) {
-          logger.warn(`Compliance drift detected: ${summary.critical} critical, ${summary.high} high`);
+        const criticalCount = summary.bySeverity?.['critical'] || 0;
+        const highCount = summary.bySeverity?.['high'] || 0;
+        if (criticalCount > 0 || highCount > 0) {
+          logger.warn(`Compliance drift detected: ${criticalCount} critical, ${highCount} high`);
         }
       });
     });
@@ -731,16 +732,16 @@ export async function initAutomationEngine() {
             const stats = await import("./storage").then(m => m.storage.getStats(userId));
             await db.insert(analyticsSnapshots).values({
               userId,
-              snapshotType: "auto_6h",
               metrics: {
-                subscribers: stats.subscriberCount,
-                totalViews: stats.totalViews,
-                monthlyRevenue: stats.monthlyRevenue,
-                totalVideos: stats.totalVideos,
-                activeAgents: stats.activeAgents,
-                complianceScore: stats.complianceScore,
+                totalViews: stats.totalViews || 0,
+                totalSubscribers: stats.subscriberCount || 0,
+                totalRevenue: stats.monthlyRevenue || 0,
+                videosPublished: stats.totalVideos || 0,
+                avgOptimizationScore: 0,
+                agentTasksCompleted: stats.activeAgents || 0,
+                platformBreakdown: {},
               },
-            });
+            } as any);
           } catch (snapErr: any) {
             logger.error(`[AnalyticsSnapshot] Failed for ${userId}`, snapErr instanceof Error ? snapErr : { message: String(snapErr) });
           }
@@ -896,7 +897,7 @@ async function processAutoApprovals() {
       .limit(20);
 
     for (const action of pendingSeoActions) {
-      const ageMs = Date.now() - new Date(action.createdAt).getTime();
+      const ageMs = Date.now() - new Date((action as any).proposedAt || Date.now()).getTime();
       if (ageMs > 60_000) {
         try {
           await approveSeoAction(action.userId, action.id);

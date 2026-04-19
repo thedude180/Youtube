@@ -356,11 +356,10 @@ export function registerStudioRoutes(app: Express) {
 
     try {
       const { generateThumbnailPrompt: genPrompt } = await import("../ai-engine");
-      const promptToUse = parsed.data?.prompt || await genPrompt(
-        studioVideo.title,
-        studioVideo.description || "",
-        "video"
-      );
+      const promptToUse = parsed.data?.prompt || await genPrompt({
+        title: studioVideo.title,
+        description: studioVideo.description || undefined,
+      });
 
       const { generateImageBuffer } = await import("../replit_integrations/image/client");
       const imageBuffer = await generateImageBuffer(promptToUse, "1536x1024");
@@ -562,10 +561,10 @@ export function registerStudioRoutes(app: Express) {
               description: studioVideo.description || undefined,
               metadata: {
                 ...sourceMeta,
-                tags: finalMeta.tags,
+                tags: finalMeta.tags ?? [],
                 endScreen: finalMeta.endScreen,
                 studioPublishedAt: new Date().toISOString(),
-              },
+              } as any,
             });
           }
         }

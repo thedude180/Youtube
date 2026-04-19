@@ -784,7 +784,7 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
             crossPost: platforms,
             aiOptimized: true,
             schedulingSource: source,
-          },
+          } as any,
         });
         videoScheduledCount++;
         totalScheduled++;

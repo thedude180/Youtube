@@ -330,7 +330,7 @@ class WebhookPipeline {
     }
 
     try {
-      await handler(event.payload, event.eventType);
+      await handler(event.payload as Record<string, unknown>, event.eventType);
       recordProviderSuccess(source);
     } catch (err: unknown) {
       recordProviderFailure(source);
@@ -349,7 +349,7 @@ class WebhookPipeline {
     const result = await db.execute(sql`
       SELECT count(*) as count FROM webhook_events WHERE processed = false
     `);
-    const pending = parseInt(result.rows[0]?.count || "0", 10);
+    const pending = parseInt(String(result.rows[0]?.count || "0"), 10);
 
     if (pending === 0) return 0;
 
@@ -387,7 +387,7 @@ class WebhookPipeline {
     const result = await db.execute(sql`
       SELECT count(*) as count FROM webhook_events WHERE processed = false
     `);
-    return parseInt(result.rows[0]?.count || "0", 10);
+    return parseInt(String(result.rows[0]?.count || "0"), 10);
   }
 
   async getStats(): Promise<{ pending: number; processed: number; sources: string[] }> {
@@ -397,8 +397,8 @@ class WebhookPipeline {
     ]);
     const sources = Array.from(this.handlers.keys());
     return {
-      pending: parseInt(pendingRes.rows[0]?.count || "0", 10),
-      processed: parseInt(processedRes.rows[0]?.count || "0", 10),
+      pending: parseInt(String(pendingRes.rows[0]?.count || "0"), 10),
+      processed: parseInt(String(processedRes.rows[0]?.count || "0"), 10),
       sources,
     };
   }

@@ -20,14 +20,14 @@ export class SelfHealingAgent {
         SELECT count(*) as count FROM intelligent_jobs 
         WHERE status = 'processing' AND started_at < NOW() - INTERVAL '15 minutes'
       `);
-      const stuckJobCount = parseInt(stuckJobsResult.rows[0]?.count || "0", 10);
+      const stuckJobCount = parseInt(String(stuckJobsResult.rows[0]?.count || "0"), 10);
 
       // 2. Expired Token Count
       const expiredTokensResult = await db.execute(sql`
         SELECT count(*) as count FROM channels 
         WHERE token_expires_at < NOW() + INTERVAL '30 minutes'
       `);
-      const expiredTokenCount = parseInt(expiredTokensResult.rows[0]?.count || "0", 10);
+      const expiredTokenCount = parseInt(String(expiredTokensResult.rows[0]?.count || "0"), 10);
 
       // 3. Quota Status
       const quotaStatus = adaptiveThrottle.getStatus();
@@ -40,20 +40,20 @@ export class SelfHealingAgent {
         SELECT count(*) as count FROM security_events 
         WHERE event_type LIKE 'webhook_%' AND severity = 'error' AND created_at > NOW() - INTERVAL '1 hour'
       `);
-      const failedWebhookCount = parseInt(failedWebhooksResult.rows[0]?.count || "0", 10);
+      const failedWebhookCount = parseInt(String(failedWebhooksResult.rows[0]?.count || "0"), 10);
 
       // 5. Error Spikes (last 5 min vs last 60 min baseline)
       const recentErrorsResult = await db.execute(sql`
         SELECT count(*) as count FROM security_events 
         WHERE severity = 'error' AND created_at > NOW() - INTERVAL '5 minutes'
       `);
-      const recentErrorCount = parseInt(recentErrorsResult.rows[0]?.count || "0", 10);
+      const recentErrorCount = parseInt(String(recentErrorsResult.rows[0]?.count || "0"), 10);
 
       const baselineErrorsResult = await db.execute(sql`
         SELECT count(*) as count FROM security_events 
         WHERE severity = 'error' AND created_at > NOW() - INTERVAL '1 hour'
       `);
-      const baselineTotal = parseInt(baselineErrorsResult.rows[0]?.count || "0", 10);
+      const baselineTotal = parseInt(String(baselineErrorsResult.rows[0]?.count || "0"), 10);
       const baselineErrorCount = baselineTotal / 12; // average per 5 min
 
       const thresholds = (await import("./anomaly-responder")).getAnomalyThresholds();

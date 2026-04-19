@@ -148,7 +148,7 @@ Analyze this prompt and suggest a SPECIFIC improvement. Output JSON:
         driftScore: 0,
         semanticShift: parsed.reason,
         evalResult: { expectedImpact: parsed.expectedImpact, winPatterns: winPatterns.length, losePatterns: losePatterns.length },
-      });
+      } as any);
 
       await recordEngineKnowledge(
         "prompt-evolution", userId, "prompt_evolved",

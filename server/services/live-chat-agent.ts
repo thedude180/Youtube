@@ -159,7 +159,7 @@ async function processChatCycle(session: ChatSession): Promise<void> {
     for (const ev of memberEvents) {
       if (!ev.id) continue;
       respondedMessageIds.add(ev.id);
-      const author = ev.snippet?.authorDetails?.displayName || ev.authorDetails?.displayName || "someone";
+      const author = (ev.snippet as any)?.authorDetails?.displayName || (ev as any).authorDetails?.displayName || "someone";
       const type = ev.snippet?.type || "";
 
       const aiRes = await openai.chat.completions.create({

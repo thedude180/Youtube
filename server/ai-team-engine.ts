@@ -1432,7 +1432,7 @@ async function dispatchTaskResult(task: AiAgentTask, result: any) {
               notes: opp.description || opp.notes || JSON.stringify(opp),
               contactInfo: opp.contact || null,
               platform: opp.platform || "youtube",
-            });
+            } as any);
           } catch (err) {
             logger.error("Failed to create sponsorship opportunity", { error: String(err) });
           }
@@ -1765,7 +1765,7 @@ export async function getAgentStatus(ownerId: string): Promise<{
     failedTasks: allTasks.filter(t => t.status === "failed").length,
   };
 
-  return { agents, recentTasks, teamHealth };
+  return { agents: agents as any[], recentTasks, teamHealth };
 }
 
 export function getAgentConfig() {

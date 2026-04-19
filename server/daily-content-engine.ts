@@ -137,7 +137,7 @@ async function getNextAvailableDayOffset(userId: string): Promise<number> {
     scheduledDays.map(r => {
       const raw = r.scheduledDate;
       if (!raw) return null;
-      return (raw instanceof Date ? raw : new Date(String(raw))).toISOString().split("T")[0];
+      return ((raw as any) instanceof Date ? (raw as unknown as Date) : new Date(String(raw))).toISOString().split("T")[0];
     }).filter(Boolean)
   );
 
@@ -201,7 +201,7 @@ async function getScheduledTimeForDay(dayOffset: number, userId: string): Promis
     if (patterns.length >= MIN_DATA_POINTS) {
       const topSlots = patterns.slice(0, 5);
       const picked = topSlots[Math.floor(Math.random() * topSlots.length)];
-      targetLocalHour = picked.hourOfDay;
+      targetLocalHour = picked.hourOfDay ?? 0;
       sourceLabel = "audience-data";
     } else {
       targetLocalHour = YOUTUBE_PEAK_HOURS[Math.floor(Math.random() * YOUTUBE_PEAK_HOURS.length)];
@@ -401,7 +401,7 @@ async function generateBatchPlan(
   const availableMinutes = Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
   const segEnd = segStart + availableMinutes;
 
-  const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
+  const retentionContext = await getRetentionBeatsPromptContext();
 
   try {
     const response = await openai.chat.completions.create({

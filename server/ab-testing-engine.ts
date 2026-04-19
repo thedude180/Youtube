@@ -40,16 +40,17 @@ export async function createExperiment(
   return experiment;
 }
 
-export async function evaluateExperiment(experimentId: number): Promise<{
+export async function evaluateExperiment(experimentId: number | string, _userId?: string): Promise<{
   experiment: ExperimentRecord;
   winnerId: string | null;
   summary: string;
 }> {
+  const id = typeof experimentId === "string" ? parseInt(experimentId, 10) : experimentId;
   const [experiment] = await db.select().from(experiments)
-    .where(eq(experiments.id, experimentId))
+    .where(eq(experiments.id, id))
     .limit(1);
 
-  if (!experiment) throw new Error(`Experiment ${experimentId} not found`);
+  if (!experiment) throw new Error(`Experiment ${id} not found`);
 
   if (experiment.status === "completed") {
     return {
@@ -76,9 +77,9 @@ export async function evaluateExperiment(experimentId: number): Promise<{
     winnerId,
     completedAt: new Date(),
     winnerMetrics: winnerId ? { score: bestScore } : null,
-  }).where(eq(experiments.id, experimentId)).returning();
+  }).where(eq(experiments.id, id)).returning();
 
-  logger.info("[ABTesting] Evaluated experiment", { experimentId, winnerId });
+  logger.info("[ABTesting] Evaluated experiment", { experimentId: id, winnerId });
   return {
     experiment: updated ?? experiment,
     winnerId,

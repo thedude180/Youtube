@@ -1240,7 +1240,7 @@ function DetailPanel({
 }) {
   const groupedByKind = entries.reduce((acc, entry) => {
     if (!acc[entry.contentKind]) acc[entry.contentKind] = [];
-    acc[entry.contentKind].push(entry);
+    acc[entry.contentKind]!.push(entry);
     return acc;
   }, {} as Partial<Record<ContentKind, UploadEntry[]>>);
 

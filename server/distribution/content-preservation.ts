@@ -48,7 +48,7 @@ export async function assessContentPreservation(userId: string): Promise<Preserv
   }
 
   const userVideos = await db.select().from(videos)
-    .where(eq(videos.ownerId, userId))
+    .where(eq((videos as any).ownerId, userId))
     .orderBy(desc(videos.createdAt))
     .limit(100);
 
@@ -58,7 +58,7 @@ export async function assessContentPreservation(userId: string): Promise<Preserv
 
   for (const video of userVideos) {
     const metadata = video.metadata ?? {};
-    const crossPostIds = metadata.crossPostIds ?? {};
+    const crossPostIds = (metadata as any).crossPostIds ?? {};
     const backedUp = Object.keys(crossPostIds).length > 1;
     const titleLower = video.title.toLowerCase();
     const inferredFormat = titleLower.endsWith(".flv") ? "flv"

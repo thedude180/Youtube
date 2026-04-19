@@ -986,7 +986,7 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
       requestBody: {
         snippet: {
           videoId: youtubeVideoId,
-          channelId: channel.externalId || undefined,
+          channelId: channel.channelId || undefined,
           topLevelComment: {
             snippet: {
               textOriginal: commentText,

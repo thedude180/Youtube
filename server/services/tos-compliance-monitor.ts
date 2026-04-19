@@ -408,7 +408,7 @@ async function enforceCurrentRules(): Promise<void> {
   for (const rule of rules) {
     let meta: any = {};
     try {
-      meta = rule.metadata != null && typeof rule.metadata === "object" ? rule.metadata : {};
+      meta = (rule as any).metadata != null && typeof (rule as any).metadata === "object" ? (rule as any).metadata : {};
     } catch { meta = {}; }
     if (meta.changeType === "new_restriction" && rule.severity === "critical") {
       for (const engine of (Array.isArray(meta.affectedEngines) ? meta.affectedEngines : [])) {

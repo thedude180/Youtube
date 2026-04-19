@@ -640,7 +640,7 @@ export async function getActionQueue(
   const conditions = [eq(reconciliationActions.userId, userId)];
   if (status) conditions.push(eq(reconciliationActions.status, status));
 
-  return db.select().from(reconciliationActions)
+  return (db.select().from(reconciliationActions) as any)
     .where(and(...conditions))
     .orderBy(desc(reconciliationActions.createdAt))
     .limit(50);

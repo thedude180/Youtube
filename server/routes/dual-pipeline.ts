@@ -440,7 +440,7 @@ async function runStreamPipelineStep(
   let prompt = prompts[stepId];
 
   if (stepId === "retention_beats_scan") {
-    const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
+    const retentionContext = await getRetentionBeatsPromptContext();
     prompt = `Apply proven retention beat patterns to "${safeSourceTitle}" (${durStr}). Context: ${ctx("analyze")}, ${ctx("retention_analyze") || "{}"}.
 
 ${retentionContext}

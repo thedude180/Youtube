@@ -41,7 +41,7 @@ export async function repurposeVideo(userId: string, videoId: number, formats: s
       return `"${f}": ${fmt?.description || f}`;
     }).join("\n");
 
-    const retentionContext = await getRetentionBeatsPromptContext(userId);
+    const retentionContext = await getRetentionBeatsPromptContext();
 
     const prompt = `You are a content repurposing expert using proven retention science. Transform this video into multiple content formats.
 

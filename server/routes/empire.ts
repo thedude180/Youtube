@@ -48,7 +48,7 @@ export function registerEmpireRoutes(app: Express): void {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const businessId = parseInt(req.params.id);
+      const businessId = parseInt(req.params.id as string);
       const [business] = await db.select().from(businessProfiles)
         .where(and(eq(businessProfiles.id, businessId), eq(businessProfiles.userId, userId)))
         .limit(1);
@@ -83,7 +83,7 @@ export function registerEmpireRoutes(app: Express): void {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const businessId = parseInt(req.params.id);
+      const businessId = parseInt(req.params.id as string);
       await adaptBusinessToIndustry(businessId, userId);
       res.json({ success: true });
     } catch (err: any) {

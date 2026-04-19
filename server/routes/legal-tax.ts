@@ -235,7 +235,7 @@ export function registerLegalTaxRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const { agentId } = req.params;
+    const agentId = req.params.agentId as string;
     if (!ALL_LEGAL_TAX_AGENTS[agentId]) {
       res.status(404).json({ error: "Agent not found" });
       return;
@@ -259,7 +259,7 @@ export function registerLegalTaxRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
 
-    const { agentId } = req.params;
+    const agentId = req.params.agentId as string;
     const found = await runSingleLegalTaxAgent(userId, agentId);
     if (!found) {
       res.status(404).json({ error: "Agent not found" });

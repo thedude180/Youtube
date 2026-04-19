@@ -408,7 +408,7 @@ async function runContinuityCycle(): Promise<void> {
               inventoryRefilled: refilled ? 1 : 0,
               totalGapsFilledLifetime: totalGapsFilled,
               ...(healthData ? { systemHealthScore: healthData.score, pipelineStatus: healthData.status } : {}),
-            },
+            } as any,
           },
         });
 

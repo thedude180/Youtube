@@ -230,13 +230,7 @@ Return JSON:
       }
     }
 
-    await recordLearningEvent(userId, "autonomous-content-pipeline", {
-      type: "content_optimized",
-      videoId,
-      strategiesApplied: result.strategiesApplied || [],
-      confidence: result.confidenceScore || 50,
-      optimizedTitle: result.optimizedTitle,
-    });
+    await recordLearningEvent(userId, "autonomous-content-pipeline", "content_optimized", { videoId, strategiesApplied: result.strategiesApplied || [], confidence: result.confidenceScore || 50, optimizedTitle: result.optimizedTitle });
 
     logger.info("Autonomous content pipeline complete", {
       videoId,
@@ -296,13 +290,9 @@ export async function runPerformanceFeedbackLoop(userId: string): Promise<void> 
         }
       }
 
-      await recordLearningEvent(userId, "autonomous-content-pipeline", {
-        type: "impact_measured",
-        videoId,
-        views: currentViews,
-        daysSinceOptimization: improvement.daysSinceAction,
+      await recordLearningEvent(userId, "autonomous-content-pipeline", "impact_measured", { videoId, views: currentViews, daysSinceOptimization: improvement.daysSinceAction,
         strategiesApplied,
-      });
+      })
     }
 
     logger.info("Performance feedback loop complete", { userId, measured: executedActions.length });

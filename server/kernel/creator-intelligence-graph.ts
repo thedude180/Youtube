@@ -1,17 +1,6 @@
 import { emitDomainEvent } from "./index";
 
-export type IntelligenceEventType =
-  | "content.published" | "content.performance_update" | "content.trend_detected"
-  | "audience.segment_shift" | "audience.engagement_change" | "audience.trust_change"
-  | "revenue.stream_change" | "revenue.milestone" | "revenue.attribution_update"
-  | "learning.signal_emitted" | "learning.maturity_change" | "learning.contradiction_detected"
-  | "brand.drift_detected" | "brand.recognition_change"
-  | "live.stream_started" | "live.stream_ended" | "live.moment_captured"
-  | "distribution.platform_change" | "distribution.seasonal_event"
-  | "business.valuation_change" | "business.wellness_alert"
-  | "compliance.policy_change" | "compliance.risk_change"
-  | "experiment.started" | "experiment.concluded" | "experiment.promoted"
-  | "system.health_change" | "system.recovery_initiated";
+export type IntelligenceEventType = string;
 
 export interface IntelligenceEvent {
   id: string;

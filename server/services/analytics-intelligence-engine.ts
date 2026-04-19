@@ -294,7 +294,7 @@ async function generateTrendForecasts(userId: string): Promise<void> {
 
       const topInsights: string[] = [];
       if (forecast30d.optimalPostingHour) topInsights.push(`Best posting hour: ${forecast30d.optimalPostingHour}:00`);
-      if (forecast30d.bestPerformingType) topInsights.push(`Top content type: ${forecast30d.bestPerformingType}`);
+      if (forecast30d.bestContentType) topInsights.push(`Top content type: ${forecast30d.bestContentType}`);
       if (topInsights.length > 0) {
         await recordEngineKnowledge("analytics-intelligence", userId, "trend_forecast", `${platform}_performance`, topInsights.join("; "), `Confidence: ${Math.round((forecast30d.confidence || 0) * 100)}%, based on ${channelVideos.length} videos`, Math.round((forecast30d.confidence || 0.5) * 100));
       }

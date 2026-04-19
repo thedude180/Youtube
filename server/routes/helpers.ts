@@ -18,12 +18,13 @@ interface AuthenticatedUser {
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
 // AUDIT FIX: Reject empty/blank strings (Number("") === 0) and non-positive IDs to prevent silent id=0 operations
-export function parseNumericId(raw: string, res: Response, label = "ID"): number | null {
-  if (!raw || raw.trim() === "") {
+export function parseNumericId(raw: string | string[], res: Response, label = "ID"): number | null {
+  const rawStr = Array.isArray(raw) ? raw[0] : raw;
+  if (!rawStr || rawStr.trim() === "") {
     res.status(400).json({ error: `Missing ${label}` });
     return null;
   }
-  const id = parseInt(raw.trim(), 10);
+  const id = parseInt(rawStr.trim(), 10);
   if (isNaN(id) || id <= 0) {
     res.status(400).json({ error: `Invalid ${label}` });
     return null;

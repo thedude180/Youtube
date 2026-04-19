@@ -179,7 +179,7 @@ function HeatmapCard() {
               <span className="text-[9px] text-muted-foreground leading-3 flex items-center">
                 {row.day}
               </span>
-              {row.hours.map((cell) => (
+              {row.hours.map((cell: any) => (
                 <div
                   key={cell.hour}
                   className={`h-3 rounded-[2px] ${heatColor(cell.activity)}`}

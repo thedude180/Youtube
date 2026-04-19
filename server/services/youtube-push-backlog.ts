@@ -243,7 +243,7 @@ export async function processBacklog(): Promise<{
           userId,
           agentId: "seo",
           action: `Auto-pushed queued optimization to YouTube: ${updates.title || item.youtubeVideoId}`,
-          details: { backlogId: item.id, youtubeVideoId: item.youtubeVideoId, updatedFields: Object.keys(updates) },
+          details: { description: `Backlog sync: ${item.youtubeVideoId}`, backlogId: item.id, youtubeVideoId: item.youtubeVideoId, updatedFields: Object.keys(updates) } as any,
           status: "completed",
         });
       } catch (err: any) {

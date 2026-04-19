@@ -87,7 +87,7 @@ router.get("/approval/rules", asyncHandler(async (req, res) => {
 router.put("/approval/rules/:actionClass", asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
-  const { actionClass } = req.params;
+  const actionClass = req.params.actionClass as string;
   const { bandClass, confidenceThreshold, description } = req.body;
   if (!bandClass && confidenceThreshold === undefined && !description) {
     return res.status(400).json({ error: "At least one field to update is required" });
@@ -119,7 +119,7 @@ router.get("/approval/pending", asyncHandler(async (req, res) => {
 router.post("/approval/resolve/:id", asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
-  const approvalId = parseNumericId(req.params.id, res, "approval ID");
+  const approvalId = parseNumericId(req.params.id as string, res, "approval ID");
   if (approvalId === null) return;
   const { resolution, reason } = req.body;
   if (!resolution || !["approved", "denied"].includes(resolution)) {
@@ -184,7 +184,7 @@ router.get("/immune/history", asyncHandler(async (req, res) => {
 router.post("/immune/resolve/:id", asyncHandler(async (req, res) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
-  const id = parseNumericId(req.params.id, res, "threat ID");
+  const id = parseNumericId(req.params.id as string, res, "threat ID");
   if (id === null) return;
   const resolved = await resolveChannelThreat(id, userId);
   if (!resolved) return res.status(404).json({ error: "Threat not found or not owned by you" });

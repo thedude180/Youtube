@@ -58,7 +58,7 @@ export function useStreamState(): StreamStateInfo {
       ...scheduleData
         .filter((s) => s.scheduledAt && new Date(s.scheduledAt).getTime() > now)
         .map((s) => ({ ...s, _time: new Date(s.scheduledAt!).getTime() })),
-      ...plannedStreams
+      ...(plannedStreams as any[])
         .filter((s) => s.scheduledFor && new Date(s.scheduledFor).getTime() > now)
         .map((s) => ({
           id: s.id,
@@ -74,7 +74,7 @@ export function useStreamState(): StreamStateInfo {
 
   const hasUpcomingStream = useMemo(() => {
     const now = Date.now();
-    const hasNearPlanned = plannedStreams.some((s) => {
+    const hasNearPlanned = (plannedStreams as any[]).some((s) => {
       if (!s.scheduledFor) return false;
       const diff = new Date(s.scheduledFor).getTime() - now;
       return diff > 0 && diff < PREP_WINDOW_MS;

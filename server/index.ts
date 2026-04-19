@@ -1522,7 +1522,7 @@ httpServer.listen(
           // Enqueue shorts factory to re-process highlights for evergreen distribution
           if (job.userId && videoId) {
             const { shortsFactory } = await import("./services/shorts-factory");
-            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream").catch(err =>
+            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream", "0").catch(err =>
               logger.warn("[Autonomous] evergreen_recycler factory failed", { error: String(err) })
             );
           }

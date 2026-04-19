@@ -100,8 +100,8 @@ const PLATFORM_POLICY_SOURCES: Record<string, { name: string; policyAreas: strin
   },
 };
 
-function buildPlatformLimits(): Record<string, Record<string, unknown>> {
-  const limits: Record<string, Record<string, unknown>> = {};
+function buildPlatformLimits(): Record<string, any> {
+  const limits: Record<string, any> = {};
   for (const platform of POLICY_PACK_PLATFORMS) {
     const pack = getPolicyPack(platform);
     if (pack) {

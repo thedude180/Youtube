@@ -287,10 +287,10 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const experimentId = parseInt(req.params.id);
+      const experimentId = parseInt(req.params.id as string);
       if (isNaN(experimentId)) return res.status(400).json({ error: "Invalid experiment ID" });
       const { evaluateExperiment } = await import("../ab-testing-engine");
-      const result = await evaluateExperiment(experimentId);
+      const result = await evaluateExperiment(experimentId, userId);
       res.json(result);
     } catch (err: any) {
       logger.error("AB testing evaluate error", { error: err.message });
@@ -458,7 +458,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const inviteId = parseInt(req.params.id);
+      const inviteId = parseInt(req.params.id as string);
       const invite = await storage.getTeamMemberById(inviteId);
       if (!invite || invite.status !== "pending") return res.status(404).json({ error: "Invitation not found" });
 
@@ -492,7 +492,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const inviteId = parseInt(req.params.id);
+      const inviteId = parseInt(req.params.id as string);
       const invite = await storage.getTeamMemberById(inviteId);
       if (!invite || invite.status !== "pending") return res.status(404).json({ error: "Invitation not found" });
 
@@ -521,7 +521,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const memberId = parseInt(req.params.id);
+      const memberId = parseInt(req.params.id as string);
       const { role } = req.body;
       if (!role || !TEAM_ROLES.includes(role)) return res.status(400).json({ error: "Invalid role" });
       if (role === "owner") return res.status(400).json({ error: "Cannot assign owner role" });
@@ -553,7 +553,7 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const memberId = parseInt(req.params.id);
+      const memberId = parseInt(req.params.id as string);
       const member = await storage.getTeamMemberById(memberId);
       if (!member || member.ownerId !== userId) return res.status(404).json({ error: "Member not found" });
       if (member.status !== "active" && member.status !== "pending") return res.status(400).json({ error: "Member already removed" });

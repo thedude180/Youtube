@@ -338,14 +338,14 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
 
       for (const tc of choice.message.tool_calls) {
         let args: any;
-        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { args = {}; }
+        try { args = JSON.parse((tc as any).function.arguments || "{}"); } catch { args = {}; }
         let result: any;
         try {
-          result = await executeTool(userId, tc.function.name, args);
+          result = await executeTool(userId, (tc as any).function.name, args);
         } catch (err: any) {
           result = { error: err.message || "Tool execution failed" };
         }
-        executedToolCalls.push({ tool: tc.function.name, args, result });
+        executedToolCalls.push({ tool: (tc as any).function.name, args, result });
         toolMessages.push({
           role: "tool",
           tool_call_id: tc.id,

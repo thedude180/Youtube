@@ -196,7 +196,7 @@ async function assessChannelHealth(userId: string): Promise<ChannelHealthReport>
 
   recordEngineKnowledge("media-command", userId, "channel_health", `health_grade_${sanitizeForPrompt(report.grade)}`, `Channel health: ${sanitizeForPrompt(report.grade)} (${sanitizeForPrompt(report.score)}/100). Cadence: ${sanitizeForPrompt(report.uploadCadence.actual)}/day. Mix: ${shorts.length} shorts, ${longForm.length} long, ${streams.length} streams. Strike risk: ${sanitizeForPrompt(report.strikeRisk.level)}`, `${sanitizeForPrompt(report.uploadCadence.recommendation)} | ${sanitizeForPrompt(report.contentMix.recommendation)}`, report.score).catch(() => {});
 
-  return report;
+  return report as any;
 }
 
 async function optimizeUploadCadence(userId: string): Promise<CadenceIntelligence> {

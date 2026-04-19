@@ -54,7 +54,7 @@ Return a JSON array of objects with keys: "startTime", "endTime", "title", "reas
       );
 
       const parsed = safeParseJSON(aiResult.content, [] as any[]);
-      const moments = Array.isArray(parsed) ? parsed : (parsed.moments || []);
+      const moments = Array.isArray(parsed) ? parsed : ((parsed as any).moments || []);
 
       logger.info(`[ShortsFactory] AI identified ${moments.length} moments for VOD ${vodVideoId}`);
 

@@ -47,7 +47,7 @@ export function registerCopyrightGuardianRoutes(app: Express): void {
   app.post("/api/copyright-guardian/apply/:videoId", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    const videoId = parseInt(req.params.videoId);
+    const videoId = parseInt(req.params.videoId as string);
     if (isNaN(videoId)) return res.status(400).json({ error: "Invalid video ID" });
     try {
       const result = await applyCopyrightFix(userId, videoId);
@@ -60,7 +60,7 @@ export function registerCopyrightGuardianRoutes(app: Express): void {
   app.post("/api/copyright-guardian/dismiss/:videoId", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    const videoId = parseInt(req.params.videoId);
+    const videoId = parseInt(req.params.videoId as string);
     if (isNaN(videoId)) return res.status(400).json({ error: "Invalid video ID" });
     try {
       dismissCopyrightIssue(userId, videoId);

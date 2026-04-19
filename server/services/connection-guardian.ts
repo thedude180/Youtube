@@ -577,7 +577,7 @@ export function startConnectionGuardian(): void {
   );
 
   fastRecoveryStop = setJitteredInterval(
-    () => fastRecoverBrokenConnections().catch((err) => logger.error("Fast recovery failed", { error: String(err) })),
+    () => fastRecoverBrokenConnections().then(() => {}).catch((err) => logger.error("Fast recovery failed", { error: String(err) })),
     FAST_RECOVERY_CYCLE_MS,
   );
 }

@@ -55,7 +55,7 @@ class IntelligentJobQueue {
           SELECT count(*) as count FROM intelligent_jobs 
           WHERE user_id = ${opts.userId} AND status IN ('queued', 'processing')
         `);
-        const activeCount = parseInt(result.rows[0]?.count || "0", 10);
+        const activeCount = parseInt(String(result.rows[0]?.count || "0"), 10);
         if (activeCount > 10) {
           scheduledFor = new Date(Date.now() + 60_000);
           logger.info(`[JobQueue] User ${opts.userId} has >10 active jobs, delaying job ${opts.type}`);
@@ -183,7 +183,7 @@ class IntelligentJobQueue {
       SELECT count(*) as count FROM intelligent_jobs 
       WHERE type = ${type} AND status = 'processing'
     `);
-    return parseInt(result.rows[0]?.count || "0", 10);
+    return parseInt(String(result.rows[0]?.count || "0"), 10);
   }
 
   async clearStuck(olderThanMinutes = 15): Promise<number> {

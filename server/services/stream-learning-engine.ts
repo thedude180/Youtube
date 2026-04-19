@@ -296,7 +296,7 @@ export async function processStreamLearning(metrics: StreamEndMetrics): Promise<
       details: {
         description: `Stream graded ${grade}. Peak: ${peak} viewers, ${chat} chat msgs in ${durationMin}min. Sentiment: ${metrics.chatSentiment || "neutral"}. ${tips[0]}`,
         impact: `Grade: ${grade} | Trend: ${history.length > 0 ? (peak > (history[0]?.peakViewers ?? 0) ? "improving" : "needs attention") : "baseline established"}`,
-        metrics: { peakViewers: peak, chatMessages: chat, chatRate, durationMinutes: durationMin, grade },
+        metrics: { peakViewers: peak, chatMessages: chat, chatRate, durationMinutes: durationMin } as any,
       },
     });
   } catch (err: any) {

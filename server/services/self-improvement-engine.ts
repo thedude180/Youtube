@@ -108,7 +108,7 @@ export async function runImprovementCycle(): Promise<void> {
 
 async function runUserImprovementCycle(userId: string): Promise<void> {
   ensureUserRegistered(userId);
-  const userChannels = await getUserData(siStore, userId, "channels");
+  const userChannels = await getUserData<any>(siStore, userId, "channels");
   if (userChannels.length === 0) return;
 
   await reflectOnSelf(userId, userChannels, "scheduled_cycle");
@@ -160,7 +160,7 @@ export async function onNewContentDetected(userId: string, videoIdOrExternalId: 
     }
 
     ensureUserRegistered(userId);
-    const userChannels = await getUserData(siStore, userId, "channels");
+    const userChannels = await getUserData<any>(siStore, userId, "channels");
 
     await analyzeAndLearnFromContent(userId, videoId);
 
@@ -193,13 +193,13 @@ export async function onNewContentDetected(userId: string, videoIdOrExternalId: 
 
 async function reflectOnSelf(userId: string, userChannels: any[], trigger: string): Promise<void> {
   try {
-    const recentImprovements = (await getUserData(siStore, userId, "improvements_recent")).slice(0, 10);
+    const recentImprovements = (await getUserData<any>(siStore, userId, "improvements_recent")).slice(0, 10);
 
-    const activeGoals = (await getUserData(siStore, userId, "goals_active")).slice(0, 5);
+    const activeGoals = (await getUserData<any>(siStore, userId, "goals_active")).slice(0, 5);
 
-    const recentStrategies = (await getUserData(siStore, userId, "strategies_active")).slice(0, 10);
+    const recentStrategies = (await getUserData<any>(siStore, userId, "strategies_active")).slice(0, 10);
 
-    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
+    const lastReflection = await getUserData<any>(siStore, userId, "reflection_latest");
 
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
@@ -321,7 +321,7 @@ Return JSON: {
 
 async function generateCuriosity(userId: string, userChannels: any[]): Promise<void> {
   try {
-    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
+    const lastReflection = await getUserData<any>(siStore, userId, "reflection_latest");
 
     const existingQuestions = await getUserData<any>(siStore, userId, "curiosity_queued");
 
@@ -473,7 +473,7 @@ async function setNewGoals(userId: string, userChannels: any[]): Promise<void> {
 
     if (activeGoals.length >= 5) return;
 
-    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
+    const lastReflection = await getUserData<any>(siStore, userId, "reflection_latest");
 
     const channelStats = [];
     for (const ch of userChannels.slice(0, 3)) {
@@ -645,7 +645,7 @@ async function scanWebForStrategies(userId: string): Promise<void> {
       ).join("\n");
     }
 
-    const lastReflection = await getUserData(siStore, userId, "reflection_latest");
+    const lastReflection = await getUserData<any>(siStore, userId, "reflection_latest");
 
     const currentMood = lastReflection[0]?.mood || "curious";
     const currentWeaknesses = lastReflection[0]?.weaknessesAdmitted || [];
@@ -892,7 +892,7 @@ async function analyzeAndLearnFromContent(userId: string, videoId: number): Prom
 
     if (result.learnings && Array.isArray(result.learnings)) {
       for (const learning of result.learnings) {
-        await recordLearningEvent(userId, "self-improvement-engine", {
+        await recordLearningEvent(userId, "self-improvement-engine", "event", {
           type: "content_analysis",
           area: learning.area,
           finding: learning.finding,

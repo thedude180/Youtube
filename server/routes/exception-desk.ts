@@ -41,8 +41,8 @@ router.get("/exceptions", asyncHandler(async (req, res) => {
   const safeOffset = isNaN(parsedOffset) || parsedOffset < 0 ? 0 : parsedOffset;
 
   const items = await getExceptions({
-    status: status as string | undefined,
-    severity: severity as string | undefined,
+    status: status as any,
+    severity: severity as any,
     category: category as string | undefined,
     source: source as string | undefined,
     limit: safeLimit,
@@ -64,7 +64,7 @@ router.get("/exceptions/:id", asyncHandler(async (req, res) => {
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id) || id <= 0) return res.status(400).json({ error: "Invalid exception ID" });
 
   const item = await getExceptionById(id);
@@ -77,7 +77,7 @@ router.post("/exceptions/:id/acknowledge", governanceGate("community_moderation"
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id) || id <= 0) return res.status(400).json({ error: "Invalid exception ID" });
 
   const success = await acknowledgeException(id, userId);
@@ -90,7 +90,7 @@ router.post("/exceptions/:id/resolve", governanceGate("community_moderation"), a
   const userId = requireAdmin(req, res);
   if (!userId) return;
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id) || id <= 0) return res.status(400).json({ error: "Invalid exception ID" });
 
   const { resolution } = req.body || {};

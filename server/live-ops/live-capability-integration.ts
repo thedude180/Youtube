@@ -85,7 +85,7 @@ export async function checkDestinationEligibility(
 
   const capCheck: LiveCapabilityCheck = {
     platform,
-    channelId: channel?.platformChannelId || channelId || null,
+    channelId: (channel as any)?.platformChannelId || channelId || null,
     eligible,
     reason: eligible ? "All capability checks passed" : blockers.join("; "),
     streamKeyConfigured,
@@ -97,7 +97,7 @@ export async function checkDestinationEligibility(
 
   await db.insert(liveCapabilitySnapshots).values({
     platform,
-    channelId: channel?.platformChannelId || channelId,
+    channelId: (channel as any)?.platformChannelId || channelId,
     capability: "live_streaming",
     supported: eligible,
     status: eligible ? "verified" : "unavailable",
@@ -107,7 +107,7 @@ export async function checkDestinationEligibility(
     featureSupport,
   });
 
-  return { platform, channelId: channel?.platformChannelId || channelId || null, eligible, checks: capCheck, blockers, warnings };
+  return { platform, channelId: (channel as any)?.platformChannelId || channelId || null, eligible, checks: capCheck, blockers, warnings };
 }
 
 export async function checkAllDestinations(userId: string): Promise<DestinationEligibility[]> {

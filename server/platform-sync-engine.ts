@@ -69,7 +69,7 @@ async function pushAndUpdateLocal(
   const { isMonetizationUnlocked } = await import("./services/monetization-check");
   const monetizationEnabled = await isMonetizationUnlocked(userId, "youtube");
   if (monetizationEnabled) {
-    updates.enableMonetization = true;
+    (updates as any).enableMonetization = true;
   }
   await updateYouTubeVideo(ytChannelId, youtubeId, updates);
 

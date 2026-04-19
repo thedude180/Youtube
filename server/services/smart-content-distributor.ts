@@ -283,7 +283,7 @@ async function distributeOverflow(
 
   const dayUsage = new Map<string, number>();
   for (const row of existingCounts) {
-    const dateStr = row.day instanceof Date ? row.day.toISOString().split("T")[0] : String(row.day);
+    const dateStr = (row.day as any) instanceof Date ? (row.day as any).toISOString().split("T")[0] : String(row.day);
     dayUsage.set(dateStr, row.cnt);
   }
 

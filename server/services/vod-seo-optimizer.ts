@@ -124,9 +124,9 @@ Ensure the tone matches the creator's DNA.`;
           tags: optimized.tags || video.metadata?.tags || [],
           aiOptimized: true,
           aiOptimizedAt: new Date().toISOString(),
-          seoRecommendations: optimized.optimizedTitle ? [optimized.optimizedTitle] : [],
+          // seoRecommendations removed: not in metadata type
           seoTitleHook: optimized.titleHook || null,
-        }
+        } as any
       });
 
       await recordSEOKnowledge(userId, videoId, video.title, optimized.optimizedTitle || video.title, gameName);

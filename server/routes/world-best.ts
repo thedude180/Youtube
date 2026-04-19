@@ -14,7 +14,7 @@ async function verifyVideoOwnership(userId: string, videoId: number, res: Respon
     res.status(404).json({ error: "Video not found" });
     return false;
   }
-  if (video.userId !== userId) {
+  if ((video as any).userId !== userId) {
     res.status(403).json({ error: "Access denied" });
     return false;
   }
@@ -199,14 +199,14 @@ export function registerWorldBestRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
-    const history = await getCopilotHistory(userId, req.params.sessionId, limit);
+    const history = await getCopilotHistory(userId, req.params.sessionId as string, limit);
     res.json(history);
   }));
 
   app.delete("/api/copilot/session/:sessionId", copilotRateLimit, asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await clearCopilotSession(userId, req.params.sessionId);
+    await clearCopilotSession(userId, req.params.sessionId as string);
     res.json({ success: true });
   }));
 

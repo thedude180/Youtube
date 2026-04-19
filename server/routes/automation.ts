@@ -168,7 +168,7 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.automation.updateRule.path, async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Automation Rules");
     if (!userId) return;
-    const id = parseNumericId(req.params.id, res);
+    const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -183,7 +183,7 @@ export async function registerAutomationRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const { name, agentId, trigger, enabled, actions } = parsed.data;
     try {
-      const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
+      const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions: actions as any });
       res.json(rule);
     } catch (err: any) {
       logger.error("[Automation] Update rule error:", err);
@@ -194,7 +194,7 @@ export async function registerAutomationRoutes(app: Express) {
   app.delete(api.automation.deleteRule.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id, res);
+    const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     try {
       const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
@@ -255,7 +255,7 @@ export async function registerAutomationRoutes(app: Express) {
   app.put(api.schedule.update.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id, res);
+    const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -271,7 +271,7 @@ export async function registerAutomationRoutes(app: Express) {
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     const { title, scheduledAt, platform, type, status, metadata } = parsed.data;
     try {
-      const item = await storage.updateScheduleItem(id, { title, scheduledAt, platform, type, status, metadata });
+      const item = await storage.updateScheduleItem(id, { title, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined, platform, type, status, metadata: metadata as any });
       res.json(item);
     } catch (err: any) {
       logger.error("[Automation] Schedule update error:", err);
@@ -282,7 +282,7 @@ export async function registerAutomationRoutes(app: Express) {
   app.patch("/api/schedule/:id", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id, res);
+    const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     try {
       const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
@@ -297,7 +297,7 @@ export async function registerAutomationRoutes(app: Express) {
       });
       const parsed = patchSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-      const item = await storage.updateScheduleItem(id, parsed.data);
+      const item = await storage.updateScheduleItem(id, parsed.data as any);
       res.json(item);
     } catch (err: any) {
       logger.error("[Automation] Schedule patch error:", err);
@@ -308,7 +308,7 @@ export async function registerAutomationRoutes(app: Express) {
   app.delete(api.schedule.delete.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id, res);
+    const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
     try {
       const [existing] = await db.select().from(scheduleItems).where(and(eq(scheduleItems.id, id), eq(scheduleItems.userId, userId))).limit(1);
@@ -395,7 +395,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = await requireTier(req, res, "pro", "Custom Cron Jobs");
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(cronJobs).where(and(eq(cronJobs.id, id), eq(cronJobs.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -415,7 +415,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(cronJobs).where(and(eq(cronJobs.id, id), eq(cronJobs.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -462,20 +462,20 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = await requireTier(req, res, "pro", "AI Chains");
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, id), eq(aiChains.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
       const result = await runChainManually(id);
       res.json(result);
-    } catch (err: any) { logger.error(`[AutomationChain] Run error for chain ${id}:`, err); res.status(500).json({ error: "An internal error occurred. Please try again." }); }
+    } catch (err: any) { logger.error(`[AutomationChain] Run error for chain ${req.params.id}:`, err); res.status(500).json({ error: "An internal error occurred. Please try again." }); }
   });
 
   app.patch("/api/automation/chains/:id", async (req: any, res) => {
     try {
       const userId = await requireTier(req, res, "pro", "AI Chains");
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, id), eq(aiChains.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -496,7 +496,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(aiChains).where(and(eq(aiChains.id, id), eq(aiChains.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -519,7 +519,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -557,7 +557,7 @@ export async function registerAutomationRoutes(app: Express) {
       }
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const source = String(req.params.source).trim();
+      const source = String(req.params.source as string).trim();
       if (!source || !/^[a-zA-Z0-9-]+$/.test(source)) return res.status(400).json({ error: "Invalid source format" });
       const webhookSchema = z.object({
         eventType: z.string().max(200).optional(),
@@ -618,7 +618,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -632,7 +632,7 @@ export async function registerAutomationRoutes(app: Express) {
       const parsed = patchRuleSchema.safeParse(req.body || {});
       if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
       const { name, agentId, trigger, enabled, actions } = parsed.data;
-      const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions });
+      const rule = await storage.updateAutomationRule(id, { name, agentId, trigger, enabled, actions: actions as any });
       res.json(rule);
     } catch (err) { res.status(500).json({ error: "Failed to update rule" }); }
   });
@@ -641,7 +641,7 @@ export async function registerAutomationRoutes(app: Express) {
     try {
       const userId = requireAuth(req, res);
       if (!userId) return;
-      const id = parseNumericId(req.params.id, res);
+      const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
       const [existing] = await db.select().from(automationRules).where(and(eq(automationRules.id, id), eq(automationRules.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
@@ -663,7 +663,7 @@ export async function registerAutomationRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const result = await storage.getLatestAiResult(userId, req.params.featureKey);
+      const result = await storage.getLatestAiResult(userId, req.params.featureKey as string);
       res.json(result || null);
     } catch (err) { res.status(500).json({ error: "Failed to get latest result" }); }
   });

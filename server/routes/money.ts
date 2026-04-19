@@ -422,7 +422,7 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/expenses/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, id), eq(expenseRecords.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -437,14 +437,14 @@ export function registerMoneyRoutes(app: Express) {
     }).passthrough();
     const parsed = updateExpenseSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const record = await storage.updateExpenseRecord(id, parsed.data);
+    const record = await storage.updateExpenseRecord(id, parsed.data as any);
     res.json(record);
   }));
 
   app.delete("/api/expenses/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(expenseRecords).where(and(eq(expenseRecords.id, id), eq(expenseRecords.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -476,7 +476,7 @@ export function registerMoneyRoutes(app: Express) {
         const record = await storage.createExpenseRecord({
           userId,
           description: row.description || "Imported expense",
-          amount: Math.abs(parseFloat(row.amount) || 0),
+          amount: Math.abs(parseFloat(String(row.amount)) || 0),
           category: row.category || "other",
           expenseDate: row.date ? new Date(row.date) : new Date(),
           vendor: row.vendor || row.description || "",
@@ -594,7 +594,7 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/ventures/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, id), eq(businessVentures.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -609,14 +609,14 @@ export function registerMoneyRoutes(app: Express) {
     }).passthrough();
     const parsed = updateVentureSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const venture = await storage.updateBusinessVenture(id, parsed.data);
+    const venture = await storage.updateBusinessVenture(id, parsed.data as any);
     res.json(venture);
   }));
 
   app.delete("/api/ventures/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessVentures).where(and(eq(businessVentures.id, id), eq(businessVentures.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -655,7 +655,7 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/goals/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, id), eq(businessGoals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -671,14 +671,14 @@ export function registerMoneyRoutes(app: Express) {
     }).passthrough();
     const parsed = updateGoalSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const goal = await storage.updateBusinessGoal(id, parsed.data);
+    const goal = await storage.updateBusinessGoal(id, parsed.data as any);
     res.json(goal);
   }));
 
   app.delete("/api/goals/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(businessGoals).where(and(eq(businessGoals.id, id), eq(businessGoals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -717,7 +717,7 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/tax-estimates/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(taxEstimates).where(and(eq(taxEstimates.id, id), eq(taxEstimates.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -731,7 +731,7 @@ export function registerMoneyRoutes(app: Express) {
     }).passthrough();
     const parsed = updateTaxSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const estimate = await storage.updateTaxEstimate(id, parsed.data);
+    const estimate = await storage.updateTaxEstimate(id, parsed.data as any);
     res.json(estimate);
   }));
 
@@ -771,7 +771,7 @@ export function registerMoneyRoutes(app: Express) {
   app.put("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -787,14 +787,14 @@ export function registerMoneyRoutes(app: Express) {
     }).passthrough();
     const parsed = updateDealSchema.safeParse(req.body || {});
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
-    const deal = await storage.updateSponsorshipDeal(id, parsed.data);
+    const deal = await storage.updateSponsorshipDeal(id, parsed.data as any);
     res.json(deal);
   }));
 
   app.delete("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -805,7 +805,7 @@ export function registerMoneyRoutes(app: Express) {
   app.post("/api/sponsorship-deals/:id/outreach-draft", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [deal] = await db.select().from(sponsorshipDeals).where(and(eq(sponsorshipDeals.id, id), eq(sponsorshipDeals.userId, userId))).limit(1);
     if (!deal) return res.status(404).json({ error: "Deal not found" });
@@ -885,7 +885,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
-      const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+      const videoId = parseNumericId(req.params.videoId as string as string, res, "video ID");
       if (videoId === null) return;
       const result = await suggestAdBreaks(userId, videoId);
       res.json(result);
@@ -921,7 +921,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       });
       const parsedFunnel = funnelSchema.safeParse(req.body || {});
       if (!parsedFunnel.success) return res.status(400).json({ error: "Invalid input", details: parsedFunnel.error.flatten() });
-      const result = await trackFanFunnel(userId, parsedFunnel.data.eventType, parsedFunnel.data.platform, parsedFunnel.data.count);
+      const result = await trackFanFunnel(userId, parsedFunnel.data.eventType, parsedFunnel.data.platform, parsedFunnel.data.count ?? 0);
       res.json(result);
     } catch (error: any) {
       logger.error("Error:", error);
@@ -978,7 +978,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       }).passthrough();
       const parsedEquip = equipmentSchema.safeParse(req.body || {});
       if (!parsedEquip.success) return res.status(400).json({ error: "Invalid input", details: parsedEquip.error.flatten() });
-      const result = await trackEquipmentRoi(userId, parsedEquip.data);
+      const result = await trackEquipmentRoi(userId, parsedEquip.data as any);
       res.json(result);
     } catch (error: any) {
       logger.error("Error:", error);
@@ -1002,7 +1002,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
-      const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
+      const dealId = parseNumericId(req.params.dealId as string as string, res, "deal ID");
       if (dealId === null) return;
       const result = await generateInvoice(userId, dealId);
       res.json(result);
@@ -1028,7 +1028,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
-      const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
+      const dealId = parseNumericId(req.params.dealId as string as string, res, "deal ID");
       if (dealId === null) return;
       const result = await analyzeDeal(userId, dealId);
       res.json(result);
@@ -1055,7 +1055,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     if (!userId) return;
     try {
       const allowedPlatforms = ["youtube", "twitch", "tiktok", "discord", "kick", "rumble", "patreon"];
-      const platform = String(req.params.platform).toLowerCase().trim();
+      const platform = String(req.params.platform as string).toLowerCase().trim();
       if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform" });
       const result = await syncPlatformRevenue(userId, platform);
       res.json(result);
@@ -1198,7 +1198,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.post("/api/revenue/verify/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
-    const recordId = parseNumericId(req.params.id as string, res);
+    const recordId = parseNumericId(req.params.id as string as string, res);
     if (recordId === null) return;
     try {
       const schema = z.object({
@@ -1274,7 +1274,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.post("/api/revenue/action-queue/:id/resolve", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
-    const actionId = parseNumericId(req.params.id as string, res);
+    const actionId = parseNumericId(req.params.id as string as string, res);
     if (actionId === null) return;
     try {
       const schema = z.object({ resolution: z.string().min(1) });
@@ -1355,11 +1355,11 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.get("/api/revenue/attribution/content/:type/:id", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
-    const contentType = req.params.type as "video" | "stream";
+    const contentType = req.params.type as string as "video" | "stream";
     if (!["video", "stream"].includes(contentType)) {
       return res.status(400).json({ error: "Content type must be 'video' or 'stream'" });
     }
-    const contentId = parseNumericId(req.params.id as string, res);
+    const contentId = parseNumericId(req.params.id as string as string, res);
     if (contentId === null) return;
     try {
       const result = await getRevenueByContent(userId, contentType, contentId);
@@ -1731,7 +1731,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.delete("/api/affiliate-links/:id", asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await db.delete(affiliateLinks).where(and(eq(affiliateLinks.id, parseInt(req.params.id)), eq(affiliateLinks.userId, userId)));
+    await db.delete(affiliateLinks).where(and(eq(affiliateLinks.id, parseInt(req.params.id as string)), eq(affiliateLinks.userId, userId)));
     res.json({ success: true });
   }));
 }

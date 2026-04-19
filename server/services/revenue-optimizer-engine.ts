@@ -156,7 +156,7 @@ Output JSON with revenue optimization recommendations:
             sourceEngine: "revenue-optimizer",
             effectiveness: parsed.confidence || 60,
             isActive: true,
-          });
+          } as any);
         }
       }
     }

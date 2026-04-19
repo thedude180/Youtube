@@ -400,7 +400,7 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
         department: org.department,
         handoffsTo: org.handoffsTo,
         metrics: { timestamp: Date.now() },
-      },
+      } as any,
     });
 
     return finding;
@@ -417,7 +417,7 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
         impact: "team-ops",
         phase,
         department: org.department,
-      },
+      } as any,
     });
     return `${sanitizeForPrompt(org.name)} scan complete.`;
   }
@@ -475,19 +475,19 @@ export async function getCompanyStatus(userId: string): Promise<{
     const running = agentActs.find(a => a.status === "running");
     const completed = agentActs.filter(a => a.status === "completed");
     const last = completed[0];
-    const completedToday = completed.filter(a => new Date(a.createdAt) >= today).length;
+    const completedToday = completed.filter(a => new Date(a.createdAt ?? 0) >= today).length;
 
     return {
       agentId: org.agentId,
       status: running ? "running" : completed.length > 0 ? "idle" : "standby",
       lastFinding: last ? (last.details as any)?.description ?? null : null,
-      lastRun: last?.createdAt ?? null,
+      lastRun: last?.createdAt?.toISOString() ?? null,
       completedToday,
     };
   });
 
   const completedToday = allActivities.filter(a => {
-    return a.status === "completed" && new Date(a.createdAt) >= today;
+    return a.status === "completed" && new Date(a.createdAt ?? 0) >= today;
   }).length;
 
   return {

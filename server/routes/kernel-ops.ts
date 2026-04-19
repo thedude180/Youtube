@@ -97,7 +97,7 @@ export function registerKernelOpsRoutes(app: Express) {
 
     app.get("/api/__test/kernel/agent-messages/:agentName", async (req: Request, res: Response) => {
       try {
-        const { agentName } = req.params;
+        const agentName = req.params.agentName as string;
         const direction = (req.query.direction as "from" | "to") || "to";
         const messages = await getAgentMessages(agentName, { direction });
         res.json(messages);

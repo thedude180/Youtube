@@ -300,7 +300,7 @@ export async function generateUniqueContent(options: VariationOptions): Promise<
   ];
   const angle = anglePool[Math.floor(Math.random() * anglePool.length)];
 
-  const retentionContext = await getRetentionBeatsPromptContext(userId);
+  const retentionContext = await getRetentionBeatsPromptContext();
 
   const systemMsg = `You are the world's best social media ghostwriter — you've written viral posts for creators with 10M+ followers across every platform. You combine:
 

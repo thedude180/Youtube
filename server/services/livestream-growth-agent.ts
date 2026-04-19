@@ -191,7 +191,7 @@ async function queueSocialPost(
 
 async function runSeoUpdate(session: LiveGrowthSession): Promise<void> {
   try {
-    await recordHeartbeat("livestream-growth-agent", session.userId);
+    await recordHeartbeat("livestream-growth-agent", "completed");
 
     const update = await aiGenerateLiveUpdate(session);
     if (!update) return;

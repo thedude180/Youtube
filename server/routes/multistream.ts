@@ -121,7 +121,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const graph = await buildBroadcastGraph(sessionId);
       res.json({ graph });
@@ -134,7 +134,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const { platform, channelId, streamKey, ingestUrl, launchOrder } = req.body;
       if (!platform) return res.status(400).json({ error: "platform required" });
@@ -149,7 +149,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const result = await orchestrateLaunch(sessionId);
       res.json(result);
@@ -162,7 +162,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const result = await orchestrateStop(sessionId);
       res.json(result);
@@ -175,7 +175,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const destinationId = parseInt(req.params.destId);
+      const destinationId = parseInt(req.params.destId as string);
       if (!(await verifyDestinationOwnership(destinationId, userId))) return res.status(403).json({ error: "Access denied" });
       const { platform, sessionId, ingestUrl, streamKey } = req.body;
       if (!platform || !sessionId) return res.status(400).json({ error: "platform and sessionId required" });
@@ -202,7 +202,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const destinationId = parseInt(req.params.destId);
+      const destinationId = parseInt(req.params.destId as string);
       if (!(await verifyDestinationOwnership(destinationId, userId))) return res.status(403).json({ error: "Access denied" });
       const { sessionId } = req.body;
       if (!sessionId) return res.status(400).json({ error: "sessionId required" });
@@ -220,7 +220,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const destinationId = parseInt(req.params.destId);
+      const destinationId = parseInt(req.params.destId as string);
       if (!(await verifyDestinationOwnership(destinationId, userId))) return res.status(403).json({ error: "Access denied" });
       const history = await getDestinationHistory(destinationId);
       res.json({ history });
@@ -255,7 +255,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const { title, description, category, tags, platforms, thumbnailUrl } = req.body;
       if (!title || !platforms?.length) return res.status(400).json({ error: "title and platforms required" });
@@ -275,7 +275,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const result = await runReconciliation(sessionId);
       res.json(result);
@@ -288,7 +288,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const history = await getReconciliationHistory(sessionId);
       res.json({ history });
@@ -301,7 +301,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const sessionId = parseInt(req.params.sessionId);
+      const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
       const score = await getLiveDriftHealthScore(sessionId);
       res.json({ score });
@@ -371,7 +371,7 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const runId = parseInt(req.params.runId);
+      const runId = parseInt(req.params.runId as string);
       if (!(await verifyRunOwnership(runId, userId))) return res.status(403).json({ error: "Access denied" });
       const records = await getDriftRecords(runId);
       res.json({ records });

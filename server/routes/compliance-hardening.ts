@@ -38,7 +38,7 @@ export function registerComplianceHardeningRoutes(app: Express) {
   app.post("/api/compliance-hardening/drift/resolve/:id", asyncHandler(async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
-    const eventId = parseInt(req.params.id, 10);
+    const eventId = parseInt(req.params.id as string, 10);
     if (isNaN(eventId) || eventId <= 0) return res.status(400).json({ error: "Invalid event ID" });
     const resolved = await resolveDriftEvent(eventId);
     if (!resolved) return res.status(404).json({ error: "Drift event not found" });
@@ -152,7 +152,7 @@ export function registerComplianceHardeningRoutes(app: Express) {
   app.get("/api/compliance-hardening/media-trust/:contentId", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const contentId = parseInt(req.params.contentId, 10);
+    const contentId = parseInt(req.params.contentId as string, 10);
     if (isNaN(contentId) || contentId <= 0) return res.status(400).json({ error: "Invalid content ID" });
     const result = await verifyMediaTrust(userId, contentId);
     res.json(result);

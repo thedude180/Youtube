@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { getUserId } from "./helpers";
+import { requireAuth } from "./helpers";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("audience-routes");
@@ -7,14 +7,14 @@ const logger = createLogger("audience-routes");
 export function registerAudienceEngineRoutes(app: Express) {
   app.get("/api/audience/contacts", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { ownedContacts } = await import("@shared/schema");
       const { eq, desc } = await import("drizzle-orm");
       const contacts = await db.select().from(ownedContacts)
         .where(eq(ownedContacts.userId, userId))
-        .orderBy(desc(ownedContacts.createdAt))
+        .orderBy(desc((ownedContacts as any).createdAt))
         .limit(200);
       res.json({ contacts, total: contacts.length });
     } catch (err: any) {
@@ -25,7 +25,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/audience/capture", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { email, source, consentGiven, consentMethod, metadata } = req.body;
       if (!email) return res.status(400).json({ error: "Email is required" });
@@ -40,7 +40,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/audience/segment", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { contactId, segmentId } = req.body;
       const { segmentContact } = await import("../business/audience-ownership-engine");
@@ -53,7 +53,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/audience/enroll-sequence", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { contactId, sequenceName, metadata } = req.body;
       const { enrollInSequence } = await import("../business/audience-ownership-engine");
@@ -66,7 +66,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/audience/suppression-list", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { getSuppressionList } = await import("../business/audience-ownership-engine");
       const list = await getSuppressionList(userId);
@@ -78,7 +78,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/audience/send-email", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { contactId, subject, body, templateType } = req.body;
       if (!subject || !body) return res.status(400).json({ error: "Subject and body required" });
@@ -140,7 +140,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/content/cta", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { contentId, ctaType, ctaText, ctaUrl, position, offerId } = req.body;
       if (!contentId || !ctaType || !ctaText) return res.status(400).json({ error: "contentId, ctaType, and ctaText required" });
@@ -154,7 +154,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/content/:videoId/ctas", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { contentCtaAttachments } = await import("@shared/schema");
@@ -169,7 +169,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/content/:videoId/offer-recommendation", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { signals } = req.body;
       const { generateOfferRecommendation } = await import("../business/audience-ownership-engine");
@@ -182,7 +182,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/content/:videoId/offer-recommendations", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { offerRecommendations } = await import("@shared/schema");
@@ -199,7 +199,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/content/revenue-attribution", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { videos, revenueRecords } = await import("@shared/schema");
@@ -252,7 +252,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/content/:videoId/beat-map", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { videos } = await import("@shared/schema");
@@ -303,7 +303,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/content/:contentId/lead-magnets", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { leadMagnets } = await import("@shared/schema");
@@ -318,7 +318,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/content/lead-magnet", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { name, type, contentId, description, downloadUrl, ctaAttachmentId } = req.body;
       if (!name || !type) return res.status(400).json({ error: "name and type required" });
@@ -337,7 +337,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/lead-magnets", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { leadMagnets } = await import("@shared/schema");
@@ -354,7 +354,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/production/kanban", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { productionKanban } = await import("@shared/schema");
@@ -371,7 +371,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/production/kanban", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { title, stage, priority, platform, description, dueDate } = req.body;
       if (!title) return res.status(400).json({ error: "title required" });
@@ -391,7 +391,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.patch("/api/production/kanban/:id/stage", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { stage } = req.body;
       if (!stage) return res.status(400).json({ error: "stage required" });
@@ -411,7 +411,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.post("/api/checkout/create-product-link", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { productName, priceInCents, description, type } = req.body;
       if (!productName || !priceInCents) return res.status(400).json({ error: "productName and priceInCents required" });
@@ -450,7 +450,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/monetization/missions", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { ownedContacts, videos, revenueRecords, sponsorshipDeals } = await import("@shared/schema");
@@ -492,7 +492,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/operator/brief", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db } = await import("../db");
       const { videos, revenueRecords, aiAgentTasks, sponsorshipDeals } = await import("@shared/schema");
@@ -548,7 +548,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/stats", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { getImprovementStats } = await import("../services/self-improvement-engine");
       const stats = await getImprovementStats(userId);
@@ -561,7 +561,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/log", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { systemImprovements } = await import("@shared/schema");
@@ -579,7 +579,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/strategies", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { discoveredStrategies } = await import("@shared/schema");
@@ -597,7 +597,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/cross-channel", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { crossChannelInsights } = await import("@shared/schema");
@@ -615,7 +615,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/reflections", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { selfReflectionJournal } = await import("@shared/schema");
@@ -633,7 +633,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/goals", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { improvementGoals } = await import("@shared/schema");
@@ -651,7 +651,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/curiosity", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { curiosityQueue } = await import("@shared/schema");
@@ -669,7 +669,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/self-improvement/mind", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { getImprovementStats } = await import("../services/self-improvement-engine");
       const { db: database } = await import("../db");
@@ -707,7 +707,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/stats", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { getFlywheelStats } = await import("../services/growth-flywheel-engine");
       const stats = await getFlywheelStats(userId);
@@ -720,7 +720,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/actions", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { autonomousActions } = await import("@shared/schema");
@@ -738,7 +738,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/principles", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { memoryConsolidation } = await import("@shared/schema");
@@ -756,7 +756,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/competitive", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { competitiveIntelligence } = await import("@shared/schema");
@@ -774,7 +774,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/cycles", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { db: database } = await import("../db");
       const { growthFlywheel } = await import("@shared/schema");
@@ -792,7 +792,7 @@ export function registerAudienceEngineRoutes(app: Express) {
 
   app.get("/api/growth-flywheel/full-state", async (req, res) => {
     try {
-      const userId = getUserId(req, res);
+      const userId = requireAuth(req, res);
       if (!userId) return;
       const { getFlywheelStats } = await import("../services/growth-flywheel-engine");
       const { getImprovementStats } = await import("../services/self-improvement-engine");

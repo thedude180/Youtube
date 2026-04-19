@@ -270,7 +270,7 @@ export async function generateMediaKit(userId: string): Promise<Record<string, a
       .limit(10);
 
     const content: Record<string, any> = {
-      creatorName: user?.username || user?.email || "Creator",
+      creatorName: (user as any)?.username || user?.email || "Creator",
       niche: user?.contentNiche || "General Content",
       totalSubscribers: totalSubs,
       totalViews,

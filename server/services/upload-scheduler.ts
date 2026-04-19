@@ -121,7 +121,7 @@ export async function getNextOptimalPublishTime(userId: string, platform: string
         if (slot.dayOfWeek !== candidateLocalDay) continue;
 
         const offset = getOffsetFn(timezone, candidate);
-        const targetUtcHour = ((slot.hourOfDay - offset) % 24 + 24) % 24;
+        const targetUtcHour = (((slot.hourOfDay ?? 0) - offset) % 24 + 24) % 24;
         candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, 0, 0);
 
         if (candidate.getTime() < earliestAllowed.getTime()) continue;

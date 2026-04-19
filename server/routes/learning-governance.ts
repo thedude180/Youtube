@@ -51,7 +51,7 @@ export function registerLearningGovernanceRoutes(app: any) {
   app.get("/api/learning-governance/confidence/:domain", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const result = await getGovernedConfidenceForDomain(userId, req.params.domain);
+    const result = await getGovernedConfidenceForDomain(userId, req.params.domain as string);
     res.json(result);
   }));
 
@@ -68,7 +68,7 @@ export function registerLearningGovernanceRoutes(app: any) {
     if (!userId) return;
     const { resolution } = req.body;
     if (!resolution) return res.status(400).json({ error: "resolution is required" });
-    const resolved = await resolveContradiction(userId, parseInt(req.params.id), resolution);
+    const resolved = await resolveContradiction(userId, parseInt(req.params.id as string), resolution);
     res.json({ resolved });
   }));
 
@@ -86,7 +86,7 @@ export function registerLearningGovernanceRoutes(app: any) {
     if (!userId) return;
     const { progress } = req.body;
     if (progress == null) return res.status(400).json({ error: "progress is required" });
-    const updated = await updatePromiseProgress(userId, parseInt(req.params.id), progress);
+    const updated = await updatePromiseProgress(userId, parseInt(req.params.id as string), progress);
     if (!updated) return res.status(404).json({ error: "Promise not found" });
     res.json({ updated: true });
   }));
@@ -136,7 +136,7 @@ export function registerLearningGovernanceRoutes(app: any) {
     if (!userId) return;
     const { licensingStatus, rightsVerified } = req.body;
     if (!licensingStatus) return res.status(400).json({ error: "licensingStatus is required" });
-    const updated = await updateLicensingStatus(userId, parseInt(req.params.id), licensingStatus, rightsVerified ?? false);
+    const updated = await updateLicensingStatus(userId, parseInt(req.params.id as string), licensingStatus, rightsVerified ?? false);
     if (!updated) return res.status(404).json({ error: "Asset not found" });
     res.json({ updated: true });
   }));

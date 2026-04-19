@@ -403,7 +403,7 @@ export async function resolveApproval(
     await deductTrustBudget(existing.userId, existing.actionClass ?? "unknown", 1, `human-approved:${approvalId}`);
   }
 
-  return { success: true, decision: resolution, executionToken };
+  return { success: true, decision: resolution, executionToken } as any;
 }
 
 export async function consumeExecutionToken(
@@ -947,7 +947,7 @@ export function startBudgetResetScheduler(): void {
       const overdue = !lastResetAt || Date.now() - lastResetAt.getTime() >= intervalMs;
       if (overdue) {
         logger.info("Startup: budget reset overdue (lastResetAt=%s) — running immediately", lastResetAt?.toISOString() ?? "never");
-        withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, resetExpiredBudgets)
+        withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, () => resetExpiredBudgets().then(() => {}))
           .catch(err => logger.error("Startup budget reset failed:", err));
       }
     })
@@ -956,7 +956,7 @@ export function startBudgetResetScheduler(): void {
   // Periodic interval — also wrapped in withCronLock so lastCompletedAt is
   // persisted after each run, serving as the authoritative lastResetAt record.
   resetIntervalHandle = setInterval(() => {
-    withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, resetExpiredBudgets)
+    withCronLock(BUDGET_RESET_LOCK_NAME, 60_000, () => resetExpiredBudgets().then(() => {}))
       .catch(err => logger.error("Budget reset scheduler failed:", err));
   }, intervalMs);
   logger.info(`Budget reset scheduler started (interval: ${BUDGET_RESET_INTERVAL_HOURS}h)`);
@@ -1038,7 +1038,7 @@ export function tenantIsolationMiddleware(
     }
 
     if (options.allowAdmin) {
-      const email = ((req as Record<string, unknown>).user as Record<string, unknown>)?.claims as Record<string, unknown>;
+      const email = ((req as unknown as Record<string, unknown>).user as Record<string, unknown>)?.claims as Record<string, unknown>;
       const userEmail = email?.email as string;
       if (userEmail && userEmail.toLowerCase() === (process.env.ADMIN_EMAIL || "").toLowerCase()) {
         return next();

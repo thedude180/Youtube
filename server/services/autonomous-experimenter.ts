@@ -230,7 +230,7 @@ async function measureActiveExperiments(userId: string, experiments: any[]): Pro
         sourceEngine: "autonomous-experimenter",
         effectiveness: avgScore,
         isActive: true,
-      });
+      } as any);
     }
 
     logger.info(`Experiment completed: ${resultVerdict} — ${hypothesis}`, { userId: userId.substring(0, 8), score: avgScore });

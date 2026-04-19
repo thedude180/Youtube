@@ -169,7 +169,7 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const messages = await getAgentMessages(req.params.agentName, {
+      const messages = await getAgentMessages(req.params.agentName as string, {
         userId,
         status: req.query.status as string | undefined,
         limit: Number(req.query.limit) || 50,
@@ -185,7 +185,7 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
 
     try {
-      await markMessageDelivered(Number(req.params.messageId));
+      await markMessageDelivered(Number(req.params.messageId as string));
       res.json({ status: "delivered" });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -246,7 +246,7 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const status = await checkTrustBudget(userId, req.params.category, 0);
+      const status = await checkTrustBudget(userId, req.params.category as string, 0);
       res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -284,10 +284,10 @@ export function registerKernelRoutes(app: Express) {
       const { eq } = await import("drizzle-orm");
       const { db } = await import("../db");
       await db.update(trustBudgetPeriods)
-        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 })
+        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 } as any)
         .where(eq(trustBudgetPeriods.userId, userId));
       await db.update(trustBudgetRecords)
-        .set({ budgetRemaining: 100, totalDeducted: 0, violationCount: 0 })
+        .set({ budgetRemaining: 100, violationCount: 0 } as any)
         .where(eq(trustBudgetRecords.userId, userId));
       res.json({ success: true, message: "Trust budget reset for all agents (periods + records)" });
     } catch (err: any) {
@@ -314,7 +314,7 @@ export function registerKernelRoutes(app: Express) {
 
   app.get("/api/kernel/capability/:platform/:capabilityName", async (req: Request, res: Response) => {
     try {
-      const status = await getCapabilityStatus(req.params.platform, req.params.capabilityName);
+      const status = await getCapabilityStatus(req.params.platform as string, req.params.capabilityName as string);
       res.json(status);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -856,7 +856,7 @@ export function registerKernelRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
     try {
-      const report = await runReconciliation(req.params.domain);
+      const report = await runReconciliation(req.params.domain as string);
       res.json(report);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -867,7 +867,7 @@ export function registerKernelRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
     const categories = req.query.categories ? String(req.query.categories).split(",") : undefined;
-    res.json(evaluateRegionalPolicy(req.params.region, categories));
+    res.json(evaluateRegionalPolicy(req.params.region as string, categories));
   });
 
   app.get("/api/kernel/regional-policy", async (req: Request, res: Response) => {

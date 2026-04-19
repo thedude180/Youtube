@@ -18,7 +18,7 @@ import {
   Calendar as CalendarIcon, Eye, Loader2,
   TrendingUp, Film, Zap, BarChart2, CheckSquare, X,
   Sparkles, Shield, Monitor, RefreshCw, Download, Globe, Layers,
-  MessageCircle, Pin, LayoutKanban,
+  MessageCircle, Pin, Kanban,
 } from "lucide-react";
 import { SiTwitch, SiKick } from "react-icons/si";
 import { format } from "date-fns";
@@ -135,7 +135,7 @@ export default function Content() {
               <Sparkles className="h-3.5 w-3.5 mr-1.5" />CTAs
             </TabsTrigger>
             <TabsTrigger value="pipeline" data-testid="tab-pipeline" aria-label="Production pipeline tab">
-              <LayoutKanban className="h-3.5 w-3.5 mr-1.5" />Pipeline
+              <Kanban className="h-3.5 w-3.5 mr-1.5" />Pipeline
             </TabsTrigger>
           </TabsList>
         </div>
@@ -540,7 +540,7 @@ function PlatformCatalogsTab() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => syncMutation.mutate()}
+          onClick={() => syncMutation.mutate(undefined)}
           disabled={syncMutation.isPending}
           data-testid="button-sync-all-catalogs"
         >

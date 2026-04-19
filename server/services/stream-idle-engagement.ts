@@ -242,16 +242,16 @@ async function checkChatActivity(session: IdleSession): Promise<void> {
 
     const yt = await getYouTubeClient(session.channelDbId);
     const chatRes = await yt.liveChatMessages.list({
-      liveChatId: session.liveChatId,
+      liveChatId: session.liveChatId ?? undefined,
       part: ["snippet"],
       maxResults: 20,
     });
 
-    const messages = chatRes.data.items || [];
+    const messages = (chatRes as any).data?.items || [];
     const now = Date.now();
     const recentWindow = 2 * 60_000;
 
-    const recentCount = messages.filter(m => {
+    const recentCount = messages.filter((m: any) => {
       const publishedAt = m.snippet?.publishedAt;
       if (!publishedAt) return false;
       return (now - new Date(publishedAt).getTime()) < recentWindow;

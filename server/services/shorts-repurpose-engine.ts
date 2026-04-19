@@ -231,7 +231,7 @@ async function recordAutopilotRow(
         },
       },
       errorMessage: result.error,
-    });
+    } as any);
   } catch (err: any) {
     logger.warn("autopilot row insert failed", { videoId: video.videoId, platform, error: err?.message });
   }
@@ -298,7 +298,7 @@ async function queuePendingTarget(video: Candidate, platform: TargetPlatform): P
         deliveryType: "video_reshare",
         isVideoDelivery: true,
       },
-    });
+    } as any);
     logger.info("queued short_repurpose for later publish", { videoId: video.videoId, platform });
   } catch (err: any) {
     logger.warn("failed to queue repurpose row", { videoId: video.videoId, platform, error: err?.message });

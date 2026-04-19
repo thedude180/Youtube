@@ -224,7 +224,7 @@ Context: ${JSON.stringify(sanitizeObjectForPrompt({ healthStatus, anomalyData: a
         severity: response.risk === "high" ? "warning" : "info",
         description: `Self-healing action: ${response.action} for ${anomaly.type}`,
         details: { anomaly, response },
-      });
+      } as any);
     } catch (err: any) {
       logger.error(`[AnomalyResponder] Failed to log resolution: ${err.message}`);
     }

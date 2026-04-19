@@ -146,8 +146,8 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
 
       bestWindows.push({
         platform,
-        dayOfWeek: p.dayOfWeek,
-        hourOfDay: p.hourOfDay,
+        dayOfWeek: p.dayOfWeek ?? 0,
+        hourOfDay: p.hourOfDay ?? 0,
         score: Math.min(1, ((p.activityLevel || 50) / 100) + perfBoost),
         viewsMultiplier: 1 + ((p.activityLevel || 50) / 200) + perfBoost,
         confidence: Math.min(1, ((p.sampleSize || 1) / 20) + (perfData ? perfData.totalCount / 30 : 0)),
@@ -158,8 +158,8 @@ export async function analyzeContentTiming(userId: string, platform: string): Pr
     for (const p of bottom) {
       worstWindows.push({
         platform,
-        dayOfWeek: p.dayOfWeek,
-        hourOfDay: p.hourOfDay,
+        dayOfWeek: p.dayOfWeek ?? 0,
+        hourOfDay: p.hourOfDay ?? 0,
         score: Math.max(0, (p.activityLevel || 20) / 100),
         viewsMultiplier: Math.max(0.5, (p.activityLevel || 20) / 100),
         confidence: Math.min(1, (p.sampleSize || 1) / 20),

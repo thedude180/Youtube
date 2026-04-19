@@ -50,7 +50,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const profile = await getSourceQualityProfile(req.params.sessionId);
+      const profile = await getSourceQualityProfile(req.params.sessionId as string);
       if (profile && profile.userId !== userId) return res.sendStatus(403);
       res.json({ profile });
     } catch (e: any) {
@@ -62,7 +62,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const cap = getPlatformCapability(req.params.platform, req.query.region as string);
+      const cap = getPlatformCapability(req.params.platform as string, req.query.region as string);
       res.json(cap);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -160,7 +160,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const state = await getLatestQualityState(userId, req.params.sessionId);
+      const state = await getLatestQualityState(userId, req.params.sessionId as string);
       res.json(state);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -171,7 +171,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const ladders = await getLiveOutputLadders(req.params.sessionId);
+      const ladders = await getLiveOutputLadders(req.params.sessionId as string);
       const filtered = ladders.filter(l => l.userId === userId);
       res.json({ ladders: filtered });
     } catch (e: any) {
@@ -194,7 +194,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const record = await getArchiveMaster(req.params.sessionId);
+      const record = await getArchiveMaster(req.params.sessionId as string);
       if (record && record.userId !== userId) return res.sendStatus(403);
       res.json({ record });
     } catch (e: any) {
@@ -219,7 +219,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const profile = await getDestinationOutputProfile(userId, req.params.platform);
+      const profile = await getDestinationOutputProfile(userId, req.params.platform as string);
       res.json({ profile });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -230,7 +230,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const profile = await upsertDestinationOutputProfile(userId, req.params.platform, req.body);
+      const profile = await upsertDestinationOutputProfile(userId, req.params.platform as string, req.body);
       res.json(profile);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -263,7 +263,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const events = await getGovernorEvents(req.params.sessionId);
+      const events = await getGovernorEvents(req.params.sessionId as string);
       const filtered = events.filter(e => e.userId === userId);
       res.json({ events: filtered });
     } catch (e: any) {

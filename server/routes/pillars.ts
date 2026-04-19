@@ -418,7 +418,7 @@ export function registerPillarRoutes(app: Express): void {
     const { complianceRules } = await import("@shared/schema");
     const { eq, and, desc } = await import("drizzle-orm");
     const rules = await db.select().from(complianceRules)
-      .where(and(eq(complianceRules.platform, req.params.platform), eq(complianceRules.isActive, true)))
+      .where(and(eq(complianceRules.platform, req.params.platform as string), eq(complianceRules.isActive, true)))
       .orderBy(desc(complianceRules.lastUpdated));
     res.json(rules);
   }));

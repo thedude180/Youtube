@@ -11,7 +11,7 @@ export async function isMonetizationUnlocked(userId: string, platform: string): 
   const channel = userChannels[0];
   if (!channel) return false;
 
-  if (channel.monetizationStatus === "enabled" || channel.monetizationStatus === "active") {
+  if ((channel as any).monetizationStatus === "enabled" || (channel as any).monetizationStatus === "active") {
     return true;
   }
 

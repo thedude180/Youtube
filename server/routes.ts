@@ -504,7 +504,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
     try {
       const { getKnowledgeMeshStats } = await import("./services/knowledge-mesh");
-      const stats = await getKnowledgeMeshStats(req.user!.id);
+      const stats = await getKnowledgeMeshStats((req.user! as any).id);
       res.json(stats);
     } catch (err: any) {
       res.status(500).json({ error: "Failed to get knowledge mesh stats" });

@@ -53,7 +53,7 @@ export function registerTeamOpsRoutes(app: Express) {
   app.post("/api/team-ops/run-cycle", async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    res.json({ message: `Full company cycle initiated — all ${COMPANY_ORG.length} agents deploying`, phases: COMPANY_DEPARTMENTS.length });
+    res.json({ message: `Full company cycle initiated — all ${COMPANY_ORG.length} agents deploying`, phases: Object.keys(COMPANY_DEPARTMENTS).length });
     runCompanyCycle(userId).catch((err) => { logger.error("[team-ops] Cycle failed:", err?.message || err); });
   });
 }

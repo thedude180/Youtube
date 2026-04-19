@@ -106,25 +106,25 @@ export function seedCoreReconciliationCheckers(): void {
     const results: ReconciliationResult[] = [];
 
     for (const flag of flags) {
-      const isSunset = flag.sunsetState && flag.sunsetState !== "active";
-      const isEnabled = flag.isEnabled;
+      const isSunset = flag.lifecycleState && flag.lifecycleState !== "active";
+      const isEnabled = flag.enabled;
 
       if (isSunset && isEnabled) {
         results.push({
           domain: "feature_flags",
-          check: `flag_sunset_consistency:${flag.key}`,
+          check: `flag_sunset_consistency:${flag.flagKey}`,
           status: "mismatch",
-          internalValue: { enabled: isEnabled, sunsetState: flag.sunsetState },
+          internalValue: { enabled: isEnabled, sunsetState: flag.lifecycleState },
           externalValue: { expectedEnabled: false },
-          details: `Flag '${flag.key}' is sunset (${flag.sunsetState}) but still enabled`,
+          details: `Flag '${flag.flagKey}' is sunset (${flag.lifecycleState}) but still enabled`,
           timestamp: new Date(),
         });
       } else {
         results.push({
           domain: "feature_flags",
-          check: `flag_sunset_consistency:${flag.key}`,
+          check: `flag_sunset_consistency:${flag.flagKey}`,
           status: "matched",
-          internalValue: { enabled: isEnabled, sunsetState: flag.sunsetState },
+          internalValue: { enabled: isEnabled, sunsetState: flag.lifecycleState },
           externalValue: null,
           timestamp: new Date(),
         });
@@ -139,7 +139,7 @@ export function seedCoreReconciliationCheckers(): void {
     const { desc } = await import("drizzle-orm");
 
     const [latest] = await db.select().from(operatingModeHistory)
-      .orderBy(desc(operatingModeHistory.transitionedAt)).limit(1);
+      .orderBy(desc(operatingModeHistory.changedAt)).limit(1);
 
     if (!latest) {
       return [{

@@ -218,10 +218,10 @@ export async function extractClipsFromVideo(
   const views = video.metadata?.stats?.views || video.metadata?.viewCount || 0;
   const tags = video.metadata?.tags?.join(", ") || "";
 
-  const retentionContext = await getRetentionBeatsPromptContext(userId);
+  const retentionContext = await getRetentionBeatsPromptContext();
 
   let transcriptSection = "";
-  const youtubeId = video.youtubeId || (video.metadata as any)?.youtubeId;
+  const youtubeId = (video as any).youtubeId || (video.metadata as any)?.youtubeId;
   if (youtubeId) {
     try {
       const transcript = await fetchYouTubeTranscript(youtubeId);
@@ -336,9 +336,9 @@ TikTok-specific optimization (for clips targeting tiktok):
           thumbnailPrompt: clip.thumbnailPrompt || "",
           format: clip.format || "vertical",
           aspectRatio: clip.aspectRatio || "9:16",
-          hook: clip.hook || "",
+          
           hasTranscript: !!transcriptSection,
-        },
+        } as any,
       });
 
       if (clip.viralScore) {
@@ -745,7 +745,7 @@ export async function ingestVideoFromYouTubeUrl(
 
   const userChannels = await storage.getChannelsByUser(userId);
   const ytChannel = userChannels.find((c: any) => c.platform === "youtube");
-  const channelId = ytChannel?.id ?? null;
+  const channelId = ytChannel?.id ?? 0;
 
   const video = await storage.createVideo({
     channelId,

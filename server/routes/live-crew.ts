@@ -71,7 +71,7 @@ router.get("/scores/:sessionId", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -84,7 +84,7 @@ router.get("/actions/:sessionId", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -244,7 +244,7 @@ router.get("/moderation/summary/:sessionId", async (req: Request, res: Response)
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -332,7 +332,7 @@ router.get("/seo/volatility/:sessionId", async (req: Request, res: Response) => 
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -423,7 +423,7 @@ router.get("/moment/queue/:sessionId", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -436,7 +436,7 @@ router.get("/moment/readiness/:sessionId", async (req: Request, res: Response) =
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -491,7 +491,7 @@ router.get("/cta/sponsor-safe/:sessionId", async (req: Request, res: Response) =
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -504,7 +504,7 @@ router.get("/cta/timing/:sessionId", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -541,7 +541,7 @@ router.get("/interrupt/queue/:sessionId", async (req: Request, res: Response) =>
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });
@@ -554,7 +554,7 @@ router.get("/interrupt/quality/:sessionId", async (req: Request, res: Response) 
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.sessionId as string);
     if (isNaN(sessionId)) return res.status(400).json({ error: "Invalid session ID" });
     const owns = await verifySessionOwnership(sessionId, userId);
     if (!owns) return res.status(403).json({ error: "Access denied" });

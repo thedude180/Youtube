@@ -163,7 +163,7 @@ export async function runMarketingCycle(userId: string): Promise<{
   }
 
   const organic = config.organicStrategies as any || {};
-  const retentionContext = await getRetentionBeatsPromptContext(userId);
+  const retentionContext = await getRetentionBeatsPromptContext();
 
   try {
     const campaignResult = await generateOrganicCampaign(userId, intel, organic, retentionContext);

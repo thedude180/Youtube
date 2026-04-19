@@ -301,7 +301,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           status: "ai_ready",
           startTime: startT,
           endTime: endT,
-          metadata: { hookLine: short.hookLine, viralScore: short.viralScore, platform: short.platform, autoExtracted: true },
+          metadata: { hookLine: short.hookLine, viralScore: short.viralScore, platform: short.platform, autoExtracted: true } as any,
         });
         shortsCreated++;
       }
@@ -506,7 +506,7 @@ async function executeVodShortsLoopAsync(userId: string, runId: number, signal: 
 
   activeLoops.delete(userId);
   sendSSEEvent(userId, "vod-shorts-loop", { runId, status: "completed", totalDurationMs });
-  await recordHeartbeat("vodShortsLoop", totalDurationMs);
+  await recordHeartbeat("vodShortsLoop", "completed", totalDurationMs);
   logger.info("VOD/Shorts loop completed", { userId, runId, totalDurationMs, totalOptimized, totalShorts });
 }
 

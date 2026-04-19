@@ -1129,7 +1129,7 @@ export async function registerPlatformRoutes(app: Express) {
         logger.info(`[PinAll] Job ${jobId} complete`, { pinned: jobState.pinned, skipped: jobState.skipped, failed: jobState.failed });
       })().catch(err => {
         jobState.done = true;
-        jobState.error = err.message;
+        (jobState as any).error = err.message;
         logger.error(`[PinAll] Job ${jobId} crashed:`, err.message);
       });
     } catch (error: any) {

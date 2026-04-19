@@ -133,7 +133,7 @@ Analyze audience behavior patterns. Output JSON:
           sourceEngine: "audience-intelligence",
           effectiveness: parsed.confidence || 55,
           isActive: true,
-        }).onConflictDoNothing();
+        } as any).onConflictDoNothing();
       }
     }
 

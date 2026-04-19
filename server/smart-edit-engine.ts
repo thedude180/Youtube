@@ -545,7 +545,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
     const ytChannel = ytChannels.find(c => c.accessToken) || ytChannels[0];
     if (!ytChannel) throw new Error("No authenticated YouTube channel found");
 
-    const channelName = ytChannel.channelName || ytChannel.displayName || "PS5 Gaming";
+    const channelName = ytChannel.channelName || (ytChannel as any).displayName || "PS5 Gaming";
 
     logger.info("Downloading source video", { youtubeVideoId });
     const sourcePath = await downloadSourceVideo(youtubeVideoId, userId);

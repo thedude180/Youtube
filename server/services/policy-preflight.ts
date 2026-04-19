@@ -109,7 +109,7 @@ export async function runPolicyPreFlight(
   if (!credScore) {
     const { computeCreatorCredibility } = await import("./creator-credibility");
     const computed = await computeCreatorCredibility(userId);
-    credScore = { overallScore: computed.overallScore } as typeof credScore;
+    credScore = { overallScore: computed.overallScore } as unknown as typeof credScore;
   }
   if (credScore) {
     const score = credScore.overallScore || 50;

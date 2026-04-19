@@ -1,5 +1,7 @@
 import { db } from "../db";
-import { streamLifecycleStates, streamDetectionLog, type InsertStreamLifecycleState, type InsertStreamDetectionLog } from "@shared/schema";
+import { streamLifecycleStates, streamDetectionLog } from "@shared/schema";
+type StreamLifecycleState = typeof streamLifecycleStates.$inferSelect;
+type StreamDetectionLog = typeof streamDetectionLog.$inferSelect;
 import { ps5Detector, type LiveDetectionResult } from "./ps5-live-detector";
 import { fireAgentEvent } from "./agent-events";
 import { eq, desc } from "drizzle-orm";

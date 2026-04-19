@@ -22,6 +22,9 @@ const STRESS_LABELS = ["Relaxed", "Low", "Moderate", "High", "Overwhelmed"];
 function WellnessTab() {
   const { toast } = useToast();
   const { data: wellnessPrefs } = useQuery<any>({ queryKey: ["/api/settings/wellness"] });
+  const [mood, setMood] = useState(3);
+  const [energy, setEnergy] = useState(3);
+  const [stress, setStress] = useState(2);
 
   useEffect(() => {
     if (wellnessPrefs) {

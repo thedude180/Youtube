@@ -121,7 +121,7 @@ export function registerSettingsRoutes(app: Express) {
   app.post("/api/notifications/:id/read", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     await storage.markRead(id);
     apiCache.invalidate(`notifications:${userId}`);
@@ -150,7 +150,7 @@ export function registerSettingsRoutes(app: Express) {
   app.delete("/api/notifications/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     await storage.deleteNotification(id, userId);
     apiCache.invalidate(`notifications:${userId}`);
@@ -249,7 +249,7 @@ export function registerSettingsRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "Style Scanner");
     if (!userId) return;
     try {
-      const channelId = parseNumericId(req.params.channelId as string, res, "channel ID");
+      const channelId = parseNumericId(req.params.channelId as string as string, res, "channel ID");
       if (channelId === null) return;
       const channel = await storage.getChannel(channelId);
       if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -310,7 +310,7 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/brand-assets/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, id), eq(brandAssets.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -330,7 +330,7 @@ export function registerSettingsRoutes(app: Express) {
   app.delete("/api/brand-assets/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(brandAssets).where(and(eq(brandAssets.id, id), eq(brandAssets.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -366,7 +366,7 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/competitors/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, id), eq(competitorTracks.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -386,7 +386,7 @@ export function registerSettingsRoutes(app: Express) {
   app.delete("/api/competitors/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(competitorTracks).where(and(eq(competitorTracks.id, id), eq(competitorTracks.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -422,7 +422,7 @@ export function registerSettingsRoutes(app: Express) {
   app.put("/api/knowledge/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(knowledgeMilestones).where(and(eq(knowledgeMilestones.id, id), eq(knowledgeMilestones.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -611,7 +611,7 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     try {
-      const id = parseNumericId(req.params.id as string, res);
+      const id = parseNumericId(req.params.id as string as string, res);
       if (id === null) return;
       const updated = await updateProgramMetrics(userId, id, parsed.data.metrics);
       if (!updated) return res.status(404).json({ message: "Program not found" });
@@ -629,7 +629,7 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
     try {
-      const id = parseNumericId(req.params.id as string, res);
+      const id = parseNumericId(req.params.id as string as string, res);
       if (id === null) return;
       const updated = await toggleAutoApply(userId, id, parsed.data.enabled);
       if (!updated) return res.status(404).json({ message: "Program not found" });
@@ -649,7 +649,7 @@ export function registerSettingsRoutes(app: Express) {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
     try {
-      const id = parseNumericId(req.params.id as string, res);
+      const id = parseNumericId(req.params.id as string as string, res);
       if (id === null) return;
       const updated = await updateApplicationStatus(userId, id, parsed.data.status);
       if (!updated) return res.status(404).json({ message: "Program not found" });
@@ -665,7 +665,7 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
     try {
       const programs = await getUserGrowthPrograms(userId);
-      const id = parseNumericId(req.params.id as string, res);
+      const id = parseNumericId(req.params.id as string as string, res);
       if (id === null) return;
       const program = programs.find(p => p.id === id);
       if (!program) return res.status(404).json({ message: "Program not found" });
@@ -705,7 +705,7 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const id = parseNumericId(req.params.id as string, res);
+      const id = parseNumericId(req.params.id as string as string, res);
       if (id === null) return;
       const updated = await activateMonetization(userId, id);
       if (!updated) return res.status(404).json({ message: "Program not found" });
@@ -984,7 +984,7 @@ export function registerSettingsRoutes(app: Express) {
   app.post("/api/onboarding/checklist/:stepId/complete", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { stepId } = req.params;
+    const stepId = req.params.stepId as string;
     if (!CHECKLIST_STEP_IDS.includes(stepId)) {
       return res.status(400).json({ error: "Invalid step ID" });
     }
@@ -1097,14 +1097,14 @@ export function registerSettingsRoutes(app: Express) {
   app.post("/api/content/approvals/:id/approve", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await db.update(contentApprovals).set({ status: "approved", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
+    await db.update(contentApprovals).set({ status: "approved", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id as string)), eq(contentApprovals.userId, userId)));
     res.json({ success: true });
   }));
 
   app.post("/api/content/approvals/:id/reject", writeRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    await db.update(contentApprovals).set({ status: "rejected", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id)), eq(contentApprovals.userId, userId)));
+    await db.update(contentApprovals).set({ status: "rejected", reviewedAt: new Date() }).where(and(eq(contentApprovals.id, parseInt(req.params.id as string)), eq(contentApprovals.userId, userId)));
     res.json({ success: true });
   }));
 

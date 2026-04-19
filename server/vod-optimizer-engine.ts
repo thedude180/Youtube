@@ -78,7 +78,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
     ? `\n\nNICHE-SPECIFIC OPTIMIZATION (CRITICAL):\nThese videos cover: ${topicNames.join(", ")}. Every title, description, tag, and thumbnail MUST reference the specific topic/subject. Use niche-specific terminology and community language. Tags MUST include topic names and related search terms viewers actually search for. Do NOT give generic advice — optimize for the SPECIFIC topic in each video.`
     : "";
 
-  const retentionContext = await getRetentionBeatsPromptContext(userId || undefined);
+  const retentionContext = await getRetentionBeatsPromptContext();
 
   if (!tokenBudget.checkBudget("vod-optimizer", 4000)) {
     logger.warn("[VODOptimizer] Daily token budget exhausted — skipping optimization batch");

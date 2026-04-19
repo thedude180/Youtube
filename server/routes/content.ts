@@ -417,7 +417,7 @@ export function registerContentRoutes(app: Express) {
   app.put(api.channels.update.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     try {
       const existing = await storage.getChannel(id);
@@ -450,7 +450,7 @@ export function registerContentRoutes(app: Express) {
   app.delete("/api/channels/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Channel Management");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const channel = await storage.getChannel(id);
     if (!channel || channel.userId !== userId) return res.status(403).json({ error: "Not authorized" });
@@ -633,13 +633,13 @@ export function registerContentRoutes(app: Express) {
   app.get(api.videos.get.path, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
-    const videoId = parseNumericId(req.params.id as string, res, "video ID");
+    const videoId = parseNumericId(req.params.id as string as string, res, "video ID");
     if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
     // FIX 6 — Video GET IDOR
-    if (video.userId && video.userId !== userId) return res.status(403).json({ error: 'Not authorized' });
+    if ((video as any).userId && (video as any).userId !== userId) return res.status(403).json({ error: 'Not authorized' });
 
     if (video.channelId) {
       const channel = await storage.getChannel(video.channelId);
@@ -651,7 +651,7 @@ export function registerContentRoutes(app: Express) {
   app.put(api.videos.update.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
-    const vidId = parseNumericId(req.params.id as string, res, "video ID");
+    const vidId = parseNumericId(req.params.id as string as string, res, "video ID");
     if (vidId === null) return;
     const schema = z.object({
       title: z.string().min(1).optional(),
@@ -672,7 +672,7 @@ export function registerContentRoutes(app: Express) {
       if (!existingVideo) return res.status(404).json({ message: "Video not found" });
 
       // Primary ownership guard
-      if (existingVideo.userId && existingVideo.userId !== userId) {
+      if ((existingVideo as any).userId && (existingVideo as any).userId !== userId) {
         return res.status(403).json({ error: "Not authorized" });
       }
 
@@ -707,13 +707,13 @@ export function registerContentRoutes(app: Express) {
   app.delete(api.videos.delete.path, deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
-    const delId = parseNumericId(req.params.id as string, res, "video ID");
+    const delId = parseNumericId(req.params.id as string as string, res, "video ID");
     if (delId === null) return;
     const video = await storage.getVideo(delId);
     if (!video) return res.status(404).json({ message: "Video not found" });
 
     // Primary ownership guard
-    if (video.userId && video.userId !== userId) {
+    if ((video as any).userId && (video as any).userId !== userId) {
       return res.status(403).json({ error: "Not authorized" });
     }
 
@@ -735,7 +735,7 @@ export function registerContentRoutes(app: Express) {
   app.post(api.videos.generateMetadata.path, contentRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Metadata Generation");
     if (!userId) return;
-    const videoId = parseNumericId(req.params.id as string, res);
+    const videoId = parseNumericId(req.params.id as string as string, res);
     if (videoId === null) return;
     const video = await storage.getVideo(videoId);
     if (!video) return res.status(404).json({ message: "Video not found" });
@@ -1059,7 +1059,7 @@ export function registerContentRoutes(app: Express) {
   app.put(api.strategies.updateStatus.path, writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "Growth Strategies");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const schema = z.object({
       status: z.string().min(1),
@@ -1477,7 +1477,7 @@ export function registerContentRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
-      const idea = await storage.createContentIdea({ ...parsed.data, userId });
+      const idea = await storage.createContentIdea({ ...parsed.data, userId } as any);
       res.status(201).json(idea);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1487,7 +1487,7 @@ export function registerContentRoutes(app: Express) {
   app.put("/api/content-ideas/:id", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const schema = z.object({
       title: z.string().min(1).max(500).optional(),
@@ -1504,14 +1504,14 @@ export function registerContentRoutes(app: Express) {
     }
     const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    const idea = await storage.updateContentIdea(id, parsed.data);
+    const idea = await storage.updateContentIdea(id, parsed.data as any);
     res.json(idea);
   }));
 
   app.delete("/api/content-ideas/:id", deleteRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "starter", "AI Content Calendar");
     if (!userId) return;
-    const id = parseNumericId(req.params.id as string, res);
+    const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
     const [existing] = await db.select().from(contentIdeas).where(and(eq(contentIdeas.id, id), eq(contentIdeas.userId, userId))).limit(1);
     if (!existing) return res.status(404).json({ error: "Not found" });
@@ -1522,7 +1522,7 @@ export function registerContentRoutes(app: Express) {
   app.get("/api/video-versions/:videoId", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
-    const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
+    const videoId = parseNumericId(req.params.videoId as string as string, res, "video ID");
     if (videoId === null) return;
     const versions = await storage.getVideoVersions(videoId);
     res.json(versions);
@@ -1586,7 +1586,7 @@ export function registerContentRoutes(app: Express) {
       return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
     }
     try {
-      const lead = await storage.createCollaborationLead({ ...parsed.data, userId });
+      const lead = await storage.createCollaborationLead({ ...parsed.data, userId } as any);
       res.status(201).json(lead);
     } catch (error: any) {
       res.status(500).json({ message: "An internal error occurred. Please try again." });
@@ -1903,7 +1903,7 @@ export function registerContentRoutes(app: Express) {
   app.patch("/api/calendar/approve/:id", asyncHandler(async (req: any, res) => {
     const userId = await requireTier(req, res, "starter", "Content Calendar");
     if (!userId) return;
-    const id = parseNumericId(req.params.id);
+    const id = parseNumericId(req.params.id as string, res);
     if (!id) return res.status(400).json({ error: "Invalid id" });
     const { action } = req.body;
     const newStatus = action === "approve" ? "scheduled" : "cancelled";
@@ -2032,7 +2032,7 @@ export function registerContentRoutes(app: Express) {
               aiOptimizedAt: new Date().toISOString(),
             } as any,
             scheduledTime: videoSchedDate,
-          }).returning();
+          } as any).returning();
 
           await tx.insert(scheduleItems).values({
             userId,
@@ -2144,7 +2144,7 @@ export function registerContentRoutes(app: Express) {
       let updated = 0;
       for (const videoId of videoIds) {
         const video = await storage.getVideo(videoId);
-        if (!video || video.userId !== userId) continue;
+        if (!video || (video as any).userId !== userId) continue;
         
         const updateData: any = {};
         if (updates.tags) updateData.metadata = { ...(video.metadata || {}), tags: updates.tags };
@@ -2178,7 +2178,7 @@ export function registerContentRoutes(app: Express) {
       const results: any[] = [];
       for (const videoId of videoIds) {
         const video = await storage.getVideo(videoId);
-        if (!video || video.userId !== userId) continue;
+        if (!video || (video as any).userId !== userId) continue;
         results.push({ videoId, title: video.title, status: "queued" });
       }
       
@@ -2265,7 +2265,7 @@ export function registerContentRoutes(app: Express) {
     try {
       const { winnerVariant, variantAMetrics, variantBMetrics } = req.body;
       const { abTestResults } = await import("@shared/schema");
-      await db.update(abTestResults).set({ winnerVariant, variantAMetrics, variantBMetrics, status: "resolved", resolvedAt: new Date() }).where(and(eq(abTestResults.id, parseInt(req.params.id)), eq(abTestResults.userId, userId)));
+      await db.update(abTestResults).set({ winnerVariant, variantAMetrics, variantBMetrics, status: "resolved", resolvedAt: new Date() }).where(and(eq(abTestResults.id, parseInt(req.params.id as string)), eq(abTestResults.userId, userId)));
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: "Failed to resolve A/B test" });
@@ -2422,11 +2422,11 @@ export function registerContentRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "Pipeline Execution");
     if (!userId) return;
     try {
-      const videoId = parseNumericId(req.params.id);
+      const videoId = parseNumericId(req.params.id as string, res);
       if (!videoId) return res.status(400).json({ error: "Invalid video ID" });
 
       const video = await storage.getVideo(videoId);
-      if (!video || video.userId !== userId) return res.status(404).json({ error: "Video not found" });
+      if (!video || (video as any).userId !== userId) return res.status(404).json({ error: "Video not found" });
 
       const meta = video.metadata as any;
       const duration = meta?.duration || (video as any).duration || 0;
@@ -2473,7 +2473,7 @@ export function registerContentRoutes(app: Express) {
     try {
       const userId = await requireTier(req, res, "pro", "SEO Optimizer");
       if (!userId) return;
-      const videos = await storage.getVideos(userId);
+      const videos = await storage.getVideosByUser(userId);
       const scores = videos.slice(0, 20).map((v: any) => ({
         id: v.id,
         title: v.title || "Untitled",

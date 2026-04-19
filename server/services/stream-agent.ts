@@ -160,7 +160,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
               if (activeBroadcast) {
                 detectedLive = true;
                 broadcastTitle = activeBroadcast.title;
-                detectedVideoId = activeBroadcast.videoId || activeBroadcast.id || null;
+                detectedVideoId = (activeBroadcast as any).videoId || (activeBroadcast as any).id || activeBroadcast.broadcastId || null;
               }
             } catch (apiErr: any) {
               logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${sanitizeForPrompt(apiErr.message)}`);

@@ -380,14 +380,14 @@ async function processJob(job: PushJob): Promise<boolean> {
     return false;
   }
 
-  if (job.platform) {
-    const platformCheck = await checkPlatformBudget(job.userId, job.platform);
+  if ((job as any).platform) {
+    const platformCheck = await checkPlatformBudget(job.userId, (job as any).platform);
     if (!platformCheck.allowed && job.priority !== "immediate") {
       const retryMs = platformCheck.retryMs || 60_000;
       job.scheduledAt = new Date(Date.now() + retryMs);
       pushQueue.push(job);
       pushQueue.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
-      logger.info(`[PushScheduler] Platform budget exceeded for ${job.platform} (job ${job.id}) — deferring ${retryMs}ms`);
+      logger.info(`[PushScheduler] Platform budget exceeded for ${(job as any).platform} (job ${job.id}) — deferring ${retryMs}ms`);
       return false;
     }
   }

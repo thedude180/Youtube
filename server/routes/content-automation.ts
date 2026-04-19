@@ -78,7 +78,7 @@ export function registerContentAutomationRoutes(app: Express): void {
   app.post("/api/content-automation/consistency/apply/:videoId", isAuthenticated, async (req: Request, res: Response) => {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
-    const videoId = parseInt(req.params.videoId);
+    const videoId = parseInt(req.params.videoId as string);
     if (isNaN(videoId)) return res.status(400).json({ error: "Invalid video ID" });
     try {
       const result = await applyAISuggestion(userId, videoId);

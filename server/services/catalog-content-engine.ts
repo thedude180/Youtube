@@ -132,7 +132,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
   runningCycles.add(userId);
 
   try {
-    await recordHeartbeat("catalog-content-engine", userId);
+    await recordHeartbeat("catalog-content-engine", "completed");
 
     const [channel] = await db.select().from(channels).where(eq(channels.userId, userId)).limit(1);
     if (!channel) {

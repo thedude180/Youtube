@@ -45,19 +45,19 @@ export function scoreBrandSafety(content: {
 export async function getBrandSafetyReport(userId: string) {
   const checks = await db.select().from(brandSafetyChecks)
     .where(eq(brandSafetyChecks.userId, userId))
-    .orderBy(desc(brandSafetyChecks.createdAt))
+    .orderBy(desc(brandSafetyChecks.scannedAt))
     .limit(50);
 
   const avgScore = checks.length > 0
-    ? checks.reduce((sum, c) => sum + (c.score || 0), 0) / checks.length
+    ? checks.reduce((sum, c) => sum + ((c as any).score || 0), 0) / checks.length
     : 1.0;
 
   return {
     checks,
     avgScore,
     totalChecks: checks.length,
-    safeCount: checks.filter(c => (c.score || 0) >= 0.8).length,
-    cautionCount: checks.filter(c => (c.score || 0) >= 0.5 && (c.score || 0) < 0.8).length,
-    unsafeCount: checks.filter(c => (c.score || 0) < 0.5).length,
+    safeCount: checks.filter(c => ((c as any).score || 0) >= 0.8).length,
+    cautionCount: checks.filter(c => ((c as any).score || 0) >= 0.5 && ((c as any).score || 0) < 0.8).length,
+    unsafeCount: checks.filter(c => ((c as any).score || 0) < 0.5).length,
   };
 }

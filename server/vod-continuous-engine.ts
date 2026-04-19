@@ -167,7 +167,7 @@ async function runCycle(userId: string) {
             autoQueued: true,
             cycledAt: new Date().toISOString(),
           },
-        });
+        } as any);
 
         alreadyQueued.add(video.id);
         longFormQueued++;
@@ -216,7 +216,7 @@ async function runCycle(userId: string) {
               viralScore: short.viralScore,
               autoExtracted: true,
               cycledAt: new Date().toISOString(),
-            },
+            } as any as any,
           }).returning();
 
           const targetPlatforms = (cfg.targetPlatforms || ["youtube"]).filter(p =>
@@ -241,7 +241,7 @@ async function runCycle(userId: string) {
                 endSec: short.endSec,
                 viralScore: short.viralScore,
                 autoQueued: true,
-              },
+              } as any,
             });
             slotIndex++;
             shortsQueued++;
@@ -273,7 +273,7 @@ async function runCycle(userId: string) {
       nextCycleAt: nextCycleAt.toISOString(),
     });
 
-    await recordHeartbeat("vodContinuousEngine", nextCycleMs);
+    await recordHeartbeat("vodContinuousEngine", "completed", nextCycleMs);
     logger.info("[VOD-Continuous] Cycle complete", { userId, longFormQueued, shortsQueued, nextCycleAt });
 
     scheduleNextCycle(userId, nextCycleMs);

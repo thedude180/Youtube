@@ -255,7 +255,7 @@ export function optimizeQueryPatterns(): {
         throw new Error("Table does not have a userId column");
       }
 
-      let query = db.select().from(table).where(eq(userIdCol, userId));
+      let query: any = db.select().from(table).where(eq(userIdCol, userId));
 
       if (options?.orderBy) {
         query = query.orderBy(options.orderBy);

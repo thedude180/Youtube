@@ -125,7 +125,7 @@ export async function scoreBrandConsistency(userId: string): Promise<BrandConsis
       message: `Brand drift detected: ${driftAreas.join("; ")}`,
       metadata: { platformScores, driftAreas, suggestions },
       resolved: false,
-    }).catch(() => {});
+    } as any).catch(() => {});
 
     try {
       const { emitDomainEvent } = await import("../kernel/index");

@@ -342,17 +342,17 @@ export default function Money() {
   const userId = user?.id;
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
 
-  const { data: sponsorData, isLoading: sponsorLoading } = useQuery({ 
+  const { data: sponsorData, isLoading: sponsorLoading } = useQuery<any>({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
     enabled: !!userId && (activeTab === "sponsors" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: merchData, isLoading: merchLoading } = useQuery({ 
+  const { data: merchData, isLoading: merchLoading } = useQuery<any>({ 
     queryKey: ["/api/monetization/merch-predictor", userId],
     enabled: !!userId && (activeTab === "merch-intel" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: diversifyData, isLoading: diversifyLoading } = useQuery({ 
+  const { data: diversifyData, isLoading: diversifyLoading } = useQuery<any>({ 
     queryKey: ["/api/monetization/revenue-diversification", userId],
     enabled: !!userId && (activeTab === "diversify" || activeTab === "revenue"),
     staleTime: 10 * 60_000,

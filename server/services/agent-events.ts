@@ -181,9 +181,9 @@ Return JSON:
             tags: parsed.tags || [],
             aiOptimized: true,
             aiOptimizedAt: new Date().toISOString(),
-            liveStreamSEO: true,
+            // liveStreamSEO: true, // removed: not in metadata type
             thumbnailIntelligenceUsed: !!thumbnailContext,
-          },
+          } as any,
         });
       }
     }

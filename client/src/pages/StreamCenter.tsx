@@ -33,11 +33,11 @@ import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
 import { useTranslation } from "react-i18next";
 
-interface AIToolResponse { [key: string]: unknown; }
+interface AIToolResponse { [key: string]: any; }
 type AIResponse = AIToolResponse | null;
 
-interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; }
-interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, unknown>; }
+interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; connected?: boolean; broadcasts?: any[]; channelName?: string; }
+interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, any>; enabled?: boolean; platform?: string; streamTitle?: string; viewerCount?: number; chatMessagesHandled?: number; chatSentiment?: string; idleEngagement?: { active?: boolean; category?: string; engagementCount?: number; maxPerStream?: number; lastActivityAgo?: number; recentMessageRate?: number; }; actionsLog?: any[]; postStreamPhase?: string; }
 interface MultistreamStatus { relaying: boolean; startedAt?: string; destinations?: Array<{ platform: string; status: string; viewers?: number }>; error?: string; }
 interface RelayDestData { destinations: Array<{ platform: string; url: string; label?: string; status?: string }>; }
 interface UneditedVod { id: number; title: string; youtubeId?: string; streamedAt?: string; duration?: number; thumbnailUrl?: string; }
@@ -969,7 +969,7 @@ export default function StreamCenter() {
               <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
                 <Radio className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
               </div>
-              {ytLiveStatus?.broadcasts?.length > 0 && (
+              {(ytLiveStatus?.broadcasts?.length ?? 0) > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-background animate-pulse" />
               )}
             </div>
@@ -1396,9 +1396,9 @@ export default function StreamCenter() {
             </DialogContent>
           </Dialog>
           {ytLiveStatus?.connected ? (
-            <Badge variant={ytLiveStatus?.broadcasts?.length > 0 ? "destructive" : "secondary"} data-testid="badge-yt-detection-status">
-              <Radio className={`h-3 w-3 mr-1 ${ytLiveStatus?.broadcasts?.length > 0 ? "animate-pulse" : ""}`} />
-              {ytLiveStatus?.broadcasts?.length > 0 ? "LIVE Detected" : "Monitoring YouTube"}
+            <Badge variant={(ytLiveStatus?.broadcasts?.length ?? 0) > 0 ? "destructive" : "secondary"} data-testid="badge-yt-detection-status">
+              <Radio className={`h-3 w-3 mr-1 ${(ytLiveStatus?.broadcasts?.length ?? 0) > 0 ? "animate-pulse" : ""}`} />
+              {(ytLiveStatus?.broadcasts?.length ?? 0) > 0 ? "LIVE Detected" : "Monitoring YouTube"}
             </Badge>
           ) : (
             <Badge variant="outline" data-testid="badge-yt-not-connected">

@@ -32,7 +32,7 @@ export function registerOpsHealthRoutes(app: Express): void {
     const userId = requireAdmin(req, res);
     if (!userId) return;
 
-    const entryId = parseInt(req.params.id);
+    const entryId = parseInt(req.params.id as string);
     if (isNaN(entryId) || entryId <= 0) return res.status(400).json({ error: "Invalid entry ID" });
 
     const { verifyAuditIntegrity } = await import("../services/financial-audit");
@@ -74,7 +74,7 @@ export function registerOpsHealthRoutes(app: Express): void {
     if (!userId) return;
 
     const { getServiceBreakerStates } = await import("../services/circuit-breaker");
-    const service = req.params.service;
+    const service = req.params.service as string;
     const states = getServiceBreakerStates(service);
     res.json({ service, operations: states });
   }));
