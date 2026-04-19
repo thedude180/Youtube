@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "../storage";
 import { requireAuth, requireTier, rateLimitEndpoint, validateAiBody } from "./helpers";
+import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import {
   aiCategorizeExpenses,
   aiFinancialInsights,
@@ -1031,6 +1032,33 @@ import { createLogger } from "../lib/logger";
 
 
 const logger = createLogger("ai");
+
+/**
+ * buildCreatorPlanPrompt — Anthropic (Claude) call site for the new-creator-plan
+ * feature. Exported so that it can be unit-tested independently of the HTTP
+ * layer (mirrors the pattern of buildPrompts() in pipeline.ts).
+ *
+ * IMPORTANT: sanitizeForPrompt() MUST be called on any user-supplied videoTitle /
+ * topic string before interpolating it into the Claude prompt. This is the sole
+ * injection-guard for this Anthropic call site.
+ */
+export function buildCreatorPlanPrompt(videoTitle: string): { system: string; prompt: string } {
+  const safeTitle = sanitizeForPrompt(videoTitle);
+  return {
+    system: `You are an expert YouTube creator strategist. Generate a comprehensive plan for a new creator starting from scratch. Respond with valid JSON only using this structure:
+{
+  "channelName": "creative and memorable channel name suggestion",
+  "channelDescription": "compelling channel description for YouTube about page (2-3 sentences)",
+  "videoIdeas": ["10 specific video title ideas that would perform well for a new channel"],
+  "schedule": "recommended posting schedule (e.g. '2 videos per week - Tuesdays and Fridays at 3PM EST')",
+  "growthStrategy": "paragraph describing the best growth strategy for this niche, including tips for the first 100 subscribers",
+  "brandingTips": "3-4 tips for visual branding (colors, thumbnail style, intro style)",
+  "nicheAnalysis": "brief analysis of the niche - competition level, audience size, monetization potential"
+}`,
+    prompt: `Create a complete YouTube channel plan for someone interested in: ${safeTitle}. Make the video ideas specific, searchable, and designed to attract initial viewers. The channel name should be catchy and brandable. Respond with valid JSON only.`,
+  };
+}
+
 export function registerAiRoutes(app: Express) {
   const aiRateLimit = rateLimitEndpoint(5, 60000);
 
@@ -1130,19 +1158,11 @@ export function registerAiRoutes(app: Express) {
 
       const { callClaude, CLAUDE_MODELS } = await import("../lib/claude");
 
+      const { system, prompt } = buildCreatorPlanPrompt(topic);
       const response = await callClaude({
         model: CLAUDE_MODELS.sonnet,
-        system: `You are an expert YouTube creator strategist. Generate a comprehensive plan for a new creator starting from scratch. Respond with valid JSON only using this structure:
-{
-  "channelName": "creative and memorable channel name suggestion",
-  "channelDescription": "compelling channel description for YouTube about page (2-3 sentences)",
-  "videoIdeas": ["10 specific video title ideas that would perform well for a new channel"],
-  "schedule": "recommended posting schedule (e.g. '2 videos per week - Tuesdays and Fridays at 3PM EST')",
-  "growthStrategy": "paragraph describing the best growth strategy for this niche, including tips for the first 100 subscribers",
-  "brandingTips": "3-4 tips for visual branding (colors, thumbnail style, intro style)",
-  "nicheAnalysis": "brief analysis of the niche - competition level, audience size, monetization potential"
-}`,
-        prompt: `Create a complete YouTube channel plan for someone interested in: ${topic}. Make the video ideas specific, searchable, and designed to attract initial viewers. The channel name should be catchy and brandable. Respond with valid JSON only.`,
+        system,
+        prompt,
         maxTokens: 4000,
         temperature: 0.8,
       });

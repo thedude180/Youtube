@@ -186,6 +186,7 @@ describe("sanitization-coverage › exhaustiveness — every caller is tracked",
       "server/ai-engine.ts",
       "server/autopilot-engine.ts",
       "server/routes/dual-pipeline.ts",
+      "server/routes/ai.ts",
       "server/lib/ai-attack-shield.ts",
     ]);
 
