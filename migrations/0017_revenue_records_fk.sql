@@ -1,0 +1,1 @@
+ALTER TABLE "revenue_records" ADD CONSTRAINT "revenue_records_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
