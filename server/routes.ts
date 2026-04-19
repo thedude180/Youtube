@@ -464,8 +464,10 @@ export async function registerRoutes(
     res.sendStatus(200);
   });
 
-  app.get("/robots.txt", (_req, res) => {
-    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
+  app.get("/robots.txt", (req, res) => {
+    const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (!replitDomain) logger.warn("[routes] REPLIT_DOMAINS not set — robots.txt will use request Host header as domain");
+    const domain = "https://" + (replitDomain || req.get("host") || "localhost");
     res.type("text/plain").send(
       [
         "User-agent: *",
@@ -490,8 +492,10 @@ export async function registerRoutes(
 
   const SITEMAP_LOCALES = ["en", "es", "fr", "pt", "de", "ja", "ko", "zh", "ar", "hi", "ru", "it"];
 
-  app.get("/sitemap.xml", (_req, res) => {
-    const domain = "https://" + (process.env.REPLIT_DOMAINS?.split(",")[0] || "creatoros.replit.app");
+  app.get("/sitemap.xml", (req, res) => {
+    const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
+    if (!replitDomain) logger.warn("[routes] REPLIT_DOMAINS not set — sitemap.xml will use request Host header as domain");
+    const domain = "https://" + (replitDomain || req.get("host") || "localhost");
     const today = new Date().toISOString().split("T")[0];
     const pages = [
       { path: "/", changefreq: "daily", priority: "1.0" },

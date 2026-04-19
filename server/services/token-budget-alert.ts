@@ -16,10 +16,12 @@ function utcDay(): string {
 
 function _appBaseUrl(): string {
   if (process.env.REPLIT_DOMAINS) {
-    return "https://" + (process.env.REPLIT_DOMAINS.split(",")[0] || "creatoros.replit.app");
+    const primary = process.env.REPLIT_DOMAINS.split(",")[0];
+    if (primary) return "https://" + primary;
   }
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return "https://creatoros.replit.app";
+  logger.error("[TokenBudgetAlert] REPLIT_DOMAINS is not set — alert email will contain a placeholder URL");
+  return "";
 }
 
 /** Returns admin emails: ADMIN_EMAIL + all DB users with role='admin'. */

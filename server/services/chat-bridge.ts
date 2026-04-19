@@ -32,8 +32,7 @@ const pendingStartTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let eventsWired = false;
 
 const TWITCH_IRC_URL = "wss://irc-ws.chat.twitch.tv:443";
-const KICK_PUSHER_KEY = process.env.KICK_PUSHER_KEY || "eb1d5f283081a78b932c";
-const KICK_PUSHER_URL = `wss://ws-us2.pusher.com/app/${KICK_PUSHER_KEY}?protocol=7&client=js&version=7.6.0&flash=false`;
+const KICK_PUSHER_URL_BASE = "wss://ws-us2.pusher.com/app/%KEY%?protocol=7&client=js&version=7.6.0&flash=false";
 const DISCORD_GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 const DISCORD_API_BASE = "https://discord.com/api/v10";
 const RECONNECT_DELAY = 10_000;
@@ -155,6 +154,13 @@ function connectTwitchIRC(session: BridgeSession, attempt = 0): void {
 
 async function connectKickChat(session: BridgeSession, attempt = 0): Promise<void> {
   if (session.stopped) return;
+
+  const kickPusherKey = process.env.KICK_PUSHER_KEY;
+  if (!kickPusherKey) {
+    log.warn("KICK_PUSHER_KEY env var not set — Kick chat bridge disabled");
+    return;
+  }
+
   const slug = getKickChannel();
   if (!slug) {
     log.warn("No KICK_CHANNEL set — skipping Kick chat bridge");
@@ -172,7 +178,8 @@ async function connectKickChat(session: BridgeSession, attempt = 0): Promise<voi
 
   log.info(`Kick chatroom ID for ${slug}: ${chatroomId}`);
 
-  const ws = new WebSocket(KICK_PUSHER_URL);
+  const kickPusherUrl = KICK_PUSHER_URL_BASE.replace("%KEY%", kickPusherKey);
+  const ws = new WebSocket(kickPusherUrl);
   session.kickWs = ws;
 
   ws.on("open", () => {
