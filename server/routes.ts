@@ -466,8 +466,10 @@ export async function registerRoutes(
 
   app.get("/robots.txt", (req, res) => {
     const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (!replitDomain) logger.warn("[routes] REPLIT_DOMAINS not set — robots.txt will use request Host header as domain");
-    const domain = "https://" + (replitDomain || req.get("host") || "localhost");
+    if (!replitDomain) logger.error("[routes] REPLIT_DOMAINS not set — robots.txt will derive domain from request Host header");
+    const rawHost = replitDomain || req.get("host") || "localhost";
+    const safeHost = rawHost.replace(/[^a-zA-Z0-9.\-:]/g, "");
+    const domain = "https://" + safeHost;
     res.type("text/plain").send(
       [
         "User-agent: *",
@@ -494,8 +496,10 @@ export async function registerRoutes(
 
   app.get("/sitemap.xml", (req, res) => {
     const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    if (!replitDomain) logger.warn("[routes] REPLIT_DOMAINS not set — sitemap.xml will use request Host header as domain");
-    const domain = "https://" + (replitDomain || req.get("host") || "localhost");
+    if (!replitDomain) logger.error("[routes] REPLIT_DOMAINS not set — sitemap.xml will derive domain from request Host header");
+    const rawHost = replitDomain || req.get("host") || "localhost";
+    const safeHost = rawHost.replace(/[^a-zA-Z0-9.\-:]/g, "");
+    const domain = "https://" + safeHost;
     const today = new Date().toISOString().split("T")[0];
     const pages = [
       { path: "/", changefreq: "daily", priority: "1.0" },
