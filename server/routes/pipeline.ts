@@ -17,7 +17,7 @@ function requireAuth(req: Request, res: Response): string | null {
 const STEP_IDS = PIPELINE_STEPS.map(s => s.id);
 
 import { getOpenAIClient } from "../lib/openai";
-import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 import { createLogger } from "../lib/logger";
 
@@ -28,7 +28,7 @@ function getOpenAI() {
 
 export function buildPrompts(videoTitle: string, mode: string, existingResults: Record<string, any>): Record<string, string> {
   const safeTitle = sanitizeForPrompt(videoTitle);
-  const ctx = (key: string) => JSON.stringify(existingResults[key] || {});
+  const ctx = (key: string) => JSON.stringify(sanitizeObjectForPrompt(existingResults[key] || {}));
   const allPlatforms = "YouTube, TikTok, Discord";
 
   if (mode === "live") {

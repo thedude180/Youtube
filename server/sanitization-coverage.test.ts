@@ -324,6 +324,11 @@ describe("sanitization-coverage › nested-object call-sites present in high-ris
     expect(content).toContain("JSON.stringify(sanitizeObjectForPrompt(blueprint.niche))");
     expect(content).toContain("JSON.stringify(sanitizeObjectForPrompt(blueprint.brandIdentity))");
   });
+
+  it("pipeline.ts wraps existingResults in sanitizeObjectForPrompt before JSON.stringify in ctx helper", () => {
+    const content = src("server/routes/pipeline.ts");
+    expect(content).toContain("JSON.stringify(sanitizeObjectForPrompt(existingResults[key]");
+  });
 });
 
 // ─── sanitizeObjectForPrompt exhaustiveness guard ─────────────────────────────
@@ -344,6 +349,7 @@ const objectPromptCallers: string[] = [
   "server/marketer-engine.ts",
   "server/monetization-engine.ts",
   "server/routes/dual-pipeline.ts",
+  "server/routes/pipeline.ts",
   "server/security-engine.ts",
   "server/services/anomaly-responder.ts",
   "server/services/catalog-content-engine.ts",
@@ -461,16 +467,6 @@ const SAFE_NON_PROMPT_FILES: ReadonlyArray<{ path: string; reason: string; hasAI
     // {...})}\n\n`)` — Server-Sent Events protocol streaming back to the
     // browser. No JSON.stringify output enters any AI message content field.
     reason: "JSON.stringify is inside res.write() SSE streaming — not prompt content",
-    hasAICalls: true,
-  },
-  {
-    path: "server/routes/pipeline.ts",
-    // The ctx() helper (`JSON.stringify(existingResults[key] || {})`) is used
-    // inside prompt template literals. existingResults contains AI-generated
-    // outputs from prior pipeline stages, not user-controlled strings.
-    // ⚠ TRACKED: task #72 adds sanitizeObjectForPrompt to the ctx() helper.
-    //   Remove this entry once that work lands.
-    reason: "ctx() wraps AI-generated prior-stage results, not user data (task #72 tracked)",
     hasAICalls: true,
   },
   {
