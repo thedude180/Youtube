@@ -88,7 +88,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     label: "X (Twitter)",
     authUrl: "https://twitter.com/i/oauth2/authorize",
     tokenUrl: "https://api.twitter.com/2/oauth2/token",
-    scopes: ["tweet.read", "users.read", "offline.access"],
+    scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
     clientIdEnv: "TWITTER_CLIENT_ID",
     clientSecretEnv: "TWITTER_CLIENT_SECRET",
     requiresPKCE: true,
