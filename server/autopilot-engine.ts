@@ -1426,8 +1426,22 @@ export async function processScheduledPosts() {
 
   // Re-fetch claimed rows via Drizzle so the rest of the function gets
   // properly typed, camelCase-mapped objects (db.execute returns raw snake_case).
+  // Re-apply content-priority ordering so higher-value posts are processed first.
   const duePosts = await db.select().from(autopilotQueue)
-    .where(inArray(autopilotQueue.id, claimedIds));
+    .where(inArray(autopilotQueue.id, claimedIds))
+    .orderBy(
+      sql`CASE ${autopilotQueue.type}
+        WHEN 'go-live'            THEN 1
+        WHEN 'new-video'          THEN 2
+        WHEN 'post-stream'        THEN 3
+        WHEN 'auto-clip'          THEN 4
+        WHEN 'cross-promo'        THEN 6
+        WHEN 'content-recycle'    THEN 7
+        WHEN 'evergreen_recycler' THEN 8
+        ELSE 5
+      END`,
+      autopilotQueue.scheduledAt,
+    );
 
   const newContentCount = duePosts.filter(p => ["go-live", "new-video", "post-stream", "auto-clip"].includes(p.type)).length;
   const recycledCount = duePosts.filter(p => ["content-recycle", "evergreen_recycler"].includes(p.type)).length;
