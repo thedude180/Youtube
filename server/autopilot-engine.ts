@@ -1422,7 +1422,12 @@ export async function processScheduledPosts() {
   `);
   const claimedIds = (claimResult.rows ?? []).map((r: any) => r.id as number);
 
-  if (duePosts.length === 0) return;
+  if (claimedIds.length === 0) return;
+
+  // Re-fetch claimed rows via Drizzle so the rest of the function gets
+  // properly typed, camelCase-mapped objects (db.execute returns raw snake_case).
+  const duePosts = await db.select().from(autopilotQueue)
+    .where(inArray(autopilotQueue.id, claimedIds));
 
   const newContentCount = duePosts.filter(p => ["go-live", "new-video", "post-stream", "auto-clip"].includes(p.type)).length;
   const recycledCount = duePosts.filter(p => ["content-recycle", "evergreen_recycler"].includes(p.type)).length;
