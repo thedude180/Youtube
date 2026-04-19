@@ -298,10 +298,10 @@ export const PLATFORM_INFO: Record<Platform, {
     maxBitrate: "4 Mbps",
     rtmpUrlTemplate: "",
     category: "social",
-    connectionType: "manual",
+    connectionType: "oauth",
     signupUrl: "https://x.com/i/flow/signup",
     strategyDescription: "The real-time conversation platform. Share clips, engage with the gaming community, and drive traffic to your content through viral moments and discussions.",
-    setupSteps: ["Create or log into your X account at x.com", "Go to Settings and enable creator features", "Copy your profile handle", "Paste it below"],
+    setupSteps: ["Click 'Connect X' to authorize via OAuth", "CreatorOS will get permission to post on your behalf", "Your account will appear as connected"],
   },
 };
 

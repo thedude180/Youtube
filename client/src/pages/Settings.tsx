@@ -9,7 +9,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
 } from "lucide-react";
 import { QualitySettingsPanel } from "@/components/resolution-intelligence";
-import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
+import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble, SiX } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -170,6 +170,7 @@ function PlatformConnectionsCard({
     { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
     { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
     { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
+    { key: "x", label: "X (Twitter)", color: "#000000", Icon: SiX, isYouTube: false, streamKeyOnly: false },
   ];
 
   const connectedSet = new Set((channels || []).map((c: any) => c.platform));
