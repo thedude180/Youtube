@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-import-paths.sh
 #
-# Fails if any .ts, .tsx, .js, or .jsx file under server/ or client/ contains
+# Fails if any .ts, .tsx, .js, or .jsx file under server/, client/, or shared/ contains
 # a double-slash import path such as ".//logger" or '//something' which are
 # typos that Node.js silently resolves but break IDEs and type-checking tools.
 #
@@ -13,9 +13,9 @@ set -euo pipefail
 
 PATTERN='(from\s+['"'"'"]\.?\/\/|import\s+['"'"'"]\.?\/\/)'
 
-echo "Checking for malformed import paths (double-slash) in server/ and client/..."
+echo "Checking for malformed import paths (double-slash) in server/, client/, and shared/..."
 
-MATCHES=$(grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" -E "$PATTERN" server/ client/ 2>/dev/null || true)
+MATCHES=$(grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" -E "$PATTERN" server/ client/ shared/ 2>/dev/null || true)
 
 if [ -n "$MATCHES" ]; then
   echo ""
