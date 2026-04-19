@@ -50,7 +50,7 @@ export async function publishToDestination(
   streamKey: string
 ): Promise<{ success: boolean; publishSession?: PublishSession; error?: string }> {
   const idempotencyKey = `publish:${sessionId}:${destinationId}:${platform}`;
-  const check = checkIdempotency(idempotencyKey);
+  const check = await checkIdempotency(idempotencyKey);
   if (check.isDuplicate) {
     await recordPublishAttempt(destinationId, sessionId, platform, "launch", idempotencyKey, false, "Duplicate publish suppressed");
     return { success: false, error: "Duplicate publish attempt suppressed" };
@@ -83,7 +83,7 @@ export async function publishToDestination(
   relayActive = true;
 
   await recordPublishAttempt(destinationId, sessionId, platform, "launch", idempotencyKey, true);
-  recordIdempotency(idempotencyKey, `${platform}:${destinationId}`, { destinationId, status: "publishing" }, 30 * 60 * 1000);
+  await recordIdempotency(idempotencyKey, `${platform}:${destinationId}`, { destinationId, status: "publishing" }, 30 * 60 * 1000);
 
   appendEvent("multistream.publish_started", "live", platform, {
     destinationId, sessionId, bitrateKbps: targetBitrate,

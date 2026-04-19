@@ -7,6 +7,7 @@ import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intel
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
+import { jobQueue } from "./services/intelligent-job-queue";
 
 const logger = createLogger("autopilot");
 
@@ -1046,29 +1047,39 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
           clipVideoId = clipVideo.id;
         }
 
-        const { assignSingleVideoToPlaylist } = await import("./playlist-manager");
-        assignSingleVideoToPlaylist(post.userId, clipVideoId, ytChannel.id).catch(err => {
-          logger.error("Post-upload playlist assignment failed", { error: String(err) });
+        await jobQueue.enqueue({
+          type: "post_upload_playlist",
+          userId: post.userId,
+          priority: 3,
+          payload: { videoId: clipVideoId, channelId: ytChannel.id },
+          dedupeKey: `post_upload_playlist:${clipVideoId}`,
         });
 
-        const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
-        generateThumbnailForNewVideo(post.userId, clipVideoId).catch(() => {});
+        await jobQueue.enqueue({
+          type: "post_upload_thumbnail",
+          userId: post.userId,
+          priority: 3,
+          payload: { videoId: clipVideoId },
+          dedupeKey: `post_upload_thumbnail:${clipVideoId}`,
+        });
 
         const clipGameName = (meta as any)?.gameName || ((streamVideo?.metadata as any)?.gameName);
         if (clipGameName && clipGameName !== "PS5 Gameplay" && clipGameName !== "Unknown") {
-          import("./services/web-game-lookup").then(({ persistGameToDatabase }) => {
-            persistGameToDatabase(clipGameName, "stream-clip-publish").catch(err => {
-              logger.warn("Game persistence failed for stream clip", { gameName: clipGameName, error: String(err).substring(0, 150) });
-            });
-          }).catch(err => {
-            logger.warn("Failed to import web-game-lookup for stream clip game persistence", { error: String(err).substring(0, 100) });
+          await jobQueue.enqueue({
+            type: "post_upload_game_tag",
+            userId: post.userId,
+            priority: 2,
+            payload: { gameName: clipGameName, source: "stream-clip-publish" },
+            dedupeKey: `post_upload_game_tag:${clipGameName}`,
           });
         }
 
-        import("./publish-verifier").then(({ verifyVideoUpload }) => {
-          verifyVideoUpload(clipVideoId, post.userId, uploadResult.youtubeId, "stream_clip_autopilot").catch(err => {
-            logger.warn("Stream clip upload verification deferred", { clipVideoId, error: String(err) });
-          });
+        await jobQueue.enqueue({
+          type: "post_upload_verify",
+          userId: post.userId,
+          priority: 4,
+          payload: { videoId: clipVideoId, youtubeId: uploadResult.youtubeId, source: "stream_clip_autopilot" },
+          dedupeKey: `post_upload_verify:${clipVideoId}`,
         });
       } catch (err) {
         logger.error("Failed to create clip video record", { postId: post.id, error: String(err) });
@@ -1184,24 +1195,38 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
           } as any,
         });
 
-        const { assignSingleVideoToPlaylist } = await import("./playlist-manager");
-        assignSingleVideoToPlaylist(post.userId, clipVideo.id, ytChannel.id).catch(() => {});
+        await jobQueue.enqueue({
+          type: "post_upload_playlist",
+          userId: post.userId,
+          priority: 3,
+          payload: { videoId: clipVideo.id, channelId: ytChannel.id },
+          dedupeKey: `post_upload_playlist:${clipVideo.id}`,
+        });
 
-        const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
-        generateThumbnailForNewVideo(post.userId, clipVideo.id).catch(() => {});
+        await jobQueue.enqueue({
+          type: "post_upload_thumbnail",
+          userId: post.userId,
+          priority: 3,
+          payload: { videoId: clipVideo.id },
+          dedupeKey: `post_upload_thumbnail:${clipVideo.id}`,
+        });
 
         if (gameName && gameName !== "PS5 Gameplay" && gameName !== "Unknown") {
-          import("./services/web-game-lookup").then(({ persistGameToDatabase }) => {
-            persistGameToDatabase(gameName, "maximizer-publish").catch(err => {
-              logger.warn("Game persistence failed for maximizer clip", { gameName, error: String(err).substring(0, 150) });
-            });
-          }).catch(err => {
-            logger.warn("Failed to import web-game-lookup for game persistence", { error: String(err).substring(0, 100) });
+          await jobQueue.enqueue({
+            type: "post_upload_game_tag",
+            userId: post.userId,
+            priority: 2,
+            payload: { gameName, source: "maximizer-publish" },
+            dedupeKey: `post_upload_game_tag:${gameName}`,
           });
         }
 
-        import("./publish-verifier").then(({ verifyVideoUpload }) => {
-          verifyVideoUpload(clipVideo.id, post.userId, uploadResult.youtubeId, "content_maximizer").catch(() => {});
+        await jobQueue.enqueue({
+          type: "post_upload_verify",
+          userId: post.userId,
+          priority: 4,
+          payload: { videoId: clipVideo.id, youtubeId: uploadResult.youtubeId, source: "content_maximizer" },
+          dedupeKey: `post_upload_verify:${clipVideo.id}`,
         });
 
         const { contentExperiments } = await import("@shared/schema");

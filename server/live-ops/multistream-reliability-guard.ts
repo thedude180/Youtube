@@ -85,7 +85,7 @@ export async function assessLaunchReliability(
   sessionId: number
 ): Promise<ReliabilityAssessment> {
   const idempotencyKey = `guard:${sessionId}:${destinationId}`;
-  const idempotencyCheck = checkIdempotency(idempotencyKey);
+  const idempotencyCheck = await checkIdempotency(idempotencyKey);
   if (idempotencyCheck.isDuplicate) {
     return {
       destinationId, platform,
@@ -131,7 +131,7 @@ export async function assessLaunchReliability(
     };
   }
 
-  recordIdempotency(idempotencyKey, `${platform}:${destinationId}`, { assessed: true }, 10 * 60 * 1000);
+  await recordIdempotency(idempotencyKey, `${platform}:${destinationId}`, { assessed: true }, 10 * 60 * 1000);
 
   return {
     destinationId, platform,

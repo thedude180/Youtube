@@ -161,7 +161,12 @@ registerCleanup("fingerprints", () => {
 
 // AUDIT FIX: Bounded idempotency cache — max 1000 entries (LRU eviction by insertion order) with 5-min TTL
 const MAX_IDEMPOTENCY_ENTRIES = 1000;
-function idempotencyBoundedSet(map: Map<string, { timestamp: number; response: any }>, key: string, value: { timestamp: number; response: any }) {
+
+type IdempotencyEntry =
+  | { inProgress: true; timestamp: number }
+  | { inProgress: false; timestamp: number; response: any };
+
+function idempotencyBoundedSet(map: Map<string, IdempotencyEntry>, key: string, value: IdempotencyEntry) {
   if (map.size >= MAX_IDEMPOTENCY_ENTRIES) {
     // Delete the oldest entry (first key in Map insertion order)
     const firstKey = map.keys().next().value;
@@ -171,13 +176,15 @@ function idempotencyBoundedSet(map: Map<string, { timestamp: number; response: a
 }
 
 export function idempotencyGuard() {
-  const seen = new Map<string, { timestamp: number; response: any }>();
+  const seen = new Map<string, IdempotencyEntry>();
 
   setInterval(() => {
     try {
       const now = Date.now();
       for (const [key, entry] of Array.from(seen)) {
-        if (now - entry.timestamp > 300000) seen.delete(key);
+        // Completed entries: 5-minute TTL. In-progress entries: 60-second TTL to avoid leaking stuck requests.
+        const ttl = entry.inProgress ? 60_000 : 300_000;
+        if (now - entry.timestamp > ttl) seen.delete(key);
       }
     } catch {}
   }, 60000);
@@ -194,16 +201,33 @@ export function idempotencyGuard() {
 
     const key = `${userSub}:${idempotencyKey}`;
     const existing = seen.get(key);
+
     if (existing) {
-      return res.status(200).json(existing.response);
+      if (existing.inProgress) {
+        // A request with this key is already being processed — reject the duplicate.
+        return res.status(409).json({
+          error: "request_in_progress",
+          message: "A request with this idempotency key is already being processed. Retry after the first request completes.",
+        });
+      }
+      // Return the cached successful response for completed requests.
+      return res.status(200).json((existing as { inProgress: false; timestamp: number; response: any }).response);
     }
+
+    // Mark the key as in-progress BEFORE handing off to the handler, so that
+    // simultaneous duplicate requests are rejected rather than double-executed.
+    idempotencyBoundedSet(seen, key, { inProgress: true, timestamp: Date.now() });
 
     const originalJson = res.json.bind(res);
     res.json = function (body: any) {
       // AUDIT FIX: Never cache responses that set auth cookies — prevents stale auth state replay
       const hasCookie = !!res.getHeader("Set-Cookie");
       if (!hasCookie && res.statusCode >= 200 && res.statusCode < 300) {
-        idempotencyBoundedSet(seen, key, { timestamp: Date.now(), response: body });
+        // Replace the in-progress marker with the completed response.
+        idempotencyBoundedSet(seen, key, { inProgress: false, timestamp: Date.now(), response: body });
+      } else {
+        // On error responses, remove the in-progress marker so the client can retry.
+        seen.delete(key);
       }
       return originalJson(body);
     };

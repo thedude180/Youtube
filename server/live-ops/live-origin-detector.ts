@@ -54,7 +54,7 @@ async function hasActiveSession(userId: string): Promise<boolean> {
 
 export async function detectLiveOrigin(event: SourceLiveEvent): Promise<OriginDetectionResult> {
   const idempotencyKey = `live-origin:${event.userId}:${event.platform}:${event.streamId}`;
-  const idempotencyCheck = checkIdempotency(idempotencyKey);
+  const idempotencyCheck = await checkIdempotency(idempotencyKey);
   if (idempotencyCheck.isDuplicate) {
     return {
       detected: true,
@@ -126,7 +126,7 @@ export async function detectLiveOrigin(event: SourceLiveEvent): Promise<OriginDe
     }, "live-origin-detector");
   }
 
-  recordIdempotency(idempotencyKey, `${event.platform}:${event.streamId}`, {
+  await recordIdempotency(idempotencyKey, `${event.platform}:${event.streamId}`, {
     originEventId: originEvent.id,
     sessionId,
   }, DUPLICATE_WINDOW_MS);

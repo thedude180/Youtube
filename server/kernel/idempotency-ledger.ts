@@ -1,4 +1,9 @@
-import { appendEvent } from "./creator-intelligence-graph";
+import { idempotencyLedger } from "@shared/schema";
+import { db } from "../db";
+import { eq, lt, and } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("idempotency-ledger");
 
 export interface IdempotencyRecord {
   key: string;
@@ -9,76 +14,104 @@ export interface IdempotencyRecord {
   hitCount: number;
 }
 
-const ledger = new Map<string, IdempotencyRecord>();
-const MAX_LEDGER_SIZE = 5000;
+export async function checkIdempotency(key: string): Promise<{ isDuplicate: boolean; cachedResult?: any }> {
+  try {
+    const [record] = await db
+      .select()
+      .from(idempotencyLedger)
+      .where(eq(idempotencyLedger.idempotencyKey, key))
+      .limit(1);
 
-export function checkIdempotency(key: string): { isDuplicate: boolean; cachedResult?: any } {
-  const record = ledger.get(key);
-  if (!record) return { isDuplicate: false };
-  if (record.expiresAt < new Date()) {
-    ledger.delete(key);
+    if (!record) return { isDuplicate: false };
+
+    if (record.expiresAt && record.expiresAt < new Date()) {
+      await db.delete(idempotencyLedger).where(eq(idempotencyLedger.idempotencyKey, key)).catch(() => {});
+      return { isDuplicate: false };
+    }
+
+    return { isDuplicate: true, cachedResult: record.responseSnapshot };
+  } catch (err: any) {
+    logger.warn(`[IdempotencyLedger] DB check failed for key ${key}, treating as non-duplicate: ${err.message}`);
     return { isDuplicate: false };
   }
-  record.hitCount++;
-  return { isDuplicate: true, cachedResult: record.result };
 }
 
-export function recordIdempotency(
+export async function recordIdempotency(
   key: string,
   operationHash: string,
   result: any,
   ttlMs: number = 24 * 60 * 60 * 1000
-): void {
-  if (ledger.size >= MAX_LEDGER_SIZE) {
-    cleanExpired();
-    if (ledger.size >= MAX_LEDGER_SIZE) {
-      const oldest = Array.from(ledger.entries())
-        .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime())
-        .slice(0, Math.floor(MAX_LEDGER_SIZE * 0.2));
-      for (const [k] of oldest) ledger.delete(k);
-    }
+): Promise<void> {
+  try {
+    const expiresAt = new Date(Date.now() + ttlMs);
+    const operationType = key.split(":")[0] || "unknown";
+
+    await db
+      .insert(idempotencyLedger)
+      .values({
+        idempotencyKey: key,
+        operationType,
+        requestHash: operationHash,
+        responseSnapshot: result,
+        expiresAt,
+        status: "completed",
+      })
+      .onConflictDoUpdate({
+        target: idempotencyLedger.idempotencyKey,
+        set: {
+          requestHash: operationHash,
+          responseSnapshot: result,
+          expiresAt,
+          status: "completed",
+        },
+      });
+  } catch (err: any) {
+    logger.warn(`[IdempotencyLedger] DB record failed for key ${key}: ${err.message}`);
   }
-  ledger.set(key, {
-    key,
-    operationHash,
-    result,
-    createdAt: new Date(),
-    expiresAt: new Date(Date.now() + ttlMs),
-    hitCount: 0,
-  });
 }
 
-export function isIdempotent(key: string, operationHash: string): boolean {
-  const record = ledger.get(key);
-  if (!record) return false;
-  return record.operationHash === operationHash && record.expiresAt > new Date();
+export async function isIdempotent(key: string, operationHash: string): Promise<boolean> {
+  const { isDuplicate, cachedResult } = await checkIdempotency(key);
+  if (!isDuplicate) return false;
+  return cachedResult?.operationHash === operationHash;
 }
 
-export function clearIdempotencyLedger(): void {
-  ledger.clear();
+export async function clearIdempotencyLedger(): Promise<void> {
+  await db.delete(idempotencyLedger);
 }
 
-export function cleanExpired(): number {
+export async function cleanExpired(): Promise<number> {
   const now = new Date();
-  let cleaned = 0;
-  for (const [key, record] of ledger) {
-    if (record.expiresAt < now) {
-      ledger.delete(key);
-      cleaned++;
-    }
-  }
-  return cleaned;
+  const result = await db
+    .delete(idempotencyLedger)
+    .where(lt(idempotencyLedger.expiresAt, now))
+    .returning({ id: idempotencyLedger.id });
+  return result.length;
 }
 
-export function getLedgerStats(): {
+export async function getLedgerStats(): Promise<{
   totalEntries: number;
-  duplicatesBlocked: number;
   oldestEntry: Date | null;
-} {
-  const entries = Array.from(ledger.values());
-  return {
-    totalEntries: entries.length,
-    duplicatesBlocked: entries.reduce((sum, e) => sum + e.hitCount, 0),
-    oldestEntry: entries.length > 0 ? entries.reduce((oldest, e) => e.createdAt < oldest ? e.createdAt : oldest, entries[0].createdAt) : null,
-  };
+}> {
+  try {
+    const entries = await db.select().from(idempotencyLedger).limit(1000);
+    return {
+      totalEntries: entries.length,
+      oldestEntry: entries.length > 0
+        ? entries.reduce((oldest, e) => {
+            const t = e.createdAt ?? new Date();
+            return t < oldest ? t : oldest;
+          }, entries[0].createdAt ?? new Date())
+        : null,
+    };
+  } catch {
+    return { totalEntries: 0, oldestEntry: null };
+  }
 }
+
+// Periodic cleanup of expired entries — runs every hour
+setInterval(() => {
+  cleanExpired().catch((err: any) => {
+    logger.warn(`[IdempotencyLedger] Periodic cleanup failed: ${err.message}`);
+  });
+}, 60 * 60 * 1000);

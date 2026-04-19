@@ -1589,7 +1589,40 @@ httpServer.listen(
           logger.info("[Autonomous] Content queued for manual approval", { userId: job.userId, payload: job.payload });
         });
 
-        logger.info("[Autonomous] Job handlers registered (20 total)");
+        // Post-upload follow-up tasks — formerly fire-and-forget, now durable via job queue
+        jobQueue.registerHandler("post_upload_playlist", async (job) => {
+          const { videoId, channelId } = job.payload || {};
+          if (!videoId || !channelId || !job.userId) return;
+          const { assignSingleVideoToPlaylist } = await import("./playlist-manager");
+          await assignSingleVideoToPlaylist(job.userId, videoId, channelId);
+          logger.info("[post_upload_playlist] Playlist assignment completed", { videoId, channelId });
+        });
+
+        jobQueue.registerHandler("post_upload_thumbnail", async (job) => {
+          const { videoId } = job.payload || {};
+          if (!videoId || !job.userId) return;
+          const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
+          await generateThumbnailForNewVideo(job.userId, videoId);
+          logger.info("[post_upload_thumbnail] Thumbnail generation completed", { videoId });
+        });
+
+        jobQueue.registerHandler("post_upload_game_tag", async (job) => {
+          const { gameName, source } = job.payload || {};
+          if (!gameName) return;
+          const { persistGameToDatabase } = await import("./services/web-game-lookup");
+          await persistGameToDatabase(gameName, source || "post-upload");
+          logger.info("[post_upload_game_tag] Game tag persisted", { gameName, source });
+        });
+
+        jobQueue.registerHandler("post_upload_verify", async (job) => {
+          const { videoId, youtubeId, source } = job.payload || {};
+          if (!videoId || !youtubeId || !job.userId) return;
+          const { verifyVideoUpload } = await import("./publish-verifier");
+          await verifyVideoUpload(videoId, job.userId, youtubeId, source || "autopilot");
+          logger.info("[post_upload_verify] Upload verification completed", { videoId, youtubeId });
+        });
+
+        logger.info("[Autonomous] Job handlers registered (24 total)");
       } catch (err: any) {
         logger.error("[Autonomous] Job handler registration failed", { error: String(err) });
       }
