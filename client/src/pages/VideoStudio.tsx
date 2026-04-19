@@ -43,6 +43,7 @@ interface StudioVideoMetadata {
   publishStatus?: string;
   publishedYoutubeId?: string;
   seoScore?: number;
+  gameName?: string;
 }
 
 interface StudioVideo {
@@ -418,12 +419,18 @@ function VideoEditor({
   const [title, setTitle] = useState(studioVideo.title);
   const [description, setDescription] = useState(studioVideo.description || "");
   const [tags, setTags] = useState((studioVideo.metadata?.tags || []).join(", "));
+  const [gameName, setGameName] = useState(studioVideo.metadata?.gameName || "");
   const [endScreenElements, setEndScreenElements] = useState<EndScreenElement[]>(
     studioVideo.metadata?.endScreen?.elements || []
   );
   const [activeTab, setActiveTab] = useState("metadata");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: vaultGames } = useQuery<Array<{ gameName: string }>>({
+    queryKey: ["/api/vault/games"],
+    staleTime: 5 * 60_000,
+  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -436,6 +443,7 @@ function VideoEditor({
             enabled: endScreenElements.some(el => el.enabled),
             elements: endScreenElements,
           },
+          ...(gameName ? { gameName } : {}),
         },
       });
       return res.json();
@@ -623,6 +631,23 @@ function VideoEditor({
                   placeholder="gaming, tutorial, highlights..."
                   data-testid="input-tags"
                 />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Game</Label>
+                <Select value={gameName || "_none"} onValueChange={(v) => setGameName(v === "_none" ? "" : v)}>
+                  <SelectTrigger className="mt-1" data-testid="select-game">
+                    <SelectValue placeholder="Select game..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">No game / Not gaming</SelectItem>
+                    {(vaultGames || []).filter(g => g.gameName && g.gameName !== "Uncategorized").map((g) => (
+                      <SelectItem key={g.gameName} value={g.gameName}>{g.gameName}</SelectItem>
+                    ))}
+                    {(!vaultGames || vaultGames.filter(g => g.gameName && g.gameName !== "Uncategorized").length === 0) && (
+                      <SelectItem value="_none_placeholder" disabled>Connect YouTube to see your games</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               {meta.seoScore && (
                 <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">

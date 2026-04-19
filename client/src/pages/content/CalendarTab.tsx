@@ -52,6 +52,7 @@ interface UploadEntry {
   status: string;
   canDelete?: boolean;
   rawId?: number;
+  gameName?: string | null;
 }
 
 const META_UPDATE_TYPES = new Set([
@@ -122,6 +123,7 @@ function CalendarTab() {
           status: item.status || "scheduled",
           canDelete: item.canDelete || false,
           rawId: item.rawId,
+          gameName: item.gameName || null,
         } as UploadEntry;
       })
       .filter(Boolean) as UploadEntry[];
@@ -174,6 +176,12 @@ function CalendarTab() {
   });
 
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [formGame, setFormGame] = useState<string>("");
+
+  const { data: vaultGames } = useQuery<Array<{ gameName: string }>>({
+    queryKey: ["/api/vault/games"],
+    staleTime: 5 * 60_000,
+  });
 
   const handleCreate = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -185,6 +193,7 @@ function CalendarTab() {
       scheduledAt: new Date(
         `${fd.get("date")}T${fd.get("time")}`,
       ).toISOString(),
+      metadata: formGame ? { gameName: formGame } : undefined,
     });
   };
 
@@ -492,6 +501,23 @@ function CalendarTab() {
                         data-testid="input-schedule-title"
                         placeholder={formPlatform === "discord" ? "Announcement title" : "Video title"}
                       />
+                    </div>
+                    <div>
+                      <Label>Game</Label>
+                      <Select value={formGame || "_none"} onValueChange={(v) => setFormGame(v === "_none" ? "" : v)}>
+                        <SelectTrigger data-testid="select-schedule-game">
+                          <SelectValue placeholder="Select game..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">No game / Not gaming</SelectItem>
+                          {(vaultGames || []).filter(g => g.gameName && g.gameName !== "Uncategorized").map((g) => (
+                            <SelectItem key={g.gameName} value={g.gameName}>{g.gameName}</SelectItem>
+                          ))}
+                          {(!vaultGames || vaultGames.filter(g => g.gameName && g.gameName !== "Uncategorized").length === 0) && (
+                            <SelectItem value="_none_placeholder" disabled>Connect YouTube to see your games</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -829,6 +855,11 @@ function UploadRow({
             <PlatformBadge platform={entry.platform} className="text-xs" />
             <KindBadge kind={entry.contentKind} />
             <UploadStatusBadge status={entry.status} />
+            {entry.gameName && (
+              <span className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded truncate max-w-[120px]" data-testid={`text-game-${entry.id}`}>
+                {entry.gameName}
+              </span>
+            )}
           </div>
         </div>
       </div>

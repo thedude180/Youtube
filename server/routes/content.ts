@@ -1713,16 +1713,18 @@ export function registerContentRoutes(app: Express) {
         if (item.videoId && seenVideoIds.has(item.videoId)) continue;
         const ct = item.type || "video";
         const plat = item.platform || "youtube";
+        const meta = item.metadata as any;
         entries.push({
           id: `sched-${item.id}`,
           title: item.title,
           date: item.scheduledAt,
           platform: plat,
           contentType: ct,
-          contentCategory: resolveContentCategory(ct, plat),
+          contentCategory: resolveContentCategory(ct, plat, meta),
           status: item.status === "completed" ? "uploaded" : "scheduled",
           canDelete: true,
           rawId: item.id,
+          gameName: meta?.gameName || null,
         });
       }
 

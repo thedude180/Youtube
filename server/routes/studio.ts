@@ -55,6 +55,7 @@ const metadataUpdateSchema = z.object({
     elements: z.array(endScreenElementSchema),
   }).optional(),
   seoScore: z.number().optional(),
+  gameName: z.string().optional(),
 }).strict();
 
 export function registerStudioRoutes(app: Express) {
