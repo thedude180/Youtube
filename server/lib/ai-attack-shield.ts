@@ -36,7 +36,7 @@ const PROMPT_INJECTION_PATTERNS = [
   /in\s+a\s+fictional\s+(world|scenario|context)/i,
   /repeat\s+the\s+(above|following)\s+instructions?/i,
   /what\s+(are|were)\s+(your|the)\s+(initial|system|original)\s+instructions?/i,
-  /print\s+(your\s+)?system\s+prompt/i,
+  /print\s+(your\s+)?(?:\w+\s+)*(prompt|instructions?)/i,
   /reveal\s+(your\s+)?(?:\w+\s+)*(instructions?|prompt|training)/i,
   /\btoken\b.*\bsteal\b/i,
   /exfiltrat/i,
