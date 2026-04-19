@@ -2,6 +2,9 @@ import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { createLogger } from "./logger";
 import { registerMap } from "../services/resilience-core";
+import { db } from "../db";
+import { idempotencyLedger } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const logger = createLogger("security-hardening");
 
@@ -159,80 +162,121 @@ registerCleanup("fingerprints", () => {
   }
 }, 60_000);
 
-// AUDIT FIX: Bounded idempotency cache — max 1000 entries (LRU eviction by insertion order) with 5-min TTL
-const MAX_IDEMPOTENCY_ENTRIES = 1000;
+// DB-backed idempotency guard — persists across restarts using the idempotency_ledger table.
+// In-progress TTL: 60s (so a crashed process leaves no permanent lock).
+// Completed TTL:   5 min (so clients can retry with the same key and get the same response).
+const IN_PROGRESS_TTL_MS = 60_000;
+const COMPLETED_TTL_MS = 300_000;
 
-type IdempotencyEntry =
-  | { inProgress: true; timestamp: number }
-  | { inProgress: false; timestamp: number; response: any };
-
-function idempotencyBoundedSet(map: Map<string, IdempotencyEntry>, key: string, value: IdempotencyEntry) {
-  if (map.size >= MAX_IDEMPOTENCY_ENTRIES) {
-    // Delete the oldest entry (first key in Map insertion order)
-    const firstKey = map.keys().next().value;
-    if (firstKey !== undefined) map.delete(firstKey);
-  }
-  map.set(key, value);
+function attachIdempotencyPersistence(
+  res: Response,
+  key: string,
+  completedExpiresAt: Date,
+) {
+  const originalJson = res.json.bind(res);
+  res.json = function (body: any) {
+    const hasCookie = !!res.getHeader("Set-Cookie");
+    if (!hasCookie && res.statusCode >= 200 && res.statusCode < 300) {
+      db.update(idempotencyLedger)
+        .set({ status: "completed", responseSnapshot: body, expiresAt: completedExpiresAt })
+        .where(eq(idempotencyLedger.idempotencyKey, key))
+        .catch(() => {});
+    } else {
+      // On error responses, remove the in-progress row so the client can safely retry.
+      db.delete(idempotencyLedger)
+        .where(eq(idempotencyLedger.idempotencyKey, key))
+        .catch(() => {});
+    }
+    return originalJson(body);
+  };
 }
 
 export function idempotencyGuard() {
-  const seen = new Map<string, IdempotencyEntry>();
-
-  setInterval(() => {
-    try {
-      const now = Date.now();
-      for (const [key, entry] of Array.from(seen)) {
-        // Completed entries: 5-minute TTL. In-progress entries: 60-second TTL to avoid leaking stuck requests.
-        const ttl = entry.inProgress ? 60_000 : 300_000;
-        if (now - entry.timestamp > ttl) seen.delete(key);
-      }
-    } catch {}
-  }, 60000);
-
   return (req: Request, res: Response, next: NextFunction) => {
-    const idempotencyKey = req.headers["x-idempotency-key"] as string;
-    if (!idempotencyKey || req.method === "GET") return next();
+    (async () => {
+      const idempotencyKey = req.headers["x-idempotency-key"] as string;
+      if (!idempotencyKey || req.method === "GET") return next();
 
-    // AUDIT FIX: Require authenticated session — unauthenticated requests sharing an IP must not bleed responses across users
-    const userSub = (req as any).user?.claims?.sub;
-    if (!userSub) {
-      return res.status(401).json({ error: "Authentication required for idempotent requests" });
-    }
+      // AUDIT FIX: Require authenticated session — unauthenticated requests sharing an IP must not bleed responses across users
+      const userSub = (req as any).user?.claims?.sub;
+      if (!userSub) {
+        return res.status(401).json({ error: "Authentication required for idempotent requests" });
+      }
 
-    const key = `${userSub}:${idempotencyKey}`;
-    const existing = seen.get(key);
+      const key = `mw:${userSub}:${idempotencyKey}`;
+      const completedExpiresAt = new Date(Date.now() + COMPLETED_TTL_MS);
+      const inProgressExpiresAt = new Date(Date.now() + IN_PROGRESS_TTL_MS);
 
-    if (existing) {
-      if (existing.inProgress) {
-        // A request with this key is already being processed — reject the duplicate.
+      // Attempt an atomic INSERT of an in-progress marker.
+      // ON CONFLICT DO NOTHING: if a row already exists for this key (from a
+      // concurrent or prior request), the insert is skipped and we check the existing row.
+      const inserted = await db
+        .insert(idempotencyLedger)
+        .values({
+          idempotencyKey: key,
+          operationType: "http_request",
+          status: "in_progress",
+          userId: userSub,
+          expiresAt: inProgressExpiresAt,
+        })
+        .onConflictDoNothing()
+        .returning({ id: idempotencyLedger.id })
+        .catch(() => [] as { id: number }[]);
+
+      if (inserted.length > 0) {
+        // We own the in-progress row. Intercept res.json to persist the result on response.
+        attachIdempotencyPersistence(res, key, completedExpiresAt);
+        return next();
+      }
+
+      // A row already exists for this key. Read it to decide how to respond.
+      const [existing] = await db
+        .select()
+        .from(idempotencyLedger)
+        .where(eq(idempotencyLedger.idempotencyKey, key))
+        .limit(1)
+        .catch(() => [] as typeof idempotencyLedger.$inferSelect[]);
+
+      if (!existing) {
+        // Row disappeared between our failed insert and this select (e.g. TTL cleanup).
+        // Treat as a fresh request.
+        attachIdempotencyPersistence(res, key, completedExpiresAt);
+        return next();
+      }
+
+      // Expired row (e.g. a prior in-progress that never completed because the server crashed).
+      // Claim it by deleting then re-inserting so this request can proceed.
+      if (existing.expiresAt && existing.expiresAt < new Date()) {
+        await db
+          .delete(idempotencyLedger)
+          .where(eq(idempotencyLedger.idempotencyKey, key))
+          .catch(() => {});
+        await db
+          .insert(idempotencyLedger)
+          .values({
+            idempotencyKey: key,
+            operationType: "http_request",
+            status: "in_progress",
+            userId: userSub,
+            expiresAt: inProgressExpiresAt,
+          })
+          .onConflictDoNothing()
+          .catch(() => {});
+        attachIdempotencyPersistence(res, key, completedExpiresAt);
+        return next();
+      }
+
+      if (existing.status === "in_progress") {
+        // A request with this key is already being processed by another process or request.
         return res.status(409).json({
           error: "request_in_progress",
           message: "A request with this idempotency key is already being processed. Retry after the first request completes.",
         });
       }
-      // Return the cached successful response for completed requests.
-      return res.status(200).json((existing as { inProgress: false; timestamp: number; response: any }).response);
-    }
 
-    // Mark the key as in-progress BEFORE handing off to the handler, so that
-    // simultaneous duplicate requests are rejected rather than double-executed.
-    idempotencyBoundedSet(seen, key, { inProgress: true, timestamp: Date.now() });
-
-    const originalJson = res.json.bind(res);
-    res.json = function (body: any) {
-      // AUDIT FIX: Never cache responses that set auth cookies — prevents stale auth state replay
-      const hasCookie = !!res.getHeader("Set-Cookie");
-      if (!hasCookie && res.statusCode >= 200 && res.statusCode < 300) {
-        // Replace the in-progress marker with the completed response.
-        idempotencyBoundedSet(seen, key, { inProgress: false, timestamp: Date.now(), response: body });
-      } else {
-        // On error responses, remove the in-progress marker so the client can retry.
-        seen.delete(key);
-      }
-      return originalJson(body);
-    };
-
-    next();
+      // Completed — return the cached successful response.
+      return res.status(200).json(existing.responseSnapshot);
+    })().catch(next);
   };
 }
 
