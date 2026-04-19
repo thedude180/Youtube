@@ -9,7 +9,7 @@ import { runMigrations } from 'stripe-replit-sync';
 import { getStripeSync } from "./stripeClient";
 import { WebhookHandlers } from "./webhookHandlers";
 import { seedStripeProducts } from "./stripe-seed";
-import { pool } from "./db";
+import { pool, db } from "./db";
 import { setServerStartTime } from "./lib/resource-governor";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
@@ -1353,7 +1353,7 @@ httpServer.listen(
         // Register job handlers for all autonomous job types
         jobQueue.registerHandler("extract_and_publish_clip", async (job) => {
           logger.info("[Autonomous] extract_and_publish_clip job received", { userId: job.userId, payload: job.payload });
-          const { vodVideoId, gameTitle, startTime, endTime, title } = job.payload || {};
+          const { vodVideoId, gameTitle, startTime, endTime, title } = (job.payload || {}) as Record<string, any>;
           if (!vodVideoId || !job.userId) return;
 
           try {
@@ -1469,7 +1469,7 @@ httpServer.listen(
         // Post-stream pipeline job types
         jobQueue.registerHandler("vod_wait_and_process", async (job) => {
           const { vodSEOOptimizer } = await import("./services/vod-seo-optimizer");
-          const { videoId } = job.payload || {};
+          const { videoId } = (job.payload || {}) as Record<string, any>;
           if (job.userId && videoId) {
             await vodSEOOptimizer.optimize(job.userId, videoId).catch(err =>
               logger.warn("[Autonomous] vod_wait_and_process seo step failed", { error: String(err) })
@@ -1478,7 +1478,7 @@ httpServer.listen(
         });
         jobQueue.registerHandler("shorts_factory", async (job) => {
           const { shortsFactory } = await import("./services/shorts-factory");
-          const { videoId, gameTitle, duration } = job.payload || {};
+          const { videoId, gameTitle, duration } = (job.payload || {}) as Record<string, any>;
           if (job.userId && videoId) {
             await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream", duration || 0).catch(err =>
               logger.warn("[Autonomous] shorts_factory job failed", { error: String(err) })
@@ -1487,7 +1487,7 @@ httpServer.listen(
         });
         jobQueue.registerHandler("vod_seo_optimize", async (job) => {
           const { vodSEOOptimizer } = await import("./services/vod-seo-optimizer");
-          const { videoId } = job.payload || {};
+          const { videoId } = (job.payload || {}) as Record<string, any>;
           if (job.userId && videoId) {
             await vodSEOOptimizer.optimize(job.userId, videoId).catch(err =>
               logger.warn("[Autonomous] vod_seo_optimize job failed", { error: String(err) })
@@ -1496,7 +1496,7 @@ httpServer.listen(
         });
         jobQueue.registerHandler("multi_platform_clips", async (job) => {
           const { multiPlatformDistributor } = await import("./services/multi-platform-distributor");
-          const { videoId, gameTitle, platforms } = job.payload || {};
+          const { videoId, gameTitle, platforms } = (job.payload || {}) as Record<string, any>;
           if (job.userId) {
             await multiPlatformDistributor.distribute(
               job.userId,
@@ -1517,12 +1517,12 @@ httpServer.listen(
           logger.info("[Autonomous] sponsor_outreach job received — queued for manual send", { userId: job.userId, payload: job.payload });
         });
         jobQueue.registerHandler("evergreen_recycler", async (job) => {
-          const { videoId, gameTitle } = job.payload || {};
+          const { videoId, gameTitle } = (job.payload || {}) as Record<string, any>;
           logger.info("[Autonomous] evergreen_recycler job received", { userId: job.userId, videoId, gameTitle });
           // Enqueue shorts factory to re-process highlights for evergreen distribution
           if (job.userId && videoId) {
             const { shortsFactory } = await import("./services/shorts-factory");
-            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream", 0).catch(err =>
+            await shortsFactory.process(job.userId, videoId, gameTitle || "Gaming Stream").catch(err =>
               logger.warn("[Autonomous] evergreen_recycler factory failed", { error: String(err) })
             );
           }
@@ -1543,7 +1543,8 @@ httpServer.listen(
           );
         });
         jobQueue.registerHandler("discord_live_announce", async (job) => {
-          const { userId, payload } = job;
+          const userId = job.userId;
+          const payload = (job.payload || {}) as Record<string, any>;
           if (!userId) return;
           const { storage: st } = await import("./storage");
           const channels = await st.getChannelsByUser(userId);
@@ -1572,7 +1573,8 @@ httpServer.listen(
           logger.info("[Autonomous] X publish job received", { userId: job.userId, payload: job.payload });
         });
         jobQueue.registerHandler("publish_to_discord", async (job) => {
-          const { payload, userId } = job;
+          const userId = job.userId;
+          const payload = (job.payload || {}) as Record<string, any>;
           if (!userId || !payload?.caption) return;
           const { storage: st } = await import("./storage");
           const chs = await st.getChannelsByUser(userId);
@@ -1603,7 +1605,7 @@ httpServer.listen(
 
         // Post-upload follow-up tasks — formerly fire-and-forget, now durable via job queue
         jobQueue.registerHandler("post_upload_playlist", async (job) => {
-          const { videoId, channelId } = job.payload || {};
+          const { videoId, channelId } = (job.payload || {}) as Record<string, any>;
           if (!videoId || !channelId || !job.userId) return;
           const { assignSingleVideoToPlaylist } = await import("./playlist-manager");
           await assignSingleVideoToPlaylist(job.userId, videoId, channelId);
@@ -1611,7 +1613,7 @@ httpServer.listen(
         });
 
         jobQueue.registerHandler("post_upload_thumbnail", async (job) => {
-          const { videoId } = job.payload || {};
+          const { videoId } = (job.payload || {}) as Record<string, any>;
           if (!videoId || !job.userId) return;
           const { generateThumbnailForNewVideo } = await import("./auto-thumbnail-engine");
           await generateThumbnailForNewVideo(job.userId, videoId);
@@ -1619,7 +1621,7 @@ httpServer.listen(
         });
 
         jobQueue.registerHandler("post_upload_game_tag", async (job) => {
-          const { gameName, source } = job.payload || {};
+          const { gameName, source } = (job.payload || {}) as Record<string, any>;
           if (!gameName) return;
           const { persistGameToDatabase } = await import("./services/web-game-lookup");
           await persistGameToDatabase(gameName, source || "post-upload");
@@ -1627,7 +1629,7 @@ httpServer.listen(
         });
 
         jobQueue.registerHandler("post_upload_verify", async (job) => {
-          const { videoId, youtubeId, source } = job.payload || {};
+          const { videoId, youtubeId, source } = (job.payload || {}) as Record<string, any>;
           if (!videoId || !youtubeId || !job.userId) return;
           const { verifyVideoUpload } = await import("./publish-verifier");
           await verifyVideoUpload(videoId, job.userId, youtubeId, source || "autopilot");
