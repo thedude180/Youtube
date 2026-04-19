@@ -329,10 +329,10 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
 
 export async function downloadSourceVideo(youtubeId: string, userId?: string): Promise<string> {
   if (!isYtdlpAvailable()) {
-    logger.warn(
-      "yt-dlp is not available — download will rely on ytdl-core only, which has lower reliability. " +
-      "Place a yt-dlp binary at .local/bin/yt-dlp-latest for best results.",
-      { youtubeId },
+    throw new Error(
+      "Video downloading requires yt-dlp, which is not available on this server. " +
+      "Place a yt-dlp binary at .local/bin/yt-dlp-latest or install it system-wide. " +
+      `(youtubeId: ${youtubeId})`,
     );
   }
 
