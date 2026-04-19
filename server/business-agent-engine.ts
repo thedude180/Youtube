@@ -2,6 +2,7 @@ import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { getOpenAIClient } from "./lib/openai";
 import { createLogger } from "./lib/logger";
+import { withCronLock } from "./lib/cron-lock";
 import { db } from "./db";
 import { aiAgentActivities } from "@shared/schema";
 import { and, eq, gt } from "drizzle-orm";
@@ -185,15 +186,10 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
   }
 }
 
-const _activeBizCycles = new Set<string>();
-
 export async function runBusinessAgentCycle(userId: string): Promise<void> {
-  if (_activeBizCycles.has(userId)) {
-    logger.info(`[${userId}] Business agent cycle already in progress — skipping concurrent start`);
-    return;
-  }
-  _activeBizCycles.add(userId);
-  try {
+  // DB-backed per-user lock (90 min TTL) prevents concurrent cycles across
+  // multiple processes/instances, not just within one Node process.
+  const acquired = await withCronLock(`biz-cycle:${userId}`, 90 * 60_000, async () => {
     try {
       const cutoff = new Date(Date.now() - MIN_BIZ_CYCLE_GAP_MINUTES * 60 * 1000);
       const [recent] = await db
@@ -217,8 +213,10 @@ export async function runBusinessAgentCycle(userId: string): Promise<void> {
       await runSingleAgentTask(userId, agent);
       await new Promise(r => setTimeout(r, 300));
     }
-  } finally {
-    _activeBizCycles.delete(userId);
+  });
+
+  if (!acquired) {
+    logger.info(`[${userId}] Business agent cycle already running (DB lock held) — skipping concurrent start`);
   }
 }
 

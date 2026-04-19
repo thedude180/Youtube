@@ -1371,12 +1371,15 @@ export async function processScheduledPosts() {
     logger.warn("Auto-fix pre-scan failed", { error: err.message });
   }
 
-  // Recovery: posts stuck in 'processing' longer than 10 min (from a crashed
-  // previous run) are reset to 'scheduled' so they are retried next cycle.
+  // Recovery: posts stuck in 'processing' for > 10 min are reset to 'scheduled'.
+  // We use the metadata lease field 'processingStartedAt' (written at claim time)
+  // so the check is exact and does NOT rely on scheduled_at (publish time).
   const recovered = await db.execute(sql`
     UPDATE autopilot_queue
-    SET status = 'scheduled'
-    WHERE status = 'processing' AND scheduled_at < NOW() - INTERVAL '10 minutes'
+    SET status = 'scheduled',
+        metadata = metadata - 'processingStartedAt'
+    WHERE status = 'processing'
+      AND (metadata->>'processingStartedAt')::timestamptz < NOW() - INTERVAL '10 minutes'
   `).catch((err: any) => {
     logger.warn("Could not recover stuck processing posts", { error: err?.message });
     return { rowCount: 0 };
@@ -1387,9 +1390,15 @@ export async function processScheduledPosts() {
 
   // Atomically claim due posts using FOR UPDATE SKIP LOCKED so two concurrent
   // executions cannot pick up the same posts twice.
+  // processingStartedAt is written into metadata so the recovery query above
+  // has an exact lease timestamp to check.
   const claimResult = await db.execute(sql`
     UPDATE autopilot_queue
-    SET status = 'processing'
+    SET status = 'processing',
+        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+          'processingStartedAt',
+          to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        )
     WHERE id IN (
       SELECT id FROM autopilot_queue
       WHERE status = 'scheduled' AND scheduled_at <= NOW()
