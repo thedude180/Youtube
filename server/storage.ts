@@ -396,7 +396,8 @@ export class DatabaseStorage implements IStorage {
    *   platform_health, compliance_checks, copyright_claims,
    *   disclosure_requirements, youtube_push_backlog,
    *   creator_credibility_scores, channel_immune_events,
-   *   source_quality_profiles, archive_master_records
+   *   source_quality_profiles, archive_master_records,
+   *   channel_maturity_scores, live_capability_snapshots, multistream_destinations
    *
    * GROUP B — video_id FK (via sub-SELECT of channel's video IDs):
    *   playlist_items, ab_tests, comment_responses, comment_sentiments,
@@ -404,14 +405,19 @@ export class DatabaseStorage implements IStorage {
    *   ctr_optimizations, editing_notes, evergreen_classifications,
    *   optimization_passes, search_rankings, seo_scores, stream_pipelines,
    *   upload_queue, video_versions, schedule_items, content_kanban,
-   *   compounding_jobs, video_update_history, ab_test_results
+   *   compounding_jobs, video_update_history, ab_test_results,
+   *   studio_videos, production_kanban, stream_detection_log
    *
    * GROUP C — dual-column FK (both columns point to video IDs):
    *   cannibalization_alerts (video_id_1 OR video_id_2)
    *
    * GROUP D — source_video_id FK:
    *   autopilot_queue, content_clips, repurposed_content, vod_cuts,
-   *   content_atoms, clip_queue_items, moment_genome_classifications
+   *   content_atoms, clip_queue_items, moment_genome_classifications,
+   *   content_experiments
+   *
+   * AUTO-CASCADED (Postgres FK onDelete: cascade — no explicit DELETE needed):
+   *   content_insights (channel_id), video_catalog_links (channel_id)
    *
    * GROUP E — clip_id FK (via sub-SELECT of content_clips):
    *   clip_virality_scores
@@ -435,6 +441,7 @@ export class DatabaseStorage implements IStorage {
         'disclosure_requirements', 'youtube_push_backlog',
         'creator_credibility_scores', 'channel_immune_events',
         'source_quality_profiles', 'archive_master_records',
+        'channel_maturity_scores', 'live_capability_snapshots', 'multistream_destinations',
       ];
       for (const table of channelTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
@@ -450,6 +457,7 @@ export class DatabaseStorage implements IStorage {
           'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
           'schedule_items', 'content_kanban', 'compounding_jobs',
           'video_update_history', 'ab_test_results',
+          'studio_videos', 'production_kanban', 'stream_detection_log',
         ];
         for (const table of tables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
@@ -461,7 +469,7 @@ export class DatabaseStorage implements IStorage {
           await tx.execute(sql`DELETE FROM clip_virality_scores WHERE clip_id = ANY(${clipIdArray})`);
         }
         const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
-          'content_atoms', 'clip_queue_items', 'moment_genome_classifications'];
+          'content_atoms', 'clip_queue_items', 'moment_genome_classifications', 'content_experiments'];
         for (const table of srcTables) {
           await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIdArray})`);
         }
