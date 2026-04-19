@@ -458,7 +458,7 @@ export const streamDestinations = pgTable("stream_destinations", {
 
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category"),
