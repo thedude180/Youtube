@@ -4,7 +4,7 @@ import { createLogger } from "./logger";
 import { registerMap } from "../services/resilience-core";
 import { db } from "../db";
 import { idempotencyLedger } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 
 const logger = createLogger("security-hardening");
 
@@ -173,12 +173,21 @@ function attachIdempotencyPersistence(
   key: string,
   completedExpiresAt: Date,
 ) {
-  const originalJson = res.json.bind(res);
-  res.json = function (body: any) {
+  // handled flag ensures we persist exactly once regardless of which response method is used
+  let handled = false;
+
+  const markComplete = (body?: any) => {
+    if (handled) return;
+    handled = true;
     const hasCookie = !!res.getHeader("Set-Cookie");
     if (!hasCookie && res.statusCode >= 200 && res.statusCode < 300) {
+      // Mark as completed, optionally storing the JSON body as a cached snapshot.
       db.update(idempotencyLedger)
-        .set({ status: "completed", responseSnapshot: body, expiresAt: completedExpiresAt })
+        .set({
+          status: "completed",
+          expiresAt: completedExpiresAt,
+          ...(body !== undefined ? { responseSnapshot: body } : {}),
+        })
         .where(eq(idempotencyLedger.idempotencyKey, key))
         .catch(() => {});
     } else {
@@ -187,8 +196,18 @@ function attachIdempotencyPersistence(
         .where(eq(idempotencyLedger.idempotencyKey, key))
         .catch(() => {});
     }
+  };
+
+  // Intercept res.json to capture the response body for caching.
+  const originalJson = res.json.bind(res);
+  res.json = function (body: any) {
+    markComplete(body);
     return originalJson(body);
   };
+
+  // Fallback: finish fires for all response types (send, end, redirect, stream, etc.)
+  // If res.json was called first, handled=true so this is a no-op.
+  res.on("finish", () => markComplete());
 }
 
 export function idempotencyGuard() {
@@ -245,25 +264,42 @@ export function idempotencyGuard() {
       }
 
       // Expired row (e.g. a prior in-progress that never completed because the server crashed).
-      // Claim it by deleting then re-inserting so this request can proceed.
+      // Use a conditional UPDATE to atomically claim the expired row — prevents two concurrent
+      // retries from both winning the claim and double-executing the handler.
       if (existing.expiresAt && existing.expiresAt < new Date()) {
-        await db
-          .delete(idempotencyLedger)
+        const claimed = await db
+          .update(idempotencyLedger)
+          .set({ status: "in_progress", expiresAt: inProgressExpiresAt, userId: userSub })
+          .where(
+            and(
+              eq(idempotencyLedger.idempotencyKey, key),
+              lt(idempotencyLedger.expiresAt, new Date())
+            )
+          )
+          .returning({ id: idempotencyLedger.id })
+          .catch(() => [] as { id: number }[]);
+
+        if (claimed.length > 0) {
+          // We atomically claimed the expired row — proceed normally.
+          attachIdempotencyPersistence(res, key, completedExpiresAt);
+          return next();
+        }
+
+        // Another concurrent request beat us to the claim. Re-read the current row state.
+        const [recheckRow] = await db
+          .select()
+          .from(idempotencyLedger)
           .where(eq(idempotencyLedger.idempotencyKey, key))
-          .catch(() => {});
-        await db
-          .insert(idempotencyLedger)
-          .values({
-            idempotencyKey: key,
-            operationType: "http_request",
-            status: "in_progress",
-            userId: userSub,
-            expiresAt: inProgressExpiresAt,
-          })
-          .onConflictDoNothing()
-          .catch(() => {});
-        attachIdempotencyPersistence(res, key, completedExpiresAt);
-        return next();
+          .limit(1)
+          .catch(() => [] as typeof idempotencyLedger.$inferSelect[]);
+
+        if (!recheckRow || recheckRow.status === "in_progress") {
+          return res.status(409).json({
+            error: "request_in_progress",
+            message: "A request with this idempotency key is already being processed. Retry after the first request completes.",
+          });
+        }
+        return res.status(200).json(recheckRow.responseSnapshot);
       }
 
       if (existing.status === "in_progress") {
