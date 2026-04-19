@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +54,7 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeStep, setActiveStep] = useState(1);
+  const autoCompleteFiredRef = useRef(false);
   const [channelName, setChannelName] = useState("");
   const [channelNiche, setChannelNiche] = useState("gaming");
   const [channelCategory, setChannelCategory] = useState("");
@@ -157,9 +158,11 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
 
   useEffect(() => {
     const ytLinked = linkedChannels.some(c => c.platform === "youtube" && c.isConnected);
-    if (ytLinked && activeStep === 9) {
+    if (ytLinked && activeStep === 9 && !autoCompleteFiredRef.current) {
+      autoCompleteFiredRef.current = true;
       toast({ title: "YouTube Already Connected", description: "Your channel is linked — taking you to the dashboard." });
-      setTimeout(onComplete, 1200);
+      const timer = setTimeout(onComplete, 1200);
+      return () => clearTimeout(timer);
     }
   }, [linkedChannels, activeStep]);
 
