@@ -165,7 +165,12 @@ class IntelligentJobQueue {
         }
       } finally {
         this.processNext(type).catch((err: any) => {
-          logger.error(`[JobQueue] Chain-trigger failure for ${type} — queue may stall: ${err?.message}`);
+          logger.error(`[JobQueue] Chain-trigger failure for ${type}: ${err?.message} — scheduling recovery retry in 5s`);
+          setTimeout(() => {
+            this.processNext(type).catch((retryErr: any) => {
+              logger.error(`[JobQueue] Recovery retry also failed for ${type}: ${retryErr?.message}`);
+            });
+          }, 5_000);
         });
       }
     } catch (err: any) {
