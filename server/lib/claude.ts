@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
-import { createLogger } from ".//logger";
+import { createLogger } from "./logger";
 
 const logger = createLogger("claude");
 export const CLAUDE_MODELS = {

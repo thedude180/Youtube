@@ -3,7 +3,7 @@ import { cronLocks } from "@shared/schema";
 import { eq, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
-import { createLogger } from ".//logger";
+import { createLogger } from "./logger";
 
 const logger = createLogger("cron-lock");
 const INSTANCE_ID = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

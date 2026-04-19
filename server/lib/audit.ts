@@ -1,6 +1,6 @@
 import { storage } from "../storage";
 
-import { createLogger } from ".//logger";
+import { createLogger } from "./logger";
 
 const logger = createLogger("audit");
 export async function logSecurityEvent(params: {
