@@ -1461,7 +1461,7 @@ export async function processScheduledPosts() {
             logger.info("YouTube quota breaker active — deferring post until reset", { postId: post.id, deferTo: deferTo.toISOString() });
             await db.update(autopilotQueue)
               .set({
-                status: "scheduled" as any,
+                status: "scheduled",
                 scheduledAt: deferTo,
                 metadata: {
                   ...((post.metadata as any) || {}),
@@ -1487,7 +1487,7 @@ export async function processScheduledPosts() {
           logger.info("Trust budget exhausted — deferring post", { postId: post.id, platform: post.targetPlatform, remaining: trustResult.remaining, deferTo: deferTo.toISOString() });
           await db.update(autopilotQueue)
             .set({
-              status: "scheduled" as any,
+              status: "scheduled",
               scheduledAt: deferTo,
               metadata: {
                 ...((post.metadata as any) || {}),

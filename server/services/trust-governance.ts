@@ -932,9 +932,23 @@ export function startBudgetResetScheduler(): void {
   if (resetIntervalHandle) return;
   const intervalMs = BUDGET_RESET_INTERVAL_HOURS * 3600_000;
 
-  // Run immediately so a reset is not skipped when the server restarts before
-  // the previous interval could fire (pure setInterval resets on every boot).
-  resetExpiredBudgets().catch(err => logger.error("Startup budget reset failed:", err));
+  // On startup, check the DB for unprocessed expired periods (persisted state).
+  // If any exist the server missed the previous interval (e.g. due to restart)
+  // and we must run the reset immediately before arming the new interval.
+  db.select({ id: trustBudgetPeriods.id })
+    .from(trustBudgetPeriods)
+    .where(and(
+      lte(trustBudgetPeriods.periodEnd, new Date()),
+      sql`${trustBudgetPeriods.metadata}->>'resetProcessed' IS NULL`,
+    ))
+    .limit(1)
+    .then(rows => {
+      if (rows.length > 0) {
+        logger.info("Startup: unprocessed expired budget periods found — running immediate reset");
+        resetExpiredBudgets().catch(err => logger.error("Startup budget reset failed:", err));
+      }
+    })
+    .catch(err => logger.error("Startup budget reset check failed:", err));
 
   resetIntervalHandle = setInterval(async () => {
     try {
