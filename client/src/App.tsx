@@ -605,7 +605,9 @@ function AppContent() {
         if (!settled) {
           settled = true;
           controller.abort();
+          sessionStorage.removeItem("creatoros_skip_prechannel");
           localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+          setNeedsPreChannelLaunch(false);
           setNeedsOnboarding(false);
         }
       }, 5000);
@@ -616,6 +618,15 @@ function AppContent() {
         if (settled) return;
         settled = true;
         clearTimeout(safetyTimer);
+        const skipPreChannel = sessionStorage.getItem("creatoros_skip_prechannel");
+        if (skipPreChannel) {
+          sessionStorage.removeItem("creatoros_skip_prechannel");
+          localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+          setNeedsPreChannelLaunch(false);
+          setNeedsOnboarding(false);
+          if (location === "/onboarding") setLocation("/");
+          return;
+        }
         const hasOnboarded = profile?.onboardingCompleted;
         const hasChannels = Array.isArray(channels) && channels.length > 0;
         const launchState = profile?.channelLaunchState;
@@ -674,8 +685,10 @@ function AppContent() {
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytError) {
+      sessionStorage.setItem("creatoros_skip_prechannel", "1");
       setNeedsPreChannelLaunch(false);
       setNeedsOnboarding(prev => (prev === null ? null : false));
+      apiRequest("PATCH", "/api/user/profile", { onboardingCompleted: true }).catch(() => {});
       toast({ title: "YouTube Connection Failed", description: decodeURIComponent(ytError), variant: "destructive" });
       window.history.replaceState({}, "", cleanUrl);
     }
