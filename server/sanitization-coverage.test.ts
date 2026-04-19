@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 
@@ -421,19 +421,62 @@ describe("sanitization-coverage › JSON.stringify-in-prompt callers use sanitiz
   it("every file that embeds JSON.stringify in an AI prompt also calls sanitizeObjectForPrompt", () => {
     const { execSync } = require("child_process");
 
-    // Files where JSON.stringify is provably used outside of prompt content:
-    // streaming SSE responses, logging, internal bookkeeping, HTTP bodies
-    // sent to non-AI endpoints, or adding AI-generated (not user) results
-    // back into message history.
+    // Files where JSON.stringify is provably used outside of prompt content.
+    // Each entry includes an inline explanation of the exact safe usage.
+    // ⚠ If you change the JSON.stringify usage in any of these files, update
+    //   this comment and run the companion test below to verify safety still holds.
     const knownSafeNonPromptFiles = new Set([
+      // JSON.stringify serializes an internal autonomous decision to a DB audit
+      // field (`decision: JSON.stringify(result).substring(0, 500)`). The result
+      // is AI-generated output being logged, not user data entering a prompt.
       "server/autonomy-controller.ts",
+
+      // JSON.stringify is used only inside a thrown Error message to serialize
+      // the attempt log (`Attempts: ${JSON.stringify(attemptLog)}`). The
+      // attemptLog contains internal retry metadata, not user data or prompts.
       "server/kernel/model-fallback-chain.ts",
+
+      // JSON.stringify is used exclusively in `res.write(`data: ${JSON.stringify(
+      // {...})}\n\n`)` — Server-Sent Events protocol streaming back to the
+      // browser. No JSON.stringify output enters any AI message content field.
       "server/replit_integrations/audio/routes.ts",
+
+      // JSON.stringify is used exclusively in `res.write(`data: ${JSON.stringify(
+      // {...})}\n\n`)` — Server-Sent Events protocol streaming back to the
+      // browser. No JSON.stringify output enters any AI message content field.
       "server/replit_integrations/chat/routes.ts",
+
+      // The ctx() helper (`JSON.stringify(existingResults[key] || {})`) is used
+      // inside prompt template literals. existingResults contains AI-generated
+      // outputs from prior pipeline stages, not user-controlled strings.
+      // ⚠ TRACKED: task #72 adds sanitizeObjectForPrompt to the ctx() helper.
+      //   Remove this exclusion and add sanitizeObjectForPrompt once that lands.
       "server/routes/pipeline.ts",
+
+      // JSON.stringify is used only in `role: "tool"` messages that return
+      // function-call execution results back to the AI (AI-to-AI handoff, not
+      // user prompt injection). The result object is code-generated, not
+      // user-controlled. No JSON.stringify appears in user/system message content.
       "server/services/copilot-engine.ts",
+
+      // JSON.stringify appears only in two safe contexts:
+      //   1. `logger.info(`...${JSON.stringify(safeModeThresholds)}`)` — logging
+      //   2. `const sigData = JSON.stringify({...})` — HMAC signature computation
+      // The file references "openai"/"anthropic" as string capability names in a
+      // monitoring list — it does NOT make any AI API calls.
       "server/services/resilience-observability.ts",
+
+      // JSON.stringify is used only in a Discord webhook POST body:
+      //   `body: JSON.stringify({ content: message })`
+      // The AI response is already captured as a plain string (`message`); the
+      // JSON.stringify packages it for Discord — it does not appear in any AI
+      // message content field.
       "server/services/stream-operator.ts",
+
+      // JSON.stringify serializes AI-generated optimization results for storage
+      // in the `content` column of the `autopilotQueue` DB table — a database
+      // insert, not AI prompt content. The optimized fields (titles, tags, etc.)
+      // are AI outputs, not user-supplied data re-entering a prompt.
       "server/vod-optimizer-engine.ts",
     ]);
 
@@ -474,5 +517,111 @@ describe("sanitization-coverage › JSON.stringify-in-prompt callers use sanitiz
       missing,
       `Server files found that embed JSON.stringify in AI prompt context but do NOT call sanitizeObjectForPrompt:\n${missing.join("\n")}\nWrap the JSON.stringify argument with sanitizeObjectForPrompt() or add the file to knownSafeNonPromptFiles if JSON.stringify is not used in a prompt.`
     ).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Companion regression test: knownSafeNonPromptFiles safe-context guarantees
+// ---------------------------------------------------------------------------
+// This suite re-validates the documented safety guarantee for each of the 9
+// files excluded from the exhaustiveness guard above.
+//
+// The dangerous pattern is `content: JSON.stringify(...)` appearing as the
+// value of an AI message content property while a `role: "user"` or
+// `role: "system"` message is constructed within 10 lines — the classic
+// "serialize unvetted data directly into a prompt" footgun.
+//
+// For each excluded file, the test:
+//   1. Confirms the file still exists (catches stale exclusion entries).
+//   2. For every line where `content:` is the key AND `JSON.stringify` is the
+//      value, checks that NO `role: "user"` or `role: "system"` appears in the
+//      surrounding ±10-line window.
+//
+// If a refactor moves JSON.stringify into a user/system prompt context, this
+// test fails before the exhaustiveness guard silently ignores it.
+// ---------------------------------------------------------------------------
+describe("sanitization-coverage › knownSafeNonPromptFiles safety guarantees", () => {
+  it("each excluded file still uses JSON.stringify only in its documented safe context (not adjacent to user/system AI message roles)", () => {
+    // Mirrors the knownSafeNonPromptFiles set above. The tuple format is
+    // [filePath, shortReason] so test failure messages are self-explanatory.
+    const EXCLUDED_FILES: Array<[string, string]> = [
+      [
+        "server/autonomy-controller.ts",
+        "JSON.stringify goes to a DB audit field (decision column), not a prompt",
+      ],
+      [
+        "server/kernel/model-fallback-chain.ts",
+        "JSON.stringify is inside a thrown Error message, not a prompt",
+      ],
+      [
+        "server/replit_integrations/audio/routes.ts",
+        "JSON.stringify is inside res.write() SSE streaming — not prompt content",
+      ],
+      [
+        "server/replit_integrations/chat/routes.ts",
+        "JSON.stringify is inside res.write() SSE streaming — not prompt content",
+      ],
+      [
+        "server/routes/pipeline.ts",
+        "ctx() wraps AI-generated prior-stage results, not user data (task #72 tracked)",
+      ],
+      [
+        "server/services/copilot-engine.ts",
+        "JSON.stringify is in role:'tool' messages — not user/system prompt content",
+      ],
+      [
+        "server/services/resilience-observability.ts",
+        "JSON.stringify is in logger calls and HMAC computation — no AI API calls made",
+      ],
+      [
+        "server/services/stream-operator.ts",
+        "JSON.stringify goes to a Discord webhook POST body — not an AI prompt",
+      ],
+      [
+        "server/vod-optimizer-engine.ts",
+        "JSON.stringify goes to a DB insert (autopilotQueue.content column) — not a prompt",
+      ],
+    ];
+
+    // Matches lines where `content:` is the PROPERTY KEY and JSON.stringify
+    // is its VALUE — the pattern that is dangerous when adjacent to a user/system
+    // message construction.  This intentionally does NOT match cases where
+    // `content` appears inside the serialized payload:
+    //   body: JSON.stringify({ content: x })  ← content follows JSON.stringify → safe
+    const CONTENT_KEY_BEFORE_STRINGIFY = /\bcontent\s*:\s*.*JSON\.stringify/;
+
+    // Matches a nearby line that constructs a user or system AI message.
+    const USER_OR_SYSTEM_ROLE = /role\s*:\s*["'](user|system)["']/;
+
+    for (const [relPath, reason] of EXCLUDED_FILES) {
+      const fullPath = resolve(ROOT, relPath);
+
+      expect(
+        existsSync(fullPath),
+        `knownSafeNonPromptFiles entry no longer exists: ${relPath}\n` +
+          "Remove the stale entry from both the exclusion set and this companion test.",
+      ).toBe(true);
+
+      const src = readFileSync(fullPath, "utf8");
+      const lines = src.split("\n");
+
+      for (let i = 0; i < lines.length; i++) {
+        if (!CONTENT_KEY_BEFORE_STRINGIFY.test(lines[i])) continue;
+
+        const windowStart = Math.max(0, i - 10);
+        const windowEnd = Math.min(lines.length - 1, i + 10);
+        const window = lines.slice(windowStart, windowEnd + 1).join("\n");
+
+        expect(
+          USER_OR_SYSTEM_ROLE.test(window),
+          `${relPath} (line ${i + 1}): content: JSON.stringify(...) found adjacent ` +
+            `to role:"user"/"system" — this means JSON.stringify output may be ` +
+            `entering an AI prompt without sanitizeObjectForPrompt().\n` +
+            `Documented safe reason: ${reason}\n` +
+            `Either add sanitizeObjectForPrompt() or update the exclusion comment ` +
+            `and this companion test to reflect the new safe context.`,
+        ).toBe(false);
+      }
+    }
   });
 });
