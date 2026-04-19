@@ -202,7 +202,7 @@ async function getOrCreateGamePlaylist(
       playlistType,
       channelId,
       rules: { autoAssign: true, gameMatch: normalizedGame },
-    } as any,
+    },
   }).returning();
 
   logger.info("Created game playlist", {

@@ -222,9 +222,8 @@ Context: ${JSON.stringify(sanitizeObjectForPrompt({ healthStatus, anomalyData: a
       await db.insert(securityEvents).values({
         eventType: "self_healing_action",
         severity: response.risk === "high" ? "warning" : "info",
-        description: `Self-healing action: ${response.action} for ${anomaly.type}`,
-        details: { anomaly, response },
-      } as any);
+        details: { description: `Self-healing action: ${response.action} for ${anomaly.type}`, anomaly, response },
+      });
     } catch (err: any) {
       logger.error(`[AnomalyResponder] Failed to log resolution: ${err.message}`);
     }

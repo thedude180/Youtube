@@ -223,7 +223,7 @@ export async function autoScheduleContent(userId: string, videoId: number, platf
         videoId,
         status: "draft",
         scheduledAt,
-        metadata: { autoScheduled: true, schedulingSource: source } as any,
+        metadata: { autoScheduled: true, schedulingSource: source },
       });
       scheduled.push({ platform, scheduledAt, id: item.id, source });
     }

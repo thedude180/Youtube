@@ -741,7 +741,7 @@ export async function initAutomationEngine() {
                 agentTasksCompleted: stats.activeAgents || 0,
                 platformBreakdown: {},
               },
-            } as any);
+            });
           } catch (snapErr: any) {
             logger.error(`[AnalyticsSnapshot] Failed for ${userId}`, snapErr instanceof Error ? snapErr : { message: String(snapErr) });
           }
@@ -959,8 +959,8 @@ async function processAutoLocalization() {
       await db.insert(aiResults).values({
         userId: userId!,
         featureKey: "ai-audience-language-analyzer",
-        result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() },
-      } as any);
+        result: { ...analyzerResult, source: "auto-localization", processedAt: new Date().toISOString() } as Record<string, unknown>,
+      });
     } catch (err) {
       logger.error(`[AutomationEngine] Audience language analysis failed for user ${userId}, using defaults:`, err);
     }
@@ -990,8 +990,8 @@ async function processAutoLocalization() {
         await db.insert(aiResults).values({
           userId: userId!,
           featureKey: runner.key,
-          result: { ...result, source: "auto-localization", trafficDrivenLanguages: trafficDrivenLangs, processedAt: new Date().toISOString() },
-        } as any);
+          result: { ...result, source: "auto-localization", trafficDrivenLanguages: trafficDrivenLangs, processedAt: new Date().toISOString() } as Record<string, unknown>,
+        });
       } catch (err) {
         logger.error(`[AutomationEngine] Auto-localization ${runner.key} failed for user ${userId}:`, err);
       }

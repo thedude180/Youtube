@@ -84,7 +84,7 @@ async function publishPendingClips(userId: string): Promise<void> {
       if (result.success) {
         await db
           .update(contentClips)
-          .set({ status: "published", publishedAt: new Date() } as any)
+          .set({ status: "published", publishedAt: new Date() })
           .where(and(eq(contentClips.id, clip.id), eq(contentClips.userId, userId)));
 
         state.clipsPublished++;
@@ -93,7 +93,7 @@ async function publishPendingClips(userId: string): Promise<void> {
       } else {
         await db
           .update(contentClips)
-          .set({ status: "failed" } as any)
+          .set({ status: "failed" })
           .where(and(eq(contentClips.id, clip.id), eq(contentClips.userId, userId)));
 
         state.lastError = result.error || "Unknown error";
@@ -109,7 +109,7 @@ async function publishPendingClips(userId: string): Promise<void> {
       if (isPermanent) {
         await db
           .update(contentClips)
-          .set({ status: "failed" } as any)
+          .set({ status: "failed" })
           .where(and(eq(contentClips.id, clip.id), eq(contentClips.userId, userId)));
         logger.info(`[${userId}] Clip ${clip.id} permanently failed — marked as failed`);
       }

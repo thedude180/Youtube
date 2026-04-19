@@ -286,7 +286,7 @@ Return JSON:
           metric: imp.metric,
           experiment: parsed.experiment,
         },
-      } as any);
+      });
     }
 
     const newStrategies = Array.isArray(parsed.newStrategies) ? parsed.newStrategies : [];
@@ -300,7 +300,7 @@ Return JSON:
         effectiveness: 50,
         isActive: true,
         metadata: { priority: strat.priority, fromEvolution: true },
-      } as any).catch(() => undefined);
+      }).catch(() => undefined);
 
       await recordEngineKnowledge("infinite-evolution", userId, "evolved_strategy", system.domain, String(strat.title).substring(0, 200) + ": " + String(strat.description).substring(0, 200), `From system audit score ${sanitizeForPrompt(system.score)}, priority: ${sanitizeForPrompt(strat.priority)}`, 55);
     }
@@ -456,12 +456,12 @@ Return JSON:
         afterState: String(imp.improvedApproach).substring(0, 500),
         triggerEvent: "infinite_evolution_cycle",
         engineSource: "infinite-evolution-engine",
-        metadata: {
+        measuredImpact: {
           promptArea: imp.area,
           expectedBenefit: imp.expectedBenefit,
           metaInsight: parsed.metaInsight,
         },
-      } as any);
+      });
     }
 
     if (improvements.length > 0) {
@@ -504,8 +504,8 @@ async function auditAutomationHealth(userId: string): Promise<void> {
       afterState: `Top failure patterns: ${topFailures.map(([k, v]) => `${k} (${v}x)`).join(", ")}`.substring(0, 500),
       triggerEvent: "infinite_evolution_cycle",
       engineSource: "infinite-evolution-engine",
-      metadata: { failures: topFailures.map(([reason, count]) => ({ reason, count })) },
-    } as any);
+      measuredImpact: { failures: topFailures.map(([reason, count]) => ({ reason, count })) },
+    });
 
     logger.info(`[${userId.substring(0, 8)}] Automation audit: ${recentFailed.length} failures, ${topFailures.length} patterns identified`);
   }
@@ -567,8 +567,8 @@ Return JSON:
         triggerEvent: "cross_system_learning",
         engineSource: "infinite-evolution-engine",
         appliedAcrossChannels: true,
-        metadata: { ...transfer, systemicIssue: parsed.systemicIssue },
-      } as any);
+        measuredImpact: { ...transfer, systemicIssue: parsed.systemicIssue },
+      });
     }
 
     if (transfers.length > 0) {

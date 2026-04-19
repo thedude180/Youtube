@@ -492,7 +492,7 @@ function schedulePerformanceCheck(
       youtubeVideoId,
       channelId,
       contentDecisions,
-    } as any,
+    },
   }).then(() => undefined);
 }
 
@@ -531,7 +531,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       title: `Smart editing: ${(video.title || "video").slice(0, 80)}`,
       status: "in_progress",
       startedAt: new Date(),
-      payload: { videoId, youtubeVideoId, queueItemId } as any,
+      payload: { videoId, youtubeVideoId, queueItemId },
     }).returning();
     agentTaskId = agentTask.id;
 
@@ -628,7 +628,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
         sourceVideoId: videoId,
         gameName,
         segmentCount: segments.length,
-      } as any,
+      },
     }).returning();
 
     if (newVideoRow?.id) {
@@ -654,7 +654,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
           gameName,
           segmentCount: segments.length,
           title: metadata.title,
-        } as any,
+        },
       })
       .where(eq(autopilotQueue.id, queueItemId));
 
@@ -667,7 +667,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
           title: metadata.title,
           segments: segments.length,
           gameName,
-        } as any,
+        },
       })
       .where(eq(aiAgentTasks.id, agentTaskId));
 
@@ -734,7 +734,7 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
 
     if (agentTaskId) {
       await db.update(aiAgentTasks)
-        .set({ status: "failed", completedAt: new Date(), result: { error: errorMsg } as any })
+        .set({ status: "failed", completedAt: new Date(), result: { error: errorMsg } })
         .where(eq(aiAgentTasks.id, agentTaskId))
         .catch(() => undefined);
     }
@@ -867,7 +867,7 @@ export async function queueVideoForSmartEdit(userId: string, videoId: number): P
       sourceYoutubeId: meta?.youtubeVideoId,
       sourceTitle: video.title,
       totalDurationSec: dur,
-    } as any,
+    },
   }).returning();
 
   return item.id;

@@ -105,7 +105,7 @@ export async function initSecurityEngine() {
     const existing = await db.select({ cnt: count() }).from(securityRules);
     if (existing[0].cnt === 0) {
       for (const rule of DEFAULT_RULES) {
-        await db.insert(securityRules).values(rule as any);
+        await db.insert(securityRules).values(rule);
       }
     }
 

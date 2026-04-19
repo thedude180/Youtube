@@ -212,7 +212,7 @@ export function registerClipRoutes(app: Express) {
         }
 
         if (batchValues.length > 0) {
-          await db.insert(autopilotQueue).values(batchValues as any);
+          await db.insert(autopilotQueue).values(batchValues);
 
           const clipIds = batchValues.map(v => v.metadata.clipId as number);
           await db.update(contentClips)
@@ -365,7 +365,7 @@ export function registerClipRoutes(app: Express) {
 
         batchValues.push({
           userId,
-          sourceVideoId: clip.sourceVideoId,
+          sourceVideoId: clip.sourceVideoId ?? undefined,
           type: "auto-clip",
           targetPlatform: mappedPlatform,
           content: clip.title,
@@ -393,7 +393,7 @@ export function registerClipRoutes(app: Express) {
         for (let i = 0; i < batchValues.length; i += 50) {
           await db
             .insert(autopilotQueue)
-            .values(batchValues.slice(i, i + 50) as any);
+            .values(batchValues.slice(i, i + 50));
         }
       }
 
@@ -469,7 +469,7 @@ export function registerClipRoutes(app: Express) {
         .insert(autopilotQueue)
         .values({
           userId,
-          sourceVideoId: clip.sourceVideoId,
+          sourceVideoId: clip.sourceVideoId ?? undefined,
           type: "auto-clip",
           targetPlatform: platform,
           content: clip.title,
@@ -478,15 +478,15 @@ export function registerClipRoutes(app: Express) {
           scheduledAt: finalTime,
           metadata: {
             clipId: clip.id,
-            clipStart: clip.startTime,
-            clipEnd: clip.endTime,
+            clipStart: clip.startTime ?? undefined,
+            clipEnd: clip.endTime ?? undefined,
             style: "human",
             schedulingMethod: "clip-editor-single",
             aiModel: "auto-clip",
             humanScore: 0.95,
-            viralScore: clip.optimizationScore,
+            viralScore: clip.optimizationScore ?? undefined,
           },
-        } as any)
+        })
         .returning();
 
       await storage.updateContentClip(clipId, { status: "scheduled" });

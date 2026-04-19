@@ -369,14 +369,20 @@ export const videos = pgTable("videos", {
   status: text("status").notNull().default("ingested"),
   platform: text("platform").default("youtube"),
   metadata: jsonb("metadata").$type<{
-    tags: string[];
+    tags?: string[];
     seoScore?: number;
     aiSuggestions?: {
-      titleHooks: string[];
-      descriptionTemplate: string;
-      thumbnailCritique: string;
-      seoRecommendations: string[];
-      complianceNotes: string[];
+      titleHooks?: string[];
+      descriptionTemplate?: string;
+      thumbnailCritique?: string;
+      seoRecommendations?: string[];
+      complianceNotes?: string[];
+      title?: string;
+      description?: string;
+      tags?: string[];
+      issue?: string;
+      generatedAt?: string;
+      applied?: boolean;
     };
     stats?: {
       views: number;
@@ -397,12 +403,23 @@ export const videos = pgTable("videos", {
     contentCategory?: string;
     brandKeywords?: string[];
     youtubeId?: string;
+    youtubeVideoId?: string;
     viewCount?: number;
     likeCount?: number;
     commentCount?: number;
     publishedAt?: string;
-    duration?: string;
+    duration?: string | number;
+    durationSec?: number;
     privacyStatus?: string;
+    youtubeUrl?: string;
+    autoIngested?: boolean;
+    autoIngestedAt?: string;
+    isStreamVod?: boolean;
+    streamStartedAt?: string;
+    streamEndedAt?: string | null;
+    streamDurationMs?: number;
+    redetectedGame?: string;
+    autoDetected?: boolean;
     endScreen?: {
       enabled: boolean;
       elements: Array<{
@@ -424,6 +441,31 @@ export const videos = pgTable("videos", {
       platformNotes: string[];
       optimizedAt: string;
     }>;
+    seoTitleHook?: string | null;
+    thumbnailIntelligenceUsed?: boolean;
+    categoryId?: string;
+    channelTitle?: string;
+    importedFromUrl?: boolean;
+    importedAt?: string;
+    sourceStreamId?: number;
+    sourceVideoId?: number;
+    sourceVideoTitle?: string;
+    noCommentary?: boolean;
+    maximizerGenerated?: boolean;
+    experimentalDuration?: number | null;
+    isHighlightReel?: boolean;
+    segmentCount?: number;
+    autoThumbnailGenerated?: boolean;
+    thumbnailRefreshReason?: string;
+    empireGenerated?: boolean;
+    videoPackageKey?: string;
+    scheduledPublishTime?: string;
+    crossPlatformSchedule?: unknown;
+    seoPackage?: unknown;
+    contentIdea?: unknown;
+    contentType?: string;
+    studioPublishedAt?: string;
+    schedulingSource?: string;
   }>(),
   scheduledTime: timestamp("scheduled_time"),
   publishedAt: timestamp("published_at"),
@@ -600,10 +642,16 @@ export const aiAgentActivities = pgTable("ai_agent_activities", {
   details: jsonb("details").$type<{
     description: string;
     impact?: string;
-    metrics?: Record<string, number>;
+    metrics?: Record<string, unknown>;
     recommendations?: string[];
     humanized?: boolean;
     delayMs?: number;
+    phase?: string;
+    department?: string;
+    handoffsTo?: string[];
+    backlogId?: number;
+    youtubeVideoId?: string;
+    updatedFields?: string[];
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -645,6 +693,8 @@ export const scheduleItems = pgTable("schedule_items", {
     autoPublish?: boolean;
     crossPost?: string[];
     aiOptimized?: boolean;
+    schedulingSource?: string;
+    autoScheduled?: boolean;
   }>(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1022,6 +1072,23 @@ export const contentClips = pgTable("content_clips", {
     thumbnailPrompt?: string;
     format?: string;
     aspectRatio?: string;
+    hookLine?: string;
+    hook?: string;
+    viralScore?: number;
+    autoExtracted?: boolean;
+    cycledAt?: string;
+    hasTranscript?: boolean;
+    platform?: string;
+    seoOptimized?: boolean;
+    actualMetrics?: {
+      views?: number;
+      likes?: number;
+      shares?: number;
+      comments?: number;
+      engagementRate?: number;
+      actualScore?: number;
+    };
+    trackedAt?: string;
   }>(),
   publishedAt: timestamp("published_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1723,6 +1790,9 @@ export const managedPlaylists = pgTable("managed_playlists", {
   metadata: jsonb("metadata").$type<{
     ordering?: string;
     rules?: Record<string, any>;
+    gameName?: string;
+    playlistType?: string;
+    channelId?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
@@ -2468,7 +2538,7 @@ export const aiResults = pgTable("ai_results", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   featureKey: text("feature_key").notNull(),
-  result: jsonb("result").notNull(),
+  result: jsonb("result").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("ai_results_user_id_idx").on(table.userId),
@@ -2543,6 +2613,7 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     clipStart?: number;
     clipEnd?: number;
     hashtags?: string[];
+    tags?: string[];
     style?: string;
     isRecycled?: boolean;
     originalPostDate?: string;
@@ -2571,6 +2642,59 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     deliveryType?: string;
     isVideoDelivery?: boolean;
     retryCount?: number;
+    originalTitle?: string;
+    optimizedTitle?: string;
+    thumbnailConcept?: string;
+    autoQueued?: boolean;
+    cycledAt?: string;
+    clipId?: number;
+    startSec?: number;
+    endSec?: number;
+    viralScore?: number;
+    retentionBeatsApplied?: boolean;
+    retentionBrief?: string | null | Record<string, unknown>;
+    titleVariants?: string[];
+    tiktokCaption?: string | null;
+    contentCategory?: string;
+    uniquenessScore?: number;
+    fingerprint?: string;
+    safetyGrade?: string;
+    schedulingMethod?: string;
+    angle?: string;
+    streamId?: number;
+    isLiveAnnouncement?: boolean;
+    youtubeVideoId?: string;
+    youtubeId?: string;
+    channelId?: number;
+    contentDecisions?: Record<string, unknown>;
+    reelYoutubeId?: string;
+    title?: string;
+    gameName?: string;
+    segmentCount?: number;
+    sourceYoutubeId?: string;
+    sourceTitle?: string;
+    totalDurationSec?: number;
+    regenerateThumbnail?: boolean;
+    crossPlatformBatch?: boolean;
+    intensity?: number;
+    segmentStartSec?: number;
+    segmentEndSec?: number;
+    partNumber?: number;
+    totalParts?: number;
+    grinderGenerated?: boolean;
+    hookDescription?: string;
+    retentionStrategy?: string;
+    noCommentary?: boolean;
+    maximizerGenerated?: boolean;
+    experimentalDuration?: number | null;
+    autoIngested?: boolean;
+    aiSuggestions?: Record<string, unknown>;
+    failReason?: string;
+    error?: string;
+    failureCategory?: string;
+    autoFixAttempts?: number;
+    autoFixAction?: string;
+    deferredUntil?: string;
   }>(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -8997,7 +9121,7 @@ export const discoveredStrategies = pgTable("discovered_strategies", {
   timesApplied: integer("times_applied").notNull().default(0),
   timesSucceeded: integer("times_succeeded").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
   lastAppliedAt: timestamp("last_applied_at"),
 }, (t) => [
@@ -9016,7 +9140,7 @@ export const systemImprovements = pgTable("system_improvements", {
   area: text("area").notNull(),
   beforeState: text("before_state"),
   afterState: text("after_state"),
-  measuredImpact: jsonb("measured_impact"),
+  measuredImpact: jsonb("measured_impact").$type<Record<string, unknown>>(),
   triggerEvent: text("trigger_event"),
   engineSource: text("engine_source").notNull(),
   appliedAcrossChannels: boolean("applied_across_channels").default(false),
@@ -9045,7 +9169,7 @@ export const selfReflectionJournal = pgTable("self_reflection_journal", {
   innerMonologue: text("inner_monologue"),
   triggerEvent: text("trigger_event"),
   confidenceLevel: integer("confidence_level").notNull().default(50),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
   index("srj_user_idx").on(t.userId),

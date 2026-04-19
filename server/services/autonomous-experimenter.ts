@@ -225,12 +225,12 @@ async function measureActiveExperiments(userId: string, experiments: any[]): Pro
       await db.insert(discoveredStrategies).values({
         userId,
         title: `Proven: ${exp.metadata.variantDescription}`,
-        category: "experiment_proven",
+        strategyType: "experiment_proven",
         description: `Experiment confirmed: ${hypothesis}. Score ${avgScore}/100 over ${relatedAttributions.length} samples.`,
-        sourceEngine: "autonomous-experimenter",
+        source: "autonomous-experimenter",
         effectiveness: avgScore,
         isActive: true,
-      } as any);
+      });
     }
 
     logger.info(`Experiment completed: ${resultVerdict} — ${hypothesis}`, { userId: userId.substring(0, 8), score: avgScore });

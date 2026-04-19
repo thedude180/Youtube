@@ -493,7 +493,7 @@ async function generateFullThrottleDistribution(
         safetyGrade: safety.overallGrade,
         schedulingMethod: "audience-driven",
       },
-    } as any);
+    });
 
     if (isVideoDelivery) queuedVideo++; else queuedText++;
     logger.info("Queued content", { platform, deliveryType, isVideoDelivery, effectiveContentType, effectiveQueueType, scheduledAt: finalSchedule.toISOString() });
@@ -541,7 +541,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
   await db.insert(autopilotQueue).values({
     userId,
     sourceVideoId: video.id,
-    type: "discord-announce" as any,
+    type: "discord-announce",
     targetPlatform: "discord",
     content: result.content,
     caption: `Discord announcement for: ${sanitizeForPrompt(video.title)}`,
@@ -555,7 +555,7 @@ async function generateDiscordAnnouncement(userId: string, video: any, creatorTo
       fingerprint: result.fingerprint,
       schedulingMethod: "audience-driven",
     },
-  } as any);
+  });
 }
 
 export async function processGoLiveAnnouncements(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
@@ -607,7 +607,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
       await db.insert(autopilotQueue).values({
         userId,
         sourceVideoId: streamId,
-        type: "go-live" as any,
+        type: "go-live",
         targetPlatform: "discord",
         content: result.content,
         caption: `LIVE NOW: ${streamTitle}`,
@@ -623,7 +623,7 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
           fingerprint: result.fingerprint,
           schedulingMethod: "audience-driven",
         },
-      } as any);
+      });
     }
   }
 
@@ -786,7 +786,7 @@ Write a quick reply as yourself. Output ONLY the reply text.`;
           isQuestion: comment.text.includes("?"),
           tone: "friendly",
         },
-      } as any);
+      });
 
       totalProcessed++;
       if (totalProcessed >= 15) break;
@@ -1610,7 +1610,7 @@ export async function processScheduledPosts() {
 
             await db.update(autopilotQueue)
               .set({
-                status: "failed" as any,
+                status: "failed",
                 errorMessage: `Compliance violation: ${criticalViolations.map(v => v.description).join("; ")}`,
                 metadata: { ...meta, complianceBlocked: true, violations: criticalViolations },
               })
@@ -1631,7 +1631,7 @@ export async function processScheduledPosts() {
       }
 
       await db.update(autopilotQueue)
-        .set({ status: "publishing" as any })
+        .set({ status: "publishing" })
         .where(eq(autopilotQueue.id, post.id));
 
       let result: any;
@@ -1684,7 +1684,7 @@ export async function processScheduledPosts() {
       } else if (result.skipped) {
         logger.info("Post skipped (platform not applicable)", { postId: post.id, platform: post.targetPlatform, reason: result.error });
         await db.update(autopilotQueue)
-          .set({ status: "cancelled" as any, errorMessage: result.error || "Skipped" })
+          .set({ status: "cancelled", errorMessage: result.error || "Skipped" })
           .where(eq(autopilotQueue.id, post.id));
       } else {
         const errorMsg = result.error || "Unknown publish error";

@@ -151,12 +151,12 @@ Output JSON with revenue optimization recommendations:
           await db.insert(discoveredStrategies).values({
             userId,
             title: `Revenue: Prioritize ${game} content`,
-            category: "revenue",
+            strategyType: "revenue",
             description: parsed.shiftStrategy,
-            sourceEngine: "revenue-optimizer",
+            source: "revenue-optimizer",
             effectiveness: parsed.confidence || 60,
             isActive: true,
-          } as any);
+          });
         }
       }
     }

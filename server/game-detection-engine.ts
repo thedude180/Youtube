@@ -69,7 +69,7 @@ async function processUserCatalog(userId: string): Promise<void> {
     title: `Auto game detection: ${needsDetection.length} videos`,
     status: "in_progress",
     startedAt: new Date(),
-    payload: { totalVideos: needsDetection.length } as any,
+    payload: { totalVideos: needsDetection.length },
   }).returning();
 
   let processed = 0;
@@ -176,7 +176,7 @@ async function processUserCatalog(userId: string): Promise<void> {
             metadata: { ...meta, gameName: newGame },
             redetectedGame: newGame,
             autoDetected: true,
-          } as any,
+          },
         });
       }
 
@@ -210,7 +210,7 @@ async function processUserCatalog(userId: string): Promise<void> {
       errors,
       total: needsDetection.length,
       remaining: Math.max(0, needsDetection.length - BATCH_SIZE),
-    } as any,
+    },
   }).where(eq(aiAgentTasks.id, agentTask.id));
 
   logger.info("User catalog game detection batch done", {

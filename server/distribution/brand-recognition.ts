@@ -122,10 +122,10 @@ export async function scoreBrandConsistency(userId: string): Promise<BrandConsis
       userId,
       alertType: "consistency_check",
       severity: driftAreas.length > 2 ? "high" : "medium",
-      message: `Brand drift detected: ${driftAreas.join("; ")}`,
-      metadata: { platformScores, driftAreas, suggestions },
+      description: `Brand drift detected: ${driftAreas.join("; ")}`,
+      evidence: { platformScores, driftAreas, suggestions },
       resolved: false,
-    } as any).catch(() => {});
+    }).catch(() => {});
 
     try {
       const { emitDomainEvent } = await import("../kernel/index");

@@ -221,7 +221,7 @@ async function createNotification(userId: string, title: string, message: string
       message,
       severity,
       actionUrl: actionUrl ?? null,
-    } as any);
+    });
   } catch (err) {
     logger.error("Failed to create notification", { error: String(err) });
   }

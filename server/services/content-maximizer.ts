@@ -223,7 +223,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
           maximizerGenerated: true,
           intensity: moment.intensity,
         },
-      } as any);
+      });
       shortsQueued++;
 
       await db.insert(contentExperiments).values({
@@ -290,7 +290,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
               partNumber: partNum,
               totalParts: numLongForms,
             },
-          } as any);
+          });
           longFormsQueued++;
 
           await db.insert(contentExperiments).values({
@@ -345,7 +345,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
               tags: [...NO_COMMENTARY_TAGS, gameName, "full gameplay", "ps5"],
               maximizerGenerated: true,
             },
-          } as any);
+          });
           longFormsQueued++;
 
           await db.insert(contentExperiments).values({

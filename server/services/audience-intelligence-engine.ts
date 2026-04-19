@@ -128,12 +128,12 @@ Analyze audience behavior patterns. Output JSON:
         await db.insert(discoveredStrategies).values({
           userId,
           title: `Audience gap: ${gap}`,
-          category: "audience",
+          strategyType: "audience",
           description: `AI detected audience interest gap: ${gap}. ${parsed.retentionInsights || ""}`,
-          sourceEngine: "audience-intelligence",
+          source: "audience-intelligence",
           effectiveness: parsed.confidence || 55,
           isActive: true,
-        } as any).onConflictDoNothing();
+        }).onConflictDoNothing();
       }
     }
 

@@ -284,10 +284,10 @@ export function registerKernelRoutes(app: Express) {
       const { eq } = await import("drizzle-orm");
       const { db } = await import("../db");
       await db.update(trustBudgetPeriods)
-        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 } as any)
+        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 })
         .where(eq(trustBudgetPeriods.userId, userId));
       await db.update(trustBudgetRecords)
-        .set({ budgetRemaining: 100, violationCount: 0 } as any)
+        .set({ budgetRemaining: 100 })
         .where(eq(trustBudgetRecords.userId, userId));
       res.json({ success: true, message: "Trust budget reset for all agents (periods + records)" });
     } catch (err: any) {

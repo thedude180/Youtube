@@ -197,7 +197,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
           aiModel: "gpt-4o-mini",
           retentionBeatsApplied: true,
           regenerateThumbnail: true,
-        } as any,
+        },
       });
 
       try {

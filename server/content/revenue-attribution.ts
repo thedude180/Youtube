@@ -11,11 +11,11 @@ export async function attributeRevenue(
 ): Promise<number> {
   const [row] = await db.insert(revenueAttribution).values({
     userId,
-    videoId,
-    source,
-    amount: String(amount),
+    contentId: String(videoId),
+    revenueType: source,
+    amount,
     metadata: metadata || {},
-  } as any).returning();
+  }).returning();
   return row.id;
 }
 

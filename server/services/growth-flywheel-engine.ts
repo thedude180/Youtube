@@ -641,7 +641,7 @@ Return JSON: {
         applicability: finding.applicability || "",
         implementationDifficulty: finding.difficulty || "medium",
         potentialImpact: finding.impact || "medium",
-        metadata: { marketGap: result.marketGap, urgentTrend: result.urgentTrend } as any,
+        metadata: { marketGap: result.marketGap, urgentTrend: result.urgentTrend },
       });
 
       await recordEngineKnowledge("competitive-intel", userId, "competitive_finding", finding.category, finding.finding.substring(0, 400), `Impact: ${finding.impact}, difficulty: ${finding.difficulty}, source: ${topic}`, finding.impact === "massive" ? 85 : finding.impact === "high" ? 70 : 55);
@@ -658,7 +658,7 @@ Return JSON: {
             description: `${finding.applicability}\n\nDifficulty: ${finding.difficulty}, Impact: ${finding.impact}`,
             source: "competitive-intel",
             applicableTo: ["vod", "shorts", "livestream"],
-            metadata: { competitiveSource: topic, marketGap: result.marketGap } as any,
+            metadata: { competitiveSource: topic, marketGap: result.marketGap },
           });
         }
       }

@@ -319,7 +319,7 @@ Return ONLY valid JSON:
             tags: ["no commentary", "PS5", gameName, "gaming", "shorts", "viral", "gameplay"],
             grinderGenerated: true,
           },
-        } as any);
+        });
         queued++;
       } catch {}
     }

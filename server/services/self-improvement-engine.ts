@@ -289,7 +289,7 @@ Return JSON: {
       innerMonologue: result.innerMonologue || "",
       triggerEvent: trigger,
       confidenceLevel: Math.min(100, Math.max(0, result.confidenceLevel || 50)),
-      metadata: { urgentAction: result.urgentAction, channelStats } as any,
+      metadata: { urgentAction: result.urgentAction, channelStats },
     });
 
     invalidateUserData(siStore, userId, "reflection_latest");
@@ -431,7 +431,7 @@ Answer the question thoroughly. Then identify any strategies or insights that co
               description: result.strategyDraft.description || "",
               source: "curiosity-pursuit",
               applicableTo: result.strategyDraft.applicableTo || [],
-              metadata: { fromQuestion: q.question } as any,
+              metadata: { fromQuestion: q.question },
             }).returning({ id: discoveredStrategies.id });
 
             if (newStrat) {
@@ -673,7 +673,7 @@ async function scanWebForStrategies(userId: string): Promise<void> {
             description: strategy.description,
             source: "web-scan",
             applicableTo: strategy.applicableTo || [],
-            metadata: { topic, webContext: webContext.slice(0, 500), addressesWeakness: strategy.addressesWeakness || "" } as any,
+            metadata: { topic, webContext: webContext.slice(0, 500), addressesWeakness: strategy.addressesWeakness || "" },
           });
 
           await recordEngineKnowledge("self-improvement", userId, "web_strategy", strategy.strategyType, `${strategy.title}: ${strategy.description}`.substring(0, 400), `Source: web scan on "${topic}", addresses weakness: ${strategy.addressesWeakness || "general"}`, 55);
@@ -806,7 +806,7 @@ async function sweepBackCatalog(userId: string, userChannels: any[]): Promise<vo
           afterState: `${improvements.length} improvements identified`,
           triggerEvent: "scheduled_sweep",
           engineSource: "self-improvement-engine",
-          measuredImpact: { videoId: video.id, improvements: improvements.length } as any,
+          measuredImpact: { videoId: video.id, improvements: improvements.length },
         });
       }
     } catch {
@@ -994,7 +994,7 @@ async function identifyBackCatalogOpportunities(userId: string, newVideoId: numb
           afterState: `${opp.action}: ${opp.reason}`,
           triggerEvent: "new_content_same_game",
           engineSource: "self-improvement-engine",
-          measuredImpact: { newVideoId, action: opp.action, targetTitle: opp.videoTitle } as any,
+          measuredImpact: { newVideoId, action: opp.action, targetTitle: opp.videoTitle },
         });
       }
     }

@@ -536,7 +536,7 @@ Return JSON: {
           applicableEngines: p.applicableEngines || [],
           confidenceScore: Math.min(100, Math.max(0, p.confidence || 50)),
           evidenceCount: (p.sourceEngines || []).length,
-          metadata: { evidence: p.evidence } as any,
+          metadata: { evidence: p.evidence },
         });
       }
     }

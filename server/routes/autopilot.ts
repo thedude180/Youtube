@@ -557,7 +557,7 @@ export function registerAutopilotRoutes(app: Express) {
       if (!post) return res.status(404).json({ error: "Post not found" });
 
       await db.update(autopilotQueue)
-        .set({ status: "publishing" as any })
+        .set({ status: "publishing" })
         .where(eq(autopilotQueue.id, id));
 
       const { publishToplatform } = await import("../platform-publisher");
@@ -861,7 +861,7 @@ export function registerAutopilotRoutes(app: Express) {
 
       if (batchValues.length > 0) {
         for (let i = 0; i < batchValues.length; i += 50) {
-          await db.insert(autopilotQueue).values(batchValues.slice(i, i + 50) as any);
+          await db.insert(autopilotQueue).values(batchValues.slice(i, i + 50));
         }
       }
 

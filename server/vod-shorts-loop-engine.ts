@@ -301,7 +301,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
           status: "ai_ready",
           startTime: startT,
           endTime: endT,
-          metadata: { hookLine: short.hookLine, viralScore: short.viralScore, platform: short.platform, autoExtracted: true } as any,
+          metadata: { hookLine: short.hookLine, viralScore: short.viralScore, platform: short.platform, autoExtracted: true },
         });
         shortsCreated++;
       }

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, ADMIN_EMAIL, SUPPORT_EMAIL } from "@shared/models/auth";
+import { users, ADMIN_EMAIL, SUPPORT_EMAIL, type User } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
 import { sendGmail } from "./gmail-client";
 import webpush from "web-push";
@@ -134,8 +134,9 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
     }
 
     if (payload.severity === "critical" || payload.severity === "warning") {
-      const prefs = (user as any).userPreferences || {};
-      const subs = prefs.pushSubscriptions || [];
+      type UserPrefs = NonNullable<User['userPreferences']>;
+      const prefs = ((user as any).userPreferences || {}) as UserPrefs;
+      const subs: any[] = prefs.pushSubscriptions || [];
       if (subs.length > 0) {
         const pushPayload = JSON.stringify({
           title: payload.title,
@@ -158,8 +159,8 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
         if (expiredEndpoints.length > 0) {
           try {
             const liveSubs = subs.filter((s: any) => !expiredEndpoints.includes(s.endpoint));
-            const updatedPrefs = { ...prefs, pushSubscriptions: liveSubs };
-            await db.update(users).set({ userPreferences: updatedPrefs } as any).where(eq(users.id, payload.userId));
+            const updatedPrefs: UserPrefs = { ...prefs, pushSubscriptions: liveSubs };
+            await db.update(users).set({ userPreferences: updatedPrefs }).where(eq(users.id, payload.userId));
             logger.info(`Cleaned up ${expiredEndpoints.length} expired push subscription(s) for user ${payload.userId}`);
           } catch (cleanupErr) {
             logger.error("[Notifications] Failed to clean up expired subscriptions:", cleanupErr);

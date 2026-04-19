@@ -235,7 +235,7 @@ export function registerContentRoutes(app: Express) {
         title: `Re-detecting games across ${allVideos.length} videos`,
         status: "in_progress",
         startedAt: new Date(),
-        payload: { totalVideos: allVideos.length } as any,
+        payload: { totalVideos: allVideos.length },
       }).returning();
 
       res.json({ success: true, total: allVideos.length, taskId: agentTask.id });
@@ -304,7 +304,7 @@ export function registerContentRoutes(app: Express) {
                 platform: video.platform,
                 metadata: { ...meta, gameName: newGame },
                 redetectedGame: newGame,
-              } as any,
+              },
             });
 
             try { if (sourcePath) fs.unlinkSync(sourcePath); } catch { }
@@ -319,14 +319,14 @@ export function registerContentRoutes(app: Express) {
         await db.update(aiAgentTasks).set({
           status: "completed",
           completedAt: new Date(),
-          result: { processed, updated, errors, total: allVideos.length } as any,
+          result: { processed, updated, errors, total: allVideos.length },
         }).where(eq(aiAgentTasks.id, agentTask.id));
       })().catch(err => {
         logger.error("Catalog redetect background job failed:", err);
         db.update(aiAgentTasks).set({
           status: "failed",
           completedAt: new Date(),
-          result: { error: String(err).substring(0, 500) } as any,
+          result: { error: String(err).substring(0, 500) },
         }).where(eq(aiAgentTasks.id, agentTask.id)).catch(() => {});
       });
 
@@ -1987,6 +1987,11 @@ export function registerContentRoutes(app: Express) {
         return res.json({ success: true, message: "No pipelines found to schedule", scheduled: 0 });
       }
 
+      const [firstChannel] = await db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId)).limit(1);
+      if (!firstChannel) {
+        return res.json({ success: true, scheduled: 0, message: "No channels found" });
+      }
+
       const existingVideos = await db.select({ id: videos.id, title: videos.title })
         .from(videos)
         .where(sql`${videos.title} IN (${sql.join(pipelines.map(p => sql`${p.sourceTitle}`), sql`, `)})`);
@@ -2020,6 +2025,7 @@ export function registerContentRoutes(app: Express) {
 
         const { videoRecord, crossPosts } = await db.transaction(async (tx) => {
           const [videoRecord] = await tx.insert(videos).values({
+            channelId: firstChannel.id,
             title: pipeline.sourceTitle,
             description: typeof videoDescription === 'string' ? videoDescription.substring(0, 5000) : pipeline.sourceTitle,
             type: "vod",
@@ -2030,9 +2036,9 @@ export function registerContentRoutes(app: Express) {
               seoScore: descData.seoScore || 85,
               aiOptimized: true,
               aiOptimizedAt: new Date().toISOString(),
-            } as any,
+            },
             scheduledTime: videoSchedDate,
-          } as any).returning();
+          }).returning();
 
           await tx.insert(scheduleItems).values({
             userId,
@@ -2318,7 +2324,7 @@ export function registerContentRoutes(app: Express) {
 
       if (durationSec > 0 && !meta?.durationSec) {
         await db.update(videos)
-          .set({ metadata: { ...meta, durationSec, duration: durationSec } as any })
+          .set({ metadata: { ...meta, durationSec, duration: durationSec } })
           .where(eq(videos.id, video.id));
       }
 
@@ -2393,7 +2399,7 @@ export function registerContentRoutes(app: Express) {
             schedulingMethod: "from-url-pipeline",
             style: "human",
             humanScore: 0.95,
-          } as any,
+          },
         }).catch(() => undefined);
       }
 

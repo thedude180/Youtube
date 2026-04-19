@@ -579,7 +579,7 @@ async function queueBatchContent(
           titleVariants: plan.longForm.titleVariants || [],
           thumbnailConcept: plan.longForm.thumbnailConcept,
         },
-      } as any);
+      });
       longFormQueued = true;
     } catch (err: any) {
       logger.error("Failed to queue long-form", { userId, error: err.message });
@@ -615,7 +615,7 @@ async function queueBatchContent(
           crossLinkedPlatforms: allPlatforms,
           tiktokCaption: short.tiktokCaption || null,
         },
-      } as any);
+      });
       shortsQueued++;
     } catch (err: any) {
       logger.error("Failed to queue short", { userId, index: i + 1, error: err.message });
@@ -667,7 +667,7 @@ async function queueBatchContent(
             tiktokCaption: short.tiktokCaption || platformCaption,
             retentionBeatsApplied: true,
           },
-        } as any);
+        });
         crossPostsQueued++;
       } catch (err: any) {
         logger.error("Failed to queue video cross-post", { platform, error: err.message });
@@ -718,7 +718,7 @@ async function queueBatchContent(
             batchNumber,
             crossPlatformGroupId: groupId,
           },
-        } as any);
+        });
         crossPostsQueued++;
         textBudgetRemaining--;
       } catch (err: any) {
@@ -753,7 +753,7 @@ async function queueBatchContent(
             batchNumber,
             crossPlatformGroupId: groupId,
           },
-        } as any);
+        });
         crossPostsQueued++;
       } catch (err: any) {
         logger.error("Failed to queue text cross-post", { platform, error: err.message });

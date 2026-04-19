@@ -142,13 +142,13 @@ Analyze this prompt and suggest a SPECIFIC improvement. Output JSON:
       });
 
       await db.insert(promptDriftEvaluations).values({
-        promptKey,
-        baseVersion: currentPrompt.version,
-        targetVersion: newVersion,
+        agentName: promptKey,
+        promptVersion: String(newVersion),
+        baselineVersion: String(currentPrompt.version),
         driftScore: 0,
-        semanticShift: parsed.reason,
-        evalResult: { expectedImpact: parsed.expectedImpact, winPatterns: winPatterns.length, losePatterns: losePatterns.length },
-      } as any);
+        sampleOutput: { expectedImpact: parsed.expectedImpact, winPatterns: winPatterns.length, losePatterns: losePatterns.length },
+        metadata: { semanticShift: parsed.reason },
+      });
 
       await recordEngineKnowledge(
         "prompt-evolution", userId, "prompt_evolved",

@@ -301,14 +301,14 @@ async function autoConnectYouTubeFromGoogle(
         userId,
         platform: "youtube",
         username: ytChannel.snippet?.title || "YouTube",
-        channelUrl: `https://youtube.com/channel/${ytChannel.id}`,
+        profileUrl: `https://youtube.com/channel/${ytChannel.id}`,
         isConnected: true,
         connectionType: "oauth",
         followerCount: parseInt(
           ytChannel.statistics?.subscriberCount || "0",
           10
         ),
-      } as any);
+      });
     }
 
     return {

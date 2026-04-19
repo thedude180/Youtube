@@ -215,7 +215,7 @@ Return JSON:
         strategiesApplied: result.strategiesApplied,
         confidence: result.confidenceScore,
         shortsPlanned: (result.shortsIdeas || []).length,
-      } as any,
+      },
     });
 
     if ((result.strategiesApplied || []).length > 0) {

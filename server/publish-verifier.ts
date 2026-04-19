@@ -26,7 +26,7 @@ export async function clearMatchingScheduleItems(
 
     if (sourceVideoId) {
       await db.update(scheduleItems)
-        .set({ status: "completed", completedAt: new Date() } as any)
+        .set({ status: "completed", completedAt: new Date() })
         .where(and(...baseWhere, eq(scheduleItems.videoId, sourceVideoId)));
     } else if (scheduledAt) {
       const dayStart = new Date(scheduledAt);
@@ -34,7 +34,7 @@ export async function clearMatchingScheduleItems(
       const dayEnd = new Date(scheduledAt);
       dayEnd.setHours(23, 59, 59, 999);
       await db.update(scheduleItems)
-        .set({ status: "completed", completedAt: new Date() } as any)
+        .set({ status: "completed", completedAt: new Date() })
         .where(and(
           ...baseWhere,
           gte(scheduleItems.scheduledAt, dayStart),
