@@ -237,7 +237,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.goLive.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -407,7 +407,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.endStream.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -576,7 +576,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get(api.streams.automationStatus.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const streamId = parseNumericId(req.params.id, res);
     if (streamId === null) return;
@@ -601,7 +601,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/agents/tasks/:taskId/result", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const taskId = parseNumericId(req.params.taskId, res);
     if (taskId === null) return;
@@ -694,7 +694,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/streams/:id/multi-status", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     try {
       const id = parseNumericId(req.params.id, res);
@@ -707,7 +707,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/chat-bridge/status", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Stream Chat Management");
     if (!userId) return;
     try {
       const status = getChatBridgeStatus(userId);
@@ -718,7 +718,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/streams/:id/chat", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Stream Chat Management");
     if (!userId) return;
     try {
       const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
@@ -734,7 +734,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/streams/:id/chat/stats", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Stream Chat Management");
     if (!userId) return;
     try {
       const id = parseNumericId(req.params.id, res);
@@ -749,7 +749,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/streams/:id/chat", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Stream Chat Management");
     if (!userId) return;
     const schema = z.object({
       platform: z.string().min(1),
@@ -782,7 +782,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/youtube/live-status", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     try {
       const result = await cached(`youtube-live-status:${userId}`, 10, async () => {
@@ -839,7 +839,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/detect-live", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     try {
       const userChannels = await storage.getChannelsByUser(userId);
@@ -896,7 +896,7 @@ export function registerStreamRoutes(app: Express) {
   // --- UNEDITED STREAMS ---
 
   app.get("/api/stream/unedited-vods", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     try {
       const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
@@ -977,7 +977,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.patch("/api/stream/unedited-vods/:id/mark-uploaded", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const { source } = req.query;
     const id = parseNumericId(req.params.id, res);
@@ -1005,7 +1005,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/stream/unedited-vods/:id/start-pipeline", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Pipeline Execution");
     if (!userId) return;
     const { source } = req.query;
     const id = parseNumericId(req.params.id, res);
@@ -1057,7 +1057,7 @@ export function registerStreamRoutes(app: Express) {
 
   app.get("/api/stream-upgrades/highlights", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "youtube", "Stream Center");
       if (!userId) return;
       res.json([]);
     } catch {
@@ -1067,7 +1067,7 @@ export function registerStreamRoutes(app: Express) {
 
   app.get("/api/stream-upgrades/chat-sentiment", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "starter", "Stream Chat Management");
       if (!userId) return;
       res.json({
         overallScore: 0,
@@ -1081,7 +1081,7 @@ export function registerStreamRoutes(app: Express) {
 
   app.get("/api/stream-upgrades/overlay", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "youtube", "Stream Center");
       if (!userId) return;
       res.json([]);
     } catch {
@@ -1091,7 +1091,7 @@ export function registerStreamRoutes(app: Express) {
 
   app.post("/api/stream-upgrades/overlay", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "youtube", "Stream Center");
       if (!userId) return;
       res.json({ success: true });
     } catch {
@@ -1101,7 +1101,7 @@ export function registerStreamRoutes(app: Express) {
 
   app.get("/api/stream-upgrades/schedule", async (req: any, res) => {
     try {
-      const userId = requireAuth(req, res);
+      const userId = await requireTier(req, res, "youtube", "Stream Center");
       if (!userId) return;
       res.json([]);
     } catch {
