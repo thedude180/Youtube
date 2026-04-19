@@ -98,7 +98,12 @@ async function runClipCycle(session: ClipSession): Promise<void> {
   });
 
   const tiktokContent = moment.tiktokPost;
-  const discordContent = moment.discordPost.replace("STREAM_LINK", streamUrl);
+  // Replace STREAM_LINK token with the real URL; strip any unreplaced STREAM_LINK
+  // leftovers in case the AI omitted the token.
+  const discordContent = moment.discordPost
+    .replace("STREAM_LINK", streamUrl)
+    .replace(/STREAM_LINK/g, "")
+    .trim();
 
   try {
     await db.insert(autopilotQueue).values({

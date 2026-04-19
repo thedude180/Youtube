@@ -160,7 +160,12 @@ async function queueSocialPost(
 ): Promise<void> {
   try {
     const youtubeUrl = `https://youtu.be/${broadcastId}`;
-    const finalContent = content.replace("[LINK]", youtubeUrl);
+    // Replace [LINK] token with the real URL; strip any unreplaced [LINK] leftovers
+    // in case the AI omitted the token or duplicated it.
+    const finalContent = content
+      .replace("[LINK]", youtubeUrl)
+      .replace(/\[LINK\]/g, "")
+      .trim();
 
     const targetPlatform = platform;
 
