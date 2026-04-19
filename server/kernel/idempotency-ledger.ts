@@ -14,7 +14,7 @@ export interface IdempotencyRecord {
   hitCount: number;
 }
 
-export async function checkIdempotency(key: string): Promise<{ isDuplicate: boolean; cachedResult?: any }> {
+export async function checkIdempotency(key: string): Promise<{ isDuplicate: boolean; cachedResult?: any; requestHash?: string | null }> {
   try {
     const [record] = await db
       .select()
@@ -29,7 +29,7 @@ export async function checkIdempotency(key: string): Promise<{ isDuplicate: bool
       return { isDuplicate: false };
     }
 
-    return { isDuplicate: true, cachedResult: record.responseSnapshot };
+    return { isDuplicate: true, cachedResult: record.responseSnapshot, requestHash: record.requestHash };
   } catch (err: any) {
     logger.warn(`[IdempotencyLedger] DB check failed for key ${key}, treating as non-duplicate: ${err.message}`);
     return { isDuplicate: false };
@@ -71,9 +71,9 @@ export async function recordIdempotency(
 }
 
 export async function isIdempotent(key: string, operationHash: string): Promise<boolean> {
-  const { isDuplicate, cachedResult } = await checkIdempotency(key);
+  const { isDuplicate, requestHash } = await checkIdempotency(key);
   if (!isDuplicate) return false;
-  return cachedResult?.operationHash === operationHash;
+  return requestHash === operationHash;
 }
 
 export async function clearIdempotencyLedger(): Promise<void> {

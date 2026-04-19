@@ -1070,7 +1070,7 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
             userId: post.userId,
             priority: 2,
             payload: { gameName: clipGameName, source: "stream-clip-publish" },
-            dedupeKey: `post_upload_game_tag:${clipGameName}`,
+            dedupeKey: `post_upload_game_tag:${clipVideoId}:${clipGameName}`,
           });
         }
 
@@ -1217,7 +1217,7 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
             userId: post.userId,
             priority: 2,
             payload: { gameName, source: "maximizer-publish" },
-            dedupeKey: `post_upload_game_tag:${gameName}`,
+            dedupeKey: `post_upload_game_tag:${clipVideo.id}:${gameName}`,
           });
         }
 
