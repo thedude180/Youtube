@@ -325,3 +325,154 @@ describe("sanitization-coverage › nested-object call-sites present in high-ris
     expect(content).toContain("JSON.stringify(sanitizeObjectForPrompt(blueprint.brandIdentity))");
   });
 });
+
+// ─── sanitizeObjectForPrompt exhaustiveness guard ─────────────────────────────
+// Scans the entire server directory and asserts every file that calls
+// sanitizeObjectForPrompt is either in the tracked list below or has a
+// dedicated test file. Fails when a new caller is added without updating
+// this suite — the same guard that exists for sanitizeForPrompt above.
+
+const objectPromptCallers: string[] = [
+  "server/ai-engine.ts",
+  "server/ai-team-engine.ts",
+  "server/compounding-engine.ts",
+  "server/creator-dna-engine.ts",
+  "server/creator-intelligence.ts",
+  "server/growth-programs-engine.ts",
+  "server/idea-empire-engine.ts",
+  "server/learning-engine.ts",
+  "server/marketer-engine.ts",
+  "server/monetization-engine.ts",
+  "server/routes/dual-pipeline.ts",
+  "server/security-engine.ts",
+  "server/services/anomaly-responder.ts",
+  "server/services/catalog-content-engine.ts",
+  "server/services/content-quality-engine.ts",
+  "server/services/creator-dna-builder.ts",
+  "server/services/daily-briefing.ts",
+  "server/services/dashboard-intelligence-engine.ts",
+  "server/services/empire-brain.ts",
+  "server/services/feedback-processor.ts",
+  "server/services/growth-intelligence-engine.ts",
+  "server/services/infinite-evolution-engine.ts",
+  "server/services/keyword-learning-engine.ts",
+  "server/services/media-command-center.ts",
+  "server/services/platform-policy-tracker.ts",
+  "server/services/relentless-content-grinder.ts",
+  "server/services/revenue-brain.ts",
+  "server/services/self-improvement-engine.ts",
+  "server/services/traffic-growth-engine.ts",
+  "server/shadowban-detector.ts",
+  "server/shorts-pipeline-engine.ts",
+  "server/smart-edit-engine.ts",
+  "server/trend-predictor.ts",
+  "server/youtube-learning-engine.ts",
+];
+
+describe("sanitization-coverage › sanitizeObjectForPrompt exhaustiveness — every caller is tracked", () => {
+  it("all sanitizeObjectForPrompt callers are covered by this suite or a dedicated test", () => {
+    const { execSync } = require("child_process");
+
+    // Files that implement or test sanitizeObjectForPrompt directly.
+    const dedicatedObjectTests = new Set([
+      "server/lib/ai-attack-shield.ts",
+    ]);
+
+    const allObjectCallers: string[] = execSync(
+      `grep -rl "sanitizeObjectForPrompt" ${ROOT}/server --include="*.ts"`,
+      { encoding: "utf8" }
+    )
+      .trim()
+      .split("\n")
+      .map((p: string) => p.replace(`${ROOT}/`, ""))
+      .filter((p: string) => !p.endsWith(".test.ts"));
+
+    const covered = new Set([...objectPromptCallers, ...dedicatedObjectTests]);
+
+    const uncovered = allObjectCallers.filter(f => !covered.has(f));
+    expect(
+      uncovered,
+      `New sanitizeObjectForPrompt callers found that are not tracked in sanitization-coverage.test.ts:\n${uncovered.join("\n")}\nAdd them to the objectPromptCallers list or create a dedicated test file.`
+    ).toHaveLength(0);
+  });
+
+  it("every file in the tracked objectPromptCallers list still contains sanitizeObjectForPrompt", () => {
+    // Prevents stale-list drift: if a tracked file is refactored and the call
+    // is removed, this test fails immediately rather than silently weakening
+    // the exhaustiveness guard above.
+    const stale = objectPromptCallers.filter(
+      f => !readFileSync(resolve(ROOT, f), "utf8").includes("sanitizeObjectForPrompt(")
+    );
+    expect(
+      stale,
+      `objectPromptCallers entries no longer call sanitizeObjectForPrompt:\n${stale.join("\n")}\nRemove them from objectPromptCallers or restore the sanitizeObjectForPrompt call.`
+    ).toHaveLength(0);
+  });
+});
+
+// ─── JSON.stringify-in-prompt guard ───────────────────────────────────────────
+// Every server file that embeds JSON.stringify output directly into an AI
+// prompt must also call sanitizeObjectForPrompt to prevent nested-object
+// injection. This check greps for files that use both JSON.stringify and
+// AI-messaging infrastructure, then asserts each one also uses
+// sanitizeObjectForPrompt (or is explicitly excluded as safe).
+
+describe("sanitization-coverage › JSON.stringify-in-prompt callers use sanitizeObjectForPrompt", () => {
+  it("every file that embeds JSON.stringify in an AI prompt also calls sanitizeObjectForPrompt", () => {
+    const { execSync } = require("child_process");
+
+    // Files where JSON.stringify is provably used outside of prompt content:
+    // streaming SSE responses, logging, internal bookkeeping, HTTP bodies
+    // sent to non-AI endpoints, or adding AI-generated (not user) results
+    // back into message history.
+    const knownSafeNonPromptFiles = new Set([
+      "server/autonomy-controller.ts",
+      "server/kernel/model-fallback-chain.ts",
+      "server/replit_integrations/audio/routes.ts",
+      "server/replit_integrations/chat/routes.ts",
+      "server/routes/pipeline.ts",
+      "server/services/copilot-engine.ts",
+      "server/services/resilience-observability.ts",
+      "server/services/stream-operator.ts",
+      "server/vod-optimizer-engine.ts",
+    ]);
+
+    // Files that have JSON.stringify AND make AI calls (openai / anthropic SDK
+    // or our internal callAI helpers) — the intersection that carries risk.
+    const withJsonStringify: string[] = execSync(
+      `grep -rl "JSON\\.stringify" ${ROOT}/server --include="*.ts"`,
+      { encoding: "utf8" }
+    )
+      .trim()
+      .split("\n")
+      .map((p: string) => p.replace(`${ROOT}/`, ""))
+      .filter((p: string) => !p.endsWith(".test.ts"));
+
+    const withAiCalls: string[] = execSync(
+      `grep -rl "openai\\|anthropic\\|callAI\\|callOpenAI\\|callAnthropic" ${ROOT}/server --include="*.ts"`,
+      { encoding: "utf8" }
+    )
+      .trim()
+      .split("\n")
+      .map((p: string) => p.replace(`${ROOT}/`, ""))
+      .filter((p: string) => !p.endsWith(".test.ts"));
+
+    const aiJsonSet = new Set(withAiCalls);
+    const candidates = withJsonStringify.filter(
+      f => aiJsonSet.has(f) && !knownSafeNonPromptFiles.has(f)
+    );
+
+    // Every candidate must call sanitizeObjectForPrompt — we always read file
+    // content rather than trusting the tracked list, so a refactor that removes
+    // the sanitizer call is caught here even if the file stays listed in
+    // objectPromptCallers.
+    const missing = candidates.filter(
+      f => !readFileSync(resolve(ROOT, f), "utf8").includes("sanitizeObjectForPrompt(")
+    );
+
+    expect(
+      missing,
+      `Server files found that embed JSON.stringify in AI prompt context but do NOT call sanitizeObjectForPrompt:\n${missing.join("\n")}\nWrap the JSON.stringify argument with sanitizeObjectForPrompt() or add the file to knownSafeNonPromptFiles if JSON.stringify is not used in a prompt.`
+    ).toHaveLength(0);
+  });
+});
