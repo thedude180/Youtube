@@ -4,6 +4,7 @@ import { streamDestinations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { jitter } from "../lib/timer-utils";
+import { isFfmpegAvailable } from "../lib/dependency-check";
 
 const logger = createLogger("multistream");
 
@@ -322,6 +323,14 @@ function wireFFmpegEvents(state: RelayState, proc: ChildProcess): void {
 }
 
 export async function startMultistream(userId: string, videoId: string, autoStarted = false): Promise<{ started: boolean; message: string; destinations?: string[] }> {
+  if (!isFfmpegAvailable()) {
+    logger.error("startMultistream blocked — ffmpeg is not available on this host", { userId: userId.slice(0, 8) });
+    return {
+      started: false,
+      message: "Multistreaming requires ffmpeg, which is not installed on this server. Ask your administrator to install it (apt-get install ffmpeg).",
+    };
+  }
+
   const existing = relayStates.get(userId);
   if (existing?.relaying) {
     return { started: false, message: "Relay already active" };

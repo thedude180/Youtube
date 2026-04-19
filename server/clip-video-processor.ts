@@ -9,6 +9,7 @@ import { db } from "./db";
 import { videos, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
+import { isFfmpegAvailable, isYtdlpAvailable } from "./lib/dependency-check";
 
 const logger = createLogger("clip-video-processor");
 
@@ -327,6 +328,14 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
 }
 
 export async function downloadSourceVideo(youtubeId: string, userId?: string): Promise<string> {
+  if (!isYtdlpAvailable()) {
+    logger.warn(
+      "yt-dlp is not available — download will rely on ytdl-core only, which has lower reliability. " +
+      "Place a yt-dlp binary at .local/bin/yt-dlp-latest for best results.",
+      { youtubeId },
+    );
+  }
+
   const outputPath = path.join(CLIP_DIR, `source_${youtubeId}.mp4`);
 
   if (fs.existsSync(outputPath)) {
@@ -427,6 +436,13 @@ export async function cutClipFromVideo(
   endTime: number,
   clipId: number,
 ): Promise<string> {
+  if (!isFfmpegAvailable()) {
+    throw new Error(
+      "Clip cutting requires ffmpeg, which is not installed on this server. " +
+      "Ask your administrator to install it (apt-get install ffmpeg).",
+    );
+  }
+
   const outputPath = path.join(CLIP_DIR, `clip_${clipId}_${Date.now()}.mp4`);
   const duration = endTime - startTime;
 
