@@ -306,8 +306,8 @@ export async function registerRoutes(
   });
 
   const FREE_AI_ROUTES = new Set([
-    "/api/ai/dashboard-actions", "/api/ai/content-ideas", "/api/ai/advisor",
-    "/api/ai/daily-briefing", "/api/ai/health-score",
+    "/dashboard-actions", "/content-ideas", "/advisor",
+    "/daily-briefing", "/health-score",
   ]);
 
   app.use("/api/ai", async (req: any, res, next) => {
