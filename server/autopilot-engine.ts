@@ -1392,6 +1392,8 @@ export async function processScheduledPosts() {
   // executions cannot pick up the same posts twice.
   // processingStartedAt is written into metadata so the recovery query above
   // has an exact lease timestamp to check.
+  // Only RETURNING id — rows are then re-fetched via Drizzle so the rest of
+  // the function gets properly typed, camelCase-mapped objects.
   const claimResult = await db.execute(sql`
     UPDATE autopilot_queue
     SET status = 'processing',
@@ -1416,9 +1418,9 @@ export async function processScheduledPosts() {
       LIMIT 25
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING *
+    RETURNING id
   `);
-  const duePosts = (claimResult.rows ?? []) as any[];
+  const claimedIds = (claimResult.rows ?? []).map((r: any) => r.id as number);
 
   if (duePosts.length === 0) return;
 
