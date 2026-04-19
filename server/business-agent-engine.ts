@@ -197,6 +197,7 @@ export async function runBusinessAgentCycle(userId: string): Promise<void> {
         .from(aiAgentActivities)
         .where(
           and(
+            eq(aiAgentActivities.userId, userId),
             eq(aiAgentActivities.agentId, "biz-strategy"),
             eq(aiAgentActivities.status, "completed"),
             gt(aiAgentActivities.createdAt!, cutoff)

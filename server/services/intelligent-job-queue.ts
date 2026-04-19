@@ -165,7 +165,7 @@ class IntelligentJobQueue {
         }
       } finally {
         this.processNext(type).catch((err: any) => {
-          logger.warn(`[JobQueue] Error triggering next job for ${type}: ${err?.message}`);
+          logger.error(`[JobQueue] Chain-trigger failure for ${type} — queue may stall: ${err?.message}`);
         });
       }
     } catch (err: any) {
