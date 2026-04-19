@@ -1420,7 +1420,7 @@ export async function processScheduledPosts() {
     )
     RETURNING id
   `);
-  const claimedIds = (claimResult.rows ?? []).map((r: any) => r.id as number);
+  const claimedIds = (claimResult.rows as Array<{ id: number }>).map(r => r.id);
 
   if (claimedIds.length === 0) return;
 
