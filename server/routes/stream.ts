@@ -38,14 +38,14 @@ async function checkYouTubeLiveViaWatchPage(channelId: string): Promise<boolean>
 
 export function registerStreamRoutes(app: Express) {
   app.get(api.streamDestinations.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const destinations = await storage.getStreamDestinations(userId);
     res.json(destinations);
   }));
 
   app.post(api.streamDestinations.create.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const schema = z.object({
       platform: z.string().min(1),
@@ -79,7 +79,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.put(api.streamDestinations.update.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -103,7 +103,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.delete(api.streamDestinations.delete.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -116,7 +116,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/stream/command-center", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const streamList = await storage.getStreams(userId);
     const activeStream = streamList.find((s: any) => s.status === "live" || s.status === "starting");
@@ -129,14 +129,14 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get(api.streams.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const streamList = await storage.getStreams(userId);
     res.json(streamList);
   }));
 
   app.get(api.streams.get.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -146,7 +146,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.create.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const schema = z.object({
       title: z.string().min(1),
@@ -181,7 +181,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.put(api.streams.update.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -206,7 +206,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.optimizeSeo.path, asyncHandler(async (req, res) => {
-    const userId = requireTier(req, res, "pro", "Stream SEO Optimization");
+    const userId = await requireTier(req, res, "pro", "Stream SEO Optimization");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;
@@ -649,7 +649,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post(api.streams.postStreamProcess.path, asyncHandler(async (req, res) => {
-    const userId = requireTier(req, res, "pro", "Post-Stream Processing");
+    const userId = await requireTier(req, res, "pro", "Post-Stream Processing");
     if (!userId) return;
     const id = parseNumericId(req.params.id, res);
     if (id === null) return;

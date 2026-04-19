@@ -466,7 +466,7 @@ export function registerContentRoutes(app: Express) {
   }));
 
   app.get(api.videos.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Content Library");
     if (!userId) return;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));

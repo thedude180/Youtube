@@ -289,7 +289,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get(api.revenue.list.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const platform = req.query.platform as string | undefined;
     const records = await storage.getRevenueRecords(userId, platform);
@@ -297,7 +297,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post(api.revenue.create.path, asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const schema = z.object({
       amount: z.number(),
@@ -317,7 +317,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/revenue/summary", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const summary = await storage.getRevenueSummary(userId);
     const truthSummary = await getRevenueTruthSummary(userId);
@@ -334,7 +334,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/revenue/export.csv", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
 
     const records = await storage.getRevenueRecords(userId);
@@ -363,21 +363,21 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/expenses/summary", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     const summary = await storage.getExpenseSummary(userId);
     res.json(summary);
   }));
 
   app.get("/api/expenses", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     const records = await storage.getExpenseRecords(userId);
     res.json(records);
   }));
 
   app.get("/api/expenses/export.csv", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
 
     const records = await storage.getExpenseRecords(userId);
@@ -404,7 +404,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/expenses", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     try {
       const expenseSchema = z.object({ category: z.string(), description: z.string(), amount: z.number(), date: z.string().optional() }).passthrough();
@@ -420,7 +420,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.put("/api/expenses/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -442,7 +442,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.delete("/api/expenses/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -453,7 +453,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/expenses/import-csv", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     try {
       const csvSchema = z.object({
@@ -502,7 +502,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/revenue/import-csv", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const rowsSchema = z.object({
@@ -565,14 +565,14 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/ventures", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
     const ventures = await storage.getBusinessVentures(userId);
     res.json(ventures);
   }));
 
   app.post("/api/ventures", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
     const schema = z.object({
       name: z.string().min(1),
@@ -592,7 +592,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.put("/api/ventures/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -614,7 +614,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.delete("/api/ventures/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Business Ventures");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -625,14 +625,14 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/goals", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
     const goals = await storage.getBusinessGoals(userId);
     res.json(goals);
   }));
 
   app.post("/api/goals", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
     const schema = z.object({
       title: z.string().min(1),
@@ -653,7 +653,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.put("/api/goals/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -676,7 +676,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.delete("/api/goals/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Financial Goals");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -687,7 +687,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/tax-estimates", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
     const year = req.query.year ? Number(req.query.year) : undefined;
     if (year !== undefined && (isNaN(year) || year < 2020 || year > 2100)) return res.status(400).json({ error: "Invalid year" });
@@ -696,7 +696,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/tax-estimates", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
     const schema = z.object({
       year: z.number().optional(),
@@ -715,7 +715,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.put("/api/tax-estimates/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Tax Intelligence");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -736,7 +736,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.get("/api/sponsorship-deals", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     const status = req.query.status as string | undefined;
     const deals = await storage.getSponsorshipDeals(userId, status);
@@ -744,7 +744,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/sponsorship-deals", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     const schema = z.object({
       brandName: z.string().min(1),
@@ -769,7 +769,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.put("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -792,7 +792,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.delete("/api/sponsorship-deals/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -803,7 +803,7 @@ export function registerMoneyRoutes(app: Express) {
   }));
 
   app.post("/api/sponsorship-deals/:id/outreach-draft", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     const id = parseNumericId(req.params.id as string, res);
     if (id === null) return;
@@ -839,7 +839,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   const sponsorOpHandler = asyncHandler(async (req: any, res: any) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Revenue Opportunities");
     if (!userId) return;
     res.json({
       opportunities: [],
@@ -852,7 +852,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.get("/api/monetization/sponsorship-opportunities/:uid", sponsorOpHandler);
 
   const merchHandler = asyncHandler(async (req: any, res: any) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     res.json({
       viralMoments: [],
@@ -867,7 +867,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.get("/api/monetization/merch-predictor/:uid", merchHandler);
 
   const diversifyHandler = asyncHandler(async (req: any, res: any) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     res.json({
       streams: [],
@@ -882,7 +882,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   app.get("/api/monetization/revenue-diversification/:uid", diversifyHandler);
 
   app.post("/api/monetization/ad-breaks/:videoId", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const videoId = parseNumericId(req.params.videoId as string, res, "video ID");
@@ -896,7 +896,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/revenue-forecast", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const forecastSchema = z.object({ period: z.enum(["daily", "weekly", "monthly", "quarterly", "yearly"]).optional().default("monthly") });
@@ -911,7 +911,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/fan-funnel", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const funnelSchema = z.object({
@@ -930,7 +930,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/monetization/fan-funnel", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const result = await getFanFunnelData(userId);
@@ -942,7 +942,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/sponsor-rates", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
       const result = await calculateSponsorRates(userId);
@@ -954,7 +954,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/monetization/sponsor-rates", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
       const result = await getSponsorRates(userId);
@@ -966,7 +966,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/equipment-roi", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     try {
       const equipmentSchema = z.object({
@@ -987,7 +987,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/monetization/equipment-roi", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "starter", "Expense Tracking");
     if (!userId) return;
     try {
       const result = await getEquipmentRoi(userId);
@@ -999,7 +999,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/invoice/:dealId", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
       const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
@@ -1013,7 +1013,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/monetization/invoices", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
       const result = await getInvoices(userId);
@@ -1025,7 +1025,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/monetization/analyze-deal/:dealId", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Sponsorship Manager");
     if (!userId) return;
     try {
       const dealId = parseNumericId(req.params.dealId as string, res, "deal ID");
@@ -1039,7 +1039,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/sync", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const result = await syncAllRevenue(userId);
@@ -1051,7 +1051,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/sync/:platform", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const allowedPlatforms = ["youtube", "twitch", "tiktok", "discord", "kick", "rumble", "patreon"];
@@ -1066,7 +1066,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/sync-status", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const logs = await storage.getRevenueSyncLogs(userId);
@@ -1090,7 +1090,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/breakdown", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const records = await storage.getRevenueRecords(userId);
@@ -1150,7 +1150,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/truth", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const summary = await getRevenueTruthSummary(userId);
@@ -1162,7 +1162,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/reconcile", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const schema = z.object({
@@ -1196,7 +1196,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/verify/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const recordId = parseNumericId(req.params.id as string, res);
     if (recordId === null) return;
@@ -1220,7 +1220,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/reconciliation-report", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const period = req.query.period as string | undefined;
@@ -1233,7 +1233,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/reconciliation-history", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const limit = parseInt(req.query.limit as string) || 20;
@@ -1246,7 +1246,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/flag-delayed", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const days = parseInt(req.query.days as string) || 30;
@@ -1259,7 +1259,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/action-queue", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const status = req.query.status as string | undefined;
@@ -1272,7 +1272,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/action-queue/:id/resolve", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const actionId = parseNumericId(req.params.id as string, res);
     if (actionId === null) return;
@@ -1291,7 +1291,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.post("/api/revenue/monthly-reconciliation", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const result = await runMonthlyReconciliation(userId);
@@ -1315,7 +1315,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/stored-reports", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const limit = parseInt(req.query.limit as string) || 12;
@@ -1328,7 +1328,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/attribution", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const graph = await buildAttributionGraph(userId);
@@ -1340,7 +1340,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/attribution/top-content", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const limit = parseInt(req.query.limit as string) || 10;
@@ -1353,7 +1353,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/attribution/content/:type/:id", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     const contentType = req.params.type as "video" | "stream";
     if (!["video", "stream"].includes(contentType)) {
@@ -1371,7 +1371,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/attribution/platforms", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
       const result = await getPlatformRevenueAttribution(userId);
@@ -1383,7 +1383,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
   }));
 
   app.get("/api/revenue/opportunities", asyncHandler(async (req, res) => {
-    const userId = requireAuth(req, res);
+    const userId = await requireTier(req, res, "pro", "Revenue Opportunities");
     if (!userId) return;
     try {
       const records = await storage.getRevenueRecords(userId);
