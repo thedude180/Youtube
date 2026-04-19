@@ -1371,15 +1371,19 @@ export async function processScheduledPosts() {
     logger.warn("Auto-fix pre-scan failed", { error: err.message });
   }
 
-  // Recovery: posts stuck in 'processing' for > 10 min are reset to 'scheduled'.
-  // We use the metadata lease field 'processingStartedAt' (written at claim time)
-  // so the check is exact and does NOT rely on scheduled_at (publish time).
+  // Recovery: posts stuck in 'processing' for > 60 min are reset to 'scheduled'.
+  // 60 min is the safe floor — it is much longer than the worst-case batch
+  // processing time (25 posts × multi-minute video uploads) so legitimately
+  // in-flight posts are never incorrectly reclaimed by a concurrent run
+  // whose outer cron-lock has already expired.
+  // We key on metadata->>'processingStartedAt' (written at claim time), NOT
+  // scheduled_at (publish time), so the check is exact.
   const recovered = await db.execute(sql`
     UPDATE autopilot_queue
     SET status = 'scheduled',
         metadata = metadata - 'processingStartedAt'
     WHERE status = 'processing'
-      AND (metadata->>'processingStartedAt')::timestamptz < NOW() - INTERVAL '10 minutes'
+      AND (metadata->>'processingStartedAt')::timestamptz < NOW() - INTERVAL '60 minutes'
   `).catch((err: any) => {
     logger.warn("Could not recover stuck processing posts", { error: err?.message });
     return { rowCount: 0 };
