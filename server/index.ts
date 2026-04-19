@@ -1623,6 +1623,12 @@ httpServer.listen(
         });
 
         logger.info("[Autonomous] Job handlers registered (24 total)");
+
+        // Start the recovery pump so queued jobs that survived a restart are picked up
+        // immediately rather than waiting for the next same-type enqueue.
+        jobQueue.startRecoveryPump().catch((err: any) => {
+          logger.error("[Autonomous] Recovery pump failed to start", { error: String(err) });
+        });
       } catch (err: any) {
         logger.error("[Autonomous] Job handler registration failed", { error: String(err) });
       }

@@ -256,6 +256,31 @@ class IntelligentJobQueue {
     return cleared;
   }
 
+  /**
+   * startRecoveryPump — call once after all handlers are registered.
+   * Immediately sweeps all job types with status='queued' in DB and kicks off
+   * processing for each, then repeats every 5 minutes so no job sits forever.
+   */
+  async startRecoveryPump(): Promise<void> {
+    const sweep = async () => {
+      try {
+        const result = await db.execute(sql`
+          SELECT DISTINCT type FROM intelligent_jobs
+          WHERE status = 'queued' AND scheduled_for <= NOW()
+        `);
+        const types = (result.rows as { type: string }[]).map(r => r.type);
+        if (types.length > 0) {
+          logger.info(`[JobQueue] Recovery pump found ${types.length} queued job type(s): ${types.join(", ")}`);
+          await Promise.allSettled(types.map(t => this.processNext(t)));
+        }
+      } catch (err: any) {
+        logger.error(`[JobQueue] Recovery pump error: ${err.message}`);
+      }
+    };
+    await sweep();
+    setInterval(sweep, 5 * 60_000);
+  }
+
   async getStats(): Promise<{ queued: number; processing: number; done: number; failed: number }> {
     const result = await db.execute(sql`
       SELECT status, count(*) as count 
