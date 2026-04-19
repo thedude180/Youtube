@@ -1705,6 +1705,7 @@ export function registerContentRoutes(app: Express) {
           contentType: ct,
           contentCategory: resolveContentCategory(ct, plat),
           status: (vid.status === "published" || vid.status === "public") ? "uploaded" : "scheduled",
+          gameName: (vid.metadata as any)?.gameName || null,
         });
       }
 
