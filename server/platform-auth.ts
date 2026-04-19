@@ -2,6 +2,7 @@ import crypto from "crypto";
 import type { Express } from "express";
 import { OAUTH_CONFIGS, type OAuthPlatformConfig } from "./oauth-config";
 import { authStorage } from "./replit_integrations/auth/storage";
+import { storage } from "./storage";
 import type { Platform } from "@shared/schema";
 import { createLogger } from "./lib/logger";
 
@@ -47,6 +48,15 @@ export function setupPlatformAuth(app: Express) {
         (req.session as any).oauth_code_verifier = codeVerifier;
       }
 
+      // If user is already logged in, record their ID so the callback can
+      // link the platform to the existing account instead of creating a new user.
+      if (req.isAuthenticated && req.isAuthenticated()) {
+        const currentUserId = (req.user as any)?.claims?.sub;
+        if (currentUserId) {
+          (req.session as any).oauth_linking_user = currentUserId;
+        }
+      }
+
       const minimalScopes = getAuthScopes(platform, config);
       const scopeDelimiter = config.usesClientKey ? "," : " ";
       const params = new URLSearchParams({
@@ -87,11 +97,13 @@ export function setupPlatformAuth(app: Express) {
       const sessionPlatform = (req.session as any).oauth_platform;
       const sessionTimestamp = (req.session as any).oauth_timestamp;
       const codeVerifier = (req.session as any).oauth_code_verifier;
+      const linkingUserId: string | undefined = (req.session as any).oauth_linking_user;
 
       delete (req.session as any).oauth_state;
       delete (req.session as any).oauth_platform;
       delete (req.session as any).oauth_timestamp;
       delete (req.session as any).oauth_code_verifier;
+      delete (req.session as any).oauth_linking_user;
 
       if (!state || !sessionState || state !== sessionState) {
         return res.redirect(`/?auth_error=invalid_state`);
@@ -171,6 +183,45 @@ export function setupPlatformAuth(app: Express) {
           return res.redirect(`/?auth_error=no_user_id`);
         }
 
+        // ── CASE 1: User is already logged in ─────────────────────────────────
+        // Don't switch accounts. Link the platform as a connected channel and
+        // return them to the dashboard.
+        const existingUserId = linkingUserId || (req.isAuthenticated && req.isAuthenticated() ? (req.user as any)?.claims?.sub : null);
+        if (existingUserId) {
+          try {
+            const channelName = platformUser.displayName || platformUser.username || platform;
+            const existingChannels = await storage.getChannelsByUser(existingUserId);
+            const existingChannel = existingChannels.find((c: any) => c.platform === platform && c.channelId === platformUser.id);
+
+            if (existingChannel) {
+              await storage.updateChannel(existingChannel.id, {
+                accessToken,
+                refreshToken: tokenData.refresh_token || existingChannel.refreshToken || null,
+                tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000),
+                channelName,
+              });
+            } else {
+              await storage.createChannel({
+                userId: existingUserId,
+                platform: platform as Platform,
+                channelName,
+                channelId: platformUser.id,
+                accessToken,
+                refreshToken: tokenData.refresh_token || null,
+                tokenExpiresAt: new Date(Date.now() + (tokenData.expires_in || 3600) * 1000),
+              });
+            }
+          } catch (e) {
+            authLogger.warn("Channel link failed for existing user", { platform, error: String(e) });
+          }
+
+          return req.session.save((saveErr) => {
+            if (saveErr) authLogger.error("Session save error", { platform, error: String(saveErr) });
+            res.redirect(`/?platform_connected=${platform}`);
+          });
+        }
+
+        // ── CASE 2: Not logged in — find or create user ────────────────────────
         const userId = `${platform}_${platformUser.id}`;
         const email = userInfoData.email || `${platformUser.id}@${platform}.oauth`;
         const displayName = platformUser.displayName || platformUser.username || platform;
@@ -185,6 +236,9 @@ export function setupPlatformAuth(app: Express) {
           lastName,
           profileImageUrl: userInfoData.avatar || userInfoData.profile_image_url || null,
         });
+
+        // Detect returning user before we log them in (onboardingCompleted will be set)
+        const isReturningUser = !!(dbUser as any).onboardingCompleted;
 
         const sessionUser = {
           claims: {
@@ -205,11 +259,14 @@ export function setupPlatformAuth(app: Express) {
             return res.redirect(`/?auth_error=login_failed`);
           }
 
-          try {
-            const { initializeUserSystems } = await import("./services/post-login-init");
-            await initializeUserSystems(dbUser.id || userId);
-          } catch (e) {
-            authLogger.error("Post-login init failed", { platform, error: String(e) });
+          // Only run full system init for brand-new users to avoid re-triggering onboarding
+          if (!isReturningUser) {
+            try {
+              const { initializeUserSystems } = await import("./services/post-login-init");
+              await initializeUserSystems(dbUser.id || userId);
+            } catch (e) {
+              authLogger.error("Post-login init failed", { platform, error: String(e) });
+            }
           }
 
           req.session.save((saveErr) => {
