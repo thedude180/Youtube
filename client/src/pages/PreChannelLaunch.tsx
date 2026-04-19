@@ -63,6 +63,10 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
     queryKey: ["/api/channel-launch/state"],
   });
 
+  const { data: linkedChannels = [] } = useQuery<Array<{ platform: string; isConnected: boolean }>>({
+    queryKey: ["/api/linked-channels"],
+  });
+
   const { data: missions = [], isLoading: missionsLoading } = useQuery<LaunchMission[]>({
     queryKey: ["/api/channel-launch/missions"],
   });
@@ -150,6 +154,14 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
       if (firstPending) setActiveStep(firstPending.step);
     }
   }, [missions]);
+
+  useEffect(() => {
+    const ytLinked = linkedChannels.some(c => c.platform === "youtube" && c.isConnected);
+    if (ytLinked && activeStep === 9) {
+      toast({ title: "YouTube Already Connected", description: "Your channel is linked — taking you to the dashboard." });
+      setTimeout(onComplete, 1200);
+    }
+  }, [linkedChannels, activeStep]);
 
   const completedCount = missions.filter(m => m.status === "completed").length;
   const totalMissions = missions.length || 10;
@@ -499,7 +511,7 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
           <div className="bg-muted/30 rounded-lg p-4 space-y-3">
             <p className="text-sm">Click "Connect YouTube" below to link your new channel to CreatorOS. We'll use your existing Google login to find your channel.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button data-testid="button-connect-youtube" onClick={() => { window.location.href = "/api/youtube/auth"; }}>
               <Youtube className="h-4 w-4 mr-2" />
               Connect YouTube Channel
@@ -509,6 +521,16 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
               Recheck Connection
             </Button>
           </div>
+          <Button
+            data-testid="button-skip-connect-youtube"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground w-full"
+            onClick={onComplete}
+          >
+            Skip — I'll connect YouTube later
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
         </div>
       );
     }
@@ -608,14 +630,12 @@ export default function PreChannelLaunch({ onComplete }: { onComplete: () => voi
           })}
         </div>
 
-        {completedCount >= 7 && (
-          <div className="mt-8 text-center">
-            <Button data-testid="button-skip-to-dashboard" variant="ghost" onClick={onComplete}>
-              Skip remaining steps and enter dashboard
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          </div>
-        )}
+        <div className="mt-8 text-center">
+          <Button data-testid="button-skip-to-dashboard" variant="ghost" className="text-muted-foreground text-sm" onClick={onComplete}>
+            {completedCount >= 7 ? "Skip remaining steps and enter dashboard" : "Skip setup and enter dashboard"}
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
       </div>
     </div>
   );

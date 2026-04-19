@@ -674,6 +674,8 @@ function AppContent() {
       window.history.replaceState({}, "", cleanUrl);
     }
     if (ytError) {
+      setNeedsPreChannelLaunch(false);
+      setNeedsOnboarding(prev => (prev === null ? null : false));
       toast({ title: "YouTube Connection Failed", description: decodeURIComponent(ytError), variant: "destructive" });
       window.history.replaceState({}, "", cleanUrl);
     }
