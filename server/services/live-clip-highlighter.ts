@@ -60,7 +60,7 @@ Generate a moment capture. Return JSON:
 {
   "momentDescription": "What's likely happening right now (e.g., 'Boss fight final phase, tense moment')",
   "tiktokPost": "Under 150 chars — 'LIVE RIGHT NOW 🎮 [hook] — link in bio' format, PS5 gaming energy",
-  "discordPost": "@here 🎬 CLIP THIS! [exciting moment description] at the [${streamMinutes} min mark] — [YouTube link placeholder: STREAM_LINK]",
+  "discordPost": "@here 🎬 CLIP THIS! [exciting moment description] at the [${streamMinutes} min mark] — STREAM_LINK",
   "viralScore": 75
 }`,
       }, {

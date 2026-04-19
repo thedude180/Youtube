@@ -158,7 +158,8 @@ export const streamOperator = {
     const incomingMessages = newMessages.filter(m => !m.authorDetails?.isChatOwner && !m.authorDetails?.isChatModerator);
     
     // Moderate first (Keyword fast-path)
-    const bannedKeywords = ['spam', 'offensive_word_placeholder']; // Should ideally come from DNA or settings
+    // Real banned terms should be sourced from user settings or a configuration table.
+    const bannedKeywords = ['spam'];
     for (const msg of incomingMessages) {
       const text = msg.snippet?.displayMessage?.toLowerCase() || "";
       if (bannedKeywords.some(k => text.includes(k))) {

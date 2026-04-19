@@ -70,7 +70,7 @@ Generate an optimized live stream update. Return valid JSON with:
 - optimizedTags (array of 20 strings — game name, genre, "live", "gaming", "ps5", specifics, trending terms)
 - discordPost (@everyone announcement, exciting, include context about what's happening)
 - tiktokPost (short text-post, under 150 chars, drive to YouTube)
-- xPost (tweet-style, under 280 chars, include hook + YouTube link placeholder [LINK])
+- xPost (tweet-style, under 280 chars, include hook + write [LINK] exactly where the stream URL belongs)
 - instagramCaption (engaging caption, under 300 chars with hashtags, drive to YouTube)
 - kickPost (short viewer-engaging message, under 200 chars)
 - urgency: "high" if viewers < 50, "medium" if 50-200, "low" if 200+
@@ -119,7 +119,7 @@ LIVE TITLE FORMULA:
 - Use pipe | separators
 
 SOCIAL BLAST FORMULA:
-- Discord: @everyone announcement, exciting, include what's happening, [LINK] placeholder
+- Discord: @everyone announcement, exciting, include what's happening; use [LINK] exactly where the stream URL should appear
 - TikTok: Under 150 chars, text post format, drive to YouTube, link in bio
 
 Return ONLY valid JSON, no markdown.`;
