@@ -22,11 +22,23 @@ export function getDependencyStatus(): DependencyStatus {
   return _status;
 }
 
+/**
+ * Returns true if ffmpeg is confirmed available, OR if the probe hasn't run yet
+ * (we assume availability until proven otherwise to avoid false-blocking during
+ * the brief startup window before checkDependencies() completes).
+ * Returns false only once we've checked and confirmed ffmpeg is missing.
+ */
 export function isFfmpegAvailable(): boolean {
+  if (!_checked) return true;
   return _status.ffmpeg.available;
 }
 
+/**
+ * Returns true if yt-dlp is confirmed available, OR if the probe hasn't run yet.
+ * Returns false only once we've checked and confirmed yt-dlp is missing.
+ */
 export function isYtdlpAvailable(): boolean {
+  if (!_checked) return true;
   return _status.ytdlp.available;
 }
 
