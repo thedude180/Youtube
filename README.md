@@ -57,6 +57,12 @@ Activates the pre-commit checks (Drizzle schema sync, etc.) for this clone:
 bash scripts/install-hooks.sh
 ```
 
+To run all quality checks at any time without making a commit:
+
+```bash
+bash scripts/check-all.sh
+```
+
 ### 6. Run the development server
 
 ```bash
