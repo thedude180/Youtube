@@ -31,6 +31,7 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 type AIResponse = any;
 
 function safeFormatCurrency(value: unknown): string {
+  if (typeof value === "string" && value.trim() === "") return "—";
   const n = Number(value);
   return isFinite(n) ? n.toLocaleString() : "—";
 }
