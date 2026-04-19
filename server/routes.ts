@@ -305,30 +305,8 @@ export async function registerRoutes(
     next();
   });
 
-  const FREE_AI_ROUTES = new Set([
-    "/dashboard-actions", "/content-ideas", "/advisor",
-    "/daily-briefing", "/health-score",
-  ]);
-
-  app.use("/api/ai", async (req: any, res, next) => {
-    if (FREE_AI_ROUTES.has(req.path)) return next();
-    if (!req.isAuthenticated()) return next();
-    const userId = getUserId(req);
-    if (!userId) return next();
-    try {
-      const user = await storage.getUser(userId);
-      if (user && user.tier === "free") {
-        return res.status(403).json({
-          error: "upgrade_required",
-          message: "This feature requires a paid subscription. Please upgrade your plan.",
-          currentTier: "free",
-          requiredTier: "starter",
-          upgradeUrl: "/settings?tab=billing",
-        });
-      }
-    } catch (err) { logger.error("Tier check error", { error: String(err) }); }
-    next();
-  });
+  // Free-tier AI access is enforced per-route via requireTier/requireAuth
+  // so that each route can return the correct requiredTier in its 403 payload.
 
   registerAdminRoutes(app);
   registerContentRoutes(app);
