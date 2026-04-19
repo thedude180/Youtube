@@ -258,7 +258,27 @@ export function idempotencyGuard() {
 
       if (!existing) {
         // Row disappeared between our failed insert and this select (e.g. TTL cleanup).
-        // Treat as a fresh request.
+        // Re-try the atomic insert so we hold a lock before proceeding.
+        const reinserted = await db
+          .insert(idempotencyLedger)
+          .values({
+            idempotencyKey: key,
+            operationType: "http_request",
+            status: "in_progress",
+            userId: userSub,
+            expiresAt: inProgressExpiresAt,
+          })
+          .onConflictDoNothing()
+          .returning({ id: idempotencyLedger.id })
+          .catch(() => [] as { id: number }[]);
+
+        if (reinserted.length === 0) {
+          // A concurrent request won the reinsert race — treat this as a duplicate.
+          return res.status(409).json({
+            error: "request_in_progress",
+            message: "A request with this idempotency key is already being processed. Retry after the first request completes.",
+          });
+        }
         attachIdempotencyPersistence(res, key, completedExpiresAt);
         return next();
       }
