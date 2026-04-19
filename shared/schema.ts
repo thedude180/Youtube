@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 
 export { sessions, users, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL, CHANNEL_LAUNCH_STATES } from "./models/auth";
 export type { User, UpsertUser, SubscriptionTier, UserRole, ChannelLaunchState } from "./models/auth";
+import { users } from "./models/auth";
 export { conversations, messages } from "./models/chat";
 
 export const channelLaunchStates = pgTable("channel_launch_states", {
@@ -457,7 +458,7 @@ export const streamDestinations = pgTable("stream_destinations", {
 
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category"),
@@ -654,7 +655,7 @@ export const scheduleItems = pgTable("schedule_items", {
 
 export const revenueRecords = pgTable("revenue_records", {
   id: serial("id").primaryKey(),
-  userId: text("user_id"),
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
   platform: text("platform").notNull(),
   source: text("source").notNull(),
   amount: real("amount").notNull().default(0),

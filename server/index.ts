@@ -42,6 +42,7 @@ import { writeFileSync as _writeFileSync, appendFileSync as _appendFileSync } fr
 import fs from "fs";
 import path from "path";
 import { jitter } from "./lib/timer-utils";
+import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
 
 // ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
 // In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
@@ -800,6 +801,7 @@ app.get("/api/health", async (_req, res) => {
     const poolHealthy = pool.waitingCount < 10;
 
     const overallStatus = dbHealthy && memHealthy && poolHealthy ? "ok" : "degraded";
+    const depStatus = getDependencyStatus();
 
     res.json({
       status: overallStatus,
@@ -808,9 +810,14 @@ app.get("/api/health", async (_req, res) => {
       timestamp: new Date().toISOString(),
       database: { status: dbHealthy ? "healthy" : "degraded", connected: true },
       memory: { heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+      binaries: {
+        ffmpeg: { available: depStatus.ffmpeg.available, version: depStatus.ffmpeg.version },
+        ytdlp:  { available: depStatus.ytdlp.available,  version: depStatus.ytdlp.version, binary: depStatus.ytdlp.binary },
+      },
       hardened: true,
     });
   } catch (err) {
+    const depStatus = getDependencyStatus();
     res.status(200).json({
       status: "degraded",
       uptime,
@@ -818,6 +825,10 @@ app.get("/api/health", async (_req, res) => {
       timestamp: new Date().toISOString(),
       database: { status: "unhealthy", connected: false },
       memory: { heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+      binaries: {
+        ffmpeg: { available: depStatus.ffmpeg.available, version: depStatus.ffmpeg.version },
+        ytdlp:  { available: depStatus.ytdlp.available,  version: depStatus.ytdlp.version, binary: depStatus.ytdlp.binary },
+      },
       hardened: true,
     });
   }
@@ -1091,6 +1102,11 @@ httpServer.listen(
     // tight parallel waves after that. Most inits just register a setInterval
     // (sub-ms) — heavy work runs on each service's own deferred first cycle.
     // Total boot: ~35s (was 730s).
+
+    // ── WAVE 0 (T+2s): Binary availability probe ─────────────────────────────
+    delay(2_000, () => {
+      checkDependencies().catch(err => logger.error("[Boot] dependency-check failed", { error: String(err) }));
+    });
 
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {

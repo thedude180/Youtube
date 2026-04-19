@@ -386,6 +386,47 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  /**
+   * deleteChannel — cascading hard-delete for a channel and all dependent rows.
+   *
+   * ─── TABLES COVERED ─────────────────────────────────────────────────────────
+   *
+   * GROUP A — direct channel_id FK (deleted first):
+   *   compliance_records, growth_strategies, channel_baseline_snapshots,
+   *   platform_health, compliance_checks, copyright_claims,
+   *   disclosure_requirements, youtube_push_backlog,
+   *   creator_credibility_scores, channel_immune_events,
+   *   source_quality_profiles, archive_master_records
+   *
+   * GROUP B — video_id FK (via sub-SELECT of channel's video IDs):
+   *   playlist_items, ab_tests, comment_responses, comment_sentiments,
+   *   content_lifecycle, content_pipeline, content_quality_scores,
+   *   ctr_optimizations, editing_notes, evergreen_classifications,
+   *   optimization_passes, search_rankings, seo_scores, stream_pipelines,
+   *   upload_queue, video_versions, schedule_items, content_kanban,
+   *   compounding_jobs, video_update_history, ab_test_results
+   *
+   * GROUP C — dual-column FK (both columns point to video IDs):
+   *   cannibalization_alerts (video_id_1 OR video_id_2)
+   *
+   * GROUP D — source_video_id FK:
+   *   autopilot_queue, content_clips, repurposed_content, vod_cuts,
+   *   content_atoms, clip_queue_items, moment_genome_classifications
+   *
+   * GROUP E — clip_id FK (via sub-SELECT of content_clips):
+   *   clip_virality_scores
+   *
+   * GROUP F — thumbnails (video_id FK):
+   *   thumbnails
+   *
+   * GROUP G — the videos rows themselves, then the channel row.
+   *
+   * ─── ⚠️ MAINTENANCE REQUIRED ─────────────────────────────────────────────────
+   * If you ADD a new table that references channel_id, video_id, or
+   * source_video_id, you MUST add a DELETE statement for it here.
+   * Run `node scripts/check-channel-tables.mjs` to audit coverage.
+   * ─────────────────────────────────────────────────────────────────────────────
+   */
   async deleteChannel(id: number): Promise<void> {
     await db.transaction(async (tx) => {
       const channelTables = [
