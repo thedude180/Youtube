@@ -49,7 +49,15 @@ Make sure PostgreSQL is running, then push the schema:
 npm run db:push
 ```
 
-### 5. Run the development server
+### 5. Install git hooks
+
+Activates the pre-commit checks (Drizzle schema sync, etc.) for this clone:
+
+```bash
+bash scripts/install-hooks.sh
+```
+
+### 6. Run the development server
 
 ```bash
 npm run dev
@@ -57,7 +65,7 @@ npm run dev
 
 The app will be available at `http://localhost:5000`.
 
-### 6. Build for production
+### 7. Build for production
 
 ```bash
 npm run build
