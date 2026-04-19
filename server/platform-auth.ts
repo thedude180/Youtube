@@ -8,7 +8,7 @@ import { createLogger } from "./lib/logger";
 const authLogger = createLogger("platform-auth");
 
 const STATE_MAX_AGE = 10 * 60 * 1000;
-const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick"];
+const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick", "x"];
 
 function getAuthRedirectUri(platform: string, req?: any): string {
   if (process.env.REPLIT_DEPLOYMENT) {
