@@ -129,6 +129,27 @@ export async function registerRoutes(
     registerAuthRoutes(app);
   }
 
+  // ── Dev auth bypass: auto-authenticate all /api routes in development ──────
+  // In production this block is never reached (IS_DEV is false at build time).
+  if (IS_DEV) {
+    const DEV_USER = {
+      claims: {
+        sub: "dev_bypass_user",
+        email: "dev@creatoros.local",
+        first_name: "Dev",
+        last_name: "User",
+      },
+      auth_provider: "dev",
+    };
+    app.use("/api", (req, _res, next) => {
+      if (!req.isAuthenticated()) {
+        (req as any).user = DEV_USER;
+        req.isAuthenticated = () => true;
+      }
+      next();
+    });
+  }
+
   app.get("/api/auth/mode", (_req, res) => {
     res.json({ mode: IS_DEV ? "replit" : "oauth" });
   });

@@ -184,7 +184,57 @@ export async function setupAuth(app: Express) {
   });
 }
 
+const DEV_BYPASS_USER_ID = "dev_bypass_user";
+let devUserReady = false;
+
+async function ensureDevUser() {
+  if (devUserReady) return;
+  try {
+    const { db } = await import("../../db");
+    const { users } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+
+    let u = await authStorage.getUser(DEV_BYPASS_USER_ID);
+    if (!u) {
+      await authStorage.upsertUserTrusted({
+        id: DEV_BYPASS_USER_ID,
+        email: "dev@creatoros.local",
+        firstName: "Dev",
+        lastName: "User",
+      });
+    }
+
+    // Ensure ultimate tier + onboarding done (idempotent — safe to run each restart)
+    await db.update(users)
+      .set({ tier: "ultimate", role: "admin", onboardingCompleted: new Date() } as any)
+      .where(eq(users.id, DEV_BYPASS_USER_ID));
+
+    devUserReady = true;
+  } catch (e) {
+    replitAuthLogger.warn("Dev user init failed (non-fatal)", { error: String(e) });
+  }
+}
+
+const DEV_SESSION_USER = {
+  claims: {
+    sub: DEV_BYPASS_USER_ID,
+    email: "dev@creatoros.local",
+    first_name: "Dev",
+    last_name: "User",
+  },
+  auth_provider: "dev",
+};
+
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  // ── Dev bypass: skip auth entirely in development ──────────────────────────
+  if (process.env.NODE_ENV === "development") {
+    if (!req.isAuthenticated() || !(req.user as any)) {
+      await ensureDevUser();
+      (req as any).user = DEV_SESSION_USER;
+    }
+    return next();
+  }
+
   const user = req.user as any;
 
   if (!req.isAuthenticated() || !user) {
