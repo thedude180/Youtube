@@ -817,10 +817,19 @@ export function registerStreamRoutes(app: Express) {
         let detectionMethod = "api";
         if (quota.remaining > 5) {
           broadcasts = await checkYouTubeLiveBroadcasts(ytChannelAuth.id);
-        } else if (ytChannelAuth.channelId) {
-          detectionMethod = "rss";
-          const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAuth.channelId);
-          if (isLive) broadcasts = [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }];
+        }
+
+        if (broadcasts.length === 0 && ytChannelAuth.channelId) {
+          detectionMethod = "scrape";
+          const scraped = await detectYouTubeLiveFromChannel(ytChannelAuth.channelId);
+          if (scraped.isLive) {
+            broadcasts = [{
+              broadcastId: scraped.videoId || "scrape_live",
+              title: scraped.title || "Live Stream",
+              status: "active",
+              videoId: scraped.videoId,
+            }];
+          }
         }
 
         return {

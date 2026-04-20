@@ -5,7 +5,6 @@ const LIVE_SIGNALS = [
   '"isLiveNow":true',
   '"hlsManifestUrl":"https://manifest.googlevideo.com',
   '"hlsManifestUrl":"https://manifest',
-  '"status":"LIVE_STREAM_OFFLINE"',
   '"isLiveDvrEnabled":true',
   '"latencyClass":"NORMAL"',
   '"isLowLatencyLiveStream":true',
@@ -23,6 +22,61 @@ function containsLiveSignal(html: string): boolean {
   return !isOffline;
 }
 
+function extractVideoIdAndTitle(html: string, finalUrl: string): { videoId: string | null; title: string | null } {
+  let videoId: string | null = null;
+  if (finalUrl.includes("/watch?v=")) {
+    const m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if (m) videoId = m[1];
+  }
+  if (!videoId) {
+    const m = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
+    if (m) videoId = m[1];
+  }
+  let title: string | null = null;
+  const titleMatch = html.match(/<title>([^<]*)<\/title>/);
+  if (titleMatch) title = titleMatch[1].replace(/ - YouTube$/, "").trim() || null;
+  if (!title) {
+    const og = html.match(/<meta property="og:title" content="([^"]+)"/);
+    if (og) title = og[1];
+  }
+  return { videoId, title };
+}
+
+async function fetchLivePage(url: string): Promise<{ isLive: boolean; videoId: string | null; title: string | null }> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+    });
+    if (!res.ok) return { isLive: false, videoId: null, title: null };
+    const html = await res.text();
+    if (!containsLiveSignal(html)) return { isLive: false, videoId: null, title: null };
+    const { videoId, title } = extractVideoIdAndTitle(html, res.url);
+    return { isLive: true, videoId, title };
+  } catch {
+    return { isLive: false, videoId: null, title: null };
+  }
+}
+
+async function resolveChannelHandle(channelId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.youtube.com/channel/${channelId}`, {
+      signal: AbortSignal.timeout(10000),
+      redirect: "follow",
+      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+    });
+    const finalUrl = res.url;
+    const handleFromUrl = finalUrl.match(/youtube\.com\/@([A-Za-z0-9_.-]+)/)?.[1];
+    if (handleFromUrl) return handleFromUrl;
+    const html = await res.text();
+    const handleFromHtml = html.match(/"canonicalBaseUrl":"\/@([A-Za-z0-9_.-]+)"/)?.[1]
+      || html.match(/href="\/@([A-Za-z0-9_.-]+)"/)?.[1];
+    return handleFromHtml || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function checkYouTubeLiveViaWatchPage(videoId: string): Promise<boolean> {
   try {
     const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -38,46 +92,16 @@ export async function checkYouTubeLiveViaWatchPage(videoId: string): Promise<boo
 }
 
 async function checkChannelLivePage(channelId: string): Promise<{ isLive: boolean; videoId: string | null; title: string | null }> {
-  try {
-    const res = await fetch(`https://www.youtube.com/channel/${channelId}/live`, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
-    });
-    if (!res.ok) return { isLive: false, videoId: null, title: null };
+  const direct = await fetchLivePage(`https://www.youtube.com/channel/${channelId}/live`);
+  if (direct.isLive) return direct;
 
-    const finalUrl = res.url;
-    const html = await res.text();
-
-    let videoId: string | null = null;
-
-    if (finalUrl.includes("/watch?v=")) {
-      const m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-      if (m) videoId = m[1];
-    }
-
-    if (!videoId) {
-      const m = html.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
-      if (m) videoId = m[1];
-    }
-
-    if (!containsLiveSignal(html)) {
-      return { isLive: false, videoId: null, title: null };
-    }
-
-    let title: string | null = null;
-    const titleMatch = html.match(/<title>([^<]*)<\/title>/);
-    if (titleMatch) {
-      title = titleMatch[1].replace(/ - YouTube$/, "").trim() || null;
-    }
-    if (!title) {
-      const ogTitle = html.match(/<meta property="og:title" content="([^"]+)"/);
-      if (ogTitle) title = ogTitle[1];
-    }
-
-    return { isLive: true, videoId, title };
-  } catch {
-    return { isLive: false, videoId: null, title: null };
+  const handle = await resolveChannelHandle(channelId);
+  if (handle) {
+    const byHandle = await fetchLivePage(`https://www.youtube.com/@${handle}/live`);
+    if (byHandle.isLive) return byHandle;
   }
+
+  return { isLive: false, videoId: null, title: null };
 }
 
 async function checkRssFeed(channelId: string): Promise<Array<{ videoId: string; title: string }>> {
@@ -118,12 +142,9 @@ export async function detectYouTubeLiveFromChannel(channelId: string): Promise<{
 }> {
   try {
     const livePage = await checkChannelLivePage(channelId);
-    if (livePage.isLive) {
-      return livePage;
-    }
+    if (livePage.isLive) return livePage;
 
     const rssEntries = await checkRssFeed(channelId);
-
     for (const entry of rssEntries) {
       const live = await checkYouTubeLiveViaWatchPage(entry.videoId);
       if (live) return { isLive: true, videoId: entry.videoId, title: entry.title };
