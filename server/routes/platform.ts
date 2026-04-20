@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import type { PlatformFetchedData } from "../platform-data-fetcher";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, desc, inArray } from "drizzle-orm";
@@ -1777,16 +1778,16 @@ export async function registerPlatformRoutes(app: Express) {
 
       try {
         // Cap at 10s — these are best-effort enrichment calls, never block the save
-        const fetched = await Promise.race([
+        const fetched = await Promise.race<PlatformFetchedData>([
           fetchPlatformData(platform as Platform, accessToken, channelId),
-          new Promise<{ platformData: {} }>((resolve) => setTimeout(() => resolve({ platformData: {} }), 10_000)),
+          new Promise<PlatformFetchedData>((resolve) => setTimeout(() => resolve({ platformData: {} }), 10_000)),
         ]);
         if (fetched.streamKey) streamKey = fetched.streamKey;
         if (fetched.rtmpUrl) rtmpUrl = fetched.rtmpUrl;
         if (fetched.channelName) channelName = fetched.channelName;
         if (fetched.channelId) channelId = fetched.channelId;
         if (fetched.profileUrl) profileUrl = fetched.profileUrl;
-        if ("followerCount" in fetched && fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
+        if (fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
         if (fetched.platformData) platformDataObj = fetched.platformData;
       } catch (e) {
         logger.error(`[OAuth ${platform}] Platform data fetch failed:`, e);
