@@ -629,12 +629,27 @@ export async function getConnectionHealth(userId: string): Promise<{
   const userLinked = await db.select().from(linkedChannels)
     .where(eq(linkedChannels.userId, userId));
 
+  const ENV_BASED_PLATFORMS = ["discord", "kick", "twitch", "tiktok", "rumble"];
   const platformMap = new Map<string, any>();
   for (const ch of userChannels) {
     const pd = (ch.platformData || {}) as any;
-    const status = ch.accessToken
-      ? (pd._connectionStatus || "healthy")
-      : "disconnected";
+    const isEnvBased = ENV_BASED_PLATFORMS.includes(ch.platform || "");
+    const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
+    const isDevSentinel = ch.accessToken === "dev_api_key_mode";
+    const hasToken = !!(ch.accessToken || ch.refreshToken) || hasEnvAuth || isDevSentinel;
+    const guardianStatus = pd._connectionStatus as string | undefined;
+    let status: "healthy" | "degraded" | "expired" | "disconnected";
+    if (!hasToken) {
+      status = "disconnected";
+    } else if (guardianStatus === "degraded") {
+      status = "degraded";
+    } else if (guardianStatus === "expired") {
+      status = "expired";
+    } else if (guardianStatus === "disconnected") {
+      status = "disconnected";
+    } else {
+      status = "healthy";
+    }
     platformMap.set(ch.platform, {
       platform: ch.platform,
       channelName: ch.channelName || ch.platform,
