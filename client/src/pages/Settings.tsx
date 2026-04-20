@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -162,6 +164,39 @@ function PlatformConnectionsCard({
   });
 
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [xTokenDialog, setXTokenDialog] = useState(false);
+  const [xAccessToken, setXAccessToken] = useState("");
+  const [xRefreshToken, setXRefreshToken] = useState("");
+  const [xTokenSaving, setXTokenSaving] = useState(false);
+
+  const handleSaveXTokens = async () => {
+    if (!xAccessToken.trim()) {
+      toast({ title: "Access token required", description: "Please paste your X access token.", variant: "destructive" });
+      return;
+    }
+    setXTokenSaving(true);
+    try {
+      const res = await fetch("/api/oauth/x/manual-token", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: xAccessToken.trim(), refreshToken: xRefreshToken.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save tokens");
+      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
+      toast({ title: "X connected!", description: `Connected as @${data.username}` });
+      setXTokenDialog(false);
+      setXAccessToken("");
+      setXRefreshToken("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setXTokenSaving(false);
+    }
+  };
 
   const FOCUSED_PLATFORMS = [
     { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
@@ -499,20 +534,27 @@ function PlatformConnectionsCard({
               const bgColor = p.color === "#000000" ? "#1a1a1a" : p.color;
               const borderColor = p.color === "#000000" ? "#444" : p.color;
               return (
-                <Button key={p.key} data-testid={`button-connect-${p.key}`} className="w-full justify-start relative"
-                  style={{ backgroundColor: canOAuth ? bgColor : "#1e1e2a", border: `1px solid ${canOAuth ? borderColor : "#3a3a4a"}`, color: canOAuth ? "#fff" : "#8888aa" }}
-                  disabled={oauthLoading === p.key}
-                  onClick={() => {
-                    if (!canOAuth) {
-                      toast({ title: `${p.label} not configured`, description: `${p.label} OAuth credentials are not set up yet. Contact your administrator to add the required API keys.`, variant: "destructive" });
-                      return;
-                    }
-                    handleOAuthLogin(p.key, p.isYouTube);
-                  }}>
-                  {oauthLoading === p.key ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <p.Icon className="h-4 w-4 mr-2" />}
-                  {oauthLoading === p.key ? "Connecting..." : `Connect ${p.label}`}
-                  {!canOAuth && <span className="ml-auto text-xs opacity-60">Not configured</span>}
-                </Button>
+                <div key={p.key} className="flex flex-col gap-1">
+                  <Button data-testid={`button-connect-${p.key}`} className="w-full justify-start relative"
+                    style={{ backgroundColor: canOAuth ? bgColor : "#1e1e2a", border: `1px solid ${canOAuth ? borderColor : "#3a3a4a"}`, color: canOAuth ? "#fff" : "#8888aa" }}
+                    disabled={oauthLoading === p.key}
+                    onClick={() => {
+                      if (!canOAuth) {
+                        toast({ title: `${p.label} not configured`, description: `${p.label} OAuth credentials are not set up yet. Contact your administrator to add the required API keys.`, variant: "destructive" });
+                        return;
+                      }
+                      handleOAuthLogin(p.key, p.isYouTube);
+                    }}>
+                    {oauthLoading === p.key ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <p.Icon className="h-4 w-4 mr-2" />}
+                    {oauthLoading === p.key ? "Connecting..." : `Connect ${p.label}`}
+                    {!canOAuth && <span className="ml-auto text-xs opacity-60">Not configured</span>}
+                  </Button>
+                  {p.key === "x" && import.meta.env.DEV && (
+                    <button data-testid="button-x-paste-tokens" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 text-left px-1 transition-colors" onClick={() => setXTokenDialog(true)}>
+                      Paste tokens manually (dev)
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -520,6 +562,31 @@ function PlatformConnectionsCard({
           <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
         )}
       </CardContent>
+
+      <Dialog open={xTokenDialog} onOpenChange={setXTokenDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><SiX className="h-4 w-4" /> Connect X (Twitter) — Dev</DialogTitle>
+            <DialogDescription>Paste your X OAuth tokens directly. This option is only available in development mode.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="x-access-token">Access Token <span className="text-destructive">*</span></Label>
+              <Textarea id="x-access-token" data-testid="input-x-access-token" rows={3} placeholder="Paste your X access token here..." value={xAccessToken} onChange={e => setXAccessToken(e.target.value)} className="font-mono text-xs resize-none" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="x-refresh-token">Refresh Token <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea id="x-refresh-token" data-testid="input-x-refresh-token" rows={2} placeholder="Paste your X refresh token here..." value={xRefreshToken} onChange={e => setXRefreshToken(e.target.value)} className="font-mono text-xs resize-none" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setXTokenDialog(false)} disabled={xTokenSaving}>Cancel</Button>
+            <Button data-testid="button-x-save-tokens" onClick={handleSaveXTokens} disabled={xTokenSaving || !xAccessToken.trim()} style={{ backgroundColor: "#1a1a1a", border: "1px solid #444", color: "#fff" }}>
+              {xTokenSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Connecting...</> : <><SiX className="h-4 w-4 mr-2" />Save & Connect</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

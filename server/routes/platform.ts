@@ -1483,6 +1483,71 @@ export async function registerPlatformRoutes(app: Express) {
     res.json(status);
   });
 
+  app.post("/api/oauth/x/manual-token", async (req, res) => {
+    if (process.env.REPLIT_DEPLOYMENT) {
+      return res.status(403).json({ error: "Manual token entry is only available in development mode" });
+    }
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { accessToken, refreshToken } = req.body;
+    if (!accessToken) return res.status(400).json({ error: "accessToken is required" });
+    try {
+      const userInfoRes = await fetch("https://api.twitter.com/2/users/me?user.fields=id,name,username,public_metrics", {
+        headers: { "Authorization": `Bearer ${accessToken}` },
+      });
+      if (!userInfoRes.ok) {
+        const err = await userInfoRes.json().catch(() => ({}));
+        return res.status(400).json({ error: `Failed to verify X token: ${(err as any).detail || userInfoRes.statusText}` });
+      }
+      const userData = await userInfoRes.json();
+      const twitterUser = userData.data;
+      const channelName = twitterUser.name || twitterUser.username || "X User";
+      const channelId = twitterUser.id;
+      const followerCount = twitterUser.public_metrics?.followers_count ?? null;
+      const platformData = {
+        username: twitterUser.username,
+        name: twitterUser.name,
+        followersCount: followerCount,
+        _connectionStatus: "healthy",
+        _lastVerifiedAt: Date.now(),
+        _reconnectFailures: 0,
+        lastFetchedAt: new Date().toISOString(),
+      };
+      const existingChannels = await storage.getChannelsByUser(userId);
+      const existing = existingChannels.find(c => c.platform === "x");
+      if (existing) {
+        await storage.updateChannel(existing.id, {
+          accessToken,
+          refreshToken: refreshToken || null,
+          tokenExpiresAt: null,
+          channelName,
+          channelId,
+          subscriberCount: followerCount,
+          lastSyncAt: new Date(),
+          platformData: { ...((existing.platformData as any) || {}), ...platformData },
+        });
+      } else {
+        await storage.createChannel({
+          userId,
+          platform: "x",
+          channelName,
+          channelId,
+          accessToken,
+          refreshToken: refreshToken || null,
+          tokenExpiresAt: null,
+          subscriberCount: followerCount,
+          platformData,
+          settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+        });
+      }
+      logger.info(`[OAuth x] Manual token saved for user ${userId}: @${twitterUser.username}`);
+      res.json({ success: true, channelName, channelId, username: twitterUser.username });
+    } catch (err: any) {
+      logger.error("[OAuth x] Manual token save failed:", err);
+      res.status(500).json({ error: err.message || "Failed to save X token" });
+    }
+  });
+
   app.get("/api/oauth/:platform/auth", (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
