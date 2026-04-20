@@ -184,6 +184,41 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  // DEV-ONLY: Force-reconnect any YouTube channel row via OAuth on behalf of the channel's real owner.
+  // Sets the session userId to the channel's owner so the callback stores tokens on the correct row.
+  // Usage: navigate to /api/admin/channels/32/reconnect-youtube in the browser while in dev.
+  app.get("/api/admin/channels/:id/reconnect-youtube", async (req: any, res) => {
+    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+    if (isProduction) return res.status(404).json({ error: "Not found" });
+
+    const channelRowId = parseInt(req.params.id, 10);
+    if (isNaN(channelRowId)) return res.status(400).json({ error: "Invalid channel row ID" });
+
+    try {
+      const { db } = await import("../db");
+      const { channels } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(channels).where(eq(channels.id, channelRowId)).limit(1);
+      const ch = rows[0];
+      if (!ch) return res.status(404).json({ error: `No channel found with id=${channelRowId}` });
+      if (!["youtube", "youtubeshorts"].includes(ch.platform)) {
+        return res.status(400).json({ error: `Platform '${ch.platform}' is not YouTube — only YouTube channels can use this route` });
+      }
+
+      // Impersonate the channel's real owner for the OAuth callback
+      (req.session as any).youtubeOAuthUserId = ch.userId;
+      req.session.save(() => {});
+
+      const { getAuthUrl } = await import("../youtube");
+      const authUrl = getAuthUrl(ch.userId);
+      logger.warn(`[AdminReconnect] Initiating YouTube OAuth for channel ${channelRowId} (${ch.channelName}) on behalf of user ${ch.userId}`);
+      res.redirect(authUrl);
+    } catch (err: any) {
+      logger.error("[AdminReconnect] Error:", err);
+      res.status(500).json({ error: "Internal error — check server logs" });
+    }
+  });
+
   // DEV-ONLY: Connect a YouTube channel by URL/handle without going through OAuth.
   // Uses GOOGLE_API_KEY to fetch public channel info and registers it in the database.
   // Blocked in production deployments.

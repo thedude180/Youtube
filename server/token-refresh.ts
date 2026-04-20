@@ -211,9 +211,17 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
       )
     );
 
+    const isDevEnvExpiry = !process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production";
+
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
       const pd = (ch.platformData || {}) as any;
+
+      // In dev, skip expiry-based refresh for non-dev users — production manages its own tokens.
+      // This prevents a simultaneous refresh race that would consume and invalidate production refresh tokens.
+      if (isDevEnvExpiry && ch.userId !== "dev_bypass_user") {
+        continue;
+      }
 
       // Only stop retrying after hitting the permanent failure threshold
       if (pd._connectionStatus === "expired" && (pd._permanentFailures || 0) >= PERMANENT_FAILURE_THRESHOLD) continue;
@@ -282,9 +290,19 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
       )
     );
 
+    const isDevEnv = !process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production";
+
     for (const ch of activeChannels) {
       if (!ch.refreshToken || !ch.platform) continue;
       const pd = (ch.platformData || {}) as any;
+
+      // In dev, skip proactive keepalive for non-dev users.
+      // Production has its own token-refresh loop; running it from dev simultaneously
+      // would race to consume the same refresh tokens and could invalidate production sessions.
+      if (isDevEnv && ch.userId !== "dev_bypass_user") {
+        kept++;
+        continue;
+      }
 
       // If previously confirmed expired — retry once every 4 hours.
       // The refresh token may still be valid even if the access token was marked expired.
