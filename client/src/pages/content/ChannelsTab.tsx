@@ -60,7 +60,7 @@ const CONTENT_CRED_LABELS: Record<string, { label: string; placeholder: string; 
   whatsapp: { label: "WhatsApp Channel Link", placeholder: "https://whatsapp.com/channel/..." },
 };
 
-function ChannelActions({ channels }: { channels: Channel[] }) {
+function ChannelActions({ channels, onReconnect }: { channels: Channel[]; onReconnect?: () => void }) {
   const { toast } = useToast();
   const syncMutation = useMutation({
     mutationFn: async (channelId: number) => {
@@ -91,8 +91,16 @@ function ChannelActions({ channels }: { channels: Channel[] }) {
     },
   });
 
+  const needsReconnect = safeArray<Channel>(channels).some(ch => !ch.accessToken);
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
+      {needsReconnect && onReconnect && (
+        <Button size="sm" variant="destructive" onClick={onReconnect} data-testid="button-reconnect-youtube">
+          <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+          Reconnect
+        </Button>
+      )}
       {safeArray<Channel>(channels).map((ch) => (
         <div key={ch.id} className="flex items-center gap-1">
           {!!ch.accessToken && (
@@ -405,10 +413,11 @@ function ChannelsTab() {
                   </div>
                   {isConnected ? (() => {
                     const hasExpired = connectedChannels.some(ch => (ch.platformData as any)?._connectionStatus === "expired");
-                    return hasExpired ? (
+                    const hasNoToken = connectedChannels.some(ch => !ch.accessToken && !ch.refreshToken);
+                    return (hasExpired || hasNoToken) ? (
                       <div className="flex items-center gap-1 text-amber-500" title="Token expired — reconnect to restore full functionality">
                         <AlertTriangle className="h-4 w-4" />
-                        <span className="text-xs font-medium">Expired</span>
+                        <span className="text-xs font-medium">Reconnect</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 text-emerald-500">
@@ -451,7 +460,7 @@ function ChannelsTab() {
                       {connecting ? "Connecting..." : "Connect"}
                     </Button>
                   ) : isYouTube && isConnected ? (
-                    <ChannelActions channels={connectedChannels} />
+                    <ChannelActions channels={connectedChannels} onReconnect={handleConnect} />
                   ) : (
                     <Button variant="outline" size="sm" onClick={() => setSelectedPlatform(platform)} data-testid={`button-details-${platform}`}>
                       {isConnected ? "Details" : "Learn More"}
