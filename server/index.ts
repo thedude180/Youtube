@@ -169,6 +169,15 @@ app.get("/tiktok-developers-site-verification.txt", (req: Request, res: Response
   res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
 });
 
+// TEMP: log every inbound request so we can see what TikTok's verifier sends
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const ua = (req.headers["user-agent"] || "").slice(0, 120);
+  if (ua.includes("go-http") || ua.includes("TikTok") || ua.includes("tiktok")) {
+    process.stdout.write(`[REQ-LOG] ${req.method} ${req.path} UA="${ua}"\n`);
+  }
+  next();
+});
+
 // Early SPA route — also registered before all middleware so Replit's health
 // probe (which may hit /) gets a 200 immediately even before OIDC/DB is ready.
 if (process.env.NODE_ENV === "production") {

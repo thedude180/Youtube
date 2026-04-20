@@ -537,9 +537,11 @@ export function methodOverrideBlock(): (req: Request, res: Response, next: NextF
 }
 
 const VERIFICATION_PATHS = [
+  "/",
   "/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
   "/tiktok-developers-site-verification.txt",
   "/healthz",
+  "/robots.txt",
 ];
 
 export function badUserAgentBlock(): (req: Request, res: Response, next: NextFunction) => void {
@@ -551,7 +553,7 @@ export function badUserAgentBlock(): (req: Request, res: Response, next: NextFun
       logger.warn(`[AIShield] Request with no User-Agent from ${ip}`);
     }
     if (BAD_USER_AGENTS.some(bad => ua.includes(bad))) {
-      logger.warn(`[AIShield] Blocked bad User-Agent: ${ua.slice(0, 80)}`);
+      logger.warn(`[AIShield] Blocked bad User-Agent: ${ua.slice(0, 80)} path=${req.path}`);
       return res.status(403).json({ error: "forbidden", message: "Automated access is not permitted." });
     }
     if (ua.length > 512) {
