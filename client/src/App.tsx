@@ -595,7 +595,7 @@ function AppContent() {
   const { showWarning: showInactivityWarning, secondsLeft, reset: resetInactivity } = useInactivityTimeout({
     timeoutMs: INACTIVITY_TIMEOUT_MS,
     warningMs: INACTIVITY_WARNING_MS,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && import.meta.env.PROD,
     onTimeout: handleInactivityTimeout,
   });
 
