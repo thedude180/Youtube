@@ -23,88 +23,65 @@ async function fetchTwitchData(accessToken: string, channelId: string): Promise<
 
   const result: PlatformFetchedData = { platformData: {} };
 
-  try {
-    const streamKeyRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/streams/key?broadcaster_id=${channelId}`, { headers }), { label: "Twitch stream key API" });
-    if (streamKeyRes.ok) {
-      const data = await streamKeyRes.json() as any;
-      if (data.data?.[0]?.stream_key) {
-        result.streamKey = data.data[0].stream_key;
-        result.rtmpUrl = "rtmp://live.twitch.tv/app";
-      }
+  // Single-attempt, short timeout — these are best-effort enrichment calls, not critical
+  const OPTS = { maxAttempts: 1, timeoutMs: 5000 };
+
+  const fetchJson = async (url: string, label: string): Promise<any | null> => {
+    try {
+      const res = await withRetry(() => fetch(url, { headers }), { ...OPTS, label });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      logger.warn(`[PlatformFetcher:twitch] ${label} failed:`, e instanceof Error ? e.message : String(e));
     }
-  } catch (e) {
-    logger.error("[PlatformFetcher:twitch] Stream key fetch failed:", e);
+    return null;
+  };
+
+  // Fire all calls in parallel — total time capped at ~5s instead of 6×15s
+  const [streamKeyData, channelData, userData, followData, subsData, videosData] = await Promise.all([
+    fetchJson(`https://api.twitch.tv/helix/streams/key?broadcaster_id=${channelId}`, "stream key"),
+    fetchJson(`https://api.twitch.tv/helix/channels?broadcaster_id=${channelId}`, "channel info"),
+    fetchJson(`https://api.twitch.tv/helix/users?id=${channelId}`, "user info"),
+    fetchJson(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${channelId}&first=1`, "followers"),
+    fetchJson(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, "subscriptions"),
+    fetchJson(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, "videos"),
+  ]);
+
+  if (streamKeyData?.data?.[0]?.stream_key) {
+    result.streamKey = streamKeyData.data[0].stream_key;
+    result.rtmpUrl = "rtmp://live.twitch.tv/app";
   }
 
-  try {
-    const channelRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${channelId}`, { headers }), { label: "Twitch channel API" });
-    if (channelRes.ok) {
-      const data = await channelRes.json() as any;
-      const ch = data.data?.[0];
-      if (ch) {
-        result.platformData!.broadcasterId = ch.broadcaster_id;
-        result.platformData!.broadcasterLanguage = ch.broadcaster_language;
-        result.platformData!.gameId = ch.game_id;
-        result.platformData!.gameName = ch.game_name;
-        result.platformData!.title = ch.title;
-        result.platformData!.tags = ch.tags;
-      }
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:twitch] Channel info fetch failed:", e);
+  const ch = channelData?.data?.[0];
+  if (ch) {
+    result.platformData!.broadcasterId = ch.broadcaster_id;
+    result.platformData!.broadcasterLanguage = ch.broadcaster_language;
+    result.platformData!.gameId = ch.game_id;
+    result.platformData!.gameName = ch.game_name;
+    result.platformData!.title = ch.title;
+    result.platformData!.tags = ch.tags;
   }
 
-  try {
-    const userRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/users?id=${channelId}`, { headers }), { label: "Twitch user API" });
-    if (userRes.ok) {
-      const data = await userRes.json() as any;
-      const user = data.data?.[0];
-      if (user) {
-        result.channelName = user.display_name;
-        result.profileUrl = `https://twitch.tv/${user.login}`;
-        result.platformData!.profileImageUrl = user.profile_image_url;
-        result.platformData!.broadcasterType = user.broadcaster_type;
-        result.platformData!.description = user.description;
-      }
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:twitch] User fetch failed:", e);
+  const user = userData?.data?.[0];
+  if (user) {
+    result.channelName = user.display_name;
+    result.profileUrl = `https://twitch.tv/${user.login}`;
+    result.platformData!.profileImageUrl = user.profile_image_url;
+    result.platformData!.broadcasterType = user.broadcaster_type;
+    result.platformData!.description = user.description;
   }
 
-  try {
-    const followRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${channelId}&first=1`, { headers }), { label: "Twitch followers API" });
-    if (followRes.ok) {
-      const data = await followRes.json() as any;
-      result.followerCount = data.total || 0;
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:twitch] Follower count fetch failed:", e);
+  if (followData?.total !== undefined) {
+    result.followerCount = followData.total;
   }
 
-  try {
-    const subsRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, { headers }), { label: "Twitch subscriptions API" });
-    if (subsRes.ok) {
-      const data = await subsRes.json() as any;
-      result.platformData!.subscriberCount = data.total || 0;
-    }
-  } catch (e) {
-    // Subscription endpoint requires affiliate/partner status
+  if (subsData?.total !== undefined) {
+    result.platformData!.subscriberCount = subsData.total;
   }
 
-  try {
-    const videosRes = await withRetry(() => fetch(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, { headers }), { label: "Twitch videos API" });
-    if (videosRes.ok) {
-      const data = await videosRes.json() as any;
-      const videos = data.data || [];
-      result.platformData!.videoCount = videos.length;
-      let totalViewCount = 0;
-      for (const v of videos) {
-        totalViewCount += v.view_count || 0;
-      }
-      result.platformData!.totalViewCount = totalViewCount;
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:twitch] Videos fetch failed:", e);
+  if (videosData?.data) {
+    const videos = videosData.data as any[];
+    result.platformData!.videoCount = videos.length;
+    result.platformData!.totalViewCount = videos.reduce((sum: number, v: any) => sum + (v.view_count || 0), 0);
   }
 
   return result;

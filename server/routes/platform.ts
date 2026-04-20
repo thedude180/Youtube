@@ -1776,13 +1776,17 @@ export async function registerPlatformRoutes(app: Express) {
       let fetchedFollowerCount: number | undefined;
 
       try {
-        const fetched = await fetchPlatformData(platform as Platform, accessToken, channelId);
+        // Cap at 10s — these are best-effort enrichment calls, never block the save
+        const fetched = await Promise.race([
+          fetchPlatformData(platform as Platform, accessToken, channelId),
+          new Promise<{ platformData: {} }>((resolve) => setTimeout(() => resolve({ platformData: {} }), 10_000)),
+        ]);
         if (fetched.streamKey) streamKey = fetched.streamKey;
         if (fetched.rtmpUrl) rtmpUrl = fetched.rtmpUrl;
         if (fetched.channelName) channelName = fetched.channelName;
         if (fetched.channelId) channelId = fetched.channelId;
         if (fetched.profileUrl) profileUrl = fetched.profileUrl;
-        if (fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
+        if ("followerCount" in fetched && fetched.followerCount !== undefined) fetchedFollowerCount = fetched.followerCount;
         if (fetched.platformData) platformDataObj = fetched.platformData;
       } catch (e) {
         logger.error(`[OAuth ${platform}] Platform data fetch failed:`, e);
