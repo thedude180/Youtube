@@ -1529,7 +1529,7 @@ export async function registerPlatformRoutes(app: Express) {
     const authUrl = `${config.authUrl}?${params.toString()}`;
     const acceptHeader = req.headers.accept || "";
     if (acceptHeader.includes("application/json")) {
-      res.json({ url: authUrl });
+      res.json({ url: authUrl, redirectUri: getOAuthRedirectUri(platform) });
     } else {
       res.redirect(authUrl);
     }
