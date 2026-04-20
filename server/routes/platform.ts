@@ -1442,10 +1442,18 @@ export async function registerPlatformRoutes(app: Express) {
         tokenExpiresAt: channels.tokenExpiresAt,
         refreshToken: channels.refreshToken,
         accessToken: channels.accessToken,
+        streamKey: channels.streamKey,
       }).from(channels).where(eq(channels.userId, userId));
 
+      const envBasedPlatforms = ["discord", "kick", "twitch", "tiktok", "rumble"];
       const broken = userChannels.filter(ch => {
         const pd = (ch.platformData || {}) as any;
+        const isEnvBased = envBasedPlatforms.includes(ch.platform || "");
+        // Env-based platforms authenticate via stream key or platformData — not OAuth tokens
+        const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
+        // Dev-mode sentinel tokens are always considered connected
+        const isDevSentinel = ch.accessToken === "dev_api_key_mode";
+        if (hasEnvAuth || isDevSentinel) return false;
         if (!ch.accessToken && !ch.refreshToken) return true;
         if (pd._connectionStatus === "expired" || pd._connectionStatus === "disconnected") return true;
         if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date() && !ch.refreshToken) return true;
