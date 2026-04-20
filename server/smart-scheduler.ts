@@ -1,5 +1,5 @@
 import { getOpenAIClient } from "./lib/openai";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -11,6 +11,25 @@ import { createLogger } from "./lib/logger";
 
 const logger = createLogger("smart-scheduler");
 const openai = getOpenAIClient();
+
+async function openaiWithRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  const MAX = 3;
+  for (let attempt = 1; attempt <= MAX; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err?.status ?? err?.response?.status;
+      if (status === 429 && attempt < MAX) {
+        const wait = Math.min(8000 * Math.pow(2, attempt - 1), 32000);
+        logger.warn(`OpenAI 429 — backing off`, { label, attempt, waitMs: wait });
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`[smart-scheduler] ${label} failed after ${MAX} attempts`);
+}
 
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -63,12 +82,17 @@ Generate optimal posting times as JSON:
 
 Provide 5-7 optimal posting slots based on ${safePlatform}'s known best practices and the creator's content type.`;
 
-    const response = await openai.chat.completions.create({
+    if (!tokenBudget.checkBudget("smart-scheduler", 4000)) {
+      logger.info("Token budget exhausted — returning default posting times", { userId, platform });
+      return { source: "default", platform, slots: [] };
+    }
+
+    const response = await openaiWithRetry(() => openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    });
+    }), "getOptimalPostingTimes");
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -165,12 +189,22 @@ Analyze and recommend as JSON:
   }
 }`;
 
-    const response = await openai.chat.completions.create({
+    if (!tokenBudget.checkBudget("smart-scheduler", 4000)) {
+      logger.info("Token budget exhausted — returning default upload cadence", { userId });
+      return {
+        currentCadence: { videosPerWeek: 0, averageDaysBetween: 0, consistency: "low", gaps: [] },
+        recommendedCadence: { videosPerWeek: 2, bestDays: ["Tuesday", "Thursday"], reasoning: "Budget pacing active", rampUpPlan: "" },
+        warnings: [],
+        contentMix: {},
+      };
+    }
+
+    const response = await openaiWithRetry(() => openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    });
+    }), "getUploadCadence");
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -270,12 +304,17 @@ Analyze and recommend as JSON:
   "platformBalance": "Assessment of cross-platform coverage"
 }`;
 
-    const response = await openai.chat.completions.create({
+    if (!tokenBudget.checkBudget("smart-scheduler", 4000)) {
+      logger.info("Token budget exhausted — returning default schedule recommendations", { userId });
+      return { overallScore: 50, recommendations: [], scheduleDensity: "unknown", platformBalance: "unknown" };
+    }
+
+    const response = await openaiWithRetry(() => openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    });
+    }), "getScheduleRecommendations");
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
