@@ -169,6 +169,15 @@ app.get("/tiktok-developers-site-verification.txt", (req: Request, res: Response
   res.status(200).send("tiktok-developers-site-verification=HXIOEgyve1eGFRZt65Eci7YOioELKqif");
 });
 
+app.get("/tiktok-developers-site-verification.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  process.stdout.write(`[TikTok-Verify] HIT root-named-file UA="${ua}" ip=${ip}\n`);
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=HXIOEgyve1eGFRZt65Eci7YOioELKqif");
+});
+
 // TikTok appends verification file to the redirect URI path — not domain root.
 // Bot hits: /api/oauth/tiktok/callback/tiktok{token}.txt
 app.get("/api/oauth/tiktok/callback/tiktokHXIOEgyve1eGFRZt65Eci7YOioELKqif.txt", (req: Request, res: Response) => {
