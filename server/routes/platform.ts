@@ -1655,6 +1655,7 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     const authUrl = `${config.authUrl}?${params.toString()}`;
+    logger.warn(`[OAuth ${platform}] Bounce auth URL: ${authUrl}`);
 
     const bounceToken = crypto.randomBytes(24).toString("hex");
     pendingBounceTokens.set(bounceToken, { authUrl, platform, timestamp: Date.now() });
