@@ -195,7 +195,7 @@ export function setupGoogleAuth(app: Express) {
 async function autoConnectYouTubeFromGoogle(
   userId: string,
   accessToken: string,
-  refreshToken: string
+  refreshToken: string | undefined
 ) {
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find((c) => c.platform === "youtube");
