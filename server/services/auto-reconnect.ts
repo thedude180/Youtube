@@ -233,7 +233,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
         for (const ch of stillExpiring) {
           if (!ch.userId || !ch.accessToken) continue;
 
-          const alive = await verifyConnectionAlive(ch.platform, ch.accessToken!);
+          const alive = await verifyConnectionAlive(ch.platform, ch.accessToken as string);
           if (alive) {
             await clearFailureCount(ch.id);
             continue;

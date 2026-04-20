@@ -179,6 +179,60 @@ export async function handleCallback(code: string, userId: string) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Users-table fallback — Google OAuth token persisted on login
+// ---------------------------------------------------------------------------
+async function getGoogleAccessTokenForUser(userId: string): Promise<string | null> {
+  try {
+    const { users } = await import("@shared/models/auth");
+    const { db } = await import("./db");
+    const { eq } = await import("drizzle-orm");
+
+    const [row] = await db
+      .select({
+        googleAccessToken: users.googleAccessToken,
+        googleRefreshToken: users.googleRefreshToken,
+        googleTokenExpiresAt: users.googleTokenExpiresAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!row?.googleAccessToken) return null;
+
+    // If the stored token is still fresh, return it directly.
+    const expiresAt = row.googleTokenExpiresAt?.getTime() ?? 0;
+    if (expiresAt > Date.now() + 60_000) {
+      return row.googleAccessToken;
+    }
+
+    // Try to refresh using the stored refresh token.
+    if (row.googleRefreshToken) {
+      const oauthClient = getOAuth2Client();
+      oauthClient.setCredentials({ refresh_token: row.googleRefreshToken });
+      const tokenRes = await oauthClient.refreshAccessToken();
+      const newToken = tokenRes.credentials.access_token;
+      if (newToken) {
+        const newExpiry = tokenRes.credentials.expiry_date
+          ? new Date(tokenRes.credentials.expiry_date)
+          : new Date(Date.now() + 3600 * 1000);
+        await db
+          .update(users)
+          .set({ googleAccessToken: newToken, googleTokenExpiresAt: newExpiry })
+          .where(eq(users.id, userId));
+        ytLogger.info(`[Auth] Refreshed Google token for user ${userId} from users table`);
+        return newToken;
+      }
+    }
+
+    // Token expired and can't refresh — still return it (Google will reject if truly expired).
+    return row.googleAccessToken;
+  } catch (err: any) {
+    ytLogger.warn(`[Auth] Failed to read Google token from users table: ${err.message}`);
+    return null;
+  }
+}
+
 export async function getAuthenticatedClient(channelId: number) {
   let channel = await storage.getChannel(channelId);
   if (!channel) {
@@ -190,9 +244,27 @@ export async function getAuthenticatedClient(channelId: number) {
     throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
   }
 
-  // If the access token is missing but a refresh token is stored, proactively
-  // exchange the refresh token for a new access token before continuing.
-  if (!channel.accessToken && channel.refreshToken) {
+  // Resolve the access token to use.
+  // Priority:
+  //   1. channel.accessToken (set by the dedicated /api/youtube/auth OAuth flow)
+  //   2. Replit Google connector (google-mail integration) — the managed token
+  //      that covers the app's own YouTube channel without a separate OAuth dance.
+  //   3. channel.refreshToken exchange (legacy path)
+  let resolvedAccessToken: string | null = channel.accessToken;
+
+  if (!resolvedAccessToken && channel.userId) {
+    // Fall back to the Google OAuth token that was persisted in the users table
+    // when the user last logged in via Google.  This token carries YouTube scope
+    // (youtube, youtube.readonly, youtube.upload) so it is safe to use for all
+    // YouTube API calls.
+    resolvedAccessToken = await getGoogleAccessTokenForUser(channel.userId);
+    if (resolvedAccessToken) {
+      ytLogger.info(`[Auth] Using users-table Google token for channel ${channelId}`);
+    }
+  }
+
+  // Legacy path: if the channel has a stored refresh token, exchange it.
+  if (!resolvedAccessToken && channel.refreshToken) {
     ytLogger.info(`[Auth] accessToken null for channel ${channelId} — attempting refresh`);
     try {
       const { refreshSingleChannel } = await import("./token-refresh");
@@ -205,7 +277,8 @@ export async function getAuthenticatedClient(channelId: number) {
         if (result.refreshToken) updateData.refreshToken = result.refreshToken;
         if (result.expiresAt) updateData.tokenExpiresAt = result.expiresAt;
         await storage.updateChannel(channelId, updateData);
-        channel = await storage.getChannel(channelId);
+        channel = (await storage.getChannel(channelId))!;
+        resolvedAccessToken = result.accessToken;
         ytLogger.info(`[Auth] Proactive token refresh succeeded for channel ${channelId}`);
       } else {
         ytLogger.warn(`[Auth] Proactive token refresh failed for channel ${channelId}: ${result.error}`);
@@ -215,15 +288,15 @@ export async function getAuthenticatedClient(channelId: number) {
     }
   }
 
-  if (!channel?.accessToken) {
+  if (!resolvedAccessToken) {
     throw new Error("Channel not connected or missing access token");
   }
 
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
-    access_token: channel.accessToken,
-    refresh_token: channel.refreshToken,
-    expiry_date: channel.tokenExpiresAt ? channel.tokenExpiresAt.getTime() : undefined,
+    access_token: resolvedAccessToken,
+    refresh_token: channel?.refreshToken ?? undefined,
+    expiry_date: channel?.tokenExpiresAt ? channel.tokenExpiresAt.getTime() : undefined,
   });
 
   oauth2Client.on("tokens", (tokens) => {

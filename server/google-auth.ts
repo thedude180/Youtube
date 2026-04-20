@@ -6,6 +6,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import { storage } from "./storage";
 import { db } from "./db";
 import { linkedChannels } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import { eq, and } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
@@ -200,6 +201,22 @@ async function autoConnectYouTubeFromGoogle(
   accessToken: string,
   refreshToken: string | undefined
 ) {
+  // Always persist the Google OAuth token in the users table so it is
+  // available for YouTube API calls regardless of session state.
+  try {
+    const tokenUpdate: any = {
+      googleAccessToken: accessToken,
+      googleTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+    };
+    if (refreshToken) {
+      tokenUpdate.googleRefreshToken = refreshToken;
+    }
+    await db.update(users).set(tokenUpdate).where(eq(users.id, userId));
+    logger.info(`[GoogleAuth] Persisted Google tokens for user ${userId}`);
+  } catch (err) {
+    logger.error(`[GoogleAuth] Failed to persist Google tokens for user ${userId}:`, err);
+  }
+
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find((c) => c.platform === "youtube");
 

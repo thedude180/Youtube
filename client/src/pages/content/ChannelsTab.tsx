@@ -91,7 +91,12 @@ function ChannelActions({ channels, onReconnect }: { channels: Channel[]; onReco
     },
   });
 
-  const needsReconnect = safeArray<Channel>(channels).some(ch => !ch.accessToken);
+  // YouTube uses the Replit Google connector for auth — channels.access_token is
+  // not required and will typically be null. Only flag reconnect when the
+  // platform explicitly marks the connection as expired.
+  const needsReconnect = safeArray<Channel>(channels).some(
+    ch => (ch.platformData as any)?._connectionStatus === "expired"
+  );
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -103,12 +108,10 @@ function ChannelActions({ channels, onReconnect }: { channels: Channel[]; onReco
       )}
       {safeArray<Channel>(channels).map((ch) => (
         <div key={ch.id} className="flex items-center gap-1">
-          {!!ch.accessToken && (
-            <Button variant="outline" size="sm" onClick={() => syncMutation.mutate(ch.id)} disabled={syncMutation.isPending} data-testid={`button-sync-${ch.id}`}>
+          <Button variant="outline" size="sm" onClick={() => syncMutation.mutate(ch.id)} disabled={syncMutation.isPending} data-testid={`button-sync-${ch.id}`}>
               {syncMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
               Sync
             </Button>
-          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" data-testid={`button-remove-${ch.id}`}>
@@ -413,8 +416,7 @@ function ChannelsTab() {
                   </div>
                   {isConnected ? (() => {
                     const hasExpired = connectedChannels.some(ch => (ch.platformData as any)?._connectionStatus === "expired");
-                    const hasNoToken = connectedChannels.some(ch => !ch.accessToken && !ch.refreshToken);
-                    return (hasExpired || hasNoToken) ? (
+                    return hasExpired ? (
                       <div className="flex items-center gap-1 text-amber-500" title="Token expired — reconnect to restore full functionality">
                         <AlertTriangle className="h-4 w-4" />
                         <span className="text-xs font-medium">Reconnect</span>

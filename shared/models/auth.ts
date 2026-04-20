@@ -88,6 +88,9 @@ export const users = pgTable("users", {
     };
     pushSubscriptions?: any[];
   }>().default({}),
+  googleAccessToken: varchar("google_access_token"),
+  googleRefreshToken: varchar("google_refresh_token"),
+  googleTokenExpiresAt: timestamp("google_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
