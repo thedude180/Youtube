@@ -31,6 +31,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     clientIdEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_ID ? "TWITCH_DEV_CLIENT_ID" : "TWITCH_CLIENT_ID",
     clientSecretEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_SECRET ? "TWITCH_DEV_CLIENT_SECRET" : "TWITCH_CLIENT_SECRET",
     tokenAuthMethod: "body",
+    additionalAuthParams: { force_verify: "true" },
     userInfoUrl: "https://api.twitch.tv/helix/users",
     userInfoHeaders: (token) => ({
       "Authorization": `Bearer ${token}`,
