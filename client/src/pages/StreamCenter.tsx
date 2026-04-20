@@ -47,7 +47,7 @@ interface AIChatBotResponse {
   welcomeMessage?: string;
   raidMessage?: string;
 }
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// AI response payloads are free-form JSON — intentional any
 type AIResponse = Record<string, any> | null;
 
 interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; connected?: boolean; broadcasts?: Array<Record<string, unknown>>; channelName?: string; }
