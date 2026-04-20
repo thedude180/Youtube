@@ -548,6 +548,7 @@ const VERIFICATION_PATHS = [
 export function badUserAgentBlock(): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, res: Response, next: NextFunction) => {
     if (VERIFICATION_PATHS.includes(req.path)) return next();
+    if (req.path === "/tiktokHXIOEgyve1eGFRZt65Eci7YOioELKqif.txt") return next();
     const ua = (req.headers["user-agent"] || "").toLowerCase();
     if (!ua) {
       const ip = req.ip || "unknown";
