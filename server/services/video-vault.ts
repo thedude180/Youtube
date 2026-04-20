@@ -316,7 +316,7 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
     if (!deduped.has(v.id)) deduped.set(v.id, v);
   }
   const uniqueVideos = Array.from(deduped.values());
-  logger.info(`[Vault] Scraped totals — videos: ${videos.length}, shorts: ${shorts.length}, streams: ${streams.length} → ${uniqueVideos.length} unique`);
+  logger.info(`[Vault] Scraped totals — ${allVideosRaw.length} raw → ${uniqueVideos.length} unique`);
 
   const existing = await db.select({
     youtubeId: contentVaultBackups.youtubeId,
