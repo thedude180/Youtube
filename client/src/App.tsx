@@ -588,12 +588,9 @@ function AppContent() {
   const [needsPreChannelLaunch, setNeedsPreChannelLaunch] = useState(false);
   const [ytModal, setYtModal] = useState<{ open: boolean; channelName: string }>({ open: false, channelName: "" });
 
-  const handleInactivityTimeout = useCallback(async () => {
-    try { await fetch("/api/logout"); } catch (_) {}
-    queryClient.clear();
-    setLocation("/");
-    window.location.href = "/";
-  }, [setLocation]);
+  const handleInactivityTimeout = useCallback(() => {
+    window.location.href = "/api/logout";
+  }, []);
 
   const { showWarning: showInactivityWarning, secondsLeft, reset: resetInactivity } = useInactivityTimeout({
     timeoutMs: INACTIVITY_TIMEOUT_MS,

@@ -33,9 +33,9 @@ export function useInactivityTimeout({
   onTimeoutRef.current = onTimeout;
 
   const clearTimers = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (warningRef.current) clearTimeout(warningRef.current);
-    if (countdownRef.current) clearInterval(countdownRef.current);
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+    if (warningRef.current) { clearTimeout(warningRef.current); warningRef.current = null; }
+    if (countdownRef.current) { clearInterval(countdownRef.current); countdownRef.current = null; }
   }, []);
 
   const startCountdown = useCallback((secs: number) => {
