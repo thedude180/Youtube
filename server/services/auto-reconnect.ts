@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { db } from "../db";
 import { channels } from "@shared/schema";
-import { eq, and, lt, isNotNull } from "drizzle-orm";
+import { eq, and, lt, isNotNull, isNull } from "drizzle-orm";
 import { sendGmail } from "./gmail-client";
 import { OAUTH_CONFIGS } from "../oauth-config";
 
@@ -177,6 +177,34 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
   let emailsSent = 0;
 
   try {
+    // Heal channels that have a refresh token but lost their access token
+    // (e.g. a previous failed refresh cleared the access token row).
+    const missingAccessTokenChannels = await db.select().from(channels)
+      .where(and(
+        isNotNull(channels.refreshToken),
+        isNull(channels.accessToken),
+      )).limit(20);
+
+    if (missingAccessTokenChannels.length > 0) {
+      const { refreshSingleChannel } = await import("../token-refresh");
+      for (const ch of missingAccessTokenChannels) {
+        if (!ch.refreshToken) continue;
+        try {
+          const result = await refreshSingleChannel({ platform: ch.platform, refreshToken: ch.refreshToken });
+          if (result.success && result.accessToken) {
+            const upd: any = { accessToken: result.accessToken };
+            if (result.refreshToken) upd.refreshToken = result.refreshToken;
+            if (result.expiresAt) upd.tokenExpiresAt = result.expiresAt;
+            await db.update(channels).set(upd).where(eq(channels.id, ch.id));
+            refreshed++;
+            logger.info(`[AutoReconnect] Healed null-access-token for channel ${ch.id} (${ch.platform})`);
+          }
+        } catch (healErr) {
+          logger.warn(`[AutoReconnect] Heal attempt failed for channel ${ch.id}:`, healErr);
+        }
+      }
+    }
+
     const expiringThreshold = new Date(Date.now() + 2 * 60 * 60 * 1000);
     const expiringChannels = await db.select().from(channels)
       .where(and(
@@ -185,7 +213,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
         lt(channels.tokenExpiresAt, expiringThreshold),
       )).limit(100);
 
-    checked = expiringChannels.length;
+    checked = expiringChannels.length + missingAccessTokenChannels.length;
 
     if (expiringChannels.length > 0) {
       const { refreshExpiringTokens } = await import("../token-refresh");

@@ -21,13 +21,16 @@ export function setupGoogleAuth(app: Express) {
   }
 
   function getCallbackUrl(req?: any): string {
-    if (req?.hostname) {
-      const proto = req.secure ? "https" : req.protocol;
-      return `${proto}://${req.hostname}/api/auth/google/callback`;
-    }
+    // In a production deployment always use the canonical custom domain so the
+    // callback URI matches exactly what is registered in Google Cloud Console.
     if (process.env.REPLIT_DEPLOYMENT) {
-      const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
-      if (domain) return `https://${domain}/api/auth/google/callback`;
+      return "https://etgaming247.com/api/auth/google/callback";
+    }
+    if (req?.hostname) {
+      // Behind Replit's reverse proxy req.secure may be false even for HTTPS
+      // requests, so always use https when running in a Replit dev tunnel.
+      const proto = process.env.REPLIT_DEV_DOMAIN ? "https" : (req.secure ? "https" : req.protocol);
+      return `${proto}://${req.hostname}/api/auth/google/callback`;
     }
     if (process.env.REPLIT_DEV_DOMAIN) {
       return `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/google/callback`;

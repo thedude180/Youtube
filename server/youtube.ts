@@ -180,14 +180,43 @@ export async function handleCallback(code: string, userId: string) {
 }
 
 export async function getAuthenticatedClient(channelId: number) {
-  const channel = await storage.getChannel(channelId);
-  if (!channel || !channel.accessToken) {
-    throw new Error("Channel not connected or missing access token");
+  let channel = await storage.getChannel(channelId);
+  if (!channel) {
+    throw new Error("Channel not found");
   }
 
   // Dev sentinel — real API calls would fail with Invalid Credentials
   if (channel.accessToken === "dev_api_key_mode") {
     throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
+  }
+
+  // If the access token is missing but a refresh token is stored, proactively
+  // exchange the refresh token for a new access token before continuing.
+  if (!channel.accessToken && channel.refreshToken) {
+    ytLogger.info(`[Auth] accessToken null for channel ${channelId} — attempting refresh`);
+    try {
+      const { refreshSingleChannel } = await import("./token-refresh");
+      const result = await refreshSingleChannel({
+        platform: channel.platform,
+        refreshToken: channel.refreshToken,
+      });
+      if (result.success && result.accessToken) {
+        const updateData: any = { accessToken: result.accessToken };
+        if (result.refreshToken) updateData.refreshToken = result.refreshToken;
+        if (result.expiresAt) updateData.tokenExpiresAt = result.expiresAt;
+        await storage.updateChannel(channelId, updateData);
+        channel = await storage.getChannel(channelId);
+        ytLogger.info(`[Auth] Proactive token refresh succeeded for channel ${channelId}`);
+      } else {
+        ytLogger.warn(`[Auth] Proactive token refresh failed for channel ${channelId}: ${result.error}`);
+      }
+    } catch (refreshErr) {
+      ytLogger.warn(`[Auth] Proactive token refresh threw for channel ${channelId}:`, refreshErr);
+    }
+  }
+
+  if (!channel?.accessToken) {
+    throw new Error("Channel not connected or missing access token");
   }
 
   const oauth2Client = getOAuth2Client();
