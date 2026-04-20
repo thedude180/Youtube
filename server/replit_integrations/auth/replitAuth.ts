@@ -212,9 +212,74 @@ async function ensureDevUser() {
       .where(eq(users.id, DEV_BYPASS_USER_ID));
 
     devUserReady = true;
+
+    // Auto-connect X using dev secrets if available
+    await ensureDevXChannel().catch(e =>
+      replitAuthLogger.warn("Dev X auto-connect failed (non-fatal)", { error: String(e) })
+    );
   } catch (e) {
     replitAuthLogger.warn("Dev user init failed (non-fatal)", { error: String(e) });
   }
+}
+
+async function ensureDevXChannel() {
+  const accessToken = process.env.X_DEV_ACCESS_TOKEN;
+  const refreshToken = process.env.X_DEV_REFRESH_TOKEN;
+  if (!accessToken) return;
+
+  const { storage } = await import("../../storage");
+  const existingChannels = await storage.getChannelsByUser(DEV_BYPASS_USER_ID);
+  const existing = existingChannels.find(c => c.platform === "x");
+
+  // If already connected with the same token, skip
+  if (existing && existing.accessToken === accessToken) return;
+
+  const userInfoRes = await fetch("https://api.twitter.com/2/users/me?user.fields=id,name,username,public_metrics", {
+    headers: { "Authorization": `Bearer ${accessToken}` },
+  });
+  if (!userInfoRes.ok) {
+    replitAuthLogger.warn("Dev X auto-connect: token verification failed", { status: userInfoRes.status });
+    return;
+  }
+  const userData = await userInfoRes.json();
+  const twitterUser = userData.data;
+  const followerCount = twitterUser.public_metrics?.followers_count ?? null;
+  const platformData = {
+    username: twitterUser.username,
+    name: twitterUser.name,
+    followersCount: followerCount,
+    _connectionStatus: "healthy",
+    _lastVerifiedAt: Date.now(),
+    _reconnectFailures: 0,
+    lastFetchedAt: new Date().toISOString(),
+  };
+
+  if (existing) {
+    await storage.updateChannel(existing.id, {
+      accessToken,
+      refreshToken: refreshToken || null,
+      tokenExpiresAt: null,
+      channelName: twitterUser.name || twitterUser.username || "X User",
+      channelId: twitterUser.id,
+      subscriberCount: followerCount,
+      lastSyncAt: new Date(),
+      platformData: { ...(existing.platformData as any || {}), ...platformData },
+    });
+  } else {
+    await storage.createChannel({
+      userId: DEV_BYPASS_USER_ID,
+      platform: "x",
+      channelName: twitterUser.name || twitterUser.username || "X User",
+      channelId: twitterUser.id,
+      accessToken,
+      refreshToken: refreshToken || null,
+      tokenExpiresAt: null,
+      subscriberCount: followerCount,
+      platformData,
+      settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
+    });
+  }
+  replitAuthLogger.info(`Dev X auto-connected: @${twitterUser.username} (${followerCount ?? "?"} followers)`);
 }
 
 const DEV_SESSION_USER = {

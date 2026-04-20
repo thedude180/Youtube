@@ -195,6 +195,8 @@ export async function registerRoutes(
 
   const GOVERNANCE_EXEMPT_PATHS = [
     "/api/login", "/api/logout", "/api/auth", "/api/callback",
+    "/api/oauth/",
+    "/api/youtube/auth",
     "/api/resilience/safe-mode/exit",
     "/api/resilience/safe-mode/enter",
     "/api/kernel/trust-budget/reset",
