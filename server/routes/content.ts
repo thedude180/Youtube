@@ -478,12 +478,17 @@ export function registerContentRoutes(app: Express) {
     const enriched = userChannels.map(ch => {
       const pd = (ch.platformData || {}) as any;
       const tokenExpired = ch.tokenExpiresAt && ch.tokenExpiresAt < now;
-      const hasNoToken = !ch.accessToken && !ch.refreshToken;
+      // Platforms that authenticate via env-based tokens (not OAuth) are considered connected if
+      // they have an access_token sentinel OR a stream_key, or the platformData marks them healthy
+      const envBasedPlatforms = ["discord", "kick", "twitch", "tiktok", "rumble"];
+      const isEnvBased = envBasedPlatforms.includes(ch.platform || "");
+      const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
+      const hasNoToken = !ch.accessToken && !ch.refreshToken && !hasEnvAuth;
       const guardianStatus = pd._connectionStatus;
       let connectionStatus: string;
       if (hasNoToken) {
         connectionStatus = "disconnected";
-      } else if (tokenExpired) {
+      } else if (!isEnvBased && tokenExpired) {
         connectionStatus = "expired";
       } else if (guardianStatus === "degraded") {
         connectionStatus = "degraded";
