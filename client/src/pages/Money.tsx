@@ -359,8 +359,10 @@ export default function Money() {
 
   useEffect(() => {
     const tabFromUrl = params?.tab as TabKey | undefined;
-    if (tabFromUrl && validMoneyTabs.includes(tabFromUrl) && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
+    if (tabFromUrl && validMoneyTabs.includes(tabFromUrl)) {
+      if (tabFromUrl !== activeTab) setActiveTab(tabFromUrl);
+    } else if (!tabFromUrl && activeTab !== "revenue") {
+      setActiveTab("revenue");
     }
   }, [params?.tab]);
 
