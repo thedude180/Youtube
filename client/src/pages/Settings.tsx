@@ -496,13 +496,22 @@ function PlatformConnectionsCard({
                   </Button>
                 );
               }
+              const bgColor = p.color === "#000000" ? "#1a1a1a" : p.color;
+              const borderColor = p.color === "#000000" ? "#444" : p.color;
               return (
-                <Button key={p.key} data-testid={`button-connect-${p.key}`} className="w-full justify-start"
-                  style={{ backgroundColor: p.color === "#000000" ? "#333" : p.color, borderColor: p.color, color: "#fff" }}
-                  disabled={oauthLoading === p.key || !canOAuth}
-                  onClick={() => handleOAuthLogin(p.key, p.isYouTube)}>
+                <Button key={p.key} data-testid={`button-connect-${p.key}`} className="w-full justify-start relative"
+                  style={{ backgroundColor: canOAuth ? bgColor : "#1e1e2a", border: `1px solid ${canOAuth ? borderColor : "#3a3a4a"}`, color: canOAuth ? "#fff" : "#8888aa" }}
+                  disabled={oauthLoading === p.key}
+                  onClick={() => {
+                    if (!canOAuth) {
+                      toast({ title: `${p.label} not configured`, description: `${p.label} OAuth credentials are not set up yet. Contact your administrator to add the required API keys.`, variant: "destructive" });
+                      return;
+                    }
+                    handleOAuthLogin(p.key, p.isYouTube);
+                  }}>
                   {oauthLoading === p.key ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <p.Icon className="h-4 w-4 mr-2" />}
-                  {oauthLoading === p.key ? "Connecting..." : `Login with ${p.label}`}
+                  {oauthLoading === p.key ? "Connecting..." : `Connect ${p.label}`}
+                  {!canOAuth && <span className="ml-auto text-xs opacity-60">Not configured</span>}
                 </Button>
               );
             })}
