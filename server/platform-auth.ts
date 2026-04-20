@@ -15,15 +15,19 @@ const STATE_MAX_AGE = 10 * 60 * 1000;
 const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick", "x"];
 
 function getAuthRedirectUri(platform: string, req?: any): string {
+  let uri: string;
   if (process.env.REPLIT_DEPLOYMENT) {
-    return `https://etgaming247.com/api/auth/${platform}/callback`;
+    uri = `https://etgaming247.com/api/auth/${platform}/callback`;
+  } else if (process.env.REPLIT_DEV_DOMAIN) {
+    uri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/${platform}/callback`;
   } else if (req?.hostname) {
     const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? "https" : req.protocol;
-    return `${proto}://${req.hostname}/api/auth/${platform}/callback`;
-  } else if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/${platform}/callback`;
+    uri = `${proto}://${req.hostname}/api/auth/${platform}/callback`;
+  } else {
+    uri = `http://localhost:5000/api/auth/${platform}/callback`;
   }
-  return `http://localhost:5000/api/auth/${platform}/callback`;
+  authLogger.info(`[${platform}] Redirect URI: ${uri}`);
+  return uri;
 }
 
 export function setupPlatformAuth(app: Express) {
