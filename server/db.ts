@@ -22,6 +22,9 @@ export const pool = new Pool({
   allowExitOnIdle: false,
   statement_timeout: 25_000,
   query_timeout: 25_000,
+  ssl: process.env.REPLIT_DEPLOYMENT
+    ? { rejectUnauthorized: false }   // production deployments require SSL
+    : (process.env.DATABASE_URL?.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined),
 });
 
 let poolErrorCount = 0;
