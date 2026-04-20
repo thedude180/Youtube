@@ -50,7 +50,7 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
       case "twitch":
         testUrl = "https://api.twitch.tv/helix/users";
         headers["Authorization"] = `Bearer ${resolvedToken}`;
-        headers["Client-Id"] = process.env.TWITCH_CLIENT_ID || "";
+        headers["Client-Id"] = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID || "";
         break;
       case "kick":
         testUrl = "https://api.kick.com/public/v1/users";
@@ -392,7 +392,9 @@ async function autoConnectStreamingPlatform(
   defaultStreamUrl: string,
 ): Promise<number> {
   let connected = 0;
-  const hasCredentials = Object.values(envKeys).some(v => !!v);
+  // streamUrl is an RTMP destination, not an auth credential — require at least one real auth key
+  const { streamUrl: _ignored, ...authKeys } = envKeys;
+  const hasCredentials = Object.values(authKeys).some(v => !!v);
   if (!hasCredentials) return 0;
 
   try {
@@ -457,20 +459,10 @@ async function autoConnectStreamingPlatforms(): Promise<{ rumble: number; twitch
     streamUrl: process.env.RUMBLE_STREAM_URL,
   }, "rtmp://live.rumble.com/live");
 
-  // Twitch uses OAuth for login — only auto-create a channel record if a real stream key is set.
-  // TWITCH_CLIENT_ID/SECRET alone are for OAuth auth and shouldn't auto-create a channel.
-  const twitch = await autoConnectStreamingPlatform("twitch", {
-    streamKey: process.env.TWITCH_STREAM_KEY,
-  }, "rtmp://live.twitch.tv/app");
-
-  const kick = await autoConnectStreamingPlatform("kick", {
-    clientId: process.env.KICK_CLIENT_ID,
-    clientSecret: process.env.KICK_CLIENT_SECRET,
-    streamKey: process.env.KICK_STREAM_KEY,
-    streamUrl: process.env.KICK_STREAM_URL,
-  }, "rtmp://live.kick.com/app");
-
-  return { rumble, twitch, kick };
+  // Twitch and Kick both have full OAuth flows — they must be connected via OAuth, not
+  // auto-created with stream keys. A stream key is an RTMP-only credential and will
+  // always fail the OAuth API liveness check, causing permanent "expired" notifications.
+  return { rumble, twitch: 0, kick: 0 };
 }
 
 let statsRefreshInFlight = false;

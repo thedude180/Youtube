@@ -64,7 +64,7 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
       case "twitch":
         testUrl = "https://api.twitch.tv/helix/users";
         headers["Authorization"] = `Bearer ${accessToken}`;
-        headers["Client-Id"] = process.env.TWITCH_CLIENT_ID || "";
+        headers["Client-Id"] = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID || "";
         break;
       case "kick":
         testUrl = "https://kick.com/api/v1/user";
