@@ -456,11 +456,14 @@ export class DatabaseStorage implements IStorage {
         'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
         'schedule_items', 'content_kanban', 'compounding_jobs',
         'video_update_history', 'ab_test_results',
-        'studio_videos', 'production_kanban', 'stream_detection_log',
+        'studio_videos', 'production_kanban',
       ];
       for (const table of videoTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id IN ${videoSubquery}`);
       }
+      // stream_detection_log.video_id is text — cast integer IDs to text for comparison
+      await tx.execute(sql`DELETE FROM stream_detection_log WHERE video_id IN (SELECT id::text FROM videos WHERE channel_id = ${id})`);
+
 
       await tx.execute(sql`
         DELETE FROM cannibalization_alerts
