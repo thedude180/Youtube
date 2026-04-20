@@ -457,9 +457,9 @@ async function autoConnectStreamingPlatforms(): Promise<{ rumble: number; twitch
     streamUrl: process.env.RUMBLE_STREAM_URL,
   }, "rtmp://live.rumble.com/live");
 
+  // Twitch uses OAuth for login — only auto-create a channel record if a real stream key is set.
+  // TWITCH_CLIENT_ID/SECRET alone are for OAuth auth and shouldn't auto-create a channel.
   const twitch = await autoConnectStreamingPlatform("twitch", {
-    clientId: process.env.TWITCH_CLIENT_ID,
-    clientSecret: process.env.TWITCH_CLIENT_SECRET,
     streamKey: process.env.TWITCH_STREAM_KEY,
   }, "rtmp://live.twitch.tv/app");
 
