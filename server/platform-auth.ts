@@ -91,8 +91,17 @@ export function setupPlatformAuth(app: Express) {
     app.get(`/api/auth/${platform}/callback`, async (req, res) => {
       const code = req.query.code as string | undefined;
       const state = req.query.state as string | undefined;
+      const oauthError = req.query.error as string | undefined;
+      const oauthErrorDesc = req.query.error_description as string | undefined;
+
+      // Provider explicitly rejected — log the real reason before redirecting
+      if (oauthError) {
+        authLogger.error(`[${platform}] Provider returned error`, { error: oauthError, description: oauthErrorDesc });
+        return res.redirect(`/?auth_error=${encodeURIComponent(`${platform}_denied`)}&reason=${encodeURIComponent(oauthError)}`);
+      }
 
       if (!code) {
+        authLogger.error(`[${platform}] Callback missing code`, { state, query: JSON.stringify(req.query) });
         return res.redirect(`/?auth_error=missing_code`);
       }
 

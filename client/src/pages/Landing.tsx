@@ -407,6 +407,7 @@ export default function Landing() {
     const params = new URLSearchParams(window.location.search);
     const authError = params.get("auth_error");
     if (authError) {
+      const reason = params.get("reason");
       const errorMessages: Record<string, string> = {
         "true": "Sign in failed. Please try again.",
         "no_user": "Could not retrieve your account. Please try again.",
@@ -420,7 +421,15 @@ export default function Landing() {
         "no_user_id": "Could not retrieve your platform ID. Please try again.",
         "platform_not_supported": "This platform is not yet supported.",
       };
-      const message = errorMessages[authError] || `Authentication error: ${authError.replace(/_/g, " ")}`;
+      // Handle _denied errors from platform-auth (e.g. twitch_denied, kick_denied)
+      let message: string;
+      if (authError.endsWith("_denied")) {
+        const platform = authError.replace("_denied", "");
+        const reasonText = reason ? `: ${reason.replace(/_/g, " ")}` : "";
+        message = `${platform.charAt(0).toUpperCase() + platform.slice(1)} denied access${reasonText}. Check your app's redirect URI settings.`;
+      } else {
+        message = errorMessages[authError] || `Authentication error: ${authError.replace(/_/g, " ")}`;
+      }
       toast({ title: t('errors.error'), description: message, variant: "destructive" });
       window.history.replaceState({}, "", "/");
     }
