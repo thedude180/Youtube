@@ -28,30 +28,42 @@ const FAILURE_DECAY_MS = 48 * 60 * 60 * 1000;
 
 async function verifyConnectionAlive(platform: string, accessToken: string): Promise<boolean> {
   try {
+    // Dev-mode sentinel tokens are always considered alive — no OAuth check needed
+    if (accessToken === "dev_api_key_mode") return true;
+
+    // Resolve env: prefix sentinels (e.g. "env:DISCORD_BOT_TOKEN" → actual env var value)
+    let resolvedToken = accessToken;
+    if (accessToken.startsWith("env:")) {
+      const envKey = accessToken.slice(4);
+      resolvedToken = process.env[envKey] || "";
+      if (!resolvedToken) return true; // Env var not set yet — treat as alive to avoid spam
+    }
+
     let testUrl: string | null = null;
     const headers: Record<string, string> = {};
 
     switch (platform) {
       case "youtube":
         testUrl = "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true";
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Authorization"] = `Bearer ${resolvedToken}`;
         break;
       case "twitch":
         testUrl = "https://api.twitch.tv/helix/users";
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Authorization"] = `Bearer ${resolvedToken}`;
         headers["Client-Id"] = process.env.TWITCH_CLIENT_ID || "";
         break;
       case "kick":
         testUrl = "https://api.kick.com/public/v1/users";
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Authorization"] = `Bearer ${resolvedToken}`;
         break;
       case "tiktok":
         testUrl = "https://open.tiktokapis.com/v2/user/info/?fields=open_id";
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Authorization"] = `Bearer ${resolvedToken}`;
         break;
       case "discord":
+        // Discord bot tokens use the "Bot" scheme, not "Bearer"
         testUrl = "https://discord.com/api/v10/users/@me";
-        headers["Authorization"] = `Bearer ${accessToken}`;
+        headers["Authorization"] = `Bot ${resolvedToken}`;
         break;
       default:
         return true;

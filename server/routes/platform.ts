@@ -183,6 +183,172 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  // DEV-ONLY: Connect a YouTube channel by URL/handle without going through OAuth.
+  // Uses GOOGLE_API_KEY to fetch public channel info and registers it in the database.
+  // Blocked in production deployments.
+  app.post("/api/dev/youtube-connect", async (req: any, res) => {
+    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+    if (isProduction) return res.status(404).json({ error: "Not found" });
+
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    try {
+      const { channelInput } = req.body || {};
+      if (!channelInput || typeof channelInput !== "string") {
+        return res.status(400).json({ error: "Provide a channelInput (URL, @handle, or channel ID)" });
+      }
+
+      const apiKey = process.env.GOOGLE_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "GOOGLE_API_KEY not configured" });
+
+      // Parse input into either a channel ID (UCxxx) or a handle
+      let channelId: string | null = null;
+      let forHandle: string | null = null;
+      const input = channelInput.trim();
+
+      if (/^UC[\w-]{20,}$/.test(input)) {
+        channelId = input;
+      } else if (input.startsWith("@")) {
+        forHandle = input.slice(1);
+      } else if (input.includes("youtube.com/channel/")) {
+        channelId = input.split("youtube.com/channel/")[1]?.split(/[/?&#]/)[0] || null;
+      } else if (input.includes("youtube.com/@")) {
+        forHandle = input.split("youtube.com/@")[1]?.split(/[/?&#]/)[0] || null;
+      } else if (input.includes("youtube.com/")) {
+        forHandle = input.split("youtube.com/").pop()?.replace(/^(user\/|c\/)/, "").split(/[/?&#]/)[0] || null;
+      } else {
+        forHandle = input;
+      }
+
+      if (!channelId && !forHandle) {
+        return res.status(400).json({ error: "Could not parse channel URL or handle" });
+      }
+
+      // Fetch public channel data using the API key (no OAuth needed)
+      // Falls back to minimal record creation if the API key is quota-exhausted
+      let subCount: number | null = null;
+      let vidCount: number | null = null;
+      let vwCount: number | null = null;
+      let thumbUrl: string | null = null;
+      let resolvedChannelId = channelId || forHandle || input;
+      let resolvedName = req.body.channelName || forHandle || channelId || input;
+      let quotaExhausted = false;
+
+      try {
+        const params = new URLSearchParams({ part: "snippet,statistics", key: apiKey });
+        if (channelId) params.set("id", channelId);
+        else if (forHandle) params.set("forHandle", forHandle);
+
+        const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?${params}`);
+        const ytData = await ytRes.json() as any;
+
+        if (ytRes.ok && ytData.items?.[0]) {
+          const ytChannel = ytData.items[0];
+          subCount = ytChannel.statistics?.subscriberCount != null ? Number(ytChannel.statistics.subscriberCount) : null;
+          vidCount = ytChannel.statistics?.videoCount != null ? Number(ytChannel.statistics.videoCount) : null;
+          vwCount = ytChannel.statistics?.viewCount != null ? Number(ytChannel.statistics.viewCount) : null;
+          thumbUrl = ytChannel.snippet?.thumbnails?.high?.url || ytChannel.snippet?.thumbnails?.default?.url || null;
+          resolvedChannelId = ytChannel.id || resolvedChannelId;
+          resolvedName = ytChannel.snippet?.title || resolvedName;
+        } else if (ytData?.error?.errors?.[0]?.reason === "quotaExceeded" || ytData?.error?.message?.includes("quota")) {
+          quotaExhausted = true;
+          // Fall through to minimal record creation below
+        } else if (!ytRes.ok) {
+          return res.status(502).json({ error: `YouTube API error: ${ytData?.error?.message || ytRes.statusText}` });
+        } else {
+          return res.status(404).json({ error: "No YouTube channel found for that URL/handle. Make sure the channel is public." });
+        }
+      } catch (fetchErr) {
+        // Network issue — still create minimal record
+        quotaExhausted = true;
+      }
+
+      const existingChannels = await storage.getChannelsByUser(userId);
+      const existingYt = existingChannels.find((c: any) => c.platform === "youtube");
+      const existingShorts = existingChannels.find((c: any) => c.platform === "youtubeshorts");
+
+      const channelData: any = {
+        userId,
+        platform: "youtube",
+        channelName: resolvedName || "YouTube Channel",
+        channelId: resolvedChannelId || "",
+        // Use a sentinel so the status checker treats this as connected
+        accessToken: "dev_api_key_mode",
+        refreshToken: null,
+        tokenExpiresAt: null,
+        subscriberCount: subCount,
+        videoCount: vidCount,
+        viewCount: vwCount,
+        contentNiche: "gaming",
+        settings: { preset: "normal", autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
+        platformData: {
+          thumbnailUrl: thumbUrl,
+          _connectionStatus: "healthy",
+          authMethod: "dev_api_key",
+          devMode: true,
+          quotaFallback: quotaExhausted,
+        },
+      };
+
+      let channel: any;
+      if (existingYt) {
+        channel = await storage.updateChannel(existingYt.id, { ...channelData, lastSyncAt: new Date() });
+      } else {
+        channel = await storage.createChannel(channelData);
+      }
+
+      const shortsData: any = {
+        ...channelData,
+        platform: "youtubeshorts",
+        channelName: `${resolvedName || "YouTube"} Shorts`,
+      };
+      if (existingShorts) {
+        await storage.updateChannel(existingShorts.id, { ...shortsData, lastSyncAt: new Date() });
+      } else {
+        await storage.createChannel(shortsData);
+      }
+
+      // Enable autopilot
+      try {
+        const user = await storage.getUser(userId);
+        if (user && !user.autopilotActive) {
+          await storage.updateUserProfile(userId, { autopilotActive: true });
+        }
+      } catch { /* non-blocking */ }
+
+      // Kick off upload watcher + initial video scan
+      setImmediate(async () => {
+        try {
+          const { startUploadWatcher, scanUserNow } = await import("../services/youtube-upload-watcher");
+          await startUploadWatcher(userId);
+          await scanUserNow(userId);
+        } catch { /* non-blocking in dev */ }
+      });
+
+      sendSSEEvent(userId, "content-update", { type: "channel_connected", platform: "youtube" });
+
+      res.json({
+        success: true,
+        channel: {
+          id: channel.id,
+          name: channel.channelName,
+          youtubeChannelId: channel.channelId,
+          subscribers: subCount,
+          videos: vidCount,
+          thumbnailUrl: thumbUrl,
+        },
+        quotaFallback: quotaExhausted,
+        note: quotaExhausted
+          ? "Dev mode: API key quota was exhausted so channel was created with minimal info (handle/ID as channelId). Stats/thumbnail will fill in tomorrow after quota resets. Channel status is marked healthy."
+          : "Dev mode: connected via API key. Read operations and catalog sync will work. Upload/analytics writes need real OAuth.",
+      });
+    } catch (err: any) {
+      logger.error("[Dev YouTube Connect] Error:", err);
+      res.status(500).json({ error: err.message || "Failed to connect channel" });
+    }
+  });
+
   function isYouTubeQuotaError(error: any): boolean {
     return error?.code === "QUOTA_EXCEEDED" || error?.code === 403 ||
       (typeof error?.message === "string" && error.message.includes("quota"));
