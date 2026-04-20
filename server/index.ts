@@ -169,6 +169,17 @@ app.get("/tiktok-developers-site-verification.txt", (req: Request, res: Response
   res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
 });
 
+// TikTok appends verification file to the redirect URI path — not domain root.
+// Bot hits: /api/oauth/tiktok/callback/tiktok{token}.txt
+app.get("/api/oauth/tiktok/callback/tiktokyqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  process.stdout.write(`[TikTok-Verify] HIT callback-path-file UA="${ua}" ip=${ip}\n`);
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
+});
+
 // TEMP: log every inbound request so we can see what TikTok's verifier sends
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const ua = (req.headers["user-agent"] || "").slice(0, 120);
