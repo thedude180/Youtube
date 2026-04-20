@@ -1580,7 +1580,6 @@ export async function registerPlatformRoutes(app: Express) {
       [config.usesClientKey ? "client_key" : "client_id"]: clientId,
       redirect_uri: getOAuthRedirectUri(platform),
       response_type: config.responseType || "code",
-      scope: config.scopes.join(scopeDelimiter),
       state,
       ...(config.additionalAuthParams || {}),
     });
@@ -1595,8 +1594,8 @@ export async function registerPlatformRoutes(app: Express) {
         params.set("code_challenge_method", "plain");
       }
     }
-
-    const authUrl = `${config.authUrl}?${params.toString()}`;
+    const scopeEncoded = config.scopes.map(encodeURIComponent).join(scopeDelimiter === " " ? "%20" : ",");
+    const authUrl = `${config.authUrl}?${params.toString()}&scope=${scopeEncoded}`;
     logger.warn(`[OAuth ${platform}] Auth URL: ${authUrl}`);
     const acceptHeader = req.headers.accept || "";
     if (acceptHeader.includes("application/json")) {
@@ -1638,7 +1637,6 @@ export async function registerPlatformRoutes(app: Express) {
       [config.usesClientKey ? "client_key" : "client_id"]: clientId,
       redirect_uri: getOAuthRedirectUri(platform),
       response_type: config.responseType || "code",
-      scope: config.scopes.join(scopeDelimiter),
       state,
       ...(config.additionalAuthParams || {}),
     });
@@ -1653,8 +1651,8 @@ export async function registerPlatformRoutes(app: Express) {
         params.set("code_challenge_method", "plain");
       }
     }
-
-    const authUrl = `${config.authUrl}?${params.toString()}`;
+    const scopeEncoded = config.scopes.map(encodeURIComponent).join(scopeDelimiter === " " ? "%20" : ",");
+    const authUrl = `${config.authUrl}?${params.toString()}&scope=${scopeEncoded}`;
     logger.warn(`[OAuth ${platform}] Bounce auth URL: ${authUrl}`);
 
     const bounceToken = crypto.randomBytes(24).toString("hex");
