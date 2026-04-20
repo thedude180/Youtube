@@ -73,7 +73,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     label: "Kick",
     authUrl: "https://id.kick.com/oauth/authorize",
     tokenUrl: "https://id.kick.com/oauth/token",
-    scopes: [],
+    scopes: ["user:read", "channel:read", "chat:write", "streamkey:read"],
     clientIdEnv: isDevEnv && process.env.KICK_DEV_CLIENT_ID ? "KICK_DEV_CLIENT_ID" : "KICK_CLIENT_ID",
     clientSecretEnv: isDevEnv && process.env.KICK_DEV_CLIENT_SECRET ? "KICK_DEV_CLIENT_SECRET" : "KICK_CLIENT_SECRET",
     requiresPKCE: true,
