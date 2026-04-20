@@ -446,36 +446,42 @@ export class DatabaseStorage implements IStorage {
       for (const table of channelTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
       }
-      const channelVideos = await tx.select({ id: videos.id }).from(videos).where(eq(videos.channelId, id));
-      if (channelVideos.length > 0) {
-        const videoIds = channelVideos.map(v => v.id);
-        const videoIdArray = sql`ARRAY[${sql.join(videoIds.map(vid => sql`${vid}`), sql`, `)}]::int[]`;
-        const tables = [
-          'playlist_items', 'ab_tests', 'comment_responses',
-          'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
-          'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
-          'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
-          'schedule_items', 'content_kanban', 'compounding_jobs',
-          'video_update_history', 'ab_test_results',
-          'studio_videos', 'production_kanban', 'stream_detection_log',
-        ];
-        for (const table of tables) {
-          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id = ANY(${videoIdArray})`);
-        }
-        await tx.execute(sql`DELETE FROM cannibalization_alerts WHERE video_id_1 = ANY(${videoIdArray}) OR video_id_2 = ANY(${videoIdArray})`);
-        const clipIds = await tx.execute(sql`SELECT id FROM content_clips WHERE source_video_id = ANY(${videoIdArray})`);
-        if (clipIds.rows && clipIds.rows.length > 0) {
-          const clipIdArray = sql`ARRAY[${sql.join(clipIds.rows.map((r: any) => sql`${r.id}`), sql`, `)}]::int[]`;
-          await tx.execute(sql`DELETE FROM clip_virality_scores WHERE clip_id = ANY(${clipIdArray})`);
-        }
-        const srcTables = ['autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
-          'content_atoms', 'clip_queue_items', 'moment_genome_classifications', 'content_experiments'];
-        for (const table of srcTables) {
-          await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id = ANY(${videoIdArray})`);
-        }
-        await tx.execute(sql`DELETE FROM thumbnails WHERE video_id = ANY(${videoIdArray})`);
-        await tx.delete(videos).where(eq(videos.channelId, id));
+
+      const videoSubquery = sql`(SELECT id FROM videos WHERE channel_id = ${id})`;
+
+      const videoTables = [
+        'playlist_items', 'ab_tests', 'comment_responses',
+        'comment_sentiments', 'content_lifecycle', 'content_pipeline', 'content_quality_scores',
+        'ctr_optimizations', 'editing_notes', 'evergreen_classifications', 'optimization_passes',
+        'search_rankings', 'seo_scores', 'stream_pipelines', 'upload_queue', 'video_versions',
+        'schedule_items', 'content_kanban', 'compounding_jobs',
+        'video_update_history', 'ab_test_results',
+        'studio_videos', 'production_kanban', 'stream_detection_log',
+      ];
+      for (const table of videoTables) {
+        await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE video_id IN ${videoSubquery}`);
       }
+
+      await tx.execute(sql`
+        DELETE FROM cannibalization_alerts
+        WHERE video_id_1 IN ${videoSubquery} OR video_id_2 IN ${videoSubquery}
+      `);
+
+      await tx.execute(sql`
+        DELETE FROM clip_virality_scores
+        WHERE clip_id IN (SELECT id FROM content_clips WHERE source_video_id IN ${videoSubquery})
+      `);
+
+      const srcTables = [
+        'autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
+        'content_atoms', 'clip_queue_items', 'moment_genome_classifications', 'content_experiments',
+      ];
+      for (const table of srcTables) {
+        await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id IN ${videoSubquery}`);
+      }
+
+      await tx.execute(sql`DELETE FROM thumbnails WHERE video_id IN ${videoSubquery}`);
+      await tx.delete(videos).where(eq(videos.channelId, id));
       await tx.delete(channels).where(eq(channels.id, id));
     });
   }
