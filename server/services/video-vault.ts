@@ -282,15 +282,35 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
 }
 
 export async function indexAllChannelVideos(userId: string): Promise<{ indexed: number; newlyAdded: number }> {
-  logger.info("[Vault] Starting FULL channel index (videos + shorts + streams) of", PUBLIC_CHANNEL_URL);
+  logger.info("[Vault] Starting FULL channel index for user", userId);
 
-  const [videos, shorts, streams] = await Promise.all([
-    scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`, "video"),
-    scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`, "short"),
-    scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream"),
-  ]);
+  let allVideosRaw: ScrapedVideo[] = [];
+  let usedApi = false;
 
-  const allVideos = [...videos, ...shorts, ...streams];
+  const accessTokenForIndex = await getVaultYouTubeToken(userId);
+  if (accessTokenForIndex) {
+    try {
+      allVideosRaw = await fetchVideosFromYouTubeAPI(accessTokenForIndex);
+      usedApi = true;
+      logger.info(`[Vault] YouTube API index returned ${allVideosRaw.length} videos`);
+    } catch (apiErr: any) {
+      logger.warn(`[Vault] YouTube API index failed (${apiErr.message}) — falling back to yt-dlp scraping`);
+    }
+  } else {
+    logger.warn(`[Vault] No OAuth token for user ${userId} — using yt-dlp scraping`);
+  }
+
+  if (!usedApi) {
+    logger.info("[Vault] Scraping channel via yt-dlp:", PUBLIC_CHANNEL_URL);
+    const [videos, shorts, streams] = await Promise.all([
+      scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`, "video"),
+      scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`, "short"),
+      scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream"),
+    ]);
+    allVideosRaw = [...videos, ...shorts, ...streams];
+  }
+
+  const allVideos = allVideosRaw;
   const deduped = new Map<string, ScrapedVideo>();
   for (const v of allVideos) {
     if (!deduped.has(v.id)) deduped.set(v.id, v);
@@ -384,16 +404,138 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
 async function getVaultYouTubeToken(userId: string): Promise<string | null> {
   try {
     const [ch] = await db
-      .select({ accessToken: channels.accessToken, tokenExpiresAt: channels.tokenExpiresAt })
+      .select({
+        accessToken: channels.accessToken,
+        refreshToken: channels.refreshToken,
+        tokenExpiresAt: channels.tokenExpiresAt,
+        id: channels.id,
+      })
       .from(channels)
       .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
       .limit(1);
     if (!ch?.accessToken) return null;
-    if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date()) return null;
-    return ch.accessToken;
+
+    const isExpired = ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date(Date.now() + 60_000);
+    if (!isExpired) return ch.accessToken;
+
+    if (!ch.refreshToken) return null;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return null;
+
+    const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: ch.refreshToken,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }).toString(),
+    });
+    if (!refreshRes.ok) return null;
+    const tokens = await refreshRes.json() as { access_token?: string; expires_in?: number };
+    if (!tokens.access_token) return null;
+
+    const newExpiry = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
+    await db.update(channels)
+      .set({ accessToken: tokens.access_token, tokenExpiresAt: newExpiry })
+      .where(eq(channels.id, ch.id));
+
+    logger.info("[Vault] YouTube OAuth token refreshed successfully");
+    return tokens.access_token;
   } catch {
     return null;
   }
+}
+
+async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVideo[]> {
+  const videos: ScrapedVideo[] = [];
+
+  const channelRes = await fetch(
+    "https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true",
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!channelRes.ok) throw new Error(`YouTube channels API ${channelRes.status}`);
+  const channelData = await channelRes.json() as any;
+  const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsPlaylistId) throw new Error("No uploads playlist found in channel response");
+
+  const videoIds: string[] = [];
+  const snippetMap = new Map<string, any>();
+  let pageToken: string | undefined;
+
+  do {
+    const url = new URL("https://www.googleapis.com/youtube/v3/playlistItems");
+    url.searchParams.set("part", "snippet,contentDetails");
+    url.searchParams.set("playlistId", uploadsPlaylistId);
+    url.searchParams.set("maxResults", "50");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new Error(`YouTube playlistItems API ${res.status}`);
+    const data = await res.json() as any;
+
+    for (const item of data.items ?? []) {
+      const videoId: string = item.contentDetails?.videoId || item.snippet?.resourceId?.videoId;
+      if (!videoId) continue;
+      videoIds.push(videoId);
+      snippetMap.set(videoId, item.snippet ?? {});
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  logger.info(`[Vault] API playlist listed ${videoIds.length} videos — fetching details`);
+
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50);
+    const detailUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
+    detailUrl.searchParams.set("part", "contentDetails,statistics");
+    detailUrl.searchParams.set("id", batch.join(","));
+
+    const detailRes = await fetch(detailUrl.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!detailRes.ok) {
+      logger.warn(`[Vault] videos.list API ${detailRes.status} — skipping detail batch`);
+      continue;
+    }
+    const detailData = await detailRes.json() as any;
+
+    for (const item of detailData.items ?? []) {
+      const videoId: string = item.id;
+      const snippet = snippetMap.get(videoId) ?? {};
+
+      const iso = (item.contentDetails?.duration as string) ?? "PT0S";
+      const durationSec = (() => {
+        const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+        if (!m) return 0;
+        return (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");
+      })();
+
+      const viewCount = parseInt(item.statistics?.viewCount ?? "0", 10);
+      const publishedAt: string = snippet.publishedAt ?? "";
+      const uploadDate = publishedAt ? publishedAt.slice(0, 10).replace(/-/g, "") : "";
+      const thumbnails = snippet.thumbnails ?? {};
+      const thumbnailUrl: string =
+        thumbnails.maxres?.url ?? thumbnails.high?.url ?? thumbnails.default?.url
+        ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+      const contentType: "video" | "short" | "stream" = durationSec > 0 && durationSec <= 60 ? "short" : "video";
+
+      videos.push({
+        id: videoId,
+        title: snippet.title ?? "",
+        description: snippet.description ?? "",
+        duration: durationSec,
+        viewCount,
+        thumbnailUrl,
+        uploadDate,
+        contentType,
+      });
+    }
+  }
+
+  logger.info(`[Vault] YouTube API indexed ${videos.length} videos with full metadata`);
+  return videos;
 }
 
 async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
@@ -434,19 +576,44 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   }
 
   const url = `https://www.youtube.com/watch?v=${youtubeId}`;
-  const authArgs: string[] = accessToken
-    ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
-    : [];
 
   await db.update(contentVaultBackups)
     .set({ status: "downloading", downloadError: null })
     .where(eq(contentVaultBackups.id, vaultEntry.id));
 
+  // Primary: web_creator player with OAuth — designed for authenticated channel owners
+  if (accessToken) {
+    const authArgs = ["--add-headers", `Authorization:Bearer ${accessToken}`];
+    try {
+      await tryYtDlpDownload(url, outputPath, "web_creator", authArgs);
+      if (fs.existsSync(outputPath)) {
+        const stat = fs.statSync(outputPath);
+        if (stat.size > 1024) {
+          await db.update(contentVaultBackups)
+            .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
+            .where(eq(contentVaultBackups.id, vaultEntry.id));
+          logger.info(`[Vault] Downloaded via YouTube OAuth (web_creator): ${vaultEntry.title?.substring(0, 50)} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+          return true;
+        }
+      }
+    } catch (err: any) {
+      const msg = String(err?.message || err).substring(0, 200);
+      if (LIVE_EVENT_PATTERNS.some(p => p.test(msg))) {
+        await db.update(contentVaultBackups)
+          .set({ status: "skipped", downloadError: "Live or upcoming event — cannot download" })
+          .where(eq(contentVaultBackups.id, vaultEntry.id));
+        return false;
+      }
+      logger.warn(`[Vault] OAuth web_creator failed for ${youtubeId}: ${msg.substring(0, 100)} — trying fallback clients`);
+    }
+  }
+
+  // Fallback: unauthenticated yt-dlp multi-client loop
   let lastErr = "";
   let allBotDetected = true;
   for (const playerClient of PLAYER_CLIENTS) {
     try {
-      await tryYtDlpDownload(url, outputPath, playerClient, authArgs);
+      await tryYtDlpDownload(url, outputPath, playerClient, []);
 
       if (fs.existsSync(outputPath)) {
         const stat = fs.statSync(outputPath);
