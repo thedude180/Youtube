@@ -180,6 +180,23 @@ app.get("/api/oauth/tiktok/callback/tiktokyqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
   res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
 });
 
+// Token: JbfnHks16WqjQELHuTxxMbFC4f4IQdiE — dev/new registration
+app.get("/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  process.stdout.write(`[TikTok-Verify] HIT token-file-2 UA="${ua}"\n`);
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=JbfnHks16WqjQELHuTxxMbFC4f4IQdiE");
+});
+
+app.get("/api/oauth/tiktok/callback/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  process.stdout.write(`[TikTok-Verify] HIT callback-path-file-2 UA="${ua}"\n`);
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=JbfnHks16WqjQELHuTxxMbFC4f4IQdiE");
+});
+
 // TEMP: log every inbound request so we can see what TikTok's verifier sends
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const ua = (req.headers["user-agent"] || "").slice(0, 120);

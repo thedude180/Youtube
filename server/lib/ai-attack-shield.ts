@@ -541,6 +541,8 @@ const VERIFICATION_PATHS = [
   "/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
   "/tiktok-developers-site-verification.txt",
   "/api/oauth/tiktok/callback/tiktokyqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
+  "/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt",
+  "/api/oauth/tiktok/callback/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt",
   "/healthz",
   "/robots.txt",
 ];
