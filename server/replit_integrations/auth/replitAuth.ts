@@ -205,8 +205,10 @@ async function ensureDevUser() {
     }
 
     // Ensure ultimate tier + onboarding done (idempotent — safe to run each restart)
+    // role stays "user" — not "admin" — so the admin-email check on backend doesn't
+    // produce 403 noise for the dev user on admin-only routes.
     await db.update(users)
-      .set({ tier: "ultimate", role: "admin", onboardingCompleted: new Date() } as any)
+      .set({ tier: "ultimate", role: "user", onboardingCompleted: new Date() } as any)
       .where(eq(users.id, DEV_BYPASS_USER_ID));
 
     devUserReady = true;
