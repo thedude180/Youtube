@@ -1,5 +1,7 @@
 import type { Platform } from "@shared/schema";
 
+const isDevEnv = !process.env.REPLIT_DEPLOYMENT;
+
 export interface OAuthPlatformConfig {
   platform: Platform;
   label: string;
@@ -26,11 +28,14 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     authUrl: "https://id.twitch.tv/oauth2/authorize",
     tokenUrl: "https://id.twitch.tv/oauth2/token",
     scopes: ["user:read:email", "channel:read:stream_key", "channel:manage:broadcast", "channel:manage:schedule"],
-    clientIdEnv: "TWITCH_CLIENT_ID",
-    clientSecretEnv: "TWITCH_CLIENT_SECRET",
+    clientIdEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_ID ? "TWITCH_DEV_CLIENT_ID" : "TWITCH_CLIENT_ID",
+    clientSecretEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_SECRET ? "TWITCH_DEV_CLIENT_SECRET" : "TWITCH_CLIENT_SECRET",
     tokenAuthMethod: "body",
     userInfoUrl: "https://api.twitch.tv/helix/users",
-    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}`, "Client-Id": process.env.TWITCH_CLIENT_ID || "" }),
+    userInfoHeaders: (token) => ({
+      "Authorization": `Bearer ${token}`,
+      "Client-Id": (isDevEnv ? process.env.TWITCH_DEV_CLIENT_ID : undefined) || process.env.TWITCH_CLIENT_ID || "",
+    }),
     parseUserId: (data) => ({ id: data.data[0].id, username: data.data[0].login, displayName: data.data[0].display_name, profileUrl: `https://twitch.tv/${data.data[0].login}` }),
   },
   discord: {
