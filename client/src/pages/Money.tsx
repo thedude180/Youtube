@@ -36,6 +36,7 @@ import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { useParams, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from "react";
+import { useTabMemory } from "@/hooks/use-tab-memory";
 import { PlatformBadge, PlatformIcon } from "@/components/PlatformIcon";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from "@/lib/safe-data";
@@ -350,7 +351,18 @@ export default function Money() {
   const { toast } = useToast();
   const { user } = useAuth();
   const userId = user?.id;
-  const [activeTab, setActiveTab] = useState<TabKey>("revenue");
+
+  const params = useParams<{ tab?: string }>();
+  const validMoneyTabs: TabKey[] = ["revenue", "opportunities", "expenses", "taxes", "payments", "ventures", "goals", "sponsors", "merch-intel", "diversify", "business-intel", "checkout", "missions"];
+  const initialMoneyTab = validMoneyTabs.includes(params?.tab as TabKey) ? (params?.tab as TabKey) : "revenue";
+  const [activeTab, setActiveTab] = useTabMemory("money", initialMoneyTab, validMoneyTabs);
+
+  useEffect(() => {
+    const tabFromUrl = params?.tab as TabKey | undefined;
+    if (tabFromUrl && validMoneyTabs.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [params?.tab]);
 
   const { data: sponsorData, isLoading: sponsorLoading } = useQuery<SponsorData>({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
