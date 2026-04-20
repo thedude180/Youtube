@@ -538,11 +538,9 @@ export function methodOverrideBlock(): (req: Request, res: Response, next: NextF
 
 const VERIFICATION_PATHS = [
   "/",
-  "/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
   "/tiktok-developers-site-verification.txt",
-  "/api/oauth/tiktok/callback/tiktokyqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
-  "/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt",
-  "/api/oauth/tiktok/callback/tiktokJbfnHks16WqjQELHuTxxMbFC4f4IQdiE.txt",
+  "/HXIOEgyve1eGFRZt65Eci7YOioELKqif.txt",
+  "/api/oauth/tiktok/callback/tiktokHXIOEgyve1eGFRZt65Eci7YOioELKqif.txt",
   "/healthz",
   "/robots.txt",
 ];
