@@ -12,8 +12,6 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Sidebar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
-import { useInactivityTimeout } from "@/hooks/use-inactivity-timeout";
-import { InactivityWarning } from "@/components/InactivityWarning";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
 import { FocusModeProvider, useFocusMode } from "@/hooks/use-focus-mode";
@@ -577,9 +575,6 @@ function AuthenticatedApp() {
   );
 }
 
-const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
-const INACTIVITY_WARNING_MS = 2 * 60 * 1000;
-
 function AppContent() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { i18n } = useTranslation();
@@ -587,17 +582,6 @@ function AppContent() {
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(null);
   const [needsPreChannelLaunch, setNeedsPreChannelLaunch] = useState(false);
   const [ytModal, setYtModal] = useState<{ open: boolean; channelName: string }>({ open: false, channelName: "" });
-
-  const handleInactivityTimeout = useCallback(() => {
-    window.location.href = "/api/logout";
-  }, []);
-
-  const { showWarning: showInactivityWarning, secondsLeft, reset: resetInactivity } = useInactivityTimeout({
-    timeoutMs: INACTIVITY_TIMEOUT_MS,
-    warningMs: INACTIVITY_WARNING_MS,
-    enabled: isAuthenticated && import.meta.env.PROD,
-    onTimeout: handleInactivityTimeout,
-  });
 
   useEffect(() => {
     const lang = supportedLanguages.find((l) => l.code === i18n.language);
@@ -773,12 +757,6 @@ function AppContent() {
   return (
     <>
       <AuthenticatedApp />
-      <InactivityWarning
-        open={showInactivityWarning}
-        secondsLeft={secondsLeft}
-        onStayLoggedIn={resetInactivity}
-        onSignOut={handleInactivityTimeout}
-      />
       <Dialog open={ytModal.open} onOpenChange={(open) => setYtModal(m => ({ ...m, open }))}>
         <DialogContent className="max-w-md" data-testid="dialog-yt-connected">
           <DialogHeader>
