@@ -89,12 +89,18 @@ export async function runPredictiveCycle(): Promise<void> {
           if (ch.accessToken && ch.tokenExpiresAt) {
             const expiresAt = new Date(ch.tokenExpiresAt).getTime();
             const hoursUntilExpiry = (expiresAt - Date.now()) / 3600_000;
+            const minutesUntilExpiry = hoursUntilExpiry * 60;
 
-            if (hoursUntilExpiry < 2 && hoursUntilExpiry > 0) {
+            // Skip imminent-expiry warnings for channels with a refresh token —
+            // the token-refresh service will renew them automatically. Only warn
+            // if the token has already expired (no auto-recovery possible).
+            const hasRefreshToken = !!ch.refreshToken;
+
+            if (!hasRefreshToken && minutesUntilExpiry < 30 && hoursUntilExpiry > 0) {
               threats.push({
                 severity: "medium",
                 threat: "token_expiry_imminent",
-                prediction: `${ch.platform} token for channel ${ch.id} expires in ${Math.round(hoursUntilExpiry * 60)} minutes`,
+                prediction: `${ch.platform} token for channel ${ch.id} expires in ${Math.round(minutesUntilExpiry)} minutes (no refresh token — manual reconnect required)`,
                 action: "preemptive_token_refresh",
               });
             } else if (hoursUntilExpiry <= 0) {

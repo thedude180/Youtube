@@ -1,7 +1,7 @@
 import { db, withRetry } from "../db";
-import { channels, linkedChannels } from "@shared/schema";
+import { channels, linkedChannels, notifications } from "@shared/schema";
 import { users } from "@shared/models/auth";
-import { eq, and, isNotNull, lt, isNull, desc } from "drizzle-orm";
+import { eq, and, isNotNull, lt, isNull, desc, gte } from "drizzle-orm";
 import { storage } from "../storage";
 import { markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
@@ -208,19 +208,37 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
                     metadata: { source: "connection-guardian", platformAffected: ch.platform },
                   });
                 } else if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-                  await storage.createNotification({
-                    userId: ch.userId,
-                    type: "connection_critical",
-                    title: `${ch.platform} connection permanently expired`,
-                    message: `${ch.channelName} could not be refreshed after ${failures} attempts. Reconnect this platform immediately to restore autopilot.`,
-                    severity: "error",
-                    actionUrl: "/settings",
-                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
-                  });
-                  const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
-                  await proactiveTokenHealthCheck().catch((e: Error) =>
-                    logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, e)
-                  );
+                  // DB-backed 24h cooldown: skip if a connection_critical notification was
+                  // already sent for this user+platform in the last 24 hours.
+                  // In-memory cooldowns reset on server restart, causing duplicate emails.
+                  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                  const recentCritical = await db.select({ id: notifications.id })
+                    .from(notifications)
+                    .where(and(
+                      eq(notifications.userId, ch.userId),
+                      eq(notifications.type, "connection_critical"),
+                      gte(notifications.createdAt, since24h),
+                    ))
+                    .limit(1)
+                    .catch(() => [] as { id: number }[]);
+
+                  if (recentCritical.length === 0) {
+                    await storage.createNotification({
+                      userId: ch.userId,
+                      type: "connection_critical",
+                      title: `${ch.platform} connection permanently expired`,
+                      message: `${ch.channelName} could not be refreshed after ${failures} attempts. Reconnect this platform immediately to restore autopilot.`,
+                      severity: "error",
+                      actionUrl: "/settings",
+                      metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                    });
+                    const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
+                    await proactiveTokenHealthCheck().catch((e: Error) =>
+                      logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, e)
+                    );
+                  } else {
+                    logger.info(`[ConnectionGuardian] Skipping duplicate connection_critical notification for ${ch.platform} (sent within 24h)`);
+                  }
                 }
               } catch (notifErr) {
                 logger.error("[ConnectionGuardian] Failed to send escalating notification:", notifErr);
