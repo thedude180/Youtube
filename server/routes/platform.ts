@@ -1505,6 +1505,10 @@ export async function registerPlatformRoutes(app: Express) {
 
     pendingOAuthStates.set(state, { userId, platform, timestamp: Date.now(), codeVerifier });
 
+    // Also persist state in the session as a durable backup — survives server restarts
+    (req.session as any).pendingOAuthState = { state, userId, platform, codeVerifier, timestamp: Date.now() };
+    req.session.save(() => {});
+
     const scopeDelimiter = config.usesClientKey ? "," : " ";
     const params = new URLSearchParams({
       [config.usesClientKey ? "client_key" : "client_id"]: clientId,
@@ -1527,6 +1531,7 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     const authUrl = `${config.authUrl}?${params.toString()}`;
+    logger.info(`[OAuth ${platform}] Auth initiated for user ${userId}, redirect_uri=${getOAuthRedirectUri(platform)}`);
     const acceptHeader = req.headers.accept || "";
     if (acceptHeader.includes("application/json")) {
       res.json({ url: authUrl, redirectUri: getOAuthRedirectUri(platform) });
@@ -1557,6 +1562,10 @@ export async function registerPlatformRoutes(app: Express) {
       codeVerifier = crypto.randomBytes(32).toString("base64url");
     }
     pendingOAuthStates.set(state, { userId, platform, timestamp: Date.now(), codeVerifier });
+
+    // Also persist state in the session as a durable backup — survives server restarts
+    (req.session as any).pendingOAuthState = { state, userId, platform, codeVerifier, timestamp: Date.now() };
+    req.session.save(() => {});
 
     const scopeDelimiter = config.usesClientKey ? "," : " ";
     const params = new URLSearchParams({
@@ -1639,18 +1648,48 @@ export async function registerPlatformRoutes(app: Express) {
 
     let userId: string | null = null;
     let codeVerifier: string | undefined;
+
+    // 1. Try in-memory state map (fast path)
     if (state && pendingOAuthStates.has(state)) {
       const entry = pendingOAuthStates.get(state)!;
       userId = entry.userId;
       codeVerifier = entry.codeVerifier;
       pendingOAuthStates.delete(state);
+      logger.info(`[OAuth ${platform}] State resolved from memory for user ${userId}`);
+    }
+
+    // 2. Fallback: session-persisted state (survives server restarts)
+    if (!userId && state) {
+      const sessionState = (req.session as any).pendingOAuthState;
+      if (sessionState && sessionState.state === state && sessionState.platform === platform) {
+        const AGE_LIMIT = 15 * 60 * 1000;
+        if (Date.now() - (sessionState.timestamp || 0) < AGE_LIMIT) {
+          userId = sessionState.userId;
+          codeVerifier = sessionState.codeVerifier;
+          logger.info(`[OAuth ${platform}] State resolved from session for user ${userId}`);
+        } else {
+          logger.warn(`[OAuth ${platform}] Session state expired`);
+        }
+      } else if (sessionState) {
+        logger.warn(`[OAuth ${platform}] Session state mismatch — expected state ${state?.substring(0, 8)}... got ${sessionState.state?.substring(0, 8)}...`);
+      }
+    }
+    // Clear session state regardless
+    if ((req.session as any).pendingOAuthState) {
+      delete (req.session as any).pendingOAuthState;
+      req.session.save(() => {});
+    }
+
+    // 3. Last resort: use logged-in session user
+    if (!userId) {
+      if (req.isAuthenticated()) {
+        userId = getUserId(req);
+        logger.warn(`[OAuth ${platform}] State not found — falling back to session user ${userId}`);
+      }
     }
 
     if (!userId) {
-      userId = req.isAuthenticated() ? getUserId(req) : null;
-    }
-
-    if (!userId) {
+      logger.error(`[OAuth ${platform}] Cannot resolve userId — state=${state?.substring(0, 8)}... session=${JSON.stringify((req.session as any).pendingOAuthState)}`);
       return res.redirect(`/?error=${encodeURIComponent("Session expired. Please log in and try again.")}`);
     }
 
@@ -1690,6 +1729,8 @@ export async function registerPlatformRoutes(app: Express) {
         delete tokenBody.client_secret;
       }
 
+      logger.info(`[OAuth ${platform}] Token exchange — clientIdEnv=${config.clientIdEnv} hasClientId=${!!clientId} hasClientSecret=${!!clientSecret} redirect_uri=${getOAuthRedirectUri(platform)}`);
+
       const tokenRes = await fetch(config.tokenUrl, {
         method: "POST",
         headers,
@@ -1698,7 +1739,7 @@ export async function registerPlatformRoutes(app: Express) {
 
       if (!tokenRes.ok) {
         const errText = await tokenRes.text();
-        logger.error(`[OAuth ${platform}] Token exchange failed:`, errText);
+        logger.error(`[OAuth ${platform}] Token exchange failed (${tokenRes.status}): ${errText}`);
         return res.redirect(`/?error=${encodeURIComponent(`Failed to connect ${config.label}. Please try again.`)}`);
       }
 
@@ -1848,6 +1889,7 @@ export async function registerPlatformRoutes(app: Express) {
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform });
 
+      logger.info(`[OAuth ${platform}] Channel saved successfully — userId=${userId} channelName=${channelName} channelId=${channelId}`);
       res.redirect(`/?connected=${platform}&channel=${encodeURIComponent(channelName)}`);
     } catch (error: any) {
       logger.error(`[OAuth ${platform}] Callback error:`, error);
