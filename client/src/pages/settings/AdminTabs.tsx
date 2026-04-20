@@ -464,12 +464,13 @@ interface BudgetEngineInfo {
   day: string;
   throttledInLast24h: boolean;
   lastThrottledAt: number | null;
+  pacingCeiling: number;
 }
 
 function AdminTokenBudgetTab() {
   const { data, isLoading, refetch, isFetching } = useQuery<Record<string, BudgetEngineInfo>>({
     queryKey: ["/api/admin/token-budget"],
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
   });
 
   const now = new Date();
@@ -499,6 +500,7 @@ function AdminTokenBudgetTab() {
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Coins className="w-5 h-5" />
           AI Token Budget
+          <span className="text-xs font-normal text-muted-foreground ml-1">(paced 24h)</span>
         </h3>
         <div className="flex items-center gap-3 flex-wrap">
           {utcDate && (
@@ -520,6 +522,11 @@ function AdminTokenBudgetTab() {
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground -mt-2">
+        Each engine's daily allowance is spread evenly over 24 hours so AI tasks run consistently all day.
+        The <span className="text-sky-400 font-medium">blue marker</span> shows how much is unlocked right now — usage stays behind it until the next slot opens.
+      </p>
+
       <Card data-testid="card-token-budget">
         <CardContent className="pt-4">
           {entries.length === 0 ? (
@@ -527,12 +534,21 @@ function AdminTokenBudgetTab() {
           ) : (
             <div className="space-y-3">
               {entries.map(([engine, info]) => {
-                const pct = info.cap > 0 ? Math.min(100, Math.round((info.used / info.cap) * 100)) : 0;
-                const throttled = info.throttledInLast24h;
+                const pct        = info.cap > 0 ? Math.min(100, Math.round((info.used / info.cap) * 100)) : 0;
+                const pacingPct  = info.cap > 0 ? Math.min(100, Math.round((info.pacingCeiling / info.cap) * 100)) : 0;
+                const throttled  = info.throttledInLast24h;
+                // Pacing-limited: not daily-exhausted but used ≥ 90% of the current hourly ceiling
+                const pacingHeld = !throttled && info.pacingCeiling > 0 && info.used >= info.pacingCeiling * 0.9;
+                const rowBg = throttled  ? "bg-red-500/10 border border-red-500/30"
+                            : pacingHeld ? "bg-amber-500/10 border border-amber-500/30"
+                            : "bg-muted/40";
+                const barColor = throttled  ? "bg-red-500"
+                               : pct >= 80  ? "bg-amber-400"
+                               : "bg-emerald-400";
                 return (
                   <div
                     key={engine}
-                    className={`p-3 rounded-md ${throttled ? "bg-red-500/10 border border-red-500/30" : "bg-muted/40"}`}
+                    className={`p-3 rounded-md ${rowBg}`}
                     data-testid={`budget-row-${engine}`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
@@ -541,7 +557,12 @@ function AdminTokenBudgetTab() {
                         <span className="text-sm font-medium" data-testid={`text-engine-name-${engine}`}>{engine}</span>
                         {throttled && (
                           <Badge variant="destructive" className="text-xs" data-testid={`badge-throttled-${engine}`}>
-                            Throttled
+                            Cap hit
+                          </Badge>
+                        )}
+                        {pacingHeld && (
+                          <Badge className="text-xs bg-amber-500/20 text-amber-300 border-amber-500/40" data-testid={`badge-pacing-${engine}`}>
+                            Pacing
                           </Badge>
                         )}
                         {throttled && info.lastThrottledAt && (
@@ -550,19 +571,35 @@ function AdminTokenBudgetTab() {
                           </span>
                         )}
                       </div>
-                      <span
-                        className={`text-xs font-mono ${throttled ? "text-red-400" : "text-muted-foreground"}`}
-                        data-testid={`text-budget-usage-${engine}`}
-                      >
-                        {info.used.toLocaleString()} / {info.cap.toLocaleString()} tokens ({pct}%)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-sky-400/80 font-mono" data-testid={`text-pacing-ceiling-${engine}`}>
+                          now: {info.pacingCeiling.toLocaleString()}
+                        </span>
+                        <span
+                          className={`text-xs font-mono ${throttled ? "text-red-400" : "text-muted-foreground"}`}
+                          data-testid={`text-budget-usage-${engine}`}
+                        >
+                          used: {info.used.toLocaleString()} / {info.cap.toLocaleString()} ({pct}%)
+                        </span>
+                      </div>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    {/* Progress bar: usage fill + pacing ceiling marker */}
+                    <div className="h-2 w-full rounded-full bg-muted overflow-visible relative">
+                      {/* Usage fill */}
                       <div
-                        className={`h-full rounded-full transition-all ${throttled ? "bg-red-500" : pct >= 80 ? "bg-amber-400" : "bg-emerald-400"}`}
+                        className={`h-full rounded-full transition-all absolute top-0 left-0 ${barColor}`}
                         style={{ width: `${pct}%` }}
                         data-testid={`bar-budget-${engine}`}
                       />
+                      {/* Pacing ceiling tick */}
+                      {pacingPct < 100 && (
+                        <div
+                          className="absolute top-[-3px] bottom-[-3px] w-0.5 rounded-full bg-sky-400/80"
+                          style={{ left: `${pacingPct}%` }}
+                          data-testid={`tick-pacing-${engine}`}
+                          title={`Hourly allowance: ${info.pacingCeiling.toLocaleString()} tokens`}
+                        />
+                      )}
                     </div>
                   </div>
                 );

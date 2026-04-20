@@ -1019,19 +1019,48 @@ class TokenBudgetGuard {
   }
 
   /**
+   * Returns the pacing ceiling for an engine at the current UTC time.
+   * Engines are allowed up to (currentUTCHour + PACING_LOOKAHEAD_HOURS) / 24
+   * of their daily cap. The look-ahead prevents starvation at midnight while
+   * still spreading usage evenly across the day.
+   */
+  static pacingCeiling(cap: number): number {
+    const PACING_LOOKAHEAD_HOURS = 2;
+    const utcNow = new Date();
+    const hoursElapsed = utcNow.getUTCHours() + utcNow.getUTCMinutes() / 60;
+    return Math.min(cap, Math.floor(cap * Math.min(hoursElapsed + PACING_LOOKAHEAD_HOURS, 24) / 24));
+  }
+
+  /**
    * Check whether an engine has remaining budget for an estimated token cost.
-   * Returns true (allowed) or false (exhausted — caller should skip and log).
-   * When throttled, records the timestamp so getSnapshot() can surface it.
+   * Returns true (allowed) or false (exhausted or pacing — caller should skip and log).
+   *
+   * Two gates:
+   *  1. Hard daily cap  — never allow usage past the per-engine DAILY_CAPS limit.
+   *  2. Hourly pacing   — limit usage to the proportional share for the elapsed UTC
+   *     day plus a 2-hour look-ahead. This spreads the budget evenly over 24 hours
+   *     so engines stay active all day rather than exhausting their cap in the morning.
    */
   checkBudget(engine: string, estimatedTokens = 2000): boolean {
     const cap = DAILY_CAPS[engine] ?? DEFAULT_DAILY_CAP;
     const e = this.entry(engine);
+
+    // Gate 1: hard daily cap
     if (e.used + estimatedTokens > cap) {
       logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
       this.lastThrottledAt.set(engine, Date.now());
       this.markDirty(engine);
       return false;
     }
+
+    // Gate 2: hourly pacing — don't race ahead of the proportional daily allowance
+    const ceiling = TokenBudgetGuard.pacingCeiling(cap);
+    if (e.used + estimatedTokens > ceiling) {
+      const utcHour = new Date().getUTCHours();
+      logger.info(`[TokenBudget] ${engine} hourly pacing active (used=${e.used}, ceiling=${ceiling}/${cap} at UTC hour ${utcHour}). Deferring to next slot.`);
+      return false;
+    }
+
     return true;
   }
 
@@ -1056,7 +1085,7 @@ class TokenBudgetGuard {
    * so callers see the latest persisted state, falling back to in-memory
    * values (which include any unflushed updates) if the DB query fails.
    */
-  async getSnapshot(): Promise<Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }>> {
+  async getSnapshot(): Promise<Record<string, { used: number; cap: number; pacingCeiling: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }>> {
     const today = utcDayString();
     const now = Date.now();
     const window24h = 24 * 60 * 60 * 1000;
@@ -1070,7 +1099,7 @@ class TokenBudgetGuard {
     }
 
     const dbByEngine = new Map(dbRows.map(r => [r.engine, r]));
-    const out: Record<string, { used: number; cap: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> = {};
+    const out: Record<string, { used: number; cap: number; pacingCeiling: number; day: string; throttledInLast24h: boolean; lastThrottledAt: number | null }> = {};
     for (const [eng, cap] of Object.entries(DAILY_CAPS)) {
       const dbRow = dbByEngine.get(eng);
       const memEntry = this.budgets.get(eng);
@@ -1079,6 +1108,7 @@ class TokenBudgetGuard {
       out[eng] = {
         used,
         cap,
+        pacingCeiling: TokenBudgetGuard.pacingCeiling(cap),
         day: today,
         throttledInLast24h: lastTs !== null && now - lastTs <= window24h,
         lastThrottledAt: lastTs,
