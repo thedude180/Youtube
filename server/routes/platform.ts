@@ -1623,8 +1623,17 @@ export async function registerPlatformRoutes(app: Express) {
     const platform = req.params.platform as Platform;
     const code = req.query.code as string | undefined;
     const state = req.query.state as string | undefined;
+    const oauthError = req.query.error as string | undefined;
+    const oauthErrorDesc = req.query.error_description as string | undefined;
+
+    if (oauthError) {
+      logger.error(`[OAuth ${platform}] Provider returned error:`, { error: oauthError, description: oauthErrorDesc });
+      const msg = oauthErrorDesc || oauthError;
+      return res.redirect(`/?error=${encodeURIComponent(`${platform} denied access: ${msg}`)}`);
+    }
 
     if (!code) {
+      logger.error(`[OAuth ${platform}] Callback missing code. Query params:`, req.query);
       return res.redirect(`/?error=${encodeURIComponent("Missing authorization code. Please try again.")}`);
     }
 
@@ -1662,7 +1671,11 @@ export async function registerPlatformRoutes(app: Express) {
         client_secret: clientSecret,
       };
 
-      if (config.requiresPKCE && codeVerifier) {
+      if (config.requiresPKCE) {
+        if (!codeVerifier) {
+          logger.error(`[OAuth ${platform}] PKCE required but code_verifier missing — state may have expired. Re-initiate the OAuth flow.`);
+          return res.redirect(`/?error=${encodeURIComponent("OAuth session expired — please try connecting again.")}`);
+        }
         tokenBody.code_verifier = codeVerifier;
       }
 
