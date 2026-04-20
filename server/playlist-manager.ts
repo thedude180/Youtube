@@ -146,6 +146,8 @@ function generatePlaylistDescription(gameName: string, type: PlaylistType): stri
     : `${formattedGame} shorts, highlights, best moments, and clips. Updated automatically with new content.`;
 }
 
+const UNIDENTIFIED_GAMES = new Set(["general", "unknown", "uncategorized", "misc", "other", ""]);
+
 async function getOrCreateGamePlaylist(
   userId: string,
   gameName: string,
@@ -153,6 +155,9 @@ async function getOrCreateGamePlaylist(
   channelId: number
 ): Promise<GamePlaylistMapping> {
   const normalizedGame = gameName.toLowerCase().trim();
+  if (UNIDENTIFIED_GAMES.has(normalizedGame)) {
+    throw new Error(`Refusing to create playlist for unidentified game: "${normalizedGame}"`);
+  }
   const strategy = playlistType === "longform" ? "game-longform" : "game-shorts";
 
   const existing = await db.select().from(managedPlaylists)
@@ -429,6 +434,12 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
         if (meta.playlistAssigned) continue;
 
         const gameName = await detectGameFromVideo(video);
+
+        if (UNIDENTIFIED_GAMES.has(gameName.toLowerCase().trim())) {
+          logger.debug("Skipping unidentified video — no playlist created", { videoId: video.id, game: gameName });
+          continue;
+        }
+
         const isShort = video.type === "short" || video.type === "shorts" ||
           video.type === "short_video" ||
           (meta.duration && parseDuration(meta.duration) <= 60);
@@ -544,12 +555,17 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
     const youtubeId = meta.youtubeId;
     if (!youtubeId) return false;
 
-    let gameName = meta.detectedGame;
+    let gameName = meta.detectedGame || meta.gameName;
     if (!gameName) {
       gameName = await detectGameFromVideo(video);
       await db.update(videos).set({
         metadata: { ...meta, detectedGame: gameName },
       }).where(eq(videos.id, videoId));
+    }
+
+    if (UNIDENTIFIED_GAMES.has((gameName || "").toLowerCase().trim())) {
+      logger.info("Skipping unidentified video — no playlist created for single assignment", { videoId, game: gameName });
+      return false;
     }
 
     const isShort = video.type === "short" || video.type === "shorts" ||

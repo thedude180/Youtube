@@ -8,7 +8,7 @@ import {
   reengagementCampaigns, streamPipelines, channels,
   keywordInsights, trafficStrategies, videoUpdateHistory,
   contentInsights, complianceRecords, growthStrategies,
-  aiAgentTasks,
+  aiAgentTasks, managedPlaylists, playlistItems,
 } from "@shared/schema";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -333,6 +333,119 @@ export function registerContentRoutes(app: Express) {
     } catch (err: any) {
       logger.error("Catalog redetect error:", err);
       res.status(500).json({ message: "Failed to start catalog redetection" });
+    }
+  }));
+
+  app.post("/api/content/catalog-full-reset", writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "Catalog Reset");
+    if (!userId) return;
+
+    try {
+      const allVideos = await storage.getVideosByUser(userId, 1, 500);
+
+      // Step 1: Strip game-detection + playlist flags from all video metadata
+      for (const video of allVideos) {
+        const meta = (video.metadata || {}) as any;
+        const {
+          gameName, detectedGame, playlistAssigned, assignedPlaylistId,
+          previousGameName, gameDetectionMethod, gameRedetectedAt,
+          ...restMeta
+        } = meta;
+        await db.update(videos).set({
+          metadata: { ...restMeta, catalogResetAt: new Date().toISOString() },
+        }).where(eq(videos.id, video.id));
+      }
+
+      // Step 2: Delete all auto-managed playlists + their items for this user
+      const userAutoPlaylists = await db
+        .select({ id: managedPlaylists.id })
+        .from(managedPlaylists)
+        .where(and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true)));
+
+      if (userAutoPlaylists.length > 0) {
+        const playlistIdList = userAutoPlaylists.map(p => p.id);
+        await db.delete(playlistItems).where(inArray(playlistItems.playlistId, playlistIdList));
+        await db.delete(managedPlaylists).where(
+          and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true))
+        );
+      }
+
+      // Step 3: Queue SEO re-optimization + thumbnail regeneration for every video
+      const agentTasks = allVideos.flatMap(video => [
+        {
+          ownerId: userId,
+          agentRole: "ai-seo-manager" as const,
+          taskType: "seo_optimize",
+          title: `[Reset] Re-optimize SEO: ${(video.title || "").slice(0, 60)}`,
+          status: "queued" as const,
+          priority: 5,
+          payload: {
+            videoId: video.id,
+            videoTitle: video.title,
+            videoDescription: video.description,
+            platform: video.platform,
+            metadata: video.metadata,
+            forceRegen: true,
+            catalogReset: true,
+          },
+        },
+        {
+          ownerId: userId,
+          agentRole: "ai-editor" as const,
+          taskType: "thumbnail_generate",
+          title: `[Reset] Regenerate thumbnail: ${(video.title || "").slice(0, 60)}`,
+          status: "queued" as const,
+          priority: 3,
+          payload: {
+            videoId: video.id,
+            videoTitle: video.title,
+            forceRegen: true,
+            catalogReset: true,
+          },
+        },
+      ]);
+
+      if (agentTasks.length > 0) {
+        for (let i = 0; i < agentTasks.length; i += 100) {
+          await db.insert(aiAgentTasks).values(agentTasks.slice(i, i + 100));
+        }
+      }
+
+      // Step 4: Queue a playlist re-organization pass that runs after game detection
+      await db.insert(aiAgentTasks).values({
+        ownerId: userId,
+        agentRole: "ai-editor" as const,
+        taskType: "playlist_reorganize",
+        title: `[Reset] Rebuild all playlists from scratch`,
+        status: "queued" as const,
+        priority: 2,
+        payload: { userId, catalogReset: true, runAfterDetection: true },
+      });
+
+      await storage.createAuditLog({
+        userId,
+        action: "catalog_full_reset",
+        target: `${allVideos.length} videos`,
+        details: { videosReset: allVideos.length, playlistsCleared: userAutoPlaylists.length },
+        riskLevel: "medium",
+      });
+
+      sendSSEEvent(userId, "catalog_reset", {
+        status: "started",
+        videosQueued: allVideos.length,
+        playlistsCleared: userAutoPlaylists.length,
+      });
+
+      res.json({
+        success: true,
+        videosQueued: allVideos.length,
+        playlistsCleared: userAutoPlaylists.length,
+        tasksQueued: agentTasks.length + 1,
+        message: `Full reset started: ${allVideos.length} videos queued for SEO + thumbnail regeneration. ${userAutoPlaylists.length} old playlists cleared — they will be rebuilt automatically once game detection completes.`,
+      });
+    } catch (err: any) {
+      logger.error("Catalog full reset error:", err);
+      res.status(500).json({ message: "Failed to reset catalog" });
     }
   }));
 

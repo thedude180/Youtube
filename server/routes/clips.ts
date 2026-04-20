@@ -164,6 +164,7 @@ export function registerClipRoutes(app: Express) {
       if (parsed.data.autoSchedule && result.clips.length > 0) {
         const now = new Date();
         const batchValues: any[] = [];
+        const srcGameName = ((result.video.metadata as any)?.gameName || (result.video.metadata as any)?.detectedGame || "").trim();
 
         for (let i = 0; i < result.clips.length; i++) {
           const clip = result.clips[i];
@@ -206,6 +207,7 @@ export function registerClipRoutes(app: Express) {
               humanScore: 0.95,
               viralScore: clip.optimizationScore,
               seoOptimized: true,
+              gameName: srcGameName || undefined,
               hashtags: (clip.metadata as any)?.tags || [],
             },
           });
@@ -337,6 +339,20 @@ export function registerClipRoutes(app: Express) {
         platformCounts[p] = existingPlatformCounts[p] || 0;
       }
 
+      // Batch-load source videos to get game context for each clip
+      const sourceVideoIds = [...new Set(
+        sorted.map(c => c.sourceVideoId).filter((id): id is number => id != null)
+      )];
+      const sourceVideosRaw = sourceVideoIds.length > 0
+        ? await db.select().from(videos).where(inArray(videos.id, sourceVideoIds))
+        : [];
+      const gameNameByVideoId = new Map<number, string>(
+        sourceVideosRaw.map(v => [
+          v.id,
+          ((v.metadata as any)?.gameName || (v.metadata as any)?.detectedGame || "").trim(),
+        ])
+      );
+
       for (const clip of sorted) {
         let platform = clip.targetPlatform || "youtube";
         if (platform === "kick" || platform === "twitch" || platform === "rumble") platform = "tiktok";
@@ -363,6 +379,8 @@ export function registerClipRoutes(app: Express) {
         const microDelay = addHumanMicroDelay();
         const finalTime = new Date(scheduledAt.getTime() + microDelay);
 
+        const clipGameName = clip.sourceVideoId ? (gameNameByVideoId.get(clip.sourceVideoId) || "") : "";
+
         batchValues.push({
           userId,
           sourceVideoId: clip.sourceVideoId ?? undefined,
@@ -381,6 +399,7 @@ export function registerClipRoutes(app: Express) {
             aiModel: "auto-clip",
             humanScore: 0.95,
             viralScore: clip.optimizationScore,
+            gameName: clipGameName || undefined,
             hashtags: (clip.metadata as any)?.tags || [],
           },
         });
@@ -465,6 +484,12 @@ export function registerClipRoutes(app: Express) {
       const microDelay = addHumanMicroDelay();
       const finalTime = new Date(scheduledAt.getTime() + microDelay);
 
+      let singleClipGame = "";
+      if (clip.sourceVideoId) {
+        const [srcVideo] = await db.select().from(videos).where(eq(videos.id, clip.sourceVideoId));
+        singleClipGame = ((srcVideo?.metadata as any)?.gameName || (srcVideo?.metadata as any)?.detectedGame || "").trim();
+      }
+
       const [queued] = await db
         .insert(autopilotQueue)
         .values({
@@ -485,6 +510,7 @@ export function registerClipRoutes(app: Express) {
             aiModel: "auto-clip",
             humanScore: 0.95,
             viralScore: clip.optimizationScore ?? undefined,
+            gameName: singleClipGame || undefined,
           },
         })
         .returning();
