@@ -8,7 +8,7 @@ const ACTIVITY_EVENTS: (keyof WindowEventMap)[] = [
   "touchstart",
   "click",
   "wheel",
-  "visibilitychange",
+  "visibilitychange" as keyof WindowEventMap,
 ];
 
 export interface InactivityTimeoutOptions {

@@ -144,7 +144,7 @@ export async function registerRoutes(
     app.use("/api", (req, _res, next) => {
       if (!req.isAuthenticated()) {
         (req as any).user = DEV_USER;
-        req.isAuthenticated = () => true;
+        req.isAuthenticated = (() => true) as typeof req.isAuthenticated;
       }
       next();
     });
