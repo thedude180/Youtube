@@ -151,13 +151,19 @@ app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).send("OK");
 });
 
-app.get("/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt", (_req: Request, res: Response) => {
+app.get("/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  process.stdout.write(`[TikTok-Verify] HIT token-file UA="${ua}" ip=${ip}\n`);
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
   res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
 });
 
-app.get("/tiktok-developers-site-verification.txt", (_req: Request, res: Response) => {
+app.get("/tiktok-developers-site-verification.txt", (req: Request, res: Response) => {
+  const ua = req.headers["user-agent"] || "(none)";
+  const ip = req.ip || req.socket?.remoteAddress || "unknown";
+  process.stdout.write(`[TikTok-Verify] HIT named-file UA="${ua}" ip=${ip}\n`);
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Cache-Control", "no-store");
   res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
