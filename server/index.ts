@@ -1175,18 +1175,6 @@ httpServer.listen(
 
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
-      // Seed X channel from env tokens for every user in the DB (idempotent)
-      import("./replit_integrations/auth/replitAuth").then(async m => {
-        try {
-          const { db: database } = await import("./db");
-          const { users } = await import("@shared/schema");
-          const allUsers = await database.select({ id: users.id }).from(users).limit(50);
-          for (const u of allUsers) {
-            await m.ensureXChannelFromEnv(u.id).catch(() => {});
-          }
-        } catch {}
-      }).catch(slog("ensureXChannelFromEnv"));
-
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
       try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
