@@ -151,6 +151,18 @@ app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).send("OK");
 });
 
+app.get("/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
+});
+
+app.get("/tiktok-developers-site-verification.txt", (_req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send("tiktok-developers-site-verification=yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd");
+});
+
 // Early SPA route — also registered before all middleware so Replit's health
 // probe (which may hit /) gets a 200 immediately even before OIDC/DB is ready.
 if (process.env.NODE_ENV === "production") {
