@@ -701,17 +701,22 @@ function splitIntoThread(text: string, maxLen = 280): string[] {
   return result.length ? result : [text.slice(0, maxLen)];
 }
 
+interface XTweetBody {
+  text: string;
+  reply?: { in_reply_to_tweet_id: string };
+}
+
 async function postToX(
   accessToken: string,
   content: string,
-  metadata?: any,
+  _metadata?: Record<string, unknown>,
 ): Promise<PublishResult> {
   const tweets = splitIntoThread(content, 280);
   let lastTweetId: string | undefined;
   let firstTweetId: string | undefined;
 
   for (let i = 0; i < tweets.length; i++) {
-    const body: Record<string, any> = { text: tweets[i] };
+    const body: XTweetBody = { text: tweets[i] };
     if (lastTweetId) body.reply = { in_reply_to_tweet_id: lastTweetId };
 
     let res: Response;

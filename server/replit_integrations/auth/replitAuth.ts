@@ -267,7 +267,7 @@ export async function ensureXChannelFromEnv(userId: string): Promise<void> {
           }).toString(),
         });
         if (refreshRes.ok) {
-          const tokens = await refreshRes.json() as any;
+          const tokens = await refreshRes.json() as { access_token?: string; refresh_token?: string };
           if (tokens.access_token) {
             accessToken = tokens.access_token;
             if (tokens.refresh_token) refreshToken = tokens.refresh_token;
