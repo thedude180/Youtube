@@ -536,8 +536,15 @@ export function methodOverrideBlock(): (req: Request, res: Response, next: NextF
   };
 }
 
+const VERIFICATION_PATHS = [
+  "/yqkBH7SBYAFQ1boSlr9TMDiojTj9eFxd.txt",
+  "/tiktok-developers-site-verification.txt",
+  "/healthz",
+];
+
 export function badUserAgentBlock(): (req: Request, res: Response, next: NextFunction) => void {
   return (req: Request, res: Response, next: NextFunction) => {
+    if (VERIFICATION_PATHS.includes(req.path)) return next();
     const ua = (req.headers["user-agent"] || "").toLowerCase();
     if (!ua) {
       const ip = req.ip || "unknown";
