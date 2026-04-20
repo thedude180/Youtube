@@ -52,7 +52,17 @@ const LazyOpportunitiesTab = lazy(() => import("./money/OpportunitiesTab"));
 const LazyMoneyAIToolSuites = lazy(() => import("./money/MoneyAIToolSuites"));
 const LazyBusinessIntelligenceTab = lazy(() => import("./money/BusinessIntelligenceTab"));
 
-type AIResponse = any;
+type AIResponse = Record<string, unknown> | null;
+
+interface CommandCenterData { sessionId?: string; }
+interface QualityOutputLadder { nativeOrEnhanced?: string; }
+interface QualityStateData { archiveMaster?: { suitableForReplay?: boolean }; outputLadders?: QualityOutputLadder[]; }
+interface SponsorOpportunity { brand?: string; niche?: string; estimatedDeal?: string; fitScore?: number; }
+interface SponsorData { totalPotentialRevenue?: string; averageDealSize?: string; opportunities?: SponsorOpportunity[]; }
+interface ViralMoment { phrase?: string; virality?: number; merchandiseType?: string; urgency?: string; }
+interface MerchProduct { product?: string; demandScore?: number; suggestedPrice?: string; estimatedRevenue?: string; }
+interface MerchData { viralMoments?: ViralMoment[]; totalOpportunity?: string; topProducts?: MerchProduct[]; }
+interface DiversifyData { streams?: unknown[]; overallScore?: number; riskLevel?: string; recommendations?: string[]; }
 
 type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify" | "business-intel" | "checkout" | "missions";
 
@@ -173,19 +183,19 @@ function RevenueAdvisorWidget() {
 }
 
 function QualityRevenueHook() {
-  const { data: streams } = useQuery<any>({
+  const { data: streams } = useQuery<CommandCenterData>({
     queryKey: ["/api/stream/command-center"],
     staleTime: 60_000,
   });
-  const sessionId = (streams as any)?.sessionId;
-  const { data: qualityState } = useQuery<any>({
+  const sessionId = streams?.sessionId;
+  const { data: qualityState } = useQuery<QualityStateData>({
     queryKey: ["/api/resolution/quality-state", sessionId],
     enabled: !!sessionId,
   });
   if (!qualityState?.archiveMaster) return null;
   const archive = qualityState.archiveMaster;
   const ladders = qualityState.outputLadders || [];
-  const hasEnhanced = ladders.some((l: any) => l.nativeOrEnhanced === "enhanced");
+  const hasEnhanced = ladders.some((l) => l.nativeOrEnhanced === "enhanced");
   if (!hasEnhanced && archive.suitableForReplay) return null;
   return (
     <div className="text-xs text-muted-foreground bg-muted/10 rounded-lg p-3 mb-3 flex items-center gap-2" data-testid="quality-revenue-hook">
@@ -342,17 +352,17 @@ export default function Money() {
   const userId = user?.id;
   const [activeTab, setActiveTab] = useState<TabKey>("revenue");
 
-  const { data: sponsorData, isLoading: sponsorLoading } = useQuery<any>({ 
+  const { data: sponsorData, isLoading: sponsorLoading } = useQuery<SponsorData>({ 
     queryKey: ["/api/monetization/sponsorship-opportunities", userId],
     enabled: !!userId && (activeTab === "sponsors" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: merchData, isLoading: merchLoading } = useQuery<any>({ 
+  const { data: merchData, isLoading: merchLoading } = useQuery<MerchData>({ 
     queryKey: ["/api/monetization/merch-predictor", userId],
     enabled: !!userId && (activeTab === "merch-intel" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
   });
-  const { data: diversifyData, isLoading: diversifyLoading } = useQuery<any>({ 
+  const { data: diversifyData, isLoading: diversifyLoading } = useQuery<DiversifyData>({ 
     queryKey: ["/api/monetization/revenue-diversification", userId],
     enabled: !!userId && (activeTab === "diversify" || activeTab === "revenue"),
     staleTime: 10 * 60_000,
@@ -772,7 +782,7 @@ export default function Money() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-800">
-                            {sponsorData.opportunities.map((opp: any, i: number) => (
+                            {sponsorData.opportunities.map((opp: SponsorOpportunity, i: number) => (
                               <tr key={i} className="hover:bg-gray-800/20 transition-colors">
                                 <td className="p-4">
                                   <div className="flex items-center gap-2">
@@ -827,7 +837,7 @@ export default function Money() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {merchData.viralMoments.map((moment: any, i: number) => (
+                    {merchData.viralMoments.map((moment: ViralMoment, i: number) => (
                       <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-900/40 border border-gray-700/30">
                         <div className="flex items-center gap-4">
                           <div className="text-2xl font-bold text-orange-400 italic">"{moment.phrase}"</div>
@@ -850,8 +860,9 @@ export default function Money() {
                     <div className="text-sm text-gray-400">Total Opportunity: <span className="text-green-400 font-bold">{merchData.totalOpportunity}</span></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {merchData.topProducts.map((prod: any, i: number) => {
-                      const demandColor = prod.demandScore >= 80 ? "hsl(142 70% 50%)" : prod.demandScore >= 60 ? "hsl(45 90% 55%)" : "hsl(265 80% 60%)";
+                    {merchData.topProducts.map((prod: MerchProduct, i: number) => {
+                      const demandScore = prod.demandScore ?? 0;
+                      const demandColor = demandScore >= 80 ? "hsl(142 70% 50%)" : demandScore >= 60 ? "hsl(45 90% 55%)" : "hsl(265 80% 60%)";
                       return (
                         <Card key={i} className="card-empire border-0 hover-elevate relative overflow-hidden">
                           <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
@@ -862,12 +873,12 @@ export default function Money() {
                               </div>
                               <div className="text-right">
                                 <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Demand</p>
-                                <p className="text-sm font-extrabold metric-display" style={{ color: demandColor }}>{prod.demandScore}/100</p>
+                                <p className="text-sm font-extrabold metric-display" style={{ color: demandColor }}>{demandScore}/100</p>
                               </div>
                             </div>
                             <h4 className="font-bold text-sm mb-1">{prod.product}</h4>
                             <div className="h-1 bg-muted/20 rounded-full overflow-hidden mb-3">
-                              <div className="h-full rounded-full" style={{ width: `${prod.demandScore}%`, background: demandColor }} />
+                              <div className="h-full rounded-full" style={{ width: `${demandScore}%`, background: demandColor }} />
                             </div>
                             <div className="flex justify-between items-center">
                               <div>
