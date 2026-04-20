@@ -347,7 +347,7 @@ function CompetitorsTab() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Strengths</p>
                     <div className="flex gap-1.5 flex-wrap">
-                      {safeArray(comp?.strengths).map((s: string, i: number) => (
+                      {safeArray<string>(comp?.strengths).map((s, i) => (
                         <Badge key={i} variant="secondary" className="text-xs bg-emerald-500/10 text-emerald-500 no-default-hover-elevate no-default-active-elevate">{s}</Badge>
                       ))}
                     </div>
@@ -357,7 +357,7 @@ function CompetitorsTab() {
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Your Opportunities</p>
                     <div className="flex gap-1.5 flex-wrap">
-                      {safeArray(comp?.opportunities).map((o: string, i: number) => (
+                      {safeArray<string>(comp?.opportunities).map((o, i) => (
                         <Badge key={i} variant="secondary" className="text-xs bg-amber-500/10 text-amber-500 no-default-hover-elevate no-default-active-elevate">{o}</Badge>
                       ))}
                     </div>

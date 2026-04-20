@@ -169,7 +169,7 @@ function HeatmapCard() {
               </span>
             ))}
           </div>
-          {safeArray(data.heatmapData).map((row) => (
+          {safeArray<{day: string; hours: {hour: number; activity: number; viewers: number}[]}>(data.heatmapData).map((row) => (
             <div
               key={row.day}
               className="grid gap-0.5"
@@ -444,7 +444,7 @@ function TopFansCard() {
       </CardHeader>
       <CardContent className="p-2 pt-0">
         <div className="space-y-1">
-          {safeArray(data.topFans).slice(0, 5).map((fan, idx) => (
+          {safeArray<{username: string; tier: string; engagementScore: number}>(data.topFans).slice(0, 5).map((fan, idx) => (
             <div
               key={fan.username}
               className="flex items-center justify-between gap-2"
@@ -485,7 +485,7 @@ function GeoCard() {
   if (isLoading) return <Skeleton className="h-32 w-full" />;
   if (!data) return null;
 
-  const sorted = [...safeArray(data.distribution)].sort((a, b) => b.percentage - a.percentage).slice(0, 5);
+  const sorted = [...safeArray<{code: string; percentage: number; viewers: number}>(data.distribution)].sort((a, b) => b.percentage - a.percentage).slice(0, 5);
   const maxPct = sorted[0]?.percentage || 1;
 
   return (

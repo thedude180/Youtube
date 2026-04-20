@@ -38,7 +38,7 @@ export default function RevenueTab() {
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
 
   const { data: rawRevenueRecords, isLoading: revenueLoading, error: revenueError } = useQuery<any[]>({ queryKey: ['/api/revenue'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
-  const revenueRecords = safeArray(rawRevenueRecords);
+  const revenueRecords = safeArray<{recordedAt?: string; amount?: number}>(rawRevenueRecords);
   const { data: revenueSummary } = useQuery<any>({ queryKey: ['/api/revenue/summary'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const { data: syncStatus } = useQuery<any>({ queryKey: ['/api/revenue/sync-status'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
   const { data: breakdown } = useQuery<any>({ queryKey: ['/api/revenue/breakdown'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
@@ -525,7 +525,7 @@ export default function RevenueTab() {
             {(aiInsights as any).recommendations && (aiInsights as any).recommendations.length > 0 && (
               <div className="space-y-1" data-testid="list-recommendations">
                 <p className="text-xs font-medium text-muted-foreground">Recommendations</p>
-                {safeArray((aiInsights as any)?.recommendations).map((rec: string, idx: number) => (
+                {safeArray<string>((aiInsights as any)?.recommendations).map((rec, idx) => (
                   <div key={idx} className="flex items-start gap-2" data-testid={`recommendation-item-${idx}`}>
                     <CheckCircle2 className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
                     <p className="text-sm text-muted-foreground">{rec}</p>

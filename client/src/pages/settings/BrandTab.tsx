@@ -234,7 +234,7 @@ function BrandTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Content Pillars</p>
                 <div className="flex gap-2 flex-wrap">
-                  {safeArray(aiBrand?.contentPillars).map((pillar: string, i: number) => (
+                  {safeArray<string>(aiBrand?.contentPillars).map((pillar, i) => (
                     <Badge key={i} variant="secondary" data-testid={`badge-pillar-${i}`}>{pillar}</Badge>
                   ))}
                 </div>
@@ -256,7 +256,7 @@ function BrandTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Suggested Colors</p>
                 <div className="flex gap-2 flex-wrap">
-                  {safeArray(aiBrand?.suggestedColors).map((color: string, i: number) => (
+                  {safeArray<string>(aiBrand?.suggestedColors).map((color, i) => (
                     <div
                       key={i}
                       className="w-6 h-6 rounded-full border"

@@ -92,7 +92,7 @@ export default memo(function AIProofOfWork() {
   const allItems = useMemo(() => {
     const items: ActivityItem[] = [];
 
-    for (const a of safeArray(activitiesData)) {
+    for (const a of safeArray<{id: string; agentName?: string; action?: string; description?: string; result?: string; status?: string; createdAt?: string}>(activitiesData)) {
       const info = getIconInfo(a.agentName || "", a.action || a.description || "");
       items.push({
         id: `act-${a.id}`,
@@ -107,7 +107,7 @@ export default memo(function AIProofOfWork() {
       });
     }
 
-    for (const n of safeArray(notificationsData)) {
+    for (const n of safeArray<{id: string; title?: string; message?: string; severity?: string; createdAt?: string}>(notificationsData)) {
       const info = getIconInfo(n.title || "", n.message || "");
       items.push({
         id: `notif-${n.id}`,

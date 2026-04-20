@@ -112,7 +112,7 @@ function OpportunityCard({ opp, index }: { opp: any; index: number }) {
                   <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">How to Start</span>
                 </div>
                 <div className="space-y-1.5">
-                  {safeArray(opp?.steps).map((step: string, stepIdx: number) => (
+                  {safeArray<string>(opp?.steps).map((step, stepIdx) => (
                     <div key={stepIdx} className="flex items-start gap-2" data-testid={`step-${index}-${stepIdx}`}>
                       <span className="text-xs text-muted-foreground font-medium mt-0.5 shrink-0 w-5 text-right">
                         {stepIdx + 1}.

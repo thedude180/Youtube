@@ -33,9 +33,22 @@ import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
 import { useTranslation } from "react-i18next";
 
+interface AIStreamRecsResponse {
+  optimalTimes?: string[];
+  trendingTopics?: string[];
+  schedule?: { recommendedFrequency?: string; bestDays?: string[] };
+  streamIdeas?: { title?: string; description?: string; duration?: string; tags?: string[] }[];
+}
+interface AIChatBotResponse {
+  commands?: { name?: string; trigger?: string; response?: string; type?: string }[];
+  autoMessages?: { message?: string; interval?: string; triggerAt?: string }[];
+  moderationRules?: string[];
+  loyaltySystem?: { pointName?: string; earnRate?: string | number; rewards?: string[] };
+  welcomeMessage?: string;
+  raidMessage?: string;
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-interface AIToolResponse { [key: string]: any; }
-type AIResponse = AIToolResponse | null;
+type AIResponse = Record<string, any> | null;
 
 interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; connected?: boolean; broadcasts?: Array<Record<string, unknown>>; channelName?: string; }
 interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, unknown>; enabled?: boolean; platform?: string; streamTitle?: string; viewerCount?: number; chatMessagesHandled?: number; chatSentiment?: string; idleEngagement?: { active?: boolean; category?: string; engagementCount?: number; maxPerStream?: number; lastActivityAgo?: number; recentMessageRate?: number; }; actionsLog?: Array<{ action: string; detail?: string; time: string }>; postStreamPhase?: string; }
@@ -56,9 +69,9 @@ export default function StreamCenter() {
   const [keyDialogPlatform, setKeyDialogPlatform] = useState<string | null>(null);
   const [keyInput, setKeyInput] = useState("");
   const [newDest, setNewDest] = useState({ platform: "youtube", label: "", rtmpUrl: "", streamKey: "" });
-  const [aiStreamRecs, setAiStreamRecs] = useState<AIResponse>(null);
+  const [aiStreamRecs, setAiStreamRecs] = useState<AIStreamRecsResponse | null>(null);
   const [aiStreamRecsLoading, setAiStreamRecsLoading] = useState(true);
-  const [aiChatBot, setAiChatBot] = useState<AIResponse>(null);
+  const [aiChatBot, setAiChatBot] = useState<AIChatBotResponse | null>(null);
   const [aiChatBotLoading, setAiChatBotLoading] = useState(true);
   const [aiChecklist, setAiChecklist] = useState<AIResponse>(null);
   const [aiChecklistLoading, setAiChecklistLoading] = useState(true);
@@ -1436,7 +1449,7 @@ export default function StreamCenter() {
             </div>
           ) : aiStreamRecs ? (
             <div className="space-y-5">
-              {aiStreamRecs.optimalTimes?.length > 0 && (
+              {(aiStreamRecs.optimalTimes?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-best-times-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Best Times to Stream</h3>
                   <div className="space-y-1.5">
@@ -1450,7 +1463,7 @@ export default function StreamCenter() {
                 </div>
               )}
 
-              {aiStreamRecs.trendingTopics?.length > 0 && (
+              {(aiStreamRecs.trendingTopics?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-trending-topics-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Trending Topics</h3>
                   <div className="flex flex-wrap gap-1.5">
@@ -1473,7 +1486,7 @@ export default function StreamCenter() {
                     {aiStreamRecs.schedule.recommendedFrequency && (
                       <p data-testid="text-recommended-frequency">Frequency: <span className="font-medium">{aiStreamRecs.schedule.recommendedFrequency}</span></p>
                     )}
-                    {aiStreamRecs.schedule.bestDays?.length > 0 && (
+                    {(aiStreamRecs.schedule.bestDays?.length ?? 0) > 0 && (
                       <div data-testid="text-best-days" className="flex items-center gap-1.5 flex-wrap">
                         <span>Best days:</span>
                         {safeArray<string>(aiStreamRecs?.schedule?.bestDays).map((day: string, i: number) => (
@@ -1485,7 +1498,7 @@ export default function StreamCenter() {
                 </div>
               )}
 
-              {aiStreamRecs.streamIdeas?.length > 0 && (
+              {(aiStreamRecs.streamIdeas?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-stream-ideas-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Stream Ideas</h3>
                   <div className="space-y-2">
@@ -1534,7 +1547,7 @@ export default function StreamCenter() {
             </div>
           ) : aiChatBot ? (
             <div className="space-y-5">
-              {aiChatBot.commands?.length > 0 && (
+              {(aiChatBot.commands?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-commands-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Commands</h3>
                   <div className="space-y-1.5">
@@ -1551,7 +1564,7 @@ export default function StreamCenter() {
                   </div>
                 </div>
               )}
-              {aiChatBot.autoMessages?.length > 0 && (
+              {(aiChatBot.autoMessages?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-auto-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Auto Messages</h3>
                   <div className="space-y-1.5">
@@ -1564,7 +1577,7 @@ export default function StreamCenter() {
                   </div>
                 </div>
               )}
-              {aiChatBot.moderationRules?.length > 0 && (
+              {(aiChatBot.moderationRules?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <h3 data-testid="text-chatbot-moderation-heading" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moderation Rules</h3>
                   <div className="space-y-1">
@@ -1580,7 +1593,7 @@ export default function StreamCenter() {
                   <div className="text-sm space-y-1">
                     {aiChatBot.loyaltySystem.pointName && <p data-testid="text-loyalty-point-name">Point name: <span className="font-medium">{aiChatBot.loyaltySystem.pointName}</span></p>}
                     {aiChatBot.loyaltySystem.earnRate && <p data-testid="text-loyalty-earn-rate">Earn rate: <span className="font-medium">{aiChatBot.loyaltySystem.earnRate}</span></p>}
-                    {aiChatBot.loyaltySystem.rewards?.length > 0 && (
+                    {(aiChatBot.loyaltySystem.rewards?.length ?? 0) > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {safeArray(aiChatBot?.loyaltySystem?.rewards).map((r: any, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{typeof r === 'string' ? r : r.name || r.reward || JSON.stringify(r)}</Badge>

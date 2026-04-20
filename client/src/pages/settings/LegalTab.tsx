@@ -280,7 +280,7 @@ function BusinessStructureSection() {
   };
 
   const handleMarkComplete = (stepId: string) => {
-    const step = safeArray(registrationSteps).find((s: any) => s.stepId === stepId);
+    const step = safeArray<{stepId: string; visitedAt?: string}>(registrationSteps).find((s) => s.stepId === stepId);
     if (!step?.visitedAt) {
       toast({ title: "Visit the link first", description: "You need to open and go through the registration link before marking it complete.", variant: "destructive" });
       return;
@@ -586,9 +586,9 @@ function BusinessStructureSection() {
 function LegalTab() {
   const { toast } = useToast();
   const { data: rawVentures } = useQuery<any[]>({ queryKey: ['/api/ventures'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
-  const ventures = safeArray(rawVentures);
+  const ventures = safeArray<{ status?: string; metadata?: { entityType?: string }; type?: string }>(rawVentures);
   const { data: rawTaxEstimates } = useQuery<any[]>({ queryKey: ['/api/tax-estimates'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
-  const taxEstimates = safeArray(rawTaxEstimates);
+  const taxEstimates = safeArray<{ paid?: boolean; dueDate?: string; quarter?: string; year?: string | number; estimatedTax?: number }>(rawTaxEstimates);
 
   const [completedSteps, setCompletedSteps] = useState<string[]>(() => {
     const stored = localStorage.getItem("legalFormationSteps");

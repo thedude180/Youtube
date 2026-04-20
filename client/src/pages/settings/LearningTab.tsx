@@ -329,7 +329,7 @@ function LearningTab() {
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">Evidence</p>
                     <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                      {safeArray(insight?.data?.evidence).map((ev: string, i: number) => <li key={i}>{ev}</li>)}
+                      {safeArray<string>(insight?.data?.evidence).map((ev, i) => <li key={i}>{ev}</li>)}
                     </ul>
                   </div>
                 )}

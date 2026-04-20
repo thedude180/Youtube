@@ -264,7 +264,7 @@ export default function GoalsTab() {
                         AI Recommendations
                       </div>
                       <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc" data-testid={`list-goal-recommendations-${goal.id}`}>
-                        {safeArray(goal?.aiRecommendations).map((rec: string, i: number) => (
+                        {safeArray<string>(goal?.aiRecommendations).map((rec, i) => (
                           <li key={i}>{rec}</li>
                         ))}
                       </ul>

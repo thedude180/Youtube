@@ -216,7 +216,7 @@ function CollabsTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Networking Tips</p>
                 <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                  {safeArray(aiCollab?.networkingTips).map((tip: string, i: number) => <li key={i} data-testid={`networking-tip-${i}`}>{tip}</li>)}
+                  {safeArray<string>(aiCollab?.networkingTips).map((tip, i) => <li key={i} data-testid={`networking-tip-${i}`}>{tip}</li>)}
                 </ul>
               </div>
             )}

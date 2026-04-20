@@ -101,7 +101,7 @@ export default function SponsorsTab() {
   }, [aiToolsOpen]);
 
   const { data: rawDeals, isLoading, error } = useQuery<any[]>({ queryKey: ["/api/sponsorship-deals"], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000 });
-  const deals = safeArray(rawDeals);
+  const deals = safeArray<{dealValue?: number; status?: string; [key: string]: unknown}>(rawDeals);
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -317,7 +317,7 @@ export default function SponsorsTab() {
               <div data-testid="section-red-flags">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Red Flags to Avoid</p>
                 <div className="space-y-1">
-                  {safeArray(aiSponsorship?.redFlags).map((flag: string, idx: number) => (
+                  {safeArray<string>(aiSponsorship?.redFlags).map((flag, idx) => (
                     <div key={idx} className="flex items-start gap-2" data-testid={`red-flag-${idx}`}>
                       <AlertTriangle className="h-3 w-3 text-red-400 shrink-0 mt-0.5" />
                       <p className="text-sm text-muted-foreground">{flag}</p>

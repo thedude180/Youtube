@@ -508,7 +508,7 @@ function WellnessTab() {
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Creative Block Exercises</p>
                 <ul className="text-xs text-muted-foreground space-y-0.5 pl-4 list-disc">
-                  {safeArray(aiWellness?.creativeBlockExercises).map((ex: string, i: number) => <li key={i} data-testid={`creative-exercise-${i}`}>{typeof ex === "string" ? ex : (ex as any).name || JSON.stringify(ex)}</li>)}
+                  {safeArray<string>(aiWellness?.creativeBlockExercises).map((ex, i) => <li key={i} data-testid={`creative-exercise-${i}`}>{ex}</li>)}
                 </ul>
               </div>
             )}
