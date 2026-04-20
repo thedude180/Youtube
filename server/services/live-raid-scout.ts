@@ -132,14 +132,15 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
     const userChannels = await db.select().from(channels).where(and(eq(channels.userId, session.userId), eq(channels.platform, "twitch")));
     const twitchChannel = userChannels[0];
 
-    if (twitchChannel?.accessToken && process.env.TWITCH_CLIENT_ID) {
+    const twitchClientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
+    if (twitchChannel?.accessToken && twitchClientId) {
       logger.info(`[${session.userId}] Attempting to execute Twitch raid for ${sanitizeForPrompt(top.channelName)}`);
       
       // 1. Get target broadcaster ID
       const searchRes = await fetch(`https://api.twitch.tv/helix/users?login=${sanitizeForPrompt(top.channelName)}`, {
         headers: {
           "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
-          "Client-Id": process.env.TWITCH_CLIENT_ID
+          "Client-Id": twitchClientId
         }
       });
       
@@ -153,7 +154,7 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
-              "Client-Id": process.env.TWITCH_CLIENT_ID
+              "Client-Id": twitchClientId
             }
           });
           

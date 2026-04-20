@@ -117,7 +117,7 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
 
 async function detectTwitch(userId: string, channel: any): Promise<LiveDetectionResult> {
   const token = channel.accessToken;
-  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
   const signals: Record<string, any> = {};
 
   if (!token || !clientId) {

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { eq } from "drizzle-orm";
 import { channels } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
@@ -30,7 +31,7 @@ function trackingKey(userId: string, platform: string, channelId: number) {
 
 async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
   const token = channelRow.accessToken;
-  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
   if (!token || !clientId) return [];
 
   try {
@@ -124,31 +125,49 @@ async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
   const token = channelRow.accessToken;
   if (!token) return [];
 
+  // TikTok's public API v2 (user/info) does NOT expose live status fields.
+  // Live status detection requires TikTok Live Platform API access (separate approval).
+  // Without that grant, we try the video.list endpoint looking for a very recent video
+  // with no duration (duration=0 signals an active live stream in TikTok's API).
   try {
-    const res = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url,is_verified,bio_description", {
-      headers: { "Authorization": `Bearer ${token}` },
-    });
+    const res = await fetch(
+      "https://open.tiktokapis.com/v2/video/list/?fields=id,title,duration,create_time,cover_image_url",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ max_count: 5 }),
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
 
     if (!res.ok) return [];
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) return [];
 
     const data = await res.json();
-    const user = data?.data?.user;
+    const videoList: any[] = data?.data?.videos || [];
 
-    if (!user) return [];
+    const now = Date.now() / 1000;
+    const liveVideo = videoList.find((v: any) => {
+      const ageSeconds = now - (v.create_time || 0);
+      return v.duration === 0 && ageSeconds < 3600;
+    });
 
-    const liveCheckField = user.is_live ?? user.live_status;
-    if (!liveCheckField) return [];
+    if (!liveVideo) return [];
 
     return [{
       platform: "tiktok",
-      broadcastId: `tiktok_live_${channelRow.channelId || Date.now()}`,
-      title: `${user.display_name || channelRow.channelName || "Creator"} is LIVE on TikTok`,
-      description: `Live on TikTok — ${user.display_name || channelRow.channelName || ""}`,
-      startedAt: new Date().toISOString(),
+      broadcastId: liveVideo.id || `tiktok_live_${channelRow.channelId || Date.now()}`,
+      title: liveVideo.title || `${channelRow.channelName || "Creator"} is LIVE on TikTok`,
+      description: `Live on TikTok`,
+      startedAt: new Date(liveVideo.create_time * 1000).toISOString(),
       viewerCount: undefined,
     }];
   } catch (err: any) {
-    logger.warn(`[LiveDetection] TikTok check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    logger.warn(`[LiveDetection] TikTok live check failed for channel ${channelRow.id}:`, err?.message ?? err);
     return [];
   }
 }
@@ -198,7 +217,7 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
 
 async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
   const apiKey = process.env.RUMBLE_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) return []; // Rumble has no public live-status API; requires a private API key
 
   const channelName = channelRow.channelName || channelRow.channelId;
   if (!channelName) return [];
@@ -253,7 +272,11 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     return;
   }
 
-  const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "discord", "rumble"];
+  // Use only the platforms the user actually has connected (not all possible platforms)
+  const connectedChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+  const STREAMING_PLATFORMS = new Set(["youtube", "twitch", "kick", "tiktok", "rumble"]);
+  const connectedPlatforms = [...new Set(connectedChannels.map(c => c.platform).filter(p => STREAMING_PLATFORMS.has(p)))];
+  const allPlatforms = connectedPlatforms.length > 0 ? connectedPlatforms : [broadcast.platform];
 
   const stream = await storage.createStream({
     userId,
