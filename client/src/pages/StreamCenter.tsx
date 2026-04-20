@@ -33,11 +33,12 @@ import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
 import { useTranslation } from "react-i18next";
 
-interface AIToolResponse { [key: string]: unknown; }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface AIToolResponse { [key: string]: any; }
 type AIResponse = AIToolResponse | null;
 
 interface YTLiveStatus { isLive?: boolean; viewerCount?: number; videoId?: string; startedAt?: string; connected?: boolean; broadcasts?: Array<Record<string, unknown>>; channelName?: string; }
-interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, unknown>; enabled?: boolean; platform?: string; streamTitle?: string; viewerCount?: number; chatMessagesHandled?: number; chatSentiment?: string; idleEngagement?: { active?: boolean; category?: string; engagementCount?: number; maxPerStream?: number; lastActivityAgo?: number; recentMessageRate?: number; }; actionsLog?: Array<Record<string, unknown>>; postStreamPhase?: string; }
+interface StreamAgentStatus { isLive?: boolean; videoId?: string; status?: string; action?: string; lastAction?: string; metadata?: Record<string, unknown>; enabled?: boolean; platform?: string; streamTitle?: string; viewerCount?: number; chatMessagesHandled?: number; chatSentiment?: string; idleEngagement?: { active?: boolean; category?: string; engagementCount?: number; maxPerStream?: number; lastActivityAgo?: number; recentMessageRate?: number; }; actionsLog?: Array<{ action: string; detail?: string; time: string }>; postStreamPhase?: string; }
 interface MultistreamStatus { relaying: boolean; startedAt?: string; destinations?: Array<{ platform: string; status: string; viewers?: number }>; error?: string; }
 interface RelayDestData { destinations: Array<{ platform: string; url: string; label?: string; status?: string }>; }
 interface UneditedVod { id: number; title: string; youtubeId?: string; streamedAt?: string; duration?: number; thumbnailUrl?: string; }

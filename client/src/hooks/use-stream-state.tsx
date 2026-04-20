@@ -4,6 +4,8 @@ import { useCreatorMode } from "@/hooks/use-creator-mode";
 import { useAuth } from "@/hooks/use-auth";
 import type { Stream } from "@shared/schema";
 
+type SchedulableStream = Stream & { scheduledFor?: Date | string | null };
+
 export type StreamMode = "idle" | "prep" | "live";
 
 export interface StreamScheduleItem {
@@ -58,14 +60,14 @@ export function useStreamState(): StreamStateInfo {
       ...scheduleData
         .filter((s) => s.scheduledAt && new Date(s.scheduledAt).getTime() > now)
         .map((s) => ({ ...s, _time: new Date(s.scheduledAt!).getTime() })),
-      ...plannedStreams
-        .filter((s) => s.scheduledFor && new Date(s.scheduledFor).getTime() > now)
+      ...(plannedStreams as SchedulableStream[])
+        .filter((s) => s.scheduledFor && new Date(s.scheduledFor as string).getTime() > now)
         .map((s) => ({
           id: s.id,
           title: s.title,
-          scheduledAt: s.scheduledFor ?? undefined,
+          scheduledAt: s.scheduledFor ? String(s.scheduledFor) : undefined,
           platform: ((s.platforms as string[]) || [])[0],
-          _time: new Date(s.scheduledFor!).getTime(),
+          _time: new Date(s.scheduledFor as string).getTime(),
         })),
     ].sort((a, b) => a._time - b._time);
 
@@ -74,9 +76,9 @@ export function useStreamState(): StreamStateInfo {
 
   const hasUpcomingStream = useMemo(() => {
     const now = Date.now();
-    const hasNearPlanned = plannedStreams.some((s) => {
+    const hasNearPlanned = (plannedStreams as SchedulableStream[]).some((s) => {
       if (!s.scheduledFor) return false;
-      const diff = new Date(s.scheduledFor).getTime() - now;
+      const diff = new Date(s.scheduledFor as string).getTime() - now;
       return diff > 0 && diff < PREP_WINDOW_MS;
     });
     if (hasNearPlanned) return true;

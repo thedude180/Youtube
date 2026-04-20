@@ -62,7 +62,7 @@ interface SponsorData { totalPotentialRevenue?: string; averageDealSize?: string
 interface ViralMoment { phrase?: string; virality?: number; merchandiseType?: string; urgency?: string; }
 interface MerchProduct { product?: string; demandScore?: number; suggestedPrice?: string; estimatedRevenue?: string; }
 interface MerchData { viralMoments?: ViralMoment[]; totalOpportunity?: string; topProducts?: MerchProduct[]; }
-interface DiversifyData { streams?: unknown[]; overallScore?: number; riskLevel?: string; recommendations?: string[]; }
+interface DiversifyData { streams?: unknown[]; overallScore?: number; riskLevel?: string; recommendations?: string[]; missingStreams?: string[]; }
 
 type TabKey = "revenue" | "opportunities" | "expenses" | "taxes" | "payments" | "ventures" | "goals" | "sponsors" | "merch-intel" | "diversify" | "business-intel" | "checkout" | "missions";
 
@@ -782,12 +782,12 @@ export default function Money() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-800">
-                            {sponsorData.opportunities.map((opp: SponsorOpportunity, i: number) => (
+                            {(sponsorData.opportunities ?? []).map((opp: SponsorOpportunity, i: number) => (
                               <tr key={i} className="hover:bg-gray-800/20 transition-colors">
                                 <td className="p-4">
                                   <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded bg-purple-500/10 flex items-center justify-center text-xs text-purple-400 font-bold">
-                                      {opp.brand[0]}
+                                      {(opp.brand ?? '?').charAt(0)}
                                     </div>
                                     <span className="text-sm font-medium text-white">{opp.brand}</span>
                                   </div>
@@ -837,7 +837,7 @@ export default function Money() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {merchData.viralMoments.map((moment: ViralMoment, i: number) => (
+                    {(merchData.viralMoments ?? []).map((moment: ViralMoment, i: number) => (
                       <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-gray-900/40 border border-gray-700/30">
                         <div className="flex items-center gap-4">
                           <div className="text-2xl font-bold text-orange-400 italic">"{moment.phrase}"</div>
@@ -860,7 +860,7 @@ export default function Money() {
                     <div className="text-sm text-gray-400">Total Opportunity: <span className="text-green-400 font-bold">{merchData.totalOpportunity}</span></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {merchData.topProducts.map((prod: MerchProduct, i: number) => {
+                    {(merchData.topProducts ?? []).map((prod: MerchProduct, i: number) => {
                       const demandScore = prod.demandScore ?? 0;
                       const demandColor = demandScore >= 80 ? "hsl(142 70% 50%)" : demandScore >= 60 ? "hsl(45 90% 55%)" : "hsl(265 80% 60%)";
                       return (
@@ -920,9 +920,9 @@ export default function Money() {
                     <div className="relative w-32 h-32 flex items-center justify-center mb-2">
                       <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
                         <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/20" />
-                        <circle cx="64" cy="64" r="58" fill="none" strokeWidth="8" strokeDasharray={364} strokeDashoffset={364 - (364 * diversifyData.overallScore) / 100} strokeLinecap="round" style={{ stroke: "hsl(265 80% 60%)", filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))", transition: "stroke-dashoffset 1.5s ease" }} />
+                        <circle cx="64" cy="64" r="58" fill="none" strokeWidth="8" strokeDasharray={364} strokeDashoffset={364 - (364 * (diversifyData.overallScore ?? 0)) / 100} strokeLinecap="round" style={{ stroke: "hsl(265 80% 60%)", filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))", transition: "stroke-dashoffset 1.5s ease" }} />
                       </svg>
-                      <span className="absolute text-3xl font-extrabold metric-display holographic-text">{diversifyData.overallScore}%</span>
+                      <span className="absolute text-3xl font-extrabold metric-display holographic-text">{diversifyData.overallScore ?? 0}%</span>
                     </div>
                     <Badge className={`mt-2 border ${diversifyData.riskLevel === 'Low' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400' : diversifyData.riskLevel === 'Medium' ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400' : 'bg-red-500/15 border-red-500/40 text-red-400'}`}>
                       Risk: {diversifyData.riskLevel}
@@ -939,7 +939,7 @@ export default function Money() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 relative">
-                      {diversifyData.recommendations.map((rec: string, i: number) => (
+                      {(diversifyData.recommendations ?? []).map((rec: string, i: number) => (
                         <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10 hover:border-primary/30 transition-colors">
                           <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                           <p className="text-xs text-muted-foreground">{rec}</p>
@@ -967,7 +967,7 @@ export default function Money() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-800">
-                          {diversifyData.streams.map((stream: any, i: number) => (
+                          {(diversifyData.streams ?? []).map((stream: any, i: number) => (
                             <tr key={i} className="hover:bg-gray-800/20 transition-colors">
                               <td className="p-4 text-sm font-medium text-white">{stream.source}</td>
                               <td className="p-4">
@@ -1006,7 +1006,7 @@ export default function Money() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-2">
-                      {diversifyData.missingStreams.map((miss: string, i: number) => (
+                      {(diversifyData.missingStreams ?? []).map((miss: string, i: number) => (
                         <Badge key={i} variant="secondary" className="bg-gray-800 text-gray-300">
                           {miss}
                         </Badge>
