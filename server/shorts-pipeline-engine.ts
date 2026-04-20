@@ -90,6 +90,18 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
   const session = sessions.get(userId);
   if (!session) return;
 
+  // Single upfront budget check — if the daily token budget is already exhausted,
+  // abort the entire batch immediately rather than iterating every video and
+  // emitting a warning per-video (which can flood logs and stall the DB when
+  // the queue contains thousands of entries).
+  if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
+    logger.warn(`[ShortsPipeline] Daily token budget exhausted — deferring pipeline batch (${videos.length} videos) to tomorrow's budget reset`);
+    const s = sessions.get(userId);
+    if (s) { s.state = "completed"; s.currentVideoId = null; }
+    await db.update(pipelineRuns).set({ status: "completed" }).where(eq(pipelineRuns.id, runId)).catch(() => {});
+    return;
+  }
+
   for (const video of videos) {
     const current = sessions.get(userId);
     if (!current || current.state === "paused") break;
@@ -110,6 +122,13 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
       processedVideos: current.processedVideos,
       clipsFound: current.clipsFound,
     }).where(eq(pipelineRuns.id, runId));
+
+    // If extractClipsFromVideo exhausted the budget on this video, stop the batch
+    // rather than hammering through remaining videos with no-op budget checks.
+    if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
+      logger.info(`[ShortsPipeline] Budget exhausted after ${current.processedVideos} videos — pausing pipeline batch until tomorrow's reset`);
+      break;
+    }
   }
 
   const finalSession = sessions.get(userId);
