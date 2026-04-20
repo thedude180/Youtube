@@ -244,6 +244,7 @@ async function ensureDevXChannel() {
   const userData = await userInfoRes.json();
   const twitterUser = userData.data;
   const followerCount = twitterUser.public_metrics?.followers_count ?? null;
+  const farFuture = new Date("2099-01-01T00:00:00Z");
   const platformData = {
     username: twitterUser.username,
     name: twitterUser.name,
@@ -251,14 +252,16 @@ async function ensureDevXChannel() {
     _connectionStatus: "healthy",
     _lastVerifiedAt: Date.now(),
     _reconnectFailures: 0,
+    _permanentFailures: 0,
+    authMethod: "env_token",
     lastFetchedAt: new Date().toISOString(),
   };
 
   if (existing) {
     await storage.updateChannel(existing.id, {
       accessToken,
-      refreshToken: refreshToken || null,
-      tokenExpiresAt: null,
+      refreshToken: null,
+      tokenExpiresAt: farFuture,
       channelName: twitterUser.name || twitterUser.username || "X User",
       channelId: twitterUser.id,
       subscriberCount: followerCount,
@@ -272,8 +275,8 @@ async function ensureDevXChannel() {
       channelName: twitterUser.name || twitterUser.username || "X User",
       channelId: twitterUser.id,
       accessToken,
-      refreshToken: refreshToken || null,
-      tokenExpiresAt: null,
+      refreshToken: null,
+      tokenExpiresAt: farFuture,
       subscriberCount: followerCount,
       platformData,
       settings: { preset: "normal", autoUpload: false, minShortsPerDay: 1, maxEditsPerDay: 3, cooldownMinutes: 60 },
