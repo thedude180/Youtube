@@ -34,6 +34,9 @@ function getOAuth2Client() {
 async function getAuthenticatedYouTube(channel: any) {
   const { google } = require("googleapis");
   if (!channel.accessToken) throw new Error("Channel has no access token");
+  if (channel.accessToken === "dev_api_key_mode") {
+    throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
+  }
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
     access_token: channel.accessToken,
@@ -868,6 +871,7 @@ export async function syncPlatformCatalog(userId: string, platform: string): Pro
       }
     }
   } catch (err: any) {
+    if (err?.code === "DEV_BYPASS") return { total: 0, newLinks: 0, updated: 0, errors: 0 };
     logger.error(`[${userId}] Platform catalog sync error for ${platform}: ${err.message?.substring(0, 300)}`);
   }
 

@@ -185,6 +185,11 @@ export async function getAuthenticatedClient(channelId: number) {
     throw new Error("Channel not connected or missing access token");
   }
 
+  // Dev sentinel — real API calls would fail with Invalid Credentials
+  if (channel.accessToken === "dev_api_key_mode") {
+    throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
+  }
+
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
     access_token: channel.accessToken,
@@ -249,7 +254,8 @@ export async function refreshChannelStats(channelId: number): Promise<void> {
     if (info.videoCount != null) updates.videoCount = Number(info.videoCount);
     if (info.viewCount != null) updates.viewCount = Number(info.viewCount);
     await storage.updateChannel(channelId, updates);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === "DEV_BYPASS") return;
     ytLogger.error("Failed to refresh stats", { channelId, error: String(err) });
   }
 }
@@ -927,6 +933,7 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
       liveChatId: b.snippet?.liveChatId || null,
     }));
   } catch (err: any) {
+    if (err?.code === "DEV_BYPASS") return [];
     markQuotaErrorFromResponse(err);
     ytLogger.warn("Live broadcast check failed", { error: err.message });
     return [];

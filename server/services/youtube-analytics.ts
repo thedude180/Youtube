@@ -11,7 +11,7 @@ const MILESTONE_BREAKPOINTS = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000
 
 async function getFirstChannelForUser(userId: string): Promise<{ id: number; accessToken: string; channelId: string; subscriberCount: number | null } | null> {
   const channels = await storage.getChannelsByUser(userId);
-  const ch = channels.find(c => c.accessToken) || channels[0];
+  const ch = channels.find(c => c.accessToken && c.accessToken !== "dev_api_key_mode") || channels[0];
   if (!ch) return null;
   return {
     id: ch.id,
@@ -32,6 +32,7 @@ async function fetchAnalyticsReport(
   channelYtId: string,
   params: Record<string, string>
 ): Promise<any[] | null> {
+  if (!accessToken || accessToken === "dev_api_key_mode") return null;
   const searchParams = new URLSearchParams({
     ids: `channel==${channelYtId || "MINE"}`,
     ...params,

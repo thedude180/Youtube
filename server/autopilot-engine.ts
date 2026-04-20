@@ -715,6 +715,7 @@ export async function processCommentResponses(userId: string) {
     try {
       realComments = await fetchYouTubeComments(connectedChannel.id, ytId, 20);
     } catch (err: any) {
+      if (err.code === "DEV_BYPASS") continue;
       if (err.code === 403 || err.message?.includes("quota")) {
         logger.warn("YouTube quota hit fetching comments — cooling down 24h", { videoId: ytId, userId });
         commentQuotaCooldown.set(userId, Date.now());

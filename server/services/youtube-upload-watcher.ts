@@ -42,6 +42,9 @@ function getOAuth2Client() {
 
 async function getAuthenticatedYouTube(channel: any) {
   if (!channel.accessToken) throw new Error("Channel has no access token");
+  if (channel.accessToken === "dev_api_key_mode") {
+    throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
+  }
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
     access_token: channel.accessToken,
@@ -325,6 +328,7 @@ async function runWatcherScan(userId: string): Promise<void> {
       logger.info(`[${userId}] Upload scan complete — ${result.newUploads} new uploads ingested from ${result.scanned} checked`);
     }
   } catch (err: any) {
+    if (err?.code === "DEV_BYPASS") return;
     if (state) {
       state.lastError = err.message;
       state.lastScanAt = new Date();
