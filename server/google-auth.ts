@@ -135,53 +135,52 @@ export function setupGoogleAuth(app: Express) {
       }
 
 
-      req.login(user, async (loginErr) => {
+      req.login(user, (loginErr) => {
         if (loginErr) {
           logger.error("Google auth req.login error:", loginErr);
           return res.redirect("/?auth_error=login_failed");
         }
 
-        let ytResult: any = null;
-        try {
-          if (user.google_access_token && user.claims?.sub) {
-            ytResult = await autoConnectYouTubeFromGoogle(
-              user.claims.sub,
-              user.google_access_token,
-              user.google_refresh_token
-            );
-          }
-        } catch (error) {
-          logger.error("Auto YouTube connect after Google auth failed:", error);
-        }
-
-        if (user.claims?.sub) {
-          try {
-            const { initializeUserSystems } = await import("./services/post-login-init");
-            await initializeUserSystems(user.claims.sub);
-          } catch (initErr) {
-            logger.error("[GoogleAuth] Post-login init failed:", initErr);
-          }
-
-          if (ytResult && !ytResult.hasChannel) {
-            try {
-              const { initPreChannelState } = await import("./services/channel-launch-service");
-              await initPreChannelState(user.claims.sub);
-            } catch (launchErr) {
-              logger.error("[GoogleAuth] Pre-channel init failed:", launchErr);
-            }
-          }
-        }
-
+        // Save session and redirect immediately — never block the browser on
+        // slow post-login work (YouTube API, system init) which causes 30s timeouts.
         req.session.save((saveErr) => {
           if (saveErr) logger.error("Google auth session save error:", saveErr);
-          if (ytResult?.hasChannel && ytResult?.ytChannel) {
-            res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(ytResult.ytChannel.title || "YouTube")}`);
-          } else if (ytResult && !ytResult.hasChannel) {
-            res.redirect("/?yt_no_channel=true");
-          } else {
-            res.redirect("/");
-          }
+          res.redirect("/");
         });
+
+        // Fire all post-login tasks in the background after the response is sent.
+        if (user.google_access_token && user.claims?.sub) {
+          const userId = user.claims.sub as string;
+          const accessToken = user.google_access_token as string;
+          const refreshToken = user.google_refresh_token as string | undefined;
+          setImmediate(() => {
+            autoConnectYouTubeFromGoogle(userId, accessToken, refreshToken)
+              .then((ytResult) =>
+                import("./services/post-login-init")
+                  .then((m) => m.initializeUserSystems(userId))
+                  .then(() => ytResult)
+              )
+              .then((ytResult) => {
+                if (ytResult && !ytResult.hasChannel) {
+                  return import("./services/channel-launch-service").then((m) =>
+                    m.initPreChannelState(userId)
+                  );
+                }
+              })
+              .catch((bgErr) =>
+                logger.error("[GoogleAuth] Background post-login tasks failed:", bgErr)
+              );
+          });
+        } else if (user.claims?.sub) {
+          const userId = user.claims.sub as string;
+          setImmediate(() => {
+            import("./services/post-login-init")
+              .then((m) => m.initializeUserSystems(userId))
+              .catch((initErr) =>
+                logger.error("[GoogleAuth] Background system init failed:", initErr)
+              );
+          });
+        }
       });
     });
   });

@@ -148,18 +148,21 @@ export async function setupAuth(app: Express) {
     passport.authenticate(`replitauth:${req.hostname}`, (err: any, user: any) => {
       if (err) return next(err);
       if (!user) return res.redirect("/api/login");
-      req.logIn(user, async (loginErr) => {
+      req.logIn(user, (loginErr) => {
         if (loginErr) return next(loginErr);
+        // Redirect immediately — don't block on post-login init which can be slow.
+        res.redirect("/");
+        // Fire system init in the background after the response is sent.
         const userId = user?.claims?.sub;
         if (userId) {
-          try {
-            const { initializeUserSystems } = await import("../../services/post-login-init");
-            await initializeUserSystems(userId);
-          } catch (e) {
-            replitAuthLogger.error("Post-login init failed", { error: String(e) });
-          }
+          setImmediate(() => {
+            import("../../services/post-login-init")
+              .then((m) => m.initializeUserSystems(userId))
+              .catch((e) =>
+                replitAuthLogger.error("Post-login init failed", { error: String(e) })
+              );
+          });
         }
-        res.redirect("/");
       });
     })(req, res, next);
   });
