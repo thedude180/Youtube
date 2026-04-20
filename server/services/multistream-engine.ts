@@ -4,7 +4,7 @@ import { streamDestinations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { jitter } from "../lib/timer-utils";
-import { isFfmpegAvailable } from "../lib/dependency-check";
+import { isFfmpegAvailable, getFfmpegBin } from "../lib/dependency-check";
 
 const logger = createLogger("multistream");
 
@@ -249,7 +249,7 @@ async function attemptReconnect(state: RelayState): Promise<void> {
 
   const args = buildFFmpegArgs(hlsUrl, state.destinations);
   try {
-    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(getFfmpegBin(), args, { stdio: ["ignore", "pipe", "pipe"] });
     state.proc = proc;
     wireFFmpegEvents(state, proc);
     logger.info(`Relay reconnected (PID ${proc.pid})`, {
@@ -361,7 +361,7 @@ export async function startMultistream(userId: string, videoId: string, autoStar
   const args = buildFFmpegArgs(hlsUrl, destinations);
 
   try {
-    const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(getFfmpegBin(), args, { stdio: ["ignore", "pipe", "pipe"] });
     state.proc = proc;
 
     const destNames = destinations.map(d => d.label).join(", ");

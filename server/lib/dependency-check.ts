@@ -48,17 +48,37 @@ function resolveYtdlpBin(): string {
   return "yt-dlp";
 }
 
+// Known absolute paths to try when "ffmpeg" is not in PATH (e.g. Replit
+// production deployments where the nix profile is not on PATH).
+const FFMPEG_CANDIDATE_PATHS = [
+  "ffmpeg",
+  // Nix store path for ffmpeg-6.1.1 from nixpkgs stable-24_05 (deterministic
+  // content-addressed hash — same in dev and production containers).
+  "/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg",
+];
+
+let _ffmpegBin = "ffmpeg";
+
+/** Returns the resolved ffmpeg binary path (absolute nix path when available). */
+export function getFfmpegBin(): string {
+  return _ffmpegBin;
+}
+
 async function probeFFmpeg(): Promise<{ available: boolean; version?: string }> {
-  try {
-    const { stdout } = await execFileAsync("ffmpeg", ["-version"], { timeout: 10_000 });
-    const match = stdout.match(/ffmpeg version ([^\s]+)/);
-    return { available: true, version: match?.[1] };
-  } catch (err: any) {
-    logger.warn("ffmpeg not found or failed version check", {
-      error: (err.message || String(err)).substring(0, 200),
-    });
-    return { available: false };
+  for (const candidate of FFMPEG_CANDIDATE_PATHS) {
+    try {
+      const { stdout } = await execFileAsync(candidate, ["-version"], { timeout: 10_000 });
+      const match = stdout.match(/ffmpeg version ([^\s]+)/);
+      _ffmpegBin = candidate;
+      return { available: true, version: match?.[1] };
+    } catch {
+      // try next candidate
+    }
   }
+  logger.warn("ffmpeg not found in any candidate path", {
+    tried: FFMPEG_CANDIDATE_PATHS.join(", "),
+  });
+  return { available: false };
 }
 
 async function probeYtdlp(): Promise<{ available: boolean; version?: string; binary: string }> {
