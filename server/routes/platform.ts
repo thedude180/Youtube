@@ -1597,7 +1597,7 @@ export async function registerPlatformRoutes(app: Express) {
     }
 
     const authUrl = `${config.authUrl}?${params.toString()}`;
-    logger.info(`[OAuth ${platform}] Auth initiated for user ${userId}, redirect_uri=${getOAuthRedirectUri(platform)}`);
+    logger.warn(`[OAuth ${platform}] Auth URL: ${authUrl}`);
     const acceptHeader = req.headers.accept || "";
     if (acceptHeader.includes("application/json")) {
       res.json({ url: authUrl, redirectUri: getOAuthRedirectUri(platform) });
