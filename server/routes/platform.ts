@@ -1702,6 +1702,8 @@ export async function registerPlatformRoutes(app: Express) {
     const oauthError = req.query.error as string | undefined;
     const oauthErrorDesc = req.query.error_description as string | undefined;
 
+    logger.warn(`[OAuth ${platform}] Callback hit — query: ${JSON.stringify(req.query)}`);
+
     if (oauthError) {
       logger.error(`[OAuth ${platform}] Provider returned error:`, { error: oauthError, description: oauthErrorDesc });
       const msg = oauthErrorDesc || oauthError;
