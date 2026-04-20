@@ -135,7 +135,7 @@ export async function registerRoutes(
     const DEV_USER = {
       claims: {
         sub: "dev_bypass_user",
-        email: "dev@creatoros.local",
+        email: "dev@example.com",
         first_name: "Dev",
         last_name: "User",
       },

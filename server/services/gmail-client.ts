@@ -82,7 +82,13 @@ function createRawEmail(to: string, subject: string, htmlBody: string): string {
   return Buffer.from(raw).toString("base64url");
 }
 
+const NON_ROUTABLE_DOMAINS = [".local", "@example.com", "@example.org", "@example.net", "@localhost"];
+
 export async function sendGmail(to: string, subject: string, htmlBody: string): Promise<boolean> {
+  if (NON_ROUTABLE_DOMAINS.some(d => to.toLowerCase().endsWith(d) || to.toLowerCase().includes(d))) {
+    logger.warn(`[Gmail] Skipping email to non-routable address: ${to}`);
+    return false;
+  }
   const MAX_RETRIES = 3;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {

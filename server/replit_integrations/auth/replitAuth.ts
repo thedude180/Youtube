@@ -198,7 +198,7 @@ async function ensureDevUser() {
     if (!u) {
       await authStorage.upsertUserTrusted({
         id: DEV_BYPASS_USER_ID,
-        email: "dev@creatoros.local",
+        email: "dev@example.com",
         firstName: "Dev",
         lastName: "User",
       });
@@ -288,7 +288,7 @@ async function ensureDevXChannel() {
 const DEV_SESSION_USER = {
   claims: {
     sub: DEV_BYPASS_USER_ID,
-    email: "dev@creatoros.local",
+    email: "dev@example.com",
     first_name: "Dev",
     last_name: "User",
   },
