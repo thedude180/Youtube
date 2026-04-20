@@ -89,26 +89,6 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
       profileUrl: `https://kick.com/${data.data?.[0]?.slug || data.data?.slug || data.slug || ""}`,
     }),
   },
-  x: {
-    platform: "x",
-    label: "X (Twitter)",
-    authUrl: "https://twitter.com/i/oauth2/authorize",
-    tokenUrl: "https://api.twitter.com/2/oauth2/token",
-    scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
-    clientIdEnv: isDevEnv && process.env.TWITTER_DEV_CLIENT_ID ? "TWITTER_DEV_CLIENT_ID" : "TWITTER_CLIENT_ID",
-    clientSecretEnv: isDevEnv && process.env.TWITTER_DEV_CLIENT_SECRET ? "TWITTER_DEV_CLIENT_SECRET" : "TWITTER_CLIENT_SECRET",
-    requiresPKCE: true,
-    pkceChallengeMethod: "S256",
-    tokenAuthMethod: "header",
-    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=id,name,username",
-    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
-    parseUserId: (data) => ({
-      id: data.data?.id || "",
-      username: data.data?.username || "",
-      displayName: data.data?.name || data.data?.username || "",
-      profileUrl: `https://x.com/${data.data?.username || ""}`,
-    }),
-  },
 };
 
 export function getOAuthRedirectUri(platform: string): string {

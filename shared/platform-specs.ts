@@ -1,4 +1,4 @@
-export type Platform = "youtube" | "twitch" | "kick" | "tiktok" | "discord" | "rumble" | "x";
+export type Platform = "youtube" | "twitch" | "kick" | "tiktok" | "discord" | "rumble";
 
 export interface PlatformContentSpec {
   label: string;
@@ -244,40 +244,6 @@ export const PLATFORM_CONTENT_SPECS: Record<Platform, PlatformContentSpec> = {
     dailyLimits: { maxPosts: 20 },
   },
 
-  x: {
-    label: "X (Twitter)",
-    category: "social",
-    color: "#000000",
-    capabilities: ["Posts (≤280 chars)", "Video clips (≤140s)", "Image posts", "Threads"],
-    contentTypes: ["post", "short"],
-    limits: {
-      titleMaxLength: 280,
-      descriptionMaxLength: 280,
-      maxHashtags: 2,
-      postMaxLength: 280,
-      videoMaxDuration: 140,
-      mediaLimit: 4,
-    },
-    streaming: {
-      supported: false,
-    },
-    posting: {
-      supported: true,
-      videoUpload: true,
-      textPost: true,
-      imagePost: true,
-      aspectRatio: "16:9 (landscape) or 9:16 (vertical clips)",
-      bestPractices: [
-        "Keep posts under 280 chars — punchy wins on X",
-        "1-2 hashtags max — more tanks reach",
-        "Video clips up to 140s drive more engagement than text-only",
-        "Post threads for longer breakdowns or behind-the-scenes",
-        "Images should be 1200×675 for landscape previews",
-      ],
-    },
-    tone: "Punchy, opinionated, real-time. Use hooks and hot takes to spark replies.",
-    dailyLimits: { maxPosts: 300, maxUpdates: 500 },
-  },
 };
 
 export function getContentTypesForPlatform(platform: Platform): string[] {

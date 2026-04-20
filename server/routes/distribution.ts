@@ -11,7 +11,7 @@ export function registerDistributionRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const schema = z.object({
-        platform: z.enum(["youtube", "twitch", "kick", "tiktok", "discord", "rumble", "x"]),
+        platform: z.enum(["youtube", "twitch", "kick", "tiktok", "discord", "rumble"]),
         contentId: z.string().min(1),
         contentType: z.enum(["video", "short", "post", "live"]),
         title: z.string().min(1),
@@ -285,7 +285,7 @@ export function registerDistributionRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const schema = z.object({
-        platform: z.enum(["youtube", "twitch", "kick", "tiktok", "discord", "rumble", "x"]),
+        platform: z.enum(["youtube", "twitch", "kick", "tiktok", "discord", "rumble"]),
         title: z.string().min(1),
         description: z.string().optional(),
         tags: z.array(z.string()).optional(),

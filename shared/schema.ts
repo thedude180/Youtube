@@ -146,7 +146,6 @@ export const PLATFORMS = [
   "tiktok",
   "discord",
   "rumble",
-  "x",
 ] as const;
 export type Platform = typeof PLATFORMS[number];
 
@@ -181,12 +180,6 @@ export const PLATFORM_CAPABILITIES: Record<Platform, {
     primaryType: "video",
     maxVideoLength: 600,
     description: "Short-form video clips (up to 10 min), optimized for vertical 9:16",
-  },
-  x: {
-    supports: ["text", "image"],
-    primaryType: "text",
-    maxVideoLength: null,
-    description: "Text posts, stream announcements, traffic driving, throwback content",
   },
   discord: {
     supports: ["text", "image"],
@@ -290,18 +283,6 @@ export const PLATFORM_INFO: Record<Platform, {
     signupUrl: "https://rumble.com/register",
     strategyDescription: "Growing free-speech video platform. Upload long-form content and live stream to reach audiences seeking alternative platforms. Revenue share available.",
     setupSteps: ["Create an account at rumble.com", "Go to your Rumble Studio dashboard", "Find your API key or stream key in Settings", "Paste it below"],
-  },
-  x: {
-    label: "X (Twitter)",
-    color: "#000000",
-    maxResolution: "1080p30",
-    maxBitrate: "4 Mbps",
-    rtmpUrlTemplate: "",
-    category: "social",
-    connectionType: "oauth",
-    signupUrl: "https://x.com/i/flow/signup",
-    strategyDescription: "The real-time conversation platform. Share clips, engage with the gaming community, and drive traffic to your content through viral moments and discussions.",
-    setupSteps: ["Click 'Connect X' to authorize via OAuth", "CreatorOS will get permission to post on your behalf", "Your account will appear as connected"],
   },
 };
 

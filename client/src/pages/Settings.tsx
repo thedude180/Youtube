@@ -9,7 +9,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
 } from "lucide-react";
 import { QualitySettingsPanel } from "@/components/resolution-intelligence";
-import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble, SiX } from "react-icons/si";
+import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -164,39 +164,6 @@ function PlatformConnectionsCard({
   });
 
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
-  const [xTokenDialog, setXTokenDialog] = useState(false);
-  const [xAccessToken, setXAccessToken] = useState("");
-  const [xRefreshToken, setXRefreshToken] = useState("");
-  const [xTokenSaving, setXTokenSaving] = useState(false);
-
-  const handleSaveXTokens = async () => {
-    if (!xAccessToken.trim()) {
-      toast({ title: "Access token required", description: "Please paste your X access token.", variant: "destructive" });
-      return;
-    }
-    setXTokenSaving(true);
-    try {
-      const res = await fetch("/api/oauth/x/manual-token", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken: xAccessToken.trim(), refreshToken: xRefreshToken.trim() || undefined }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save tokens");
-      queryClient.invalidateQueries({ queryKey: ["/api/channels"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/linked-channels"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
-      toast({ title: "X connected!", description: `Connected as @${data.username}` });
-      setXTokenDialog(false);
-      setXAccessToken("");
-      setXRefreshToken("");
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setXTokenSaving(false);
-    }
-  };
 
   const FOCUSED_PLATFORMS = [
     { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
@@ -205,7 +172,6 @@ function PlatformConnectionsCard({
     { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
     { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
     { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
-    { key: "x", label: "X (Twitter)", color: "#000000", Icon: SiX, isYouTube: false, streamKeyOnly: false },
   ];
 
   const connectedSet = new Set((channels || []).map((c: any) => c.platform));
@@ -549,11 +515,6 @@ function PlatformConnectionsCard({
                     {oauthLoading === p.key ? "Connecting..." : `Connect ${p.label}`}
                     {!canOAuth && <span className="ml-auto text-xs opacity-60">Not configured</span>}
                   </Button>
-                  {p.key === "x" && import.meta.env.DEV && (
-                    <button data-testid="button-x-paste-tokens" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 text-left px-1 transition-colors" onClick={() => setXTokenDialog(true)}>
-                      Paste tokens manually (dev)
-                    </button>
-                  )}
                 </div>
               );
             })}
@@ -562,31 +523,6 @@ function PlatformConnectionsCard({
           <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
         )}
       </CardContent>
-
-      <Dialog open={xTokenDialog} onOpenChange={setXTokenDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><SiX className="h-4 w-4" /> Connect X (Twitter) — Dev</DialogTitle>
-            <DialogDescription>Paste your X OAuth tokens directly. This option is only available in development mode.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 py-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="x-access-token">Access Token <span className="text-destructive">*</span></Label>
-              <Textarea id="x-access-token" data-testid="input-x-access-token" rows={3} placeholder="Paste your X access token here..." value={xAccessToken} onChange={e => setXAccessToken(e.target.value)} className="font-mono text-xs resize-none" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="x-refresh-token">Refresh Token <span className="text-muted-foreground text-xs">(optional)</span></Label>
-              <Textarea id="x-refresh-token" data-testid="input-x-refresh-token" rows={2} placeholder="Paste your X refresh token here..." value={xRefreshToken} onChange={e => setXRefreshToken(e.target.value)} className="font-mono text-xs resize-none" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setXTokenDialog(false)} disabled={xTokenSaving}>Cancel</Button>
-            <Button data-testid="button-x-save-tokens" onClick={handleSaveXTokens} disabled={xTokenSaving || !xAccessToken.trim()} style={{ backgroundColor: "#1a1a1a", border: "1px solid #444", color: "#fff" }}>
-              {xTokenSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Connecting...</> : <><SiX className="h-4 w-4 mr-2" />Save & Connect</>}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 }
