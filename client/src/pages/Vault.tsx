@@ -677,8 +677,9 @@ export default function Vault() {
     enabled: true,
   });
 
-  const isAnyGenerating = (vaultDocs ?? []).some(d => d.status === "generating");
-  const docsReadyCount = (vaultDocs ?? []).filter(d => d.status === "ready").length;
+  const isAnyGenerating = (vaultDocs ?? []).some(d => (sseStatuses[d.docType] ?? d.status) === "generating")
+    || Object.values(sseStatuses).some(s => s === "generating");
+  const docsReadyCount = (vaultDocs ?? []).filter(d => (sseStatuses[d.docType] ?? d.status) === "ready").length;
   const docsTotal = (vaultDocs ?? []).length || 6;
 
   const generateAllDocsMutation = useMutation({
@@ -716,6 +717,22 @@ export default function Vault() {
 
   const [sseStatuses, setSseStatuses] = useState<Record<string, string>>({});
   const sseCleanupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    if (!vaultDocs) return;
+    setSseStatuses(prev => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      let changed = false;
+      for (const doc of vaultDocs) {
+        if (next[doc.docType] === "generating" && (doc.status === "ready" || doc.status === "failed")) {
+          delete next[doc.docType];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [vaultDocs]);
 
   useEffect(() => {
     if (!showingDocs) return;
