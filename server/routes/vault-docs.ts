@@ -96,7 +96,7 @@ export function registerVaultDocsRoutes(app: Express) {
   app.post("/api/vault-docs/generate/all", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      res.json({ status: "started", message: "Generating all 6 documents — this takes a few minutes. Refresh to see progress." });
+      res.json({ queued: true, message: "Generating all 6 documents — this takes a few minutes. Refresh to see progress." });
 
       generateAllVaultDocuments(userId).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
@@ -117,7 +117,7 @@ export function registerVaultDocsRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid document type" });
       }
 
-      res.json({ status: "started", message: `Generating ${docType} — refresh in ~30 seconds.` });
+      res.json({ queued: true, message: `Generating ${docType} — refresh in ~30 seconds.` });
 
       generateVaultDocument(userId, docType as VaultDocType).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
@@ -152,6 +152,106 @@ export function registerVaultDocsRoutes(app: Express) {
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.send(doc.content);
+    } catch (err: unknown) {
+      res.status(500).json({ error: "Failed to export document" });
+    }
+  });
+
+  // ── Backward-compatible aliases at /api/vault/documents ──────────────────
+
+  // GET /api/vault/documents — alias of /api/vault-docs
+  app.get("/api/vault/documents", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const docs = await db
+        .select({
+          id: vaultDocuments.id,
+          userId: vaultDocuments.userId,
+          docType: vaultDocuments.docType,
+          title: vaultDocuments.title,
+          status: vaultDocuments.status,
+          wordCount: vaultDocuments.wordCount,
+          errorMessage: vaultDocuments.errorMessage,
+          generatedAt: vaultDocuments.generatedAt,
+          metadata: vaultDocuments.metadata,
+          createdAt: vaultDocuments.createdAt,
+          updatedAt: vaultDocuments.updatedAt,
+        })
+        .from(vaultDocuments)
+        .where(eq(vaultDocuments.userId, userId));
+
+      const mapped = VAULT_DOC_TYPES.map((dt) => {
+        const existing = docs.find((d) => d.docType === dt);
+        if (existing) return existing;
+        const meta = DOC_META[dt as VaultDocType];
+        return {
+          id: null, userId, docType: dt, title: meta.title,
+          status: "pending", wordCount: 0, errorMessage: null,
+          generatedAt: null, metadata: { emoji: meta.emoji, description: meta.description },
+          createdAt: null, updatedAt: null,
+        };
+      });
+      res.json(mapped);
+    } catch (err: unknown) {
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  // POST /api/vault/documents/generate — optional { docType } in body
+  app.post("/api/vault/documents/generate", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const body = req.body as { docType?: string };
+      const docType = body.docType ? parseDocType(body.docType) : null;
+
+      if (docType) {
+        res.json({ queued: true, message: `Generating ${docType} — refresh in ~30 seconds.` });
+        generateVaultDocument(userId, docType as VaultDocType).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[VaultDocs] Background generation error for ${docType}:`, msg);
+        });
+      } else {
+        res.json({ queued: true, message: "Generating all 6 documents — this takes a few minutes. Refresh to see progress." });
+        generateAllVaultDocuments(userId).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[VaultDocs] Background generation error:", msg);
+        });
+      }
+    } catch (err: unknown) {
+      res.status(500).json({ error: "Failed to start generation" });
+    }
+  });
+
+  // GET /api/vault/documents/:docType
+  app.get("/api/vault/documents/:docType", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const docType = parseDocType(req.params["docType"]);
+      if (!docType) return res.status(400).json({ error: "Invalid document type" });
+      const docs = await db.select().from(vaultDocuments)
+        .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
+        .limit(1);
+      if (!docs.length) return res.status(404).json({ error: "Document not found" });
+      res.json(docs[0]);
+    } catch (err: unknown) {
+      res.status(500).json({ error: "Failed to fetch document" });
+    }
+  });
+
+  // GET /api/vault/documents/:docType/export
+  app.get("/api/vault/documents/:docType/export", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const docType = parseDocType(req.params["docType"]);
+      if (!docType) return res.status(400).json({ error: "Invalid document type" });
+      const docs = await db.select().from(vaultDocuments)
+        .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
+        .limit(1);
+      if (!docs.length || !docs[0].content) return res.status(404).json({ error: "Document not yet generated" });
+      const filename = `${docType.split("_").join("-")}-creatorOS.md`;
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(docs[0].content);
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to export document" });
     }

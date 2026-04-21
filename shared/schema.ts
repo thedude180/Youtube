@@ -9918,6 +9918,7 @@ export const vaultDocuments = pgTable("vault_documents", {
   index("vd_user_idx").on(t.userId),
   index("vd_doc_type_idx").on(t.docType),
   index("vd_status_idx").on(t.status),
+  uniqueIndex("vd_user_doc_type_uniq").on(t.userId, t.docType),
 ]);
 
 export const insertVaultDocumentSchema = createInsertSchema(vaultDocuments).omit({ id: true, createdAt: true, updatedAt: true });
