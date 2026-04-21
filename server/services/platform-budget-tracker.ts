@@ -5,47 +5,52 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("platform-budget");
 
-// Daily caps = what each platform allows without rate-limits, shadow-bans, or
-// API errors. Values sit just under each platform's documented/observed hard
-// ceiling with a small safety buffer.
-//   youtube        : YouTube allows 50+ uploads/day for verified channels; 15
-//                    keeps us well under quota cost (1600 units/upload vs 10k
-//                    daily quota) without triggering audits.
-//   youtubeshorts  : Same channel/quota as YouTube; 12 matches Shorts algo
-//                    tolerance while staying inside quota budget.
-//   tiktok         : TikTok docs cap at 10 video posts per 24h per account.
-//   x              : Free/basic tier cap is 50 posts / 24h. 40 leaves headroom.
-//   discord        : Webhooks allow 30 req/min; no daily cap. 30 = broadcast
-//                    rate without community spam perception.
-//   instagram      : Graph API hard cap is 25 container publishes per 24h.
-//   kick           : No documented daily cap; 10 reflects realistic cadence.
-//   rumble         : Platform allows up to 15 uploads/day; 12 stays safe.
-//   twitch         : Clips/posts, no daily cap; 10 matches practical cadence.
+// Daily caps — tuned to match what a real active human gaming creator posts.
+// The goal is a consistent, organic-looking flow that avoids bot-detection
+// on every platform. Caps are intentionally conservative; the system runs
+// 24/7 so a lower daily number spread across the day looks far more human
+// than a high cap burst-posted in the first few hours.
+//
+//   youtube        : 1–2 long-form uploads/day is normal for an active gaming
+//                    channel. 2 keeps quota cost well under the 10k daily limit
+//                    (1600 units/upload) and matches organic creator cadence.
+//   youtubeshorts  : Gaming Shorts creators typically post 2–5/day. 4 slots
+//                    spread over 2-hour gaps looks natural, not bot-like.
+//   tiktok         : 2–3/day is the sweet spot for a consistent creator.
+//                    Anything above 4 on a gaming account risks shadow-ban.
+//   x              : 5–8 posts/day looks active without triggering auto-review.
+//   discord        : Announcement-channel style — posts when YouTube or TikTok
+//                    content goes out. 8/day with 30-min gaps is natural.
+//   instagram      : Graph API caps at 25, but 4 organic-looking posts/day
+//                    avoids the algorithm's over-posting penalty.
+//   kick           : 1–2 clips per day on a gaming clip channel.
+//   rumble         : Same cadence as YouTube long-form.
+//   twitch         : Clips/posts — 3/day matches realistic manual cadence.
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
-  youtube: 15,
-  youtubeshorts: 12,
-  tiktok: 10,
-  x: 40,
-  discord: 30,
-  instagram: 25,
-  kick: 10,
-  rumble: 12,
-  twitch: 10,
+  youtube: 2,
+  youtubeshorts: 4,
+  tiktok: 3,
+  x: 8,
+  discord: 8,
+  instagram: 4,
+  kick: 2,
+  rumble: 2,
+  twitch: 3,
 };
 
-// Minimum gap between posts = what the platform's rate limiter allows without
-// 429s or burst-spam heuristics. Tighter than before because the previous
-// values were algo-guesses rather than platform limits.
+// Minimum gap between consecutive posts on the same platform.
+// These enforce the spacing that real creators naturally have — no human
+// uploads a YouTube video every hour. Longer gaps = more human-looking cadence.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
-  youtube: 60 * 60_000,
-  youtubeshorts: 45 * 60_000,
-  tiktok: 60 * 60_000,
-  x: 15 * 60_000,
-  discord: 5 * 60_000,
-  instagram: 45 * 60_000,
-  kick: 60 * 60_000,
-  rumble: 60 * 60_000,
-  twitch: 30 * 60_000,
+  youtube: 6 * 60 * 60_000,      // 6 hours between long-forms
+  youtubeshorts: 2 * 60 * 60_000, // 2 hours between Shorts
+  tiktok: 3 * 60 * 60_000,        // 3 hours between TikToks
+  x: 45 * 60_000,                 // 45 min between tweets
+  discord: 30 * 60_000,           // 30 min between announcements
+  instagram: 4 * 60 * 60_000,     // 4 hours between IG posts
+  kick: 4 * 60 * 60_000,          // 4 hours between Kick clips
+  rumble: 6 * 60 * 60_000,        // 6 hours (mirrors YouTube)
+  twitch: 2 * 60 * 60_000,        // 2 hours between Twitch posts
 };
 
 export interface PlatformBudgetStatus {

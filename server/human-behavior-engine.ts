@@ -58,37 +58,88 @@ interface PlatformTimingProfile {
 }
 
 const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
+  // YouTube long-form: active gaming creators post 1–2/day, spread 6+ hours apart.
+  // Peak hours align with after-school/after-work gaming audience.
   youtube: {
-    peakHours: [10, 11, 12, 14, 15, 16, 17, 18, 19, 20],
-    offPeakHours: [8, 9, 13, 21, 22],
-    maxPostsPerDay: 4,
-    minGapMinutes: 90,
-    avgGapMinutes: 180,
+    peakHours: [14, 15, 16, 17, 18, 19, 20],
+    offPeakHours: [10, 11, 12, 13, 21],
+    maxPostsPerDay: 2,
+    minGapMinutes: 360,   // 6 hours minimum between uploads
+    avgGapMinutes: 480,   // target ~8 hours apart
     weekendMultiplier: 1.0,
   },
+  // YouTube Shorts: more frequent than long-form, gaming clips do well 2–5/day.
+  youtubeshorts: {
+    peakHours: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+    offPeakHours: [10, 11, 22, 23],
+    maxPostsPerDay: 4,
+    minGapMinutes: 120,   // 2 hours minimum between Shorts
+    avgGapMinutes: 180,   // target ~3 hours apart
+    weekendMultiplier: 1.1,
+  },
+  // TikTok: gaming community peaks in the evenings. 2–3 clips/day consistent.
   tiktok: {
-    peakHours: [11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22],
-    offPeakHours: [9, 10, 16, 23],
+    peakHours: [15, 16, 17, 18, 19, 20, 21, 22],
+    offPeakHours: [11, 12, 13, 14, 23],
     maxPostsPerDay: 3,
-    minGapMinutes: 90,
+    minGapMinutes: 180,   // 3 hours minimum
+    avgGapMinutes: 300,   // target ~5 hours apart
+    weekendMultiplier: 1.2,
+  },
+  // X/Twitter: shorter content, higher frequency is acceptable.
+  x: {
+    peakHours: [10, 11, 12, 13, 14, 15, 17, 18, 19, 20],
+    offPeakHours: [8, 9, 16, 21, 22],
+    maxPostsPerDay: 8,
+    minGapMinutes: 45,
+    avgGapMinutes: 90,
+    weekendMultiplier: 0.8,
+  },
+  // Discord: announcement-channel style. Posts shortly after YouTube/TikTok.
+  // Gaming communities are active evenings and late night.
+  discord: {
+    peakHours: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+    offPeakHours: [10, 11, 12, 13],
+    maxPostsPerDay: 8,
+    minGapMinutes: 30,    // 30 min — announcement cadence, not spam
+    avgGapMinutes: 90,    // follows YouTube/TikTok schedule naturally
+    weekendMultiplier: 1.3,
+  },
+  // Kick: gaming clip channel, 1–2 clips/day with wide gaps looks organic.
+  kick: {
+    peakHours: [16, 17, 18, 19, 20, 21, 22, 23],
+    offPeakHours: [12, 13, 14, 15],
+    maxPostsPerDay: 2,
+    minGapMinutes: 240,   // 4 hours minimum
+    avgGapMinutes: 360,   // target ~6 hours apart
+    weekendMultiplier: 1.1,
+  },
+  // Rumble: mirrors YouTube long-form cadence.
+  rumble: {
+    peakHours: [14, 15, 16, 17, 18, 19, 20],
+    offPeakHours: [10, 11, 12, 13, 21],
+    maxPostsPerDay: 2,
+    minGapMinutes: 360,
+    avgGapMinutes: 480,
+    weekendMultiplier: 1.0,
+  },
+  // Twitch: clip posts and announcements, 2–3/day.
+  twitch: {
+    peakHours: [15, 16, 17, 18, 19, 20, 21, 22],
+    offPeakHours: [11, 12, 13, 14, 23],
+    maxPostsPerDay: 3,
+    minGapMinutes: 120,
     avgGapMinutes: 240,
     weekendMultiplier: 1.2,
   },
-  x: {
-    peakHours: [9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21],
-    offPeakHours: [8, 16, 22, 23],
-    maxPostsPerDay: 5,
-    minGapMinutes: 45,
-    avgGapMinutes: 120,
-    weekendMultiplier: 0.8,
-  },
-  discord: {
-    peakHours: [15, 16, 17, 18, 19, 20, 21, 22, 23],
-    offPeakHours: [10, 11, 12, 13, 14],
-    maxPostsPerDay: 2,
-    minGapMinutes: 180,
-    avgGapMinutes: 480,
-    weekendMultiplier: 1.3,
+  // Instagram: 3–4 posts/day, with longer gaps to avoid algo penalty.
+  instagram: {
+    peakHours: [11, 12, 13, 17, 18, 19, 20, 21],
+    offPeakHours: [9, 10, 14, 15, 16, 22],
+    maxPostsPerDay: 4,
+    minGapMinutes: 240,
+    avgGapMinutes: 360,
+    weekendMultiplier: 1.1,
   },
 };
 
@@ -160,41 +211,68 @@ export function generateHumanScheduledTime(options: HumanScheduleOptions): Date 
   return scheduledDate;
 }
 
+// Platform posting priority — defines the order in which platforms receive
+// content for the same video. YouTube goes first (primary channel), Discord
+// announces shortly after, then TikTok/Kick/Rumble follow with wider gaps.
+// This mirrors what a real creator does: upload to YouTube, ping Discord,
+// then cross-post to other platforms an hour or two later.
+const PLATFORM_PRIORITY_ORDER = [
+  "youtube",
+  "youtubeshorts",
+  "discord",
+  "tiktok",
+  "twitch",
+  "kick",
+  "rumble",
+  "instagram",
+  "x",
+];
+
+// Cross-platform stagger gaps (minutes). After the primary platform posts,
+// each subsequent platform waits this long before its slot. Values are
+// intentionally varied so all platforms don't march in lockstep.
+const CROSS_PLATFORM_STAGGER_MINUTES: Record<string, number> = {
+  youtube: 0,          // primary — base time
+  youtubeshorts: 0,    // same channel, own schedule
+  discord: 20,         // announce 20 min after YouTube (quick)
+  tiktok: 60,          // post to TikTok ~1h after YouTube
+  twitch: 75,          // Twitch clip ~75 min after
+  kick: 90,            // Kick clip ~90 min after YouTube
+  rumble: 120,         // Rumble mirrors YouTube, 2h later
+  instagram: 105,      // IG post ~105 min after
+  x: 30,              // Tweet soon after YouTube is live
+};
+
 export function generateStaggeredSchedule(
   platforms: string[],
   contentType: "new-video" | "recycle" | "engagement",
   userId: string,
 ): Map<string, Date> {
   const schedule = new Map<string, Date>();
-  const now = new Date();
 
-  const shuffled = [...platforms].sort(() => Math.random() - 0.5);
+  // Sort platforms by priority order so content flows:
+  //   YouTube → Discord → TikTok → Kick → Rumble (not random)
+  const ordered = [...platforms].sort((a, b) => {
+    const ai = PLATFORM_PRIORITY_ORDER.indexOf(a);
+    const bi = PLATFORM_PRIORITY_ORDER.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
 
-  let lastScheduledTime = now;
+  // Anchor: the primary platform picks a real audience-driven time
+  const primaryPlatform = ordered[0];
+  const primaryTime = generateHumanScheduledTime({
+    platform: primaryPlatform,
+    userId,
+    contentType,
+    urgency: contentType === "new-video" ? "normal" : "low",
+  });
 
-  for (let i = 0; i < shuffled.length; i++) {
-    const platform = shuffled[i];
-    const timing = PLATFORM_TIMING[platform] || PLATFORM_TIMING.x;
-
-    let baseTime: Date;
-    if (i === 0) {
-      baseTime = generateHumanScheduledTime({
-        platform,
-        userId,
-        contentType,
-        urgency: contentType === "new-video" ? "normal" : "low",
-      });
-    } else {
-      const gapMinutes = gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3);
-      const actualGap = Math.max(timing.minGapMinutes, gapMinutes);
-      baseTime = new Date(lastScheduledTime.getTime() + actualGap * 60000);
-    }
-
-    const jitterMinutes = gaussianRandom(0, 7);
-    baseTime = new Date(baseTime.getTime() + jitterMinutes * 60000);
-
-    schedule.set(platform, baseTime);
-    lastScheduledTime = baseTime;
+  for (const platform of ordered) {
+    const staggerBase = CROSS_PLATFORM_STAGGER_MINUTES[platform] ?? 60;
+    // Add Gaussian jitter (±10 min) so posts don't all land at the exact offset
+    const jitterMinutes = gaussianRandom(0, 10);
+    const totalOffsetMs = (staggerBase + jitterMinutes) * 60_000;
+    schedule.set(platform, new Date(primaryTime.getTime() + totalOffsetMs));
   }
 
   return schedule;
