@@ -1207,6 +1207,7 @@ export default function Vault() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
+                        {isGenerating && <RegenerationProgress isGenerating={isGenerating} />}
                         {isReady && doc.wordCount > 0 && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {doc.generatedAt ? new Date(doc.generatedAt).toLocaleDateString() : ""}</p>
                         )}
