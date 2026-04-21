@@ -15,7 +15,7 @@ export function addSseClient(userId: string, res: Response): () => void {
   };
 }
 
-export function emitVaultDocEvent(userId: string, payload: { docType: string; status: string }) {
+export function emitVaultDocEvent(userId: string, payload: { docType: string; status: string; step?: string }) {
   const data = JSON.stringify(payload);
   for (const client of clients) {
     if (client.userId !== userId) continue;

@@ -633,27 +633,42 @@ const REGEN_STEPS = ["Drafting…", "Reviewing…", "Finalising…"];
 const STEP_DURATION_MS = 9000;
 const TICK_MS = 150;
 
-function RegenerationProgress({ isGenerating, docType }: { isGenerating: boolean; docType: string }) {
-  const [elapsed, setElapsed] = useState(0);
+function RegenerationProgress({ isGenerating, docType, sseStepIndex }: { isGenerating: boolean; docType: string; sseStepIndex?: number }) {
+  const [intraStepMs, setIntraStepMs] = useState(0);
+  const [completing, setCompleting] = useState(false);
+
+  useEffect(() => {
+    setIntraStepMs(0);
+  }, [sseStepIndex]);
 
   useEffect(() => {
     if (!isGenerating) {
-      setElapsed(0);
+      setIntraStepMs(0);
       return;
     }
-    const id = setInterval(() => setElapsed(t => t + TICK_MS), TICK_MS);
+    const id = setInterval(
+      () => setIntraStepMs(t => Math.min(t + TICK_MS, STEP_DURATION_MS * 0.9)),
+      TICK_MS
+    );
     return () => clearInterval(id);
+  }, [isGenerating, sseStepIndex]);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setCompleting(true);
+      const id = setTimeout(() => setCompleting(false), 600);
+      return () => clearTimeout(id);
+    }
+    setCompleting(false);
   }, [isGenerating]);
 
-  if (!isGenerating) return null;
+  if (!isGenerating && !completing) return null;
 
-  const totalMs = REGEN_STEPS.length * STEP_DURATION_MS;
-  const cappedElapsed = Math.min(elapsed, totalMs * 0.95);
-  const stepIndex = Math.min(
-    Math.floor(cappedElapsed / STEP_DURATION_MS),
-    REGEN_STEPS.length - 1
-  );
-  const progressPct = Math.min((cappedElapsed / totalMs) * 100, 95);
+  const stepIndex = sseStepIndex ?? 0;
+  const intraFraction = intraStepMs / STEP_DURATION_MS;
+  const progressPct = completing
+    ? 100
+    : Math.min(((stepIndex + intraFraction) / REGEN_STEPS.length) * 100, 95);
 
   return (
     <div className="mt-2 space-y-1.5" data-testid={`regen-progress-indicator-${docType}`}>
@@ -728,6 +743,7 @@ export default function Vault() {
   });
 
   const [sseStatuses, setSseStatuses] = useState<Record<string, string>>({});
+  const [sseStepIndices, setSseStepIndices] = useState<Record<string, number>>({});
   const sseCleanupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const isAnyGenerating = (vaultDocs ?? []).some(d => (sseStatuses[d.docType] ?? d.status) === "generating")
@@ -812,13 +828,21 @@ export default function Vault() {
       };
 
       es.onmessage = (e: MessageEvent) => {
-        let payload: { docType?: string; status?: string } = {};
-        try { payload = JSON.parse(e.data as string) as { docType?: string; status?: string }; } catch { /* ignore */ }
+        let payload: { docType?: string; status?: string; step?: string } = {};
+        try { payload = JSON.parse(e.data as string) as { docType?: string; status?: string; step?: string }; } catch { /* ignore */ }
 
         if (payload.docType && payload.status) {
-          const { docType, status } = payload;
+          const { docType, status, step } = payload;
 
           setSseStatuses(prev => ({ ...prev, [docType]: status }));
+
+          if (step !== undefined) {
+            const STEP_NAMES = ["drafting", "reviewing", "finalising"];
+            const stepIdx = STEP_NAMES.indexOf(step);
+            if (stepIdx !== -1) {
+              setSseStepIndices(prev => ({ ...prev, [docType]: stepIdx }));
+            }
+          }
 
           const existing = sseCleanupTimers.current[docType];
           if (existing) clearTimeout(existing);
@@ -826,6 +850,11 @@ export default function Vault() {
           if (status === "ready" || status === "failed") {
             sseCleanupTimers.current[docType] = setTimeout(() => {
               setSseStatuses(prev => {
+                const next = { ...prev };
+                delete next[docType];
+                return next;
+              });
+              setSseStepIndices(prev => {
                 const next = { ...prev };
                 delete next[docType];
                 return next;
@@ -1330,7 +1359,7 @@ export default function Vault() {
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       Regenerating this document — new content will appear when ready…
                     </div>
-                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} />
                   </div>
                 )}
                 <Card className={`border-border/40 transition-opacity duration-300 ${isGenerating ? "opacity-60" : "opacity-100"}`}>
@@ -1348,7 +1377,7 @@ export default function Vault() {
                   <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />
                   <p className="text-sm mb-4">Generating document — this takes about 30 seconds…</p>
                   <div className="max-w-xs mx-auto">
-                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} />
                   </div>
                 </CardContent>
               </Card>

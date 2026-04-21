@@ -554,12 +554,14 @@ export async function generateVaultDocument(userId: string, docType: VaultDocTyp
     docId = inserted.id;
   }
 
-  emitVaultDocEvent(userId, { docType, status: "generating" });
+  emitVaultDocEvent(userId, { docType, status: "generating", step: "drafting" });
 
   try {
     const data = await gatherSystemData(userId);
+    emitVaultDocEvent(userId, { docType, status: "generating", step: "reviewing" });
     const generator = GENERATORS[docType];
     const content = await generator(userId, data);
+    emitVaultDocEvent(userId, { docType, status: "generating", step: "finalising" });
     const wordCount = content.split(/\s+/).filter(Boolean).length;
 
     await db.update(vaultDocuments).set({
