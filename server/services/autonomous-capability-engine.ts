@@ -286,10 +286,9 @@ async function fillPromptGap(userId: string, gap: typeof capabilityGaps.$inferSe
   const promptKey = gap.title.replace("Missing prompt: ", "").trim();
   const domain = promptKey.replace(/_/g, " ");
 
-  const prompt = `You are a world-class AI prompt engineer specialising in YouTube gaming content creation.
+  const systemPrompt = `You are a world-class AI prompt engineer specialising in YouTube gaming content creation. You design precise, high-quality prompt templates that are immediately usable by autonomous AI engines. Always return valid JSON only.`;
 
-Create an optimised prompt template for the "${domain}" task in a YouTube gaming content pipeline.
-This prompt will be used by AI engines to generate high-quality content for a gaming channel.
+  const userPrompt = `Create an optimised prompt template for the "${domain}" task in a YouTube gaming content pipeline. This prompt will be used by AI engines to generate high-quality content for a gaming channel.
 
 ${masterWisdom ? `CHANNEL CONTEXT:\n${masterWisdom}\n` : ""}
 
@@ -303,8 +302,12 @@ Return ONLY a JSON object:
 
 The prompts must be specific to gaming content, YouTube best practices, and the task at hand. Make them actionable and precise.`;
 
-  const raw = await executeRoutedAICall(prompt, "capability-gap-filler", 1200);
-  const parsed = safeParseJSON(raw);
+  const result = await executeRoutedAICall(
+    { taskType: "strategy_planning", userId, maxTokens: 1200 },
+    systemPrompt,
+    userPrompt,
+  );
+  const parsed = safeParseJSON<Record<string, any>>(result.content, {});
 
   if (!parsed?.systemPrompt || !parsed?.userPromptTemplate) {
     throw new Error("AI returned invalid prompt structure");
@@ -353,10 +356,9 @@ The prompts must be specific to gaming content, YouTube best practices, and the 
 async function fillStrategyGap(userId: string, gap: typeof capabilityGaps.$inferSelect, masterWisdom: string): Promise<void> {
   const domain = gap.domain.replace(/_/g, " ");
 
-  const prompt = `You are a world-class YouTube gaming channel strategist.
+  const systemPrompt = `You are a world-class YouTube gaming channel strategist with deep expertise in algorithm optimisation, audience retention, and autonomous content pipelines. You create specific, tested, immediately-actionable strategies. Always return valid JSON only.`;
 
-Create a high-impact, immediately-actionable strategy for the "${domain}" domain of a YouTube gaming channel.
-This strategy will be applied autonomously by AI engines — it must be specific, testable, and grounded in what actually works.
+  const userPrompt = `Create a high-impact, immediately-actionable strategy for the "${domain}" domain of a YouTube gaming channel. This strategy will be applied autonomously by AI engines — it must be specific, testable, and grounded in what actually works.
 
 ${masterWisdom ? `CHANNEL CONTEXT:\n${masterWisdom}\n` : ""}
 
@@ -374,8 +376,12 @@ Return ONLY a JSON object:
 
 Make this strategy specific enough that an AI engine can act on it without further clarification.`;
 
-  const raw = await executeRoutedAICall(prompt, "capability-gap-filler", 1000);
-  const parsed = safeParseJSON(raw);
+  const result = await executeRoutedAICall(
+    { taskType: "strategy_planning", userId, maxTokens: 1000 },
+    systemPrompt,
+    userPrompt,
+  );
+  const parsed = safeParseJSON<Record<string, any>>(result.content, {});
 
   if (!parsed?.title || !parsed?.description) {
     throw new Error("AI returned invalid strategy structure");
@@ -429,9 +435,9 @@ Make this strategy specific enough that an AI engine can act on it without furth
 }
 
 async function fillKnowledgeGap(userId: string, gap: typeof capabilityGaps.$inferSelect, masterWisdom: string): Promise<void> {
-  const prompt = `You are a world-class YouTube gaming expert and AI system designer.
+  const systemPrompt = `You are a world-class YouTube gaming expert and AI system designer. You fill knowledge gaps for autonomous AI systems with specific, actionable insights that immediately change engine behaviour. Always return valid JSON only.`;
 
-Research and answer the following capability gap identified by a YouTube gaming channel's autonomous AI system:
+  const userPrompt = `Research and answer the following capability gap identified by a YouTube gaming channel's autonomous AI system:
 
 GAP: ${gap.title}
 CONTEXT: ${gap.description}
@@ -449,8 +455,12 @@ Return ONLY a JSON object:
 
 The insight will be stored in the AI system's knowledge mesh and distributed to all engines. Make it specific enough to change behaviour.`;
 
-  const raw = await executeRoutedAICall(prompt, "capability-gap-filler", 800);
-  const parsed = safeParseJSON(raw);
+  const result = await executeRoutedAICall(
+    { taskType: "content_analysis", userId, maxTokens: 800 },
+    systemPrompt,
+    userPrompt,
+  );
+  const parsed = safeParseJSON<Record<string, any>>(result.content, {});
 
   if (!parsed?.insight) {
     throw new Error("AI returned invalid knowledge structure");

@@ -176,6 +176,13 @@
       "when": 1776794766563,
       "tag": "0024_loving_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776797739750,
+      "tag": "0025_swift_king_bedlam",
+      "breakpoints": true
     }
   ]
 }
