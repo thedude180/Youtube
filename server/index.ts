@@ -1343,6 +1343,10 @@ httpServer.listen(
         const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("stream-editor-auto-publisher import"));
+
+      // Vault Clip Exhauster — zero-touch: runs immediately after each download
+      // AND sweeps every 10 min to catch anything missed. No human click needed.
+      import("./services/vault-clip-exhauster").then(m => m.initVaultClipExhauster()).catch(slog("vault-clip-exhauster import"));
     });
 
     // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───

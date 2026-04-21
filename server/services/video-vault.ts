@@ -732,6 +732,13 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       const success = await downloadSingleVideo(next, accessToken);
       if (success) {
         consecutiveFailures = 0;
+        // Immediately exhaust this video into clips for all platforms
+        // so the pipeline runs autonomously without any human click.
+        import("./vault-clip-exhauster").then(m =>
+          m.exhaustVaultEntry(userId, next.id).catch(err =>
+            logger.warn(`[Vault] Clip exhaust for entry ${next.id} failed:`, err?.message),
+          ),
+        ).catch(() => undefined);
       } else {
         consecutiveFailures++;
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {

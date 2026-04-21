@@ -825,6 +825,47 @@ export default function Vault() {
         </Card>
       )}
 
+      {/* Autonomous Pipeline Status */}
+      {showingMain && (
+        <Card className="border-primary/20 bg-primary/5" data-testid="card-autonomous-pipeline">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">Autonomous Pipeline</span>
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
+                Zero human interaction
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+              {[
+                { step: "1", label: "Vault Sync", detail: "Every 6 hours", status: "auto", icon: RefreshCw },
+                { step: "2", label: "Download", detail: stats?.isRunning ? "Running now" : "On demand", status: stats?.isRunning ? "active" : "ready", icon: Download },
+                { step: "3", label: "Clip All Platforms", detail: "On download complete", status: "auto", icon: Scissors },
+                { step: "4", label: "AI SEO + Thumbnail", detail: "On clip complete", status: "auto", icon: Sparkles },
+                { step: "5", label: "Auto Publish", detail: "Every 5 minutes", status: "auto", icon: UploadCloud },
+              ].map(({ step, label, detail, status, icon: Icon }) => (
+                <div key={step} className="flex items-start gap-2 p-2 rounded-lg bg-background/60 border border-border/30">
+                  <div className={`p-1.5 rounded-md mt-0.5 shrink-0 ${status === "active" ? "bg-blue-500/20" : "bg-emerald-500/15"}`}>
+                    <Icon className={`h-3 w-3 ${status === "active" ? "text-blue-400 animate-spin" : "text-emerald-400"}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-xs">{label}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{detail}</p>
+                    <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium mt-0.5 ${status === "active" ? "text-blue-400" : "text-emerald-400"}`}>
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      {status === "active" ? "Active" : "Automated"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2.5">
+              Once your platform tokens are connected, every video you publish is automatically downloaded, split into clips for YouTube, Shorts, TikTok, and Rumble, given AI-optimized titles and thumbnails, then published on an optimal schedule — no clicks required.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Monetization banner */}
       {showingMain && <MonetizationProgramsBanner />}
 
