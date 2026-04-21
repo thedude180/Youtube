@@ -12,8 +12,10 @@
 
 import { db } from "../db";
 import { channels, notifications, platformFeatureEligibility } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { sendGmail } from "./gmail-client";
 
 const logger = createLogger("platform-feature-detector");
 
@@ -289,6 +291,62 @@ async function checkFeatureForChannel(
   }
 }
 
+function buildFeatureEmailHtml(
+  channelName: string,
+  feature: FeatureDefinition,
+  isAutoActive: boolean,
+): string {
+  const platformLabel = feature.platform.charAt(0).toUpperCase() + feature.platform.slice(1);
+  const accentColor = isAutoActive ? "#22c55e" : "#f59e0b";
+  const headerText = isAutoActive ? "Feature Activated" : "You Qualify";
+  const headline = isAutoActive
+    ? `${feature.name} is now live on your channel`
+    : `${channelName} qualifies for ${feature.name}`;
+  const body = isAutoActive
+    ? `${feature.description}<br><br>This feature has been <strong>automatically enabled</strong> for <strong>${channelName}</strong> and integrated into your CreatorOS content pipeline. No action needed — your future posts will leverage it automatically.`
+    : `${channelName} has hit the threshold for <strong>${feature.name}</strong> on <strong>${platformLabel}</strong>.<br><br>${feature.thresholdNote}<br><br>${feature.requiresApplication && feature.applicationUrl ? `Click the button below to open the application. Once approved, come back to CreatorOS and mark it active — the pipeline will integrate it automatically.` : `This feature unlocks automatically. It has been enabled in your pipeline.`}`;
+
+  const ctaHtml = feature.requiresApplication && feature.applicationUrl && !isAutoActive
+    ? `<div style="text-align:center;margin:28px 0;">
+        <a href="${feature.applicationUrl}" style="background:${accentColor};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+          Apply on ${platformLabel} →
+        </a>
+      </div>`
+    : `<div style="text-align:center;margin:28px 0;">
+        <a href="https://creatorOS.app/platform-features" style="background:${accentColor};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;display:inline-block;">
+          View in CreatorOS →
+        </a>
+      </div>`;
+
+  const pipelineSection = feature.pipelineEffects.length > 0
+    ? `<div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:8px;padding:16px;margin-top:20px;">
+        <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#888;">Pipeline Effects Enabled</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">${feature.pipelineEffects.map(e =>
+          `<span style="background:#6366f1;color:#fff;padding:3px 10px;border-radius:20px;font-size:11px;">${e.replace(/_/g, " ")}</span>`
+        ).join("")}</div>
+      </div>`
+    : "";
+
+  return `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;background:#0d0d1a;border-radius:12px;overflow:hidden;">
+      <div style="background:${accentColor};padding:20px 28px;">
+        <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.85);">CreatorOS · Platform Feature · ${platformLabel}</p>
+        <h1 style="margin:6px 0 0;font-size:22px;color:#fff;font-weight:700;">${headerText}</h1>
+      </div>
+      <div style="padding:28px;color:#e0e0e0;line-height:1.65;">
+        <h2 style="margin:0 0 12px;font-size:18px;color:#fff;">${headline}</h2>
+        <p style="margin:0;font-size:15px;">${body}</p>
+        ${ctaHtml}
+        ${pipelineSection}
+        <p style="margin:24px 0 0;font-size:12px;color:#555;border-top:1px solid #1e1e3a;padding-top:16px;">
+          CreatorOS detected this eligibility automatically during a routine stats scan. 
+          Your system is running on autopilot — you'll be notified whenever you unlock something new.
+        </p>
+      </div>
+    </div>
+  `;
+}
+
 async function sendEligibilityNotification(
   userId: string,
   channelName: string,
@@ -298,29 +356,48 @@ async function sendEligibilityNotification(
   const isAutoActive = status === "active" && !feature.requiresApplication;
 
   const title = isAutoActive
-    ? `🎉 ${feature.name} — Now Active!`
-    : `✅ You qualify for ${feature.name}`;
+    ? `${feature.name} — Now Active!`
+    : `You qualify for ${feature.name}`;
 
   const message = isAutoActive
-    ? `${feature.description} This feature has been automatically enabled for ${channelName} and integrated into your content pipeline.`
-    : `${channelName} has hit the threshold for ${feature.name}. ${feature.thresholdNote} ${feature.applicationUrl ? `Apply now to unlock it.` : ``}`;
+    ? `${feature.description} Automatically enabled for ${channelName} and integrated into your content pipeline.`
+    : `${channelName} has hit the threshold for ${feature.name}. ${feature.thresholdNote}${feature.applicationUrl ? " Apply now to unlock it." : ""}`;
 
-  // Insert into notifications table directly (avoids rate-limit cooldowns for
-  // feature eligibility — these are rare, high-value alerts)
+  // ── In-app notification ───────────────────────────────────────────────────
   await db.insert(notifications).values({
     userId,
     type: "platform_feature",
     title,
     message,
     severity: "info",
-    actionUrl: feature.applicationUrl || "/settings/platforms",
+    actionUrl: feature.applicationUrl || "/platform-features",
     metadata: {
       source: "platform-feature-detector",
       platformAffected: feature.platform,
     } as any,
   });
 
-  // Mark notified timestamp
+  // ── Email notification ────────────────────────────────────────────────────
+  // Feature eligibility is a rare, high-value milestone — always send email
+  // regardless of the in-app notification severity gate.
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (user && (user as any).email) {
+      const platformLabel = feature.platform.charAt(0).toUpperCase() + feature.platform.slice(1);
+      const subject = isAutoActive
+        ? `[CreatorOS] ${feature.name} is now active on your ${platformLabel} channel`
+        : `[CreatorOS] You qualify for ${feature.name} on ${platformLabel} — action needed`;
+      const html = buildFeatureEmailHtml(channelName, feature, isAutoActive);
+      const sent = await sendGmail((user as any).email, subject, html);
+      if (sent) {
+        logger.info("Feature eligibility email sent", { userId, featureId: feature.id, email: (user as any).email });
+      }
+    }
+  } catch (emailErr: any) {
+    logger.warn("Feature eligibility email failed (non-fatal)", { userId, featureId: feature.id, error: emailErr.message });
+  }
+
+  // ── Mark notified ─────────────────────────────────────────────────────────
   await db.update(platformFeatureEligibility)
     .set({ notifiedAt: new Date() })
     .where(
