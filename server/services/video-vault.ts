@@ -493,6 +493,9 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
 
   logger.info(`[Vault] API playlist listed ${videoIds.length} videos — fetching details`);
 
+  const detailMap = new Map<string, any>();
+  let detailsFailed = false;
+
   for (let i = 0; i < videoIds.length; i += 50) {
     const batch = videoIds.slice(i, i + 50);
     const detailUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
@@ -501,46 +504,54 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
 
     const detailRes = await fetch(detailUrl.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!detailRes.ok) {
-      logger.warn(`[Vault] videos.list API ${detailRes.status} — skipping detail batch`);
-      continue;
+      logger.warn(`[Vault] videos.list API ${detailRes.status} — skipping remaining detail batches, using snippet data only`);
+      detailsFailed = true;
+      break;
     }
     const detailData = await detailRes.json() as any;
-
     for (const item of detailData.items ?? []) {
-      const videoId: string = item.id;
-      const snippet = snippetMap.get(videoId) ?? {};
-
-      const iso = (item.contentDetails?.duration as string) ?? "PT0S";
-      const durationSec = (() => {
-        const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-        if (!m) return 0;
-        return (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");
-      })();
-
-      const viewCount = parseInt(item.statistics?.viewCount ?? "0", 10);
-      const publishedAt: string = snippet.publishedAt ?? "";
-      const uploadDate = publishedAt ? publishedAt.slice(0, 10).replace(/-/g, "") : "";
-      const thumbnails = snippet.thumbnails ?? {};
-      const thumbnailUrl: string =
-        thumbnails.maxres?.url ?? thumbnails.high?.url ?? thumbnails.default?.url
-        ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-
-      const contentType: "video" | "short" | "stream" = durationSec > 0 && durationSec <= 60 ? "short" : "video";
-
-      videos.push({
-        id: videoId,
-        title: snippet.title ?? "",
-        description: snippet.description ?? "",
-        duration: durationSec,
-        viewCount,
-        thumbnailUrl,
-        uploadDate,
-        contentType,
-      });
+      detailMap.set(item.id as string, item);
     }
   }
 
-  logger.info(`[Vault] YouTube API indexed ${videos.length} videos with full metadata`);
+  for (const videoId of videoIds) {
+    const snippet = snippetMap.get(videoId) ?? {};
+    const detail = detailMap.get(videoId);
+
+    const iso = (detail?.contentDetails?.duration as string) ?? "PT0S";
+    const durationSec = (() => {
+      const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (!m) return 0;
+      return (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");
+    })();
+
+    const viewCount = parseInt(detail?.statistics?.viewCount ?? "0", 10);
+    const publishedAt: string = snippet.publishedAt ?? "";
+    const uploadDate = publishedAt ? publishedAt.slice(0, 10).replace(/-/g, "") : "";
+    const thumbnails = snippet.thumbnails ?? {};
+    const thumbnailUrl: string =
+      thumbnails.maxres?.url ?? thumbnails.high?.url ?? thumbnails.default?.url
+      ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+    const contentType: "video" | "short" | "stream" = durationSec > 0 && durationSec <= 60 ? "short" : "video";
+
+    videos.push({
+      id: videoId,
+      title: snippet.title ?? "",
+      description: snippet.description ?? "",
+      duration: durationSec,
+      viewCount,
+      thumbnailUrl,
+      uploadDate,
+      contentType,
+    });
+  }
+
+  if (detailsFailed) {
+    logger.info(`[Vault] YouTube API indexed ${videos.length} videos using snippet metadata (detail fetch blocked by API)`);
+  } else {
+    logger.info(`[Vault] YouTube API indexed ${videos.length} videos with full metadata`);
+  }
   return videos;
 }
 

@@ -37,7 +37,15 @@ async function getOrCreateCurrentPeriod(
     .orderBy(desc(trustBudgetPeriods.createdAt))
     .limit(1);
 
-  if (existing) return existing;
+  if (existing) {
+    if ((existing.startingBudget ?? 0) < DEFAULT_BUDGET && (existing.endingBudget ?? 0) <= 0) {
+      await db.update(trustBudgetPeriods)
+        .set({ startingBudget: DEFAULT_BUDGET, endingBudget: DEFAULT_BUDGET })
+        .where(eq(trustBudgetPeriods.id, existing.id));
+      return { ...existing, startingBudget: DEFAULT_BUDGET, endingBudget: DEFAULT_BUDGET };
+    }
+    return existing;
+  }
 
   const periodStart = now;
   const periodEnd = new Date(now.getTime() + PERIOD_HOURS * 3600_000);

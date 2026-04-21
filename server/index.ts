@@ -1176,6 +1176,18 @@ httpServer.listen(
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
       import("./services/engine-heartbeat").then(m => m.resetStaleEngineErrors(60 * 60 * 1000)).catch(slog("resetStaleEngineErrors"));
+      // Heal permanent_fail queue items that only failed because a platform wasn't connected yet.
+      // Now that platforms may be connected, reset them to pending so they get retried.
+      import("./db").then(({ db }) => import("@shared/schema").then(({ autopilotQueue }) => import("drizzle-orm").then(({ eq, like, or }) => {
+        db.update(autopilotQueue)
+          .set({ status: "pending", errorMessage: null })
+          .where(or(
+            like(autopilotQueue.errorMessage, "%not connected%"),
+            like(autopilotQueue.errorMessage, "%Connect your account%"),
+          ))
+          .then(res => logger.info("[Boot] Healed permanent_fail queue items", { rows: (res as any)?.rowCount ?? "?" }))
+          .catch(err => logger.warn("[Boot] Queue heal skipped:", err?.message));
+      }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
       try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
