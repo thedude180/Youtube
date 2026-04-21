@@ -633,7 +633,7 @@ const REGEN_STEPS = ["Drafting…", "Reviewing…", "Finalising…"];
 const STEP_DURATION_MS = 9000;
 const TICK_MS = 150;
 
-function RegenerationProgress({ isGenerating }: { isGenerating: boolean }) {
+function RegenerationProgress({ isGenerating, docType }: { isGenerating: boolean; docType: string }) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -656,7 +656,7 @@ function RegenerationProgress({ isGenerating }: { isGenerating: boolean }) {
   const progressPct = Math.min((cappedElapsed / totalMs) * 100, 95);
 
   return (
-    <div className="mt-2 space-y-1.5" data-testid="regen-progress-indicator">
+    <div className="mt-2 space-y-1.5" data-testid={`regen-progress-indicator-${docType}`}>
       <div className="flex items-center justify-between text-xs text-blue-400/80">
         {REGEN_STEPS.map((label, i) => (
           <span
@@ -670,7 +670,7 @@ function RegenerationProgress({ isGenerating }: { isGenerating: boolean }) {
       <Progress
         value={progressPct}
         className="h-1 bg-blue-500/20 [&>div]:bg-blue-500 [&>div]:transition-all [&>div]:duration-300"
-        data-testid="regen-progress-bar"
+        data-testid={`regen-progress-bar-${docType}`}
       />
     </div>
   );
@@ -1207,7 +1207,7 @@ export default function Vault() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
-                        {isGenerating && <RegenerationProgress isGenerating={isGenerating} />}
+                        {isGenerating && <RegenerationProgress isGenerating={isGenerating} docType={doc.docType} />}
                         {isReady && doc.wordCount > 0 && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {doc.generatedAt ? new Date(doc.generatedAt).toLocaleDateString() : ""}</p>
                         )}
@@ -1330,7 +1330,7 @@ export default function Vault() {
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                       Regenerating this document — new content will appear when ready…
                     </div>
-                    <RegenerationProgress isGenerating={isGenerating} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} />
                   </div>
                 )}
                 <Card className={`border-border/40 transition-opacity duration-300 ${isGenerating ? "opacity-60" : "opacity-100"}`}>
@@ -1348,7 +1348,7 @@ export default function Vault() {
                   <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />
                   <p className="text-sm mb-4">Generating document — this takes about 30 seconds…</p>
                   <div className="max-w-xs mx-auto">
-                    <RegenerationProgress isGenerating={isGenerating} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} />
                   </div>
                 </CardContent>
               </Card>
