@@ -1188,7 +1188,9 @@ export default function Vault() {
             </div>
           );
         }
-        const isGenerating = docDetail.status === "generating";
+        const detailEffectiveStatus = sseStatuses[docDetail.docType] ?? docDetail.status;
+        const isGenerating = detailEffectiveStatus === "generating";
+        const isReady = detailEffectiveStatus === "ready";
         return (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -1198,7 +1200,7 @@ export default function Vault() {
                     <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
                       <Loader2 className="h-3 w-3 mr-1 animate-spin" />Generating…
                     </Badge>
-                  ) : docDetail.status === "ready" ? (
+                  ) : isReady ? (
                     <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
                       <CheckCircle2 className="h-3 w-3 mr-1" />Ready
                     </Badge>
@@ -1224,7 +1226,7 @@ export default function Vault() {
                 >
                   <RefreshCw className={`h-3 w-3 mr-1 ${isGenerating ? "animate-spin" : ""}`} />Regenerate
                 </Button>
-                {docDetail.status === "ready" && (
+                {isReady && (
                   <a href={`/api/vault-docs/${docDetail.docType}/export`} download>
                     <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700" data-testid={`button-export-doc-${docDetail.docType}`}>
                       <FileDown className="h-3 w-3 mr-1" />Download .md
@@ -1233,7 +1235,7 @@ export default function Vault() {
                 )}
               </div>
             </div>
-            {docDetail.status === "ready" && docDetail.content ? (
+            {isReady && docDetail.content ? (
               <Card className="border-border/40">
                 <CardContent className="p-5 pt-4">
                   <MarkdownViewer
