@@ -894,3 +894,36 @@ export async function startVaultSync(userId: string): Promise<void> {
     logger.error("[Vault] Background download error:", err?.message || err)
   );
 }
+
+/**
+ * Download a single vault entry by ID and wait for it to complete.
+ * Used by the stream editor to auto-download before editing.
+ * Returns the local file path on success, throws on failure.
+ */
+export async function downloadVaultEntry(userId: string, entryId: number): Promise<string> {
+  const [entry] = await db.select()
+    .from(contentVaultBackups)
+    .where(and(eq(contentVaultBackups.id, entryId), eq(contentVaultBackups.userId, userId)))
+    .limit(1);
+
+  if (!entry) throw new Error(`Vault entry ${entryId} not found`);
+
+  if (entry.status === "downloaded" && entry.filePath && fs.existsSync(entry.filePath)) {
+    return entry.filePath;
+  }
+
+  const accessToken = await getVaultYouTubeToken(userId);
+  const success = await downloadSingleVideo(entry, accessToken);
+
+  if (!success) {
+    throw new Error(`Failed to download "${entry.title?.substring(0, 80) ?? entry.youtubeId}"`);
+  }
+
+  const [updated] = await db.select({ filePath: contentVaultBackups.filePath })
+    .from(contentVaultBackups)
+    .where(eq(contentVaultBackups.id, entryId))
+    .limit(1);
+
+  if (!updated?.filePath) throw new Error("Download succeeded but file path is missing");
+  return updated.filePath;
+}

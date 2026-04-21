@@ -5,6 +5,7 @@ import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { downloadVaultEntry } from "./video-vault";
 
 const logger = createLogger("stream-editor");
 
@@ -38,12 +39,11 @@ interface PlatformProfile {
  *
  * Filter chain strategy (applied in buildVideoFilter):
  *  1. hqdn3d  — temporal + spatial denoise at SOURCE resolution
- *              removes Twitch/YT stream compression artifacts before upscale
- *  2. eq      — colour grading at source resolution (more efficient, better quality)
- *  3. unsharp — sharpening at source resolution then upscaled (sharper result than post-scale)
- *  4. scale   — Lanczos upscale to target resolution with accurate rounding
- *  5. pad     — letterbox/pillarbox only for landscape targets; portrait uses centre crop
- *  6. setsar  — ensure sample aspect ratio is 1:1
+ *  2. eq      — colour grading at source resolution
+ *  3. unsharp — sharpening at source resolution (sharper than post-scale)
+ *  4. scale   — Lanczos upscale / resize to target
+ *  5. pad/crop — landscape: letterbox pad; portrait: centre 9:16 crop
+ *  6. setsar + fps — normalise aspect ratio, cap at 60fps
  */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
@@ -127,11 +127,8 @@ function runProcess(bin: string, args: string[]): Promise<string> {
     proc.stdout.on("data", (d: Buffer) => chunks.push(d));
     proc.stderr.on("data", (d: Buffer) => errChunks.push(d));
     proc.on("close", (code) => {
-      if (code === 0) {
-        resolve(Buffer.concat(chunks).toString("utf8"));
-      } else {
-        reject(new Error(Buffer.concat(errChunks).toString("utf8").slice(-500)));
-      }
+      if (code === 0) resolve(Buffer.concat(chunks).toString("utf8"));
+      else reject(new Error(Buffer.concat(errChunks).toString("utf8").slice(-500)));
     });
     proc.on("error", reject);
   });
@@ -142,14 +139,12 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
     const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let totalDuration = 0;
 
-    const handleStderr = (data: Buffer) => {
+    proc.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
-
       const durMatch = text.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
       if (durMatch && !totalDuration) {
         totalDuration = parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3]);
       }
-
       if (onProgress && totalDuration > 0) {
         const timeMatch = text.match(/time=(\d+):(\d+):(\d+\.\d+)/);
         const fpsMatch = text.match(/fps=\s*(\d+\.?\d*)/);
@@ -158,13 +153,12 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
           const elapsed = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseFloat(timeMatch[3]);
           const fps = fpsMatch ? parseFloat(fpsMatch[1]) : 0;
           const speed = speedMatch ? parseFloat(speedMatch[1]) : 0;
-          const stage = speed > 0 ? `${fps.toFixed(0)} fps · ${speed.toFixed(2)}x speed` : `${fps.toFixed(0)} fps`;
-          onProgress(Math.min(99, Math.round((elapsed / totalDuration) * 100)), fps, stage);
+          const stg = speed > 0 ? `${fps.toFixed(0)} fps · ${speed.toFixed(2)}x` : `${fps.toFixed(0)} fps`;
+          onProgress(Math.min(99, Math.round((elapsed / totalDuration) * 100)), fps, stg);
         }
       }
-    };
+    });
 
-    proc.stderr.on("data", handleStderr);
     proc.on("close", (code) => {
       if (code === 0) resolve();
       else reject(new Error(`FFmpeg exited with code ${code}`));
@@ -174,23 +168,13 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
 }
 
 async function probeVideo(filePath: string): Promise<{
-  durationSecs: number;
-  width: number;
-  height: number;
-  fps: number;
-  videoCodec: string;
-  audioCodec: string;
+  durationSecs: number; width: number; height: number; fps: number;
 }> {
   const raw = await runProcess(FFPROBE_BIN, [
-    "-v", "quiet",
-    "-print_format", "json",
-    "-show_format",
-    "-show_streams",
-    filePath,
+    "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath,
   ]);
   const info = JSON.parse(raw);
   const videoStream = info.streams?.find((s: any) => s.codec_type === "video");
-  const audioStream = info.streams?.find((s: any) => s.codec_type === "audio");
   const durationSecs = parseFloat(info.format?.duration ?? videoStream?.duration ?? "0");
 
   let fps = 30;
@@ -204,20 +188,9 @@ async function probeVideo(filePath: string): Promise<{
     width: videoStream?.width ?? 1920,
     height: videoStream?.height ?? 1080,
     fps,
-    videoCodec: videoStream?.codec_name ?? "h264",
-    audioCodec: audioStream?.codec_name ?? "aac",
   };
 }
 
-/**
- * Build the FFmpeg video filter chain for a given platform.
- *
- * Order is deliberate — all processing happens at SOURCE resolution first,
- * then we scale to target. This produces sharper, cleaner 4K output than
- * scaling first and then enhancing.
- *
- *  denoise  → colour grade → sharpen → scale+pad/crop → setsar
- */
 function buildVideoFilter(
   enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean },
   profile: PlatformProfile,
@@ -228,11 +201,9 @@ function buildVideoFilter(
   if (enhancements.upscale4k) {
     parts.push("hqdn3d=luma_spatial=2:chroma_spatial=1.5:luma_tmp=3:chroma_tmp=2.5");
   }
-
   if (enhancements.colorEnhance) {
     parts.push("eq=brightness=0.02:contrast=1.06:saturation=1.12:gamma=0.98");
   }
-
   if (enhancements.sharpen) {
     parts.push("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.9:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.3");
   }
@@ -249,17 +220,12 @@ function buildVideoFilter(
         `pad=${profile.width}:${profile.height}:-1:-1:color=black`,
       );
     } else {
-      parts.push(
-        `scale=-2:${profile.height}:flags=lanczos+accurate_rnd`,
-      );
+      parts.push(`scale=-2:${profile.height}:flags=lanczos+accurate_rnd`);
     }
   }
 
   parts.push("setsar=1");
-
-  if (sourceFps > 0) {
-    parts.push(`fps=fps=${Math.min(sourceFps, 60)}`);
-  }
+  if (sourceFps > 0) parts.push(`fps=fps=${Math.min(sourceFps, 60)}`);
 
   return parts.join(",");
 }
@@ -276,7 +242,6 @@ async function processClip(
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
-
   const vf = buildVideoFilter(enhancements, profile, sourceFps);
   const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
 
@@ -284,28 +249,22 @@ async function processClip(
     "-ss", String(startSecs),
     "-i", sourcePath,
     "-t", String(actualDuration),
-
     "-vf", vf,
     "-af", af,
-
     "-c:v", profile.codec,
     "-crf", String(profile.crf),
     "-preset", profile.preset,
     ...profile.codecArgs,
-
     "-c:a", "aac",
     "-b:a", profile.audioBitrate,
     "-ar", String(profile.audioSampleRate),
     "-ac", "2",
-
     "-pix_fmt", "yuv420p",
     "-color_primaries", "bt709",
     "-color_trc", "bt709",
     "-colorspace", "bt709",
-
     "-movflags", "+faststart",
     "-threads", "0",
-
     outputPath,
   ];
 
@@ -320,40 +279,39 @@ export async function queueStreamEditJob(
   platforms: StreamEditPlatform[],
   clipDurationMins: number,
   enhancements: { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean },
-): Promise<{ jobId: number }> {
+): Promise<{ jobId: number; downloadFirst: boolean }> {
   const [entry] = await db.select()
     .from(contentVaultBackups)
     .where(and(eq(contentVaultBackups.id, vaultEntryId), eq(contentVaultBackups.userId, userId)))
     .limit(1);
 
   if (!entry) throw new Error("Vault entry not found");
-  if (!entry.filePath || !fs.existsSync(entry.filePath)) {
-    throw new Error("Video file not downloaded yet — download it from the Vault first");
-  }
+
+  const downloadFirst = !entry.filePath || !fs.existsSync(entry.filePath);
 
   const [job] = await db.insert(streamEditJobs).values({
     userId,
     vaultEntryId,
     sourceTitle: entry.title ?? "Untitled",
-    sourceFilePath: entry.filePath,
+    sourceFilePath: entry.filePath ?? null,
     platforms,
     clipDurationMins,
     enhancements,
+    downloadFirst,
     status: "queued",
     progress: 0,
+    currentStage: downloadFirst ? "Waiting to download" : "Waiting to encode",
   }).returning();
 
-  logger.info(`[StreamEditor] Queued job ${job.id} for "${entry.title}" → ${platforms.join(", ")}`);
+  logger.info(`[StreamEditor] Queued job ${job.id} for "${entry.title}" → ${platforms.join(", ")}${downloadFirst ? " (will download first)" : ""}`);
 
   if (activeJobId === null) {
     setImmediate(() => runJobInBackground(job.id).catch(err =>
       logger.error(`[StreamEditor] Background job ${job.id} crashed:`, err?.message)
     ));
-  } else {
-    logger.info(`[StreamEditor] Job ${job.id} will start after job ${activeJobId} finishes`);
   }
 
-  return { jobId: job.id };
+  return { jobId: job.id, downloadFirst };
 }
 
 async function pickUpNextQueuedJob(): Promise<void> {
@@ -374,7 +332,7 @@ async function pickUpNextQueuedJob(): Promise<void> {
 
 async function runJobInBackground(jobId: number): Promise<void> {
   if (activeJobId !== null) {
-    logger.info(`[StreamEditor] Job ${jobId} waiting — job ${activeJobId} is active`);
+    logger.info(`[StreamEditor] Job ${jobId} deferred — job ${activeJobId} is active`);
     return;
   }
 
@@ -382,21 +340,40 @@ async function runJobInBackground(jobId: number): Promise<void> {
 
   try {
     const [job] = await db.select().from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
-    if (!job || job.status !== "queued") {
-      logger.info(`[StreamEditor] Job ${jobId} skipped (status=${job?.status ?? "missing"})`);
-      return;
-    }
+    if (!job || job.status !== "queued") return;
 
     await db.update(streamEditJobs).set({
       status: "processing",
       startedAt: new Date(),
+      currentStage: "Starting",
+    }).where(eq(streamEditJobs.id, jobId));
+
+    let sourceFile = job.sourceFilePath ?? null;
+
+    if (job.downloadFirst) {
+      await db.update(streamEditJobs).set({
+        currentStage: "Downloading from YouTube",
+      }).where(eq(streamEditJobs.id, jobId));
+
+      logger.info(`[StreamEditor] Job ${jobId}: downloading vault entry ${job.vaultEntryId}`);
+      sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId!);
+
+      await db.update(streamEditJobs).set({
+        sourceFilePath: sourceFile,
+        currentStage: "Download complete — probing video",
+      }).where(eq(streamEditJobs.id, jobId));
+    }
+
+    if (!sourceFile || !fs.existsSync(sourceFile)) {
+      throw new Error("Source video file not found — download may have failed");
+    }
+
+    await db.update(streamEditJobs).set({
       currentStage: "Probing source video",
     }).where(eq(streamEditJobs.id, jobId));
 
-    const sourceFile = job.sourceFilePath!;
     const probe = await probeVideo(sourceFile);
-
-    logger.info(`[StreamEditor] Job ${jobId}: source ${probe.width}×${probe.height} @ ${probe.fps}fps, ${Math.round(probe.durationSecs)}s`);
+    logger.info(`[StreamEditor] Job ${jobId}: ${probe.width}×${probe.height} @ ${probe.fps}fps, ${Math.round(probe.durationSecs)}s`);
 
     const jobOutputDir = path.join(EDITOR_OUTPUT_DIR, `job_${jobId}`);
     fs.mkdirSync(jobOutputDir, { recursive: true });
@@ -419,7 +396,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
       sourceDurationSecs: Math.round(probe.durationSecs),
       totalClips: totalTasks,
       outputDir: jobOutputDir,
-      currentStage: "Starting encode",
+      currentStage: "Encoding",
     }).where(eq(streamEditJobs.id, jobId));
 
     for (const platform of platforms) {
@@ -436,8 +413,6 @@ async function runJobInBackground(jobId: number): Promise<void> {
         const stage = `${profile.label} · Clip ${i + 1}/${numClips}`;
         logger.info(`[StreamEditor] Job ${jobId}: ${stage}`);
 
-        await db.update(streamEditJobs).set({ currentStage: stage }).where(eq(streamEditJobs.id, jobId));
-
         await processClip(
           sourceFile,
           startSecs,
@@ -448,10 +423,9 @@ async function runJobInBackground(jobId: number): Promise<void> {
           probe.fps,
           (pct, fps, speedLabel) => {
             const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
-            const stageDetail = `${stage} · ${speedLabel}`;
             db.update(streamEditJobs).set({
               progress: overallPct,
-              currentStage: stageDetail,
+              currentStage: `${stage} · ${speedLabel}`,
             }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
           },
         );
@@ -536,11 +510,9 @@ export async function deleteEditJob(userId: string, jobId: number): Promise<void
     .where(and(eq(streamEditJobs.id, jobId), eq(streamEditJobs.userId, userId)))
     .limit(1);
   if (!job) return;
-
   if (job.outputDir && fs.existsSync(job.outputDir)) {
     fs.rmSync(job.outputDir, { recursive: true, force: true });
   }
-
   await db.delete(streamEditJobs).where(eq(streamEditJobs.id, jobId));
 }
 

@@ -5371,6 +5371,7 @@ export const streamEditJobs = pgTable("stream_edit_jobs", {
     fileSize: number;
     durationSecs: number;
   }>>().default([]),
+  downloadFirst: boolean("download_first").default(false),
   currentStage: text("current_stage"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
