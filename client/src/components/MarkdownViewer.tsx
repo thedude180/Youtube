@@ -73,7 +73,7 @@ export function MarkdownViewer({ content, className = "", "data-testid": testId 
             </blockquote>
           ),
           code: ({ className: cls, children, ...props }) => {
-            const isBlock = cls?.includes("language-");
+            const isBlock = cls?.includes("language-") || cls?.includes("hljs");
             if (isBlock) {
               return (
                 <code className={`${cls ?? ""} rounded text-xs`} {...props}>
