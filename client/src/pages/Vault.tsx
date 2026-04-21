@@ -72,6 +72,24 @@ interface GrowthProgram {
   applicationStatus: string; applicationUrl: string | null; eligibilityMet: boolean;
 }
 
+interface VaultDoc {
+  id: number | null;
+  userId: string;
+  docType: string;
+  title: string;
+  status: string;
+  wordCount: number;
+  errorMessage: string | null;
+  generatedAt: string | null;
+  metadata: { emoji?: string; description?: string } | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+interface VaultDocDetail extends VaultDoc {
+  content: string;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ALL_PLATFORMS = ["youtube", "shorts", "tiktok", "rumble"];
@@ -652,7 +670,7 @@ export default function Vault() {
     return editJobsData.jobs.filter(j => j.status === "completed").reduce((sum, j) => sum + (j.outputFiles?.length ?? 0), 0);
   }, [editJobsData]);
 
-  const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<any[]>({
+  const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<VaultDoc[]>({
     queryKey: ["/api/vault-docs"],
     refetchInterval: showingDocs ? 10_000 : false,
     enabled: true,
@@ -664,16 +682,23 @@ export default function Vault() {
       toast({ title: "Generating all 6 documents", description: "This takes a few minutes — documents will appear as they complete." });
       setTimeout(() => refetchDocs(), 5000);
     },
-    onError: (e: any) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
   });
 
   const generateDocMutation = useMutation({
     mutationFn: (docType: string) => apiRequest("POST", `/api/vault-docs/generate/${docType}`),
     onSuccess: (_data, docType) => {
       toast({ title: "Generating document", description: `Regenerating ${docType.replace(/_/g, " ")} — refresh in ~30s.` });
-      setTimeout(() => refetchDocs(), 8000);
+      setTimeout(() => { void refetchDocs(); void refetchDocDetail(); }, 8000);
     },
-    onError: (e: any) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
+  });
+
+  const { data: docDetail, refetch: refetchDocDetail } = useQuery<VaultDocDetail>({
+    queryKey: ["/api/vault-docs", viewingDoc],
+    queryFn: () => fetch(`/api/vault-docs/${viewingDoc}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!viewingDoc,
+    refetchInterval: !!viewingDoc ? 10_000 : false,
   });
 
   const syncMutation = useMutation({
@@ -940,12 +965,12 @@ export default function Vault() {
             </div>
           ) : (
             <div className="space-y-3">
-              {(vaultDocs ?? []).map((doc: any) => {
+              {(vaultDocs ?? []).map((doc) => {
                 const isReady = doc.status === "ready";
                 const isGenerating = doc.status === "generating";
                 const isFailed = doc.status === "failed";
-                const emoji = (doc.metadata as any)?.emoji ?? "📄";
-                const description = (doc.metadata as any)?.description ?? "";
+                const emoji = doc.metadata?.emoji ?? "📄";
+                const description = doc.metadata?.description ?? "";
 
                 return (
                   <Card
@@ -1035,22 +1060,34 @@ export default function Vault() {
 
       {/* Go-to-Market Docs — detail view */}
       {showingDocDetail && (() => {
-        const doc = vaultDocs?.find((d: any) => d.docType === viewingDoc);
-        if (!doc) return null;
+        if (!docDetail) {
+          return (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full rounded" />)}
+            </div>
+          );
+        }
+        const isGenerating = docDetail.status === "generating";
         return (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />Ready
-                  </Badge>
-                  {doc.wordCount > 0 && (
-                    <span className="text-xs text-muted-foreground">{doc.wordCount.toLocaleString()} words</span>
+                  {isGenerating ? (
+                    <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />Generating…
+                    </Badge>
+                  ) : docDetail.status === "ready" ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />Ready
+                    </Badge>
+                  ) : null}
+                  {docDetail.wordCount > 0 && (
+                    <span className="text-xs text-muted-foreground">{docDetail.wordCount.toLocaleString()} words</span>
                   )}
-                  {doc.generatedAt && (
+                  {docDetail.generatedAt && (
                     <span className="text-xs text-muted-foreground">
-                      Generated {new Date(doc.generatedAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      Generated {new Date(docDetail.generatedAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
@@ -1060,26 +1097,44 @@ export default function Vault() {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs text-purple-400 border-purple-500/30"
-                  onClick={() => generateDocMutation.mutate(doc.docType)}
-                  disabled={generateDocMutation.isPending}
-                  data-testid={`button-regen-doc-detail-${doc.docType}`}
+                  onClick={() => generateDocMutation.mutate(docDetail.docType)}
+                  disabled={generateDocMutation.isPending || isGenerating}
+                  data-testid={`button-regen-doc-detail-${docDetail.docType}`}
                 >
-                  <RefreshCw className="h-3 w-3 mr-1" />Regenerate
+                  <RefreshCw className={`h-3 w-3 mr-1 ${isGenerating ? "animate-spin" : ""}`} />Regenerate
                 </Button>
-                <a href={`/api/vault-docs/${doc.docType}/export`} download>
-                  <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700" data-testid={`button-export-doc-${doc.docType}`}>
-                    <FileDown className="h-3 w-3 mr-1" />Download .md
-                  </Button>
-                </a>
+                {docDetail.status === "ready" && (
+                  <a href={`/api/vault-docs/${docDetail.docType}/export`} download>
+                    <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700" data-testid={`button-export-doc-${docDetail.docType}`}>
+                      <FileDown className="h-3 w-3 mr-1" />Download .md
+                    </Button>
+                  </a>
+                )}
               </div>
             </div>
-            <Card className="border-border/40">
-              <CardContent className="p-5">
-                <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto" data-testid={`text-doc-content-${doc.docType}`}>
-                  {doc.content}
-                </pre>
-              </CardContent>
-            </Card>
+            {docDetail.status === "ready" && docDetail.content ? (
+              <Card className="border-border/40">
+                <CardContent className="p-5">
+                  <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto" data-testid={`text-doc-content-${docDetail.docType}`}>
+                    {docDetail.content}
+                  </pre>
+                </CardContent>
+              </Card>
+            ) : isGenerating ? (
+              <Card className="border-border/40">
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />
+                  <p className="text-sm">Generating document — this takes about 30 seconds…</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-border/40">
+                <CardContent className="p-8 text-center text-muted-foreground">
+                  <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Document not yet generated. Click Regenerate to create it.</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         );
       })()}
@@ -1165,18 +1220,18 @@ export default function Vault() {
                         <>
                           <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
                             <CheckCircle2 className="h-2.5 w-2.5" />
-                            {vaultDocs.filter((d: any) => d.status === "ready").length} ready
+                            {vaultDocs.filter(d => d.status === "ready").length} ready
                           </span>
-                          {vaultDocs.filter((d: any) => d.status === "generating").length > 0 && (
+                          {vaultDocs.filter(d => d.status === "generating").length > 0 && (
                             <span className="text-[10px] text-blue-400 flex items-center gap-0.5">
                               <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                              {vaultDocs.filter((d: any) => d.status === "generating").length} generating…
+                              {vaultDocs.filter(d => d.status === "generating").length} generating…
                             </span>
                           )}
-                          {vaultDocs.filter((d: any) => d.status === "pending").length > 0 && (
+                          {vaultDocs.filter(d => d.status === "pending").length > 0 && (
                             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                               <Clock className="h-2.5 w-2.5" />
-                              {vaultDocs.filter((d: any) => d.status === "pending").length} pending
+                              {vaultDocs.filter(d => d.status === "pending").length} pending
                             </span>
                           )}
                         </>
