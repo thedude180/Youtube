@@ -245,4 +245,20 @@ describe("SSE 'failed' event — progress bar shows error state", () => {
     });
     expect(getProgressPctFromBar("test-doc")).toBe(100);
   });
+
+  it("failed bar progress stays at 100% and does not advance further after the event", async () => {
+    vi.useFakeTimers();
+    const { rerender } = render(
+      <RegenerationProgress isGenerating={true} docType="test-doc" sseStepIndex={1} />
+    );
+    act(() => {
+      rerender(
+        <RegenerationProgress isGenerating={false} docType="test-doc" sseStepIndex={1} isFailed={true} />
+      );
+    });
+    const pctAtStop = getProgressPctFromBar("test-doc");
+    expect(pctAtStop).toBe(100);
+    await act(async () => { vi.advanceTimersByTime(200); });
+    expect(getProgressPctFromBar("test-doc")).toBe(100);
+  });
 });
