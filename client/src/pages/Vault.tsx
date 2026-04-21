@@ -17,7 +17,7 @@ import {
   ExternalLink, Film, Shield, Video, Clapperboard, Radio,
   FileDown, FolderDown, FileSpreadsheet, Archive,
   Scissors, Zap, DollarSign, Trophy, Tag, FileText, Sparkles,
-  Play, UploadCloud,
+  Play, UploadCloud, BookOpen, Wand2, Eye, X,
 } from "lucide-react";
 import { SiYoutube, SiTiktok, SiRumble } from "react-icons/si";
 import {
@@ -616,6 +616,8 @@ export default function Vault() {
 
   const [selectedGame, setSelectedGame] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
+  const [showingDocs, setShowingDocs] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
 
@@ -650,6 +652,30 @@ export default function Vault() {
     return editJobsData.jobs.filter(j => j.status === "completed").reduce((sum, j) => sum + (j.outputFiles?.length ?? 0), 0);
   }, [editJobsData]);
 
+  const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<any[]>({
+    queryKey: ["/api/vault-docs"],
+    refetchInterval: showingDocs ? 10_000 : false,
+    enabled: true,
+  });
+
+  const generateAllDocsMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/vault-docs/generate/all"),
+    onSuccess: () => {
+      toast({ title: "Generating all 6 documents", description: "This takes a few minutes — documents will appear as they complete." });
+      setTimeout(() => refetchDocs(), 5000);
+    },
+    onError: (e: any) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
+  });
+
+  const generateDocMutation = useMutation({
+    mutationFn: (docType: string) => apiRequest("POST", `/api/vault-docs/generate/${docType}`),
+    onSuccess: (_data, docType) => {
+      toast({ title: "Generating document", description: `Regenerating ${docType.replace(/_/g, " ")} — refresh in ~30s.` });
+      setTimeout(() => refetchDocs(), 8000);
+    },
+    onError: (e: any) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
+  });
+
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/sync"),
     onSuccess: () => {
@@ -683,34 +709,46 @@ export default function Vault() {
 
   function goBack() {
     if (selectedEntry) { setSelectedEntry(null); return; }
-    setSelectedGame(null); setSearch(""); setActiveTab("all");
+    if (selectedGame) { setSelectedGame(null); setSearch(""); setActiveTab("all"); return; }
+    if (viewingDoc) { setViewingDoc(null); return; }
+    if (showingDocs) { setShowingDocs(false); return; }
   }
 
   const showingEntry = !!selectedEntry;
   const showingGame = !!selectedGame && !selectedEntry;
-  const showingMain = !selectedGame && !selectedEntry;
+  const showingMain = !selectedGame && !selectedEntry && !showingDocs;
+  const showingDocsList = showingDocs && !viewingDoc;
+  const showingDocDetail = showingDocs && !!viewingDoc;
 
   return (
     <div className="min-h-screen p-3 lg:p-4 space-y-6 page-enter" data-testid="page-vault">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {(selectedGame || selectedEntry) && (
+          {(selectedGame || selectedEntry || showingDocs) && (
             <Button variant="ghost" size="icon" onClick={goBack} data-testid="button-vault-back">
               <ChevronLeft className="h-5 w-5" />
             </Button>
           )}
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-vault-title">
-              <Shield className="h-6 w-6 text-primary" />
-              {showingEntry ? selectedEntry!.title : showingGame ? selectedGame! : "Video Vault"}
+              {showingDocs ? <BookOpen className="h-6 w-6 text-purple-500" /> : <Shield className="h-6 w-6 text-primary" />}
+              {showingEntry ? selectedEntry!.title
+                : showingGame ? selectedGame!
+                : showingDocDetail ? (vaultDocs?.find(d => d.docType === viewingDoc)?.title ?? "Document")
+                : showingDocsList ? "Go-to-Market Docs"
+                : "Video Vault"}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               {showingEntry
                 ? "Original + all platform clips — everything needed to publish"
                 : showingGame
                   ? `${entries?.length ?? 0} videos — click any to see clips and upload-ready metadata`
-                  : "Your complete video backup — originals and edited clips organized by game"}
+                  : showingDocDetail
+                    ? "AI-generated from live system data — export as Markdown"
+                    : showingDocsList
+                      ? "6 AI-generated documents from real system data — architecture, capabilities, autonomy proof, market analysis"
+                      : "Your complete video backup — originals and edited clips organized by game"}
             </p>
           </div>
         </div>
@@ -874,6 +912,178 @@ export default function Vault() {
         <VideoDetailView entry={selectedEntry!} onBack={() => setSelectedEntry(null)} />
       )}
 
+      {/* Go-to-Market Docs — list view */}
+      {showingDocsList && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              6 AI-generated documents built from your live system data. Generate fresh any time.
+            </p>
+            <Button
+              size="sm"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => generateAllDocsMutation.mutate()}
+              disabled={generateAllDocsMutation.isPending}
+              data-testid="button-generate-all-docs"
+            >
+              {generateAllDocsMutation.isPending
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Starting…</>
+                : <><Wand2 className="h-3.5 w-3.5 mr-1.5" />Generate All Documents</>}
+            </Button>
+          </div>
+
+          {docsLoading ? (
+            <div className="space-y-3">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="animate-pulse"><CardContent className="p-4 h-20" /></Card>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(vaultDocs ?? []).map((doc: any) => {
+                const isReady = doc.status === "ready";
+                const isGenerating = doc.status === "generating";
+                const isFailed = doc.status === "failed";
+                const emoji = (doc.metadata as any)?.emoji ?? "📄";
+                const description = (doc.metadata as any)?.description ?? "";
+
+                return (
+                  <Card
+                    key={doc.docType}
+                    className={`border-border/40 ${isReady ? "cursor-pointer hover:border-purple-500/50" : ""} transition-colors`}
+                    onClick={isReady ? () => setViewingDoc(doc.docType) : undefined}
+                    data-testid={`card-vault-doc-${doc.docType}`}
+                  >
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <div className="text-2xl shrink-0">{emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-semibold text-sm">{doc.title}</h3>
+                          {isReady && (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                              <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />Ready
+                            </Badge>
+                          )}
+                          {isGenerating && (
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">
+                              <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />Generating…
+                            </Badge>
+                          )}
+                          {isFailed && (
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
+                              <AlertCircle className="h-2.5 w-2.5 mr-0.5" />Failed
+                            </Badge>
+                          )}
+                          {!isReady && !isGenerating && !isFailed && (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                              <Clock className="h-2.5 w-2.5 mr-0.5" />Pending
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
+                        {isReady && doc.wordCount > 0 && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {doc.generatedAt ? new Date(doc.generatedAt).toLocaleDateString() : ""}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isReady && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={(e) => { e.stopPropagation(); setViewingDoc(doc.docType); }}
+                              data-testid={`button-view-doc-${doc.docType}`}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />View
+                            </Button>
+                            <a
+                              href={`/api/vault-docs/${doc.docType}/export`}
+                              download
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-purple-400 border-purple-500/30"
+                                data-testid={`button-download-doc-${doc.docType}`}
+                              >
+                                <FileDown className="h-3 w-3 mr-1" />.md
+                              </Button>
+                            </a>
+                          </>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-muted-foreground"
+                          onClick={(e) => { e.stopPropagation(); generateDocMutation.mutate(doc.docType); }}
+                          disabled={isGenerating || generateDocMutation.isPending}
+                          data-testid={`button-regen-doc-${doc.docType}`}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${isGenerating ? "animate-spin" : ""}`} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Go-to-Market Docs — detail view */}
+      {showingDocDetail && (() => {
+        const doc = vaultDocs?.find((d: any) => d.docType === viewingDoc);
+        if (!doc) return null;
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />Ready
+                  </Badge>
+                  {doc.wordCount > 0 && (
+                    <span className="text-xs text-muted-foreground">{doc.wordCount.toLocaleString()} words</span>
+                  )}
+                  {doc.generatedAt && (
+                    <span className="text-xs text-muted-foreground">
+                      Generated {new Date(doc.generatedAt).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs text-purple-400 border-purple-500/30"
+                  onClick={() => generateDocMutation.mutate(doc.docType)}
+                  disabled={generateDocMutation.isPending}
+                  data-testid={`button-regen-doc-detail-${doc.docType}`}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />Regenerate
+                </Button>
+                <a href={`/api/vault-docs/${doc.docType}/export`} download>
+                  <Button size="sm" className="h-7 text-xs bg-purple-600 hover:bg-purple-700" data-testid={`button-export-doc-${doc.docType}`}>
+                    <FileDown className="h-3 w-3 mr-1" />Download .md
+                  </Button>
+                </a>
+              </div>
+            </div>
+            <Card className="border-border/40">
+              <CardContent className="p-5">
+                <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto" data-testid={`text-doc-content-${doc.docType}`}>
+                  {doc.content}
+                </pre>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Game video list */}
       {showingGame && (
         <div className="space-y-3">
@@ -932,6 +1142,51 @@ export default function Vault() {
             </div>
           ) : (
             <>
+              {/* Go-to-Market Docs folder card */}
+              <Card
+                className="cursor-pointer hover:border-purple-500/50 transition-colors border-purple-500/20 bg-purple-500/5"
+                onClick={() => setShowingDocs(true)}
+                data-testid="card-gtm-docs-folder"
+              >
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-purple-500/15 shrink-0">
+                    <BookOpen className="h-6 w-6 text-purple-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-purple-300">Go-to-Market Docs</h3>
+                      <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px]">6 Documents</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      AI-generated from live system data — architecture, capabilities, autonomy proof, competitive analysis
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      {vaultDocs && (
+                        <>
+                          <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {vaultDocs.filter((d: any) => d.status === "ready").length} ready
+                          </span>
+                          {vaultDocs.filter((d: any) => d.status === "generating").length > 0 && (
+                            <span className="text-[10px] text-blue-400 flex items-center gap-0.5">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              {vaultDocs.filter((d: any) => d.status === "generating").length} generating…
+                            </span>
+                          )}
+                          {vaultDocs.filter((d: any) => d.status === "pending").length > 0 && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                              <Clock className="h-2.5 w-2.5" />
+                              {vaultDocs.filter((d: any) => d.status === "pending").length} pending
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronLeft className="h-4 w-4 rotate-180 text-purple-400 shrink-0" />
+                </CardContent>
+              </Card>
+
               <h2 className="text-lg font-semibold flex items-center gap-2"><Gamepad2 className="h-5 w-5"/>Games ({filteredGames.length})</h2>
               {gamesError ? (
                 <QueryErrorReset error={gamesError as Error} queryKey={["/api/vault/games"]} label="Failed to load games" />

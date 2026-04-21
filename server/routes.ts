@@ -59,6 +59,7 @@ import { registerEmpireRoutes } from "./routes/empire";
 import { registerCatalogRoutes } from "./routes/catalog";
 import { registerGrinderRoutes } from "./routes/grinder";
 import { registerEvolutionRoutes } from "./routes/evolution";
+import { registerVaultDocsRoutes } from "./routes/vault-docs";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -405,6 +406,7 @@ export async function registerRoutes(
   registerCatalogRoutes(app);
   registerGrinderRoutes(app);
   registerEvolutionRoutes(app);
+  registerVaultDocsRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => logger.error("Failed to restore safe mode state", { error: err?.message }));

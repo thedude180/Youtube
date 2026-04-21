@@ -9886,3 +9886,40 @@ export const internetBenchmarks = pgTable("internet_benchmarks", {
 export const insertInternetBenchmarkSchema = createInsertSchema(internetBenchmarks).omit({ id: true, createdAt: true });
 export type InsertInternetBenchmark = z.infer<typeof insertInternetBenchmarkSchema>;
 export type InternetBenchmark = typeof internetBenchmarks.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Vault Documents — AI-generated go-to-market documentation
+// ---------------------------------------------------------------------------
+export const VAULT_DOC_TYPES = [
+  "system_architecture",
+  "ai_capabilities_catalog",
+  "autonomy_evidence_log",
+  "internet_intelligence_report",
+  "pipeline_technical_spec",
+  "market_positioning",
+] as const;
+
+export type VaultDocType = typeof VAULT_DOC_TYPES[number];
+
+export const vaultDocuments = pgTable("vault_documents", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  docType: text("doc_type").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull().default(""),
+  status: text("status").notNull().default("pending"), // pending | generating | ready | failed
+  wordCount: integer("word_count").notNull().default(0),
+  errorMessage: text("error_message"),
+  generatedAt: timestamp("generated_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("vd_user_idx").on(t.userId),
+  index("vd_doc_type_idx").on(t.docType),
+  index("vd_status_idx").on(t.status),
+]);
+
+export const insertVaultDocumentSchema = createInsertSchema(vaultDocuments).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertVaultDocument = z.infer<typeof insertVaultDocumentSchema>;
+export type VaultDocument = typeof vaultDocuments.$inferSelect;
