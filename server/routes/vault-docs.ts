@@ -222,36 +222,58 @@ export function registerVaultDocsRoutes(app: Express) {
     }
   });
 
-  // GET /api/vault/documents/:docType
-  app.get("/api/vault/documents/:docType", requireAuth, async (req, res) => {
+  // GET /api/vault/documents/:idOrDocType — supports both numeric ID and docType string
+  app.get("/api/vault/documents/:idOrDocType", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const docType = parseDocType(req.params["docType"]);
-      if (!docType) return res.status(400).json({ error: "Invalid document type" });
-      const docs = await db.select().from(vaultDocuments)
-        .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
-        .limit(1);
-      if (!docs.length) return res.status(404).json({ error: "Document not found" });
-      res.json(docs[0]);
+      const param = String(req.params["idOrDocType"] ?? "");
+      const numericId = /^\d+$/.test(param) ? parseInt(param, 10) : null;
+
+      const docs = numericId !== null
+        ? await db.select().from(vaultDocuments)
+            .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.id, numericId)))
+            .limit(1)
+        : (() => {
+            const docType = parseDocType(param);
+            if (!docType) return Promise.resolve([]);
+            return db.select().from(vaultDocuments)
+              .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
+              .limit(1);
+          })();
+
+      const rows = await docs;
+      if (!rows.length) return res.status(404).json({ error: "Document not found" });
+      res.json(rows[0]);
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to fetch document" });
     }
   });
 
-  // GET /api/vault/documents/:docType/export
-  app.get("/api/vault/documents/:docType/export", requireAuth, async (req, res) => {
+  // GET /api/vault/documents/:idOrDocType/export — supports both numeric ID and docType string
+  app.get("/api/vault/documents/:idOrDocType/export", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const docType = parseDocType(req.params["docType"]);
-      if (!docType) return res.status(400).json({ error: "Invalid document type" });
-      const docs = await db.select().from(vaultDocuments)
-        .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
-        .limit(1);
+      const param = String(req.params["idOrDocType"] ?? "");
+      const numericId = /^\d+$/.test(param) ? parseInt(param, 10) : null;
+
+      const docs = numericId !== null
+        ? await db.select().from(vaultDocuments)
+            .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.id, numericId)))
+            .limit(1)
+        : await (async () => {
+            const docType = parseDocType(param);
+            if (!docType) return [];
+            return db.select().from(vaultDocuments)
+              .where(and(eq(vaultDocuments.userId, userId), eq(vaultDocuments.docType, docType)))
+              .limit(1);
+          })();
+
       if (!docs.length || !docs[0].content) return res.status(404).json({ error: "Document not yet generated" });
-      const filename = `${docType.split("_").join("-")}-creatorOS.md`;
+      const doc = docs[0];
+      const filename = `${doc.docType.split("_").join("-")}-creatorOS.md`;
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(docs[0].content);
+      res.send(doc.content);
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to export document" });
     }

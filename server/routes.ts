@@ -213,6 +213,7 @@ export async function registerRoutes(
     "/api/user/init-systems",
     // Core content pipeline — always permit user-triggered pipeline actions
     "/api/vault/",
+    "/api/vault-docs/",
     "/api/clips/",
     "/api/pipeline/",
     "/api/backlog/",
