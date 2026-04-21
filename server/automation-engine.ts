@@ -644,6 +644,19 @@ export async function initAutomationEngine() {
     }
   });
 
+  // ── Midnight Pacific / 2am Central: YouTube quota resets — full app audit ──
+  // Runs at exactly midnight Pacific every night. Re-indexes the vault with the
+  // fresh YouTube API quota, validates tokens, warms analytics, and logs a
+  // complete health summary so real data is ready for the morning session.
+  cron.schedule("0 0 * * *", async () => {
+    await withCronLock("QuotaResetAudit", 30 * 60 * 1000, async () => {
+      await selfHealingCore("QuotaResetAudit", async () => {
+        const { runQuotaResetAudit } = await import("./services/quota-reset-audit");
+        await runQuotaResetAudit();
+      });
+    });
+  }, { timezone: "America/Los_Angeles" });
+
   cron.schedule("30 */8 * * *", async () => {
     await withCronLock("ContentSweep", 7 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ContentSweep", async () => {
