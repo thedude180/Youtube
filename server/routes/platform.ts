@@ -659,20 +659,25 @@ export async function registerPlatformRoutes(app: Express) {
         eq(contentVaultBackups.userId, userId),
         eq(contentVaultBackups.youtubeId, req.params.youtubeId),
       ));
-      if (!entry || entry.status !== "downloaded" || !entry.filePath) {
-        return res.status(404).json({ error: "File not found or not yet downloaded" });
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
       }
-      const fs = await import("fs");
-      const path = await import("path");
-      if (!fs.existsSync(entry.filePath)) {
-        return res.status(404).json({ error: "File missing from disk" });
+      // If the file is locally downloaded and still on disk, stream it
+      if (entry.status === "downloaded" && entry.filePath) {
+        const fs = await import("fs");
+        if (fs.existsSync(entry.filePath)) {
+          const safeName = (entry.title || entry.youtubeId || "video").replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 100);
+          res.setHeader("Content-Disposition", `attachment; filename="${safeName}.mp4"`);
+          res.setHeader("Content-Type", "video/mp4");
+          res.setHeader("Content-Length", String(entry.fileSize || fs.statSync(entry.filePath).size));
+          const stream = fs.createReadStream(entry.filePath);
+          stream.pipe(res);
+          return;
+        }
       }
-      const safeName = (entry.title || entry.youtubeId || "video").replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 100);
-      res.setHeader("Content-Disposition", `attachment; filename="${safeName}.mp4"`);
-      res.setHeader("Content-Type", "video/mp4");
-      res.setHeader("Content-Length", String(entry.fileSize || fs.statSync(entry.filePath).size));
-      const stream = fs.createReadStream(entry.filePath);
-      stream.pipe(res);
+      // Fallback: redirect to the original YouTube URL so the user can download from YouTube
+      const ytUrl = entry.backupUrl || `https://www.youtube.com/watch?v=${entry.youtubeId}`;
+      return res.redirect(302, ytUrl);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to download file" });
     }
@@ -688,19 +693,12 @@ export async function registerPlatformRoutes(app: Express) {
       const archiver = (await import("archiver")).default;
       const gameName = req.query.game as string | undefined;
 
-      const conditions = [
-        eq(contentVaultBackups.userId, userId),
-        eq(contentVaultBackups.status, "downloaded"),
-      ];
-      if (gameName) {
-        conditions.push(eq(contentVaultBackups.gameName, gameName));
-      }
-      const entries = await db.select().from(contentVaultBackups).where(and(...conditions));
-      const validEntries = entries.filter(e => e.filePath && fs.existsSync(e.filePath));
+      // Fetch ALL entries (not just downloaded) so we can always produce something
+      const allConditions: any[] = [eq(contentVaultBackups.userId, userId)];
+      if (gameName) allConditions.push(eq(contentVaultBackups.gameName, gameName));
+      const allEntries = await db.select().from(contentVaultBackups).where(and(...allConditions));
 
-      if (validEntries.length === 0) {
-        return res.status(404).json({ error: "No downloaded files found" });
-      }
+      const localEntries = allEntries.filter(e => e.status === "downloaded" && e.filePath && fs.existsSync(e.filePath!));
 
       const zipName = gameName
         ? `vault_${gameName.replace(/[^a-zA-Z0-9]/g, "_")}.zip`
@@ -708,15 +706,66 @@ export async function registerPlatformRoutes(app: Express) {
       res.setHeader("Content-Type", "application/zip");
       res.setHeader("Content-Disposition", `attachment; filename="${zipName}"`);
 
-      const archive = archiver("zip", { store: true });
-      archive.on("error", (err: any) => { if (!res.headersSent) res.status(500).end(); });
+      const archive = archiver("zip", { zlib: { level: 6 } });
+      archive.on("error", (err: any) => { logger.error("[Vault] ZIP error:", err); if (!res.headersSent) res.status(500).end(); });
       archive.pipe(res);
 
-      for (const entry of validEntries) {
+      // Add locally downloaded video files
+      for (const entry of localEntries) {
         const safeName = (entry.title || entry.youtubeId || "video").replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 100);
         const folder = (entry.gameName || "Uncategorized").replace(/[^a-zA-Z0-9_\-. ]/g, "_");
         archive.file(entry.filePath!, { name: `${folder}/${safeName}.mp4` });
       }
+
+      // Always include a full CSV manifest (all entries including indexed-only)
+      const csvHeader = "id,youtubeId,platform,contentType,title,gameName,duration,status,fileSize,publishedAt,youtubeUrl\n";
+      const csvRows = allEntries.map(r => {
+        const pub = (r.metadata as any)?.publishedAt || "";
+        const ytUrl = r.backupUrl || `https://www.youtube.com/watch?v=${r.youtubeId}`;
+        return [
+          r.id, r.youtubeId, r.platform, r.contentType,
+          `"${(r.title || "").replace(/"/g, '""')}"`,
+          `"${(r.gameName || "").replace(/"/g, '""')}"`,
+          r.duration, r.status, r.fileSize || 0, pub, ytUrl
+        ].join(",");
+      }).join("\n");
+      archive.append(csvHeader + csvRows, { name: "vault_manifest.csv" });
+
+      // Add a YouTube links text file for non-downloaded entries
+      const notDownloaded = allEntries.filter(e => e.status !== "downloaded");
+      if (notDownloaded.length > 0) {
+        const linksText = [
+          "# YouTube Links — Videos Not Yet Downloaded to Server",
+          `# Generated: ${new Date().toISOString()}`,
+          `# Total: ${notDownloaded.length} videos`,
+          "",
+          ...notDownloaded.map(e => {
+            const ytUrl = e.backupUrl || `https://www.youtube.com/watch?v=${e.youtubeId}`;
+            return `${e.title || e.youtubeId}\n${ytUrl}\nGame: ${e.gameName || "Unknown"} | Type: ${e.contentType} | Duration: ${e.duration}\n`;
+          })
+        ].join("\n");
+        archive.append(linksText, { name: "youtube_links.txt" });
+      }
+
+      // Add a README
+      const readme = [
+        `# Vault Export — ${gameName || "All Games"}`,
+        `Generated: ${new Date().toISOString()}`,
+        "",
+        `Total videos: ${allEntries.length}`,
+        `Downloaded to server: ${localEntries.length}`,
+        `Indexed only (YouTube links): ${notDownloaded.length}`,
+        "",
+        "## Contents",
+        "- `vault_manifest.csv` — Full metadata CSV for all videos",
+        localEntries.length > 0 ? "- `<GameName>/<VideoTitle>.mp4` — Locally downloaded video files" : "",
+        notDownloaded.length > 0 ? "- `youtube_links.txt` — YouTube URLs for videos not yet downloaded to the server" : "",
+        "",
+        "## Notes",
+        "Videos listed in youtube_links.txt are indexed in your vault but not yet downloaded to the server.",
+        "Click 'Sync Vault' in CreatorOS to begin downloading them.",
+      ].filter(Boolean).join("\n");
+      archive.append(readme, { name: "README.txt" });
 
       await archive.finalize();
     } catch (error: any) {

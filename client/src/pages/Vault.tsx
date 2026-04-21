@@ -320,17 +320,20 @@ function VideoDetailView({
                 {scheduledCount > 0 && <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs"><Zap className="h-3 w-3 mr-1" />{scheduledCount} scheduled</Badge>}
                 {readyCount > 0 && <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs"><Sparkles className="h-3 w-3 mr-1" />{readyCount} ready</Badge>}
               </div>
-              <div className="flex items-center gap-2">
-                {entry.status === "downloaded" && (
-                  <a href={`/api/vault/download-file/${entry.youtubeId}`}>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`button-dl-original-${entry.id}`}>
-                      <FileDown className="h-3 w-3 mr-1" />Download Original
-                    </Button>
-                  </a>
-                )}
-                {entry.backupUrl && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Always show a download action — local file if downloaded, YouTube redirect otherwise */}
+                <a href={`/api/vault/download-file/${entry.youtubeId}`}
+                   target={entry.status !== "downloaded" ? "_blank" : undefined}
+                   rel="noopener noreferrer"
+                   data-testid={`button-dl-original-${entry.id}`}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">
+                    <FileDown className="h-3 w-3 mr-1" />
+                    {entry.status === "downloaded" ? "Download File" : "Open on YouTube"}
+                  </Button>
+                </a>
+                {entry.backupUrl && entry.status === "downloaded" && (
                   <a href={entry.backupUrl} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" data-testid={`button-yt-original-${entry.id}`}>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" data-testid={`button-yt-original-${entry.id}`}>
                       <ExternalLink className="h-3 w-3 mr-1" />YouTube
                     </Button>
                   </a>
@@ -718,23 +721,43 @@ export default function Vault() {
                 <Archive className="h-4 w-4 mr-2" />Export
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="w-64">
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Export Options</div>
+              <DropdownMenuSeparator />
               <DropdownMenuItem asChild data-testid="menu-export-manifest">
-                <a href="/api/vault/export-manifest" download>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />Download Manifest (CSV)
+                <a href="/api/vault/export-manifest" download="vault_manifest.csv">
+                  <div className="flex items-start gap-2 py-0.5">
+                    <FileSpreadsheet className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium">Metadata CSV</p>
+                      <p className="text-xs text-muted-foreground">All video titles, URLs, durations, games</p>
+                    </div>
+                  </div>
                 </a>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {selectedGame ? (
                 <DropdownMenuItem asChild data-testid="menu-export-game-zip">
                   <a href={`/api/vault/download-zip?game=${encodeURIComponent(selectedGame)}`} download>
-                    <FolderDown className="h-4 w-4 mr-2" />Download "{selectedGame}" (ZIP)
+                    <div className="flex items-start gap-2 py-0.5">
+                      <FolderDown className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium">"{selectedGame}" ZIP</p>
+                        <p className="text-xs text-muted-foreground">Video files + CSV + YouTube links</p>
+                      </div>
+                    </div>
                   </a>
                 </DropdownMenuItem>
               ) : (
                 <DropdownMenuItem asChild data-testid="menu-export-full-zip">
                   <a href="/api/vault/download-zip" download>
-                    <FolderDown className="h-4 w-4 mr-2" />Download All Files (ZIP)
+                    <div className="flex items-start gap-2 py-0.5">
+                      <FolderDown className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium">Full Vault ZIP</p>
+                        <p className="text-xs text-muted-foreground">All video files + CSV manifest + YouTube links</p>
+                      </div>
+                    </div>
                   </a>
                 </DropdownMenuItem>
               )}
