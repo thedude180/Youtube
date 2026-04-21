@@ -677,6 +677,9 @@ export default function Vault() {
     enabled: true,
   });
 
+  const [sseStatuses, setSseStatuses] = useState<Record<string, string>>({});
+  const sseCleanupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   const isAnyGenerating = (vaultDocs ?? []).some(d => (sseStatuses[d.docType] ?? d.status) === "generating")
     || Object.values(sseStatuses).some(s => s === "generating");
   const docsReadyCount = (vaultDocs ?? []).filter(d => (sseStatuses[d.docType] ?? d.status) === "ready").length;
@@ -714,9 +717,6 @@ export default function Vault() {
 
   const viewingDocRef = useRef(viewingDoc);
   useEffect(() => { viewingDocRef.current = viewingDoc; }, [viewingDoc]);
-
-  const [sseStatuses, setSseStatuses] = useState<Record<string, string>>({});
-  const sseCleanupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     if (!vaultDocs) return;
