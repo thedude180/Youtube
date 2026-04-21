@@ -9,7 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import {
   Brain, TrendingUp, Zap, Target, FlaskConical, Lightbulb,
   CheckCircle2, Clock, Activity, BookOpen, BarChart3, Sparkles,
-  Plus, Cpu, RefreshCw,
+  Plus, Cpu, RefreshCw, Globe, Search, Radio, Clapperboard,
 } from "lucide-react";
 
 const MOOD_COLORS: Record<string, string> = {
@@ -106,6 +106,22 @@ export default function SystemGrowth() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/system-growth/capability-expansion"] });
       queryClient.invalidateQueries({ queryKey: ["/api/system-growth/overview"] });
+    },
+  });
+
+  const { data: benchmarkData, isLoading: benchmarkLoading } = useQuery<any>({
+    queryKey: ["/api/system-growth/internet-benchmarks"],
+    refetchInterval: 90_000,
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+
+  const triggerBenchmark = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/system-growth/internet-benchmarks/run"),
+    onSuccess: () => {
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/system-growth/internet-benchmarks"] });
+      }, 3000);
     },
   });
 
@@ -437,6 +453,171 @@ export default function SystemGrowth() {
           </CardContent>
         </Card>
       )}
+
+      {/* Internet Intelligence */}
+      <Card data-testid="card-internet-benchmarks">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Globe className="h-4 w-4 text-cyan-400" />
+              Internet Intelligence
+              <Badge variant="secondary" className="text-xs ml-1">
+                {benchmarkData ? (
+                  `${benchmarkData.builtCount ?? 0} built · ${benchmarkData.domainsScanned ?? 0}/${benchmarkData.totalDomains ?? 12} domains`
+                ) : "scanning…"}
+              </Badge>
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => triggerBenchmark.mutate()}
+              disabled={triggerBenchmark.isPending}
+              data-testid="button-trigger-benchmark"
+            >
+              <Search className={`h-3 w-3 ${triggerBenchmark.isPending ? "animate-pulse" : ""}`} />
+              {triggerBenchmark.isPending ? "Scanning…" : "Scan Internet Now"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Compares the system against the latest creator strategies on the internet, then builds any missing capabilities into both pipelines automatically.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {benchmarkLoading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}
+            </div>
+          ) : benchmarkData ? (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border border-border/60 bg-card/50 p-3 text-center">
+                  <p className="text-xl font-bold tabular-nums text-cyan-400">{benchmarkData.builtCount ?? 0}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Capabilities Built</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-card/50 p-3 text-center">
+                  <p className="text-xl font-bold tabular-nums text-orange-400">{benchmarkData.gapCount ?? 0}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Gaps Discovered</p>
+                </div>
+                <div className="rounded-lg border border-border/60 bg-card/50 p-3 text-center">
+                  <p className="text-xl font-bold tabular-nums text-violet-400">
+                    {benchmarkData.domainsScanned ?? 0}/{benchmarkData.totalDomains ?? 12}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Domains Covered</p>
+                </div>
+              </div>
+
+              {/* Domain coverage grid */}
+              {benchmarkData.domainStatus && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <BarChart3 className="h-3 w-3" /> Domain Coverage
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {Object.entries(benchmarkData.domainStatus as Record<string, any>).map(([domainId, info]: [string, any]) => {
+                      const statusColor =
+                        info.lastStatus === "built" ? "text-emerald-400" :
+                        info.lastStatus === "gap_found" ? "text-orange-400" :
+                        info.lastStatus === "no_gap" ? "text-blue-400" :
+                        info.lastStatus === "failed" ? "text-red-400" :
+                        "text-muted-foreground";
+                      const statusLabel =
+                        info.lastStatus === "built" ? "capability built" :
+                        info.lastStatus === "no_gap" ? "already covered" :
+                        info.lastStatus === "gap_found" ? "gap detected" :
+                        info.lastStatus === "searching" ? "scanning…" :
+                        info.lastStatus === "failed" ? "scan failed" :
+                        "not yet scanned";
+                      const isShorts = (info.pipelines ?? []).includes("shorts");
+                      const isFull = (info.pipelines ?? []).includes("full_video");
+                      return (
+                        <div
+                          key={domainId}
+                          className="flex items-center justify-between gap-2 p-2 rounded-lg border border-border/40 bg-card/30"
+                          data-testid={`benchmark-domain-${domainId}`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-medium leading-tight truncate">{info.label}</p>
+                              {isShorts && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-yellow-400 border-yellow-400/30">Shorts</Badge>}
+                              {isFull && <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-blue-400 border-blue-400/30">Full</Badge>}
+                            </div>
+                            <p className={`text-[10px] mt-0.5 ${statusColor}`}>{statusLabel}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            {info.builtCount > 0 && (
+                              <p className="text-xs font-mono text-emerald-400">+{info.builtCount}</p>
+                            )}
+                            <p className="text-[10px] text-muted-foreground">{info.lastRun ? timeAgo(info.lastRun) : "—"}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent benchmark runs */}
+              {(benchmarkData.recent ?? []).length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Activity className="h-3 w-3" /> Recent Discoveries
+                  </p>
+                  <div className="space-y-2">
+                    {(benchmarkData.recent ?? []).filter((r: any) => r.status === "built" || r.status === "gap_found").slice(0, 6).map((run: any) => (
+                      <div key={run.id} className="flex items-start gap-3 py-1.5 border-b border-border/50 last:border-0" data-testid={`benchmark-run-${run.id}`}>
+                        <div className={`mt-1 h-1.5 w-1.5 rounded-full shrink-0 ${run.status === "built" ? "bg-emerald-500" : "bg-orange-500"}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{run.domainLabel}</Badge>
+                            {run.capabilityType && (
+                              <Badge variant="secondary" className="text-xs capitalize">{run.capabilityType}</Badge>
+                            )}
+                            {run.gapSeverity > 0 && (
+                              <span className="text-xs text-orange-400">severity {run.gapSeverity}/10</span>
+                            )}
+                          </div>
+                          {run.capabilityBuilt && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{run.capabilityBuilt}</p>
+                          )}
+                          {!run.capabilityBuilt && run.gapFound && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{run.gapFound}</p>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground shrink-0">{timeAgo(run.createdAt)}</p>
+                      </div>
+                    ))}
+                    {(benchmarkData.recent ?? []).filter((r: any) => r.status === "built" || r.status === "gap_found").length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">
+                        The engine will run its first scan 18 minutes after startup. All 12 domains will be evaluated.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Pipeline coverage callout */}
+              <div className="rounded-lg bg-gradient-to-r from-cyan-500/10 to-violet-500/10 border border-cyan-500/20 p-3">
+                <div className="flex items-start gap-2">
+                  <Zap className="h-3.5 w-3.5 text-cyan-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-cyan-300">Both Pipelines — Always Expanding</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Every discovered technique is applied to the correct pipeline:
+                      <span className="text-yellow-400"> Shorts</span> (hook science, clip selection, pacing) and
+                      <span className="text-blue-400"> Full Video</span> (SEO, thumbnails, titles, retention, monetization).
+                      New capabilities go live in the system immediately.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">No benchmark data yet — scan is scheduled for 18 minutes after startup.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Capability Expansion */}
       <Card data-testid="card-capability-expansion">

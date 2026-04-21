@@ -1406,6 +1406,7 @@ httpServer.listen(
       import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter"));
       import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler"));
       import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine"));
+      import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine"));
     });
 
     // ── WAVE 11 (T+120s): Self-healing, webhook pipeline, health brain ───────

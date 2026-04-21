@@ -224,4 +224,40 @@ export function registerEvolutionRoutes(app: Express): void {
       res.status(500).json({ error: err.message });
     }
   });
+
+  /** Internet Benchmark — stats and recent runs. */
+  app.get("/api/system-growth/internet-benchmarks", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { getInternetBenchmarkStats } = await import("../services/internet-benchmark-engine");
+      const stats = await getInternetBenchmarkStats(userId);
+      res.json(stats);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** Trigger an immediate internet benchmark scan for the current user. */
+  app.post("/api/system-growth/internet-benchmarks/run", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { runInternetBenchmarkForUser } = await import("../services/internet-benchmark-engine");
+      const result = await runInternetBenchmarkForUser(userId);
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** Domains list with metadata (for frontend display). */
+  app.get("/api/system-growth/internet-benchmarks/domains", async (_req: Request, res: Response) => {
+    try {
+      const { BENCHMARK_DOMAINS } = await import("../services/internet-benchmark-engine");
+      res.json(BENCHMARK_DOMAINS);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 }

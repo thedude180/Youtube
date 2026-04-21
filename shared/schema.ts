@@ -9855,3 +9855,34 @@ export const capabilityGaps = pgTable("capability_gaps", {
 export const insertCapabilityGapSchema = createInsertSchema(capabilityGaps).omit({ id: true, createdAt: true, filledAt: true, lastAttemptAt: true });
 export type InsertCapabilityGap = z.infer<typeof insertCapabilityGapSchema>;
 export type CapabilityGap = typeof capabilityGaps.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Internet Benchmark — web-discovered capability gaps and what was built
+// ---------------------------------------------------------------------------
+export const internetBenchmarks = pgTable("internet_benchmarks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  domain: text("domain").notNull(),           // e.g., "shorts_hooks"
+  domainLabel: text("domain_label").notNull(), // e.g., "Shorts Hook Techniques"
+  searchQueries: text("search_queries").array(),
+  webSummary: text("web_summary"),             // what the internet says
+  gapFound: text("gap_found"),                 // description of the gap
+  gapSeverity: integer("gap_severity").default(0), // 0-10
+  capabilityBuilt: text("capability_built"),   // what was created
+  capabilityType: text("capability_type"),     // prompt | strategy | knowledge | none
+  capabilityRef: text("capability_ref"),       // ID/key of the created artifact
+  pipelinesUpdated: text("pipelines_updated").array(), // ["shorts","full_video"]
+  status: text("status").notNull().default("searching"),
+  // searching | gap_found | built | no_gap | failed
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ib_user_idx").on(t.userId),
+  index("ib_domain_idx").on(t.domain),
+  index("ib_status_idx").on(t.status),
+  index("ib_created_idx").on(t.createdAt),
+]);
+
+export const insertInternetBenchmarkSchema = createInsertSchema(internetBenchmarks).omit({ id: true, createdAt: true });
+export type InsertInternetBenchmark = z.infer<typeof insertInternetBenchmarkSchema>;
+export type InternetBenchmark = typeof internetBenchmarks.$inferSelect;
