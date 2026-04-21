@@ -145,11 +145,25 @@ export function setupGoogleAuth(app: Express) {
           return res.redirect("/?auth_error=login_failed");
         }
 
-        // Save session and redirect immediately — never block the browser on
-        // slow post-login work (YouTube API, system init) which causes 30s timeouts.
+        // Save session with a hard 5-second timeout so the OAuth redirect is
+        // never blocked by DB pressure. The session store write may still complete
+        // in the background after the redirect is sent.
+        let redirectSent = false;
+        const saveTimer = setTimeout(() => {
+          if (!redirectSent) {
+            redirectSent = true;
+            logger.warn("[GoogleAuth] Session save timed out — redirecting immediately");
+            res.redirect("/");
+          }
+        }, 5_000);
+
         req.session.save((saveErr) => {
+          clearTimeout(saveTimer);
           if (saveErr) logger.error("Google auth session save error:", saveErr);
-          res.redirect("/");
+          if (!redirectSent) {
+            redirectSent = true;
+            res.redirect("/");
+          }
         });
 
         // Fire all post-login tasks in the background after the response is sent.

@@ -16,9 +16,9 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 5,                       // reduced from 10 — 14+ background engines caused thundering herd exhaustion
-  idleTimeoutMillis: 30_000,    // longer idle release to avoid churn from rapid acquire/release cycles
-  connectionTimeoutMillis: 6_000, // 6s fail-fast so withRetry can try fresh connection sooner
+  max: 20,                      // 20 slots — enough for 14+ background engines plus request handlers
+  idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
+  connectionTimeoutMillis: 10_000, // 10s wait for a pool slot before failing
   allowExitOnIdle: false,
   statement_timeout: 25_000,
   query_timeout: 25_000,
