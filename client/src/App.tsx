@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
 import { BackToTop } from "@/components/BackToTop";
-import { prefetchForRoute, prefetchDashboard, prefetchChunkForRoute } from "@/lib/prefetch";
+import { prefetchForRoute, prefetchDashboard, prefetchChunkForRoute, prefetchAllChunks, prefetchAllRoutes } from "@/lib/prefetch";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { HealthRibbon } from "@/components/HealthRibbon";
@@ -139,6 +139,30 @@ function useRouteMetaSync() {
       if (ogDesc) ogDesc.setAttribute("content", meta.description);
     }
   }, [location]);
+}
+
+function PageSkeleton() {
+  return (
+    <div className="p-6 space-y-5 animate-pulse">
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div className="h-7 w-44 bg-muted/60 rounded-lg" />
+          <div className="h-4 w-72 bg-muted/40 rounded" />
+        </div>
+        <div className="h-9 w-28 bg-muted/50 rounded-lg" />
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[0,1,2,3].map(i => (
+          <div key={i} className="h-24 bg-muted/40 rounded-xl" />
+        ))}
+      </div>
+      <div className="h-56 bg-muted/30 rounded-xl" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="h-44 bg-muted/25 rounded-xl" />
+        <div className="h-44 bg-muted/25 rounded-xl" />
+      </div>
+    </div>
+  );
 }
 
 function Router() {
@@ -530,16 +554,7 @@ function AuthenticatedApp() {
           <LiveStreamBanner />
           {!isFocusMode && <PlatformReconnectBanner />}
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
-            <Suspense fallback={
-              <div className="flex flex-col items-center justify-center h-full min-h-[200px] gap-3 fade-in">
-                <div className="relative">
-                  <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  </div>
-                </div>
-                <span className="text-xs text-muted-foreground/60 font-medium">Loading...</span>
-              </div>
-            }>
+            <Suspense fallback={<PageSkeleton />}>
               <RouteTransition>
                 <Router />
               </RouteTransition>
@@ -589,6 +604,10 @@ function AppContent() {
       prefetchForRoute(currentBase);
       if (currentBase !== "/") prefetchDashboard();
     }
+    // Eagerly preload all page JS chunks + all page data in the background.
+    // By the time the user clicks any nav item, the code and data are ready.
+    prefetchAllChunks();
+    prefetchAllRoutes();
   }, [isAuthenticated, user?.id]);
 
   useEffect(() => {

@@ -35,14 +35,18 @@ export function prefetchAutopilot() {
 }
 
 export function prefetchMoney() {
+  // Note: monetization endpoints use [key, userId] as cache key so they
+  // can't be prefetched here without knowing userId. Prefetch the base ones.
   prefetchRoute([
-    ["/api/stripe/payments"],
+    ["/api/growth-programs"],
+    ["/api/revenue"],
   ]);
 }
 
 export function prefetchStream() {
   prefetchRoute([
     ["/api/stream/command-center"],
+    ["/api/youtube/live-status"],
   ]);
 }
 
@@ -63,6 +67,7 @@ export function prefetchVault() {
 export function prefetchStudio() {
   prefetchRoute([
     ["/api/videos"],
+    ["/api/channels"],
   ]);
 }
 
@@ -103,4 +108,32 @@ export function prefetchForRoute(path: string) {
   const fn = routePrefetchers[path];
   if (fn) fn();
   prefetchChunkForRoute(path);
+}
+
+let allChunksPrefetched = false;
+export function prefetchAllChunks() {
+  if (allChunksPrefetched) return;
+  allChunksPrefetched = true;
+  // Stagger chunk downloads 150ms apart so Vite isn't flooded with
+  // simultaneous compile requests in dev, and the browser isn't hit
+  // with a burst of parallel network requests in production.
+  const entries = Object.entries(routeChunks);
+  entries.forEach(([path, fn], i) => {
+    if (chunkPrefetched.has(path)) return;
+    chunkPrefetched.add(path);
+    setTimeout(() => fn().catch(() => {}), i * 150);
+  });
+}
+
+let allRoutesPrefetched = false;
+export function prefetchAllRoutes() {
+  if (allRoutesPrefetched) return;
+  allRoutesPrefetched = true;
+  prefetchDashboard();
+  prefetchContent();
+  prefetchStream();
+  prefetchMoney();
+  prefetchSettings();
+  prefetchVault();
+  prefetchStudio();
 }

@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -806,8 +807,16 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
         </DialogHeader>
         <div className="overflow-y-auto max-h-[50vh] space-y-2 mt-2">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2">
+              {[0,1,2,3].map(i => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border/20">
+                  <Skeleton className="w-20 h-12 rounded flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (contentVideos || []).length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No videos in your content library.</p>
@@ -939,8 +948,17 @@ export default function VideoStudio() {
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[0,1,2,3,4,5].map(i => (
+            <Card key={i} className="border-border/30 animate-pulse">
+              <Skeleton className="h-36 w-full rounded-b-none rounded-t-lg" />
+              <CardContent className="p-4 space-y-2">
+                <Skeleton className="h-4 w-4/5" />
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : studioVideos.length === 0 ? (
         <Card className="border-dashed border-border/50">
