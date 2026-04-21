@@ -674,9 +674,11 @@ export default function Vault() {
     return editJobsData.jobs.filter(j => j.status === "completed").reduce((sum, j) => sum + (j.outputFiles?.length ?? 0), 0);
   }, [editJobsData]);
 
+  const showingDocSection = showingDocs || activeTab === "documents";
+
   const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<VaultDoc[]>({
     queryKey: ["/api/vault-docs"],
-    refetchInterval: showingDocs ? 10_000 : false,
+    refetchInterval: showingDocSection ? 10_000 : false,
     enabled: true,
   });
 
@@ -739,7 +741,7 @@ export default function Vault() {
   }, [vaultDocs]);
 
   useEffect(() => {
-    if (!showingDocs) return;
+    if (!showingDocSection) return;
 
     let es: EventSource | null = null;
     let closed = false;
@@ -833,7 +835,7 @@ export default function Vault() {
       sseCleanupTimers.current = {};
       setSseReconnecting(false);
     };
-  }, [showingDocs]);
+  }, [showingDocSection]);
 
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/sync"),
@@ -869,8 +871,12 @@ export default function Vault() {
   function goBack() {
     if (selectedEntry) { setSelectedEntry(null); return; }
     if (selectedGame) { setSelectedGame(null); setSearch(""); setActiveTab("all"); return; }
-    if (viewingDoc) { setViewingDoc(null); return; }
-    if (showingDocs) { setShowingDocs(false); return; }
+    if (viewingDoc) {
+      setViewingDoc(null);
+      if (activeTab === "documents") setShowingDocs(false);
+      return;
+    }
+    if (showingDocs) { setShowingDocs(false); setActiveTab("all"); return; }
   }
 
   const showingEntry = !!selectedEntry;
@@ -891,11 +897,12 @@ export default function Vault() {
           )}
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-vault-title">
-              {showingDocs ? <BookOpen className="h-6 w-6 text-purple-500" /> : <Shield className="h-6 w-6 text-primary" />}
+              {(showingDocs || activeTab === "documents") ? <BookOpen className="h-6 w-6 text-purple-500" /> : <Shield className="h-6 w-6 text-primary" />}
               {showingEntry ? selectedEntry!.title
                 : showingGame ? selectedGame!
                 : showingDocDetail ? (vaultDocs?.find(d => d.docType === viewingDoc)?.title ?? "Document")
                 : showingDocsList ? "Go-to-Market Docs"
+                : activeTab === "documents" ? "Go-to-Market Docs"
                 : "Video Vault"}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -905,7 +912,7 @@ export default function Vault() {
                   ? `${entries?.length ?? 0} videos — click any to see clips and upload-ready metadata`
                   : showingDocDetail
                     ? "AI-generated from live system data — export as Markdown"
-                    : showingDocsList
+                    : (showingDocsList || activeTab === "documents")
                       ? "6 AI-generated documents from real system data — architecture, capabilities, autonomy proof, market analysis"
                       : "Your complete video backup — originals and edited clips organized by game"}
             </p>
@@ -1175,7 +1182,7 @@ export default function Vault() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
-                        {isGenerating && <RegenerationProgress isGenerating={isGenerating} docType={doc.docType} sseStepIndex={sseStepIndices[doc.docType]} />}
+                        {(isGenerating || sseStatuses[doc.docType] === "failed") && <RegenerationProgress isGenerating={isGenerating} docType={doc.docType} sseStepIndex={sseStepIndices[doc.docType]} isFailed={sseStatuses[doc.docType] === "failed"} />}
                         {isReady && doc.wordCount > 0 && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {doc.generatedAt ? new Date(doc.generatedAt).toLocaleDateString() : ""}</p>
                         )}
@@ -1240,6 +1247,7 @@ export default function Vault() {
         const detailEffectiveStatus = sseStatuses[docDetail.docType] ?? docDetail.status;
         const isGenerating = detailEffectiveStatus === "generating";
         const isReady = detailEffectiveStatus === "ready";
+        const isSseFailed = sseStatuses[docDetail.docType] === "failed";
         return (
           <div className="space-y-4">
             {sseReconnecting && (
@@ -1292,13 +1300,13 @@ export default function Vault() {
             </div>
             {docDetail.content ? (
               <div className="relative">
-                {isGenerating && (
-                  <div className="mb-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-400">
+                {(isGenerating || isSseFailed) && (
+                  <div className={`mb-2 rounded-md border px-3 py-2.5 text-sm ${isSseFailed ? "border-red-500/30 bg-red-500/10 text-red-400" : "border-blue-500/30 bg-blue-500/10 text-blue-400"}`}>
                     <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                      Regenerating this document — new content will appear when ready…
+                      {isSseFailed ? <AlertCircle className="h-4 w-4 shrink-0" /> : <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
+                      {isSseFailed ? "Generation failed — click Regenerate to try again." : "Regenerating this document — new content will appear when ready…"}
                     </div>
-                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} isFailed={isSseFailed} />
                   </div>
                 )}
                 <Card className={`border-border/40 transition-opacity duration-300 ${isGenerating ? "opacity-60" : "opacity-100"}`}>
@@ -1310,13 +1318,15 @@ export default function Vault() {
                   </CardContent>
                 </Card>
               </div>
-            ) : isGenerating ? (
-              <Card className="border-border/40 border-blue-500/20">
+            ) : (isGenerating || isSseFailed) ? (
+              <Card className={`border-border/40 ${isSseFailed ? "border-red-500/20" : "border-blue-500/20"}`}>
                 <CardContent className="p-8 text-center text-muted-foreground">
-                  <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />
-                  <p className="text-sm mb-4">Generating document — this takes about 30 seconds…</p>
+                  {isSseFailed
+                    ? <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-400" />
+                    : <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />}
+                  <p className="text-sm mb-4">{isSseFailed ? "Generation failed — click Regenerate to try again." : "Generating document — this takes about 30 seconds…"}</p>
                   <div className="max-w-xs mx-auto">
-                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} />
+                    <RegenerationProgress isGenerating={isGenerating} docType={docDetail.docType} sseStepIndex={sseStepIndices[docDetail.docType]} isFailed={isSseFailed} />
                   </div>
                 </CardContent>
               </Card>
@@ -1380,10 +1390,119 @@ export default function Vault() {
                 <Scissors className="h-3.5 w-3.5 mr-1"/>Edited Clips
                 {editedClipCount > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">{editedClipCount}</Badge>}
               </TabsTrigger>
+              <TabsTrigger value="documents" data-testid="tab-documents">
+                <BookOpen className="h-3.5 w-3.5 mr-1"/>Documents
+                <Badge className="ml-1.5 text-[10px] px-1.5 py-0 bg-purple-500/20 text-purple-300 border-purple-500/30">{docsReadyCount}/{docsTotal}</Badge>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {activeTab === "edited" ? (
+          {activeTab === "documents" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-purple-500"/>
+                    Go-to-Market Docs
+                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-[10px]">AI-Generated</Badge>
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    6 documents auto-built from live system data — architecture, capabilities, autonomy proof, competitive analysis
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => generateAllDocsMutation.mutate()}
+                  disabled={generateAllDocsMutation.isPending || isAnyGenerating}
+                  data-testid="button-generate-all-docs-tab"
+                >
+                  {(generateAllDocsMutation.isPending || isAnyGenerating) ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : <Sparkles className="h-4 w-4 mr-2"/>}
+                  Generate All
+                </Button>
+              </div>
+              {docsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(6)].map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="p-4 h-16"/></Card>)}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(vaultDocs ?? []).map(doc => {
+                    const effectiveStatus = sseStatuses[doc.docType] ?? doc.status;
+                    const isReady = effectiveStatus === "ready";
+                    const isGenerating = effectiveStatus === "generating";
+                    const isFailed = effectiveStatus === "failed";
+                    const isSseGenerating = sseStatuses[doc.docType] === "generating";
+                    const emoji = doc.metadata?.emoji ?? "📄";
+                    const description = doc.metadata?.description ?? "";
+                    return (
+                      <Card
+                        key={doc.docType}
+                        className={[
+                          "transition-all",
+                          isReady ? "border-border/40 cursor-pointer hover:border-purple-500/50" : "border-border/40",
+                          isSseGenerating ? "ring-1 ring-blue-500/50 border-blue-500/30" : "",
+                        ].join(" ")}
+                        onClick={isReady ? () => { setViewingDoc(doc.docType); setShowingDocs(true); } : undefined}
+                        data-testid={`card-vault-doc-tab-${doc.docType}`}
+                      >
+                        <CardContent className="p-4 flex items-center gap-4">
+                          <div className={`text-2xl shrink-0 ${isSseGenerating ? "animate-pulse" : ""}`}>{emoji}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-sm">{doc.title}</h3>
+                              {isReady && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5 mr-0.5"/>Ready</Badge>}
+                              {isGenerating && (
+                                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]" data-testid={`badge-generating-tab-${doc.docType}`}>
+                                  <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin"/>
+                                  {sseStepIndices[doc.docType] !== undefined ? REGEN_STEPS[sseStepIndices[doc.docType]] : "Generating…"}
+                                </Badge>
+                              )}
+                              {isFailed && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"><AlertCircle className="h-2.5 w-2.5 mr-0.5"/>Failed</Badge>}
+                              {!isReady && !isGenerating && !isFailed && <Badge variant="outline" className="text-[10px] text-muted-foreground"><Clock className="h-2.5 w-2.5 mr-0.5"/>Pending</Badge>}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{description}</p>
+                            {(isGenerating || sseStatuses[doc.docType] === "failed") && (
+                              <RegenerationProgress isGenerating={isGenerating} docType={doc.docType} sseStepIndex={sseStepIndices[doc.docType]} isFailed={sseStatuses[doc.docType] === "failed"} />
+                            )}
+                            {isReady && doc.wordCount > 0 && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{doc.wordCount.toLocaleString()} words · {doc.generatedAt ? new Date(doc.generatedAt).toLocaleDateString() : ""}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isReady && (
+                              <>
+                                <Button
+                                  size="sm" variant="outline" className="h-7 text-xs"
+                                  onClick={e => { e.stopPropagation(); setViewingDoc(doc.docType); setShowingDocs(true); }}
+                                  data-testid={`button-view-doc-tab-${doc.docType}`}
+                                >
+                                  <Eye className="h-3 w-3 mr-1"/>View
+                                </Button>
+                                <a href={`/api/vault-docs/${doc.docType}/export`} download onClick={e => e.stopPropagation()}>
+                                  <Button size="sm" variant="outline" className="h-7 text-xs text-purple-400 border-purple-500/30" data-testid={`button-download-doc-tab-${doc.docType}`}>
+                                    <FileDown className="h-3 w-3 mr-1"/>.md
+                                  </Button>
+                                </a>
+                              </>
+                            )}
+                            <Button
+                              size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground"
+                              onClick={e => { e.stopPropagation(); generateDocMutation.mutate(doc.docType); }}
+                              disabled={isGenerating || generateDocMutation.isPending}
+                              data-testid={`button-regen-doc-tab-${doc.docType}`}
+                            >
+                              <RefreshCw className={`h-3 w-3 ${isGenerating ? "animate-spin" : ""}`}/>
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : activeTab === "edited" ? (
             <div className="space-y-3">
               <h2 className="text-lg font-semibold flex items-center gap-2"><Scissors className="h-5 w-5 text-yellow-500"/>Edited Clips ({editedClipCount})</h2>
               <EditedClipsSection search={search} />
