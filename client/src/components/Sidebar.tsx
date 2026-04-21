@@ -13,6 +13,7 @@ import {
   Film,
   HardDrive,
   Scissors,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -33,8 +34,9 @@ const NAV_ITEMS = [
   { href: "/vault",         label: "Vault",    icon: HardDrive },
   { href: "/stream-editor", label: "Editor",   icon: Scissors },
   { href: "/stream",  label: "Live",     icon: Radio },
-  { href: "/money",   label: "Revenue",  icon: DollarSign },
-  { href: "/settings",label: "Settings", icon: Settings },
+  { href: "/money",             label: "Revenue",  icon: DollarSign },
+  { href: "/platform-features", label: "Features", icon: Sparkles },
+  { href: "/settings",          label: "Settings", icon: Settings },
 ];
 
 export function AppSidebar() {

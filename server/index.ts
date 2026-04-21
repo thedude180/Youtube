@@ -1387,6 +1387,7 @@ httpServer.listen(
       import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(slog("startSmartContentDistributor"));
       import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(slog("startEmpireBrain"));
       import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync"));
+      import("./services/platform-feature-detector").then(m => m.startPlatformFeatureDetector()).catch(slog("startPlatformFeatureDetector"));
       import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder"));
       import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution"));
       import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh"));

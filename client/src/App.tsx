@@ -60,6 +60,7 @@ const VideoStudio  = lazyRetry(() => import("@/pages/VideoStudio"));
 const Vault        = lazyRetry(() => import("@/pages/Vault"));
 const StreamEditor = lazyRetry(() => import("@/pages/StreamEditor"));
 const Notifications = lazyRetry(() => import("@/pages/Notifications"));
+const PlatformFeatures = lazyRetry(() => import("@/pages/PlatformFeatures"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
@@ -181,6 +182,7 @@ function Router() {
       <Route path="/settings">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/settings/:tab">{() => <SectionErrorBoundary fallbackTitle="Settings failed to load"><Settings /></SectionErrorBoundary>}</Route>
       <Route path="/notifications">{() => <SectionErrorBoundary fallbackTitle="Notifications failed to load"><Notifications /></SectionErrorBoundary>}</Route>
+      <Route path="/platform-features">{() => <SectionErrorBoundary fallbackTitle="Platform Features failed to load"><PlatformFeatures /></SectionErrorBoundary>}</Route>
       <Route path="/pricing">{() => <SectionErrorBoundary fallbackTitle="Pricing failed to load"><Pricing /></SectionErrorBoundary>}</Route>
       <Route path="/founder">{() => <Redirect to="/" />}</Route>
       <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>

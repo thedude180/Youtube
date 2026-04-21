@@ -9792,3 +9792,36 @@ export const tokenBudgetUsage = pgTable("token_budget_usage", {
 
 export type TokenBudgetUsageRow = typeof tokenBudgetUsage.$inferSelect;
 
+
+// ─── Platform Feature Eligibility ────────────────────────────────────────────
+// Tracks which platform monetization/creator features the channel qualifies for,
+// whether an application is needed, and what effect activating the feature has
+// on the content pipeline.
+export const platformFeatureEligibility = pgTable("platform_feature_eligibility", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  platform: text("platform").notNull(),
+  featureId: text("feature_id").notNull(),      // e.g. "youtube_ypp"
+  featureName: text("feature_name").notNull(),
+  // checking | eligible | applied | active | dismissed
+  status: text("status").notNull().default("checking"),
+  requiresApplication: boolean("requires_application").notNull().default(true),
+  applicationUrl: text("application_url"),
+  qualifiedAt: timestamp("qualified_at"),
+  notifiedAt: timestamp("notified_at"),
+  appliedAt: timestamp("applied_at"),
+  activatedAt: timestamp("activated_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  // Snapshot of the thresholds that were met when qualified
+  thresholdsMet: jsonb("thresholds_met").$type<Record<string, number>>(),
+  // Keys that get enabled in the content pipeline once the feature is active
+  pipelineEffects: jsonb("pipeline_effects").$type<string[]>(),
+  lastCheckedAt: timestamp("last_checked_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userPlatformFeatureIdx: uniqueIndex("pfe_user_platform_feature_idx").on(table.userId, table.platform, table.featureId),
+}));
+
+export const insertPlatformFeatureEligibilitySchema = createInsertSchema(platformFeatureEligibility).omit({ id: true, createdAt: true });
+export type InsertPlatformFeatureEligibility = z.infer<typeof insertPlatformFeatureEligibilitySchema>;
+export type PlatformFeatureEligibility = typeof platformFeatureEligibility.$inferSelect;

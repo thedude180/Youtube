@@ -26,6 +26,7 @@ import { registerClipRoutes } from "./routes/clips";
 import { registerGrowthTrackingRoutes } from "./routes/growth-tracking";
 import { registerSyncRoutes } from "./routes/sync";
 import { registerContentVerificationRoutes } from "./routes/content-verification";
+import { registerPlatformFeaturesRoutes } from "./routes/platform-features";
 import { registerWorldBestRoutes } from "./routes/world-best";
 import { registerCompetitiveEdgeRoutes } from "./routes/competitive-edge";
 import { registerAutonomyRoutes } from "./routes/autonomy";
@@ -370,6 +371,7 @@ export async function registerRoutes(
   registerClipRoutes(app);
   registerGrowthTrackingRoutes(app);
   registerSyncRoutes(app);
+  registerPlatformFeaturesRoutes(app);
   registerContentVerificationRoutes(app);
   registerWorldBestRoutes(app);
   registerCompetitiveEdgeRoutes(app);
