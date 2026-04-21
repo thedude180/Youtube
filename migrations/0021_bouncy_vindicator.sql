@@ -1,0 +1,1 @@
+ALTER TABLE "stream_edit_jobs" ADD COLUMN "current_stage" text;

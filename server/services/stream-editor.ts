@@ -22,58 +22,100 @@ interface PlatformProfile {
   label: string;
   width: number;
   height: number;
+  orientation: "landscape" | "portrait";
   codec: string;
+  codecArgs: string[];
   crf: number;
   preset: string;
   maxClipSecs: number | null;
   audioBitrate: string;
-  scaleFilter: string;
+  audioSampleRate: number;
+  targetLoudness: string;
 }
 
+/**
+ * Platform profiles optimised for gaming 4K output.
+ *
+ * Filter chain strategy (applied in buildVideoFilter):
+ *  1. hqdn3d  — temporal + spatial denoise at SOURCE resolution
+ *              removes Twitch/YT stream compression artifacts before upscale
+ *  2. eq      — colour grading at source resolution (more efficient, better quality)
+ *  3. unsharp — sharpening at source resolution then upscaled (sharper result than post-scale)
+ *  4. scale   — Lanczos upscale to target resolution with accurate rounding
+ *  5. pad     — letterbox/pillarbox only for landscape targets; portrait uses centre crop
+ *  6. setsar  — ensure sample aspect ratio is 1:1
+ */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
     label: "YouTube 4K",
     width: 3840,
     height: 2160,
+    orientation: "landscape",
     codec: "libx265",
-    crf: 22,
-    preset: "medium",
+    codecArgs: [
+      "-x265-params", "aq-mode=3:aq-strength=1.0:keyint=120:min-keyint=48:no-open-gop=1:bframes=4:ref=4:rc-lookahead=48:psy-rd=1.0:psy-rdoq=1.5",
+      "-tag:v", "hvc1",
+    ],
+    crf: 20,
+    preset: "fast",
     maxClipSecs: null,
     audioBitrate: "192k",
-    scaleFilter: "scale=3840:2160:flags=lanczos:force_original_aspect_ratio=decrease,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black",
+    audioSampleRate: 48000,
+    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   rumble: {
     label: "Rumble 4K",
     width: 3840,
     height: 2160,
+    orientation: "landscape",
     codec: "libx264",
-    crf: 23,
-    preset: "medium",
+    codecArgs: [
+      "-profile:v", "high",
+      "-level:v", "5.1",
+      "-x264-params", "keyint=120:min-keyint=48:no-cabac=0:bframes=3:ref=4:aq-mode=2:aq-strength=1.0:psy-rd=1.0:psy-rdoq=1.0",
+    ],
+    crf: 21,
+    preset: "fast",
     maxClipSecs: null,
     audioBitrate: "192k",
-    scaleFilter: "scale=3840:2160:flags=lanczos:force_original_aspect_ratio=decrease,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black",
+    audioSampleRate: 48000,
+    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   tiktok: {
     label: "TikTok Vertical",
     width: 1080,
     height: 1920,
+    orientation: "portrait",
     codec: "libx264",
-    crf: 23,
-    preset: "medium",
+    codecArgs: [
+      "-profile:v", "high",
+      "-level:v", "4.1",
+      "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+    ],
+    crf: 22,
+    preset: "fast",
     maxClipSecs: 600,
     audioBitrate: "128k",
-    scaleFilter: "scale=1080:1920:flags=lanczos:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+    audioSampleRate: 44100,
+    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   shorts: {
     label: "YouTube Shorts",
     width: 1080,
     height: 1920,
+    orientation: "portrait",
     codec: "libx264",
-    crf: 22,
-    preset: "medium",
+    codecArgs: [
+      "-profile:v", "high",
+      "-level:v", "4.1",
+      "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+    ],
+    crf: 21,
+    preset: "fast",
     maxClipSecs: 60,
     audioBitrate: "128k",
-    scaleFilter: "scale=1080:1920:flags=lanczos:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+    audioSampleRate: 44100,
+    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
 };
 
@@ -95,24 +137,29 @@ function runProcess(bin: string, args: string[]): Promise<string> {
   });
 }
 
-function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number) => void): Promise<void> {
+function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let totalDuration = 0;
 
     const handleStderr = (data: Buffer) => {
       const text = data.toString();
+
       const durMatch = text.match(/Duration:\s*(\d+):(\d+):(\d+\.\d+)/);
       if (durMatch && !totalDuration) {
         totalDuration = parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3]);
       }
+
       if (onProgress && totalDuration > 0) {
         const timeMatch = text.match(/time=(\d+):(\d+):(\d+\.\d+)/);
         const fpsMatch = text.match(/fps=\s*(\d+\.?\d*)/);
+        const speedMatch = text.match(/speed=\s*(\d+\.?\d*)x/);
         if (timeMatch) {
           const elapsed = parseInt(timeMatch[1]) * 3600 + parseInt(timeMatch[2]) * 60 + parseFloat(timeMatch[3]);
           const fps = fpsMatch ? parseFloat(fpsMatch[1]) : 0;
-          onProgress(Math.min(99, Math.round((elapsed / totalDuration) * 100)), fps);
+          const speed = speedMatch ? parseFloat(speedMatch[1]) : 0;
+          const stage = speed > 0 ? `${fps.toFixed(0)} fps · ${speed.toFixed(2)}x speed` : `${fps.toFixed(0)} fps`;
+          onProgress(Math.min(99, Math.round((elapsed / totalDuration) * 100)), fps, stage);
         }
       }
     };
@@ -126,7 +173,14 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number) => vo
   });
 }
 
-async function probeVideo(filePath: string): Promise<{ durationSecs: number; width: number; height: number }> {
+async function probeVideo(filePath: string): Promise<{
+  durationSecs: number;
+  width: number;
+  height: number;
+  fps: number;
+  videoCodec: string;
+  audioCodec: string;
+}> {
   const raw = await runProcess(FFPROBE_BIN, [
     "-v", "quiet",
     "-print_format", "json",
@@ -136,32 +190,78 @@ async function probeVideo(filePath: string): Promise<{ durationSecs: number; wid
   ]);
   const info = JSON.parse(raw);
   const videoStream = info.streams?.find((s: any) => s.codec_type === "video");
-  const durationSecs = parseFloat(info.format?.duration ?? "0");
+  const audioStream = info.streams?.find((s: any) => s.codec_type === "audio");
+  const durationSecs = parseFloat(info.format?.duration ?? videoStream?.duration ?? "0");
+
+  let fps = 30;
+  if (videoStream?.r_frame_rate) {
+    const [num, den] = videoStream.r_frame_rate.split("/").map(Number);
+    if (den > 0) fps = Math.round(num / den);
+  }
+
   return {
     durationSecs,
     width: videoStream?.width ?? 1920,
     height: videoStream?.height ?? 1080,
+    fps,
+    videoCodec: videoStream?.codec_name ?? "h264",
+    audioCodec: audioStream?.codec_name ?? "aac",
   };
 }
 
-function buildVideoFilters(enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean }, profile: PlatformProfile): string {
-  const filters: string[] = [];
+/**
+ * Build the FFmpeg video filter chain for a given platform.
+ *
+ * Order is deliberate — all processing happens at SOURCE resolution first,
+ * then we scale to target. This produces sharper, cleaner 4K output than
+ * scaling first and then enhancing.
+ *
+ *  denoise  → colour grade → sharpen → scale+pad/crop → setsar
+ */
+function buildVideoFilter(
+  enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean },
+  profile: PlatformProfile,
+  sourceFps: number,
+): string {
+  const parts: string[] = [];
 
-  filters.push(profile.scaleFilter);
+  if (enhancements.upscale4k) {
+    parts.push("hqdn3d=luma_spatial=2:chroma_spatial=1.5:luma_tmp=3:chroma_tmp=2.5");
+  }
 
   if (enhancements.colorEnhance) {
-    filters.push("eq=brightness=0.02:contrast=1.05:saturation=1.1");
+    parts.push("eq=brightness=0.02:contrast=1.06:saturation=1.12:gamma=0.98");
   }
 
   if (enhancements.sharpen) {
-    filters.push("unsharp=5:5:0.8:3:3:0.4");
+    parts.push("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.9:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.3");
   }
 
-  return filters.join(",");
-}
+  if (profile.orientation === "portrait") {
+    parts.push(
+      `crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2`,
+      `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd`,
+    );
+  } else {
+    if (enhancements.upscale4k) {
+      parts.push(
+        `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=decrease`,
+        `pad=${profile.width}:${profile.height}:-1:-1:color=black`,
+      );
+    } else {
+      parts.push(
+        `scale=-2:${profile.height}:flags=lanczos+accurate_rnd`,
+      );
+    }
+  }
 
-function buildAudioFilters(normalize: boolean): string {
-  return normalize ? "loudnorm=I=-14:TP=-1:LRA=11" : "anull";
+  parts.push("setsar=1");
+
+  if (sourceFps > 0) {
+    parts.push(`fps=fps=${Math.min(sourceFps, 60)}`);
+  }
+
+  return parts.join(",");
 }
 
 async function processClip(
@@ -171,35 +271,45 @@ async function processClip(
   outputPath: string,
   platform: StreamEditPlatform,
   enhancements: { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean },
-  onProgress?: (pct: number) => void,
+  sourceFps: number,
+  onProgress?: (pct: number, fps: number, stage: string) => void,
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
 
-  const vf = buildVideoFilters(enhancements, profile);
-  const af = buildAudioFilters(enhancements.audioNormalize);
+  const vf = buildVideoFilter(enhancements, profile, sourceFps);
+  const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
 
-  const args = [
+  const args: string[] = [
     "-ss", String(startSecs),
     "-i", sourcePath,
     "-t", String(actualDuration),
+
     "-vf", vf,
     "-af", af,
+
     "-c:v", profile.codec,
     "-crf", String(profile.crf),
     "-preset", profile.preset,
+    ...profile.codecArgs,
+
     "-c:a", "aac",
     "-b:a", profile.audioBitrate,
+    "-ar", String(profile.audioSampleRate),
+    "-ac", "2",
+
+    "-pix_fmt", "yuv420p",
+    "-color_primaries", "bt709",
+    "-color_trc", "bt709",
+    "-colorspace", "bt709",
+
     "-movflags", "+faststart",
     "-threads", "0",
+
     outputPath,
   ];
 
-  if (profile.codec === "libx265") {
-    args.splice(args.indexOf("-crf") + 2, 0, "-tag:v", "hvc1");
-  }
-
-  await runFFmpeg(args, (pct) => onProgress?.(pct));
+  await runFFmpeg(args, onProgress);
 }
 
 let activeJobId: number | null = null;
@@ -235,16 +345,36 @@ export async function queueStreamEditJob(
 
   logger.info(`[StreamEditor] Queued job ${job.id} for "${entry.title}" → ${platforms.join(", ")}`);
 
-  setImmediate(() => runJobInBackground(job.id).catch(err =>
-    logger.error(`[StreamEditor] Background job ${job.id} crashed:`, err?.message)
-  ));
+  if (activeJobId === null) {
+    setImmediate(() => runJobInBackground(job.id).catch(err =>
+      logger.error(`[StreamEditor] Background job ${job.id} crashed:`, err?.message)
+    ));
+  } else {
+    logger.info(`[StreamEditor] Job ${job.id} will start after job ${activeJobId} finishes`);
+  }
 
   return { jobId: job.id };
 }
 
+async function pickUpNextQueuedJob(): Promise<void> {
+  const waiting = await db.select({ id: streamEditJobs.id })
+    .from(streamEditJobs)
+    .where(eq(streamEditJobs.status, "queued"))
+    .orderBy(streamEditJobs.createdAt)
+    .limit(1);
+
+  if (waiting.length > 0) {
+    const nextId = waiting[0].id;
+    logger.info(`[StreamEditor] Picking up next queued job ${nextId}`);
+    setImmediate(() => runJobInBackground(nextId).catch(err =>
+      logger.error(`[StreamEditor] Background job ${nextId} crashed:`, err?.message)
+    ));
+  }
+}
+
 async function runJobInBackground(jobId: number): Promise<void> {
   if (activeJobId !== null) {
-    logger.info(`[StreamEditor] Job ${jobId} waiting — job ${activeJobId} is running`);
+    logger.info(`[StreamEditor] Job ${jobId} waiting — job ${activeJobId} is active`);
     return;
   }
 
@@ -252,31 +382,44 @@ async function runJobInBackground(jobId: number): Promise<void> {
 
   try {
     const [job] = await db.select().from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
-    if (!job || job.status !== "queued") return;
+    if (!job || job.status !== "queued") {
+      logger.info(`[StreamEditor] Job ${jobId} skipped (status=${job?.status ?? "missing"})`);
+      return;
+    }
 
-    await db.update(streamEditJobs).set({ status: "processing", startedAt: new Date() }).where(eq(streamEditJobs.id, jobId));
+    await db.update(streamEditJobs).set({
+      status: "processing",
+      startedAt: new Date(),
+      currentStage: "Probing source video",
+    }).where(eq(streamEditJobs.id, jobId));
 
     const sourceFile = job.sourceFilePath!;
     const probe = await probeVideo(sourceFile);
+
+    logger.info(`[StreamEditor] Job ${jobId}: source ${probe.width}×${probe.height} @ ${probe.fps}fps, ${Math.round(probe.durationSecs)}s`);
 
     const jobOutputDir = path.join(EDITOR_OUTPUT_DIR, `job_${jobId}`);
     fs.mkdirSync(jobOutputDir, { recursive: true });
 
     const clipSecs = (job.clipDurationMins ?? 60) * 60;
     const platforms = (job.platforms ?? []) as StreamEditPlatform[];
-    const enhancements = (job.enhancements ?? { upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true }) as {
-      upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean;
-    };
+    const enhancements = (job.enhancements ?? {
+      upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true,
+    }) as { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean };
 
     const numClips = Math.ceil(probe.durationSecs / clipSecs);
     const totalTasks = numClips * platforms.length;
     let completedTasks = 0;
-    const outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number }> = [];
+    const outputFiles: Array<{
+      platform: string; clipIndex: number; label: string;
+      filePath: string; fileSize: number; durationSecs: number;
+    }> = [];
 
     await db.update(streamEditJobs).set({
       sourceDurationSecs: Math.round(probe.durationSecs),
       totalClips: totalTasks,
       outputDir: jobOutputDir,
+      currentStage: "Starting encode",
     }).where(eq(streamEditJobs.id, jobId));
 
     for (const platform of platforms) {
@@ -288,10 +431,12 @@ async function runJobInBackground(jobId: number): Promise<void> {
         const startSecs = i * clipSecs;
         const actualDuration = Math.min(clipSecs, probe.durationSecs - startSecs);
         const clipLabel = `Part ${i + 1} of ${numClips} — ${profile.label}`;
-        const ext = "mp4";
-        const outputPath = path.join(platformDir, `clip_${String(i + 1).padStart(3, "0")}.${ext}`);
+        const outputPath = path.join(platformDir, `clip_${String(i + 1).padStart(3, "0")}.mp4`);
 
-        logger.info(`[StreamEditor] Job ${jobId}: ${clipLabel}`);
+        const stage = `${profile.label} · Clip ${i + 1}/${numClips}`;
+        logger.info(`[StreamEditor] Job ${jobId}: ${stage}`);
+
+        await db.update(streamEditJobs).set({ currentStage: stage }).where(eq(streamEditJobs.id, jobId));
 
         await processClip(
           sourceFile,
@@ -300,9 +445,14 @@ async function runJobInBackground(jobId: number): Promise<void> {
           outputPath,
           platform,
           enhancements,
-          (pct) => {
+          probe.fps,
+          (pct, fps, speedLabel) => {
             const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
-            db.update(streamEditJobs).set({ progress: overallPct }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
+            const stageDetail = `${stage} · ${speedLabel}`;
+            db.update(streamEditJobs).set({
+              progress: overallPct,
+              currentStage: stageDetail,
+            }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
           },
         );
 
@@ -332,18 +482,21 @@ async function runJobInBackground(jobId: number): Promise<void> {
       progress: 100,
       completedClips: totalTasks,
       outputFiles,
+      currentStage: "Complete",
       completedAt: new Date(),
     }).where(eq(streamEditJobs.id, jobId));
 
-    logger.info(`[StreamEditor] Job ${jobId} complete — ${outputFiles.length} files produced`);
+    logger.info(`[StreamEditor] Job ${jobId} complete — ${outputFiles.length} clips produced`);
   } catch (err: any) {
     logger.error(`[StreamEditor] Job ${jobId} failed:`, err?.message);
     await db.update(streamEditJobs).set({
       status: "error",
       errorMessage: String(err?.message ?? err).slice(0, 500),
+      currentStage: "Failed",
     }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
   } finally {
     activeJobId = null;
+    await pickUpNextQueuedJob();
   }
 }
 
@@ -365,10 +518,16 @@ export async function cancelEditJob(userId: string, jobId: number): Promise<void
     .where(and(eq(streamEditJobs.id, jobId), eq(streamEditJobs.userId, userId)))
     .limit(1);
   if (!job) return;
-  if (job.status === "processing") {
-    await db.update(streamEditJobs).set({ status: "error", errorMessage: "Cancelled by user" }).where(eq(streamEditJobs.id, jobId));
-  } else if (job.status === "queued") {
-    await db.update(streamEditJobs).set({ status: "error", errorMessage: "Cancelled before starting" }).where(eq(streamEditJobs.id, jobId));
+  if (job.status === "processing" || job.status === "queued") {
+    await db.update(streamEditJobs).set({
+      status: "error",
+      errorMessage: "Cancelled by user",
+      currentStage: "Cancelled",
+    }).where(eq(streamEditJobs.id, jobId));
+    if (activeJobId === jobId) {
+      activeJobId = null;
+      await pickUpNextQueuedJob();
+    }
   }
 }
 

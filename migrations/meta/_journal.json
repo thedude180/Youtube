@@ -148,6 +148,13 @@
       "when": 1776741410296,
       "tag": "0020_superb_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1776741779749,
+      "tag": "0021_bouncy_vindicator",
+      "breakpoints": true
     }
   ]
 }

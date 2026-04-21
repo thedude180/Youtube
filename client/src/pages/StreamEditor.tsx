@@ -3,11 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -19,9 +18,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  Scissors, Play, Clock, HardDrive, Loader2, CheckCircle2,
-  AlertCircle, Trash2, X, Sparkles, Film, Youtube, Clapperboard,
-  RefreshCw, Video,
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Scissors, Clock, HardDrive, Loader2, CheckCircle2,
+  AlertCircle, Trash2, X, Sparkles, Film, Clapperboard,
+  RefreshCw, Activity, Info,
 } from "lucide-react";
 import { SiTiktok, SiRumble, SiYoutube } from "react-icons/si";
 
@@ -49,6 +51,7 @@ interface EditJob {
   progress: number;
   totalClips: number;
   completedClips: number;
+  currentStage: string | null;
   outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number }>;
   errorMessage: string | null;
   createdAt: string;
@@ -56,12 +59,70 @@ interface EditJob {
   completedAt: string | null;
 }
 
-const PLATFORM_INFO: Record<string, { label: string; icon: any; color: string }> = {
-  youtube: { label: "YouTube 4K", icon: SiYoutube, color: "text-red-500" },
-  rumble: { label: "Rumble 4K", icon: SiRumble, color: "text-green-500" },
-  tiktok: { label: "TikTok Vertical", icon: SiTiktok, color: "text-pink-500" },
-  shorts: { label: "YouTube Shorts", icon: SiYoutube, color: "text-red-400" },
+const PLATFORM_INFO: Record<string, {
+  label: string;
+  icon: any;
+  color: string;
+  resolution: string;
+  codec: string;
+  detail: string;
+}> = {
+  youtube: {
+    label: "YouTube 4K",
+    icon: SiYoutube,
+    color: "text-red-500",
+    resolution: "3840 × 2160",
+    codec: "HEVC / H.265",
+    detail: "CRF 20 · fast preset · AQ-3 · 4-frame B-frames · Lanczos upscale",
+  },
+  rumble: {
+    label: "Rumble 4K",
+    icon: SiRumble,
+    color: "text-green-500",
+    resolution: "3840 × 2160",
+    codec: "AVC / H.264",
+    detail: "CRF 21 · fast preset · High profile L5.1 · AQ-2 · Lanczos upscale",
+  },
+  tiktok: {
+    label: "TikTok Vertical",
+    icon: SiTiktok,
+    color: "text-pink-500",
+    resolution: "1080 × 1920",
+    codec: "AVC / H.264",
+    detail: "CRF 22 · centre 9:16 crop · High profile L4.1 · max 10 min",
+  },
+  shorts: {
+    label: "YouTube Shorts",
+    icon: SiYoutube,
+    color: "text-red-400",
+    resolution: "1080 × 1920",
+    codec: "AVC / H.264",
+    detail: "CRF 21 · centre 9:16 crop · High profile L4.1 · max 60 s",
+  },
 };
+
+const ENHANCEMENT_DETAILS = [
+  {
+    key: "upscale4k" as const,
+    label: "4K Upscaling + Denoise",
+    desc: "Lanczos accurate-rnd scale to target res. hqdn3d temporal denoising runs first to remove stream compression artifacts.",
+  },
+  {
+    key: "audioNormalize" as const,
+    label: "Audio Normalization",
+    desc: "EBU R128 loudnorm to −14 LUFS / −1 dBTP, LRA 7 LU — broadcast-standard for gaming content.",
+  },
+  {
+    key: "colorEnhance" as const,
+    label: "Color Enhancement",
+    desc: "Subtle contrast +6%, saturation +12%, gamma 0.98 — applied at source resolution before upscaling.",
+  },
+  {
+    key: "sharpen" as const,
+    label: "Sharpening",
+    desc: "Unsharp mask at source resolution (luma 0.9, chroma 0.3) — sharpening before upscale gives crisper 4K.",
+  },
+];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -73,21 +134,25 @@ function formatDuration(secs: number): string {
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
-    queued: { label: "Queued", className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+    queued:     { label: "Queued",     className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
     processing: { label: "Processing", className: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-    done: { label: "Done", className: "bg-green-500/20 text-green-400 border-green-500/30" },
-    error: { label: "Error", className: "bg-red-500/20 text-red-400 border-red-500/30" },
+    done:       { label: "Done",       className: "bg-green-500/20 text-green-400 border-green-500/30" },
+    error:      { label: "Error",      className: "bg-red-500/20 text-red-400 border-red-500/30" },
   };
   const s = map[status] ?? { label: status, className: "bg-muted text-muted-foreground" };
   return <Badge variant="outline" className={s.className}>{s.label}</Badge>;
 }
 
-function JobCard({ job, onCancel, onDelete }: { job: EditJob; onCancel: (id: number) => void; onDelete: (id: number) => void }) {
+function JobCard({ job, onCancel, onDelete }: {
+  job: EditJob;
+  onCancel: (id: number) => void;
+  onDelete: (id: number) => void;
+}) {
   const isActive = job.status === "processing" || job.status === "queued";
   return (
     <Card className="bg-card/60 border-border/50" data-testid={`job-card-${job.id}`}>
@@ -137,33 +202,46 @@ function JobCard({ job, onCancel, onDelete }: { job: EditJob; onCancel: (id: num
         </div>
 
         {job.status === "processing" && (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{job.completedClips} / {job.totalClips} clips done</span>
               <span>{job.progress}%</span>
             </div>
             <Progress value={job.progress} className="h-1.5" />
+            {job.currentStage && (
+              <p className="text-xs text-blue-400 flex items-center gap-1.5">
+                <Activity className="h-3 w-3 shrink-0" />
+                <span className="truncate">{job.currentStage}</span>
+              </p>
+            )}
           </div>
+        )}
+
+        {job.status === "queued" && job.currentStage && (
+          <p className="text-xs text-yellow-400 flex items-center gap-1.5">
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+            {job.currentStage}
+          </p>
         )}
 
         {job.status === "error" && job.errorMessage && (
           <p className="text-xs text-red-400 flex items-start gap-1.5">
             <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            {job.errorMessage.slice(0, 120)}
+            {job.errorMessage.slice(0, 150)}
           </p>
         )}
 
         {job.status === "done" && job.outputFiles.length > 0 && (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground font-medium">Output files:</p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
+            <div className="space-y-1 max-h-36 overflow-y-auto">
               {job.outputFiles.map((f, i) => (
                 <div key={i} className="flex items-center justify-between text-xs text-muted-foreground gap-2">
                   <span className="flex items-center gap-1.5 truncate">
                     <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0" />
                     <span className="truncate">{f.label}</span>
                   </span>
-                  <span className="shrink-0">{formatBytes(f.fileSize)}</span>
+                  <span className="shrink-0 tabular-nums">{formatBytes(f.fileSize)}</span>
                 </div>
               ))}
             </div>
@@ -197,7 +275,7 @@ export default function StreamEditor() {
 
   const { data: jobsData, isLoading: jobsLoading } = useQuery<{ jobs: EditJob[] }>({
     queryKey: ["/api/stream-editor/jobs"],
-    refetchInterval: 5_000,
+    refetchInterval: 4_000,
   });
 
   const queueMutation = useMutation({
@@ -206,7 +284,7 @@ export default function StreamEditor() {
       queryClient.invalidateQueries({ queryKey: ["/api/stream-editor/jobs"] });
       setDialogOpen(false);
       setSelectedEntry(null);
-      toast({ title: "Job queued", description: "Processing will start immediately in the background." });
+      toast({ title: "Job queued", description: "Processing starts immediately in the background." });
     },
     onError: (err: any) => {
       toast({ title: "Failed to queue job", description: err?.message ?? "Unknown error", variant: "destructive" });
@@ -252,7 +330,7 @@ export default function StreamEditor() {
             Stream Editor
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Cut downloaded streams into platform-ready clips with 4K upscaling and audio enhancement
+            Cut downloaded streams into platform-optimised clips — 4K HEVC for YouTube, 4K AVC for Rumble, smart-cropped vertical for TikTok &amp; Shorts
           </p>
         </div>
         <Button
@@ -272,7 +350,9 @@ export default function StreamEditor() {
       {activeJobs.length > 0 && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-          <span>{activeJobs.length} job{activeJobs.length > 1 ? "s" : ""} processing — this runs in the background, you can navigate away</span>
+          <span>
+            {activeJobs.length} job{activeJobs.length > 1 ? "s" : ""} running — processing continues in the background, you can navigate away
+          </span>
         </div>
       )}
 
@@ -298,11 +378,14 @@ export default function StreamEditor() {
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {entries.map(entry => (
-                <Dialog key={entry.id} open={dialogOpen && selectedEntry?.id === entry.id}
+                <Dialog
+                  key={entry.id}
+                  open={dialogOpen && selectedEntry?.id === entry.id}
                   onOpenChange={open => {
                     if (open) { setSelectedEntry(entry); setDialogOpen(true); }
                     else { setDialogOpen(false); setSelectedEntry(null); }
-                  }}>
+                  }}
+                >
                   <DialogTrigger asChild>
                     <Card
                       className="bg-card/60 border-border/50 cursor-pointer hover:border-primary/40 hover:bg-card/80 transition-colors"
@@ -314,7 +397,7 @@ export default function StreamEditor() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{entry.title ?? "Untitled"}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             {entry.gameName && <span className="text-xs text-muted-foreground">{entry.gameName}</span>}
                             {entry.fileSize && <span className="text-xs text-muted-foreground">{formatBytes(entry.fileSize)}</span>}
                             {entry.duration && <span className="text-xs text-muted-foreground">{entry.duration}</span>}
@@ -338,7 +421,7 @@ export default function StreamEditor() {
 
                     <div className="space-y-5 pt-2">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-0.5">Source</p>
+                        <p className="text-xs text-muted-foreground mb-0.5">Source file</p>
                         <p className="text-sm font-semibold truncate">{entry.title}</p>
                         {entry.fileSize && <p className="text-xs text-muted-foreground">{formatBytes(entry.fileSize)}</p>}
                       </div>
@@ -350,22 +433,32 @@ export default function StreamEditor() {
                         <div className="grid grid-cols-2 gap-2">
                           {Object.entries(PLATFORM_INFO).map(([id, info]) => {
                             const Icon = info.icon;
+                            const active = selectedPlatforms.includes(id);
                             return (
-                              <button
-                                key={id}
-                                type="button"
-                                onClick={() => togglePlatform(id)}
-                                className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-colors text-sm ${
-                                  selectedPlatforms.includes(id)
-                                    ? "border-primary bg-primary/10 text-foreground"
-                                    : "border-border/50 bg-muted/20 text-muted-foreground hover:border-border"
-                                }`}
-                                data-testid={`platform-toggle-${id}`}
-                              >
-                                <Icon className={`h-4 w-4 shrink-0 ${info.color}`} />
-                                <span className="truncate">{info.label}</span>
-                                {selectedPlatforms.includes(id) && <CheckCircle2 className="h-3.5 w-3.5 text-primary ml-auto shrink-0" />}
-                              </button>
+                              <Tooltip key={id}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePlatform(id)}
+                                    className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors ${
+                                      active
+                                        ? "border-primary bg-primary/10 text-foreground"
+                                        : "border-border/50 bg-muted/20 text-muted-foreground hover:border-border"
+                                    }`}
+                                    data-testid={`platform-toggle-${id}`}
+                                  >
+                                    <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${info.color}`} />
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium leading-tight">{info.label}</p>
+                                      <p className="text-xs opacity-60">{info.resolution} · {info.codec}</p>
+                                    </div>
+                                    {active && <CheckCircle2 className="h-3.5 w-3.5 text-primary ml-auto shrink-0 mt-0.5" />}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-[200px] text-xs">
+                                  {info.detail}
+                                </TooltipContent>
+                              </Tooltip>
                             );
                           })}
                         </div>
@@ -393,16 +486,13 @@ export default function StreamEditor() {
                           <Sparkles className="h-3.5 w-3.5 text-primary" />
                           Enhancements
                         </Label>
-                        {([
-                          ["upscale4k", "4K Upscaling", "Scales to 3840×2160 using Lanczos (crisp, YouTube-ready)"],
-                          ["audioNormalize", "Audio Normalization", "Broadcast-standard loudness (−14 LUFS)"],
-                          ["colorEnhance", "Color Enhancement", "Slight contrast and saturation boost"],
-                          ["sharpen", "Sharpening", "Unsharp mask for extra crispness"],
-                        ] as [keyof typeof enhancements, string, string][]).map(([key, label, desc]) => (
+                        {ENHANCEMENT_DETAILS.map(({ key, label, desc }) => (
                           <div key={key} className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm">{label}</p>
-                              <p className="text-xs text-muted-foreground">{desc}</p>
+                            <div className="flex items-start gap-1.5 min-w-0">
+                              <div>
+                                <p className="text-sm leading-snug">{label}</p>
+                                <p className="text-xs text-muted-foreground leading-snug">{desc}</p>
+                              </div>
                             </div>
                             <Switch
                               checked={enhancements[key]}
@@ -411,6 +501,13 @@ export default function StreamEditor() {
                             />
                           </div>
                         ))}
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                        <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+                          All enhancements run at source resolution before upscaling — denoising removes stream compression artifacts, sharpening + colour grading produce cleaner 4K than post-scale processing.
+                        </p>
                       </div>
 
                       <div className="flex gap-2 pt-1">
@@ -425,9 +522,9 @@ export default function StreamEditor() {
                           data-testid="queue-job-btn"
                         >
                           {queueMutation.isPending ? (
-                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Queuing...</>
+                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Queuing…</>
                           ) : (
-                            <><Scissors className="h-4 w-4 mr-2" /> Start Editing</>
+                            <><Scissors className="h-4 w-4 mr-2" />Start Editing</>
                           )}
                         </Button>
                       </div>
