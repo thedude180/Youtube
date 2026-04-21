@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { getEvolutionStatus, runEvolutionCycle } from "../services/infinite-evolution-engine";
+import { getCapabilityExpansionStatus, runCapabilityExpansionCycle } from "../services/autonomous-capability-engine";
 import { db } from "../db";
 import {
   discoveredStrategies, systemImprovements, selfReflectionJournal,
@@ -142,6 +143,30 @@ export function registerEvolutionRoutes(app: Express): void {
         curiosityItems,
         recentActions,
       });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** Capability expansion status — gaps found and filled by the system itself. */
+  app.get("/api/system-growth/capability-expansion", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const status = await getCapabilityExpansionStatus(userId);
+      res.json(status);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /** Manually trigger a capability expansion cycle. */
+  app.post("/api/system-growth/capability-expansion/run", async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      await runCapabilityExpansionCycle();
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

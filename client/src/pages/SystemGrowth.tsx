@@ -1,12 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Brain, TrendingUp, Zap, Target, FlaskConical, Lightbulb,
   CheckCircle2, Clock, Activity, BookOpen, BarChart3, Sparkles,
+  Plus, Cpu, RefreshCw,
 } from "lucide-react";
 
 const MOOD_COLORS: Record<string, string> = {
@@ -67,14 +70,43 @@ function StatCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
   );
 }
 
+const GAP_TYPE_LABELS: Record<string, string> = {
+  missing_prompt: "Missing Prompt",
+  missing_strategy: "Missing Strategy",
+  missing_knowledge: "Missing Knowledge",
+  missing_behavior: "Missing Behavior",
+};
+
+const SOLUTION_COLORS: Record<string, string> = {
+  new_prompt: "text-blue-400",
+  new_strategy: "text-emerald-400",
+  new_knowledge: "text-violet-400",
+};
+
 export default function SystemGrowth() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/system-growth/overview"],
     refetchInterval: 60_000,
     staleTime: 30_000,
     enabled: !!user,
+  });
+
+  const { data: capData, isLoading: capLoading } = useQuery<any>({
+    queryKey: ["/api/system-growth/capability-expansion"],
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+
+  const triggerExpansion = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/system-growth/capability-expansion/run"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/system-growth/capability-expansion"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system-growth/overview"] });
+    },
   });
 
   if (isLoading) {
@@ -405,6 +437,120 @@ export default function SystemGrowth() {
           </CardContent>
         </Card>
       )}
+
+      {/* Capability Expansion */}
+      <Card data-testid="card-capability-expansion">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-primary" />
+              Capability Expansion
+              {capData && (
+                <Badge variant="secondary" className="text-xs ml-1">
+                  {capData.filledGaps ?? 0} filled · {capData.pendingGaps ?? 0} pending
+                </Badge>
+              )}
+            </CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => triggerExpansion.mutate()}
+              disabled={triggerExpansion.isPending}
+              data-testid="button-trigger-expansion"
+            >
+              <RefreshCw className={`h-3 w-3 ${triggerExpansion.isPending ? "animate-spin" : ""}`} />
+              {triggerExpansion.isPending ? "Running…" : "Run Now"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {capLoading ? (
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 rounded-lg" />)}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Progress bar */}
+              {capData && capData.totalGaps > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Gaps filled</span>
+                    <span className="text-xs tabular-nums font-mono">
+                      {capData.filledGaps} / {capData.totalGaps}
+                    </span>
+                  </div>
+                  <Progress
+                    value={capData.totalGaps > 0 ? Math.round((capData.filledGaps / capData.totalGaps) * 100) : 0}
+                    className="h-1.5"
+                  />
+                </div>
+              )}
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Recently filled */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Recently Added
+                  </p>
+                  {(capData?.recentlyFilled ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      The system will fill its first gaps 8 minutes after startup.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(capData?.recentlyFilled ?? []).map((gap: any) => (
+                        <div key={gap.id} className="space-y-0.5" data-testid={`filled-gap-${gap.id}`}>
+                          <div className="flex items-start gap-2">
+                            <Plus className={`h-3 w-3 mt-0.5 shrink-0 ${SOLUTION_COLORS[gap.solutionType] ?? "text-primary"}`} />
+                            <p className="text-xs font-medium leading-snug">{gap.title}</p>
+                          </div>
+                          {gap.solutionSummary && (
+                            <p className="text-xs text-muted-foreground line-clamp-2 ml-5">{gap.solutionSummary}</p>
+                          )}
+                          <div className="flex items-center gap-1 ml-5">
+                            <Badge variant="outline" className={`text-xs ${SOLUTION_COLORS[gap.solutionType] ?? ""}`}>
+                              {gap.solutionType?.replace(/_/g, " ")}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{timeAgo(gap.filledAt)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Pending gaps */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-yellow-500" /> Being Worked On
+                  </p>
+                  {(capData?.pending ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">All identified gaps are filled.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(capData?.pending ?? []).map((gap: any) => (
+                        <div key={gap.id} className="space-y-0.5" data-testid={`pending-gap-${gap.id}`}>
+                          <div className="flex items-start gap-2">
+                            <div className="mt-1 h-2 w-2 rounded-full bg-yellow-500 shrink-0" />
+                            <p className="text-xs font-medium leading-snug">{gap.title}</p>
+                          </div>
+                          <div className="flex items-center gap-1 ml-4">
+                            <Badge variant="outline" className="text-xs">
+                              {GAP_TYPE_LABELS[gap.gapType] ?? gap.gapType}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">Priority {gap.priority}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
     </div>
   );

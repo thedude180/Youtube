@@ -9825,3 +9825,33 @@ export const platformFeatureEligibility = pgTable("platform_feature_eligibility"
 export const insertPlatformFeatureEligibilitySchema = createInsertSchema(platformFeatureEligibility).omit({ id: true, createdAt: true });
 export type InsertPlatformFeatureEligibility = z.infer<typeof insertPlatformFeatureEligibilitySchema>;
 export type PlatformFeatureEligibility = typeof platformFeatureEligibility.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Autonomous Capability Gaps — identified by the system, filled by the system
+// ---------------------------------------------------------------------------
+export const capabilityGaps = pgTable("capability_gaps", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  domain: text("domain").notNull(),
+  gapType: text("gap_type").notNull(), // missing_prompt | missing_strategy | missing_knowledge | missing_behavior
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  priority: integer("priority").notNull().default(5),
+  status: text("status").notNull().default("identified"), // identified | filling | filled | failed
+  solutionType: text("solution_type"),   // new_prompt | new_strategy | new_knowledge
+  solutionRef: text("solution_ref"),     // key/id of the created solution
+  solutionSummary: text("solution_summary"),
+  identifiedBy: text("identified_by").notNull().default("autonomous-capability-engine"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  filledAt: timestamp("filled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("cg_user_idx").on(t.userId),
+  index("cg_status_idx").on(t.status),
+  index("cg_domain_idx").on(t.domain),
+]);
+
+export const insertCapabilityGapSchema = createInsertSchema(capabilityGaps).omit({ id: true, createdAt: true, filledAt: true, lastAttemptAt: true });
+export type InsertCapabilityGap = z.infer<typeof insertCapabilityGapSchema>;
+export type CapabilityGap = typeof capabilityGaps.$inferSelect;
