@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "vd_user_doc_type_uniq" ON "vault_documents" USING btree ("user_id","doc_type");
