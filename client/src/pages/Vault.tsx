@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -673,11 +673,7 @@ export default function Vault() {
 
   const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<VaultDoc[]>({
     queryKey: ["/api/vault-docs"],
-    refetchInterval: (query) => {
-      if (!showingDocs) return false;
-      const data = query.state.data as VaultDoc[] | undefined;
-      return (data ?? []).some((d) => d.status === "generating") ? 3_000 : 10_000;
-    },
+    refetchInterval: showingDocs ? 10_000 : false,
     enabled: true,
   });
 
@@ -711,9 +707,48 @@ export default function Vault() {
     refetchInterval: (query) => {
       if (!viewingDoc) return false;
       const detail = query.state.data as VaultDocDetail | undefined;
-      return detail?.status === "generating" ? 3_000 : 10_000;
+      return detail?.status === "generating" ? 10_000 : false;
     },
   });
+
+  const viewingDocRef = useRef(viewingDoc);
+  useEffect(() => { viewingDocRef.current = viewingDoc; }, [viewingDoc]);
+
+  useEffect(() => {
+    if (!showingDocs) return;
+
+    let es: EventSource | null = null;
+    let closed = false;
+
+    function connect() {
+      if (closed) return;
+      es = new EventSource("/api/vault-docs/stream", { withCredentials: true });
+
+      es.onmessage = () => {
+        void queryClient.invalidateQueries({ queryKey: ["/api/vault-docs"] });
+        const doc = viewingDocRef.current;
+        if (doc) {
+          void queryClient.invalidateQueries({ queryKey: ["/api/vault-docs", doc] });
+        }
+      };
+
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        if (!closed) {
+          setTimeout(connect, 5_000);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      closed = true;
+      es?.close();
+      es = null;
+    };
+  }, [showingDocs]);
 
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/sync"),

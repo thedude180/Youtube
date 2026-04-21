@@ -29,6 +29,7 @@ import {
 import { eq, and, desc, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
+import { emitVaultDocEvent } from "../lib/vault-docs-sse";
 
 const logger = createLogger("vault-docs-generator");
 
@@ -553,6 +554,8 @@ export async function generateVaultDocument(userId: string, docType: VaultDocTyp
     docId = inserted.id;
   }
 
+  emitVaultDocEvent(userId, { docType, status: "generating" });
+
   try {
     const data = await gatherSystemData(userId);
     const generator = GENERATORS[docType];
@@ -569,6 +572,7 @@ export async function generateVaultDocument(userId: string, docType: VaultDocTyp
       metadata: { emoji: meta.emoji, description: meta.description },
     }).where(eq(vaultDocuments.id, docId));
 
+    emitVaultDocEvent(userId, { docType, status: "ready" });
     logger.info(`[VaultDocs] ${docType} complete — ${wordCount} words (user ${userId.slice(0, 8)})`);
   } catch (err: any) {
     logger.error(`[VaultDocs] Failed to generate ${docType}: ${err.message?.slice(0, 200)}`);
@@ -577,6 +581,7 @@ export async function generateVaultDocument(userId: string, docType: VaultDocTyp
       errorMessage: err.message?.slice(0, 500),
       updatedAt: new Date(),
     }).where(eq(vaultDocuments.id, docId));
+    emitVaultDocEvent(userId, { docType, status: "failed" });
     throw err;
   }
 }

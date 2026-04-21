@@ -4,6 +4,7 @@ import { getVaultDocuments, generateVaultDocument, generateAllVaultDocuments, DO
 import { db } from "../db";
 import { vaultDocuments, VAULT_DOC_TYPES, type VaultDocType } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { addSseClient } from "../lib/vault-docs-sse";
 
 function parseDocType(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -57,6 +58,34 @@ export function registerVaultDocsRoutes(app: Express) {
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to fetch vault documents" });
     }
+  });
+
+  // GET /api/vault-docs/stream — SSE endpoint for real-time document status updates
+  app.get("/api/vault-docs/stream", requireAuth, (req, res) => {
+    const userId = getUserId(req);
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    res.write(": connected\n\n");
+
+    const cleanup = addSseClient(userId, res);
+
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(": heartbeat\n\n");
+      } catch {
+        clearInterval(heartbeat);
+      }
+    }, 25_000);
+
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      cleanup();
+    });
   });
 
   // GET /api/vault-docs/:docType — get a single document with full content
