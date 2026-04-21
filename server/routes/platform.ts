@@ -544,6 +544,72 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.get("/api/vault/entries/:id/clips", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const entryId = parseInt(req.params.id as string, 10);
+      if (isNaN(entryId)) return res.status(400).json({ error: "Invalid entry ID" });
+
+      const { contentVaultBackups, streamEditJobs, studioVideos } = await import("@shared/schema");
+      const { eq, and, inArray } = await import("drizzle-orm");
+
+      const [entry] = await db.select().from(contentVaultBackups)
+        .where(and(eq(contentVaultBackups.id, entryId), eq(contentVaultBackups.userId, userId)));
+      if (!entry) return res.status(404).json({ error: "Entry not found" });
+
+      const jobs = await db.select().from(streamEditJobs)
+        .where(and(eq(streamEditJobs.vaultEntryId, entryId), eq(streamEditJobs.userId, userId)));
+
+      const allClips: Array<{
+        jobId: number; jobStatus: string; autoPublish: boolean; completedAt: Date | null;
+        platform: string; clipIndex: number; label: string; fileSize: number; durationSecs: number;
+        studioVideoId?: number; scheduledPublishAt?: string;
+        studioTitle?: string; studioDescription?: string; studioTags?: string[];
+        studioThumbnailUrl?: string; studioStatus?: string; studioPublishedId?: string;
+      }> = [];
+
+      const studioIds = jobs
+        .flatMap(j => (j.outputFiles ?? []).map((f: any) => f.studioVideoId).filter(Boolean));
+      const studioMap = new Map<number, any>();
+      if (studioIds.length > 0) {
+        const svRows = await db.select().from(studioVideos).where(inArray(studioVideos.id, studioIds));
+        for (const sv of svRows) studioMap.set(sv.id, sv);
+      }
+
+      for (const job of jobs) {
+        for (const f of (job.outputFiles ?? []) as any[]) {
+          const sv = f.studioVideoId ? studioMap.get(f.studioVideoId) : undefined;
+          const meta = sv?.metadata ?? {};
+          allClips.push({
+            jobId: job.id,
+            jobStatus: job.status ?? "unknown",
+            autoPublish: !!(job.autoPublish),
+            completedAt: job.completedAt,
+            platform: f.platform,
+            clipIndex: f.clipIndex,
+            label: f.label,
+            fileSize: f.fileSize ?? 0,
+            durationSecs: f.durationSecs ?? 0,
+            studioVideoId: f.studioVideoId,
+            scheduledPublishAt: f.scheduledPublishAt,
+            studioTitle: sv?.title,
+            studioDescription: sv?.description,
+            studioTags: meta.tags ?? [],
+            studioThumbnailUrl: sv?.thumbnailUrl ?? meta.customThumbnail,
+            studioStatus: sv?.status,
+            studioPublishedId: meta.publishedYoutubeId,
+          });
+        }
+      }
+
+      res.json({ entry, jobs: jobs.map(j => ({ id: j.id, status: j.status, platforms: j.platforms, autoPublish: j.autoPublish, completedAt: j.completedAt, createdAt: j.createdAt })), clips: allClips });
+    } catch (error: any) {
+      logger.error("[Vault] Clips error:", error);
+      res.status(500).json({ error: "Failed to get clips" });
+    }
+  });
+
   app.post("/api/vault/sync", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
