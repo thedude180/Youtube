@@ -637,6 +637,7 @@ export default function Vault() {
   const [selectedEntry, setSelectedEntry] = useState<VaultEntry | null>(null);
   const [showingDocs, setShowingDocs] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<string | null>(null);
+  const [sseReconnecting, setSseReconnecting] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<string>("all");
 
@@ -739,10 +740,27 @@ export default function Vault() {
 
     let es: EventSource | null = null;
     let closed = false;
+    let retryDelay = 1_000;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    function connect() {
+    function connect(isReconnect = false) {
       if (closed) return;
+
+      if (isReconnect) {
+        setSseReconnecting(true);
+        void queryClient.invalidateQueries({ queryKey: ["/api/vault-docs"] });
+        const doc = viewingDocRef.current;
+        if (doc) {
+          void queryClient.invalidateQueries({ queryKey: ["/api/vault-docs", doc] });
+        }
+      }
+
       es = new EventSource("/api/vault-docs/stream", { withCredentials: true });
+
+      es.onopen = () => {
+        retryDelay = 1_000;
+        setSseReconnecting(false);
+      };
 
       es.onmessage = (e: MessageEvent) => {
         let payload: { docType?: string; status?: string } = {};
@@ -779,7 +797,11 @@ export default function Vault() {
         es?.close();
         es = null;
         if (!closed) {
-          setTimeout(connect, 5_000);
+          setSseReconnecting(true);
+          retryTimer = setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 2, 30_000);
+            connect(true);
+          }, retryDelay);
         }
       };
     }
@@ -788,10 +810,12 @@ export default function Vault() {
 
     return () => {
       closed = true;
+      if (retryTimer !== null) clearTimeout(retryTimer);
       es?.close();
       es = null;
       Object.values(sseCleanupTimers.current).forEach(clearTimeout);
       sseCleanupTimers.current = {};
+      setSseReconnecting(false);
     };
   }, [showingDocs]);
 
@@ -1051,6 +1075,13 @@ export default function Vault() {
             </Button>
           </div>
 
+          {sseReconnecting && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex items-center gap-2 text-xs text-amber-400" data-testid="sse-reconnecting-banner">
+              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+              Reconnecting to live updates…
+            </div>
+          )}
+
           {(isAnyGenerating || generateAllDocsMutation.isPending) && (
             <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2" data-testid="docs-generation-progress">
               <div className="flex items-center justify-between text-xs">
@@ -1193,6 +1224,12 @@ export default function Vault() {
         const isReady = detailEffectiveStatus === "ready";
         return (
           <div className="space-y-4">
+            {sseReconnecting && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex items-center gap-2 text-xs text-amber-400" data-testid="sse-reconnecting-banner-detail">
+                <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                Reconnecting to live updates…
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
