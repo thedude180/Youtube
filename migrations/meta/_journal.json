@@ -169,6 +169,13 @@
       "when": 1776744477102,
       "tag": "0023_pretty_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776794766563,
+      "tag": "0024_loving_screwball",
+      "breakpoints": true
     }
   ]
 }

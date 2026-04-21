@@ -264,7 +264,7 @@ async function checkFeatureForChannel(
       thresholdsMet,
     };
 
-    if (!feature.requiresApplication && existing.status !== "active") {
+    if (!feature.requiresApplication) {
       updates.status = "active";
       updates.activatedAt = new Date();
       if (!existing.notifiedAt) {
