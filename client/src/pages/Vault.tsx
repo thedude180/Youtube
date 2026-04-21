@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 import { MarkdownViewer } from "@/components/MarkdownViewer";
+import { REGEN_STEPS } from "@/lib/regenProgress";
 import { Link } from "wouter";
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
