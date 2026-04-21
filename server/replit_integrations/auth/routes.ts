@@ -1,11 +1,14 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../customer-database-engine";
-import { ADMIN_EMAIL } from "@shared/models/auth";
+import { ADMIN_EMAIL, SUPPORT_EMAIL } from "@shared/models/auth";
 import { z } from "zod";
 import { recordLoginAttempt, checkAccountLock } from "../../services/security-fortress";
+
+const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 const SERVER_START_TIME = Date.now();
 const STARTUP_GRACE_MS = 60_000; // 1 minute grace period after startup
@@ -294,9 +297,121 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid email" });
       }
       const { email } = parsed.data;
-      res.json({ ok: true, message: "If an account with that email exists, you will receive a password reset link shortly." });
+
+      // Always return the same message to prevent email enumeration
+      const genericOk = { ok: true, message: "If an account with that email exists, you will receive a password reset link shortly." };
+
+      const user = await authStorage.getUserByEmail(email.toLowerCase());
+      if (!user || !user.passwordHash) {
+        // No email account (OAuth-only or doesn't exist) — return same message silently
+        return res.json(genericOk);
+      }
+
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS);
+      await authStorage.createPasswordResetToken(user.id, token, expiresAt);
+
+      const host = req.get("host") || "localhost:5000";
+      const protocol = (req.headers["x-forwarded-proto"] as string) || "http";
+      const appUrl = `${protocol}://${host}`;
+
+      const resetUrl = `${appUrl}/reset-password?token=${token}`;
+
+      const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: system-ui, sans-serif; background: #0f0f14; margin: 0; padding: 40px 20px;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; margin:0 auto;">
+    <tr><td style="background:#1a1a2e; border-radius:16px; padding:40px; border:1px solid #2a2a4a;">
+      <div style="margin-bottom:28px;">
+        <span style="font-size:22px; font-weight:700; color:#fff;">Creator<span style="color:#6d28d9;">OS</span></span>
+      </div>
+      <h1 style="color:#fff; font-size:20px; font-weight:600; margin:0 0 12px;">Reset your password</h1>
+      <p style="color:#9ca3af; font-size:15px; line-height:1.6; margin:0 0 28px;">
+        Someone (hopefully you) requested a password reset for your CreatorOS account.
+        Click the button below to choose a new password. This link expires in <strong style="color:#c4b5fd;">1 hour</strong>.
+      </p>
+      <a href="${resetUrl}" style="display:inline-block; background:#7c3aed; color:#fff; font-weight:600; font-size:15px; padding:14px 32px; border-radius:10px; text-decoration:none; margin-bottom:28px;">
+        Reset My Password
+      </a>
+      <p style="color:#6b7280; font-size:13px; line-height:1.6; margin:0 0 8px;">
+        If the button doesn't work, copy and paste this link into your browser:
+      </p>
+      <p style="color:#8b5cf6; font-size:12px; word-break:break-all; margin:0 0 28px;">${resetUrl}</p>
+      <hr style="border:none; border-top:1px solid #2a2a4a; margin:0 0 20px;" />
+      <p style="color:#4b5563; font-size:12px; margin:0;">
+        If you didn't request this, you can safely ignore this email — your password won't change.
+        <br>— The CreatorOS Team
+      </p>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+      try {
+        const { sendGmail } = await import("../../services/gmail-client");
+        await sendGmail(user.email!, "Reset your CreatorOS password", html);
+      } catch (emailErr) {
+        logger.error("[Auth] Failed to send password reset email:", emailErr);
+        // Still return generic ok — don't leak the failure
+      }
+
+      res.json(genericOk);
     } catch (error: any) {
       logger.error("Forgot password error:", error);
+      res.status(500).json({ message: "Something went wrong. Please try again." });
+    }
+  });
+
+  // Validate reset token before showing the reset form
+  app.get("/api/auth/reset-password/validate", async (req: any, res) => {
+    try {
+      const { token } = req.query as { token?: string };
+      if (!token) return res.status(400).json({ valid: false, message: "Token is required" });
+
+      const record = await authStorage.getPasswordResetToken(token);
+      if (!record) return res.json({ valid: false, message: "Invalid or expired reset link" });
+      if (record.usedAt) return res.json({ valid: false, message: "This reset link has already been used" });
+      if (new Date() > record.expiresAt) return res.json({ valid: false, message: "This reset link has expired. Please request a new one." });
+
+      res.json({ valid: true });
+    } catch (error: any) {
+      logger.error("Reset token validation error:", error);
+      res.status(500).json({ valid: false, message: "Something went wrong" });
+    }
+  });
+
+  // Consume the token and set a new password
+  app.post("/api/auth/reset-password", rateLimitAuth(10, 60_000), async (req: any, res) => {
+    try {
+      const schema = z.object({
+        token: z.string().min(1),
+        password: z.string()
+          .min(8, "Password must be at least 8 characters")
+          .regex(/[A-Z]/, "Must contain an uppercase letter")
+          .regex(/[a-z]/, "Must contain a lowercase letter")
+          .regex(/\d/, "Must contain a number")
+          .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/, "Must contain a special character"),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid input" });
+      }
+      const { token, password } = parsed.data;
+
+      const record = await authStorage.getPasswordResetToken(token);
+      if (!record) return res.status(400).json({ message: "Invalid or expired reset link" });
+      if (record.usedAt) return res.status(400).json({ message: "This reset link has already been used" });
+      if (new Date() > record.expiresAt) return res.status(400).json({ message: "This reset link has expired. Please request a new one." });
+
+      const passwordHash = await bcrypt.hash(password, 12);
+      await authStorage.updateUserPassword(record.userId, passwordHash);
+      await authStorage.markResetTokenUsed(token);
+
+      logger.info(`[Auth] Password reset completed for user ${record.userId.slice(0, 8)}`);
+      res.json({ ok: true, message: "Your password has been reset. You can now sign in." });
+    } catch (error: any) {
+      logger.error("Reset password error:", error);
       res.status(500).json({ message: "Something went wrong. Please try again." });
     }
   });

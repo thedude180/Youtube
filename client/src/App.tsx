@@ -66,6 +66,7 @@ const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
+const ResetPassword  = lazyRetry(() => import("@/pages/ResetPassword"));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -190,6 +191,7 @@ function Router() {
       <Route path="/privacy">{() => <SectionErrorBoundary fallbackTitle="Privacy Policy failed to load"><PrivacyPolicy /></SectionErrorBoundary>}</Route>
       <Route path="/terms">{() => <SectionErrorBoundary fallbackTitle="Terms of Service failed to load"><TermsOfService /></SectionErrorBoundary>}</Route>
       <Route path="/data-disclosure">{() => <SectionErrorBoundary fallbackTitle="Data Disclosure failed to load"><DataDisclosure /></SectionErrorBoundary>}</Route>
+      <Route path="/reset-password">{() => <Suspense fallback={<PageSkeleton />}><ResetPassword /></Suspense>}</Route>
 
       <Route path="/calendar">{() => <Redirect to="/content/calendar" />}</Route>
       <Route path="/videos">{() => <Redirect to="/content" />}</Route>
@@ -760,10 +762,11 @@ function AppContent() {
   if (isLoading) return loader;
 
   if (!isAuthenticated) {
-    if (location === "/pricing")       return <Suspense fallback={loader}><Pricing /></Suspense>;
-    if (location === "/privacy")       return <Suspense fallback={loader}><PrivacyPolicy /></Suspense>;
-    if (location === "/terms")         return <Suspense fallback={loader}><TermsOfService /></Suspense>;
+    if (location === "/pricing")         return <Suspense fallback={loader}><Pricing /></Suspense>;
+    if (location === "/privacy")         return <Suspense fallback={loader}><PrivacyPolicy /></Suspense>;
+    if (location === "/terms")           return <Suspense fallback={loader}><TermsOfService /></Suspense>;
     if (location === "/data-disclosure") return <Suspense fallback={loader}><DataDisclosure /></Suspense>;
+    if (location.startsWith("/reset-password")) return <Suspense fallback={loader}><ResetPassword /></Suspense>;
     return <Suspense fallback={loader}><Landing /></Suspense>;
   }
 

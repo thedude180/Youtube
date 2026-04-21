@@ -199,7 +199,7 @@ export function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
             <div className="flex flex-col items-center gap-3 py-4" data-testid="text-forgot-success">
               <CheckCircle2 className="h-10 w-10 text-emerald-400" />
               <p className="text-sm text-center text-muted-foreground">
-                If an account with that email exists, you will receive a password reset link shortly.
+                If an account with that email exists, you will receive a password reset link shortly. Check your inbox (and spam folder).
               </p>
               <Button type="button" variant="outline" data-testid="button-back-to-login"
                 onClick={() => { setMode("login"); setForgotSent(false); }}>
@@ -208,8 +208,11 @@ export function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="rounded-lg bg-muted/40 border border-border/50 px-3.5 py-3 text-xs text-muted-foreground leading-relaxed" data-testid="text-username-reminder">
+                <span className="font-semibold text-foreground/70">Forgot your username?</span> Your username is the email address you used to sign up. Enter it below to receive a password reset link.
+              </div>
               <div className="space-y-1.5">
-                <Label htmlFor="forgot-email" className="text-xs font-medium">Email</Label>
+                <Label htmlFor="forgot-email" className="text-xs font-medium">Email Address</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input id="forgot-email" data-testid="input-forgot-email" type="email"
