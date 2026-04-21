@@ -1,97 +1,24 @@
 import { createLogger } from "../lib/logger";
-import { ADMIN_EMAIL } from "@shared/models/auth";
 
 const logger = createLogger("token-budget-alert");
 
 const ALERT_THRESHOLD = 0.8;
 
-// In-memory cache of (engine|utcDay) keys confirmed sent. Used as a fast
-// pre-filter; DB is the authoritative de-dup store that survives restarts.
-const _sentCache = new Set<string>();
+// In-memory log-dedup: one log line per engine per UTC day, not per token spend.
+const _loggedToday = new Set<string>();
 
 function utcDay(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
-function _appBaseUrl(): string {
-  if (process.env.REPLIT_DOMAINS) {
-    const primary = process.env.REPLIT_DOMAINS.split(",")[0];
-    if (primary) return "https://" + primary;
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  logger.error("[TokenBudgetAlert] REPLIT_DOMAINS is not set — alert email will contain a placeholder URL");
-  return "";
-}
-
-/** Returns admin emails: ADMIN_EMAIL + all DB users with role='admin'. */
-async function _getAdminEmails(): Promise<string[]> {
-  const emails = new Set<string>([ADMIN_EMAIL]);
-  try {
-    const { db } = await import("../db");
-    const { users } = await import("@shared/schema");
-    const { eq } = await import("drizzle-orm");
-    const adminUsers = await db.select({ email: users.email }).from(users).where(eq(users.role, "admin"));
-    for (const u of adminUsers) {
-      if (u.email) emails.add(u.email);
-    }
-  } catch (err: any) {
-    logger.warn(`[TokenBudgetAlert] Could not load admin emails from DB: ${err?.message ?? err}`);
-  }
-  return Array.from(emails);
-}
-
-function _buildEmailHtml(engine: string, used: number, cap: number, settingsUrl: string): string {
-  const pct = Math.round((used / cap) * 100);
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
-<body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif;color:#e2e8f0;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 0;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;overflow:hidden;">
-        <tr><td style="background:#dc2626;padding:20px 32px;">
-          <span style="font-size:18px;font-weight:700;color:#fff;">&#9888;&#65039; CreatorOS &mdash; Token Budget Alert</span>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 16px;font-size:15px;color:#94a3b8;">The following AI engine has crossed the <strong style="color:#fbbf24;">80% daily token budget threshold</strong>:</p>
-          <table width="100%" cellpadding="12" cellspacing="0" style="background:#0f172a;border-radius:8px;margin-bottom:24px;">
-            <tr>
-              <td style="font-size:14px;color:#94a3b8;border-bottom:1px solid #334155;">Engine</td>
-              <td style="font-size:14px;color:#e2e8f0;border-bottom:1px solid #334155;text-align:right;font-weight:700;">${engine}</td>
-            </tr>
-            <tr>
-              <td style="font-size:14px;color:#94a3b8;border-bottom:1px solid #334155;">Usage</td>
-              <td style="font-size:14px;color:#e2e8f0;border-bottom:1px solid #334155;text-align:right;">${used.toLocaleString()} / ${cap.toLocaleString()} tokens</td>
-            </tr>
-            <tr>
-              <td style="font-size:14px;color:#94a3b8;">Percentage</td>
-              <td style="font-size:14px;font-weight:700;text-align:right;color:${pct >= 100 ? "#ef4444" : "#f59e0b"};">${pct}%</td>
-            </tr>
-          </table>
-          <p style="margin:0 0 24px;font-size:14px;color:#94a3b8;">The engine will stop making AI calls when the cap is reached and resume at UTC midnight.</p>
-          <a href="${settingsUrl}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">View Token Budget Settings &#8594;</a>
-        </td></tr>
-        <tr><td style="padding:16px 32px;background:#0f172a;font-size:12px;color:#475569;text-align:center;">
-          CreatorOS &middot; One alert per engine per UTC day &middot; <a href="${settingsUrl}" style="color:#3b82f6;text-decoration:none;">Manage Budgets</a>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`.trim();
-}
-
 /**
  * Called from TokenBudgetGuard.consumeBudget() on every token spend.
- * Sends one email per engine per UTC day when usage crosses the 80% threshold.
  *
- * De-dup is backed by the DB (lastAlertSentAt on token_budget_usage) so alerts
- * are not re-sent after a restart. The in-memory cache avoids repeated DB reads
- * once a send has been confirmed. The cache key is pre-marked synchronously
- * before any await to prevent concurrent same-process races; it is rolled back
- * if the DB write fails so next-call retries remain possible.
+ * Quota exhaustion is expected, self-healing behaviour — the system pauses
+ * AI calls and resumes automatically at UTC midnight. No email or in-app
+ * notification is sent; only an internal log entry is written (once per
+ * engine per UTC day) so the behaviour is still observable in server logs.
  */
 export async function checkAndAlertTokenBudget(
   engine: string,
@@ -100,46 +27,10 @@ export async function checkAndAlertTokenBudget(
 ): Promise<void> {
   if (used / cap < ALERT_THRESHOLD) return;
 
-  const today = utcDay();
-  const key = `${engine}|${today}`;
+  const key = `${engine}|${utcDay()}`;
+  if (_loggedToday.has(key)) return;
+  _loggedToday.add(key);
 
-  // Fast path: in-memory cache hit (already sent this session).
-  if (_sentCache.has(key)) return;
-
-  // Pre-mark in cache synchronously before any await — prevents concurrent
-  // invocations in the same process from racing past the guard.
-  _sentCache.add(key);
-
-  try {
-    // DB check: survives restarts — skip if already recorded as sent today.
-    const { storage } = await import("../storage");
-    const existingSentAt = await storage.getTokenBudgetAlertSentAt(engine, today);
-    if (existingSentAt !== null) return; // already sent; cache was stale
-
-    const pct = Math.round((used / cap) * 100);
-    logger.warn(`[TokenBudgetAlert] ${engine} at ${pct}% (${used}/${cap}) — sending alert`);
-
-    const settingsUrl = `${_appBaseUrl()}/settings/admin-tokens`;
-    const { sendGmail } = await import("./gmail-client");
-    const adminEmails = await _getAdminEmails();
-    const subject = `[CreatorOS] Token Budget Alert: ${engine} at ${pct}%`;
-    const html = _buildEmailHtml(engine, used, cap, settingsUrl);
-
-    const results = await Promise.allSettled(
-      adminEmails.map(email => sendGmail(email, subject, html))
-    );
-    const sent = results.filter(r => r.status === "fulfilled" && r.value).length;
-
-    if (sent > 0) {
-      await storage.setTokenBudgetAlertSent(engine, today, Date.now());
-      logger.info(`[TokenBudgetAlert] Sent to ${sent}/${adminEmails.length} admin(s) for engine=${engine}`);
-    } else {
-      // All sends failed — roll back so the next call can retry.
-      _sentCache.delete(key);
-      logger.warn(`[TokenBudgetAlert] All sends failed for engine=${engine}; will retry`);
-    }
-  } catch (err: any) {
-    _sentCache.delete(key);
-    logger.error(`[TokenBudgetAlert] Alert error for ${engine}: ${err?.message ?? err}`);
-  }
+  const pct = Math.round((used / cap) * 100);
+  logger.warn(`[TokenBudget] ${engine} at ${pct}% (${used}/${cap}) — will pause and auto-resume at midnight UTC`);
 }
