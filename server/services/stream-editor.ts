@@ -280,6 +280,7 @@ export async function queueStreamEditJob(
   platforms: StreamEditPlatform[],
   clipDurationMins: number,
   enhancements: { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean },
+  autoPublish: boolean = false,
 ): Promise<{ jobId: number; downloadFirst: boolean }> {
   const [entry] = await db.select()
     .from(contentVaultBackups)
@@ -299,12 +300,13 @@ export async function queueStreamEditJob(
     clipDurationMins,
     enhancements,
     downloadFirst,
+    autoPublish,
     status: "queued",
     progress: 0,
     currentStage: downloadFirst ? "Waiting to download" : "Waiting to encode",
   }).returning();
 
-  logger.info(`[StreamEditor] Queued job ${job.id} for "${entry.title}" → ${platforms.join(", ")}${downloadFirst ? " (will download first)" : ""}`);
+  logger.info(`[StreamEditor] Queued job ${job.id} for "${entry.title}" → ${platforms.join(", ")}${downloadFirst ? " (will download first)" : ""}${autoPublish ? " (auto-publish ON)" : ""}`);
 
   if (activeJobId === null) {
     setImmediate(() => runJobInBackground(job.id).catch(err =>
@@ -470,6 +472,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
         sourceTitle,
         gameName,
         outputFiles,
+        job.autoPublish ?? false,
         (done, total) => {
           db.update(streamEditJobs).set({
             currentStage: `AI Packaging (${done}/${total})`,

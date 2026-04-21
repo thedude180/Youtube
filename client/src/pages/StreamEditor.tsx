@@ -30,7 +30,7 @@ import {
   Scissors, Clock, HardDrive, Loader2, CheckCircle2,
   AlertCircle, Trash2, X, Sparkles, Film, Clapperboard,
   RefreshCw, Activity, Info, Search, Download, ChevronDown,
-  ListChecks, Radio, Video, LayoutGrid, ExternalLink,
+  ListChecks, Radio, Video, LayoutGrid, ExternalLink, Zap,
 } from "lucide-react";
 import { SiTiktok, SiRumble, SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
@@ -63,7 +63,8 @@ interface EditJob {
   totalClips: number;
   completedClips: number;
   currentStage: string | null;
-  outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number; studioVideoId?: number }>;
+  autoPublish: boolean;
+  outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number; studioVideoId?: number; scheduledPublishAt?: string }>;
   errorMessage: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -191,6 +192,12 @@ function JobCard({ job, onCancel, onDelete }: {
               </span>
             );
           })}
+          {job.autoPublish && (
+            <span className="flex items-center gap-1 text-xs bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+              <Zap className="h-3 w-3" />
+              Auto-publish
+            </span>
+          )}
         </div>
 
         {job.status === "processing" && (
@@ -251,6 +258,12 @@ function JobCard({ job, onCancel, onDelete }: {
                       <span className="truncate">{f.label}</span>
                     </span>
                     <div className="flex items-center gap-2 shrink-0">
+                      {f.scheduledPublishAt && (
+                        <span className="flex items-center gap-0.5 text-yellow-400 text-xs" title={`Scheduled: ${new Date(f.scheduledPublishAt).toLocaleString()}`}>
+                          <Zap className="h-3 w-3" />
+                          {new Date(f.scheduledPublishAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                        </span>
+                      )}
                       <span className="tabular-nums">{formatBytes(f.fileSize)}</span>
                       {f.studioVideoId ? (
                         <Link href={`/studio?video=${f.studioVideoId}`}>
@@ -288,6 +301,7 @@ export default function StreamEditor() {
 
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["youtube"]);
   const [clipDurationMins, setClipDurationMins] = useState("60");
+  const [autoPublish, setAutoPublish] = useState(false);
   const [enhancements, setEnhancements] = useState({
     upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true,
   });
@@ -379,6 +393,7 @@ export default function StreamEditor() {
       platforms: selectedPlatforms,
       clipDurationMins: parseInt(clipDurationMins, 10),
       enhancements,
+      autoPublish,
     });
   }
 
@@ -683,6 +698,25 @@ export default function StreamEditor() {
                   />
                 </div>
               ))}
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-yellow-400" />
+                  Auto-Publish to YouTube
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Clips are automatically scheduled &amp; uploaded at audience-optimal times (3 h gaps, no manual steps)
+                </p>
+              </div>
+              <Switch
+                checked={autoPublish}
+                onCheckedChange={setAutoPublish}
+                data-testid="auto-publish-toggle"
+              />
             </div>
 
             <div className="p-3 rounded-lg bg-muted/30 border border-border/30">

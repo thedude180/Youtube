@@ -1133,6 +1133,9 @@ export const studioVideos = pgTable("studio_videos", {
     publishStatus?: string;
     publishedYoutubeId?: string;
     seoScore?: number;
+    scheduledPublishAt?: string;
+    autoScheduled?: boolean;
+    autopilotQueueId?: number;
   }>(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2676,6 +2679,8 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     autoFixAttempts?: number;
     autoFixAction?: string;
     deferredUntil?: string;
+    studioVideoId?: number;
+    scheduledPublishAt?: string;
   }>(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -5371,8 +5376,10 @@ export const streamEditJobs = pgTable("stream_edit_jobs", {
     fileSize: number;
     durationSecs: number;
     studioVideoId?: number;
+    scheduledPublishAt?: string;
   }>>().default([]),
   downloadFirst: boolean("download_first").default(false),
+  autoPublish: boolean("auto_publish").default(false),
   currentStage: text("current_stage"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),

@@ -17,28 +17,27 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("stream-editor-routes");
 
+const enhancementsSchema = z.object({
+  upscale4k: z.boolean().default(true),
+  audioNormalize: z.boolean().default(true),
+  colorEnhance: z.boolean().default(true),
+  sharpen: z.boolean().default(true),
+}).default({ upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true });
+
 const queueJobSchema = z.object({
   vaultEntryId: z.number().int().positive(),
   platforms: z.array(z.enum(["youtube", "rumble", "tiktok", "shorts"])).min(1),
   clipDurationMins: z.number().int().min(1).max(180).default(60),
-  enhancements: z.object({
-    upscale4k: z.boolean().default(true),
-    audioNormalize: z.boolean().default(true),
-    colorEnhance: z.boolean().default(true),
-    sharpen: z.boolean().default(true),
-  }).default({ upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true }),
+  enhancements: enhancementsSchema,
+  autoPublish: z.boolean().default(false),
 });
 
 const batchQueueSchema = z.object({
   vaultEntryIds: z.array(z.number().int().positive()).min(1).max(500),
   platforms: z.array(z.enum(["youtube", "rumble", "tiktok", "shorts"])).min(1),
   clipDurationMins: z.number().int().min(1).max(180).default(60),
-  enhancements: z.object({
-    upscale4k: z.boolean().default(true),
-    audioNormalize: z.boolean().default(true),
-    colorEnhance: z.boolean().default(true),
-    sharpen: z.boolean().default(true),
-  }).default({ upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true }),
+  enhancements: enhancementsSchema,
+  autoPublish: z.boolean().default(false),
 });
 
 export function registerStreamEditorRoutes(app: Express): void {
@@ -77,6 +76,7 @@ export function registerStreamEditorRoutes(app: Express): void {
       body.platforms as any,
       body.clipDurationMins,
       body.enhancements,
+      body.autoPublish,
     );
 
     logger.info(`[StreamEditor] User ${userId} queued job ${result.jobId} (downloadFirst=${result.downloadFirst})`);
@@ -102,6 +102,7 @@ export function registerStreamEditorRoutes(app: Express): void {
           body.platforms as any,
           body.clipDurationMins,
           body.enhancements,
+          body.autoPublish,
         );
         results.push({ vaultEntryId, ...result });
       } catch (err: any) {

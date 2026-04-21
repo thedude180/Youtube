@@ -1338,6 +1338,11 @@ httpServer.listen(
         const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("token-refresh import"));
+
+      import("./services/stream-editor-auto-publisher").then(m => {
+        const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
+        backgroundIntervals.push(iv);
+      }).catch(slog("stream-editor-auto-publisher import"));
     });
 
     // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───

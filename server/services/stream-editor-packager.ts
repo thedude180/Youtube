@@ -32,6 +32,7 @@ export interface RawClip {
   fileSize: number;
   durationSecs: number;
   studioVideoId?: number;
+  scheduledPublishAt?: string;
 }
 
 interface ClipSeoPackage {
@@ -164,10 +165,11 @@ async function generateThumbnailAsync(
 /**
  * Main entry point.  Called by the stream editor job runner after FFmpeg encoding.
  *
- * @param userId   Owner of the job
+ * @param userId       Owner of the job
  * @param sourceTitle  Human-readable title of the source vault entry
  * @param gameName     Optional game name for better SEO
  * @param clips        Array of finished output clips from the encoding loop
+ * @param autoPublish  If true, each clip is scheduled for zero-touch publishing
  * @param onProgress   Optional callback called after each clip is packaged
  * @returns Updated clips array with `studioVideoId` filled in
  */
@@ -176,6 +178,7 @@ export async function packageClips(
   sourceTitle: string,
   gameName: string | null | undefined,
   clips: RawClip[],
+  autoPublish: boolean = false,
   onProgress?: (packaged: number, total: number) => void,
 ): Promise<RawClip[]> {
   const result: RawClip[] = [...clips];
@@ -227,6 +230,28 @@ export async function packageClips(
       logger.warn(`[Packager] Failed to package clip ${i + 1}:`, (err as Error)?.message);
       packaged++;
       onProgress?.(packaged, result.length);
+    }
+  }
+
+  if (autoPublish) {
+    const clipsToSchedule = result
+      .filter(c => c.studioVideoId != null)
+      .map(c => ({ studioVideoId: c.studioVideoId!, platform: c.platform, label: c.label }));
+
+    if (clipsToSchedule.length > 0) {
+      try {
+        const { scheduleClipsForAutoPublish } = await import("./stream-editor-auto-publisher");
+        const scheduledMap = await scheduleClipsForAutoPublish(userId, clipsToSchedule);
+        for (let i = 0; i < result.length; i++) {
+          const svId = result[i].studioVideoId;
+          if (svId && scheduledMap.has(svId)) {
+            result[i] = { ...result[i], scheduledPublishAt: scheduledMap.get(svId) };
+          }
+        }
+        logger.info(`[Packager] Scheduled ${scheduledMap.size} clips for auto-publish`);
+      } catch (err: unknown) {
+        logger.warn(`[Packager] Auto-publish scheduling failed:`, (err as Error)?.message);
+      }
     }
   }
 
