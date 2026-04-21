@@ -80,8 +80,13 @@ export function NotificationBell() {
       markReadMutation.mutate(notification.id);
     }
     if (notification.actionUrl) {
-      setOpen(false);
-      setLocation(notification.actionUrl);
+      const url = notification.actionUrl as string;
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        setOpen(false);
+        setLocation(url);
+      }
     }
   };
 

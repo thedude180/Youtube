@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bell, CheckCircle2, RefreshCw, ArrowRight, Wifi, FileVideo, Trash2 } from "lucide-react";
+import { Bell, CheckCircle2, RefreshCw, ArrowRight, Wifi, FileVideo, Trash2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
@@ -39,10 +39,30 @@ const severityBadge = (severity: string): { label: string; variant: "default" | 
 function getActionButton(n: Notification, navigate: (path: string) => void) {
   const url = n.actionUrl as string | undefined;
   if (!url) return null;
-  const isReconnect = url === "/channels" || n.title?.toLowerCase().includes("reconnect");
-  const isContent   = url === "/content";
-  const Icon  = isReconnect ? Wifi : isContent ? FileVideo : ArrowRight;
-  const label = isReconnect ? "Reconnect" : isContent ? "Go to Content" : "View";
+
+  const isExternal  = url.startsWith("http://") || url.startsWith("https://");
+  const isReconnect = !isExternal && (url === "/channels" || n.title?.toLowerCase().includes("reconnect"));
+  const isContent   = !isExternal && url === "/content";
+  const isApply     = isExternal && n.title?.toLowerCase().includes("ready to apply");
+
+  const Icon  = isReconnect ? Wifi : isContent ? FileVideo : isExternal ? ExternalLink : ArrowRight;
+  const label = isReconnect ? "Reconnect" : isContent ? "Go to Content" : isApply ? "Apply Now" : "View";
+
+  if (isExternal) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-xs shrink-0"
+        onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+        data-testid={`button-action-${n.id}`}
+      >
+        <Icon className="h-3 w-3 mr-1" />
+        {label}
+      </Button>
+    );
+  }
+
   return (
     <Button
       size="sm"

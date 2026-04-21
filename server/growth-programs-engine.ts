@@ -584,10 +584,10 @@ async function checkAndNotifyEligible(userId: string) {
         await storage.createNotification({
           userId,
           title: `Ready to Apply: ${program.programName}`,
-          message: `You now meet all requirements for ${program.programName} on ${program.platform}! Open Growth Programs in Settings to see your personalized application guide.`,
+          message: `You now meet all requirements for ${program.programName} on ${program.platform}! Click Apply to open the official application page.`,
           type: "growth_program",
           priority: "high",
-          actionUrl: `/settings?tab=growth`,
+          actionUrl: program.applicationUrl || `/settings?tab=growth`,
         } as any);
       } catch (err) {
         logger.error("[GrowthPrograms] Notification error:", err);
