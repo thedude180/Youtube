@@ -6,6 +6,7 @@ import { streamEditJobs, contentVaultBackups } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadVaultEntry } from "./video-vault";
+import { packageClips } from "./stream-editor-packager";
 
 const logger = createLogger("stream-editor");
 
@@ -451,16 +452,45 @@ async function runJobInBackground(jobId: number): Promise<void> {
       }
     }
 
+    // ── AI Post-processing: generate SEO package + Studio videos for every clip ──
+    await db.update(streamEditJobs).set({
+      currentStage: "AI Packaging (0/" + outputFiles.length + ")",
+    }).where(eq(streamEditJobs.id, jobId));
+
+    let packagedOutputFiles = outputFiles;
+    try {
+      const vaultEntry = job.vaultEntryId
+        ? await db.select().from(contentVaultBackups).where(eq(contentVaultBackups.id, job.vaultEntryId)).limit(1).then(r => r[0] ?? null)
+        : null;
+      const sourceTitle = vaultEntry?.title ?? "Gaming Clip";
+      const gameName = vaultEntry?.gameName ?? null;
+
+      packagedOutputFiles = await packageClips(
+        job.userId,
+        sourceTitle,
+        gameName,
+        outputFiles,
+        (done, total) => {
+          db.update(streamEditJobs).set({
+            currentStage: `AI Packaging (${done}/${total})`,
+            outputFiles: packagedOutputFiles,
+          }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
+        },
+      );
+    } catch (packErr: any) {
+      logger.warn(`[StreamEditor] Job ${jobId}: AI packaging failed (clips still saved):`, packErr?.message);
+    }
+
     await db.update(streamEditJobs).set({
       status: "done",
       progress: 100,
       completedClips: totalTasks,
-      outputFiles,
+      outputFiles: packagedOutputFiles,
       currentStage: "Complete",
       completedAt: new Date(),
     }).where(eq(streamEditJobs.id, jobId));
 
-    logger.info(`[StreamEditor] Job ${jobId} complete — ${outputFiles.length} clips produced`);
+    logger.info(`[StreamEditor] Job ${jobId} complete — ${packagedOutputFiles.length} clips produced`);
   } catch (err: any) {
     logger.error(`[StreamEditor] Job ${jobId} failed:`, err?.message);
     await db.update(streamEditJobs).set({

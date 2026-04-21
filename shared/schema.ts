@@ -5370,6 +5370,7 @@ export const streamEditJobs = pgTable("stream_edit_jobs", {
     filePath: string;
     fileSize: number;
     durationSecs: number;
+    studioVideoId?: number;
   }>>().default([]),
   downloadFirst: boolean("download_first").default(false),
   currentStage: text("current_stage"),

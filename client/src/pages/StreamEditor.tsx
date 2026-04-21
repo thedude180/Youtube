@@ -30,9 +30,10 @@ import {
   Scissors, Clock, HardDrive, Loader2, CheckCircle2,
   AlertCircle, Trash2, X, Sparkles, Film, Clapperboard,
   RefreshCw, Activity, Info, Search, Download, ChevronDown,
-  ListChecks, Radio, Video, LayoutGrid,
+  ListChecks, Radio, Video, LayoutGrid, ExternalLink,
 } from "lucide-react";
 import { SiTiktok, SiRumble, SiYoutube } from "react-icons/si";
+import { Link } from "wouter";
 
 interface VaultEntry {
   id: number;
@@ -62,7 +63,7 @@ interface EditJob {
   totalClips: number;
   completedClips: number;
   currentStage: string | null;
-  outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number }>;
+  outputFiles: Array<{ platform: string; clipIndex: number; label: string; filePath: string; fileSize: number; durationSecs: number; studioVideoId?: number }>;
   errorMessage: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -199,12 +200,17 @@ function JobCard({ job, onCancel, onDelete }: {
               <span>{job.progress}%</span>
             </div>
             <Progress value={job.progress} className="h-1.5" />
-            {job.currentStage && (
-              <p className="text-xs text-blue-400 flex items-center gap-1.5 truncate">
-                <Activity className="h-3 w-3 shrink-0" />
-                {job.currentStage}
-              </p>
-            )}
+            {job.currentStage && (() => {
+              const isAiStage = job.currentStage.startsWith("AI Packaging");
+              return (
+                <p className={`text-xs flex items-center gap-1.5 truncate ${isAiStage ? "text-purple-400" : "text-blue-400"}`}>
+                  {isAiStage
+                    ? <Sparkles className="h-3 w-3 shrink-0" />
+                    : <Activity className="h-3 w-3 shrink-0" />}
+                  {job.currentStage}
+                </p>
+              );
+            })()}
           </div>
         )}
 
@@ -222,22 +228,48 @@ function JobCard({ job, onCancel, onDelete }: {
           </p>
         )}
 
-        {job.status === "done" && job.outputFiles.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground font-medium">{job.outputFiles.length} clips ready</p>
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {job.outputFiles.map((f, i) => (
-                <div key={i} className="flex items-center justify-between text-xs text-muted-foreground gap-2">
-                  <span className="flex items-center gap-1.5 truncate">
-                    <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0" />
-                    <span className="truncate">{f.label}</span>
-                  </span>
-                  <span className="shrink-0 tabular-nums">{formatBytes(f.fileSize)}</span>
-                </div>
-              ))}
+        {job.status === "done" && job.outputFiles.length > 0 && (() => {
+          const studioCount = job.outputFiles.filter(f => f.studioVideoId).length;
+          return (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground font-medium">{job.outputFiles.length} clips ready</p>
+                {studioCount > 0 && (
+                  <Link href="/studio">
+                    <span className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer transition-colors">
+                      <Sparkles className="h-3 w-3" />
+                      {studioCount} in Studio
+                    </span>
+                  </Link>
+                )}
+              </div>
+              <div className="space-y-1 max-h-36 overflow-y-auto">
+                {job.outputFiles.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs text-muted-foreground gap-2">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <CheckCircle2 className="h-3 w-3 text-green-400 shrink-0" />
+                      <span className="truncate">{f.label}</span>
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="tabular-nums">{formatBytes(f.fileSize)}</span>
+                      {f.studioVideoId ? (
+                        <Link href={`/studio?video=${f.studioVideoId}`}>
+                          <span className="flex items-center gap-0.5 text-purple-400 hover:text-purple-300 cursor-pointer transition-colors" title="Open in Studio">
+                            <ExternalLink className="h-3 w-3" />
+                          </span>
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground/40 flex items-center" title="AI packaging pending">
+                          <Sparkles className="h-3 w-3" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </CardContent>
     </Card>
   );
