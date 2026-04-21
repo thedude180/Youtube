@@ -1272,15 +1272,23 @@ export default function Vault() {
                 )}
               </div>
             </div>
-            {isReady && docDetail.content ? (
-              <Card className="border-border/40">
-                <CardContent className="p-5 pt-4">
-                  <MarkdownViewer
-                    content={docDetail.content}
-                    data-testid={`text-doc-content-${docDetail.docType}`}
-                  />
-                </CardContent>
-              </Card>
+            {docDetail.content ? (
+              <div className="relative">
+                {isGenerating && (
+                  <div className="mb-2 flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-400">
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                    Regenerating this document — new content will appear when ready…
+                  </div>
+                )}
+                <Card className={`border-border/40 transition-opacity duration-300 ${isGenerating ? "opacity-60" : "opacity-100"}`}>
+                  <CardContent className="p-5 pt-4">
+                    <MarkdownViewer
+                      content={docDetail.content}
+                      data-testid={`text-doc-content-${docDetail.docType}`}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
             ) : isGenerating ? (
               <Card className="border-border/40">
                 <CardContent className="p-8 text-center text-muted-foreground">
