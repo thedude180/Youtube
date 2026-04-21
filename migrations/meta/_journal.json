@@ -141,6 +141,13 @@
       "when": 1776729598758,
       "tag": "0019_natural_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1776741410296,
+      "tag": "0020_superb_stryfe",
+      "breakpoints": true
     }
   ]
 }
