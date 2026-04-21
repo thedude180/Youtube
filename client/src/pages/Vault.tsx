@@ -24,6 +24,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+import { MarkdownViewer } from "@/components/MarkdownViewer";
 import { Link } from "wouter";
 
 // ── Interfaces ──────────────────────────────────────────────────────────────
@@ -1114,10 +1115,11 @@ export default function Vault() {
             </div>
             {docDetail.status === "ready" && docDetail.content ? (
               <Card className="border-border/40">
-                <CardContent className="p-5">
-                  <pre className="text-sm text-foreground whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto" data-testid={`text-doc-content-${docDetail.docType}`}>
-                    {docDetail.content}
-                  </pre>
+                <CardContent className="p-5 pt-4">
+                  <MarkdownViewer
+                    content={docDetail.content}
+                    data-testid={`text-doc-content-${docDetail.docType}`}
+                  />
                 </CardContent>
               </Card>
             ) : isGenerating ? (
