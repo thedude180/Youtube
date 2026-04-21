@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { Component, Suspense, useEffect, useState, useCallback, useRef } from "react";
+import { Component, Suspense, useEffect, useLayoutEffect, useState, useCallback, useRef, startTransition } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
 import { BackToTop } from "@/components/BackToTop";
-import { prefetchForRoute } from "@/lib/prefetch";
+import { prefetchForRoute, prefetchDashboard, prefetchChunkForRoute } from "@/lib/prefetch";
 import { GlobalProgress } from "@/components/GlobalProgress";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { HealthRibbon } from "@/components/HealthRibbon";
@@ -374,7 +374,7 @@ function MobileBottomNav() {
           return (
             <button
               key={item.href}
-              onClick={() => { prefetchForRoute(item.href); setLocation(item.href); }}
+              onClick={() => { prefetchForRoute(item.href); startTransition(() => setLocation(item.href)); }}
               className="relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full select-none group"
               style={{
                 color: active ? "hsl(var(--primary))" : "hsl(var(--muted-foreground))",
@@ -427,25 +427,9 @@ function MobileBottomNav() {
 
 function RouteTransition({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const [displayChildren, setDisplayChildren] = useState(children);
-  const [transitioning, setTransitioning] = useState(false);
-
-  useEffect(() => {
-    setTransitioning(true);
-    const t = requestAnimationFrame(() => {
-      setDisplayChildren(children);
-      setTransitioning(false);
-    });
-    return () => cancelAnimationFrame(t);
-  }, [location]);
-
   return (
-    <div
-      key={location}
-      className={transitioning ? "" : "page-enter"}
-      style={{ willChange: "opacity, transform" }}
-    >
-      {displayChildren}
+    <div key={location} className="page-enter" style={{ willChange: "opacity" }}>
+      {children}
     </div>
   );
 }
@@ -482,11 +466,11 @@ function AuthenticatedApp() {
       if (!e.altKey && !e.metaKey && !e.ctrlKey && e.key === "?") { e.preventDefault(); setShowShortcuts((v) => !v); return; }
       if (e.altKey) {
         switch (e.key) {
-          case "1": e.preventDefault(); setLocation("/"); break;
-          case "2": e.preventDefault(); setLocation("/content"); break;
-          case "3": e.preventDefault(); setLocation("/stream"); break;
-          case "4": e.preventDefault(); setLocation("/money"); break;
-          case "5": e.preventDefault(); setLocation("/settings"); break;
+          case "1": e.preventDefault(); startTransition(() => setLocation("/")); break;
+          case "2": e.preventDefault(); startTransition(() => setLocation("/content")); break;
+          case "3": e.preventDefault(); startTransition(() => setLocation("/stream")); break;
+          case "4": e.preventDefault(); startTransition(() => setLocation("/money")); break;
+          case "5": e.preventDefault(); startTransition(() => setLocation("/settings")); break;
         }
       }
     };
@@ -494,7 +478,10 @@ function AuthenticatedApp() {
     return () => window.removeEventListener("keydown", handler);
   }, [setLocation]);
 
-  const handlePaletteNavigate = useCallback((path: string) => setLocation(path), [setLocation]);
+  const handlePaletteNavigate = useCallback((path: string) => {
+    prefetchForRoute(path);
+    startTransition(() => setLocation(path));
+  }, [setLocation]);
   const handleOpenChat = useCallback(() => setChatOpen(true), []);
 
   return (
@@ -591,6 +578,18 @@ function AppContent() {
     document.documentElement.dir = lang?.dir || "ltr";
     document.documentElement.lang = i18n.language;
   }, [i18n.language]);
+
+  useLayoutEffect(() => {
+    if (!isAuthenticated || !user) return;
+    const serverOnboarded = (user as any).onboardingCompleted;
+    const localOnboarded = localStorage.getItem(`creatoros_onboarded_${user.id}`);
+    if (serverOnboarded || localOnboarded) {
+      setNeedsOnboarding(false);
+      const currentBase = "/" + (location.split("/").filter(Boolean)[0] || "");
+      prefetchForRoute(currentBase);
+      if (currentBase !== "/") prefetchDashboard();
+    }
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
     if (!isAuthenticated) { setNeedsOnboarding(null); return; }

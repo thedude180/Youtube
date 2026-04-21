@@ -77,7 +77,30 @@ const routePrefetchers: Record<string, () => void> = {
   "/studio": prefetchStudio,
 };
 
+const chunkPrefetched = new Set<string>();
+
+const routeChunks: Record<string, () => Promise<any>> = {
+  "/":        () => import("@/pages/Dashboard"),
+  "/content": () => import("@/pages/Content"),
+  "/money":   () => import("@/pages/Money"),
+  "/stream":  () => import("@/pages/StreamCenter"),
+  "/settings":() => import("@/pages/Settings"),
+  "/vault":   () => import("@/pages/Vault"),
+  "/studio":  () => import("@/pages/VideoStudio"),
+  "/stream-editor": () => import("@/pages/StreamEditor"),
+  "/notifications": () => import("@/pages/Notifications"),
+};
+
+export function prefetchChunkForRoute(path: string) {
+  if (chunkPrefetched.has(path)) return;
+  const fn = routeChunks[path];
+  if (!fn) return;
+  chunkPrefetched.add(path);
+  fn().catch(() => {});
+}
+
 export function prefetchForRoute(path: string) {
   const fn = routePrefetchers[path];
   if (fn) fn();
+  prefetchChunkForRoute(path);
 }
