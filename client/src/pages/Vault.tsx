@@ -714,6 +714,9 @@ export default function Vault() {
   const viewingDocRef = useRef(viewingDoc);
   useEffect(() => { viewingDocRef.current = viewingDoc; }, [viewingDoc]);
 
+  const [sseStatuses, setSseStatuses] = useState<Record<string, string>>({});
+  const sseCleanupTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
   useEffect(() => {
     if (!showingDocs) return;
 
@@ -724,7 +727,30 @@ export default function Vault() {
       if (closed) return;
       es = new EventSource("/api/vault-docs/stream", { withCredentials: true });
 
-      es.onmessage = () => {
+      es.onmessage = (e: MessageEvent) => {
+        let payload: { docType?: string; status?: string } = {};
+        try { payload = JSON.parse(e.data as string) as { docType?: string; status?: string }; } catch { /* ignore */ }
+
+        if (payload.docType && payload.status) {
+          const { docType, status } = payload;
+
+          setSseStatuses(prev => ({ ...prev, [docType]: status }));
+
+          const existing = sseCleanupTimers.current[docType];
+          if (existing) clearTimeout(existing);
+
+          if (status === "ready" || status === "failed") {
+            sseCleanupTimers.current[docType] = setTimeout(() => {
+              setSseStatuses(prev => {
+                const next = { ...prev };
+                delete next[docType];
+                return next;
+              });
+              delete sseCleanupTimers.current[docType];
+            }, 5_000);
+          }
+        }
+
         void queryClient.invalidateQueries({ queryKey: ["/api/vault-docs"] });
         const doc = viewingDocRef.current;
         if (doc) {
@@ -747,6 +773,8 @@ export default function Vault() {
       closed = true;
       es?.close();
       es = null;
+      Object.values(sseCleanupTimers.current).forEach(clearTimeout);
+      sseCleanupTimers.current = {};
     };
   }, [showingDocs]);
 
@@ -1034,21 +1062,29 @@ export default function Vault() {
           ) : (
             <div className="space-y-3">
               {(vaultDocs ?? []).map((doc) => {
-                const isReady = doc.status === "ready";
-                const isGenerating = doc.status === "generating";
-                const isFailed = doc.status === "failed";
+                const effectiveStatus = sseStatuses[doc.docType] ?? doc.status;
+                const isReady = effectiveStatus === "ready";
+                const isGenerating = effectiveStatus === "generating";
+                const isFailed = effectiveStatus === "failed";
+                const isSseGenerating = sseStatuses[doc.docType] === "generating";
                 const emoji = doc.metadata?.emoji ?? "📄";
                 const description = doc.metadata?.description ?? "";
 
                 return (
                   <Card
                     key={doc.docType}
-                    className={`border-border/40 ${isReady ? "cursor-pointer hover:border-purple-500/50" : ""} transition-colors`}
+                    className={[
+                      "transition-all",
+                      isReady ? "border-border/40 cursor-pointer hover:border-purple-500/50" : "border-border/40",
+                      isSseGenerating ? "ring-1 ring-blue-500/50 border-blue-500/30" : "",
+                    ].join(" ")}
                     onClick={isReady ? () => setViewingDoc(doc.docType) : undefined}
                     data-testid={`card-vault-doc-${doc.docType}`}
                   >
                     <CardContent className="p-4 flex items-center gap-4">
-                      <div className="text-2xl shrink-0">{emoji}</div>
+                      <div className={`text-2xl shrink-0 relative ${isSseGenerating ? "animate-pulse" : ""}`}>
+                        {emoji}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-sm">{doc.title}</h3>
