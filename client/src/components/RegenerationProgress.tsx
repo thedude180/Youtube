@@ -6,9 +6,10 @@ interface RegenerationProgressProps {
   isGenerating: boolean;
   docType: string;
   sseStepIndex?: number;
+  isFailed?: boolean;
 }
 
-export function RegenerationProgress({ isGenerating, docType, sseStepIndex }: RegenerationProgressProps) {
+export function RegenerationProgress({ isGenerating, docType, sseStepIndex, isFailed }: RegenerationProgressProps) {
   const [intraStepMs, setIntraStepMs] = useState(0);
   const [completing, setCompleting] = useState(false);
 
@@ -56,7 +57,7 @@ export function RegenerationProgress({ isGenerating, docType, sseStepIndex }: Re
       </div>
       <Progress
         value={progressPct}
-        className="h-1 bg-blue-500/20 [&>div]:bg-blue-500 [&>div]:transition-all [&>div]:duration-300"
+        className={`h-1 [&>div]:transition-all [&>div]:duration-300 ${isFailed ? "bg-red-500/20 [&>div]:bg-red-500" : "bg-blue-500/20 [&>div]:bg-blue-500"}`}
         data-testid={`regen-progress-bar-${docType}`}
       />
     </div>
