@@ -17,7 +17,7 @@ const QUOTA_COSTS = {
 type QuotaOperation = keyof typeof QUOTA_COSTS;
 
 const DEFAULT_DAILY_LIMIT = 10000;
-const SAFETY_BUFFER = 500;
+const SAFETY_BUFFER = 200; // Reduced from 500 — gives ~300 more usable API units per day
 
 function getPacificDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });

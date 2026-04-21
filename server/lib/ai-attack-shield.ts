@@ -855,21 +855,21 @@ export function adaptiveLearningGuard(): (req: Request, res: Response, next: Nex
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DAILY_CAPS: Record<string, number> = {
-  "content-grinder":          50_000,
-  "ai-team-engine":          100_000,
-  "vod-optimizer":            50_000,
-  "content-consistency-agent": 30_000,
-  "shorts-pipeline":          40_000,
-  "thumbnail-intelligence":   20_000,
-  "repurpose-engine":         30_000,
-  "viral-optimizer":         150_000,
-  "autopilot":                80_000,
-  "tos-monitor":              20_000,
-  "marketer-engine":          80_000,
-  "auto-thumbnail":           15_000,
+  "content-grinder":          100_000,  // 50k → 100k  — more content per grind cycle
+  "ai-team-engine":           200_000,  // 100k → 200k — full AI team strategy sessions
+  "vod-optimizer":             80_000,  // 50k → 80k   — deeper VOD optimization passes
+  "content-consistency-agent": 60_000,  // 30k → 60k   — more consistency checks per day
+  "shorts-pipeline":           80_000,  // 40k → 80k   — double shorts output capacity
+  "thumbnail-intelligence":    50_000,  // 20k → 50k   — research more games per day
+  "repurpose-engine":          60_000,  // 30k → 60k   — more repurpose variations
+  "viral-optimizer":          300_000,  // 150k → 300k — full viral sweep on all videos
+  "autopilot":                160_000,  // 80k → 160k  — longer autonomy windows
+  "tos-monitor":               40_000,  // 20k → 40k   — more platform policy checks
+  "marketer-engine":          160_000,  // 80k → 160k  — more marketing touchpoints
+  "auto-thumbnail":            30_000,  // 15k → 30k   — generate more thumbnails daily
 };
 
-const DEFAULT_DAILY_CAP = 20_000;
+const DEFAULT_DAILY_CAP = 40_000;  // 20k → 40k for any engine not listed above
 
 interface BudgetEntry {
   used: number;
