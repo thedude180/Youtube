@@ -65,7 +65,8 @@ vi.mock("../lib/logger", () => ({
 }));
 
 // ─── Subject under test ───────────────────────────────────────────────────────
-import { generateVaultDocument } from "./vault-docs-generator";
+import { generateVaultDocument, generateAllVaultDocuments } from "./vault-docs-generator";
+import { VAULT_DOC_TYPES } from "@shared/schema";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const TEST_USER = "user-test-abc123";
@@ -78,28 +79,41 @@ function emittedSteps(): string[] {
   });
 }
 
+function emittedStepsForDocType(docType: string): string[] {
+  return mockEmit.mock.calls
+    .filter((c) => (c[1] as { docType: string }).docType === docType)
+    .map((c) => {
+      const payload = c[1] as { step?: string; status: string };
+      return payload.step ?? payload.status;
+    });
+}
+
+function makeDbMocks() {
+  mockDb.select.mockImplementation(() => {
+    const chain: Record<string, unknown> = {};
+    chain.from = vi.fn(() => chain);
+    chain.where = vi.fn(() => chain);
+    chain.orderBy = vi.fn(() => chain);
+    chain.limit = vi.fn().mockResolvedValue([]);
+    return chain;
+  });
+  mockDb.insert.mockImplementation(() => ({
+    values: vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ id: 42 }]),
+    })),
+  }));
+  mockDb.update.mockImplementation(() => ({
+    set: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(undefined),
+    })),
+  }));
+}
+
 // ─── Success path ─────────────────────────────────────────────────────────────
 describe("generateVaultDocument — success path SSE events", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDb.select.mockImplementation(() => {
-      const chain: Record<string, unknown> = {};
-      chain.from = vi.fn(() => chain);
-      chain.where = vi.fn(() => chain);
-      chain.orderBy = vi.fn(() => chain);
-      chain.limit = vi.fn().mockResolvedValue([]);
-      return chain;
-    });
-    mockDb.insert.mockImplementation(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn().mockResolvedValue([{ id: 42 }]),
-      })),
-    }));
-    mockDb.update.mockImplementation(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn().mockResolvedValue(undefined),
-      })),
-    }));
+    makeDbMocks();
     mockAICall.mockResolvedValue({ content: "Generated document content here." });
   });
 
@@ -219,24 +233,7 @@ describe("generateVaultDocument — success path SSE events", () => {
 describe("generateVaultDocument — error path SSE events", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDb.select.mockImplementation(() => {
-      const chain: Record<string, unknown> = {};
-      chain.from = vi.fn(() => chain);
-      chain.where = vi.fn(() => chain);
-      chain.orderBy = vi.fn(() => chain);
-      chain.limit = vi.fn().mockResolvedValue([]);
-      return chain;
-    });
-    mockDb.insert.mockImplementation(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn().mockResolvedValue([{ id: 42 }]),
-      })),
-    }));
-    mockDb.update.mockImplementation(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn().mockResolvedValue(undefined),
-      })),
-    }));
+    makeDbMocks();
     mockAICall.mockRejectedValue(new Error("AI service unavailable"));
   });
 
@@ -290,5 +287,217 @@ describe("generateVaultDocument — error path SSE events", () => {
     await expect(generateVaultDocument(TEST_USER, DOC_TYPE)).rejects.toThrow();
 
     expect(emittedSteps()).toEqual(["drafting", "reviewing", "failed"]);
+  });
+});
+
+// ─── generateAllVaultDocuments — full success sequencing ──────────────────────
+describe("generateAllVaultDocuments — SSE event sequencing (all succeed)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    makeDbMocks();
+    mockAICall.mockResolvedValue({ content: "Generated document content here." });
+  });
+
+  it("returns { generated: 6, failed: 0 } when all docs succeed", async () => {
+    const result = await generateAllVaultDocuments(TEST_USER);
+    expect(result).toEqual({ generated: 6, failed: 0 });
+  });
+
+  it("emits exactly 4 events per doc type — 24 events total", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+    expect(mockEmit).toHaveBeenCalledTimes(24);
+  });
+
+  it("emits drafting → reviewing → finalising → ready for every doc type", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const docType of VAULT_DOC_TYPES) {
+      expect(emittedStepsForDocType(docType)).toEqual([
+        "drafting",
+        "reviewing",
+        "finalising",
+        "ready",
+      ]);
+    }
+  });
+
+  it("all events carry the correct userId", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const call of mockEmit.mock.calls) {
+      expect(call[0]).toBe(TEST_USER);
+    }
+  });
+
+  it("events from one doc type are never interleaved with events from another", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    const allCalls = mockEmit.mock.calls;
+
+    for (let i = 0; i < VAULT_DOC_TYPES.length - 1; i++) {
+      const currentType = VAULT_DOC_TYPES[i];
+      const nextType = VAULT_DOC_TYPES[i + 1];
+
+      const lastCurrentIdx = allCalls.reduce(
+        (last, call, idx) =>
+          (call[1] as { docType: string }).docType === currentType ? idx : last,
+        -1,
+      );
+      const firstNextIdx = allCalls.findIndex(
+        (call) => (call[1] as { docType: string }).docType === nextType,
+      );
+
+      expect(lastCurrentIdx).toBeGreaterThanOrEqual(0);
+      expect(firstNextIdx).toBeGreaterThan(lastCurrentIdx);
+    }
+  });
+
+  it("docs are generated in VAULT_DOC_TYPES order", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    const allCalls = mockEmit.mock.calls;
+    const observedOrder: string[] = [];
+    for (const call of allCalls) {
+      const dt = (call[1] as { docType: string }).docType;
+      if (!observedOrder.includes(dt)) {
+        observedOrder.push(dt);
+      }
+    }
+
+    expect(observedOrder).toEqual([...VAULT_DOC_TYPES]);
+  });
+
+  it("each doc type receives its own 'ready' event", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const docType of VAULT_DOC_TYPES) {
+      const steps = emittedStepsForDocType(docType);
+      expect(steps).toContain("ready");
+    }
+  });
+
+  it("no doc type receives a 'failed' event", async () => {
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const docType of VAULT_DOC_TYPES) {
+      expect(emittedStepsForDocType(docType)).not.toContain("failed");
+    }
+  });
+});
+
+// ─── generateAllVaultDocuments — partial-failure sequencing ───────────────────
+describe("generateAllVaultDocuments — SSE event sequencing (partial failures)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    makeDbMocks();
+  });
+
+  it("continues generating remaining docs after the first fails", async () => {
+    let aiCallCount = 0;
+    mockAICall.mockImplementation(async () => {
+      aiCallCount++;
+      if (aiCallCount === 1) throw new Error("AI failure on first doc");
+      return { content: "Generated document content here." };
+    });
+
+    const result = await generateAllVaultDocuments(TEST_USER);
+    expect(result).toEqual({ generated: 5, failed: 1 });
+  });
+
+  it("the failing doc emits drafting → reviewing → failed; all others emit the full success sequence", async () => {
+    const FAILING_IDX = 2;
+    let aiCallCount = 0;
+    mockAICall.mockImplementation(async () => {
+      aiCallCount++;
+      if (aiCallCount === FAILING_IDX + 1) throw new Error("AI failure");
+      return { content: "Generated document content here." };
+    });
+
+    await generateAllVaultDocuments(TEST_USER);
+
+    const failingType = VAULT_DOC_TYPES[FAILING_IDX];
+    expect(emittedStepsForDocType(failingType)).toEqual([
+      "drafting",
+      "reviewing",
+      "failed",
+    ]);
+
+    for (const docType of VAULT_DOC_TYPES) {
+      if (docType === failingType) continue;
+      expect(emittedStepsForDocType(docType)).toEqual([
+        "drafting",
+        "reviewing",
+        "finalising",
+        "ready",
+      ]);
+    }
+  });
+
+  it("docs generated after a failure still have non-interleaved, complete sequences", async () => {
+    let aiCallCount = 0;
+    mockAICall.mockImplementation(async () => {
+      aiCallCount++;
+      if (aiCallCount === 1) throw new Error("AI failure on first doc");
+      return { content: "Generated document content here." };
+    });
+
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const docType of VAULT_DOC_TYPES.slice(1)) {
+      expect(emittedStepsForDocType(docType)).toEqual([
+        "drafting",
+        "reviewing",
+        "finalising",
+        "ready",
+      ]);
+    }
+  });
+
+  it("events for docs after a failure still do not interleave with each other", async () => {
+    let aiCallCount = 0;
+    mockAICall.mockImplementation(async () => {
+      aiCallCount++;
+      if (aiCallCount === 1) throw new Error("AI failure on first doc");
+      return { content: "Generated document content here." };
+    });
+
+    await generateAllVaultDocuments(TEST_USER);
+
+    const succeedingTypes = [...VAULT_DOC_TYPES.slice(1)];
+    const allCalls = mockEmit.mock.calls;
+
+    for (let i = 0; i < succeedingTypes.length - 1; i++) {
+      const currentType = succeedingTypes[i];
+      const nextType = succeedingTypes[i + 1];
+
+      const lastCurrentIdx = allCalls.reduce(
+        (last, call, idx) =>
+          (call[1] as { docType: string }).docType === currentType ? idx : last,
+        -1,
+      );
+      const firstNextIdx = allCalls.findIndex(
+        (call) => (call[1] as { docType: string }).docType === nextType,
+      );
+
+      expect(lastCurrentIdx).toBeGreaterThanOrEqual(0);
+      expect(firstNextIdx).toBeGreaterThan(lastCurrentIdx);
+    }
+  });
+
+  it("returns { generated: 0, failed: 6 } when all docs fail", async () => {
+    mockAICall.mockRejectedValue(new Error("AI completely down"));
+
+    const result = await generateAllVaultDocuments(TEST_USER);
+    expect(result).toEqual({ generated: 0, failed: 6 });
+  });
+
+  it("every doc type gets at least 'drafting' even when all fail", async () => {
+    mockAICall.mockRejectedValue(new Error("AI completely down"));
+
+    await generateAllVaultDocuments(TEST_USER);
+
+    for (const docType of VAULT_DOC_TYPES) {
+      expect(emittedStepsForDocType(docType)).toContain("drafting");
+    }
   });
 });
