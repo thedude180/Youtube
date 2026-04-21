@@ -14,6 +14,7 @@ import {
   HardDrive,
   Scissors,
   Sparkles,
+  Brain,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: "/stream",  label: "Live",     icon: Radio },
   { href: "/money",             label: "Revenue",  icon: DollarSign },
   { href: "/platform-features", label: "Features", icon: Sparkles },
+  { href: "/system-growth",     label: "Growth",   icon: Brain },
   { href: "/settings",          label: "Settings", icon: Settings },
 ];
 
