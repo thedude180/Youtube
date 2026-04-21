@@ -5,52 +5,39 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("platform-budget");
 
-// Daily caps — tuned to match what a real active human gaming creator posts.
-// The goal is a consistent, organic-looking flow that avoids bot-detection
-// on every platform. Caps are intentionally conservative; the system runs
-// 24/7 so a lower daily number spread across the day looks far more human
-// than a high cap burst-posted in the first few hours.
+// ─── ACTIVE CONTENT DISTRIBUTION PLATFORMS ───────────────────────────────────
+// Only platforms with real publishers are listed here. The autopilot routes
+// content exclusively through ALL_DISTRIBUTION_PLATFORMS = ["youtube","discord","tiktok"].
 //
-//   youtube        : 1–2 long-form uploads/day is normal for an active gaming
-//                    channel. 2 keeps quota cost well under the 10k daily limit
-//                    (1600 units/upload) and matches organic creator cadence.
-//   youtubeshorts  : Gaming Shorts creators typically post 2–5/day. 4 slots
-//                    spread over 2-hour gaps looks natural, not bot-like.
-//   tiktok         : 2–3/day is the sweet spot for a consistent creator.
-//                    Anything above 4 on a gaming account risks shadow-ban.
-//   x              : 5–8 posts/day looks active without triggering auto-review.
-//   discord        : Announcement-channel style — posts when YouTube or TikTok
-//                    content goes out. 8/day with 30-min gaps is natural.
-//   instagram      : Graph API caps at 25, but 4 organic-looking posts/day
-//                    avoids the algorithm's over-posting penalty.
-//   kick           : 1–2 clips per day on a gaming clip channel.
-//   rumble         : Same cadence as YouTube long-form.
-//   twitch         : Clips/posts — 3/day matches realistic manual cadence.
+// NOT listed (live-stream / RTMP only — no content upload API):
+//   twitch  → live relay only (RTMP). Platform-publisher can update stream title
+//             and post chat announcements, but autopilot does NOT distribute here.
+//   kick    → live relay only (RTMP). No upload API exists. No publisher.
+//   rumble  → live relay only (RTMP). No upload API exists. No publisher.
+//
+// Daily caps are tuned for human-looking cadence, not maximum throughput:
+//   youtube       : 1–2 long-form uploads/day (active creator standard).
+//                   2 keeps well under the 10k daily API quota.
+//   youtubeshorts : Gaming Shorts creators post 2–5/day. 4 slots spread 2h
+//                   apart looks organic, not bot-like.
+//   tiktok        : 2–3/day is the sweet spot. Above 4 on a gaming account
+//                   risks shadow-ban.
+//   discord       : Announcement-style — posts when YouTube/TikTok content
+//                   goes out. 8/day with 30-min gaps is natural.
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
   youtube: 2,
   youtubeshorts: 4,
   tiktok: 3,
-  x: 8,
   discord: 8,
-  instagram: 4,
-  kick: 2,
-  rumble: 2,
-  twitch: 3,
 };
 
 // Minimum gap between consecutive posts on the same platform.
-// These enforce the spacing that real creators naturally have — no human
-// uploads a YouTube video every hour. Longer gaps = more human-looking cadence.
+// These enforce the spacing real creators naturally maintain.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
-  youtube: 6 * 60 * 60_000,      // 6 hours between long-forms
+  youtube: 6 * 60 * 60_000,       // 6 hours between long-form uploads
   youtubeshorts: 2 * 60 * 60_000, // 2 hours between Shorts
-  tiktok: 3 * 60 * 60_000,        // 3 hours between TikToks
-  x: 45 * 60_000,                 // 45 min between tweets
+  tiktok: 3 * 60 * 60_000,        // 3 hours between TikTok posts
   discord: 30 * 60_000,           // 30 min between announcements
-  instagram: 4 * 60 * 60_000,     // 4 hours between IG posts
-  kick: 4 * 60 * 60_000,          // 4 hours between Kick clips
-  rumble: 6 * 60 * 60_000,        // 6 hours (mirrors YouTube)
-  twitch: 2 * 60 * 60_000,        // 2 hours between Twitch posts
 };
 
 export interface PlatformBudgetStatus {

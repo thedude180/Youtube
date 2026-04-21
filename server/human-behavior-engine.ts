@@ -105,42 +105,9 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
     avgGapMinutes: 90,    // follows YouTube/TikTok schedule naturally
     weekendMultiplier: 1.3,
   },
-  // Kick: gaming clip channel, 1–2 clips/day with wide gaps looks organic.
-  kick: {
-    peakHours: [16, 17, 18, 19, 20, 21, 22, 23],
-    offPeakHours: [12, 13, 14, 15],
-    maxPostsPerDay: 2,
-    minGapMinutes: 240,   // 4 hours minimum
-    avgGapMinutes: 360,   // target ~6 hours apart
-    weekendMultiplier: 1.1,
-  },
-  // Rumble: mirrors YouTube long-form cadence.
-  rumble: {
-    peakHours: [14, 15, 16, 17, 18, 19, 20],
-    offPeakHours: [10, 11, 12, 13, 21],
-    maxPostsPerDay: 2,
-    minGapMinutes: 360,
-    avgGapMinutes: 480,
-    weekendMultiplier: 1.0,
-  },
-  // Twitch: clip posts and announcements, 2–3/day.
-  twitch: {
-    peakHours: [15, 16, 17, 18, 19, 20, 21, 22],
-    offPeakHours: [11, 12, 13, 14, 23],
-    maxPostsPerDay: 3,
-    minGapMinutes: 120,
-    avgGapMinutes: 240,
-    weekendMultiplier: 1.2,
-  },
-  // Instagram: 3–4 posts/day, with longer gaps to avoid algo penalty.
-  instagram: {
-    peakHours: [11, 12, 13, 17, 18, 19, 20, 21],
-    offPeakHours: [9, 10, 14, 15, 16, 22],
-    maxPostsPerDay: 4,
-    minGapMinutes: 240,
-    avgGapMinutes: 360,
-    weekendMultiplier: 1.1,
-  },
+  // NOTE: twitch, kick, rumble are LIVE-STREAM ONLY (RTMP). They have no
+  // content upload API and are not in ALL_DISTRIBUTION_PLATFORMS. No timing
+  // profile needed — autopilot never schedules content posts to these platforms.
 };
 
 function gaussianRandom(mean: number, stddev: number): number {
@@ -211,36 +178,26 @@ export function generateHumanScheduledTime(options: HumanScheduleOptions): Date 
   return scheduledDate;
 }
 
-// Platform posting priority — defines the order in which platforms receive
-// content for the same video. YouTube goes first (primary channel), Discord
-// announces shortly after, then TikTok/Kick/Rumble follow with wider gaps.
-// This mirrors what a real creator does: upload to YouTube, ping Discord,
-// then cross-post to other platforms an hour or two later.
+// Platform posting priority — defines the order in which ACTIVE distribution
+// platforms receive content. YouTube goes first, Discord announces shortly
+// after, then TikTok follows with a wider gap. Mirrors real creator behavior.
+// twitch, kick, and rumble are RTMP live-stream only — omitted intentionally.
 const PLATFORM_PRIORITY_ORDER = [
-  "youtube",
-  "youtubeshorts",
-  "discord",
-  "tiktok",
-  "twitch",
-  "kick",
-  "rumble",
-  "instagram",
-  "x",
+  "youtube",        // primary — uploads here first
+  "youtubeshorts",  // same channel, Shorts have their own schedule
+  "discord",        // announcement follows shortly after
+  "tiktok",         // short-form clip, delayed for stagger
 ];
 
 // Cross-platform stagger gaps (minutes). After the primary platform posts,
 // each subsequent platform waits this long before its slot. Values are
 // intentionally varied so all platforms don't march in lockstep.
+// Only includes platforms with real publishers and upload capability.
 const CROSS_PLATFORM_STAGGER_MINUTES: Record<string, number> = {
-  youtube: 0,          // primary — base time
-  youtubeshorts: 0,    // same channel, own schedule
-  discord: 20,         // announce 20 min after YouTube (quick)
-  tiktok: 60,          // post to TikTok ~1h after YouTube
-  twitch: 75,          // Twitch clip ~75 min after
-  kick: 90,            // Kick clip ~90 min after YouTube
-  rumble: 120,         // Rumble mirrors YouTube, 2h later
-  instagram: 105,      // IG post ~105 min after
-  x: 30,              // Tweet soon after YouTube is live
+  youtube: 0,          // primary — base time, no stagger
+  youtubeshorts: 0,    // own schedule, parallel to long-form
+  discord: 20,         // announce ~20 min after YouTube goes live
+  tiktok: 60,          // TikTok clip ~1 hour after YouTube
 };
 
 export function generateStaggeredSchedule(

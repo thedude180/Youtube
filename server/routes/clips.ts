@@ -355,7 +355,10 @@ export function registerClipRoutes(app: Express) {
 
       for (const clip of sorted) {
         let platform = clip.targetPlatform || "youtube";
-        if (platform === "kick" || platform === "twitch" || platform === "rumble") platform = "tiktok";
+        // kick, twitch, and rumble are RTMP live-stream only — no upload API exists.
+        // Skip any legacy queue entries targeting these platforms rather than silently
+        // remapping them to TikTok, which would misrepresent the distribution intent.
+        if (platform === "kick" || platform === "twitch" || platform === "rumble") continue;
         const mappedPlatform = platforms.includes(platform) ? platform : "youtube";
 
         const budget = platformBudgets[mappedPlatform] || 14;
