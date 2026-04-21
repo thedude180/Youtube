@@ -31,6 +31,16 @@ interface PipelineSession {
 
 const sessions = new Map<string, PipelineSession>();
 
+// Tracks the UTC day (YYYY-MM-DD) on which the daily token budget was exhausted
+// for a given user. Prevents automated callers from repeatedly spawning no-op runs
+// until midnight resets the budget.
+const budgetExhaustedDay = new Map<string, string>();
+
+function utcDay(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
 try {
   const { registerMap } = require("./services/resilience-core");
   registerMap("shorts-pipeline-sessions", sessions, 50);
@@ -43,6 +53,14 @@ export async function startShortsPipeline(
   const existing = sessions.get(userId);
   if (existing && existing.state === "running") {
     return { runId: existing.runId, totalVideos: existing.totalVideos, status: "already_running" };
+  }
+
+  // If the daily token budget was already exhausted today, skip immediately.
+  // This stops automated callers (catalog-sync, vod-watcher, etc.) from
+  // re-spawning no-op runs every few seconds until midnight.
+  const today = utcDay();
+  if (budgetExhaustedDay.get(userId) === today) {
+    return { runId: -1, totalVideos: 0, status: "budget_exhausted_today" };
   }
 
   const allVideos = await storage.getVideosByUser(userId);
@@ -96,6 +114,7 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
   // the queue contains thousands of entries).
   if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
     logger.warn(`[ShortsPipeline] Daily token budget exhausted — deferring pipeline batch (${videos.length} videos) to tomorrow's budget reset`);
+    budgetExhaustedDay.set(userId, utcDay());
     const s = sessions.get(userId);
     if (s) { s.state = "completed"; s.currentVideoId = null; }
     await db.update(pipelineRuns).set({ status: "completed" }).where(eq(pipelineRuns.id, runId)).catch(() => {});
@@ -127,6 +146,7 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
     // rather than hammering through remaining videos with no-op budget checks.
     if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
       logger.info(`[ShortsPipeline] Budget exhausted after ${current.processedVideos} videos — pausing pipeline batch until tomorrow's reset`);
+      budgetExhaustedDay.set(userId, utcDay());
       break;
     }
   }
