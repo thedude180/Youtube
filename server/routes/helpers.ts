@@ -55,6 +55,26 @@ export function requireAuth(req: Request, res: Response): string | null {
   return userId;
 }
 
+/**
+ * Express middleware version of requireAuth.
+ * Use this when passing requireAuth as a route middleware argument:
+ *   app.get("/path", requireAuthMw, asyncHandler(...))
+ *
+ * Calls next() on success so the request continues to the handler.
+ */
+export function requireAuthMw(req: Request, res: Response, next: NextFunction): void {
+  if (!req.isAuthenticated()) {
+    res.sendStatus(401);
+    return;
+  }
+  const userId = getUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: "Invalid session — please log in again" });
+    return;
+  }
+  next();
+}
+
 export function requireAdmin(req: Request, res: Response): string | null {
   const userId = requireAuth(req, res);
   if (!userId) return null;

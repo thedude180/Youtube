@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { requireAuth, asyncHandler } from "./helpers";
+import { requireAuth, requireAuthMw, asyncHandler } from "./helpers";
 import {
   queueStreamEditJob,
   getEditJobs,
@@ -41,7 +41,7 @@ const batchQueueSchema = z.object({
 });
 
 export function registerStreamEditorRoutes(app: Express): void {
-  app.get("/api/stream-editor/platforms", requireAuth, asyncHandler(async (_req, res) => {
+  app.get("/api/stream-editor/platforms", requireAuthMw, asyncHandler(async (_req, res) => {
     const profiles = Object.entries(PLATFORM_PROFILES).map(([id, p]) => ({
       id,
       label: p.label,
@@ -57,7 +57,7 @@ export function registerStreamEditorRoutes(app: Express): void {
    * Return ALL vault entries for the channel — indexed, downloading, downloaded, failed.
    * Entries that are not yet downloaded will be auto-downloaded when their edit job runs.
    */
-  app.get("/api/stream-editor/vault-streams", requireAuth, asyncHandler(async (req, res) => {
+  app.get("/api/stream-editor/vault-streams", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const contentType = req.query.contentType as string | undefined;
     const gameName = req.query.game as string | undefined;
@@ -66,7 +66,7 @@ export function registerStreamEditorRoutes(app: Express): void {
     res.json({ entries, total: entries.length });
   }));
 
-  app.post("/api/stream-editor/jobs", requireAuth, asyncHandler(async (req, res) => {
+  app.post("/api/stream-editor/jobs", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const body = queueJobSchema.parse(req.body);
 
@@ -87,7 +87,7 @@ export function registerStreamEditorRoutes(app: Express): void {
    * Batch queue — queue up to 500 videos at once.
    * Each entry gets its own job record; jobs execute sequentially.
    */
-  app.post("/api/stream-editor/jobs/batch", requireAuth, asyncHandler(async (req, res) => {
+  app.post("/api/stream-editor/jobs/batch", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const body = batchQueueSchema.parse(req.body);
 
@@ -114,13 +114,13 @@ export function registerStreamEditorRoutes(app: Express): void {
     res.json({ queued: results.length, errors, results });
   }));
 
-  app.get("/api/stream-editor/jobs", requireAuth, asyncHandler(async (req, res) => {
+  app.get("/api/stream-editor/jobs", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const jobs = await getEditJobs(userId);
     res.json({ jobs });
   }));
 
-  app.get("/api/stream-editor/jobs/:id", requireAuth, asyncHandler(async (req, res) => {
+  app.get("/api/stream-editor/jobs/:id", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const jobId = parseInt(req.params.id as string, 10);
     if (isNaN(jobId)) return res.status(400).json({ error: "Invalid job ID" });
@@ -129,7 +129,7 @@ export function registerStreamEditorRoutes(app: Express): void {
     res.json(job);
   }));
 
-  app.post("/api/stream-editor/jobs/:id/cancel", requireAuth, asyncHandler(async (req, res) => {
+  app.post("/api/stream-editor/jobs/:id/cancel", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const jobId = parseInt(req.params.id as string, 10);
     if (isNaN(jobId)) return res.status(400).json({ error: "Invalid job ID" });
@@ -137,7 +137,7 @@ export function registerStreamEditorRoutes(app: Express): void {
     res.json({ ok: true });
   }));
 
-  app.delete("/api/stream-editor/jobs/:id", requireAuth, asyncHandler(async (req, res) => {
+  app.delete("/api/stream-editor/jobs/:id", requireAuthMw, asyncHandler(async (req, res) => {
     const userId = (req.user as any)?.claims?.sub;
     const jobId = parseInt(req.params.id as string, 10);
     if (isNaN(jobId)) return res.status(400).json({ error: "Invalid job ID" });

@@ -364,16 +364,23 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const [dbProbe, storageProbe] = await Promise.allSettled([
-        getCapabilityStatus("database", "database:read"),
-        getCapabilityStatus("storage", "storage:read"),
-      ]);
+      let dbStatus = await getCapabilityStatus("database", "database:read");
+      if (dbStatus.status === "unknown" || dbStatus.status === "stale") {
+        await probeCapability("database", "database:read");
+        dbStatus = await getCapabilityStatus("database", "database:read");
+      }
+
+      let storageStatus = await getCapabilityStatus("storage", "storage:read");
+      if (storageStatus.status === "unknown" || storageStatus.status === "stale") {
+        await probeCapability("storage", "storage:read");
+        storageStatus = await getCapabilityStatus("storage", "storage:read");
+      }
 
       const trustBudget = await checkTrustBudget(userId, "default", 0);
 
       const systems: Record<string, string> = {
-        database: dbProbe.status === "fulfilled" && dbProbe.value.status === "verified" ? "healthy" : "degraded",
-        storage: storageProbe.status === "fulfilled" && storageProbe.value.status === "verified" ? "healthy" : "idle",
+        database: dbStatus.status === "verified" ? "healthy" : "degraded",
+        storage: storageStatus.status === "verified" ? "healthy" : "idle",
         kernel: "healthy",
         trust_budget: trustBudget.blocked ? "blocked" : "healthy",
         webhook: "idle",
@@ -402,10 +409,17 @@ export function registerKernelRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Not authenticated" });
 
     try {
-      const [dbProbe, storageProbe] = await Promise.allSettled([
-        getCapabilityStatus("database", "database:read"),
-        getCapabilityStatus("storage", "storage:read"),
-      ]);
+      let dbStatus = await getCapabilityStatus("database", "database:read");
+      if (dbStatus.status === "unknown" || dbStatus.status === "stale") {
+        await probeCapability("database", "database:read");
+        dbStatus = await getCapabilityStatus("database", "database:read");
+      }
+
+      let storageStatus = await getCapabilityStatus("storage", "storage:read");
+      if (storageStatus.status === "unknown" || storageStatus.status === "stale") {
+        await probeCapability("storage", "storage:read");
+        storageStatus = await getCapabilityStatus("storage", "storage:read");
+      }
 
       await checkTrustBudget(userId, "system", 0);
       const trustBudget = await getTrustBudgetSummary(userId);
@@ -447,8 +461,8 @@ export function registerKernelRoutes(app: Express) {
       }
 
       const systems: Record<string, string> = {
-        database: dbProbe.status === "fulfilled" && dbProbe.value.status === "verified" ? "healthy" : "degraded",
-        storage: storageProbe.status === "fulfilled" && storageProbe.value.status === "verified" ? "healthy" : "idle",
+        database: dbStatus.status === "verified" ? "healthy" : "degraded",
+        storage: storageStatus.status === "verified" ? "healthy" : "idle",
         kernel: "healthy",
         trust_budget: anyExhausted ? "blocked" : "healthy",
         webhook: "idle",
