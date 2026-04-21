@@ -4,8 +4,8 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
-export { sessions, users, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL, CHANNEL_LAUNCH_STATES } from "./models/auth";
-export type { User, UpsertUser, SubscriptionTier, UserRole, ChannelLaunchState } from "./models/auth";
+export { sessions, users, passwordResetTokens, SUBSCRIPTION_TIERS, USER_ROLES, TIER_PLATFORM_LIMITS, TIER_LABELS, ADMIN_EMAIL, CHANNEL_LAUNCH_STATES } from "./models/auth";
+export type { User, UpsertUser, SubscriptionTier, UserRole, ChannelLaunchState, PasswordResetToken } from "./models/auth";
 import { users } from "./models/auth";
 export { conversations, messages } from "./models/chat";
 

@@ -141,8 +141,8 @@ function BrandPanel() {
   );
 }
 
-export function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
-  const [mode, setMode] = useState<AuthMode>("login");
+export function AuthForm({ onSuccess, initialMode }: { onSuccess?: () => void; initialMode?: AuthMode }) {
+  const [mode, setMode] = useState<AuthMode>(initialMode ?? "login");
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

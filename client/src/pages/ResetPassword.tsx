@@ -131,7 +131,7 @@ export default function ResetPassword() {
                 <p className="text-sm text-muted-foreground">{invalidReason}</p>
               </div>
               <Button variant="outline" data-testid="button-request-new-link"
-                onClick={() => setLocation("/login?forgot=1")}>
+                onClick={() => setLocation("/?forgot=1")}>
                 <ArrowLeft className="h-4 w-4 mr-2" />Request a New Link
               </Button>
             </div>
@@ -145,7 +145,7 @@ export default function ResetPassword() {
                 <h2 className="text-lg font-semibold mb-1">Password Updated!</h2>
                 <p className="text-sm text-muted-foreground">Your password has been changed. You can now sign in.</p>
               </div>
-              <Button data-testid="button-go-to-signin" onClick={() => setLocation("/login")}>
+              <Button data-testid="button-go-to-signin" onClick={() => setLocation("/")}>
                 Go to Sign In
               </Button>
             </div>
@@ -244,7 +244,7 @@ export default function ResetPassword() {
               <div className="text-center">
                 <button type="button" data-testid="button-back-to-login"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => setLocation("/login")}>
+                  onClick={() => setLocation("/")}>
                   <ArrowLeft className="h-3 w-3 inline mr-1" />Back to Sign In
                 </button>
               </div>

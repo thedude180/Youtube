@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { authStorage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../customer-database-engine";
-import { ADMIN_EMAIL, SUPPORT_EMAIL } from "@shared/models/auth";
+import { ADMIN_EMAIL } from "@shared/models/auth";
 import { z } from "zod";
 import { recordLoginAttempt, checkAccountLock } from "../../services/security-fortress";
 

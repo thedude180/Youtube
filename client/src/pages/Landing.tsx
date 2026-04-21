@@ -261,6 +261,7 @@ export default function Landing() {
   const { t } = useTranslation();
   const [, navigate] = useLocation();
   const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authInitialMode, setAuthInitialMode] = useState<"login" | "register" | "forgot-password">("login");
   const { toast } = useToast();
 
   const { data: authConfig } = useQuery<{ mode: "replit" | "oauth" }>({
@@ -284,6 +285,11 @@ export default function Landing() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    if (params.get("forgot") === "1" && !isReplitMode) {
+      setAuthInitialMode("forgot-password");
+      setShowAuthForm(true);
+      window.history.replaceState({}, "", "/");
+    }
     const authError = params.get("auth_error");
     if (authError) {
       const reason = params.get("reason");
@@ -311,7 +317,7 @@ export default function Landing() {
       toast({ title: "Error", description: message, variant: "destructive" });
       window.history.replaceState({}, "", "/");
     }
-  }, [toast]);
+  }, [toast, isReplitMode]);
 
   const FEATURES = useMemo(() => [
     { icon: Video, title: "Shorts Pipeline", description: "Automatically clips your VODs and streams into short-form content, adds hooks, captions, and queues them for upload.", metric: "Daily automation", gradient: "from-violet-500/10 to-purple-500/5" },
@@ -385,18 +391,18 @@ export default function Landing() {
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md"
           data-testid="modal-auth"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowAuthForm(false); }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowAuthForm(false); setAuthInitialMode("login"); } }}
         >
           <div className="relative scale-in">
             <button
               data-testid="button-close-auth"
-              onClick={() => setShowAuthForm(false)}
+              onClick={() => { setShowAuthForm(false); setAuthInitialMode("login"); }}
               className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Close"
             >
               &times;
             </button>
-            <AuthForm />
+            <AuthForm initialMode={authInitialMode} />
           </div>
         </div>
       )}
