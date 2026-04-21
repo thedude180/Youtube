@@ -673,14 +673,23 @@ export default function Vault() {
 
   const { data: vaultDocs, isLoading: docsLoading, refetch: refetchDocs } = useQuery<VaultDoc[]>({
     queryKey: ["/api/vault-docs"],
-    refetchInterval: showingDocs ? 10_000 : false,
+    refetchInterval: (query) => {
+      if (!showingDocs) return false;
+      const data = query.state.data as VaultDoc[] | undefined;
+      return (data ?? []).some((d) => d.status === "generating") ? 3_000 : 10_000;
+    },
     enabled: true,
   });
+
+  const isAnyGenerating = (vaultDocs ?? []).some(d => d.status === "generating");
+  const docsReadyCount = (vaultDocs ?? []).filter(d => d.status === "ready").length;
+  const docsTotal = (vaultDocs ?? []).length || 6;
 
   const generateAllDocsMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault-docs/generate/all"),
     onSuccess: () => {
       toast({ title: "Generating all 6 documents", description: "This takes a few minutes — documents will appear as they complete." });
+      setTimeout(() => refetchDocs(), 2000);
       setTimeout(() => refetchDocs(), 5000);
     },
     onError: (e: Error) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
@@ -689,8 +698,8 @@ export default function Vault() {
   const generateDocMutation = useMutation({
     mutationFn: (docType: string) => apiRequest("POST", `/api/vault-docs/generate/${docType}`),
     onSuccess: (_data, docType) => {
-      toast({ title: "Generating document", description: `Regenerating ${docType.replace(/_/g, " ")} — refresh in ~30s.` });
-      setTimeout(() => { void refetchDocs(); void refetchDocDetail(); }, 8000);
+      toast({ title: "Generating document", description: `Regenerating ${docType.replace(/_/g, " ")} — updates will appear in real time.` });
+      setTimeout(() => { void refetchDocs(); void refetchDocDetail(); }, 2000);
     },
     onError: (e: Error) => toast({ title: "Generation failed", description: e?.message, variant: "destructive" }),
   });
@@ -699,7 +708,11 @@ export default function Vault() {
     queryKey: ["/api/vault-docs", viewingDoc],
     queryFn: () => fetch(`/api/vault-docs/${viewingDoc}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!viewingDoc,
-    refetchInterval: !!viewingDoc ? 10_000 : false,
+    refetchInterval: (query) => {
+      if (!viewingDoc) return false;
+      const detail = query.state.data as VaultDocDetail | undefined;
+      return detail?.status === "generating" ? 3_000 : 10_000;
+    },
   });
 
   const syncMutation = useMutation({
@@ -957,6 +970,25 @@ export default function Vault() {
                 : <><Wand2 className="h-3.5 w-3.5 mr-1.5" />Generate All Documents</>}
             </Button>
           </div>
+
+          {(isAnyGenerating || generateAllDocsMutation.isPending) && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2" data-testid="docs-generation-progress">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-blue-400 font-medium">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Generating documents…
+                </span>
+                <span className="text-muted-foreground" data-testid="docs-progress-count">
+                  {docsReadyCount} of {docsTotal} complete
+                </span>
+              </div>
+              <Progress
+                value={(docsReadyCount / docsTotal) * 100}
+                className="h-1.5 bg-blue-500/20"
+                data-testid="docs-progress-bar"
+              />
+            </div>
+          )}
 
           {docsLoading ? (
             <div className="space-y-3">
