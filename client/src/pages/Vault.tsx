@@ -1157,8 +1157,9 @@ export default function Vault() {
                             </Badge>
                           )}
                           {isGenerating && (
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]">
-                              <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />Generating…
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px]" data-testid={`badge-generating-${doc.docType}`}>
+                              <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" />
+                              {sseStepIndices[doc.docType] !== undefined ? REGEN_STEPS[sseStepIndices[doc.docType]] : "Generating…"}
                             </Badge>
                           )}
                           {isFailed && (
