@@ -5343,6 +5343,43 @@ export const contentVaultBackups = pgTable("content_vault_backups", {
   index("vault_youtube_id_idx").on(table.youtubeId),
 ]);
 
+export const streamEditJobs = pgTable("stream_edit_jobs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  vaultEntryId: integer("vault_entry_id"),
+  sourceTitle: text("source_title"),
+  sourceFilePath: text("source_file_path"),
+  sourceDurationSecs: integer("source_duration_secs"),
+  platforms: jsonb("platforms").$type<string[]>().default([]),
+  clipDurationMins: integer("clip_duration_mins").default(60),
+  enhancements: jsonb("enhancements").$type<{
+    upscale4k: boolean;
+    audioNormalize: boolean;
+    colorEnhance: boolean;
+    sharpen: boolean;
+  }>().default({ upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true }),
+  status: text("status").default("queued"),
+  progress: integer("progress").default(0),
+  totalClips: integer("total_clips").default(0),
+  completedClips: integer("completed_clips").default(0),
+  outputDir: text("output_dir"),
+  outputFiles: jsonb("output_files").$type<Array<{
+    platform: string;
+    clipIndex: number;
+    label: string;
+    filePath: string;
+    fileSize: number;
+    durationSecs: number;
+  }>>().default([]),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("stream_edit_jobs_user_idx").on(table.userId),
+  index("stream_edit_jobs_status_idx").on(table.status),
+]);
+
 export const contractAnalyses = pgTable("contract_analyses", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),

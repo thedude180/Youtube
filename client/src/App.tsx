@@ -56,8 +56,9 @@ const Landing     = lazyRetry(() => import("@/pages/Landing"));
 const Onboarding  = lazyRetry(() => import("@/pages/Onboarding"));
 const PreChannelLaunch = lazyRetry(() => import("@/pages/PreChannelLaunch"));
 const Pricing     = lazyRetry(() => import("@/pages/Pricing"));
-const VideoStudio = lazyRetry(() => import("@/pages/VideoStudio"));
-const Vault       = lazyRetry(() => import("@/pages/Vault"));
+const VideoStudio  = lazyRetry(() => import("@/pages/VideoStudio"));
+const Vault        = lazyRetry(() => import("@/pages/Vault"));
+const StreamEditor = lazyRetry(() => import("@/pages/StreamEditor"));
 const Notifications = lazyRetry(() => import("@/pages/Notifications"));
 const NotFound    = lazyRetry(() => import("@/pages/not-found"));
 const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.PrivacyPolicy })));
@@ -95,7 +96,8 @@ const sidebarStyle = {
 const PAGE_META: Record<string, { title: string; description: string }> = {
   "/":            { title: "Team",     description: "Your AI YouTube business team working autonomously to grow your channel." },
   "/content":     { title: "Content",  description: "Scripts, videos, thumbnails and calendar produced by your AI team." },
-  "/studio":      { title: "Video Studio", description: "Edit, customize and publish videos with full control." },
+  "/studio":        { title: "Video Studio",  description: "Edit, customize and publish videos with full control." },
+  "/stream-editor": { title: "Stream Editor", description: "Cut streams into platform-ready clips with 4K upscaling." },
   "/stream":      { title: "Live",     description: "Stream detection, live engagement tools and post-stream content pipeline." },
   "/money":       { title: "Revenue",  description: "Earnings, expenses, sponsorships and financial overview." },
   "/settings":    { title: "Settings", description: "Channel connection, brand voice and account preferences." },
@@ -148,6 +150,7 @@ function Router() {
       <Route path="/content/:tab">{() => <SectionErrorBoundary fallbackTitle="Content failed to load"><Content /></SectionErrorBoundary>}</Route>
       <Route path="/studio">{() => <SectionErrorBoundary fallbackTitle="Video Studio failed to load"><VideoStudio /></SectionErrorBoundary>}</Route>
       <Route path="/vault">{() => <SectionErrorBoundary fallbackTitle="Video Vault failed to load"><Vault /></SectionErrorBoundary>}</Route>
+      <Route path="/stream-editor">{() => <SectionErrorBoundary fallbackTitle="Stream Editor failed to load"><StreamEditor /></SectionErrorBoundary>}</Route>
       <Route path="/stream">{() => <SectionErrorBoundary fallbackTitle="Live failed to load"><StreamCenter /></SectionErrorBoundary>}</Route>
       <Route path="/money">{() => <SectionErrorBoundary fallbackTitle="Revenue failed to load"><Money /></SectionErrorBoundary>}</Route>
       <Route path="/money/:tab">{() => <SectionErrorBoundary fallbackTitle="Revenue failed to load"><Money /></SectionErrorBoundary>}</Route>

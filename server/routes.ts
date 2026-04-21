@@ -52,6 +52,7 @@ import { registerOpsHealthRoutes } from "./routes/ops-health";
 import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
 import { registerResolutionIntelligenceRoutes } from "./routes/resolution-intelligence";
 import { registerStudioRoutes } from "./routes/studio";
+import { registerStreamEditorRoutes } from "./routes/stream-editor";
 import { registerAudienceEngineRoutes } from "./routes/audience-engine";
 import { registerEmpireRoutes } from "./routes/empire";
 import { registerCatalogRoutes } from "./routes/catalog";
@@ -380,6 +381,7 @@ export async function registerRoutes(
   registerPhase7IntelligenceRoutes(app);
   registerResolutionIntelligenceRoutes(app);
   registerStudioRoutes(app);
+  registerStreamEditorRoutes(app);
   registerAudienceEngineRoutes(app);
   registerEmpireRoutes(app);
   registerCatalogRoutes(app);
