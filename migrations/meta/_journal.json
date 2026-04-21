@@ -162,6 +162,13 @@
       "when": 1776742454232,
       "tag": "0022_numerous_madame_web",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1776744477102,
+      "tag": "0023_pretty_iceman",
+      "breakpoints": true
     }
   ]
 }
