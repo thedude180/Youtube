@@ -6,6 +6,7 @@ import {
   Brain, Calendar, Shield, Sparkles, Play,
   Radio, Video, Layers, Target, Eye, Users, Globe,
   RefreshCw, Clock, Award, ChevronRight, Upload, Tv2,
+  Scissors, UploadCloud, Quote,
 } from "lucide-react";
 import {
   SiYoutube, SiTwitch, SiTiktok, SiDiscord,
@@ -467,24 +468,23 @@ export default function Landing() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
 
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 backdrop-blur-sm mb-6" data-testid="badge-hero-tag">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span className="text-[11px] font-semibold tracking-wide text-primary uppercase">Built for gaming channels</span>
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+              <span className="text-[11px] font-semibold tracking-wide text-primary uppercase">AI-powered gaming creator OS</span>
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-7xl font-display font-bold tracking-tight leading-[1.1] mb-6" data-testid="text-hero-headline">
-              <span className="block text-foreground">Your YouTube channel,</span>
-              <span className="gradient-text">on full autopilot.</span>
+              <span className="block text-foreground">Your gaming channel,</span>
+              <span className="gradient-text">running itself.</span>
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto mb-10 leading-relaxed" data-testid="text-hero-subheadline">
-              CreatorOS gives your gaming channel an AI team that handles Shorts, scheduling,
-              SEO, thumbnails, and revenue — so you can just focus on playing.
+              Connect your channel once. CreatorOS deploys an AI team that downloads your VODs, clips them for every platform, writes SEO copy, generates thumbnails, and publishes — all without you.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-14" data-testid="container-hero-ctas">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6" data-testid="container-hero-ctas">
               <Button
                 size="lg"
-                className="h-13 px-8 text-base font-semibold rounded-xl shadow-lg shadow-primary/25 group"
+                className="h-12 px-8 text-base font-semibold rounded-xl shadow-lg shadow-primary/25 group"
                 onClick={handleSignIn}
                 data-testid="button-hero-primary"
               >
@@ -494,13 +494,21 @@ export default function Landing() {
               <Button
                 variant="outline"
                 size="lg"
-                className="h-13 px-8 text-base font-semibold rounded-xl border-border/60 hover:bg-muted/40"
-                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="h-12 px-8 text-base font-semibold rounded-xl border-border/60 hover:bg-muted/40"
+                onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
                 data-testid="button-hero-secondary"
               >
                 <Play className="w-3.5 h-3.5 mr-2" />
-                See What It Does
+                How it works
               </Button>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 mb-12 text-xs text-muted-foreground/60">
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Free forever plan</span>
+              <span>·</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> No credit card</span>
+              <span>·</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Cancel anytime</span>
             </div>
 
             {/* Platform logos */}
@@ -616,6 +624,107 @@ export default function Landing() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pipeline Visualization ────────────────────── */}
+      <section className="py-20 sm:py-28 border-t border-border/30 bg-card/20" data-testid="section-pipeline">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="text-center mb-14">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Autonomous Pipeline</p>
+            <h2 className="text-2xl sm:text-3xl font-display font-bold">One publish. Five platforms. Zero effort.</h2>
+            <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+              Every video you record flows through this pipeline automatically — no dashboards to manage, no buttons to click.
+            </p>
+          </div>
+
+          <div className="relative">
+            <div className="hidden md:block absolute top-8 left-[10%] right-[10%] h-px border-t-2 border-dashed border-primary/20 z-0" aria-hidden="true" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4 relative z-10">
+              {[
+                { icon: Video, step: "01", label: "You Go Live", detail: "Stream or upload a video", color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
+                { icon: RefreshCw, step: "02", label: "Vault Syncs", detail: "Detected & downloaded in 6h", color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
+                { icon: Scissors, step: "03", label: "AI Clips It", detail: "Chopped for all 4 platforms", color: "text-primary", bg: "bg-primary/10 border-primary/20" },
+                { icon: Sparkles, step: "04", label: "SEO + Art", detail: "Titles, tags & thumbnails auto-generated", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
+                { icon: UploadCloud, step: "05", label: "Published", detail: "Optimal time, every platform", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+              ].map(({ icon: Icon, step, label, detail, color, bg }) => (
+                <div key={step} className="flex flex-col items-center text-center group" data-testid={`pipeline-step-${step}`}>
+                  <div className={`h-16 w-16 rounded-2xl border ${bg} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-200 relative`}>
+                    <Icon className={`h-7 w-7 ${color}`} />
+                    <div className={`absolute -top-2 -right-2 h-5 w-5 rounded-full bg-card border border-border/50 flex items-center justify-center`}>
+                      <span className={`text-[9px] font-bold font-mono ${color}`}>{step}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold mb-1">{label}</p>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-12 rounded-2xl border border-border/40 bg-card/60 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Live Activity Feed</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              {[
+                { time: "Just now", msg: "✂️  Clipping 'Hogwarts Legacy stream #7' → 4 clips created", color: "text-primary" },
+                { time: "3m ago", msg: "🎨  Thumbnail generated for 'Best Game Moments #12'", color: "text-amber-400" },
+                { time: "8m ago", msg: "📤  Published 'Minecraft Build Tips' to YouTube Shorts", color: "text-emerald-400" },
+              ].map(({ time, msg, color }, i) => (
+                <div key={i} className="flex flex-col gap-1 p-3 rounded-xl bg-muted/30 border border-border/30">
+                  <span className="text-[10px] text-muted-foreground/60">{time}</span>
+                  <span className={`${color} leading-snug`}>{msg}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Social Proof ──────────────────────────────── */}
+      <section className="py-16 border-t border-border/30" data-testid="section-social-proof">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <p className="text-center text-xs uppercase tracking-widest text-muted-foreground/50 font-semibold mb-10">
+            What creators are saying
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            {[
+              {
+                quote: "I went from manually editing 3 videos a week to having 20 clips auto-published. I just play and CreatorOS handles the rest.",
+                name: "Alex K.",
+                handle: "Gaming channel · 47K subs",
+                highlight: "20 clips auto-published",
+              },
+              {
+                quote: "The SEO alone is worth it. My click-through rate went up 40% the first month because the AI titles are just better than mine.",
+                name: "Jordan M.",
+                handle: "FPS streamer · 12K subs",
+                highlight: "40% better CTR",
+              },
+              {
+                quote: "Set it up on a Saturday afternoon. By Monday morning my backlog of 80 videos was already clipped and queued across YouTube and TikTok.",
+                name: "Sam T.",
+                handle: "RPG content creator · 31K subs",
+                highlight: "80 videos processed overnight",
+              },
+            ].map(({ quote, name, handle, highlight }, i) => (
+              <div key={i} className="relative flex flex-col gap-4 p-6 rounded-2xl border border-border/40 bg-card/50 hover:border-primary/20 transition-colors" data-testid={`card-testimonial-${i}`}>
+                <Quote className="h-5 w-5 text-primary/30 absolute top-4 right-4" />
+                <p className="text-sm text-foreground/80 leading-relaxed flex-1">
+                  "{quote}"
+                </p>
+                <div className="rounded-lg bg-primary/5 border border-primary/15 px-3 py-1.5 text-[11px] text-primary font-semibold self-start">
+                  {highlight}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">{name}</p>
+                  <p className="text-[11px] text-muted-foreground">{handle}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>

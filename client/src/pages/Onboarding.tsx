@@ -31,6 +31,11 @@ import {
   EyeOff,
   KeyRound,
   Shield,
+  CheckCircle2,
+  Bot,
+  RefreshCw,
+  Scissors,
+  UploadCloud,
 } from "lucide-react";
 import {
   SiYoutube,
@@ -1132,7 +1137,142 @@ function NewCreatorFlow({
   );
 }
 
-type OnboardingStep = "contact-info" | "choice" | "new-creator" | "existing-creator" | "redeem-code";
+type OnboardingStep = "contact-info" | "choice" | "new-creator" | "existing-creator" | "redeem-code" | "activating";
+
+const ACTIVATION_STAGES = [
+  { icon: RefreshCw, label: "Syncing your channel", detail: "Connecting to your YouTube account" },
+  { icon: Bot, label: "Initializing AI team", detail: "14 specialized agents assigned to your channel" },
+  { icon: Scissors, label: "Building clip pipeline", detail: "YouTube, Shorts, TikTok & Rumble queues ready" },
+  { icon: Sparkles, label: "AI SEO + Thumbnail engine", detail: "Learning your content style for optimization" },
+  { icon: UploadCloud, label: "Auto-publisher is armed", detail: "Optimal schedule mapped — zero clicks needed" },
+];
+
+function PipelineActivationScreen({ onEnterDashboard }: { onEnterDashboard: () => void }) {
+  const [activeStage, setActiveStage] = useState(0);
+  const [allDone, setAllDone] = useState(false);
+
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    ACTIVATION_STAGES.forEach((_, i) => {
+      timers.push(setTimeout(() => {
+        setActiveStage(i + 1);
+        if (i === ACTIVATION_STAGES.length - 1) {
+          setTimeout(() => setAllDone(true), 600);
+        }
+      }, 600 + i * 850));
+    });
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const progress = (activeStage / ACTIVATION_STAGES.length) * 100;
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-auto py-8"
+      data-testid="screen-pipeline-activation"
+      style={{ background: "linear-gradient(145deg, hsl(232 30% 4%) 0%, hsl(265 30% 8%) 100%)" }}>
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-md px-6">
+        <div className="flex items-center justify-center gap-2.5 mb-10">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-lg shadow-primary/30">
+            <Zap className="h-5 w-5 text-white" />
+          </div>
+          <span className="font-display font-bold text-lg text-white tracking-tight">
+            Creator<span className="text-primary/80">OS</span>
+          </span>
+        </div>
+
+        {!allDone ? (
+          <div className="text-center">
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2">
+              Activating your pipeline...
+            </h1>
+            <p className="text-sm text-white/45 mb-8">
+              Your AI team is initializing. This takes just a moment.
+            </p>
+
+            <div className="h-1.5 bg-white/10 rounded-full mb-8 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-primary via-purple-500 to-blue-500 rounded-full transition-all duration-700 ease-out"
+                style={{ width: `${progress}%` }} />
+            </div>
+
+            <div className="space-y-2.5 text-left">
+              {ACTIVATION_STAGES.map((stage, i) => {
+                const StageIcon = stage.icon;
+                const done = i < activeStage;
+                const active = i === activeStage;
+                return (
+                  <div key={stage.label}
+                    className={`flex items-start gap-3 p-3.5 rounded-xl transition-all duration-500 ${
+                      done ? "bg-white/[0.05]" : active ? "bg-primary/10 border border-primary/20" : "opacity-25"
+                    }`}>
+                    <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-all duration-500 ${
+                      done ? "bg-emerald-500/20" : active ? "bg-primary/20" : "bg-white/10"
+                    }`}>
+                      {done
+                        ? <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        : active
+                        ? <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
+                        : <StageIcon className="h-3.5 w-3.5 text-white/20" />
+                      }
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold transition-colors ${
+                        done ? "text-white/70" : active ? "text-white" : "text-white/25"
+                      }`}>{stage.label}</p>
+                      <p className={`text-xs transition-colors ${
+                        done ? "text-white/35" : active ? "text-white/55" : "text-white/15"
+                      }`}>{stage.detail}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center" style={{ animation: "fadeSlideUp 0.6s ease-out" }}>
+            <div className="h-16 w-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-3">
+              You're live!
+            </h1>
+            <p className="text-sm text-white/55 mb-6 max-w-xs mx-auto leading-relaxed">
+              Your autonomous pipeline is active. Every video you publish now flows automatically through your full AI stack.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+              {[
+                { label: "Vault sync", color: "text-emerald-400" },
+                { label: "Clip exhauster", color: "text-emerald-400" },
+                { label: "AI SEO", color: "text-emerald-400" },
+                { label: "Auto-publish", color: "text-emerald-400" },
+              ].map(({ label, color }) => (
+                <span key={label} className={`flex items-center gap-1 text-xs ${color}`}>
+                  <CheckCircle2 className="h-3 w-3" />
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            <Button
+              size="lg"
+              className="h-12 px-8 font-semibold shadow-lg shadow-primary/30 group"
+              onClick={onEnterDashboard}
+              data-testid="button-enter-dashboard"
+            >
+              Enter My Dashboard
+              <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-0.5 transition-transform" />
+            </Button>
+
+            <p className="text-xs text-white/25 mt-4">Your AI team works 24/7 — no further setup needed</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function RedeemCodeScreen({ onBack, onRedeemed }: { onBack: () => void; onRedeemed: () => void }) {
   const { toast } = useToast();
@@ -1325,66 +1465,80 @@ function ContactInfoScreen({
 
 function ChoiceScreen({ onChoose }: { onChoose: (choice: OnboardingStep) => void }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="h-14 w-14 rounded-md bg-primary flex items-center justify-center mb-6">
-        <Zap className="h-7 w-7 text-primary-foreground" />
+    <div className="flex flex-col items-center py-12 px-4">
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-6">
+        <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[11px] font-semibold tracking-wide text-primary uppercase">Welcome to CreatorOS</span>
       </div>
+
       <h1
         data-testid="text-onboarding-heading"
-        className="text-2xl sm:text-3xl font-display font-bold text-center"
+        className="text-3xl sm:text-4xl font-display font-bold text-center mb-3 tracking-tight"
       >
-        Welcome to CreatorOS
+        Let's build your AI team
       </h1>
       <p
         data-testid="text-onboarding-subtitle"
-        className="mt-2 text-sm text-muted-foreground text-center max-w-md"
+        className="text-sm text-muted-foreground text-center max-w-sm mb-10 leading-relaxed"
       >
-        Let's set things up. Which best describes you?
+        A few quick questions and your autonomous pipeline will be live in minutes.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 w-full max-w-lg">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl mb-4">
         <Card
           data-testid="card-choice-new"
-          className="cursor-pointer hover-elevate"
+          className="cursor-pointer border-border/60 hover:border-primary/40 hover:bg-card/80 transition-all duration-200 group"
           onClick={() => onChoose("new-creator")}
         >
           <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
-            <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center">
-              <Rocket className="h-6 w-6 text-primary" />
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/10 border border-primary/20 flex items-center justify-center group-hover:from-primary/30 transition-all">
+              <Rocket className="h-7 w-7 text-primary" />
             </div>
-            <h2 className="text-base font-display font-bold">I'm a New Creator</h2>
-            <p className="text-xs text-muted-foreground">
-              I'm just getting started and want help picking a niche, naming my channel, and planning content.
-            </p>
+            <div>
+              <h2 className="text-base font-display font-bold mb-1">New Creator</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Just starting out — I want help picking a niche, naming my channel, and creating my first content strategy.
+              </p>
+            </div>
+            <div className="flex items-center gap-1 text-primary text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Get started <ArrowRight className="h-3 w-3" />
+            </div>
           </CardContent>
         </Card>
 
         <Card
           data-testid="card-choice-existing"
-          className="cursor-pointer hover-elevate"
+          className="cursor-pointer border-primary/30 bg-primary/5 hover:border-primary/50 hover:bg-primary/8 transition-all duration-200 group relative"
           onClick={() => onChoose("existing-creator")}
         >
+          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+            <span className="text-[10px] bg-primary text-primary-foreground px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">Recommended</span>
+          </div>
           <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
-            <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-primary" />
+            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/30 to-purple-500/20 border border-primary/30 flex items-center justify-center group-hover:from-primary/40 transition-all">
+              <TrendingUp className="h-7 w-7 text-primary" />
             </div>
-            <h2 className="text-base font-display font-bold">I'm an Existing Creator</h2>
-            <p className="text-xs text-muted-foreground">
-              I already have channels and want to connect my platforms and start automating.
-            </p>
+            <div>
+              <h2 className="text-base font-display font-bold mb-1">Existing Creator</h2>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                I already have channels — connect them and activate the full autonomous pipeline immediately.
+              </p>
+            </div>
+            <div className="flex items-center gap-1 text-primary text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Connect platforms <ArrowRight className="h-3 w-3" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Button
-        variant="outline"
-        className="mt-6"
+      <button
+        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 mt-2"
         onClick={() => onChoose("redeem-code")}
         data-testid="button-choice-access-code"
       >
-        <KeyRound className="h-4 w-4 mr-2" />
+        <KeyRound className="h-3.5 w-3.5" />
         I have an access code
-      </Button>
+      </button>
     </div>
   );
 }
@@ -1520,10 +1674,7 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
     }
   };
 
-  const finishOnboarding = async () => {
-    if (user?.id) {
-      localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
-    }
+  const completeOnboarding = async () => {
     try {
       const stepPromises = [
         apiRequest("POST", "/api/kernel/onboarding/step", {
@@ -1564,22 +1715,35 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
     }
   };
 
+  const finishOnboarding = () => {
+    if (user?.id) {
+      localStorage.setItem(`creatoros_onboarded_${user.id}`, "true");
+    }
+    setStep("activating");
+  };
+
+  if (step === "activating") {
+    return <PipelineActivationScreen onEnterDashboard={completeOnboarding} />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <nav className="border-b border-border">
+      <nav className="border-b border-border/50 bg-background/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-2 h-14 px-4">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md shadow-primary/20">
+              <Zap className="h-4 w-4 text-white" />
             </div>
-            <span data-testid="text-onboarding-logo" className="font-display font-bold text-sm">
+            <span data-testid="text-onboarding-logo" className="font-display font-bold text-sm tracking-tight">
               Creator<span className="text-primary">OS</span>
             </span>
           </div>
-          {step !== "choice" && (
-            <Badge variant="secondary" data-testid="badge-progress">
-              {connectedCount} of {PLATFORMS.filter(p => (p as string) !== "youtubeshorts").length} connected
-            </Badge>
+          {step !== "choice" && step !== "contact-info" && (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" data-testid="badge-progress" className="text-xs">
+                {connectedCount > 0 ? `${connectedCount} platform${connectedCount > 1 ? "s" : ""} connected` : "No platforms yet"}
+              </Badge>
+            </div>
           )}
         </div>
       </nav>
