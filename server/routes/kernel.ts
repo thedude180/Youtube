@@ -283,11 +283,12 @@ export function registerKernelRoutes(app: Express) {
       const { trustBudgetPeriods, trustBudgetRecords } = await import("@shared/schema");
       const { eq } = await import("drizzle-orm");
       const { db } = await import("../db");
+      const RESET_BUDGET = 10_000;
       await db.update(trustBudgetPeriods)
-        .set({ endingBudget: 100, deductionsCount: 0, totalDeducted: 0 })
+        .set({ startingBudget: RESET_BUDGET, endingBudget: RESET_BUDGET, deductionsCount: 0, totalDeducted: 0 })
         .where(eq(trustBudgetPeriods.userId, userId));
       await db.update(trustBudgetRecords)
-        .set({ budgetRemaining: 100 })
+        .set({ budgetRemaining: RESET_BUDGET })
         .where(eq(trustBudgetRecords.userId, userId));
       res.json({ success: true, message: "Trust budget reset for all agents (periods + records)" });
     } catch (err: any) {
