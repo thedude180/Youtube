@@ -77,7 +77,7 @@ export function registerEvolutionRoutes(app: Express): void {
 
         db.select({
           id: curiosityQueue.id,
-          topic: curiosityQueue.topic,
+          origin: curiosityQueue.origin,
           question: curiosityQueue.question,
           priority: curiosityQueue.priority,
           status: curiosityQueue.status,

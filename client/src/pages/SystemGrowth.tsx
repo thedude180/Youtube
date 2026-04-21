@@ -327,7 +327,7 @@ export default function SystemGrowth() {
                   <div key={c.id} className="flex items-start gap-2" data-testid={`curiosity-${c.id}`}>
                     <div className={`mt-1 shrink-0 h-2 w-2 rounded-full ${c.status === "explored" ? "bg-emerald-500" : "bg-violet-500"}`} />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium truncate">{c.topic}</p>
+                      <p className="text-xs font-medium truncate">{c.origin}</p>
                       {c.question && <p className="text-xs text-muted-foreground line-clamp-2">{c.question}</p>}
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">{c.status}</Badge>
