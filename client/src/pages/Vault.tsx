@@ -627,6 +627,55 @@ function MonetizationProgramsBanner() {
   );
 }
 
+// ── Regeneration Progress Indicator ───────────────────────────────────────────
+
+const REGEN_STEPS = ["Drafting…", "Reviewing…", "Finalising…"];
+const STEP_DURATION_MS = 9000;
+const TICK_MS = 150;
+
+function RegenerationProgress({ isGenerating }: { isGenerating: boolean }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setElapsed(0);
+      return;
+    }
+    const id = setInterval(() => setElapsed(t => t + TICK_MS), TICK_MS);
+    return () => clearInterval(id);
+  }, [isGenerating]);
+
+  if (!isGenerating) return null;
+
+  const totalMs = REGEN_STEPS.length * STEP_DURATION_MS;
+  const cappedElapsed = Math.min(elapsed, totalMs * 0.95);
+  const stepIndex = Math.min(
+    Math.floor(cappedElapsed / STEP_DURATION_MS),
+    REGEN_STEPS.length - 1
+  );
+  const progressPct = Math.min((cappedElapsed / totalMs) * 100, 95);
+
+  return (
+    <div className="mt-2 space-y-1.5" data-testid="regen-progress-indicator">
+      <div className="flex items-center justify-between text-xs text-blue-400/80">
+        {REGEN_STEPS.map((label, i) => (
+          <span
+            key={label}
+            className={`transition-opacity duration-500 ${i === stepIndex ? "opacity-100 font-medium" : i < stepIndex ? "opacity-50" : "opacity-30"}`}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+      <Progress
+        value={progressPct}
+        className="h-1 bg-blue-500/20 [&>div]:bg-blue-500 [&>div]:transition-all [&>div]:duration-300"
+        data-testid="regen-progress-bar"
+      />
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Vault() {
@@ -1275,9 +1324,12 @@ export default function Vault() {
             {docDetail.content ? (
               <div className="relative">
                 {isGenerating && (
-                  <div className="mb-2 flex items-center gap-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-400">
-                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                    Regenerating this document — new content will appear when ready…
+                  <div className="mb-2 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-400">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                      Regenerating this document — new content will appear when ready…
+                    </div>
+                    <RegenerationProgress isGenerating={isGenerating} />
                   </div>
                 )}
                 <Card className={`border-border/40 transition-opacity duration-300 ${isGenerating ? "opacity-60" : "opacity-100"}`}>
@@ -1290,10 +1342,13 @@ export default function Vault() {
                 </Card>
               </div>
             ) : isGenerating ? (
-              <Card className="border-border/40">
+              <Card className="border-border/40 border-blue-500/20">
                 <CardContent className="p-8 text-center text-muted-foreground">
                   <Loader2 className="h-10 w-10 mx-auto mb-3 animate-spin text-purple-400" />
-                  <p className="text-sm">Generating document — this takes about 30 seconds…</p>
+                  <p className="text-sm mb-4">Generating document — this takes about 30 seconds…</p>
+                  <div className="max-w-xs mx-auto">
+                    <RegenerationProgress isGenerating={isGenerating} />
+                  </div>
                 </CardContent>
               </Card>
             ) : (
