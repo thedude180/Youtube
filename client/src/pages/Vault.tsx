@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { REGEN_STEPS, STEP_DURATION_MS, TICK_MS, calcProgressPct, getStepOpacityClass } from "@/lib/regenProgress";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -629,10 +630,6 @@ function MonetizationProgramsBanner() {
 
 // ── Regeneration Progress Indicator ───────────────────────────────────────────
 
-const REGEN_STEPS = ["Drafting…", "Reviewing…", "Finalising…"];
-const STEP_DURATION_MS = 9000;
-const TICK_MS = 150;
-
 function RegenerationProgress({ isGenerating, docType, sseStepIndex }: { isGenerating: boolean; docType: string; sseStepIndex?: number }) {
   const [intraStepMs, setIntraStepMs] = useState(0);
   const [completing, setCompleting] = useState(false);
@@ -664,11 +661,8 @@ function RegenerationProgress({ isGenerating, docType, sseStepIndex }: { isGener
 
   if (!isGenerating && !completing) return null;
 
+  const progressPct = calcProgressPct(sseStepIndex, intraStepMs, completing);
   const stepIndex = sseStepIndex ?? 0;
-  const intraFraction = intraStepMs / STEP_DURATION_MS;
-  const progressPct = completing
-    ? 100
-    : Math.min(((stepIndex + intraFraction) / REGEN_STEPS.length) * 100, 95);
 
   return (
     <div className="mt-2 space-y-1.5" data-testid={`regen-progress-indicator-${docType}`}>
@@ -676,7 +670,7 @@ function RegenerationProgress({ isGenerating, docType, sseStepIndex }: { isGener
         {REGEN_STEPS.map((label, i) => (
           <span
             key={label}
-            className={`transition-opacity duration-500 ${i === stepIndex ? "opacity-100 font-medium" : i < stepIndex ? "opacity-50" : "opacity-30"}`}
+            className={`transition-opacity duration-500 ${getStepOpacityClass(i, stepIndex)}`}
           >
             {label}
           </span>

@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
-    include: ["server/**/*.test.ts"],
+    include: ["server/**/*.test.ts", "client/src/lib/**/*.test.ts"],
     alias: {
       "@shared": path.resolve(__dirname, "shared"),
       "@": path.resolve(__dirname, "client/src"),
