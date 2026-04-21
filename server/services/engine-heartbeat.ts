@@ -1,10 +1,14 @@
 import { db, withRetry } from "../db";
 import { engineHeartbeats } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, lt, and, notInArray } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("engine-heartbeat");
+
+const VALID_STATUSES = new Set(["running", "idle", "error", "completed"]);
+
 export async function recordHeartbeat(engineName: string, status: "running" | "idle" | "error" | "completed", durationMs?: number, error?: string): Promise<void> {
   try {
     const existing = await withRetry(() => db.select().from(engineHeartbeats).where(eq(engineHeartbeats.engineName, engineName)).limit(1), "heartbeat-read");
@@ -50,8 +54,9 @@ export async function getAllHeartbeats(): Promise<Record<string, { status: strin
     const beats = await db.select().from(engineHeartbeats);
     const result: Record<string, any> = {};
     for (const b of beats) {
+      const status = VALID_STATUSES.has(b.status) ? b.status : "idle";
       result[b.engineName] = {
-        status: b.status,
+        status,
         lastRun: b.lastRunAt?.toISOString(),
         lastDurationMs: b.lastDurationMs,
         failureCount: b.failureCount,
@@ -61,5 +66,32 @@ export async function getAllHeartbeats(): Promise<Record<string, { status: strin
     return result;
   } catch {
     return {};
+  }
+}
+
+export async function resetStaleEngineErrors(staleAfterMs = 60 * 60 * 1000): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - staleAfterMs);
+    const result = await db.update(engineHeartbeats)
+      .set({ status: "idle", failureCount: 0, lastError: null })
+      .where(
+        and(
+          eq(engineHeartbeats.status, "error"),
+          lt(engineHeartbeats.lastRunAt, cutoff)
+        )
+      );
+    const fixedCount = (result as any).rowCount ?? 0;
+    if (fixedCount > 0) {
+      logger.info(`[Heartbeat] Reset ${fixedCount} stale engine error(s) to idle`);
+    }
+    await db.update(engineHeartbeats)
+      .set({ status: "idle" })
+      .where(
+        and(
+          notInArray(engineHeartbeats.status, ["running", "idle", "error", "completed"]),
+        )
+      );
+  } catch (e) {
+    logger.warn("[Heartbeat] Could not reset stale engine errors:", e);
   }
 }

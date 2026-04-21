@@ -6,7 +6,7 @@ import { emitDomainEvent } from "./index";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("trust-budget");
-const DEFAULT_BUDGET = 100;
+const DEFAULT_BUDGET = 10_000;
 const PERIOD_HOURS = 24;
 
 export interface TrustBudgetResult {

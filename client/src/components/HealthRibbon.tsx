@@ -35,14 +35,16 @@ export function HealthRibbon() {
 
   const dbStatus = health?.database?.status === "healthy" ? "green" : health?.database ? "red" : "yellow";
   const engineEntries = health?.engines ? Object.values(health.engines) : [];
+  const activeEngines = engineEntries.filter(e => e.status === "running" || e.status === "completed" || e.status === "idle").length;
   const runningEngines = engineEntries.filter(e => e.status === "running").length;
   const totalEngines = engineEntries.length || 12;
-  const failedEngines = engineEntries.filter(e => e.failureCount > 0).length;
+  const errorEngines = engineEntries.filter(e => e.status === "error").length;
+  const errorRate = totalEngines > 0 ? errorEngines / totalEngines : 0;
 
   const overallStatus: "green" | "yellow" | "red" = 
     dbStatus === "red" ? "red" :
-    failedEngines > 0 ? "yellow" :
-    runningEngines > 0 ? "green" : "yellow";
+    errorRate > 0.5 ? "yellow" :
+    "green";
 
   const uptimeFormatted = health?.uptime 
     ? health.uptime > 3600 
@@ -86,11 +88,11 @@ export function HealthRibbon() {
       <Tooltip>
         <TooltipTrigger asChild>
           <div className="flex items-center gap-1.5 shrink-0 cursor-default" data-testid="ribbon-engines">
-            <Zap className={`h-3 w-3 ${runningEngines > 0 ? "text-primary" : "text-muted-foreground"}`} />
-            <span className="text-muted-foreground">{runningEngines}/{totalEngines} Engines</span>
+            <Zap className={`h-3 w-3 ${activeEngines > 0 ? "text-primary" : "text-muted-foreground"}`} />
+            <span className="text-muted-foreground">{activeEngines}/{totalEngines} Engines</span>
           </div>
         </TooltipTrigger>
-        <TooltipContent>{runningEngines} engines running{failedEngines > 0 ? `, ${failedEngines} with errors` : ""}</TooltipContent>
+        <TooltipContent>{runningEngines} running, {activeEngines} active{errorEngines > 0 ? `, ${errorEngines} errors` : ""}</TooltipContent>
       </Tooltip>
 
       <div className="h-3 w-px bg-border/50 shrink-0" />

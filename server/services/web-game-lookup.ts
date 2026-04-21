@@ -109,7 +109,7 @@ async function persistDiscoveredGame(gameName: string, source: string, extra?: {
         genre: extra?.genre || null,
         publisher: extra?.publisher || null,
         platform: extra?.platform || "ps5",
-      });
+      }).onConflictDoNothing();
       logger.info("New game persisted to discovered_games", { gameName, patterns, source, genre: extra?.genre, publisher: extra?.publisher });
     }
 

@@ -209,6 +209,22 @@ export async function registerRoutes(
     // must not consume trust budget or be blocked by governance enforcement.
     "/api/sync/login",
     "/api/user/init-systems",
+    // Core content pipeline — always permit user-triggered pipeline actions
+    "/api/vault/",
+    "/api/clips/",
+    "/api/pipeline/",
+    "/api/backlog/",
+    "/api/autopilot/trigger/",
+    "/api/autopilot/queue/",
+    "/api/autopilot/activate",
+    "/api/autopilot/pause-all",
+    "/api/autopilot/resume-all",
+    // Revenue pipeline
+    "/api/revenue/",
+    "/api/stripe/",
+    "/api/checkout/",
+    // AI tools — rate-limited separately, should not be budget-gated
+    "/api/ai/",
   ];
 
   app.use("/api", async (req: any, res, next) => {

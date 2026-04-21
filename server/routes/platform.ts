@@ -949,12 +949,18 @@ export async function registerPlatformRoutes(app: Express) {
       const audienceData: Record<string, any> = {};
       let hasAnyData = false;
 
-      const results = await Promise.allSettled(
-        platforms.map(async (platform) => {
-          const result = await getOptimalPostingTimes(userId, platform);
-          return { platform, result };
-        })
-      );
+      const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
+
+      const results = await withTimeout(
+        Promise.allSettled(
+          platforms.map(async (platform) => {
+            const result = await getOptimalPostingTimes(userId, platform);
+            return { platform, result };
+          })
+        ),
+        4_000
+      ).catch(() => [] as PromiseSettledResult<{ platform: string; result: any }>[]);
 
       for (const r of results) {
         if (r.status === "fulfilled") {
