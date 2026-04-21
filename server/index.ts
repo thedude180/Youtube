@@ -1331,14 +1331,17 @@ httpServer.listen(
         backgroundIntervals.push(iv);
       }).catch(slog("vod-optimizer-engine import"));
       import("./token-refresh").then(async m => {
+        // Delay first token keep-alive by 5 minutes so it doesn't fire during
+        // the startup DB thundering herd from waves 1–8.
+        await new Promise(r => setTimeout(r, 5 * 60_000));
         await m.keepAliveAllTokens().catch(slog("keepAliveAllTokens"));
         const iv = setInterval(() => m.keepAliveAllTokens().catch(slog("keepAliveAllTokens")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("token-refresh import"));
     });
 
-    // ── WAVE 9 (T+28s): Advanced engines — feedback, edits, detection, AI ───
-    delay(28_000, () => {
+    // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───
+    delay(60_000, () => {
       import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
       import("./smart-edit-engine").then(async m => {
         await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
@@ -1355,8 +1358,8 @@ httpServer.listen(
       import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine"));
     });
 
-    // ── WAVE 10 (T+31s): Autonomous command engines ─────────────────────────
-    delay(31_000, () => {
+    // ── WAVE 10 (T+80s): Autonomous command engines ─────────────────────────
+    delay(80_000, () => {
       import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor"));
       import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter"));
       import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(slog("startSmartContentDistributor"));
@@ -1367,8 +1370,8 @@ httpServer.listen(
       import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh"));
     });
 
-    // ── WAVE 10.5 (T+33s): Autonomous meta-intelligence engines ─────────────
-    delay(33_000, () => {
+    // ── WAVE 10.5 (T+100s): Autonomous meta-intelligence engines ─────────────
+    delay(100_000, () => {
       import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner"));
       import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution"));
       import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine"));
@@ -1381,8 +1384,8 @@ httpServer.listen(
       import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler"));
     });
 
-    // ── WAVE 11 (T+34s): Self-healing, webhook pipeline, health brain ───────
-    delay(34_000, () => {
+    // ── WAVE 11 (T+120s): Self-healing, webhook pipeline, health brain ───────
+    delay(120_000, () => {
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });

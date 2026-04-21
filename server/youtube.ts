@@ -182,7 +182,7 @@ export async function handleCallback(code: string, userId: string) {
 // ---------------------------------------------------------------------------
 // Users-table fallback — Google OAuth token persisted on login
 // ---------------------------------------------------------------------------
-async function getGoogleAccessTokenForUser(userId: string): Promise<string | null> {
+export async function getGoogleAccessTokenForUser(userId: string): Promise<string | null> {
   try {
     const { users } = await import("@shared/models/auth");
     const { db } = await import("./db");

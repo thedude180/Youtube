@@ -413,7 +413,13 @@ async function getVaultYouTubeToken(userId: string): Promise<string | null> {
       .from(channels)
       .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
       .limit(1);
-    if (!ch?.accessToken) return null;
+
+    // If channels table has no access token, fall back to the Google OAuth token
+    // stored in the users table (persisted on Google login with YouTube scope).
+    if (!ch?.accessToken) {
+      const { getGoogleAccessTokenForUser } = await import("../youtube");
+      return await getGoogleAccessTokenForUser(userId);
+    }
 
     const isExpired = ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date(Date.now() + 60_000);
     if (!isExpired) return ch.accessToken;

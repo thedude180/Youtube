@@ -13,9 +13,19 @@ async function getFirstChannelForUser(userId: string): Promise<{ id: number; acc
   const channels = await storage.getChannelsByUser(userId);
   const ch = channels.find(c => c.accessToken && c.accessToken !== "dev_api_key_mode") || channels[0];
   if (!ch) return null;
+
+  let accessToken = ch.accessToken || "";
+
+  // If the channel has no token, fall back to the Google OAuth token stored in
+  // the users table — this carries the YouTube Analytics scope from Google login.
+  if (!accessToken || accessToken === "dev_api_key_mode") {
+    const { getGoogleAccessTokenForUser } = await import("../youtube");
+    accessToken = (await getGoogleAccessTokenForUser(userId)) || "";
+  }
+
   return {
     id: ch.id,
-    accessToken: ch.accessToken || "",
+    accessToken,
     channelId: ch.channelId || "",
     subscriberCount: ch.subscriberCount ?? null,
   };

@@ -116,6 +116,12 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
   ctrTactics: string;
   antiClickbait: string;
 } | null> {
+  // Check budget FIRST — before any DB or web queries — so budget exhaustion
+  // is a fast, cheap early exit rather than an expensive late check.
+  if (!tokenBudget.checkBudget("thumbnail-intelligence", 2000)) {
+    return null;
+  }
+
   const cached = await db.select().from(thumbnailIntelligence)
     .where(and(
       eq(thumbnailIntelligence.userId, userId),
@@ -168,10 +174,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
 
   const openai = getOpenAIClient();
 
-  if (!tokenBudget.checkBudget("thumbnail-intelligence", 2000)) {
-    logger.warn(`[ThumbnailIntelligence] Daily token budget exhausted — skipping research for "${sanitizeForPrompt(gameName)}"`);
-    return null;
-  }
+  // Budget was already checked and reserved at function entry — consume it now.
   tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
 
   try {

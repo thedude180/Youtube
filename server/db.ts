@@ -20,8 +20,8 @@ export const pool = new Pool({
   idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
   connectionTimeoutMillis: 10_000, // 10s wait for a pool slot before failing
   allowExitOnIdle: false,
-  statement_timeout: 25_000,
-  query_timeout: 25_000,
+  statement_timeout: 10_000,
+  query_timeout: 10_000,
   ssl: process.env.REPLIT_DEPLOYMENT
     ? { rejectUnauthorized: false }   // production deployments require SSL
     : (process.env.DATABASE_URL?.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined),
@@ -43,7 +43,7 @@ pool.on("error", (err) => {
 pool.on("connect", (client) => {
   poolErrorCount = Math.max(0, poolErrorCount - 1);
   // AUDIT FIX: Apply statement_timeout per-connection; Pool constructor options are not reliably applied by all pg versions
-  client.query("SET statement_timeout = 25000").catch((err: Error) => {
+  client.query("SET statement_timeout = 10000").catch((err: Error) => {
     dbLogger.warn("Failed to set statement_timeout", { error: err.message });
   });
 });
