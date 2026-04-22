@@ -799,16 +799,22 @@ export async function getVaultStats(userId: string): Promise<{
   vods: number;
   shorts: number;
   streams: number;
+  protectedCount: number;
 }> {
-  const rows = await db.select({
-    status: contentVaultBackups.status,
-    contentType: contentVaultBackups.contentType,
-    count: sql<number>`count(*)::int`,
-    totalSize: sql<number>`coalesce(sum(file_size), 0)::bigint`,
-  })
-    .from(contentVaultBackups)
-    .where(eq(contentVaultBackups.userId, userId))
-    .groupBy(contentVaultBackups.status, contentVaultBackups.contentType);
+  const [rows, protectedRows] = await Promise.all([
+    db.select({
+      status: contentVaultBackups.status,
+      contentType: contentVaultBackups.contentType,
+      count: sql<number>`count(*)::int`,
+      totalSize: sql<number>`coalesce(sum(file_size), 0)::bigint`,
+    })
+      .from(contentVaultBackups)
+      .where(eq(contentVaultBackups.userId, userId))
+      .groupBy(contentVaultBackups.status, contentVaultBackups.contentType),
+    db.select({ count: sql<number>`count(*)::int` })
+      .from(contentVaultBackups)
+      .where(and(eq(contentVaultBackups.userId, userId), eq(contentVaultBackups.permanentRetention, true))),
+  ]);
 
   let totalIndexed = 0, downloaded = 0, downloading = 0, failed = 0, pending = 0, totalSizeBytes = 0;
   let vods = 0, shorts = 0, streams = 0;
@@ -826,6 +832,7 @@ export async function getVaultStats(userId: string): Promise<{
   }
 
   const freeSpaceGB = await getFreeSpaceGB();
+  const protectedCount = Number(protectedRows[0]?.count ?? 0);
 
   return {
     totalIndexed,
@@ -841,6 +848,7 @@ export async function getVaultStats(userId: string): Promise<{
     vods,
     shorts,
     streams,
+    protectedCount,
   };
 }
 

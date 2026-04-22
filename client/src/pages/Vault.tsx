@@ -331,6 +331,11 @@ function VideoDetailView({
                 <Badge variant="outline" className="text-xs">
                   <Play className="h-3 w-3 mr-1" /> Original
                 </Badge>
+                {entry.permanentRetention && (
+                  <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-500 bg-amber-500/10" data-testid={`badge-protected-${entry.id}`}>
+                    <Shield className="h-3 w-3 mr-1" /> Protected
+                  </Badge>
+                )}
                 <StatusIcon status={entry.status} />
                 <span className="text-xs text-muted-foreground capitalize">{entry.status}</span>
                 {entry.fileSize && <span className="text-xs text-muted-foreground">· {formatSize(entry.fileSize)}</span>}
@@ -959,14 +964,32 @@ export default function Vault() {
                       <FolderDown className="h-4 w-4 mt-0.5 shrink-0 text-blue-500" />
                       <div>
                         <p className="text-sm font-medium">Full Vault ZIP</p>
-                        <p className="text-xs text-muted-foreground">All video files + CSV manifest + YouTube links</p>
+                        <p className="text-xs text-muted-foreground">Videos + business docs + CSV manifest</p>
                       </div>
                     </div>
                   </a>
                 </DropdownMenuItem>
               )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild data-testid="menu-export-harddrive">
+                <a href="/api/vault/download-zip" download="ET_Gaming_274_Full_Vault_Backup.zip">
+                  <div className="flex items-start gap-2 py-0.5">
+                    <HardDrive className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+                    <div>
+                      <p className="text-sm font-medium">Hard Drive Backup</p>
+                      <p className="text-xs text-muted-foreground">Everything: videos + docs + instructions</p>
+                    </div>
+                  </div>
+                </a>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <a href="/api/vault/download-zip" download="ET_Gaming_274_Full_Vault_Backup.zip">
+            <Button variant="default" className="bg-amber-500 hover:bg-amber-600 text-white" data-testid="button-harddrive-backup">
+              <HardDrive className="h-4 w-4 mr-2" />
+              Backup to Drive
+            </Button>
+          </a>
           <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} variant="outline" data-testid="button-vault-sync">
             {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sync Vault
@@ -976,7 +999,7 @@ export default function Vault() {
 
       {/* Stats (main view only) */}
       {showingMain && !statsError && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {[
             { key: "total", label: "Total", value: stats?.totalIndexed, Icon: HardDrive, color: "text-primary", bg: "bg-primary/10" },
             { key: "vods",  label: "VODs",  value: stats?.vods,         Icon: Video,    color: "text-blue-500",   bg: "bg-blue-500/10" },
@@ -984,6 +1007,7 @@ export default function Vault() {
             { key: "streams",label:"Streams",value: stats?.streams,      Icon: Radio,    color: "text-red-500",    bg: "bg-red-500/10" },
             { key: "edited", label: "Edited", value: editedClipCount,   Icon: Scissors, color: "text-yellow-500", bg: "bg-yellow-500/10" },
             { key: "dl",   label: "Downloaded",value: stats?.downloaded, Icon: Download, color: "text-emerald-500",bg: "bg-emerald-500/10" },
+            { key: "protected", label: "Protected", value: stats?.protectedCount, Icon: Shield, color: "text-amber-500", bg: "bg-amber-500/10" },
           ].map(({ key, label, value, Icon, color, bg }) => (
             <Card key={key} data-testid={`stat-${key}`}>
               <CardContent className="p-4 flex items-center gap-3">

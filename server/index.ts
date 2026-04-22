@@ -51,7 +51,7 @@ import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
 // In PRODUCTION: vault/ is intentionally preserved. The deployed app downloads
 // videos there so the owner can browse and download them to an external drive.
 // Never clear vault/ in production.
-function clearVault(): void {
+async function clearVault(): Promise<void> {
   if (process.env.NODE_ENV === "production") {
     process.stdout.write("[vault-cleanup] Production env — vault preserved for downloads, skipping cleanup\n");
     return;
@@ -59,12 +59,29 @@ function clearVault(): void {
   try {
     const vaultDir = path.resolve(process.cwd(), "vault");
     if (!fs.existsSync(vaultDir)) return;
+
+    // Build a set of file paths that must never be deleted (permanent retention)
+    const protectedPaths = new Set<string>();
+    try {
+      const { contentVaultBackups: cvb } = await import("@shared/schema");
+      const { eq, and, isNotNull } = await import("drizzle-orm");
+      const rows = await db
+        .select({ filePath: cvb.filePath })
+        .from(cvb)
+        .where(and(eq(cvb.permanentRetention, true), isNotNull(cvb.filePath)));
+      for (const r of rows) {
+        if (r.filePath) protectedPaths.add(path.resolve(r.filePath));
+      }
+    } catch { /* column may not exist on older builds — skip protection */ }
+
     const files = fs.readdirSync(vaultDir);
     if (files.length === 0) return;
     let cleared = 0;
+    let preserved = 0;
     for (const file of files) {
       try {
         const full = path.join(vaultDir, file);
+        if (protectedPaths.has(path.resolve(full))) { preserved++; continue; }
         const stat = fs.statSync(full);
         if (stat.isDirectory()) {
           fs.rmSync(full, { recursive: true, force: true });
@@ -74,9 +91,10 @@ function clearVault(): void {
         cleared++;
       } catch { /* skip locked/missing file */ }
     }
-    if (cleared > 0) {
-      process.stdout.write(`[vault-cleanup] Dev cleanup: removed ${cleared} item(s) from vault/\n`);
-    }
+    const msg = cleared > 0 || preserved > 0
+      ? `[vault-cleanup] Dev cleanup: removed ${cleared} item(s)${preserved > 0 ? `, preserved ${preserved} permanently-retained file(s)` : ""}\n`
+      : "";
+    if (msg) process.stdout.write(msg);
   } catch (err: any) {
     process.stdout.write(`[vault-cleanup] Warning: ${err?.message}\n`);
   }

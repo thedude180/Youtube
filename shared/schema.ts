@@ -5342,6 +5342,7 @@ export const contentVaultBackups = pgTable("content_vault_backups", {
   restoredAt: timestamp("restored_at"),
   createdAt: timestamp("created_at").defaultNow(),
   downloadedAt: timestamp("downloaded_at"),
+  permanentRetention: boolean("permanent_retention").notNull().default(false),
 }, (table) => [
   index("vault_user_idx").on(table.userId),
   index("vault_platform_idx").on(table.platform),

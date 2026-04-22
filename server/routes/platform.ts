@@ -747,29 +747,87 @@ export async function registerPlatformRoutes(app: Express) {
         archive.append(linksText, { name: "youtube_links.txt" });
       }
 
+      // Include vault documents (Creator DNA, Brand System, Business Plan, etc.) as markdown files
+      // These are the "sellability documents" that must always be backed up
+      let docsIncluded = 0;
+      try {
+        const { vaultDocuments } = await import("@shared/schema");
+        const vaultDocs = await db
+          .select()
+          .from(vaultDocuments)
+          .where(eq(vaultDocuments.userId, userId));
+        const readyDocs = vaultDocs.filter(d => d.status === "ready" && d.content);
+        for (const doc of readyDocs) {
+          const safeName = (doc.title || doc.docType).replace(/[^a-zA-Z0-9_\-. ]/g, "_").substring(0, 80);
+          const mdContent = [
+            `# ${doc.title || doc.docType}`,
+            `Generated: ${doc.generatedAt?.toISOString() || doc.createdAt?.toISOString() || ""}`,
+            `Words: ${doc.wordCount}`,
+            "",
+            doc.content,
+          ].join("\n");
+          archive.append(mdContent, { name: `documents/${safeName}.md` });
+          docsIncluded++;
+        }
+      } catch { /* vaultDocuments table may not be available in all deploys */ }
+
       // Add a README
       const readme = [
-        `# Vault Export — ${gameName || "All Games"}`,
+        `# Vault Full Backup — ET Gaming 274`,
         `Generated: ${new Date().toISOString()}`,
+        gameName ? `Game Filter: ${gameName}` : "",
         "",
-        `Total videos: ${allEntries.length}`,
-        `Downloaded to server: ${localEntries.length}`,
+        `## Video Archive`,
+        `Total videos indexed: ${allEntries.length}`,
+        `Downloaded to server (included as .mp4): ${localEntries.length}`,
         `Indexed only (YouTube links): ${notDownloaded.length}`,
         "",
+        `## Business Documents`,
+        `Sellability documents included: ${docsIncluded}`,
+        "",
         "## Contents",
-        "- `vault_manifest.csv` — Full metadata CSV for all videos",
-        localEntries.length > 0 ? "- `<GameName>/<VideoTitle>.mp4` — Locally downloaded video files" : "",
-        notDownloaded.length > 0 ? "- `youtube_links.txt` — YouTube URLs for videos not yet downloaded to the server" : "",
+        "- `vault_manifest.csv` — Full metadata CSV for all videos (open in Excel/Sheets)",
+        localEntries.length > 0 ? "- `<GameName>/<VideoTitle>.mp4` — Downloaded video files organized by game" : "",
+        notDownloaded.length > 0 ? "- `youtube_links.txt` — YouTube URLs for videos not yet downloaded" : "",
+        docsIncluded > 0 ? "- `documents/*.md` — Creator DNA, Brand System, Business Plan, and all vault documents" : "",
+        "",
+        "## External Hard Drive Instructions",
+        "1. Extract this ZIP to your external hard drive",
+        "2. The `vault_manifest.csv` lists every video — paste YouTube URLs into yt-dlp to download any missing ones",
+        "3. All documents are plain Markdown files readable in any text editor",
         "",
         "## Notes",
-        "Videos listed in youtube_links.txt are indexed in your vault but not yet downloaded to the server.",
-        "Click 'Sync Vault' in CreatorOS to begin downloading them.",
+        "- Videos with 'Permanent Retention' protection in CreatorOS are never auto-deleted",
+        "- Re-run 'Export Full Vault' anytime to get an updated backup with new content",
+        "- Videos in youtube_links.txt are indexed but not yet downloaded; use 'Sync Vault' to download them",
       ].filter(Boolean).join("\n");
       archive.append(readme, { name: "README.txt" });
 
       await archive.finalize();
     } catch (error: any) {
       if (!res.headersSent) res.status(500).json({ error: "Failed to create zip" });
+    }
+  });
+
+  // Toggle permanent retention for a vault entry
+  app.patch("/api/vault/mark-permanent/:id", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const id = parseNumericId(req.params.id as string, res, "vault entry ID");
+    if (id === null) return;
+    try {
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const permanent = req.body.permanent !== false; // default to true
+      const [updated] = await db
+        .update(contentVaultBackups)
+        .set({ permanentRetention: permanent })
+        .where(and(eq(contentVaultBackups.id, id), eq(contentVaultBackups.userId, userId)))
+        .returning({ id: contentVaultBackups.id, permanentRetention: contentVaultBackups.permanentRetention });
+      if (!updated) return res.status(404).json({ error: "Entry not found" });
+      res.json({ id: updated.id, permanentRetention: updated.permanentRetention });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 
