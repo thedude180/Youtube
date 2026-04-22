@@ -704,6 +704,48 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   return false;
 }
 
+/**
+ * When a valid OAuth token becomes available, reset vault entries that were permanently
+ * skipped due to bot detection so they retry with authenticated yt-dlp.
+ * Also signals the stream-editor to re-queue jobs that failed only because the source
+ * file was missing (they will re-download now that auth is present).
+ */
+async function recoverBotDetectedEntries(userId: string, accessToken: string): Promise<void> {
+  try {
+    const { rowCount } = await db
+      .update(contentVaultBackups)
+      .set({
+        status: "indexed",
+        downloadError: null,
+        metadata: sql`jsonb_set(
+          COALESCE(${contentVaultBackups.metadata}, '{}'::jsonb),
+          '{oauthRecoveredAt}',
+          to_jsonb(now()::text)
+        )`,
+      })
+      .where(
+        and(
+          eq(contentVaultBackups.userId, userId),
+          eq(contentVaultBackups.status, "skipped"),
+          sql`${contentVaultBackups.downloadError} LIKE '%bot detection%'`,
+        ),
+      );
+    if (rowCount && rowCount > 0) {
+      logger.info(`[Vault] OAuth recovery: reset ${rowCount} bot-detected skipped entries → indexed (token now available)`);
+      // Cascade: re-queue stream-editor jobs that failed only because source files were absent.
+      // Dynamic import avoids circular dependency (stream-editor imports downloadVaultEntry from here).
+      try {
+        const { recoverSourceNotFoundJobs } = await import("./stream-editor");
+        await recoverSourceNotFoundJobs(userId);
+      } catch (edErr: any) {
+        logger.warn("[Vault] Stream-editor job recovery skipped:", edErr?.message);
+      }
+    }
+  } catch (err: any) {
+    logger.warn("[Vault] OAuth recovery reset failed:", err?.message);
+  }
+}
+
 export async function processVaultDownloads(userId: string): Promise<void> {
   if (isVaultRunning) {
     logger.info("[Vault] Download processor already running — skipping");
@@ -717,6 +759,9 @@ export async function processVaultDownloads(userId: string): Promise<void> {
   const accessToken = await getVaultYouTubeToken(userId);
   if (accessToken) {
     logger.info("[Vault] YouTube OAuth token found — downloads will be authenticated");
+    // Reset any entries that were permanently skipped due to bot detection — they can now
+    // retry with the OAuth Bearer token which bypasses YouTube bot checks entirely.
+    await recoverBotDetectedEntries(userId, accessToken);
   } else {
     if (!_warnedNoDownloadToken.has(userId)) {
       _warnedNoDownloadToken.add(userId);

@@ -3,7 +3,7 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadVaultEntry } from "./video-vault";
 import { packageClips } from "./stream-editor-packager";
@@ -547,6 +547,39 @@ export async function deleteEditJob(userId: string, jobId: number): Promise<void
     fs.rmSync(job.outputDir, { recursive: true, force: true });
   }
   await db.delete(streamEditJobs).where(eq(streamEditJobs.id, jobId));
+}
+
+/**
+ * Re-queue edit jobs that failed only because the source video file was missing
+ * (i.e. the vault download hadn't completed yet). Called whenever the vault
+ * recovers bot-detected entries so that clip generation picks back up automatically
+ * once source footage downloads succeed.
+ */
+export async function recoverSourceNotFoundJobs(userId: string): Promise<void> {
+  try {
+    const { rowCount } = await db
+      .update(streamEditJobs)
+      .set({
+        status: "queued",
+        errorMessage: null,
+        currentStage: "Re-queued (source recovery)",
+        startedAt: null,
+        completedAt: null,
+      })
+      .where(
+        and(
+          eq(streamEditJobs.userId, userId),
+          eq(streamEditJobs.status, "error"),
+          sql`${streamEditJobs.errorMessage} LIKE '%Source video file not found%'`,
+        ),
+      );
+    if (rowCount && rowCount > 0) {
+      logger.info(`[StreamEditor] Source-not-found recovery: reset ${rowCount} error jobs → queued`);
+      await pickUpNextQueuedJob();
+    }
+  } catch (err: any) {
+    logger.warn("[StreamEditor] Source-not-found recovery failed:", err?.message);
+  }
 }
 
 export { PLATFORM_PROFILES };
