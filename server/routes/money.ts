@@ -1570,6 +1570,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         },
       };
 
+      const unmonetized = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p));
       if (unmonetized.length > 0) {
         for (const p of unmonetized) {
           const pLabel = p.charAt(0).toUpperCase() + p.slice(1);
