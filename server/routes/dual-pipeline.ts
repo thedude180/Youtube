@@ -534,6 +534,15 @@ async function executeStreamPipelineInBackground(
         .set({ completedSteps, stepResults: currentResults })
         .where(eq(streamPipelines.id, pipelineId));
     } catch (stepErr: any) {
+      const isRateLimit = stepErr?.status === 429 || stepErr?.statusCode === 429 ||
+        /rate.?limit|429|too many requests/i.test(stepErr?.message || "");
+      if (isRateLimit) {
+        logger.warn(`[DualPipeline] 429 rate limit on step "${step}" for pipeline ${pipelineId} — resetting to pending for retry`);
+        await db.update(streamPipelines)
+          .set({ status: "pending", errorMessage: null })
+          .where(eq(streamPipelines.id, pipelineId));
+        return;
+      }
       logger.error(`[DualPipeline] Step "${step}" failed for pipeline ${pipelineId}:`, stepErr.message);
       await db.update(streamPipelines)
         .set({

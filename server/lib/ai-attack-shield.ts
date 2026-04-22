@@ -885,6 +885,9 @@ class TokenBudgetGuard {
   private budgets = new Map<string, BudgetEntry>();
   /** Tracks the timestamp of the most recent throttle event per engine (rolling, not reset daily). */
   private lastThrottledAt = new Map<string, number>();
+  /** Throttle: only log "budget exhausted" once per hour per engine to avoid log spam. */
+  private lastExhaustedLogAt = new Map<string, number>();
+  private static readonly EXHAUSTED_LOG_INTERVAL_MS = 60 * 60 * 1000;
   /** Resolves when rehydrate() has completed (success or failure). */
   readonly ready: Promise<void>;
   private _rehydrateResolve!: () => void;
@@ -1047,8 +1050,13 @@ class TokenBudgetGuard {
 
     // Gate 1: hard daily cap
     if (e.used + estimatedTokens > cap) {
-      logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI call.`);
-      this.lastThrottledAt.set(engine, Date.now());
+      const now = Date.now();
+      const lastLog = this.lastExhaustedLogAt.get(engine) ?? 0;
+      if (now - lastLog > TokenBudgetGuard.EXHAUSTED_LOG_INTERVAL_MS) {
+        this.lastExhaustedLogAt.set(engine, now);
+        logger.warn(`[TokenBudget] ${engine} daily budget exhausted (used=${e.used}/${cap}). Skipping AI calls until tomorrow.`);
+      }
+      this.lastThrottledAt.set(engine, now);
       this.markDirty(engine);
       return false;
     }

@@ -81,7 +81,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
   const retentionContext = await getRetentionBeatsPromptContext();
 
   if (!tokenBudget.checkBudget("vod-optimizer", 4000)) {
-    logger.warn("[VODOptimizer] Daily token budget exhausted — skipping optimization batch");
+    logger.debug("[VODOptimizer] Daily token budget exhausted — skipping optimization batch");
     return [];
   }
   tokenBudget.consumeBudget("vod-optimizer", 4000);

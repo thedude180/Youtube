@@ -283,7 +283,7 @@ Return ONLY valid JSON with these fields:
 }`;
 
       if (!tokenBudget.checkBudget("content-consistency-agent", 600)) {
-        logger.warn("[ConsistencyAgent] Daily token budget exhausted — stopping suggestion batch early");
+        logger.debug("[ConsistencyAgent] Daily token budget exhausted — stopping suggestion batch early");
         break;
       }
       tokenBudget.consumeBudget("content-consistency-agent", 600);

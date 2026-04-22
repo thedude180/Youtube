@@ -260,6 +260,15 @@ export async function executePipelineInBackground(id: number, videoTitle: string
         ).catch(err => logger.error(`[Pipeline] History record error:`, err.message));
       }
     } catch (stepErr: any) {
+      const isRateLimit = stepErr?.status === 429 || stepErr?.statusCode === 429 ||
+        /rate.?limit|429|too many requests/i.test(stepErr?.message || "");
+      if (isRateLimit) {
+        logger.warn(`[Pipeline] 429 rate limit on step "${sanitizeForPrompt(step)}" for pipeline ${id} — resetting to pending for retry`);
+        await db.update(contentPipeline)
+          .set({ status: "pending", errorMessage: null })
+          .where(eq(contentPipeline.id, id));
+        return;
+      }
       logger.error(`[Pipeline] Step "${sanitizeForPrompt(step)}" failed for pipeline ${id}:`, stepErr.message);
       await db.update(contentPipeline)
         .set({

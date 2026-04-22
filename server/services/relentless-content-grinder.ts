@@ -98,7 +98,7 @@ async function grindUserContent(userId: string): Promise<GrindState> {
   if (!longFormVideos.length) return state;
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) {
-    logger.warn(`[ContentGrinder] Daily token budget exhausted for user ${userId} — skipping grind cycle`);
+    logger.debug(`[ContentGrinder] Daily token budget exhausted for user ${userId} — skipping grind cycle`);
     return state;
   }
 

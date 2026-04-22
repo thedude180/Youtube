@@ -137,6 +137,12 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
       for (const ch of allConnected) {
         if (!ch.accessToken) { verified++; continue; }
 
+        // Skip auto-generated placeholder channels (no refresh_token, channelId matches
+        // the auto-connect pattern like "kick-auto-123"). These always fail OAuth checks
+        // because they were never connected via real OAuth — only stream keys.
+        const isPlaceholder = !ch.refreshToken && /^(kick|twitch|rumble|tiktok|twitter|x)-auto-/.test(ch.channelId || "");
+        if (isPlaceholder) { verified++; continue; }
+
         const pd = (ch.platformData || {}) as any;
         const lastCheck = pd._lastVerifiedAt || 0;
         let existingFailures = (pd._reconnectFailures || 0) as number;

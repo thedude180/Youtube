@@ -28,6 +28,10 @@ async function _loadGameLookupFns(): Promise<void> {
 _loadGameLookupFns().catch(() => {});
 
 const VAULT_DIR = path.join(process.cwd(), "vault");
+
+// Throttle: only warn once per server session per user for no-token situations
+const _warnedNoToken = new Set<string>();
+const _warnedNoDownloadToken = new Set<string>();
 const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 const DOWNLOAD_QUALITY = "18/best[height<=480]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
@@ -297,7 +301,10 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
       logger.warn(`[Vault] YouTube API index failed (${apiErr.message}) — falling back to yt-dlp scraping`);
     }
   } else {
-    logger.warn(`[Vault] No OAuth token for user ${userId} — using yt-dlp scraping`);
+    if (!_warnedNoToken.has(userId)) {
+      _warnedNoToken.add(userId);
+      logger.warn(`[Vault] No OAuth token for user ${userId} — using yt-dlp scraping`);
+    }
   }
 
   if (!usedApi) {
@@ -702,7 +709,10 @@ export async function processVaultDownloads(userId: string): Promise<void> {
   if (accessToken) {
     logger.info("[Vault] YouTube OAuth token found — downloads will be authenticated");
   } else {
-    logger.warn("[Vault] No valid YouTube OAuth token — downloads may fail for private/restricted videos");
+    if (!_warnedNoDownloadToken.has(userId)) {
+      _warnedNoDownloadToken.add(userId);
+      logger.warn("[Vault] No valid YouTube OAuth token — downloads may fail for private/restricted videos");
+    }
   }
 
   try {

@@ -1483,7 +1483,7 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
     : "";
 
   if (!tokenBudget.checkBudget("ai-team-engine", 1500)) {
-    logger.warn(`[AITeamEngine] Daily token budget exhausted — skipping task ${task.id} (${task.agentRole})`);
+    logger.debug(`[AITeamEngine] Daily token budget exhausted — skipping task ${task.id} (${task.agentRole})`);
     return { result: { skipped: true, reason: "daily_token_budget_exhausted" } };
   }
   tokenBudget.consumeBudget("ai-team-engine", 1500);

@@ -54,6 +54,14 @@ export function registerVaultDocsRoutes(app: Express) {
         };
       });
 
+      // Auto-trigger generation if no docs exist yet for this user
+      if (docs.length === 0) {
+        generateAllVaultDocuments(userId).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[VaultDocs] Auto-seed generation error:", msg);
+        });
+      }
+
       res.json(result);
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to fetch vault documents" });

@@ -86,7 +86,7 @@ const NON_ROUTABLE_DOMAINS = [".local", "@example.com", "@example.org", "@exampl
 
 export async function sendGmail(to: string, subject: string, htmlBody: string): Promise<boolean> {
   if (NON_ROUTABLE_DOMAINS.some(d => to.toLowerCase().endsWith(d) || to.toLowerCase().includes(d))) {
-    logger.warn(`[Gmail] Skipping email to non-routable address: ${to}`);
+    logger.debug(`[Gmail] Skipping email to non-routable address: ${to}`);
     return false;
   }
   const MAX_RETRIES = 3;

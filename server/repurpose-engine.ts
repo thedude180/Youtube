@@ -11,6 +11,16 @@ import { tokenBudget, sanitizeForPrompt } from "./lib/ai-attack-shield";
 const logger = createLogger("repurpose-engine");
 const openai = getOpenAIClient();
 
+// Throttle: only log budget-exhausted once per UTC day per budget type
+const _budgetExhaustedLoggedDay: Record<string, string> = {};
+function _logBudgetExhaustedOnce(key: string, msg: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (_budgetExhaustedLoggedDay[key] !== today) {
+    _budgetExhaustedLoggedDay[key] = today;
+    logger.warn(msg);
+  }
+}
+
 const AVAILABLE_FORMATS = [
   { id: "blog", name: "Blog Post", description: "Long-form SEO-optimized blog article with headers, images suggestions, and internal links" },
   { id: "tweet-thread", name: "Tweet/X Thread", description: "Engaging 5-10 tweet thread with hooks, insights, and a CTA" },
@@ -77,7 +87,7 @@ Requirements:
 - Email sequences should have 3-5 emails`;
 
     if (!tokenBudget.checkBudget("repurpose-engine", 4000)) {
-      logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping repurpose for video ${videoId}`);
+      _logBudgetExhaustedOnce("repurpose", "[RepurposeEngine] Daily token budget exhausted — skipping repurpose jobs until tomorrow");
       return { results: [], error: "daily_token_budget_exhausted" };
     }
     tokenBudget.consumeBudget("repurpose-engine", 4000);
@@ -202,7 +212,7 @@ Suggest B-roll as JSON:
 Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and production value.`;
 
     if (!tokenBudget.checkBudget("repurpose-engine", 2000)) {
-      logger.warn(`[RepurposeEngine] Daily token budget exhausted — skipping B-roll suggestions for video ${videoId}`);
+      _logBudgetExhaustedOnce("broll", "[RepurposeEngine] Daily token budget exhausted — skipping B-roll suggestions until tomorrow");
       return { suggestions: [], overallStyle: "", transitionTips: "" };
     }
     tokenBudget.consumeBudget("repurpose-engine", 2000);

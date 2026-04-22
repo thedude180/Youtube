@@ -113,7 +113,7 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
   // emitting a warning per-video (which can flood logs and stall the DB when
   // the queue contains thousands of entries).
   if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — deferring pipeline batch (${videos.length} videos) to tomorrow's budget reset`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — deferring pipeline batch (${videos.length} videos) to tomorrow's budget reset`);
     budgetExhaustedDay.set(userId, utcDay());
     const s = sessions.get(userId);
     if (s) { s.state = "completed"; s.currentVideoId = null; }
@@ -334,7 +334,7 @@ TikTok-specific optimization (for clips targeting tiktok):
 - Prioritize moments with strong visual movement or reactions`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping clip extraction for video ${videoId}`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping clip extraction for video ${videoId}`);
     return [];
   }
   tokenBudget.consumeBudget("shorts-pipeline", 4000);
@@ -439,7 +439,7 @@ Return as JSON:
 }`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 500)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping hook generation for clip ${clipId}`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping hook generation for clip ${clipId}`);
     return { hook: "Check this out!", alternatives: [] };
   }
   tokenBudget.consumeBudget("shorts-pipeline", 500);
@@ -512,7 +512,7 @@ Return as JSON:
 }`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 500)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping virality prediction for clip ${clipId}`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping virality prediction for clip ${clipId}`);
     return { score: 50, factors: { hookStrength: 50, trendAlignment: 50, audienceMatch: 50, platformFit: 50 } };
   }
   tokenBudget.consumeBudget("shorts-pipeline", 500);
@@ -619,7 +619,7 @@ Create a compilation plan as JSON:
 }`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 1000)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping auto reel compilation`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping auto reel compilation`);
     const fallback = topClips.slice(0, 5);
     return {
       reelTitle: "Best Moments Compilation",
@@ -862,7 +862,7 @@ Return as JSON:
 }`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 2000)) {
-    logger.warn(`[ShortsPipeline] Daily token budget exhausted — skipping SEO optimization for ${clips.length} clips`);
+    logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping SEO optimization for ${clips.length} clips`);
     return clips;
   }
   tokenBudget.consumeBudget("shorts-pipeline", 2000);

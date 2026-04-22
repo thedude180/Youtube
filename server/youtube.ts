@@ -5,6 +5,10 @@ import { createLogger } from "./lib/logger";
 
 const ytLogger = createLogger("youtube");
 
+// Throttle: only log broadcast check failures once every 10 minutes to avoid spam
+let _lastBroadcastWarnAt = 0;
+const BROADCAST_WARN_INTERVAL_MS = 10 * 60 * 1000;
+
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube",
   "https://www.googleapis.com/auth/youtube.force-ssl",
@@ -1037,7 +1041,11 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
   } catch (err: any) {
     if (err?.code === "DEV_BYPASS") return [];
     markQuotaErrorFromResponse(err);
-    ytLogger.warn("Live broadcast check failed", { error: err.message });
+    const now = Date.now();
+    if (now - _lastBroadcastWarnAt > BROADCAST_WARN_INTERVAL_MS) {
+      _lastBroadcastWarnAt = now;
+      ytLogger.warn("Live broadcast check failed", { error: err.message });
+    }
     return [];
   }
 }
