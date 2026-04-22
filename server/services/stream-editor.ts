@@ -36,52 +36,55 @@ interface PlatformProfile {
 }
 
 /**
- * Platform profiles optimised for fast CPU encoding on source footage that is
- * typically 480p (vault format-18 downloads). Upscaling to 1080p with libx264
- * ultrafast completes in minutes; 4K/libx265 on a CPU-constrained host takes
- * 100+ hours and will never finish.
+ * Platform profiles with AI-upscale to the highest resolution that makes sense
+ * per platform. Landscape content targets 4K (3840×2160); vertical content
+ * targets 1080p portrait (1080×1920) which is the platform maximum for Shorts/TikTok.
  *
- * Filter chain strategy (applied in buildVideoFilter):
+ * CODEC CHOICE — libx264 ultrafast vs libx265:
+ *  libx265 "fast"     → 0.01x speed → 100+ h per clip → NEVER use on CPU host
+ *  libx264 "ultrafast"→ 0.3–0.8x speed → 30–90 min per 4K clip → achievable
+ *
+ * Filter chain (applied in buildVideoFilter):
  *  1. hqdn3d  — temporal + spatial denoise at SOURCE resolution
- *  2. eq      — colour grading at source resolution
- *  3. unsharp — sharpening at source resolution (sharper than post-scale)
- *  4. scale   — Lanczos upscale / resize to target
+ *  2. eq      — colour grading: brightness, contrast, saturation
+ *  3. unsharp — sharpening before upscale for crisper edges
+ *  4. scale   — Lanczos upscale to target 4K / 1080p portrait
  *  5. pad/crop — landscape: letterbox pad; portrait: centre 9:16 crop
- *  6. setsar + fps — normalise aspect ratio, cap at 60fps
+ *  6. setsar + fps — normalise pixel aspect, cap at 60fps
  */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
-    label: "YouTube 1080p",
-    width: 1920,
-    height: 1080,
+    label: "YouTube 4K",
+    width: 3840,
+    height: 2160,
     orientation: "landscape",
     codec: "libx264",
     codecArgs: [
       "-profile:v", "high",
-      "-level:v", "4.0",
+      "-level:v", "5.1",           // H.264 level 5.1 = 4K @ 30fps
       "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
-      "-movflags", "+faststart",
+      "-movflags", "+faststart",    // web-optimised: playback starts before full download
     ],
-    crf: 22,
-    preset: "ultrafast",
+    crf: 20,                        // slightly higher quality for 4K delivery
+    preset: "ultrafast",            // ~0.3–0.8x real-time — far faster than libx265 "fast"
     maxClipSecs: null,
     audioBitrate: "192k",
     audioSampleRate: 48000,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   rumble: {
-    label: "Rumble 1080p",
-    width: 1920,
-    height: 1080,
+    label: "Rumble 4K",
+    width: 3840,
+    height: 2160,
     orientation: "landscape",
     codec: "libx264",
     codecArgs: [
       "-profile:v", "high",
-      "-level:v", "4.0",
+      "-level:v", "5.1",
       "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
       "-movflags", "+faststart",
     ],
-    crf: 22,
+    crf: 20,
     preset: "ultrafast",
     maxClipSecs: null,
     audioBitrate: "192k",
@@ -89,7 +92,7 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   tiktok: {
-    label: "TikTok Vertical",
+    label: "TikTok 1080p Vertical",
     width: 1080,
     height: 1920,
     orientation: "portrait",
@@ -98,16 +101,17 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
       "-profile:v", "high",
       "-level:v", "4.1",
       "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+      "-movflags", "+faststart",
     ],
-    crf: 22,
-    preset: "fast",
+    crf: 21,
+    preset: "ultrafast",
     maxClipSecs: 600,
     audioBitrate: "128k",
     audioSampleRate: 44100,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   shorts: {
-    label: "YouTube Shorts",
+    label: "YouTube Shorts 1080p",
     width: 1080,
     height: 1920,
     orientation: "portrait",
@@ -116,9 +120,10 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
       "-profile:v", "high",
       "-level:v", "4.1",
       "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+      "-movflags", "+faststart",
     ],
     crf: 21,
-    preset: "fast",
+    preset: "ultrafast",
     maxClipSecs: 60,
     audioBitrate: "128k",
     audioSampleRate: 44100,
@@ -141,7 +146,9 @@ function runProcess(bin: string, args: string[]): Promise<string> {
   });
 }
 
-const FFMPEG_HARD_TIMEOUT_MS = 90 * 60 * 1000; // 90 minutes — any clip taking longer is stalled
+// 4K libx264 ultrafast on a 60-min source clip can take up to ~3 hours on a CPU host.
+// Hard-kill at 4 hours; the watchdog uses 5 hours to give encoding room to breathe.
+const FFMPEG_HARD_TIMEOUT_MS = 4 * 60 * 60 * 1000;  // 4 hours
 
 function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -607,8 +614,8 @@ export async function recoverSourceNotFoundJobs(userId: string): Promise<void> {
  * Runs once at server startup (to clear any jobs frozen across a restart) and
  * then every WATCHDOG_INTERVAL_MS to catch future hang scenarios.
  */
-const STUCK_JOB_THRESHOLD_MS = 90 * 60 * 1000; // 90 minutes
-const WATCHDOG_INTERVAL_MS   = 10 * 60 * 1000;  // check every 10 minutes
+const STUCK_JOB_THRESHOLD_MS = 5 * 60 * 60 * 1000; // 5 hours — allows 4K encodes to complete
+const WATCHDOG_INTERVAL_MS   = 10 * 60 * 1000;     // check every 10 minutes
 
 async function watchdogCheck(): Promise<void> {
   try {
@@ -626,7 +633,7 @@ async function watchdogCheck(): Promise<void> {
     if (stuck.length === 0) return;
 
     const stuckIds = stuck.map((j) => j.id);
-    logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >90 min — resetting to queued: ${stuckIds.join(", ")}`);
+    logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >5 hours — resetting to queued: ${stuckIds.join(", ")}`);
 
     await db
       .update(streamEditJobs)
