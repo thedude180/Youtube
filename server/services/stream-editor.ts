@@ -3,7 +3,7 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadVaultEntry } from "./video-vault";
 import { packageClips } from "./stream-editor-packager";
@@ -36,7 +36,10 @@ interface PlatformProfile {
 }
 
 /**
- * Platform profiles optimised for gaming 4K output.
+ * Platform profiles optimised for fast CPU encoding on source footage that is
+ * typically 480p (vault format-18 downloads). Upscaling to 1080p with libx264
+ * ultrafast completes in minutes; 4K/libx265 on a CPU-constrained host takes
+ * 100+ hours and will never finish.
  *
  * Filter chain strategy (applied in buildVideoFilter):
  *  1. hqdn3d  — temporal + spatial denoise at SOURCE resolution
@@ -48,35 +51,38 @@ interface PlatformProfile {
  */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
-    label: "YouTube 4K",
-    width: 3840,
-    height: 2160,
+    label: "YouTube 1080p",
+    width: 1920,
+    height: 1080,
     orientation: "landscape",
-    codec: "libx265",
+    codec: "libx264",
     codecArgs: [
-      "-x265-params", "aq-mode=3:aq-strength=1.0:keyint=120:min-keyint=48:no-open-gop=1:bframes=4:ref=4:rc-lookahead=48:psy-rd=1.0:psy-rdoq=1.5",
-      "-tag:v", "hvc1",
+      "-profile:v", "high",
+      "-level:v", "4.0",
+      "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+      "-movflags", "+faststart",
     ],
-    crf: 20,
-    preset: "fast",
+    crf: 22,
+    preset: "ultrafast",
     maxClipSecs: null,
     audioBitrate: "192k",
     audioSampleRate: 48000,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   rumble: {
-    label: "Rumble 4K",
-    width: 3840,
-    height: 2160,
+    label: "Rumble 1080p",
+    width: 1920,
+    height: 1080,
     orientation: "landscape",
     codec: "libx264",
     codecArgs: [
       "-profile:v", "high",
-      "-level:v", "5.1",
-      "-x264-params", "keyint=120:min-keyint=48:no-cabac=0:bframes=3:ref=4:aq-mode=2:aq-strength=1.0:psy-rd=1.0:psy-rdoq=1.0",
+      "-level:v", "4.0",
+      "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
+      "-movflags", "+faststart",
     ],
-    crf: 21,
-    preset: "fast",
+    crf: 22,
+    preset: "ultrafast",
     maxClipSecs: null,
     audioBitrate: "192k",
     audioSampleRate: 48000,
@@ -135,10 +141,17 @@ function runProcess(bin: string, args: string[]): Promise<string> {
   });
 }
 
+const FFMPEG_HARD_TIMEOUT_MS = 90 * 60 * 1000; // 90 minutes — any clip taking longer is stalled
+
 function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let totalDuration = 0;
+
+    const hardTimeout = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error("FFmpeg hard timeout — encoding exceeded 90 minutes, killed"));
+    }, FFMPEG_HARD_TIMEOUT_MS);
 
     proc.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
@@ -161,10 +174,14 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
     });
 
     proc.on("close", (code) => {
+      clearTimeout(hardTimeout);
       if (code === 0) resolve();
       else reject(new Error(`FFmpeg exited with code ${code}`));
     });
-    proc.on("error", reject);
+    proc.on("error", (err) => {
+      clearTimeout(hardTimeout);
+      reject(err);
+    });
   });
 }
 
@@ -580,6 +597,69 @@ export async function recoverSourceNotFoundJobs(userId: string): Promise<void> {
   } catch (err: any) {
     logger.warn("[StreamEditor] Source-not-found recovery failed:", err?.message);
   }
+}
+
+/**
+ * Watchdog: finds any jobs that have been stuck in "processing" for longer than
+ * STUCK_JOB_THRESHOLD_MS, resets them to "queued", releases the activeJobId lock,
+ * and kicks the queue so the next job picks up immediately.
+ *
+ * Runs once at server startup (to clear any jobs frozen across a restart) and
+ * then every WATCHDOG_INTERVAL_MS to catch future hang scenarios.
+ */
+const STUCK_JOB_THRESHOLD_MS = 90 * 60 * 1000; // 90 minutes
+const WATCHDOG_INTERVAL_MS   = 10 * 60 * 1000;  // check every 10 minutes
+
+async function watchdogCheck(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - STUCK_JOB_THRESHOLD_MS);
+    const stuck = await db
+      .select({ id: streamEditJobs.id })
+      .from(streamEditJobs)
+      .where(
+        and(
+          eq(streamEditJobs.status, "processing"),
+          sql`${streamEditJobs.startedAt} < ${cutoff.toISOString()}`,
+        ),
+      );
+
+    if (stuck.length === 0) return;
+
+    const stuckIds = stuck.map((j) => j.id);
+    logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >90 min — resetting to queued: ${stuckIds.join(", ")}`);
+
+    await db
+      .update(streamEditJobs)
+      .set({
+        status: "queued",
+        errorMessage: "Reset by watchdog — was stuck in processing >90 min",
+        currentStage: "Re-queued (watchdog)",
+        startedAt: null,
+        completedAt: null,
+      })
+      .where(inArray(streamEditJobs.id, stuckIds));
+
+    // Release the in-memory lock if it was held by one of the stuck jobs
+    if (activeJobId !== null && stuckIds.includes(activeJobId)) {
+      activeJobId = null;
+    }
+
+    await pickUpNextQueuedJob();
+  } catch (err: any) {
+    logger.warn("[StreamEditor] Watchdog check failed:", err?.message);
+  }
+}
+
+let _watchdogTimer: ReturnType<typeof setInterval> | null = null;
+
+export function startStreamEditorWatchdog(): void {
+  if (_watchdogTimer) return; // already running
+  // Run immediately to clear any jobs that were frozen before this deploy
+  watchdogCheck().catch(() => {});
+  _watchdogTimer = setInterval(() => {
+    watchdogCheck().catch(() => {});
+  }, WATCHDOG_INTERVAL_MS);
+  logger.info("[StreamEditor] Watchdog started — checks every 10 min, threshold 90 min");
 }
 
 export { PLATFORM_PROFILES };

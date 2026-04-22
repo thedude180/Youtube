@@ -1387,6 +1387,13 @@ httpServer.listen(
         backgroundIntervals.push(iv);
       }).catch(slog("stream-editor-auto-publisher import"));
 
+      // Stream-editor watchdog — resets jobs stuck in "processing" for >90 min on
+      // startup and every 10 min thereafter. Releases the activeJobId lock so the
+      // queue never gets permanently frozen by a hung ffmpeg or yt-dlp process.
+      import("./services/stream-editor").then(m => {
+        m.startStreamEditorWatchdog();
+      }).catch(slog("stream-editor watchdog import"));
+
       // Vault Clip Exhauster — zero-touch: runs immediately after each download
       // AND sweeps every 10 min to catch anything missed. No human click needed.
       import("./services/vault-clip-exhauster").then(m => m.initVaultClipExhauster()).catch(slog("vault-clip-exhauster import"));
