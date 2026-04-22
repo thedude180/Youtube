@@ -34,7 +34,10 @@ const VAULT_DIR = path.join(process.cwd(), "vault");
 const _warnedNoToken = new Set<string>();
 const _warnedNoDownloadToken = new Set<string>();
 const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
-const DOWNLOAD_QUALITY = "18/best[height<=480]/best[height<=720]/best";
+// 1080p gives the upscaler real detail to work with when encoding to 4K.
+// Format 18 (480p combined stream) was storage-efficient but produces blurry
+// 4K output. bestvideo+bestaudio lets yt-dlp pick the best A/V and merge them.
+const DOWNLOAD_QUALITY = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
 const DOWNLOAD_DELAY_MS = 10_000;
 const PLAYER_CLIENTS = ["android_vr", "ios", "mweb"];
