@@ -4,10 +4,10 @@ import {
   autonomousActionLog, 
   userAutonomousSettings, 
   communityPosts,
-  videos,
-  channels
+  channels,
+  contentVaultBackups,
 } from "@shared/schema";
-import { eq, and, desc, gt, lt } from "drizzle-orm";
+import { eq, and, desc, gt, lt, gte } from "drizzle-orm";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { getOpenAIClient } from "../lib/openai";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
@@ -246,36 +246,126 @@ export class CommunityAutoManager {
   }
 
   /**
-   * Responds to recent unanswered comments.
+   * Responds to recent unanswered comments on YouTube videos using the YouTube API.
+   * Fetches comment threads with zero replies, generates creator-voice replies via AI,
+   * and posts them. Caps at 10 replies per cycle with a 5-second delay between each.
    */
   private async respondToComments(userId: string) {
     try {
-      // In a real implementation, we would fetch actual YouTube comments here.
-      // For the purpose of this task, we'll simulate the process of finding unanswered comments.
-      
+      const ytChannels = await db
+        .select()
+        .from(channels)
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+        .limit(3);
+
+      const authenticatedChannels = ytChannels.filter(
+        ch => ch.accessToken && ch.channelId &&
+          !ch.channelId.startsWith("placeholder") &&
+          !ch.channelId.startsWith("UC_placeholder"),
+      );
+
+      if (authenticatedChannels.length === 0) {
+        logger.debug(`[CommunityAuto] No authenticated YouTube channels for user ${userId} — skipping`);
+        return;
+      }
+
+      const { getAuthenticatedClient } = await import("../youtube");
+      const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+      const { google } = await import("googleapis");
       const openai = getOpenAIClient();
-      
-      // Simulated comments for now as there isn't a direct table for individual comments yet
-      // that we can easily query without more context on the YT API integration.
-      // However, we follow the requirement: max 10, 150 chars, 5s delay.
-      
-      logger.info(`Simulating comment responses for user ${userId}`);
-      
-      // Placeholder for actual logic:
-      // 1. Fetch recent comments from YouTube API
-      // 2. Filter for those without creator replies
-      // 3. For each (up to 10):
-      //    a. Generate reply with withCreatorVoice + AI
-      //    b. Post reply
-      //    c. Wait 5s
-      //    d. Log action
-      
-      await logAutonomousAction({
-        userId,
-        engine: "community-auto-manager",
-        action: "respond_to_comments",
-        reasoning: "Cycle completed. Simulated response logic executed for top comments."
-      });
+      const MAX_REPLIES = 10;
+      let totalReplied = 0;
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const primaryChannel = authenticatedChannels[0];
+      const { oauth2Client } = await getAuthenticatedClient(primaryChannel.id);
+      const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+      const recentVideos = await db
+        .select({ youtubeId: contentVaultBackups.youtubeId, title: contentVaultBackups.title })
+        .from(contentVaultBackups)
+        .where(and(
+          eq(contentVaultBackups.userId, userId),
+          eq(contentVaultBackups.platform, "youtube"),
+          gte(contentVaultBackups.createdAt, thirtyDaysAgo),
+        ))
+        .orderBy(desc(contentVaultBackups.createdAt))
+        .limit(10);
+
+      for (const video of recentVideos) {
+        if (!video.youtubeId || totalReplied >= MAX_REPLIES) break;
+        if (isQuotaBreakerTripped()) {
+          logger.warn("[CommunityAuto] YouTube quota breaker active — stopping comment cycle");
+          break;
+        }
+
+        try {
+          const resp = await yt.commentThreads.list({
+            part: ["snippet"],
+            videoId: video.youtubeId,
+            maxResults: 25,
+            order: "relevance",
+            textFormat: "plainText",
+          });
+
+          const unanswered = (resp.data.items || [])
+            .filter(t => (t.snippet?.totalReplyCount ?? 0) === 0)
+            .slice(0, MAX_REPLIES - totalReplied);
+
+          for (const thread of unanswered) {
+            const topSnippet = thread.snippet?.topLevelComment?.snippet;
+            const commentId = thread.snippet?.topLevelComment?.id;
+            if (!commentId || !topSnippet?.textDisplay?.trim()) continue;
+
+            const commentText = topSnippet.textDisplay.substring(0, 300);
+            const author = topSnippet.authorDisplayName || "viewer";
+            const videoTitle = (video.title || "your video").substring(0, 60);
+
+            const basePrompt = `A viewer named "${sanitizeForPrompt(author)}" commented on your gaming video "${sanitizeForPrompt(videoTitle)}": "${sanitizeForPrompt(commentText)}"\n\nWrite a genuine, friendly creator reply (max 150 characters). Reply text only, no quotes, no hashtags.`;
+            const prompt = await withCreatorVoice(userId, basePrompt);
+
+            const aiResp = await openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [{ role: "user", content: prompt }],
+              max_completion_tokens: 60,
+            });
+
+            const replyText = aiResp.choices[0]?.message?.content?.trim();
+            if (!replyText) continue;
+
+            await yt.comments.insert({
+              part: ["snippet"],
+              requestBody: {
+                snippet: {
+                  parentId: commentId,
+                  textOriginal: replyText.substring(0, 150),
+                },
+              },
+            });
+
+            totalReplied++;
+
+            await logAutonomousAction({
+              userId,
+              engine: "community-auto-manager",
+              action: "respond_to_comments",
+              reasoning: `Replied to ${sanitizeForPrompt(author)}'s comment on "${videoTitle}": "${commentText.substring(0, 60)}..."`,
+            });
+
+            if (totalReplied < MAX_REPLIES) {
+              await new Promise(r => setTimeout(r, 5_000));
+            }
+          }
+        } catch (videoErr: any) {
+          logger.debug(`[CommunityAuto] Comment fetch failed for video ${video.youtubeId}: ${videoErr.message?.substring(0, 120)}`);
+        }
+      }
+
+      if (totalReplied > 0) {
+        logger.info(`[CommunityAuto] Replied to ${totalReplied} comment(s) for user ${userId}`);
+      } else {
+        logger.debug(`[CommunityAuto] No unanswered comments found for user ${userId}`);
+      }
     } catch (err: any) {
       logger.error(`Error in respondToComments for ${userId}: ${err.message}`);
     }

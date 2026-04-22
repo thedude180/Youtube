@@ -1,10 +1,12 @@
 import { createLogger } from "./logger";
+import { registerCleanup } from "../services/cleanup-coordinator";
 
 const logger = createLogger("engine-store");
 
 interface StoreEntry<T> {
   data: T[];
   hydratedAt: number;
+  lastAccessedAt: number;
   dirty: boolean;
 }
 
@@ -17,10 +19,28 @@ export class EngineLocalStore {
   private queryRegistry = new Map<string, QueryFn<any>>();
   private hydrated = false;
   private hydratePromise: Promise<void> | null = null;
+  private maxCollections: number;
 
-  constructor(name: string, refreshMs = 3 * 60_000) {
+  constructor(name: string, refreshMs = 3 * 60_000, maxCollections = 300) {
     this.name = name;
     this.refreshMs = refreshMs;
+    this.maxCollections = maxCollections;
+  }
+
+  private evictIfNeeded(): void {
+    if (this.collections.size <= this.maxCollections) return;
+
+    const entries = Array.from(this.collections.entries())
+      .sort((a, b) => a[1].lastAccessedAt - b[1].lastAccessedAt);
+
+    const toRemove = Math.max(1, Math.floor(this.maxCollections * 0.1));
+    for (let i = 0; i < toRemove && i < entries.length; i++) {
+      const key = entries[i][0];
+      this.collections.delete(key);
+      this.queryRegistry.delete(key);
+    }
+
+    logger.debug(`[${this.name}] Evicted ${toRemove} LRU entries (was ${entries.length})`);
   }
 
   registerQuery<T>(key: string, queryFn: QueryFn<T>): void {
@@ -32,6 +52,7 @@ export class EngineLocalStore {
     const now = Date.now();
 
     if (!forceRefresh && entry && now - entry.hydratedAt < this.refreshMs) {
+      entry.lastAccessedAt = now;
       return entry.data as T[];
     }
 
@@ -40,10 +61,14 @@ export class EngineLocalStore {
 
     try {
       const data = await queryFn();
-      this.collections.set(key, { data, hydratedAt: now, dirty: false });
+      this.collections.set(key, { data, hydratedAt: now, lastAccessedAt: now, dirty: false });
+      this.evictIfNeeded();
       return data as T[];
     } catch (err: any) {
-      if (entry) return entry.data as T[];
+      if (entry) {
+        entry.lastAccessedAt = now;
+        return entry.data as T[];
+      }
       logger.warn(`[${this.name}] Query "${key}" failed: ${err.message?.substring(0, 100)}`);
       return [];
     }
@@ -55,16 +80,21 @@ export class EngineLocalStore {
   }
 
   put<T>(key: string, data: T[]): void {
-    this.collections.set(key, { data, hydratedAt: Date.now(), dirty: false });
+    const now = Date.now();
+    this.collections.set(key, { data, hydratedAt: now, lastAccessedAt: now, dirty: false });
+    this.evictIfNeeded();
   }
 
   append<T>(key: string, item: T): void {
+    const now = Date.now();
     const entry = this.collections.get(key);
     if (entry) {
       entry.data.push(item);
+      entry.lastAccessedAt = now;
       entry.dirty = true;
     } else {
-      this.collections.set(key, { data: [item], hydratedAt: Date.now(), dirty: true });
+      this.collections.set(key, { data: [item], hydratedAt: now, lastAccessedAt: now, dirty: true });
+      this.evictIfNeeded();
     }
   }
 
@@ -81,6 +111,21 @@ export class EngineLocalStore {
       if (key.startsWith(prefix)) {
         this.collections.delete(key);
       }
+    }
+  }
+
+  purgeStaleEntries(): void {
+    const cutoff = Date.now() - 2 * this.refreshMs;
+    let purged = 0;
+    for (const [key, entry] of this.collections.entries()) {
+      if (entry.lastAccessedAt < cutoff) {
+        this.collections.delete(key);
+        this.queryRegistry.delete(key);
+        purged++;
+      }
+    }
+    if (purged > 0) {
+      logger.debug(`[${this.name}] Purged ${purged} stale entries (TTL expired)`);
     }
   }
 
@@ -143,6 +188,12 @@ export function invalidateAllStores(): void {
   }
 }
 
+export function purgeAllStaleEntries(): void {
+  for (const store of engineStores.values()) {
+    store.purgeStaleEntries();
+  }
+}
+
 export function buildUserKey(userId: string, suffix: string): string {
   return `${(userId || "").substring(0, 12)}:${suffix}`;
 }
@@ -172,3 +223,5 @@ export function invalidateUserData(store: EngineLocalStore, userId: string, suff
     store.invalidatePrefix((userId || "").substring(0, 12));
   }
 }
+
+registerCleanup("engineStoreStalePurge", purgeAllStaleEntries, 30 * 60_000);
