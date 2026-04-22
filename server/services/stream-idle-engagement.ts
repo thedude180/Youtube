@@ -8,6 +8,13 @@ import { getOpenAIClient } from "../lib/openai";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 import { withCreatorVoice } from "./creator-dna-builder";
+import {
+  isQuotaBreakerTripped,
+  trackQuotaUsage,
+  markQuotaErrorFromResponse,
+  cacheLiveChatId,
+  getCachedLiveChatId,
+} from "./youtube-quota-tracker";
 
 import { createLogger } from "../lib/logger";
 
@@ -189,7 +196,16 @@ async function getYouTubeClient(channelDbId: number) {
   return google.youtube({ version: "v3", auth: oauth2Client });
 }
 
-async function getLiveChatId(channelDbId: number): Promise<string | null> {
+async function getLiveChatId(channelDbId: number, userId?: string): Promise<string | null> {
+  // Shared cache — if live-chat-agent or live-status already resolved this, reuse it (saves 50 units)
+  const cached = getCachedLiveChatId(channelDbId);
+  if (cached.hit) return cached.liveChatId;
+
+  if (isQuotaBreakerTripped()) {
+    logger.warn(`[IdleEngagement] Quota breaker tripped — skipping liveBroadcasts.list`);
+    return null;
+  }
+
   try {
     const yt = await getYouTubeClient(channelDbId);
     const res = await yt.liveBroadcasts.list({
@@ -197,9 +213,18 @@ async function getLiveChatId(channelDbId: number): Promise<string | null> {
       broadcastStatus: "active",
       broadcastType: "all",
     });
-    const active = res.data.items?.[0];
-    return active?.snippet?.liveChatId || null;
-  } catch { return null; }
+    if (userId) await trackQuotaUsage(userId, "broadcast");
+    const active = res.data.items?.find(b =>
+      ["live", "liveStarting", "testing"].includes(b.status?.lifeCycleStatus || "")
+    ) || res.data.items?.[0];
+    const liveChatId = active?.snippet?.liveChatId || null;
+    cacheLiveChatId(channelDbId, liveChatId, active?.id ?? undefined);
+    return liveChatId;
+  } catch (err: any) {
+    markQuotaErrorFromResponse(err);
+    cacheLiveChatId(channelDbId, null);
+    return null;
+  }
 }
 
 async function postChatMessage(yt: any, liveChatId: string, message: string): Promise<boolean> {
@@ -227,7 +252,7 @@ async function tryAcquireChatId(session: IdleSession): Promise<boolean> {
   if (session.liveChatId) return true;
   if (session.chatIdRetries >= MAX_CHAT_ID_RETRIES) return false;
   session.chatIdRetries++;
-  const chatId = await getLiveChatId(session.channelDbId);
+  const chatId = await getLiveChatId(session.channelDbId, session.userId);
   if (chatId) {
     session.liveChatId = chatId;
     logger.info(`[${session.userId}] Acquired live chat ID on retry ${sanitizeForPrompt(session.chatIdRetries)}`);
@@ -474,7 +499,7 @@ async function runIdleCheck(session: IdleSession): Promise<void> {
 async function startIdleSession(userId: string, channelDbId: number, streamTitle: string, streamCategory?: string | null): Promise<void> {
   if (activeSessions.has(userId)) return;
 
-  const liveChatId = await getLiveChatId(channelDbId);
+  const liveChatId = await getLiveChatId(channelDbId, userId);
   if (!liveChatId) {
     logger.info(`[${userId}] No live chat ID yet — will retry during idle checks`);
   }

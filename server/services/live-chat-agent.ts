@@ -12,6 +12,13 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
+import {
+  isQuotaBreakerTripped,
+  trackQuotaUsage,
+  markQuotaErrorFromResponse,
+  cacheLiveChatId,
+  getCachedLiveChatId,
+} from "./youtube-quota-tracker";
 
 import { createLogger } from "../lib/logger";
 
@@ -41,20 +48,38 @@ async function getYouTubeClient(channelDbId: number) {
   return google.youtube({ version: "v3", auth: oauth2Client });
 }
 
-async function getLiveChatId(channelDbId: number): Promise<string | null> {
+async function getLiveChatId(channelDbId: number, userId?: string): Promise<string | null> {
+  // Check shared cache first — live-status route may have already resolved this (saves 50 units)
+  const cached = getCachedLiveChatId(channelDbId);
+  if (cached.hit) return cached.liveChatId;
+
+  // Don't call the API if quota is burned out
+  if (isQuotaBreakerTripped()) {
+    logger.warn(`[LiveChatAgent] Quota breaker tripped — skipping liveBroadcasts.list`);
+    return null;
+  }
+
   try {
     const { oauth2Client } = await getAuthenticatedClient(channelDbId);
     const yt = google.youtube({ version: "v3", auth: oauth2Client });
     const res = await yt.liveBroadcasts.list({
-      part: ["snippet"],
+      part: ["snippet", "status"],
       broadcastStatus: "active",
       broadcastType: "all",
     });
+    if (userId) await trackQuotaUsage(userId, "broadcast");
     const active = res.data.items?.find(b =>
       ["live", "liveStarting", "testing"].includes(b.status?.lifeCycleStatus || "")
     );
-    return active?.snippet?.liveChatId || null;
-  } catch { return null; }
+    const liveChatId = active?.snippet?.liveChatId || null;
+    // Store in shared cache so other services don't need to call the API again
+    cacheLiveChatId(channelDbId, liveChatId, active?.id ?? undefined);
+    return liveChatId;
+  } catch (err: any) {
+    markQuotaErrorFromResponse(err);
+    cacheLiveChatId(channelDbId, null);
+    return null;
+  }
 }
 
 async function postChatMessage(yt: any, liveChatId: string, message: string): Promise<boolean> {
@@ -308,7 +333,7 @@ Bad responses (NEVER do this):
 async function startChatSession(userId: string, channelDbId: number, streamTitle: string, gameName?: string): Promise<void> {
   if (activeSessions.has(userId)) return;
 
-  const liveChatId = await getLiveChatId(channelDbId);
+  const liveChatId = await getLiveChatId(channelDbId, userId);
   if (!liveChatId) {
     logger.warn(`[${userId}] No live chat ID found — chat agent standing by`);
     return;

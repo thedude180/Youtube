@@ -12,6 +12,13 @@ import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
+import {
+  isQuotaBreakerTripped,
+  trackQuotaUsage,
+  markQuotaErrorFromResponse,
+  cacheLiveChatId,
+  getCachedLiveChatId,
+} from "./youtube-quota-tracker";
 
 import { createLogger } from "../lib/logger";
 
@@ -171,15 +178,27 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
       const { oauth2Client } = await getAuthenticatedClient(session.channelDbId);
       const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
-      // Get liveChatId if not already in session
+      // Get liveChatId — check shared cross-service cache first (saves 50 units)
       let liveChatId = (session as any).liveChatId;
       if (!liveChatId) {
-        const res = await youtube.liveBroadcasts.list({
-          part: ["snippet"],
-          id: [session.broadcastId]
-        });
-        liveChatId = res.data.items?.[0]?.snippet?.liveChatId;
-        (session as any).liveChatId = liveChatId;
+        const cached = getCachedLiveChatId(session.channelDbId);
+        if (cached.hit) {
+          liveChatId = cached.liveChatId;
+          (session as any).liveChatId = liveChatId;
+        } else if (!isQuotaBreakerTripped()) {
+          try {
+            const res = await youtube.liveBroadcasts.list({
+              part: ["snippet"],
+              id: [session.broadcastId]
+            });
+            await trackQuotaUsage(session.userId, "broadcast");
+            liveChatId = res.data.items?.[0]?.snippet?.liveChatId;
+            (session as any).liveChatId = liveChatId;
+            cacheLiveChatId(session.channelDbId, liveChatId || null, session.broadcastId);
+          } catch (err: any) {
+            markQuotaErrorFromResponse(err);
+          }
+        }
       }
 
       if (liveChatId) {

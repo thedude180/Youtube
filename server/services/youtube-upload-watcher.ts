@@ -24,7 +24,14 @@ interface UploadWatcherState {
 }
 
 const watcherSessions = new Map<string, UploadWatcherState>();
-const SCAN_INTERVAL_MS = 30 * 60 * 1000;
+const SCAN_INTERVAL_MIN = 45;   // base: ~45 minutes between upload checks
+const SCAN_INTERVAL_JITTER = 20; // ±20 minutes random jitter — looks organic, avoids pattern detection
+
+/** Returns a randomised delay between (base - jitter) and (base + jitter) minutes */
+function nextScanDelayMs(): number {
+  const jitter = (Math.random() * 2 - 1) * SCAN_INTERVAL_JITTER; // -20 to +20
+  return Math.max(20, SCAN_INTERVAL_MIN + jitter) * 60 * 1000;
+}
 const MAX_RESULTS_PER_SCAN = 25;
 const UPLOAD_AGE_HOURS = 25;
 
@@ -352,19 +359,34 @@ export async function startUploadWatcher(userId: string): Promise<void> {
   };
   watcherSessions.set(userId, state);
 
+  // Initial scan after a short warmup delay
   setTimeout(() => runWatcherScan(userId), 20_000);
 
-  state.intervalHandle = setInterval(() => {
-    runWatcherScan(userId).catch(() => {});
-  }, SCAN_INTERVAL_MS);
+  // Jitter-based scheduler — each scan re-schedules the next with a random delay
+  // (25–65 min window) instead of a fixed clock tick. Looks organic, prevents
+  // bursty API calls at predictable intervals, and works with the quota tracker.
+  function scheduleNextScan() {
+    const state = watcherSessions.get(userId);
+    if (!state) return; // watcher was stopped
+    const delayMs = nextScanDelayMs();
+    const delayMin = Math.round(delayMs / 60000);
+    logger.debug(`[${userId}] Next upload scan in ~${delayMin} min`);
+    const handle = setTimeout(async () => {
+      await runWatcherScan(userId).catch(() => {});
+      scheduleNextScan();
+    }, delayMs);
+    // Store handle as intervalHandle so stopUploadWatcher can clear it
+    if (state) state.intervalHandle = handle as any;
+  }
+  scheduleNextScan();
 
-  logger.info(`[${userId}] YouTube upload watcher started — scanning every ${SCAN_INTERVAL_MS / 60000} minutes`);
+  logger.info(`[${userId}] YouTube upload watcher started — scanning every ~${SCAN_INTERVAL_MIN}±${SCAN_INTERVAL_JITTER} min`);
 }
 
 export function stopUploadWatcher(userId: string): void {
   const state = watcherSessions.get(userId);
   if (state?.intervalHandle) {
-    clearInterval(state.intervalHandle);
+    clearTimeout(state.intervalHandle as any);
     state.intervalHandle = null;
     watcherSessions.delete(userId);
   }
@@ -381,7 +403,7 @@ export function getUploadWatcherStatus(userId: string) {
     scansCompleted: state.scansCompleted,
     lastError: state.lastError,
     nextScanAt: state.lastScanAt
-      ? new Date(state.lastScanAt.getTime() + SCAN_INTERVAL_MS).toISOString()
+      ? new Date(state.lastScanAt.getTime() + SCAN_INTERVAL_MIN * 60 * 1000).toISOString()
       : null,
   };
 }

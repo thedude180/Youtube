@@ -5,16 +5,60 @@ import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("youtube-quota-tracker");
+
+/**
+ * Official YouTube Data API v3 quota costs per endpoint call.
+ * https://developers.google.com/youtube/v3/determine_quota_cost
+ */
 const QUOTA_COSTS = {
-  read: 1,
-  list: 1,
-  search: 100,
-  write: 50,
-  upload: 1600,
-  thumbnail: 50,
+  read: 1,           // channels.list, videos.list, playlistItems.list, etc.
+  list: 1,           // alias for read
+  search: 100,       // search.list — very expensive, use sparingly
+  write: 50,         // videos.update, playlists.insert, playlistItems.insert
+  upload: 1600,      // videos.insert
+  thumbnail: 50,     // thumbnails.set
+  broadcast: 50,     // liveBroadcasts.list, liveBroadcasts.insert
+  livechat: 50,      // liveChatMessages.insert, comments.insert, commentThreads.insert
 } as const;
 
 type QuotaOperation = keyof typeof QUOTA_COSTS;
+
+/**
+ * Shared in-memory liveChatId cache — so live-chat-agent, stream-idle-engagement,
+ * and live-revenue-activator all share one broadcast lookup per active stream
+ * instead of each independently calling liveBroadcasts.list (50 units each).
+ */
+interface LiveChatEntry {
+  liveChatId: string | null;
+  broadcastId?: string;
+  resolvedAt: number;
+  ttlMs: number;
+}
+const _liveChatCache = new Map<number, LiveChatEntry>();
+const LIVE_CHAT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export function cacheLiveChatId(channelDbId: number, liveChatId: string | null, broadcastId?: string): void {
+  _liveChatCache.set(channelDbId, {
+    liveChatId,
+    broadcastId,
+    resolvedAt: Date.now(),
+    ttlMs: LIVE_CHAT_CACHE_TTL_MS,
+  });
+}
+
+export function getCachedLiveChatId(channelDbId: number): { liveChatId: string | null; hit: boolean } {
+  const entry = _liveChatCache.get(channelDbId);
+  if (!entry) return { liveChatId: null, hit: false };
+  if (Date.now() - entry.resolvedAt > entry.ttlMs) {
+    _liveChatCache.delete(channelDbId);
+    return { liveChatId: null, hit: false };
+  }
+  return { liveChatId: entry.liveChatId, hit: true };
+}
+
+export function invalidateLiveChatCache(channelDbId: number): void {
+  _liveChatCache.delete(channelDbId);
+}
 
 const DEFAULT_DAILY_LIMIT = 10000;
 const SAFETY_BUFFER = 200; // Reduced from 500 — gives ~300 more usable API units per day

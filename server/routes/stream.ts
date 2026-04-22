@@ -18,7 +18,14 @@ import { createPipelineForStream } from "./pipeline";
 import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { sendSSEEvent } from "./events";
-import { getQuotaStatus } from "../services/youtube-quota-tracker";
+import {
+  getQuotaStatus,
+  trackQuotaUsage,
+  isQuotaBreakerTripped,
+  markQuotaErrorFromResponse,
+  cacheLiveChatId,
+  getCachedLiveChatId,
+} from "../services/youtube-quota-tracker";
 import { fireAgentEvent } from "../services/agent-events";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 import { db } from "../db";
@@ -785,7 +792,10 @@ export function registerStreamRoutes(app: Express) {
     const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     try {
-      const result = await cached(`youtube-live-status:${userId}`, 10, async () => {
+      // 5-minute cache — was 10 seconds, which caused a liveBroadcasts.list call (50 units)
+      // on every frontend poll (every 3 min) = 24,000+ units/day. Now: scraping-first,
+      // API only when live is confirmed and quota is healthy.
+      const result = await cached(`youtube-live-status:${userId}`, 300, async () => {
         const userChannels = await storage.getChannelsByUser(userId);
         const ytChannelAuth = userChannels.find(c => c.platform === "youtube" && c.accessToken);
         const ytChannelAny = userChannels.find(c => c.platform === "youtube");
@@ -793,42 +803,92 @@ export function registerStreamRoutes(app: Express) {
         const streamList = await storage.getStreams(userId);
         const liveStream = streamList.find((s: any) => s.status === "live");
 
+        const channelId = ytChannelAuth?.channelId || ytChannelAny?.channelId;
+
+        // Step 1: always try scraping first — zero quota cost
+        let isScrapedLive = false;
+        let scrapedVideoId: string | undefined;
+        let scrapedTitle: string | undefined;
+        if (channelId) {
+          try {
+            const scraped = await detectYouTubeLiveFromChannel(channelId);
+            isScrapedLive = scraped.isLive;
+            scrapedVideoId = scraped.videoId ?? undefined;
+            scrapedTitle = scraped.title ?? undefined;
+          } catch { /* non-fatal */ }
+        }
+
         if (!ytChannelAuth) {
-          // No OAuth token — attempt public detection via watch-page RSS if we have a channel ID
-          if (ytChannelAny?.channelId) {
-            const isLive = await checkYouTubeLiveViaWatchPage(ytChannelAny.channelId);
-            const broadcasts = isLive
-              ? [{ broadcastId: "rss_live", title: "Live Stream", status: "active" }]
-              : [];
-            return {
-              connected: false,
-              oauthRequired: true,
-              channelName: ytChannelAny.channelName,
-              broadcasts,
-              activeStream: liveStream || null,
-              detectionMethod: "rss_public",
-            };
-          }
-          return { connected: false, oauthRequired: true, broadcasts: [], activeStream: liveStream || null };
+          const broadcasts = isScrapedLive
+            ? [{ broadcastId: scrapedVideoId || "scrape_live", title: scrapedTitle || "Live Stream", status: "active", videoId: scrapedVideoId }]
+            : [];
+          return {
+            connected: false,
+            oauthRequired: true,
+            channelName: ytChannelAny?.channelName,
+            broadcasts,
+            activeStream: liveStream || null,
+            detectionMethod: "scrape_public",
+          };
         }
 
-        const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+        // Step 2: if scraping says live AND we have auth AND quota is healthy,
+        // call liveBroadcasts.list (50 units) ONCE to get the liveChatId we need for chat.
+        // We NEVER call the API just to confirm not-live status — scraping handles that for free.
         let broadcasts: any[] = [];
-        let detectionMethod = "api";
-        if (quota.remaining > 5) {
-          broadcasts = await checkYouTubeLiveBroadcasts(ytChannelAuth.id);
-        }
+        let detectionMethod = "scrape";
+        let liveStreamId: string | null = null;
 
-        if (broadcasts.length === 0 && ytChannelAuth.channelId) {
-          detectionMethod = "scrape";
-          const scraped = await detectYouTubeLiveFromChannel(ytChannelAuth.channelId);
-          if (scraped.isLive) {
+        if (isScrapedLive) {
+          // Check shared cache first — other services may have already resolved this
+          const cached = getCachedLiveChatId(ytChannelAuth.id);
+          if (cached.hit && cached.liveChatId) {
             broadcasts = [{
-              broadcastId: scraped.videoId || "scrape_live",
-              title: scraped.title || "Live Stream",
+              broadcastId: scrapedVideoId || "cached_live",
+              title: scrapedTitle || "Live Stream",
               status: "active",
-              videoId: scraped.videoId,
+              videoId: scrapedVideoId,
+              liveChatId: cached.liveChatId,
             }];
+            liveStreamId = scrapedVideoId || null;
+            detectionMethod = "scrape+cache";
+          } else if (!isQuotaBreakerTripped()) {
+            const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+            // Only spend 50 units on the broadcast lookup when we have ample budget
+            if (quota.remaining >= 500) {
+              try {
+                const apiBroadcasts = await checkYouTubeLiveBroadcasts(ytChannelAuth.id);
+                await trackQuotaUsage(userId, "broadcast");
+                if (apiBroadcasts.length > 0) {
+                  broadcasts = apiBroadcasts;
+                  liveStreamId = (apiBroadcasts[0] as any).broadcastId || scrapedVideoId || null;
+                  // Cache the liveChatId for other services
+                  const liveChatId = (apiBroadcasts[0] as any).liveChatId || null;
+                  cacheLiveChatId(ytChannelAuth.id, liveChatId, liveStreamId || undefined);
+                  detectionMethod = "scrape+api";
+                } else {
+                  // API returned nothing — stream starting up, use scrape result
+                  cacheLiveChatId(ytChannelAuth.id, null);
+                  broadcasts = [{ broadcastId: scrapedVideoId || "scrape_live", title: scrapedTitle || "Live Stream", status: "active", videoId: scrapedVideoId }];
+                  liveStreamId = scrapedVideoId || null;
+                }
+              } catch (err: any) {
+                markQuotaErrorFromResponse(err);
+                // Fallback to scrape result even if API fails
+                broadcasts = [{ broadcastId: scrapedVideoId || "scrape_live", title: scrapedTitle || "Live Stream", status: "active", videoId: scrapedVideoId }];
+                liveStreamId = scrapedVideoId || null;
+              }
+            } else {
+              // Low quota — use scrape result only
+              broadcasts = [{ broadcastId: scrapedVideoId || "scrape_live", title: scrapedTitle || "Live Stream", status: "active", videoId: scrapedVideoId }];
+              liveStreamId = scrapedVideoId || null;
+              detectionMethod = "scrape_low_quota";
+            }
+          } else {
+            // Quota breaker tripped — scrape only
+            broadcasts = [{ broadcastId: scrapedVideoId || "scrape_live", title: scrapedTitle || "Live Stream", status: "active", videoId: scrapedVideoId }];
+            liveStreamId = scrapedVideoId || null;
+            detectionMethod = "scrape_quota_tripped";
           }
         }
 
@@ -836,6 +896,7 @@ export function registerStreamRoutes(app: Express) {
           connected: true,
           channelName: ytChannelAuth.channelName,
           broadcasts,
+          liveStreamId,
           activeStream: liveStream || null,
           detectionMethod,
         };
