@@ -80,84 +80,88 @@ export async function handleCallback(code: string, userId: string) {
   const { tokens } = await oauth2Client.getToken(code);
   oauth2Client.setCredentials(tokens);
 
-  const youtube = google.youtube({ version: "v3", auth: oauth2Client });
-  const channelResponse = await youtube.channels.list({
-    part: ["snippet", "statistics", "contentDetails"],
-    mine: true,
-  });
-
-  const ytChannel = channelResponse.data.items?.[0];
-  if (!ytChannel) {
-    throw new Error("No YouTube channel found for this account");
+  if (!tokens.access_token) {
+    throw new Error("No access token returned from Google");
   }
 
+  // ─── Step 1: Save the token IMMEDIATELY ──────────────────────────────────
+  // This must happen before any YouTube API calls that could fail (quota, network).
+  // We never want the token to be thrown away because of a downstream API error.
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find(c => c.platform === "youtube");
+  const existingShortsChannel = existingChannels.find(c => c.platform === "youtubeshorts");
 
-  const subCount = ytChannel.statistics?.subscriberCount != null ? Number(ytChannel.statistics.subscriberCount) : null;
-  const vidCount = ytChannel.statistics?.videoCount != null ? Number(ytChannel.statistics.videoCount) : null;
-  const vwCount = ytChannel.statistics?.viewCount != null ? Number(ytChannel.statistics.viewCount) : null;
-
-  const channelData = {
-    userId,
-    platform: "youtube" as const,
-    channelName: ytChannel.snippet?.title || "YouTube Channel",
-    channelId: ytChannel.id || "",
-    accessToken: tokens.access_token || null,
-    refreshToken: tokens.refresh_token || null,
+  const tokenFields: any = {
+    accessToken: tokens.access_token,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-    subscriberCount: subCount,
-    videoCount: vidCount,
-    viewCount: vwCount,
-    settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
+    lastSyncAt: new Date(),
   };
+  if (tokens.refresh_token) tokenFields.refreshToken = tokens.refresh_token;
 
   let channel;
   if (existingYt) {
-    const updateData: any = {
-      channelName: channelData.channelName,
-      channelId: channelData.channelId,
-      accessToken: channelData.accessToken,
-      tokenExpiresAt: channelData.tokenExpiresAt,
-      subscriberCount: subCount,
-      videoCount: vidCount,
-      viewCount: vwCount,
-      lastSyncAt: new Date(),
-    };
-    if (tokens.refresh_token) {
-      updateData.refreshToken = tokens.refresh_token;
-    }
-    channel = await storage.updateChannel(existingYt.id, updateData);
+    channel = await storage.updateChannel(existingYt.id, tokenFields);
   } else {
-    channel = await storage.createChannel(channelData);
+    channel = await storage.createChannel({
+      userId,
+      platform: "youtube" as const,
+      channelName: "YouTube Channel",
+      channelId: "",
+      ...tokenFields,
+      settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
+    });
   }
 
-  const existingShortsChannel = existingChannels.find(c => c.platform === "youtubeshorts");
-  const shortsData = {
-    userId,
-    platform: "youtubeshorts" as const,
-    channelName: `${ytChannel.snippet?.title || "YouTube"} Shorts`,
-    channelId: ytChannel.id || "",
-    accessToken: tokens.access_token || null,
-    refreshToken: tokens.refresh_token || null,
-    tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-    settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
-  };
-
   if (existingShortsChannel) {
-    const shortsUpdate: any = {
-      channelName: shortsData.channelName,
-      channelId: shortsData.channelId,
-      accessToken: shortsData.accessToken,
-      tokenExpiresAt: shortsData.tokenExpiresAt,
-      lastSyncAt: new Date(),
+    await storage.updateChannel(existingShortsChannel.id, tokenFields);
+  }
+
+  ytLogger.info(`[YouTube] OAuth token saved for user ${userId} — fetching channel info...`);
+
+  // ─── Step 2: Fetch channel info (best-effort — quota/network failures are OK) ─
+  let ytChannel: any = null;
+  try {
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+    const channelResponse = await youtube.channels.list({
+      part: ["snippet", "statistics", "contentDetails"],
+      mine: true,
+    });
+    ytChannel = channelResponse.data.items?.[0] || null;
+  } catch (infoErr: any) {
+    // Quota exhausted, network error, etc. — token is already saved so this is recoverable.
+    // The background token-refresh cycle will re-fetch channel info on the next successful API call.
+    ytLogger.warn(`[YouTube] Channel info fetch failed after OAuth (token is saved, will retry): ${infoErr?.message?.substring(0, 120)}`);
+  }
+
+  // ─── Step 3: If we have channel info, enrich the saved channel row ────────
+  if (ytChannel) {
+    const subCount = ytChannel.statistics?.subscriberCount != null ? Number(ytChannel.statistics.subscriberCount) : null;
+    const vidCount = ytChannel.statistics?.videoCount != null ? Number(ytChannel.statistics.videoCount) : null;
+    const vwCount  = ytChannel.statistics?.viewCount  != null ? Number(ytChannel.statistics.viewCount)  : null;
+
+    const infoFields: any = {
+      channelName: ytChannel.snippet?.title || "YouTube Channel",
+      channelId:   ytChannel.id || "",
+      subscriberCount: subCount,
+      videoCount: vidCount,
+      viewCount:  vwCount,
     };
-    if (tokens.refresh_token) {
-      shortsUpdate.refreshToken = tokens.refresh_token;
+    channel = await storage.updateChannel(channel!.id, infoFields);
+
+    const shortsName = `${ytChannel.snippet?.title || "YouTube"} Shorts`;
+    const shortsId   = ytChannel.id || "";
+    if (existingShortsChannel) {
+      await storage.updateChannel(existingShortsChannel.id, { channelName: shortsName, channelId: shortsId });
+    } else {
+      await storage.createChannel({
+        userId,
+        platform: "youtubeshorts" as const,
+        channelName: shortsName,
+        channelId: shortsId,
+        ...tokenFields,
+        settings: { preset: "normal" as const, autoUpload: true, minShortsPerDay: 3, maxEditsPerDay: 5, cooldownMinutes: 30 },
+      });
     }
-    await storage.updateChannel(existingShortsChannel.id, shortsUpdate);
-  } else {
-    await storage.createChannel(shortsData);
   }
 
   try {
@@ -171,7 +175,7 @@ export async function handleCallback(code: string, userId: string) {
 
   return {
     channel,
-    ytChannel: {
+    ytChannel: ytChannel ? {
       id: ytChannel.id,
       title: ytChannel.snippet?.title,
       description: ytChannel.snippet?.description,
@@ -179,7 +183,7 @@ export async function handleCallback(code: string, userId: string) {
       subscriberCount: ytChannel.statistics?.subscriberCount,
       videoCount: ytChannel.statistics?.videoCount,
       viewCount: ytChannel.statistics?.viewCount,
-    },
+    } : null,
   };
 }
 

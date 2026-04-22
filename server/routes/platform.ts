@@ -172,12 +172,17 @@ export async function registerPlatformRoutes(app: Express) {
         }
       });
 
-      res.redirect(`/?yt_connected=true&channel=${encodeURIComponent(result?.ytChannel?.title || "YouTube")}`);
+      const channelTitle = result?.ytChannel?.title || "YouTube";
+      const msg = result?.ytChannel ? `/?yt_connected=true&channel=${encodeURIComponent(channelTitle)}` : `/?yt_connected=true&channel=YouTube&quota_retry=1`;
+      res.redirect(msg);
     } catch (error: any) {
       logger.error("YouTube OAuth callback error:", error);
       const isNoChannel = error.message?.includes("No YouTube channel found");
+      const isNoToken = error.message?.includes("No access token");
       if (isNoChannel) {
         res.redirect("/?yt_no_channel=true");
+      } else if (isNoToken) {
+        res.redirect("/?yt_error=" + encodeURIComponent("Google did not return a token. Please try connecting again."));
       } else {
         res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
       }
