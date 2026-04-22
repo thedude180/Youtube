@@ -1386,17 +1386,16 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const userId = await requireTier(req, res, "pro", "Revenue Opportunities");
     if (!userId) return;
     try {
-      const records = await storage.getRevenueRecords(userId);
-      const channels = await storage.getChannelsByUser(userId);
-      const videos = await storage.getVideosByUser(userId);
+      // Pull every data source that reveals what's active vs missing
+      const [records, channels, videos, deals, ventures] = await Promise.all([
+        storage.getRevenueRecords(userId),
+        storage.getChannelsByUser(userId),
+        storage.getVideosByUser(userId),
+        storage.getSponsorshipDeals(userId),
+        storage.getBusinessVentures(userId),
+      ]);
 
       const totalRevenue = records.reduce((sum, r) => sum + (r.amount || 0), 0);
-      const platformSources = new Map<string, number>();
-      for (const r of records) {
-        const key = `${sanitizeForPrompt(r.platform)}:${sanitizeForPrompt(r.source)}`;
-        platformSources.set(key, (platformSources.get(key) || 0) + (r.amount || 0));
-      }
-
       const channelsByPlatform = new Map<string, any[]>();
       for (const ch of channels) {
         const p = ch.platform || "unknown";
@@ -1412,19 +1411,128 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
 
       const connectedPlatforms = new Set(channels.map(c => c.platform));
       const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "discord"];
-      const unmonetized = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p));
       const notConnected = allPlatforms.filter(p => !connectedPlatforms.has(p));
 
+      // Build a truthful "have" map from ALL data sources
+      const earningSources = new Set(records.map(r => r.source));
+      const earningPlatforms = new Set(records.map(r => r.platform));
+      const revenueBySource = new Map<string, number>();
+      for (const r of records) {
+        const k = r.source || "other";
+        revenueBySource.set(k, (revenueBySource.get(k) || 0) + (r.amount || 0));
+      }
+
+      // Sponsorship deals — active/negotiating counts as "having" sponsors
+      const activeDeals = deals.filter(d => ["active", "negotiating", "completed", "delivered"].includes(d.status || ""));
+      const dealRevenue = activeDeals.reduce((sum, d) => sum + ((d as any).dealValue || 0), 0);
+
+      // Business ventures with any revenue or active status
+      const activeVentures = ventures.filter(v => ((v as any).revenue || 0) > 0 || (v as any).status === "active");
+
+      // Convenience have-flags derived from ALL sources
+      const hasAdRevenue = earningSources.has("adsense") || earningSources.has("ad_revenue") || earningSources.has("ads") || earningSources.has("youtube_ads");
+      const hasMemberships = earningSources.has("membership") || earningSources.has("memberships");
+      const hasSuperChat = earningSources.has("superchat") || earningSources.has("super_chat");
+      const hasMerch = earningSources.has("merch") || earningSources.has("merchandise");
+      const hasSponsors = activeDeals.length > 0 || earningSources.has("sponsorship") || earningSources.has("sponsor");
+      const hasAffiliate = earningSources.has("affiliate");
+      const hasTips = earningSources.has("tips") || earningSources.has("donation") || earningSources.has("gift");
+      const hasTwitchSubs = earningPlatforms.has("twitch") && records.some(r => r.platform === "twitch");
+      const hasTikTok = earningPlatforms.has("tiktok") || records.some(r => r.platform === "tiktok");
+      const hasVentures = activeVentures.length > 0;
+      const hasCoaching = earningSources.has("coaching") || earningSources.has("consulting");
+
+      // Build the "What You Have" list from real data
+      interface ActiveStream {
+        id: string; label: string; platform?: string;
+        totalEarned: number; description: string; tip: string;
+      }
+      const activeStreams: ActiveStream[] = [];
+
+      if (hasAdRevenue) activeStreams.push({
+        id: "adsense", label: "YouTube Ad Revenue", platform: "youtube",
+        totalEarned: revenueBySource.get("adsense") || revenueBySource.get("ad_revenue") || revenueBySource.get("ads") || 0,
+        description: "Ad revenue from YouTube monetization is active.",
+        tip: "Upload consistently and optimize video length (8–15 min for max mid-roll ad breaks).",
+      });
+
+      if (hasMemberships) activeStreams.push({
+        id: "membership", label: "Channel Memberships", platform: "youtube",
+        totalEarned: revenueBySource.get("membership") || revenueBySource.get("memberships") || 0,
+        description: "Membership revenue is flowing.",
+        tip: "Add an exclusive perk each month — even a members-only community post cuts churn.",
+      });
+
+      if (hasSuperChat) activeStreams.push({
+        id: "superchat", label: "Super Chats & Stickers", platform: "youtube",
+        totalEarned: revenueBySource.get("superchat") || revenueBySource.get("super_chat") || 0,
+        description: "Super Chats are enabled and earning during live streams.",
+        tip: "React to every Super Chat by name — viewers who feel seen send more.",
+      });
+
+      if (hasMerch) activeStreams.push({
+        id: "merch", label: "Merchandise", platform: undefined,
+        totalEarned: revenueBySource.get("merch") || revenueBySource.get("merchandise") || 0,
+        description: "Merch sales are tracked and contributing to revenue.",
+        tip: "Pin your merch link in every stream chat and video description for passive promotion.",
+      });
+
+      if (hasSponsors) activeStreams.push({
+        id: "sponsorship", label: "Brand Sponsorships", platform: undefined,
+        totalEarned: (revenueBySource.get("sponsorship") || revenueBySource.get("sponsor") || 0) + dealRevenue,
+        description: activeDeals.length > 0
+          ? `${activeDeals.length} active/negotiating deal${activeDeals.length !== 1 ? "s" : ""} in pipeline.`
+          : "Sponsorship revenue on record.",
+        tip: "Use CreatorOS rate card to price future deals — undercharging is the #1 creator mistake.",
+      });
+
+      if (hasAffiliate) activeStreams.push({
+        id: "affiliate", label: "Affiliate Marketing", platform: undefined,
+        totalEarned: revenueBySource.get("affiliate") || 0,
+        description: "Affiliate commissions are being tracked.",
+        tip: "Create a dedicated gear/setup video — it earns affiliate revenue passively for years.",
+      });
+
+      if (hasTips) activeStreams.push({
+        id: "tips", label: "Tips & Donations", platform: undefined,
+        totalEarned: (revenueBySource.get("tips") || 0) + (revenueBySource.get("donation") || 0) + (revenueBySource.get("gift") || 0),
+        description: "Direct tips and donations from your audience are active.",
+        tip: "Thank donors on stream — public recognition is the highest driver of repeat tips.",
+      });
+
+      if (hasTwitchSubs) activeStreams.push({
+        id: "twitch", label: "Twitch Revenue", platform: "twitch",
+        totalEarned: records.filter(r => r.platform === "twitch").reduce((sum, r) => sum + (r.amount || 0), 0),
+        description: "Twitch subscriptions and/or bits are earning.",
+        tip: "Sub-only game modes and emote unlocks are proven retention and conversion tools.",
+      });
+
+      if (hasTikTok) activeStreams.push({
+        id: "tiktok", label: "TikTok Revenue", platform: "tiktok",
+        totalEarned: records.filter(r => r.platform === "tiktok").reduce((sum, r) => sum + (r.amount || 0), 0),
+        description: "TikTok earnings are being tracked.",
+        tip: "TikTok Live gifts can spike during interactive streams — react loudly to gifts on camera.",
+      });
+
+      if (hasCoaching) activeStreams.push({
+        id: "coaching", label: "Coaching / Consulting", platform: undefined,
+        totalEarned: (revenueBySource.get("coaching") || 0) + (revenueBySource.get("consulting") || 0),
+        description: "Coaching or consulting income is on record.",
+        tip: "Package your knowledge into a recurring program — one-off sessions don't scale.",
+      });
+
+      if (hasVentures) activeStreams.push({
+        id: "ventures", label: `Business Venture${activeVentures.length !== 1 ? "s" : ""}`, platform: undefined,
+        totalEarned: activeVentures.reduce((sum, v) => sum + ((v as any).revenue || 0), 0),
+        description: `${activeVentures.length} active venture${activeVentures.length !== 1 ? "s" : ""}: ${activeVentures.map((v: any) => v.name || "Unnamed").slice(0, 3).join(", ")}.`,
+        tip: "Track expenses per venture to see true margins, not just revenue.",
+      });
+
+      // Build the "What You Still Need" list
       interface Opportunity {
-        type: string;
-        title: string;
-        description: string;
-        platform?: string;
-        estimatedImpact: string;
-        priority: "high" | "medium" | "low";
-        channelContext: string;
-        audienceRelevance: string;
-        steps: string[];
+        type: string; title: string; description: string; platform?: string;
+        estimatedImpact: string; priority: "high" | "medium" | "low";
+        channelContext: string; audienceRelevance: string; steps: string[];
       }
 
       const opportunities: Opportunity[] = [];
@@ -1504,115 +1612,129 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         }
       }
 
-      const hasMemberships = records.some(r => r.source === "membership");
-      if (!hasMemberships && videos.length >= 5) {
+      // Membership — not yet earning from it
+      if (!hasMemberships && connectedPlatforms.has("youtube") && videos.length >= 5) {
         opportunities.push({
-          type: "membership",
+          type: "membership", priority: "high",
           title: "Launch Channel Memberships",
-          description: `With ${videos.length} videos in your library${totalSubs > 0 ? ` and ${totalSubs.toLocaleString()} subscribers` : ""}, you have enough content and audience to offer exclusive membership perks.`,
+          description: `${videos.length} videos + subscribers but $0 from memberships. Recurring income you're leaving on the table.`,
           platform: "youtube",
-          estimatedImpact: "$50-500/mo recurring",
-          priority: "high",
-          channelContext: `Your YouTube channel has ${videos.length} video${videos.length !== 1 ? "s" : ""}${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views each` : ""}. This signals an engaged audience ready for deeper connection.`,
-          audienceRelevance: "Memberships convert your most loyal viewers into recurring supporters. Even a small percentage of your audience joining at $4.99/mo creates steady income independent of ad revenue fluctuations.",
-          steps: ["Meet YouTube Partner Program requirements", "Design 3-5 membership tiers with clear perks", "Create members-only content (behind-the-scenes, early access)", "Promote memberships in your videos and community posts", "Use CreatorOS to auto-generate membership promotion posts"],
+          estimatedImpact: "$50–500/mo recurring",
+          channelContext: `${videos.length} video${videos.length !== 1 ? "s" : ""}${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""} = proof of audience engagement.`,
+          audienceRelevance: "Even 0.5% of viewers joining at $4.99/mo creates income independent of ad fluctuations.",
+          steps: ["Meet YouTube Partner Program requirements", "Design 3–5 tiers with clear perks", "Create members-only content (BTS, early access)", "Promote in every video's outro", "CreatorOS auto-generates membership promo posts"],
         });
       }
 
-      const hasSponsors = records.some(r => r.source === "sponsorship");
+      // Sponsorships — no active deals and no recorded income
       if (!hasSponsors && videos.length >= 10) {
         opportunities.push({
-          type: "sponsorship",
-          title: "Attract Brand Sponsorships",
-          description: `With ${videos.length} videos${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""}, your channel is attractive to brands looking for creator partnerships.`,
-          estimatedImpact: "$200-5,000 per deal",
-          priority: "high",
-          channelContext: `${videos.length} published videos demonstrate consistency, which brands value highly. ${totalSubs > 100 ? `Your ${totalSubs.toLocaleString()} subscribers represent a targetable audience for advertisers.` : "Even growing channels can land niche sponsorships."}`,
-          audienceRelevance: "Engaged audiences are among the most valuable for brands in your niche. Brands pay premiums for authentic creator endorsements over traditional ads.",
-          steps: ["Build a media kit with your channel stats and audience demographics", "Join creator marketplaces (e.g., Grin, AspireIQ, or direct outreach)", "Start with smaller brands to build sponsorship experience", "Use CreatorOS Sponsor Rates calculator to set fair pricing", "Negotiate long-term deals for better rates"],
+          type: "sponsorship", priority: "high",
+          title: "Land Your First Brand Deal",
+          description: `${videos.length} videos${avgViews > 0 ? ` averaging ${avgViews.toLocaleString()} views` : ""} — no active deals in pipeline yet.`,
+          estimatedImpact: "$200–5,000 per deal",
+          channelContext: `${videos.length} published videos show consistency. ${totalSubs > 100 ? `${totalSubs.toLocaleString()} subscribers = a targetable audience.` : "Niche channels land deals even under 1K subs."}`,
+          audienceRelevance: "Gaming audiences have high purchase intent. Brands pay premiums for authentic creator endorsements.",
+          steps: ["Generate your media kit in the Sponsors tab", "Use the rate card to price correctly", "Pitch 5 brands per week in your niche", "Add each deal to the Sponsor pipeline to track deliverables"],
         });
       }
 
-      const hasAffiliate = records.some(r => r.source === "affiliate");
+      // Affiliate — no affiliate income at all
       if (!hasAffiliate) {
         opportunities.push({
-          type: "affiliate",
+          type: "affiliate", priority: "medium",
           title: "Start Affiliate Marketing",
-          description: "Add affiliate links to your gear, software, and tools you recommend. Earn commission on every purchase your audience makes through your links.",
-          estimatedImpact: "$50-1,000/mo passive",
-          priority: "medium",
+          description: "Every video description is passive income potential. Gear, software, and game links all convert.",
+          estimatedImpact: "$50–1,000/mo passive",
           channelContext: totalVideos > 0
-            ? `Your ${totalVideos} video${totalVideos !== 1 ? "s" : ""} are perfect vehicles for affiliate links in descriptions. Gear reviews, tutorials, and setup tours naturally include product recommendations.`
-            : "Every video you publish is an opportunity to include affiliate links in the description. Start building passive income from day one.",
-          audienceRelevance: "Your audience actively researches gear, software, and tools you recommend. When a trusted creator recommends a product, conversion rates are 3-5x higher than banner ads.",
-          steps: ["Sign up for Amazon Associates and relevant affiliate programs in your niche", "Add affiliate links to all video descriptions", "Create dedicated gear/setup videos that naturally feature products", "Track which products convert best and double down", "Use CreatorOS to auto-insert affiliate links in cross-posted content"],
+            ? `${totalVideos} existing video${totalVideos !== 1 ? "s" : ""} can be updated with affiliate links today — retroactive passive income.`
+            : "Add affiliate links from day one — they earn passively forever.",
+          audienceRelevance: "Gaming audiences convert at 3–5× the rate of banner ads on gear and software recommendations.",
+          steps: ["Join Amazon Associates + gaming/tech affiliate programs", "Update all video descriptions with links", "Create a dedicated gear/setup video", "Track top earners and feature them more"],
         });
       }
 
-      const hasSuperChat = records.some(r => r.source === "superchat");
+      // Super Chats — YouTube connected but no super chat revenue
       if (!hasSuperChat && connectedPlatforms.has("youtube")) {
         opportunities.push({
-          type: "superchat",
-          title: "Maximize Super Chat Revenue",
-          description: "Live streams with Super Chats enabled let your most engaged viewers contribute directly during broadcasts.",
+          type: "superchat", priority: "medium",
+          title: "Activate Super Chat Revenue",
+          description: "You're on YouTube but earning $0 from Super Chats. Live viewers are your most willing-to-pay audience.",
           platform: "youtube",
-          estimatedImpact: "$20-500 per stream",
-          priority: "medium",
-          channelContext: `As a YouTube-connected creator${totalSubs > 0 ? ` with ${totalSubs.toLocaleString()} subscribers` : ""}, Super Chats turn your live streams into direct revenue events.`,
-          audienceRelevance: "Live stream viewers are your most engaged fans. Super Chats give them a way to stand out and interact directly with you, and they're willing to pay for that spotlight.",
-          steps: ["Enable Super Chat in YouTube Studio monetization settings", "Stream regularly to build a live audience habit", "Acknowledge and react to Super Chats during stream", "Set up incentives (reading messages, shoutouts)", "Use CreatorOS live stream advisor for optimal engagement"],
+          estimatedImpact: "$20–500 per stream",
+          channelContext: `YouTube-connected${totalSubs > 0 ? ` with ${totalSubs.toLocaleString()} subscribers` : ""}. Super Chats turn live audiences into direct income.`,
+          audienceRelevance: "Super Chat viewers pay to be seen. Acknowledging them drives more purchases — it's a social proof loop.",
+          steps: ["Enable Super Chat in YouTube Studio", "Stream consistently to build live habit", "React to every Super Chat by name", "CreatorOS live advisor suggests engagement hooks that drive donations"],
         });
       }
 
-      if (totalRevenue > 0 && records.length > 5) {
-        const topSource = Array.from(platformSources.entries()).sort((a, b) => b[1] - a[1])[0];
-        if (topSource) {
-          const [key, amount] = topSource;
-          const [platform, source] = key.split(":");
-          const pctOfTotal = totalRevenue > 0 ? Math.round((amount / totalRevenue) * 100) : 0;
-          opportunities.push({
-            type: "optimize",
-            title: `Double Down on ${source}`,
-            description: `${source} from ${sanitizeForPrompt(platform)} is your top earner at $${amount.toFixed(0)} (${pctOfTotal}% of total revenue). Focused optimization could grow this stream significantly.`,
-            platform,
-            estimatedImpact: `+$${Math.round(amount * 0.5)}/mo potential`,
-            priority: "medium",
-            channelContext: `Your ${sanitizeForPrompt(platform)} ${source} revenue is $${amount.toFixed(2)} across ${records.filter(r => r.platform === platform && r.source === source).length} records. This is your strongest revenue channel.`,
-            audienceRelevance: `Your audience is already responding well to ${source} on ${sanitizeForPrompt(platform)}. Doubling down means optimizing what's proven to work rather than experimenting with unknowns.`,
-            steps: [`Analyze your top-performing ${source} content to find patterns`, `Create more content in the same style/format`, `Test different approaches to increase per-viewer ${source} revenue`, `Track growth weekly and adjust strategy`],
-          });
-        }
+      // Merch — no merch revenue and meaningful subscriber count
+      if (!hasMerch && totalSubs > 500) {
+        opportunities.push({
+          type: "merch", priority: "medium",
+          title: "Launch Branded Merchandise",
+          description: `${totalSubs.toLocaleString()} subscribers = a real fan base. Even 0.1% buying one item is meaningful revenue.`,
+          estimatedImpact: "$100–2,000/mo",
+          channelContext: "Your audience knows your brand. Merch converts best with channels that have a distinct identity.",
+          audienceRelevance: "Gaming fans buy brand merch to signal community membership — identity-driven purchasing, not impulse buying.",
+          steps: ["Design 3–5 items around your brand", "Use print-on-demand (no inventory risk)", "Add Merch Shelf to YouTube", "Feature merch in every stream and video", "Run limited drops to create urgency"],
+        });
       }
 
-      if (connectedPlatforms.size >= 2 && records.length > 0) {
+      // Tips — not yet active
+      if (!hasTips && (connectedPlatforms.has("youtube") || connectedPlatforms.has("twitch"))) {
+        opportunities.push({
+          type: "tips", priority: "low",
+          title: "Enable Direct Tips & Donations",
+          description: "Your most loyal viewers want to support you directly. A tip link costs nothing to set up.",
+          estimatedImpact: "$10–200/mo passive",
+          channelContext: "Even small audiences have superfans who want to contribute. A tip link in bio converts passively.",
+          audienceRelevance: "Fans who tip are your most loyal segment — they also buy merch, join memberships, and refer friends.",
+          steps: ["Set up Ko-fi or StreamElements for tips", "Add your tip link to all platform bios", "Thank donors on stream for social reinforcement"],
+        });
+      }
+
+      // Business ventures — nothing set up yet
+      if (!hasVentures) {
+        opportunities.push({
+          type: "venture", priority: "low",
+          title: "Start a Business Venture",
+          description: "Your audience and skills extend beyond content. Courses, coaching, digital products, or a newsletter are natural next steps.",
+          estimatedImpact: "$500–10,000+/mo",
+          channelContext: "Every subscriber already trusts your expertise — the hardest part of any business.",
+          audienceRelevance: "Gaming creators have launched coaching, tournament platforms, gear stores, and courses. Your niche is proven.",
+          steps: ["Identify the most-asked question from your comments/chat", "Package the answer as a paid product", "Add it to CreatorOS Business section", "Track revenue separately for clean P&L visibility"],
+        });
+      }
+
+      // Diversification warning — too concentrated on one source
+      if (totalRevenue > 0 && activeStreams.length >= 2) {
         const platformRevenues = new Map<string, number>();
         for (const r of records) {
           platformRevenues.set(r.platform || "unknown", (platformRevenues.get(r.platform || "unknown") || 0) + (r.amount || 0));
         }
         const topPlatform = Array.from(platformRevenues.entries()).sort((a, b) => b[1] - a[1])[0];
-        const bottomPlatforms = Array.from(platformRevenues.entries()).filter(([p]) => p !== topPlatform?.[0]).sort((a, b) => a[1] - b[1]);
-        if (bottomPlatforms.length > 0 && topPlatform) {
-          const weakest = bottomPlatforms[0];
-          if (topPlatform[1] > weakest[1] * 3) {
-            opportunities.push({
-              type: "rebalance",
-              title: `Grow ${weakest[0].charAt(0).toUpperCase() + weakest[0].slice(1)} Revenue`,
-              description: `${topPlatform[0]} earns $${topPlatform[1].toFixed(0)} while ${weakest[0]} only earns $${weakest[1].toFixed(0)}. Balancing revenue across platforms reduces risk.`,
-              platform: weakest[0],
-              estimatedImpact: `Reduce platform dependency`,
-              priority: "low",
-              channelContext: `Your revenue is heavily concentrated on ${topPlatform[0]} (${Math.round((topPlatform[1] / totalRevenue) * 100)}% of total). If that platform changes its algorithm or policies, your income takes a direct hit.`,
-              audienceRelevance: `Your ${weakest[0]} audience may respond to different content formats or monetization methods than what works on ${topPlatform[0]}. Experimenting here could unlock a significant secondary revenue stream.`,
-              steps: [`Study what content performs best on ${weakest[0]}`, `Adapt your top-performing content for ${weakest[0]}'s audience`, `Enable all available monetization on ${weakest[0]}`, `Set a 90-day growth target and track weekly`],
-            });
-          }
+        if (topPlatform && topPlatform[1] / totalRevenue > 0.8) {
+          opportunities.push({
+            type: "rebalance", priority: "low",
+            title: "Diversify Away from One Platform",
+            description: `${Math.round((topPlatform[1] / totalRevenue) * 100)}% of your revenue comes from ${sanitizeForPrompt(topPlatform[0])}. One policy change could cut your income.`,
+            platform: topPlatform[0],
+            estimatedImpact: "Reduce income risk",
+            channelContext: `Strong on ${sanitizeForPrompt(topPlatform[0])}. Now's the time to spread that success while momentum is high.`,
+            audienceRelevance: "Diversified income is the difference between a hobby and a resilient business.",
+            steps: ["Identify which platform your audience already uses second", "Activate monetization there with what works on your main platform", "Target 20% of revenue from a second source in 90 days"],
+          });
         }
       }
 
+      const unmonetizedCount = allPlatforms.filter(p => connectedPlatforms.has(p) && !records.some(r => r.platform === p)).length;
+
       res.json({
+        activeStreams,
         opportunities: opportunities.sort((a, b) => {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
+          const order = { high: 0, medium: 1, low: 2 };
+          return order[a.priority] - order[b.priority];
         }),
         summary: {
           totalRevenue,
@@ -1620,8 +1742,9 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
           totalSubscribers: totalSubs,
           avgViewsPerVideo: avgViews,
           platformCount: connectedPlatforms.size,
-          revenueStreams: new Set(records.map(r => r.source)).size,
-          unmonetizedPlatforms: unmonetized.length,
+          activeStreamCount: activeStreams.length,
+          opportunityCount: opportunities.length,
+          unmonetizedPlatforms: unmonetizedCount,
         },
       });
     } catch (error: any) {
