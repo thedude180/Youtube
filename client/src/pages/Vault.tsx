@@ -35,7 +35,7 @@ interface VaultStats {
   totalIndexed: number; downloaded: number; downloading: number;
   failed: number; pending: number; totalSizeBytes: number; totalSizeMB: number;
   channelTotal: number; isRunning: boolean; freeSpaceGB: number;
-  vods: number; shorts: number; streams: number;
+  vods: number; shorts: number; streams: number; protectedCount: number;
 }
 
 interface VaultGame {
@@ -48,6 +48,7 @@ interface VaultEntry {
   contentType: string; duration: string; status: string;
   filePath: string | null; fileSize: number | null;
   thumbnailUrl: string; publishedAt: string; backupUrl: string | null;
+  permanentRetention: boolean;
 }
 
 interface VaultClip {

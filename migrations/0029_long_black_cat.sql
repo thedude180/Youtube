@@ -1,0 +1,1 @@
+ALTER TABLE "content_vault_backups" ADD COLUMN "permanent_retention" boolean DEFAULT false NOT NULL;
