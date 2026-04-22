@@ -179,7 +179,10 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
           }).where(eq(channels.id, ch.id));
           verified++;
         } else {
-          const refreshOk = await tryRefreshSingleToken(ch);
+          // Channels WITH a refresh token: attempt auto-refresh first
+          const hasRefreshToken = !!ch.refreshToken;
+          const refreshOk = hasRefreshToken ? await tryRefreshSingleToken(ch) : false;
+
           if (refreshOk) {
             refreshed++;
           } else {
@@ -189,61 +192,87 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
             }).where(eq(channels.id, ch.id));
             failed++;
 
-            logger.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD})`);
+            logger.warn(`[ConnectionGuardian] ${ch.platform} for ${ch.channelName} — token check failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}, hasRefreshToken=${hasRefreshToken})`);
 
-            // Escalating notifications: 3 → warning, 8 → urgent, 15 → critical
             if (ch.userId) {
               try {
-                if (failures === 3) {
-                  await storage.createNotification({
-                    userId: ch.userId,
-                    type: "connection_warning",
-                    title: `${ch.platform} connection degraded`,
-                    message: `${ch.channelName} has failed to verify ${failures} times. It will attempt auto-recovery — no action needed yet.`,
-                    severity: "warning",
-                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
-                  });
-                } else if (failures === 8) {
-                  await storage.createNotification({
-                    userId: ch.userId,
-                    type: "connection_urgent",
-                    title: `${ch.platform} connection failing repeatedly`,
-                    message: `${ch.channelName} has now failed ${failures} consecutive checks. Please review your OAuth tokens in Settings → Connections.`,
-                    severity: "error",
-                    actionUrl: "/settings",
-                    metadata: { source: "connection-guardian", platformAffected: ch.platform },
-                  });
-                } else if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-                  // DB-backed 24h cooldown: skip if a connection_critical notification was
-                  // already sent for this user+platform in the last 24 hours.
-                  // In-memory cooldowns reset on server restart, causing duplicate emails.
+                if (!hasRefreshToken) {
+                  // No refresh token means auto-recovery is impossible.
+                  // Skip the graduated warning flow and go straight to urgent on the 1st failure,
+                  // with a 24h DB-backed cooldown to avoid notification spam.
                   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-                  const recentCritical = await db.select({ id: notifications.id })
+                  const recentUrgent = await db.select({ id: notifications.id })
                     .from(notifications)
                     .where(and(
                       eq(notifications.userId, ch.userId),
-                      eq(notifications.type, "connection_critical"),
+                      eq(notifications.type, "connection_urgent"),
                       gte(notifications.createdAt, since24h),
                     ))
                     .limit(1)
                     .catch(() => [] as { id: number }[]);
 
-                  if (recentCritical.length === 0) {
+                  if (recentUrgent.length === 0) {
                     await storage.createNotification({
                       userId: ch.userId,
-                      type: "connection_critical",
-                      title: `${ch.platform} connection permanently expired`,
-                      message: `${ch.channelName} could not be refreshed after ${failures} attempts. Reconnect this platform immediately to restore autopilot.`,
+                      type: "connection_urgent",
+                      title: `${ch.platform} needs reconnecting`,
+                      message: `${ch.channelName}'s OAuth token has expired and cannot be auto-refreshed. Go to Settings → Connections to reconnect it.`,
                       severity: "error",
                       actionUrl: "/settings",
                       metadata: { source: "connection-guardian", platformAffected: ch.platform },
                     });
-                    const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
-                    await proactiveTokenHealthCheck().catch((e: Error) =>
-                      logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, e)
-                    );
-                  } else {
-                    logger.info(`[ConnectionGuardian] Skipping duplicate connection_critical notification for ${ch.platform} (sent within 24h)`);
+                  }
+                } else {
+                  // Channels with refresh tokens: graduated escalation (3 → warning, 8 → urgent, 15 → critical)
+                  if (failures === 3) {
+                    await storage.createNotification({
+                      userId: ch.userId,
+                      type: "connection_warning",
+                      title: `${ch.platform} connection degraded`,
+                      message: `${ch.channelName} has failed to verify ${failures} times. It will attempt auto-recovery — no action needed yet.`,
+                      severity: "warning",
+                      metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                    });
+                  } else if (failures === 8) {
+                    await storage.createNotification({
+                      userId: ch.userId,
+                      type: "connection_urgent",
+                      title: `${ch.platform} connection failing repeatedly`,
+                      message: `${ch.channelName} has now failed ${failures} consecutive checks. Please review your OAuth tokens in Settings → Connections.`,
+                      severity: "error",
+                      actionUrl: "/settings",
+                      metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                    });
+                  } else if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+                    // DB-backed 24h cooldown to avoid duplicate emails across server restarts
+                    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+                    const recentCritical = await db.select({ id: notifications.id })
+                      .from(notifications)
+                      .where(and(
+                        eq(notifications.userId, ch.userId),
+                        eq(notifications.type, "connection_critical"),
+                        gte(notifications.createdAt, since24h),
+                      ))
+                      .limit(1)
+                      .catch(() => [] as { id: number }[]);
+
+                    if (recentCritical.length === 0) {
+                      await storage.createNotification({
+                        userId: ch.userId,
+                        type: "connection_critical",
+                        title: `${ch.platform} connection permanently expired`,
+                        message: `${ch.channelName} could not be refreshed after ${failures} attempts. Reconnect this platform immediately to restore autopilot.`,
+                        severity: "error",
+                        actionUrl: "/settings",
+                        metadata: { source: "connection-guardian", platformAffected: ch.platform },
+                      });
+                      const { proactiveTokenHealthCheck } = await import("./auto-reconnect");
+                      await proactiveTokenHealthCheck().catch((e: Error) =>
+                        logger.error(`[ConnectionGuardian] Proactive token health check failed for ${ch.platform}:`, e)
+                      );
+                    } else {
+                      logger.info(`[ConnectionGuardian] Skipping duplicate connection_critical notification for ${ch.platform} (sent within 24h)`);
+                    }
                   }
                 }
               } catch (notifErr) {
@@ -518,6 +547,60 @@ async function refreshAllChannelStatsInBackground(): Promise<number> {
 let lastStatsRefresh = 0;
 const STATS_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
+// Returns current date string in Pacific time (YYYY-MM-DD), used to detect midnight-Pacific quota resets.
+function getPacificDateString(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+}
+
+let lastKnownPacificDate = getPacificDateString();
+
+// Runs immediately after a Pacific-midnight quota reset is detected.
+// Re-verifies all YouTube channels now that the fresh quota budget is available.
+async function runPostQuotaResetHeal(): Promise<void> {
+  try {
+    logger.info("[ConnectionGuardian] Pacific midnight detected — running post-quota-reset YouTube heal");
+
+    // Clear any analytics auth cooldowns so the fresh quota is used
+    try {
+      const { clearUserAuthCooldown } = await import("./youtube-analytics");
+      const allUsers = await db.select({ id: users.id }).from(users).limit(200);
+      for (const u of allUsers) clearUserAuthCooldown(u.id);
+    } catch (_) {}
+
+    const youtubeChannels = await db.select().from(channels)
+      .where(isNotNull(channels.userId));
+
+    const ytChannels = youtubeChannels.filter(ch => ch.platform === "youtube" || ch.platform === "youtubeshorts");
+    if (ytChannels.length === 0) return;
+
+    for (const ch of ytChannels) {
+      const pd = (ch.platformData || {}) as any;
+
+      // If the channel has a refresh token, try to get a fresh access token now.
+      if (ch.refreshToken) {
+        const refreshOk = await tryRefreshSingleToken(ch);
+        if (refreshOk) {
+          logger.info(`[ConnectionGuardian] Post-reset: refreshed ${ch.platform} token for ${ch.channelName}`);
+          continue;
+        }
+      }
+
+      // No refresh token — verify the existing access token with the new quota budget
+      if (ch.accessToken) {
+        const alive = await verifyConnectionAlive(ch.platform, ch.accessToken);
+        if (alive) {
+          await db.update(channels).set({
+            platformData: { ...(pd), _connectionStatus: "healthy", _lastVerifiedAt: Date.now(), _reconnectFailures: 0 },
+          }).where(eq(channels.id, ch.id)).catch(() => {});
+          logger.info(`[ConnectionGuardian] Post-reset: ${ch.platform} ${ch.channelName} verified healthy`);
+        }
+      }
+    }
+  } catch (err) {
+    logger.error("[ConnectionGuardian] Post-quota-reset heal error:", err);
+  }
+}
+
 let guardianCycleInFlight = false;
 
 async function runGuardianCycle(): Promise<void> {
@@ -527,6 +610,15 @@ async function runGuardianCycle(): Promise<void> {
   try {
     const heartbeatMod = await import("./engine-heartbeat");
     await heartbeatMod.recordHeartbeat("connectionGuardian", "running");
+
+    // Detect Pacific midnight: if the date has rolled over, quota has reset — heal YouTube now.
+    const currentPacificDate = getPacificDateString();
+    if (currentPacificDate !== lastKnownPacificDate) {
+      lastKnownPacificDate = currentPacificDate;
+      runPostQuotaResetHeal().catch(err =>
+        logger.error("[ConnectionGuardian] Post-quota-reset heal failed:", String(err).substring(0, 200))
+      );
+    }
 
     const tokenResult = await withRetry(() => ensureAllTokensFresh(), "guardian-tokens");
     const autopilotReactivated = await withRetry(() => ensureAutopilotAlwaysOn(), "guardian-autopilot");

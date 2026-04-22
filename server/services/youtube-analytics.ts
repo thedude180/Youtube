@@ -1,15 +1,43 @@
 import { storage } from "../storage";
 import { withRetry } from "../lib/retry";
 import { createLogger } from "../lib/logger";
+import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 
 const logger = createLogger("youtube-analytics");
 
 const YT_ANALYTICS_BASE = "https://youtubeanalytics.googleapis.com/v2/reports";
 
+// Per-user 401 cooldown: if we get a 401 from YouTube Analytics, back off for 30 minutes
+// before trying again for that user. This prevents hammering the API with invalid tokens.
+const AUTH_FAILURE_COOLDOWN_MS = 30 * 60 * 1000;
+const userAuthFailureAt = new Map<string, number>();
+
+function isUserInAuthCooldown(userId: string): boolean {
+  const failedAt = userAuthFailureAt.get(userId);
+  if (!failedAt) return false;
+  if (Date.now() - failedAt < AUTH_FAILURE_COOLDOWN_MS) return true;
+  userAuthFailureAt.delete(userId);
+  return false;
+}
+
+function markUserAuthFailure(userId: string): void {
+  userAuthFailureAt.set(userId, Date.now());
+}
+
+export function clearUserAuthCooldown(userId: string): void {
+  userAuthFailureAt.delete(userId);
+}
+
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MILESTONE_BREAKPOINTS = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
 
 async function getFirstChannelForUser(userId: string): Promise<{ id: number; accessToken: string; channelId: string; subscriberCount: number | null } | null> {
+  // Gate: quota breaker tripped → all YouTube API calls blocked until midnight Pacific
+  if (isQuotaBreakerTripped()) return null;
+
+  // Gate: recent 401 auth failure → back off for 30 minutes before retrying
+  if (isUserInAuthCooldown(userId)) return null;
+
   const channels = await storage.getChannelsByUser(userId);
   const ch = channels.find(c => c.accessToken && c.accessToken !== "dev_api_key_mode") || channels[0];
   if (!ch) return null;
@@ -22,6 +50,8 @@ async function getFirstChannelForUser(userId: string): Promise<{ id: number; acc
     const { getGoogleAccessTokenForUser } = await import("../youtube");
     accessToken = (await getGoogleAccessTokenForUser(userId)) || "";
   }
+
+  if (!accessToken) return null;
 
   return {
     id: ch.id,
@@ -40,7 +70,8 @@ function daysAgoStr(days: number): string {
 async function fetchAnalyticsReport(
   accessToken: string,
   channelYtId: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  userId?: string,
 ): Promise<any[] | null> {
   if (!accessToken || accessToken === "dev_api_key_mode") return null;
   const searchParams = new URLSearchParams({
@@ -49,12 +80,22 @@ async function fetchAnalyticsReport(
   });
   const url = `${YT_ANALYTICS_BASE}?${searchParams}`;
   try {
-    const res = await withRetry(
-      () => fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } }),
-      { label: "YouTube Analytics" }
-    );
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15000),
+    });
     if (!res.ok) {
       const errBody = await res.text();
+      if (res.status === 401) {
+        // Auth failure — mark cooldown so we stop hammering with a dead token
+        if (userId) markUserAuthFailure(userId);
+        logger.warn("YouTube Analytics auth failed (401) — backing off 30 minutes", { userId });
+        return null;
+      }
+      if (res.status === 403 && (errBody.includes("quota") || errBody.includes("rateLimitExceeded") || errBody.includes("dailyLimitExceeded"))) {
+        logger.warn("YouTube Analytics quota exceeded (403) — quota breaker should handle this");
+        return null;
+      }
       logger.warn("YouTube Analytics API error", { status: res.status, body: errBody.slice(0, 200) });
       return null;
     }
@@ -88,7 +129,7 @@ export async function fetchViewsByDayAndHour(userId: string): Promise<{
     metrics: "views,estimatedMinutesWatched",
     dimensions: "dayOfWeek,hour",
     sort: "dayOfWeek,hour",
-  });
+  }, userId);
 
   if (!rows || rows.length === 0) return EMPTY;
 
@@ -163,7 +204,7 @@ export async function fetchMilestoneData(userId: string): Promise<{
       startDate: daysAgoStr(30),
       endDate: daysAgoStr(0),
       metrics: "subscribersGained,subscribersLost",
-    });
+    }, userId);
 
     if (rows && rows.length > 0) {
       const [gained, lost] = rows[0];
@@ -219,7 +260,7 @@ export async function fetchGrowthForecast(userId: string): Promise<{
       startDate: daysAgoStr(90),
       endDate: daysAgoStr(0),
       metrics: "subscribersGained,subscribersLost",
-    });
+    }, userId);
     if (rows && rows.length > 0) {
       const [gained, lost] = rows[0];
       monthlyNetGain = Math.round(((Number(gained) || 0) - (Number(lost) || 0)) / 3);
@@ -283,7 +324,7 @@ export async function fetchEngagementScore(userId: string): Promise<{
     startDate: daysAgoStr(30),
     endDate: daysAgoStr(0),
     metrics: "views,likes,comments,shares,estimatedMinutesWatched,averageViewPercentage,subscribersGained",
-  });
+  }, userId);
 
   if (!rows || rows.length === 0) return EMPTY;
 
@@ -326,7 +367,7 @@ export async function fetchGeoDistribution(userId: string): Promise<{
     dimensions: "country",
     sort: "-views",
     maxResults: "25",
-  });
+  }, userId);
 
   if (!rows || rows.length === 0) return EMPTY;
 
@@ -367,7 +408,7 @@ export async function fetchChannelCTR(userId: string): Promise<{
     startDate: daysAgoStr(28),
     endDate: daysAgoStr(0),
     metrics: "impressions,impressionsClickThroughRate",
-  });
+  }, userId);
 
   if (!rows || rows.length === 0) return { ctr: null, impressions: 0, source: "none" };
 
