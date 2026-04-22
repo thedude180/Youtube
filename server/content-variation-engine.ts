@@ -1,4 +1,4 @@
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { autopilotQueue, channels } from "@shared/schema";
@@ -12,6 +12,9 @@ import { createLogger } from "./lib/logger";
 
 const logger = createLogger("content-variation-engine");
 const openai = getOpenAIClient();
+
+let _rateLimitCooldownUntil = 0;
+const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000;
 
 export interface ChannelLinks {
   youtube?: string;
@@ -459,6 +462,15 @@ Output ONLY the post text. No quotes around it. Do NOT include any URL.`;
 }
 
 async function generateWithAI(prompt: string, systemMsg: string): Promise<string> {
+  const now = Date.now();
+  if (now < _rateLimitCooldownUntil) {
+    logger.debug("[ContentVariation] Rate-limit cooldown active — skipping AI generation");
+    return "";
+  }
+  if (!tokenBudget.checkBudget("content-variation", 1500)) {
+    logger.debug("[ContentVariation] Token budget exhausted — skipping AI generation");
+    return "";
+  }
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -466,11 +478,19 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },
       ],
-      max_completion_tokens: 4000,
+      max_completion_tokens: 1500,
     });
+    const tokensUsed = response.usage?.total_tokens ?? 1500;
+    tokenBudget.consumeBudget("content-variation", tokensUsed);
     return response.choices[0]?.message?.content?.trim() || "";
-  } catch (err) {
-    logger.error("[ContentVariation] AI generation error:", err);
+  } catch (err: any) {
+    const status = err?.status ?? err?.response?.status;
+    if (status === 429) {
+      _rateLimitCooldownUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+      logger.warn("[ContentVariation] 429 rate limit — pausing for 10 minutes");
+    } else {
+      logger.error("[ContentVariation] AI generation error:", err);
+    }
     return "";
   }
 }

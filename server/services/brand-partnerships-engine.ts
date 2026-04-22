@@ -68,7 +68,8 @@ export async function computeSponsorshipReadiness(userId: string): Promise<{ sco
         inArray(videos.channelId, channelIds),
         gte(videos.createdAt, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))
       ))
-      .orderBy(desc(videos.createdAt));
+      .orderBy(desc(videos.createdAt))
+      .limit(200);
 
     let engagementScore = 0;
     if (recentVideos.length > 0 && totalSubs > 0) {

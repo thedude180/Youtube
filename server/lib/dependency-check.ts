@@ -42,26 +42,37 @@ export function isYtdlpAvailable(): boolean {
   return _status.ytdlp.available;
 }
 
-function resolveYtdlpBin(): string {
-  const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
-  if (fs.existsSync(local)) return local;
-  return "yt-dlp";
-}
-
-// Known absolute paths to try when "ffmpeg" is not in PATH (e.g. Replit
-// production deployments where the nix profile is not on PATH).
+// Ordered candidate paths for ffmpeg — PATH first, then nix profile symlinks
+// (stable across builds), then the legacy hardcoded nix store hash as a last resort.
 const FFMPEG_CANDIDATE_PATHS = [
   "ffmpeg",
-  // Nix store path for ffmpeg-6.1.1 from nixpkgs stable-24_05 (deterministic
-  // content-addressed hash — same in dev and production containers).
+  "/home/runner/.nix-profile/bin/ffmpeg",
+  "/root/.nix-profile/bin/ffmpeg",
+  "/nix/var/nix/profiles/default/bin/ffmpeg",
   "/nix/store/3zc5jbvqzrn8zmva4fx5p0nh4yy03wk4-ffmpeg-6.1.1-bin/bin/ffmpeg",
 ];
 
-let _ffmpegBin = "ffmpeg";
+// Ordered candidate paths for yt-dlp — prefer PATH + nix profile symlinks over
+// the local compiled binary which may not run in all production containers.
+const YTDLP_CANDIDATE_PATHS = [
+  "yt-dlp",
+  "/home/runner/.nix-profile/bin/yt-dlp",
+  "/root/.nix-profile/bin/yt-dlp",
+  "/nix/var/nix/profiles/default/bin/yt-dlp",
+  path.join(process.cwd(), ".local/bin/yt-dlp-latest"),
+];
 
-/** Returns the resolved ffmpeg binary path (absolute nix path when available). */
+let _ffmpegBin = "ffmpeg";
+let _ytdlpBin = "yt-dlp";
+
+/** Returns the resolved ffmpeg binary path. */
 export function getFfmpegBin(): string {
   return _ffmpegBin;
+}
+
+/** Returns the resolved yt-dlp binary path. */
+export function getYtdlpBin(): string {
+  return _ytdlpBin;
 }
 
 async function probeFFmpeg(): Promise<{ available: boolean; version?: string }> {
@@ -82,18 +93,21 @@ async function probeFFmpeg(): Promise<{ available: boolean; version?: string }> 
 }
 
 async function probeYtdlp(): Promise<{ available: boolean; version?: string; binary: string }> {
-  const binary = resolveYtdlpBin();
-  try {
-    const { stdout } = await execFileAsync(binary, ["--version"], { timeout: 10_000 });
-    const version = stdout.trim().split("\n")[0];
-    return { available: true, version, binary };
-  } catch (err: any) {
-    logger.warn("yt-dlp not found or failed version check", {
-      binary,
-      error: (err.message || String(err)).substring(0, 200),
-    });
-    return { available: false, binary };
+  for (const candidate of YTDLP_CANDIDATE_PATHS) {
+    if (candidate.startsWith("/") && !fs.existsSync(candidate)) continue;
+    try {
+      const { stdout } = await execFileAsync(candidate, ["--version"], { timeout: 10_000 });
+      const version = stdout.trim().split("\n")[0];
+      _ytdlpBin = candidate;
+      return { available: true, version, binary: candidate };
+    } catch {
+      // try next candidate
+    }
   }
+  logger.warn("yt-dlp not found in any candidate path", {
+    tried: YTDLP_CANDIDATE_PATHS.join(", "),
+  });
+  return { available: false, binary: YTDLP_CANDIDATE_PATHS[0] };
 }
 
 export async function checkDependencies(): Promise<DependencyStatus> {

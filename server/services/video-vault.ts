@@ -7,6 +7,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 
 import { createLogger } from "../lib/logger";
+import { getYtdlpBin } from "../lib/dependency-check";
 
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
@@ -52,11 +53,19 @@ const BOT_DETECTION_PATTERNS = [
   /use --cookies/i,
 ];
 
+// Resolved lazily after checkDependencies() runs at startup.
 const ytDlpBin = (() => {
+  // Prefer the PATH/nix-profile resolved binary; fall back to local compiled binary.
   const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
-  if (fs.existsSync(local)) return local;
-  return "yt-dlp";
+  // We defer to getYtdlpBin() which is populated after startup probe.
+  // During module init, return a safe default; runtime calls will use the getter.
+  return (fs.existsSync(local) ? local : "yt-dlp");
 })();
+
+function resolveYtdlp(): string {
+  const probed = getYtdlpBin();
+  return probed !== "yt-dlp" ? probed : ytDlpBin;
+}
 
 let isVaultRunning = false;
 
@@ -253,7 +262,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
-    const { stdout } = await execFileAsync(ytDlpBin, [
+    const { stdout } = await execFileAsync(resolveYtdlp(), [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
@@ -563,7 +572,7 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
 }
 
 async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
-  await execFileAsync(ytDlpBin, [
+  await execFileAsync(resolveYtdlp(), [
     "-f", DOWNLOAD_QUALITY,
     "--merge-output-format", "mp4",
     "-o", outputPath,

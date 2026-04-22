@@ -108,7 +108,8 @@ export async function aggregateUnifiedMetrics(userId: string): Promise<void> {
       const platform = channel.platform;
       const channelVideos = await db.select().from(videos)
         .where(eq(videos.channelId, channel.id))
-        .orderBy(desc(videos.createdAt));
+        .orderBy(desc(videos.createdAt))
+        .limit(500);
 
       const totalViews = channel.viewCount || channelVideos.reduce((sum, v) => {
         const views = v.metadata?.stats?.views || v.metadata?.viewCount || 0;

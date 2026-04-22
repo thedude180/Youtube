@@ -7,7 +7,7 @@ const ytLogger = createLogger("youtube");
 
 // Throttle: only log broadcast check failures once every 10 minutes to avoid spam
 let _lastBroadcastWarnAt = 0;
-const BROADCAST_WARN_INTERVAL_MS = 10 * 60 * 1000;
+const BROADCAST_WARN_INTERVAL_MS = 30 * 60 * 1000;
 
 const SCOPES = [
   "https://www.googleapis.com/auth/youtube",
@@ -819,10 +819,12 @@ export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHA
   const fs = await import("fs");
   const execFileAsync = promisify(execFile);
 
+  const { getYtdlpBin } = await import("./lib/dependency-check");
   const ytDlpBin = (() => {
+    const probed = getYtdlpBin();
+    if (probed !== "yt-dlp") return probed;
     const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
-    if (fs.existsSync(local)) return local;
-    return "yt-dlp";
+    return fs.existsSync(local) ? local : "yt-dlp";
   })();
 
   try {

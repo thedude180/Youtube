@@ -9,7 +9,7 @@ import { db } from "./db";
 import { videos, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
-import { isFfmpegAvailable, isYtdlpAvailable } from "./lib/dependency-check";
+import { isFfmpegAvailable, isYtdlpAvailable, getYtdlpBin } from "./lib/dependency-check";
 
 const logger = createLogger("clip-video-processor");
 
@@ -140,12 +140,13 @@ async function downloadWithYtdlCore(youtubeId: string, outputPath: string): Prom
   }
 }
 
-// Prefer the fresh binary downloaded at deploy-time; fall back to the system binary.
-const YT_DLP_BIN = (() => {
-  const LOCAL = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
-  if (fs.existsSync(LOCAL)) return LOCAL;
-  return "yt-dlp";
-})();
+// Resolved at call time so it uses whichever binary checkDependencies() found.
+function YT_DLP_BIN(): string {
+  const probed = getYtdlpBin();
+  if (probed !== "yt-dlp") return probed;
+  const local = path.join(process.cwd(), ".local/bin/yt-dlp-latest");
+  return fs.existsSync(local) ? local : "yt-dlp";
+}
 
 const YT_DLP_FORMAT_STRATEGIES = [
   "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160][ext=mp4]/best[height<=2160]",
@@ -245,7 +246,7 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessTo
           try { fs.unlinkSync(outputPath); } catch {}
         }
 
-        await execFileAsync(YT_DLP_BIN, [
+        await execFileAsync(YT_DLP_BIN(), [
           "-f", format,
           "--merge-output-format", "mp4",
           "-o", outputPath,
@@ -282,7 +283,7 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
     const authArgs: string[] = accessToken
       ? ["--add-headers", `Authorization:Bearer ${accessToken}`]
       : [];
-    const { stdout } = await execFileAsync(YT_DLP_BIN, [
+    const { stdout } = await execFileAsync(YT_DLP_BIN(), [
       "--dump-json",
       "--no-download",
       "--no-warnings",
