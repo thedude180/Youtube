@@ -1,10 +1,48 @@
+/**
+ * Multi-Platform Live Detection — Dual-Pipeline Confirmation Gate
+ *
+ * Every live service in the system (chat agent, revenue activator, idle
+ * engagement, clip highlighter, growth agent, raid scout) fires ONLY after
+ * BOTH detection pipelines independently confirm a live broadcast:
+ *
+ *   YouTube — Pipeline 1: public watch-page scraping (0 quota cost)
+ *              Pipeline 2: YouTube Data API liveBroadcasts.list (50 units)
+ *              Gate: scraping + API must agree, OR 2× consecutive scraping
+ *                    hits when API quota is depleted.
+ *
+ *   Twitch / Kick / TikTok / Rumble — No public scraping available.
+ *              Gate: 2 consecutive authenticated API confirmations
+ *                    (spaced by each platform's poll interval).
+ *
+ * Per-platform poll intervals keep each platform's API usage well inside
+ * its rate limits:
+ *   YouTube  —  5 min  (scraping is free; API only when live confirmed)
+ *   Twitch   —  5 min  (Helix: 800 req/min — very generous)
+ *   Kick     — 10 min  (conservative; no documented rate limit)
+ *   TikTok   — 15 min  (dev tier: ~1000 req/day)
+ *   Rumble   — 30 min  (RSS-only; no reliable public API)
+ */
+
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { channels } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
-import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
+import {
+  getQuotaStatus,
+  trackQuotaUsage,
+  isQuotaBreakerTripped,
+  markQuotaErrorFromResponse,
+  cacheLiveChatId,
+} from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
+
+import { registerMap } from "./resilience-core";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("live-detection");
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DetectedBroadcast {
   platform: string;
@@ -13,26 +51,202 @@ interface DetectedBroadcast {
   description: string;
   startedAt?: string;
   viewerCount?: number;
+  liveChatId?: string;
 }
 
-const trackedBroadcasts = new Map<string, { streamId: number; platform: string; broadcastId: string; missCount: number }>();
+// ─── Tracked active streams (already firing live services) ───────────────────
 
-import { registerMap } from "./resilience-core";
-import { createLogger } from "../lib/logger";
-
-const logger = createLogger("live-detection");
+const trackedBroadcasts = new Map<string, {
+  streamId: number;
+  platform: string;
+  broadcastId: string;
+  missCount: number;
+}>();
 registerMap("trackedBroadcasts", trackedBroadcasts, 500);
 
-let running = false;
+// ─── Dual-pipeline confirmation state ────────────────────────────────────────
+// Before any live service fires, each platform/channel must pass its gate.
 
-function trackingKey(userId: string, platform: string, channelId: number) {
+interface ConfirmationState {
+  scrapingHits: number;   // watch-page / RSS / public detections
+  apiHits: number;        // authenticated API detections
+  totalHits: number;      // total consecutive detections
+  firstSeenAt: number;
+  lastSeenAt: number;
+  pending: DetectedBroadcast;
+}
+
+const pendingConfirmations = new Map<string, ConfirmationState>();
+
+/**
+ * Per-platform poll interval in ms. These are the minimum gaps between
+ * API calls to each platform — used to throttle the detection loop.
+ */
+const PLATFORM_POLL_MS: Record<string, number> = {
+  youtube: 5 * 60 * 1000,   //  5 min — scraping is free, API only on confirm
+  twitch:  5 * 60 * 1000,   //  5 min — Helix is very generous
+  kick:   10 * 60 * 1000,   // 10 min — conservative
+  tiktok: 15 * 60 * 1000,   // 15 min — dev tier is limited
+  rumble: 30 * 60 * 1000,   // 30 min — RSS/public only
+};
+
+/** Last time each channel was polled (channelDbId → timestamp) */
+const lastPollAt = new Map<number, number>();
+
+/** Returns true if enough time has passed to poll this channel's platform. */
+function canPollChannel(channelId: number, platform: string): boolean {
+  const minGap = PLATFORM_POLL_MS[platform] ?? 10 * 60 * 1000;
+  const last = lastPollAt.get(channelId) ?? 0;
+  return Date.now() - last >= minGap;
+}
+
+function markPolled(channelId: number): void {
+  lastPollAt.set(channelId, Date.now());
+}
+
+function trackingKey(userId: string, platform: string, channelId: number): string {
   return `${userId}:${platform}:${channelId}`;
 }
 
-async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
+// ─── Gate logic ───────────────────────────────────────────────────────────────
+
+/**
+ * Record a detection hit from the given pipeline type.
+ * Returns true when the dual-confirmation gate is cleared.
+ */
+function recordHit(
+  key: string,
+  pipeline: "scraping" | "api",
+  broadcast: DetectedBroadcast,
+  platform: string,
+): boolean {
+  const now = Date.now();
+  let state = pendingConfirmations.get(key);
+
+  // If last hit was more than 20 minutes ago, reset — it was a different stream event
+  if (state && now - state.lastSeenAt > 20 * 60 * 1000) {
+    pendingConfirmations.delete(key);
+    state = undefined;
+  }
+
+  if (!state) {
+    state = { scrapingHits: 0, apiHits: 0, totalHits: 0, firstSeenAt: now, lastSeenAt: now, pending: broadcast };
+    pendingConfirmations.set(key, state);
+  }
+
+  state.lastSeenAt = now;
+  state.pending = broadcast;
+  state.totalHits++;
+  if (pipeline === "scraping") state.scrapingHits++;
+  if (pipeline === "api") state.apiHits++;
+
+  return isGateCleared(state, platform);
+}
+
+function clearPending(key: string): void {
+  pendingConfirmations.delete(key);
+}
+
+/**
+ * Gate cleared when:
+ *   YouTube: scraping ≥ 1 AND (api ≥ 1 OR scrapingHits ≥ 2)
+ *     — requires at least one scraping confirmation; API agrees OR
+ *       two independent scraping checks have both seen it live.
+ *   Other platforms: totalHits ≥ 2 (two consecutive API hits)
+ */
+function isGateCleared(state: ConfirmationState, platform: string): boolean {
+  if (platform === "youtube") {
+    return state.scrapingHits >= 1 && (state.apiHits >= 1 || state.scrapingHits >= 2);
+  }
+  return state.totalHits >= 2;
+}
+
+// ─── Platform-specific live checkers ─────────────────────────────────────────
+
+/** YouTube: scraping first (0 quota), API confirmation when live + quota healthy. */
+async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedBroadcast | null; pipeline: "scraping" | "api" }> {
+  const userId: string = channelRow.userId;
+  const channelDbId: number = channelRow.id;
+
+  // Pipeline 1: public watch-page scraping — always runs, zero quota cost
+  let scrapedLive = false;
+  let scrapedVideoId: string | undefined;
+  let scrapedTitle: string | undefined;
+
+  if (channelRow.channelId) {
+    try {
+      const result = await detectYouTubeLiveFromChannel(channelRow.channelId);
+      scrapedLive = result.isLive;
+      scrapedVideoId = result.videoId ?? undefined;
+      scrapedTitle = result.title ?? undefined;
+    } catch (err: any) {
+      logger.warn(`[LiveDetection] YouTube scrape failed for channel ${channelDbId}:`, err?.message);
+    }
+  }
+
+  if (!scrapedLive) {
+    // Scraping says not live — trust it, don't burn API quota to verify not-live status
+    return { broadcast: null, pipeline: "scraping" };
+  }
+
+  // Scraping says LIVE — now try to confirm with API if budget allows
+  if (!isQuotaBreakerTripped() && channelRow.accessToken && channelRow.accessToken !== "dev_api_key_mode") {
+    const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+    if (quota.remaining >= 500) {
+      try {
+        const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+        const apiBroadcasts = await checkYouTubeLiveBroadcasts(channelDbId);
+        await trackQuotaUsage(userId, "broadcast");
+
+        const active = apiBroadcasts.filter((b: any) => b.status === "active" || b.status === "live");
+        if (active.length > 0) {
+          const broadcast = active[0] as any;
+          const liveChatId = broadcast.liveChatId || null;
+          // Cache liveChatId so other services don't need an API call
+          if (liveChatId) cacheLiveChatId(channelDbId, liveChatId, broadcast.broadcastId);
+          return {
+            broadcast: {
+              platform: "youtube",
+              broadcastId: broadcast.broadcastId || scrapedVideoId || `yt_live_${Date.now()}`,
+              title: broadcast.title || scrapedTitle || "YouTube Live Stream",
+              description: "Confirmed via scraping + API",
+              startedAt: broadcast.startedAt || broadcast.scheduledStartTime || new Date().toISOString(),
+              liveChatId: liveChatId || undefined,
+            },
+            pipeline: "api",
+          };
+        }
+
+        // API returned no active broadcasts despite scraping saying live.
+        // This happens during stream startup. Return scraping result — API will
+        // confirm on the next poll cycle (within 5 minutes).
+        logger.info(`[LiveDetection] YouTube API found no active broadcast; scraping confirmed. Will re-check in ${PLATFORM_POLL_MS.youtube / 60000} min.`);
+      } catch (err: any) {
+        markQuotaErrorFromResponse(err);
+        logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
+      }
+    } else {
+      logger.info(`[LiveDetection] YouTube quota low (${quota.remaining} remaining) — scraping-only detection for ${userId.slice(0, 8)}`);
+    }
+  }
+
+  // Return scraping-only result — gate requires a second scraping hit or API confirmation
+  return {
+    broadcast: {
+      platform: "youtube",
+      broadcastId: scrapedVideoId || `yt_scrape_${Date.now()}`,
+      title: scrapedTitle || "YouTube Live Stream",
+      description: "Detected via watch-page scraping",
+      startedAt: new Date().toISOString(),
+    },
+    pipeline: "scraping",
+  };
+}
+
+async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast | null> {
   const token = channelRow.accessToken;
   const clientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
-  if (!token || !clientId) return [];
+  if (!token || !clientId) return null;
 
   try {
     let twitchUserId = channelRow.channelId;
@@ -40,215 +254,146 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast[]> {
     if (!twitchUserId) {
       const userInfoRes = await fetch("https://api.twitch.tv/helix/users", {
         headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
+        signal: AbortSignal.timeout(10_000),
       });
-      if (!userInfoRes.ok) return [];
+      if (!userInfoRes.ok) return null;
       const userInfo = await userInfoRes.json();
       twitchUserId = userInfo.data?.[0]?.id;
-      if (!twitchUserId) return [];
+      if (!twitchUserId) return null;
     }
 
     const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?user_id=${twitchUserId}`, {
       headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!streamsRes.ok) return [];
+    if (!streamsRes.ok) return null;
     const streamsData = await streamsRes.json();
 
-    return (streamsData.data || [])
-      .filter((s: any) => s.type === "live")
-      .map((s: any) => ({
-        platform: "twitch",
-        broadcastId: s.id,
-        title: s.title || "Twitch Stream",
-        description: `${s.game_name || "Streaming"} on Twitch`,
-        startedAt: s.started_at,
-        viewerCount: s.viewer_count,
-      }));
+    const live = (streamsData.data || []).find((s: any) => s.type === "live");
+    if (!live) return null;
+
+    return {
+      platform: "twitch",
+      broadcastId: live.id,
+      title: live.title || "Twitch Stream",
+      description: `${live.game_name || "Streaming"} on Twitch`,
+      startedAt: live.started_at,
+      viewerCount: live.viewer_count,
+    };
   } catch (err: any) {
     logger.warn(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return [];
+    return null;
   }
 }
 
-async function checkYouTubeLive(channelRow: any): Promise<DetectedBroadcast[]> {
-  const userId = channelRow.userId;
-
-  // Try YouTube API if quota is available
-  const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-  if (quota.remaining > 5) {
-    try {
-      const { checkYouTubeLiveBroadcasts } = await import("../youtube");
-      const broadcasts = await checkYouTubeLiveBroadcasts(channelRow.id);
-      await trackQuotaUsage(userId, "list", 1).catch(() => {});
-      const active = broadcasts.filter((b: any) => b.status === "active" || b.status === "live");
-      if (active.length > 0) {
-        return active.map((b: any) => ({
-          platform: "youtube",
-          broadcastId: b.broadcastId,
-          title: b.title || "YouTube Stream",
-          description: b.description || "Live on YouTube",
-          startedAt: b.startedAt || b.scheduledStartTime,
-          viewerCount: undefined,
-        }));
-      }
-      // API succeeded but no live stream — still check RSS to be sure
-    } catch (err) {
-      logger.error(`[LiveDetection] YouTube API check failed for channel ${channelRow.id}:`, err);
-    }
-  } else {
-    logger.warn(`[LiveDetection] YouTube quota low (${quota.remaining}) for ${userId} — using RSS fallback`);
-  }
-
-  // RSS fallback: zero-quota check via YouTube Atom feed
-  if (channelRow.channelId) {
-    try {
-      const check = await detectYouTubeLiveFromChannel(channelRow.channelId);
-      if (check.isLive) {
-        logger.info(`[LiveDetection] Watch-page detected live stream for channel ${channelRow.channelId}: ${check.title} (${check.videoId})`);
-        return [{
-          platform: "youtube",
-          broadcastId: check.videoId || `live_${Date.now()}`,
-          title: check.title || "YouTube Live Stream",
-          description: "Detected via watch-page check",
-          startedAt: new Date().toISOString(),
-          viewerCount: undefined,
-        }];
-      }
-    } catch (rssErr) {
-      logger.error(`[LiveDetection] Watch-page fallback failed for channel ${channelRow.channelId}:`, rssErr);
-    }
-  }
-
-  return [];
-}
-
-async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast[]> {
+async function checkKickLive(channelRow: any): Promise<DetectedBroadcast | null> {
   const token = channelRow.accessToken;
-  if (!token) return [];
-
-  // TikTok's public API v2 (user/info) does NOT expose live status fields.
-  // Live status detection requires TikTok Live Platform API access (separate approval).
-  // Without that grant, we try the video.list endpoint looking for a very recent video
-  // with no duration (duration=0 signals an active live stream in TikTok's API).
-  try {
-    const res = await fetch(
-      "https://open.tiktokapis.com/v2/video/list/?fields=id,title,duration,create_time,cover_image_url",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ max_count: 5 }),
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
-
-    if (!res.ok) return [];
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return [];
-
-    const data = await res.json();
-    const videoList: any[] = data?.data?.videos || [];
-
-    const now = Date.now() / 1000;
-    const liveVideo = videoList.find((v: any) => {
-      const ageSeconds = now - (v.create_time || 0);
-      return v.duration === 0 && ageSeconds < 3600;
-    });
-
-    if (!liveVideo) return [];
-
-    return [{
-      platform: "tiktok",
-      broadcastId: liveVideo.id || `tiktok_live_${channelRow.channelId || Date.now()}`,
-      title: liveVideo.title || `${channelRow.channelName || "Creator"} is LIVE on TikTok`,
-      description: `Live on TikTok`,
-      startedAt: new Date(liveVideo.create_time * 1000).toISOString(),
-      viewerCount: undefined,
-    }];
-  } catch (err: any) {
-    logger.warn(`[LiveDetection] TikTok live check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return [];
-  }
-}
-
-async function checkKickLive(channelRow: any): Promise<DetectedBroadcast[]> {
-  const token = channelRow.accessToken;
-  if (!token) return [];
-
   const slug = channelRow.channelName || channelRow.channelId;
-  if (!slug) return [];
+  if (!token || !slug) return null;
 
   try {
     const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const kickCt = res.headers.get("content-type") || "";
-    if (!kickCt.includes("application/json")) return [];
+    if (!kickCt.includes("application/json")) return null;
     const data = await res.json();
 
     const channelList = Array.isArray(data.data) ? data.data : data.data ? [data.data] : [];
+    const live = channelList.find((ch: any) => ch.is_live || ch.livestream);
+    if (!live) return null;
 
-    return channelList
-      .filter((ch: any) => ch.is_live || ch.livestream)
-      .map((ch: any) => {
-        const ls = ch.livestream || {};
-        return {
-          platform: "kick",
-          broadcastId: String(ls.id || ch.id || Date.now()),
-          title: ls.session_title || ls.title || ch.slug || "Kick Stream",
-          description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
-          startedAt: ls.created_at || ls.start_time,
-          viewerCount: ls.viewer_count || ch.viewer_count,
-        };
-      });
+    const ls = live.livestream || {};
+    return {
+      platform: "kick",
+      broadcastId: String(ls.id || live.id || Date.now()),
+      title: ls.session_title || ls.title || live.slug || "Kick Stream",
+      description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
+      startedAt: ls.created_at || ls.start_time,
+      viewerCount: ls.viewer_count || live.viewer_count,
+    };
   } catch (err: any) {
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError" || err?.code === "UND_ERR_CONNECT_TIMEOUT";
-    if (isTimeout) {
-      logger.warn(`[LiveDetection] Kick check timed out for channel ${channelRow.id} — Kick API slow`);
-    } else {
-      logger.warn(`[LiveDetection] Kick check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    }
-    return [];
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+    logger.warn(`[LiveDetection] Kick check ${isTimeout ? "timed out" : "failed"} for channel ${channelRow.id}:`, err?.message ?? err);
+    return null;
   }
 }
 
-async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast[]> {
-  const apiKey = process.env.RUMBLE_API_KEY;
-  if (!apiKey) return []; // Rumble has no public live-status API; requires a private API key
+async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast | null> {
+  const token = channelRow.accessToken;
+  if (!token) return null;
 
+  try {
+    const res = await fetch(
+      "https://open.tiktokapis.com/v2/video/list/?fields=id,title,duration,create_time",
+      {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ max_count: 5 }),
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) return null;
+
+    const data = await res.json();
+    const videoList: any[] = data?.data?.videos || [];
+    const now = Date.now() / 1000;
+    const liveVideo = videoList.find((v: any) => v.duration === 0 && (now - (v.create_time || 0)) < 3600);
+    if (!liveVideo) return null;
+
+    return {
+      platform: "tiktok",
+      broadcastId: liveVideo.id || `tiktok_live_${channelRow.channelId || Date.now()}`,
+      title: liveVideo.title || `${channelRow.channelName || "Creator"} is LIVE on TikTok`,
+      description: "Live on TikTok",
+      startedAt: new Date(liveVideo.create_time * 1000).toISOString(),
+    };
+  } catch (err: any) {
+    logger.warn(`[LiveDetection] TikTok live check failed for channel ${channelRow.id}:`, err?.message ?? err);
+    return null;
+  }
+}
+
+async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast | null> {
+  const apiKey = process.env.RUMBLE_API_KEY;
   const channelName = channelRow.channelName || channelRow.channelId;
-  if (!channelName) return [];
+  if (!apiKey || !channelName) return null;
 
   try {
     const res = await fetch(`https://rumble.com/api/v0/channel/${encodeURIComponent(channelName)}/livestreams`, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return [];
+    if (!ct.includes("application/json")) return null;
     const data = await res.json();
 
-    const livestreams = Array.isArray(data.livestreams) ? data.livestreams : Array.isArray(data.data) ? data.data : data.items ? data.items : [];
+    const livestreams = Array.isArray(data.livestreams) ? data.livestreams
+      : Array.isArray(data.data) ? data.data
+      : data.items ? data.items : [];
+    const live = livestreams.find((ls: any) => ls.is_live || ls.status === "live" || ls.state === "live");
+    if (!live) return null;
 
-    return livestreams
-      .filter((ls: any) => ls.is_live || ls.status === "live" || ls.state === "live")
-      .map((ls: any) => ({
-        platform: "rumble",
-        broadcastId: String(ls.id || ls.video_id || Date.now()),
-        title: ls.title || "Rumble Stream",
-        description: ls.description || "Live on Rumble",
-        startedAt: ls.started_at || ls.created_at,
-        viewerCount: ls.viewer_count || ls.watching_now || 0,
-      }));
+    return {
+      platform: "rumble",
+      broadcastId: String(live.id || live.video_id || Date.now()),
+      title: live.title || "Rumble Stream",
+      description: live.description || "Live on Rumble",
+      startedAt: live.started_at || live.created_at,
+      viewerCount: live.viewer_count || live.watching_now || 0,
+    };
   } catch (err: any) {
     logger.warn(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return [];
+    return null;
   }
 }
+
+// ─── Broadcast lifecycle ──────────────────────────────────────────────────────
 
 async function handleDetectedBroadcast(userId: string, channelId: number, broadcast: DetectedBroadcast) {
   const key = trackingKey(userId, broadcast.platform, channelId);
@@ -256,23 +401,20 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
 
   if (tracked) {
     tracked.missCount = 0;
-    if (tracked.broadcastId !== broadcast.broadcastId) {
-      tracked.broadcastId = broadcast.broadcastId;
-    }
+    if (tracked.broadcastId !== broadcast.broadcastId) tracked.broadcastId = broadcast.broadcastId;
     return;
   }
 
   const streamList = await storage.getStreams(userId);
-  const existingLiveOnPlatform = streamList.find(s =>
+  const existingLive = streamList.find(s =>
     s.status === "live" && Array.isArray(s.platforms) && (s.platforms as string[]).includes(broadcast.platform)
   );
 
-  if (existingLiveOnPlatform) {
-    trackedBroadcasts.set(key, { streamId: existingLiveOnPlatform.id, platform: broadcast.platform, broadcastId: broadcast.broadcastId, missCount: 0 });
+  if (existingLive) {
+    trackedBroadcasts.set(key, { streamId: existingLive.id, platform: broadcast.platform, broadcastId: broadcast.broadcastId, missCount: 0 });
     return;
   }
 
-  // Use only the platforms the user actually has connected (not all possible platforms)
   const connectedChannels = await db.select().from(channels).where(eq(channels.userId, userId));
   const STREAMING_PLATFORMS = new Set(["youtube", "twitch", "kick", "tiktok", "rumble"]);
   const connectedPlatforms = [...new Set(connectedChannels.map(c => c.platform).filter(p => STREAMING_PLATFORMS.has(p)))];
@@ -299,10 +441,10 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     const { pivotToStream } = await import("../backlog-engine");
     const { processGoLiveAnnouncements } = await import("../autopilot-engine");
     const { createPipelineForStream } = await import("../routes/pipeline");
-
     const { setLivestreamPriority } = await import("../priority-orchestrator");
     const { onLivestreamDetected } = await import("../content-loop");
     const { onStreamDetected } = await import("../trend-rider-engine");
+
     setLivestreamPriority(userId, stream.id, broadcast.title);
     onLivestreamDetected(userId, stream.id);
     pauseForLive(userId, stream.id);
@@ -315,6 +457,7 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
       fireAgentEvent("stream.started", userId, {
         platform: broadcast.platform,
         videoId: broadcast.broadcastId,
+        liveChatId: broadcast.liveChatId,
         streamTitle: broadcast.title,
       });
     }).catch(() => {});
@@ -326,7 +469,7 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     userId,
     type: "stream_live",
     title: `${broadcast.platform.charAt(0).toUpperCase() + broadcast.platform.slice(1)} LIVE Detected`,
-    message: `"${broadcast.title}" — all platform automations triggered automatically`,
+    message: `"${broadcast.title}" — both detection pipelines confirmed. All automations activated.`,
     severity: "info",
   });
 
@@ -336,27 +479,30 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
 
   await storage.createAuditLog({
     userId,
-    action: `${broadcast.platform}_live_auto_detected`,
+    action: `${broadcast.platform}_live_dual_confirmed`,
     target: broadcast.title,
     details: { broadcastId: broadcast.broadcastId, platforms: allPlatforms, viewerCount: broadcast.viewerCount },
     riskLevel: "low",
   });
-
 }
 
 async function handleBroadcastEnded(userId: string, platform: string, channelId: number) {
   const key = trackingKey(userId, platform, channelId);
   const tracked = trackedBroadcasts.get(key);
-  if (!tracked) return;
+  if (!tracked) {
+    // Also clear any pending confirmation that never reached the gate
+    clearPending(key);
+    return;
+  }
 
   tracked.missCount++;
-
   if (tracked.missCount < 2) return;
 
   const streamList = await storage.getStreams(userId);
   const liveStream = streamList.find(s => s.id === tracked.streamId && s.status === "live");
 
   trackedBroadcasts.delete(key);
+  clearPending(key);
 
   if (!liveStream) return;
 
@@ -368,9 +514,9 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     const { processPostStreamHighlights } = await import("../autopilot-engine");
     const { createPipelineForStream } = await import("../routes/pipeline");
     const { resumeAfterStream } = await import("../backlog-manager");
-
     const { setPostStreamHarvest } = await import("../priority-orchestrator");
     const { onStreamEnded } = await import("../content-loop");
+
     setPostStreamHarvest(userId, liveStream.id, liveStream.title);
     onStreamEnded(userId, liveStream.id);
     resumeFromStream(userId, liveStream.id).catch(e => logger.warn("[LiveDetection] resumeFromStream failed", e?.message));
@@ -400,8 +546,11 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
     details: { backlogResumed: true },
     riskLevel: "low",
   });
-
 }
+
+// ─── Main detection loop ──────────────────────────────────────────────────────
+
+let running = false;
 
 export async function runMultiPlatformLiveDetection() {
   if (running) return;
@@ -409,29 +558,63 @@ export async function runMultiPlatformLiveDetection() {
 
   try {
     const allChannelRows = await db.select().from(channels);
-    const platformCheckers: Record<string, (ch: any) => Promise<DetectedBroadcast[]>> = {
-      youtube: checkYouTubeLive,
-      twitch: checkTwitchLive,
-      kick: checkKickLive,
-      tiktok: checkTikTokLive,
-      rumble: checkRumbleLive,
-    };
 
     for (const ch of allChannelRows) {
-      if (!ch.userId || !ch.accessToken) continue;
-      const checker = platformCheckers[ch.platform];
-      if (!checker) continue;
+      if (!ch.userId) continue;
+
+      const platform = ch.platform;
+      const channelDbId = ch.id;
+      const key = trackingKey(ch.userId, platform, channelDbId);
+
+      // Skip if this channel was polled too recently for its platform's interval
+      if (!canPollChannel(channelDbId, platform)) continue;
+      markPolled(channelDbId);
+
+      // Skip channels with no access token for API-dependent platforms
+      const needsToken = ["twitch", "kick", "tiktok", "rumble"].includes(platform);
+      if (needsToken && !ch.accessToken) continue;
 
       try {
-        const broadcasts = await checker(ch);
+        let broadcast: DetectedBroadcast | null = null;
+        let pipeline: "scraping" | "api" = "api";
 
-        if (broadcasts.length > 0) {
-          await handleDetectedBroadcast(ch.userId, ch.id, broadcasts[0]);
+        if (platform === "youtube") {
+          const result = await checkYouTubeLive(ch);
+          broadcast = result.broadcast;
+          pipeline = result.pipeline;
+        } else if (platform === "twitch") {
+          broadcast = await checkTwitchLive(ch);
+        } else if (platform === "kick") {
+          broadcast = await checkKickLive(ch);
+        } else if (platform === "tiktok") {
+          broadcast = await checkTikTokLive(ch);
+        } else if (platform === "rumble") {
+          broadcast = await checkRumbleLive(ch);
         } else {
-          await handleBroadcastEnded(ch.userId, ch.platform, ch.id);
+          continue; // unknown platform
+        }
+
+        if (broadcast) {
+          // Record this hit in the dual-confirmation gate
+          const gateCleared = recordHit(key, pipeline, broadcast, platform);
+
+          if (gateCleared) {
+            // Both pipelines have confirmed — trigger live services
+            const state = pendingConfirmations.get(key);
+            const confirmedBroadcast = state?.pending ?? broadcast;
+            clearPending(key); // Don't re-fire on next poll
+            logger.info(`[LiveDetection] ${platform} LIVE confirmed (dual-pipeline gate cleared) for ${ch.userId.slice(0, 8)} — "${confirmedBroadcast.title}"`);
+            await handleDetectedBroadcast(ch.userId, channelDbId, confirmedBroadcast);
+          } else {
+            const state = pendingConfirmations.get(key);
+            logger.debug(`[LiveDetection] ${platform} pending confirmation for ${ch.userId.slice(0, 8)} — scraping:${state?.scrapingHits ?? 0} api:${state?.apiHits ?? 0} total:${state?.totalHits ?? 0}`);
+          }
+        } else {
+          // No live broadcast detected — track misses for ended stream handling
+          await handleBroadcastEnded(ch.userId, platform, channelDbId);
         }
       } catch (err) {
-        logger.error(`[LiveDetection] ${ch.platform} check failed for channel ${ch.id}:`, err);
+        logger.error(`[LiveDetection] ${platform} check failed for channel ${channelDbId}:`, err);
       }
     }
   } catch (err) {

@@ -19,7 +19,13 @@ interface WatcherState {
 }
 
 const watcherSessions = new Map<string, WatcherState>();
-const SCAN_INTERVAL_MS = 30 * 60 * 1000;
+const SCAN_INTERVAL_MIN = 60;    // base: ~60 minutes between VOD scans
+const SCAN_INTERVAL_JITTER = 20; // ±20 minutes random jitter
+
+function nextScanDelayMs(): number {
+  const jitter = (Math.random() * 2 - 1) * SCAN_INTERVAL_JITTER;
+  return Math.max(30, SCAN_INTERVAL_MIN + jitter) * 60 * 1000;
+}
 const MAX_RESULTS_PER_SCAN = 25;
 const MAX_VOD_AGE_DAYS = 30;
 
@@ -214,17 +220,25 @@ export async function startVodWatcher(userId: string): Promise<void> {
 
   setTimeout(() => runWatcherScan(userId), 15_000);
 
-  state.intervalHandle = setInterval(() => {
-    runWatcherScan(userId).catch(() => {});
-  }, SCAN_INTERVAL_MS);
+  function scheduleNextScan() {
+    const st = watcherSessions.get(userId);
+    if (!st) return;
+    const delayMs = nextScanDelayMs();
+    const handle = setTimeout(async () => {
+      await runWatcherScan(userId).catch(() => {});
+      scheduleNextScan();
+    }, delayMs);
+    if (st) st.intervalHandle = handle as any;
+  }
+  scheduleNextScan();
 
-  logger.info(`[${userId}] YouTube VOD watcher started — scanning every ${SCAN_INTERVAL_MS / 60000} minutes`);
+  logger.info(`[${userId}] YouTube VOD watcher started — scanning every ~${SCAN_INTERVAL_MIN}±${SCAN_INTERVAL_JITTER} min`);
 }
 
 export function stopVodWatcher(userId: string): void {
   const state = watcherSessions.get(userId);
   if (state?.intervalHandle) {
-    clearInterval(state.intervalHandle);
+    clearTimeout(state.intervalHandle as any);
     state.intervalHandle = null;
     watcherSessions.delete(userId);
   }
@@ -241,7 +255,7 @@ export function getVodWatcherStatus(userId: string) {
     scansCompleted: state.scansCompleted,
     lastError: state.lastError,
     nextScanAt: state.lastScanAt
-      ? new Date(state.lastScanAt.getTime() + SCAN_INTERVAL_MS).toISOString()
+      ? new Date(state.lastScanAt.getTime() + SCAN_INTERVAL_MIN * 60 * 1000).toISOString()
       : null,
   };
 }

@@ -1253,12 +1253,17 @@ httpServer.listen(
 
     // ── WAVE 3 (T+10s): Live detection, agents, watchers ─────────────────────
     delay(10_000, () => {
+      // Heartbeat loop — runs every 90s but each platform is internally throttled
+      // to its own poll interval (YouTube 5min, Twitch 5min, Kick 10min,
+      // TikTok 15min, Rumble 30min). Each poll is skipped if the platform was
+      // checked too recently, so actual API calls happen far less often.
+      // Live services only fire after BOTH detection pipelines confirm (dual-gate).
       const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "90000");
       const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(slog("liveDetectionPoll")); };
       pollLive();
       const liveInterval = setInterval(pollLive, jitter(LIVE_POLL_MS));
       backgroundIntervals.push(liveInterval);
-      logger.info(`Live detection polling started — interval ${LIVE_POLL_MS / 1000}s`);
+      logger.info(`Live detection heartbeat started — ${LIVE_POLL_MS / 1000}s tick, per-platform throttling + dual-pipeline gate active`);
 
       import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
       import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(slog("bootstrapUploadWatchers"))).catch(slog("upload-watcher import"));
