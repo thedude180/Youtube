@@ -1268,6 +1268,13 @@ httpServer.listen(
       import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
       import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(slog("bootstrapUploadWatchers"))).catch(slog("upload-watcher import"));
       import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(slog("bootstrapVodWatchers"))).catch(slog("vod-watcher import"));
+
+      // Startup live-stream recovery: if a stream was live when the server went down,
+      // re-hydrate in-memory state and restart all live services without waiting for the
+      // dual-pipeline gate. Runs 30s after boot so all event listeners are registered first.
+      delay(20_000, () => {
+        import("./services/live-detection").then(m => m.recoverActiveLiveStreams().catch(slog("recoverActiveLiveStreams"))).catch(slog("live-detection recovery import"));
+      });
     });
 
     // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──

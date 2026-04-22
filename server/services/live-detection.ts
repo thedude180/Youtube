@@ -24,8 +24,8 @@
  */
 
 import { db } from "../db";
-import { eq } from "drizzle-orm";
-import { channels } from "@shared/schema";
+import { eq, and, gt } from "drizzle-orm";
+import { channels, streams } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import {
@@ -621,5 +621,155 @@ export async function runMultiPlatformLiveDetection() {
     logger.error("[LiveDetection] Multi-platform detection error:", err);
   } finally {
     running = false;
+  }
+}
+
+// ─── Startup live-stream recovery ────────────────────────────────────────────
+/**
+ * On server restart, the in-memory trackedBroadcasts map is empty even though
+ * a stream may still be live in the database. Without recovery, the dual-pipeline
+ * gate would take up to 10 minutes to re-confirm and re-start all live services.
+ *
+ * This function runs once at boot (~30s after startup). It:
+ * 1. Finds all DB streams with status="live" started within the last 24 hours.
+ * 2. For YouTube: quickly verifies they are still live via scraping (free).
+ * 3. For other platforms: trusts the DB record without a network check.
+ * 4. If verified: re-hydrates trackedBroadcasts and re-fires stream.started
+ *    so all live services (chat agent, revenue activator, etc.) restart instantly.
+ * 5. If NOT verified (stream ended while server was down): marks stream ended
+ *    and triggers the post-stream pipeline.
+ */
+export async function recoverActiveLiveStreams(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24 hours
+    const liveStreams = await db.select().from(streams).where(
+      and(eq(streams.status, "live"), gt(streams.startedAt, cutoff))
+    );
+
+    if (liveStreams.length === 0) {
+      logger.info("[LiveDetection] Startup recovery: no live streams in DB");
+      return;
+    }
+
+    logger.info(`[LiveDetection] Startup recovery: found ${liveStreams.length} stream(s) marked live — verifying...`);
+
+    for (const stream of liveStreams) {
+      try {
+        const userId = stream.userId;
+        const streamPlatforms = Array.isArray(stream.platforms) ? stream.platforms as string[] : ["youtube"];
+
+        // Find connected channels for this stream's user
+        const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+        const STREAMING_PLATFORMS = new Set(["youtube", "twitch", "kick", "tiktok", "rumble"]);
+
+        let confirmedLive = false;
+        let confirmedPlatform = streamPlatforms[0] ?? "youtube";
+        let confirmedBroadcastId = `recovery_${stream.id}`;
+        let confirmedLiveChatId: string | undefined;
+
+        for (const platform of streamPlatforms) {
+          if (!STREAMING_PLATFORMS.has(platform)) continue;
+          const ch = userChannels.find(c => c.platform === platform);
+          if (!ch) continue;
+
+          if (platform === "youtube" && ch.channelId) {
+            // Verify via scraping (free — no quota cost)
+            try {
+              const scraped = await detectYouTubeLiveFromChannel(ch.channelId);
+              if (scraped.isLive) {
+                confirmedLive = true;
+                confirmedPlatform = "youtube";
+                confirmedBroadcastId = scraped.videoId || `yt_recovery_${stream.id}`;
+                logger.info(`[LiveDetection] Recovery: YouTube still live for ${userId.slice(0, 8)} — "${stream.title}"`);
+
+                // If quota allows, also get the liveChatId so chat services restart cleanly
+                if (!isQuotaBreakerTripped() && ch.accessToken && ch.accessToken !== "dev_api_key_mode") {
+                  const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+                  if (quota.remaining >= 500) {
+                    try {
+                      const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+                      const broadcasts = await checkYouTubeLiveBroadcasts(ch.id);
+                      await trackQuotaUsage(userId, "broadcast");
+                      const active = broadcasts.find((b: any) => b.status === "active" || b.status === "live") as any;
+                      if (active?.liveChatId) {
+                        confirmedLiveChatId = active.liveChatId;
+                        cacheLiveChatId(ch.id, active.liveChatId, active.broadcastId || confirmedBroadcastId);
+                      }
+                    } catch (err: any) {
+                      markQuotaErrorFromResponse(err);
+                    }
+                  }
+                }
+                break;
+              }
+            } catch (err: any) {
+              logger.warn(`[LiveDetection] Recovery: YouTube scrape failed:`, err?.message);
+            }
+          } else if (platform !== "youtube") {
+            // For non-YouTube platforms, trust the DB record (we'll correct on next poll)
+            confirmedLive = true;
+            confirmedPlatform = platform;
+            logger.info(`[LiveDetection] Recovery: assuming ${platform} still live for ${userId.slice(0, 8)}`);
+            break;
+          }
+        }
+
+        if (confirmedLive) {
+          // Re-hydrate the in-memory map so the detection loop knows this stream is tracked
+          const ch = userChannels.find(c => c.platform === confirmedPlatform);
+          if (ch) {
+            const key = trackingKey(userId, confirmedPlatform, ch.id);
+            trackedBroadcasts.set(key, {
+              streamId: stream.id,
+              platform: confirmedPlatform,
+              broadcastId: confirmedBroadcastId,
+              missCount: 0,
+            });
+          }
+
+          // Re-fire stream.started so all live services restart without waiting for gate
+          setImmediate(() => {
+            import("./agent-events").then(({ fireAgentEvent }) => {
+              fireAgentEvent("stream.started", userId, {
+                platform: confirmedPlatform,
+                videoId: confirmedBroadcastId,
+                liveChatId: confirmedLiveChatId,
+                streamTitle: stream.title,
+                _recovery: true, // marker so logs can identify recovery-triggered events
+              });
+            }).catch(() => {});
+          });
+
+          // Ensure backlog is still paused for this stream
+          import("../backlog-manager").then(({ pauseForLive }) => {
+            pauseForLive(userId, stream.id);
+          }).catch(() => {});
+
+          logger.info(`[LiveDetection] Recovery complete for stream "${stream.title}" — live services restarted`);
+        } else {
+          // Stream ended while server was down — mark it ended and start post-stream pipeline
+          logger.info(`[LiveDetection] Recovery: stream "${stream.title}" no longer live — marking ended`);
+          await storage.updateStream(stream.id, { status: "ended", endedAt: new Date() });
+
+          import("../backlog-engine").then(({ resumeFromStream }) => resumeFromStream(userId, stream.id)).catch(() => {});
+          import("../backlog-manager").then(({ resumeAfterStream }) => resumeAfterStream(userId)).catch(() => {});
+          import("../autopilot-engine").then(({ processPostStreamHighlights }) =>
+            processPostStreamHighlights(userId, stream.id, stream.title, stream.description || "", streamPlatforms)
+          ).catch(() => {});
+
+          await storage.createNotification({
+            userId,
+            type: "stream_ended",
+            title: "Stream Ended (detected on server restart)",
+            message: `"${stream.title}" — stream ended while server was offline. Post-stream pipeline started.`,
+            severity: "info",
+          });
+        }
+      } catch (err) {
+        logger.error(`[LiveDetection] Recovery error for stream ${stream.id}:`, err);
+      }
+    }
+  } catch (err) {
+    logger.error("[LiveDetection] Startup recovery failed:", err);
   }
 }
