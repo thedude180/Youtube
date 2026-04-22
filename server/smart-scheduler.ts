@@ -12,6 +12,10 @@ import { createLogger } from "./lib/logger";
 const logger = createLogger("smart-scheduler");
 const openai = getOpenAIClient();
 
+// Cache optimal posting times per user+platform for 6 hours to avoid repeated OpenAI calls
+const _postingTimesCache = new Map<string, { result: any; cachedAt: number }>();
+const POSTING_TIMES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
 async function openaiWithRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
   const MAX = 3;
   for (let attempt = 1; attempt <= MAX; attempt++) {
@@ -36,6 +40,13 @@ function daysAgo(days: number): Date {
 }
 
 export async function getOptimalPostingTimes(userId: string, platform: string) {
+  // Return cached result if still fresh (avoids repeated OpenAI calls per video)
+  const cacheKey = `${userId}:${platform}`;
+  const cached = _postingTimesCache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < POSTING_TIMES_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
   try {
     const patterns = await db.select().from(audienceActivityPatterns)
       .where(and(
@@ -51,7 +62,9 @@ export async function getOptimalPostingTimes(userId: string, platform: string) {
         activityLevel: p.activityLevel,
         sampleSize: p.sampleSize,
       }));
-      return { source: "data", platform, slots: topSlots };
+      const dataResult = { source: "data", platform, slots: topSlots };
+      _postingTimesCache.set(cacheKey, { result: dataResult, cachedAt: Date.now() });
+      return dataResult;
     }
 
     const userVideos = await storage.getVideosByUser(userId);
@@ -97,7 +110,9 @@ Provide 5-7 optimal posting slots based on ${safePlatform}'s known best practice
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
     const result = JSON.parse(content);
-    return { source: "ai", platform, ...result };
+    const aiResult = { source: "ai", platform, ...result };
+    _postingTimesCache.set(cacheKey, { result: aiResult, cachedAt: Date.now() });
+    return aiResult;
   } catch (error) {
     logger.error("Failed to get optimal posting times:", error);
     return { source: "default", platform, slots: [] };

@@ -263,7 +263,7 @@ export async function syncFullCatalog(userId: string): Promise<{
       logger.info(`[${userId}] No OAuth token — falling back to public API sync for ${anyYtChannel.channelName}`);
       return await syncYouTubePublicCatalog(userId, anyYtChannel);
     }
-    logger.warn(`[${userId}] No YouTube channel found`);
+    logger.debug(`[${userId}] No YouTube channel — skipping OAuth catalog sync`);
     return { total: 0, newLinks: 0, updated: 0, errors: 0 };
   }
 

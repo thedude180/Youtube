@@ -797,12 +797,17 @@ export async function wireAgentCoordination(): Promise<void> {
             logger.info(`Upload SEO skipped — stream active for ${event.userId.slice(0, 8)}`);
             return;
           }
+          if (!tokenBudget.checkBudget("upload-seo", 3000)) {
+            logger.debug(`Upload SEO skipped — token budget exhausted for ${event.userId.slice(0, 8)}`);
+            return;
+          }
           const parsed = parseInt(String(videoId), 10);
           if (!isNaN(parsed)) {
             const { storage } = await import("../storage");
             const video = await storage.getVideo(parsed);
             if (video) {
               await optimizeLiveStreamSEO(event.userId, parsed, gameTitle, video.title || "");
+              tokenBudget.consumeBudget("upload-seo", 3000);
               logger.info(`Upload SEO optimized with intelligence for ${event.userId.slice(0, 8)}`);
             }
           }

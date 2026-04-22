@@ -5,12 +5,17 @@ import { detectContentContext, type ContentContext } from "./ai-engine";
 import { getOpenAIClient } from "./lib/openai";
 import { jitter } from "./lib/timer-utils";
 import { createLogger } from "./lib/logger";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("trend-rider-engine");
 const openai = getOpenAIClient();
 
-const TREND_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+// Run trend lifecycle checks hourly — 15-min was too aggressive and caused 429s
+const TREND_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+// Per-topic analysis cooldown: don't re-analyze the same topic more than once per 4 hours
+const _topicAnalysisLastAt = new Map<string, number>();
+const TOPIC_ANALYSIS_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const TREND_PEAK_WINDOW_DAYS = 14;
 const TREND_COOLDOWN_DAYS = 7;
 const CONTENT_MIX_RAMP_DOWN_STEPS = [0.75, 0.5, 0.25, 0.0];
@@ -47,6 +52,20 @@ export async function detectTrendFromStream(userId: string, stream: typeof strea
 
   const isNewTopic = !previousTopics.some(t => t.toLowerCase() === topic.toLowerCase());
   if (!isNewTopic) return null;
+
+  // Per-topic cooldown: skip re-analysis of the same topic within 4 hours
+  const topicKey = `${userId}:${topic.toLowerCase()}`;
+  const lastAt = _topicAnalysisLastAt.get(topicKey) ?? 0;
+  if (Date.now() - lastAt < TOPIC_ANALYSIS_COOLDOWN_MS) {
+    return null;
+  }
+
+  // Token budget guard — trend analysis is non-critical, defer when budget is tight
+  if (!tokenBudget.checkBudget("trend-rider", 1000)) {
+    return null;
+  }
+
+  _topicAnalysisLastAt.set(topicKey, Date.now());
 
   try {
     const response = await openai.chat.completions.create({

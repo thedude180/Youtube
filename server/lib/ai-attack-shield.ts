@@ -867,6 +867,9 @@ const DAILY_CAPS: Record<string, number> = {
   "tos-monitor":               40_000,  // 20k → 40k   — more platform policy checks
   "marketer-engine":          160_000,  // 80k → 160k  — more marketing touchpoints
   "auto-thumbnail":            30_000,  // 15k → 30k   — generate more thumbnails daily
+  "smart-scheduler":           20_000,  // optimal posting time queries (cached 6h, rarely fires)
+  "upload-seo":                40_000,  // SEO optimization on video uploads (~13 calls/day max)
+  "trend-rider":               10_000,  // trend analysis — low cap, runs hourly not per-stream
 };
 
 const DEFAULT_DAILY_CAP = 40_000;  // 20k → 40k for any engine not listed above
