@@ -333,12 +333,19 @@ export async function getAudienceDrivenTime(options: HumanScheduleOptions): Prom
           return new Date(now.getTime() + Math.max(3, delayMinutes) * 60000);
         }
 
+        // Cap scheduling at 2 days out.  The "find the next occurrence of the
+        // best day-of-week" logic used to jump a full 7 days when today's slot
+        // had already passed (e.g. missed Tuesday → wait until NEXT Tuesday).
+        // With a 30+ item backlog that stacks content into June.  Instead we
+        // pick the closest upcoming peak hour within the next 48 hours.
+        const MAX_DAYS_OUT = 2;
         const candidate = new Date(now);
         const currentDay = candidate.getDay();
         let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
         if (daysUntil === 0 && getLocalHourForTimezone(candidate, timezone) >= (picked.hourOfDay + 1)) {
-          daysUntil = 7;
+          daysUntil = 1; // tomorrow, not next week
         }
+        if (daysUntil > MAX_DAYS_OUT) daysUntil = MAX_DAYS_OUT;
         candidate.setDate(candidate.getDate() + daysUntil);
         const minuteJitter = Math.floor(gaussianRandom(25, 15));
         const offset = getTimezoneOffsetHours(timezone, candidate);

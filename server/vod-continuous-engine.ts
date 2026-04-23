@@ -333,8 +333,8 @@ export async function enableVodAutopilot(userId: string, settings?: {
     await db.insert(vodAutopilotConfig).values({
       userId,
       enabled: true,
-      maxLongFormPerDay: settings?.maxLongFormPerDay ?? 1,
-      maxShortsPerDay: settings?.maxShortsPerDay ?? 3,
+      maxLongFormPerDay: settings?.maxLongFormPerDay ?? 2,
+      maxShortsPerDay: settings?.maxShortsPerDay ?? 4,
       targetPlatforms: (settings?.targetPlatforms ?? ["youtube"]) as string[],
       cycleIntervalHours: settings?.cycleIntervalHours ?? 6,
       minHoursBetweenUploads: settings?.minHoursBetweenUploads ?? 2,

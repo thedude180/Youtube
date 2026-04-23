@@ -268,8 +268,47 @@ async function healProductionPipeline(): Promise<void> {
       );
     const pipeline401Count = (pipeline401Result as any)?.rowCount ?? "?";
 
+    // 5. Reschedule autopilot_queue items that landed far in the future due to
+    //    the "next occurrence of best weekday" bug.  Anything scheduled more than
+    //    3 days out gets pulled back to 24 h from now so it publishes quickly
+    //    rather than trickling out over weeks.
+    const { autopilotQueue, scheduleItems, vodAutopilotConfig: vodConfig } = await import("@shared/schema");
+    const { gt, lte } = await import("drizzle-orm");
+    const cutoff = new Date(Date.now() + 3 * 86400_000);      // 3 days from now
+    const pullBackTo = new Date(Date.now() + 86400_000);       // 24 h from now
+
+    const farFutureQueueResult = await db
+      .update(autopilotQueue)
+      .set({ scheduledAt: pullBackTo })
+      .where(
+        and(
+          eq(autopilotQueue.status, "scheduled"),
+          gt(autopilotQueue.scheduledAt, cutoff),
+        )!
+      );
+    const farFutureQueueCount = (farFutureQueueResult as any)?.rowCount ?? "?";
+
+    // Also collapse far-future schedule_items (the YouTube publish calendar)
+    const farFutureScheduleResult = await db
+      .update(scheduleItems)
+      .set({ scheduledAt: pullBackTo })
+      .where(
+        and(
+          eq(scheduleItems.status, "scheduled"),
+          gt(scheduleItems.scheduledAt, cutoff),
+        )!
+      );
+    const farFutureScheduleCount = (farFutureScheduleResult as any)?.rowCount ?? "?";
+
+    // 6. Bump VOD autopilot long-form cap from the legacy "1/day" default to 2/day
+    //    so the backlog can clear at twice the previous rate.
+    await db
+      .update(vodConfig)
+      .set({ maxLongFormPerDay: 2, maxShortsPerDay: 4, updatedAt: new Date() })
+      .where(lte(vodConfig.maxLongFormPerDay, 1));
+
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);
