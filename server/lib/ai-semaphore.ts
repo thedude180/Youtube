@@ -18,16 +18,45 @@ const _releaseListeners: Array<() => void> = [];
 
 // Circuit-breaker state
 let _rateLimitedUntil = 0;
-const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 65_000;
+// 5-minute default.  65 seconds was too short — when the window reopened all
+// queued callers thundered in simultaneously, triggered another 429, and the
+// cycle repeated indefinitely.  5 minutes lets OpenAI's TPM bucket refill.
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 5 * 60_000;
+
+// Track consecutive 429s so we can scale up the cooldown exponentially.
+let _consecutive429s = 0;
+let _lastRateLimitAt = 0;
 
 export function notifyRateLimit(retryAfterMs?: number): void {
-  const cooldown = retryAfterMs && retryAfterMs > 0
-    ? Math.min(retryAfterMs + 5_000, 120_000)
-    : DEFAULT_RATE_LIMIT_COOLDOWN_MS;
-  const until = Date.now() + cooldown;
+  const now = Date.now();
+  // Count as "consecutive" if the previous 429 was less than 10 minutes ago.
+  if (now - _lastRateLimitAt < 10 * 60_000) {
+    _consecutive429s = Math.min(_consecutive429s + 1, 8);
+  } else {
+    _consecutive429s = 1;
+  }
+  _lastRateLimitAt = now;
+
+  let cooldown: number;
+  if (retryAfterMs && retryAfterMs > 0) {
+    // Honour the server's hint but cap at 10 minutes.
+    cooldown = Math.min(retryAfterMs + 5_000, 10 * 60_000);
+  } else {
+    // Exponential back-off: 5min → 10min → 10min (capped).
+    cooldown = Math.min(DEFAULT_RATE_LIMIT_COOLDOWN_MS * Math.pow(2, _consecutive429s - 1), 10 * 60_000);
+  }
+
+  // Add per-caller jitter (0–30 s) so all waiting goroutines don't re-fire
+  // at exactly the same millisecond when the circuit breaker opens.
+  const jitter = Math.random() * 30_000;
+  const until = now + cooldown + jitter;
   if (until > _rateLimitedUntil) {
     _rateLimitedUntil = until;
   }
+}
+
+export function resetRateLimitConsecutiveCount(): void {
+  _consecutive429s = 0;
 }
 
 async function _pause(ms: number): Promise<void> {

@@ -59,13 +59,17 @@ async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> 
           }
         }
       }
-      // Notify circuit-breaker so ALL callers back off when the proxy is rate-limiting.
-      // Only pass the proxy's retry-after hint when it's substantial (> 10s); otherwise
-      // notifyRateLimit() with no argument uses the 65s default — much safer than 2-3s.
-      if (status === 429) {
+      // Only notify the circuit-breaker when the 429 came from OpenAI's servers
+      // (not from our own internal throttle mechanism — err.throttled=true means
+      // the semaphore already blocked this call, no need to extend the timer).
+      if (status === 429 && !err?.throttled) {
         notifyRateLimit(rawRetryAfter && retryAfterMs > 10_000 ? retryAfterMs : undefined);
       }
-      await new Promise(r => setTimeout(r, retryAfterMs + Math.random() * 1_000));
+      // Don't sleep here if the circuit breaker is already holding callers back —
+      // acquireAISlot() on the next iteration will absorb the wait.
+      if (!err?.throttled) {
+        await new Promise(r => setTimeout(r, retryAfterMs + Math.random() * 1_000));
+      }
     }
   }
   throw lastErr;

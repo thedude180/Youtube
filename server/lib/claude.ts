@@ -68,10 +68,12 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
           }
         }
       }
-      if (status === 429) {
+      if (status === 429 && !err?.throttled) {
         notifyRateLimit(rawRetryAfter && retryAfterMs > 10_000 ? retryAfterMs : undefined);
       }
-      await new Promise((r) => setTimeout(r, retryAfterMs + Math.random() * 1_000));
+      if (!err?.throttled) {
+        await new Promise((r) => setTimeout(r, retryAfterMs + Math.random() * 1_000));
+      }
     }
   }
   throw lastErr;

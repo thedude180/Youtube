@@ -12,28 +12,11 @@ import { createLogger } from "./lib/logger";
 const logger = createLogger("smart-scheduler");
 const openai = getOpenAIClient();
 
-// Cache optimal posting times per user+platform for 6 hours to avoid repeated OpenAI calls
+// Cache optimal posting times per user+platform for 24 hours.
+// Posting-time recommendations don't change day-to-day and the AI call is
+// expensive.  A 24-hour TTL means at most 1 AI call per user+platform per day.
 const _postingTimesCache = new Map<string, { result: any; cachedAt: number }>();
-const POSTING_TIMES_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-
-async function openaiWithRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
-  const MAX = 3;
-  for (let attempt = 1; attempt <= MAX; attempt++) {
-    try {
-      return await fn();
-    } catch (err: any) {
-      const status = err?.status ?? err?.response?.status;
-      if (status === 429 && attempt < MAX) {
-        const wait = Math.min(8000 * Math.pow(2, attempt - 1), 32000);
-        logger.warn(`OpenAI 429 — backing off`, { label, attempt, waitMs: wait });
-        await new Promise(r => setTimeout(r, wait));
-        continue;
-      }
-      throw err;
-    }
-  }
-  throw new Error(`[smart-scheduler] ${label} failed after ${MAX} attempts`);
-}
+const POSTING_TIMES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -100,12 +83,12 @@ Provide 5-7 optimal posting slots based on ${safePlatform}'s known best practice
       return { source: "default", platform, slots: [] };
     }
 
-    const response = await openaiWithRetry(() => openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    }), "getOptimalPostingTimes");
+    });
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -214,12 +197,12 @@ Analyze and recommend as JSON:
       };
     }
 
-    const response = await openaiWithRetry(() => openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    }), "getUploadCadence");
+    });
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");
@@ -324,12 +307,12 @@ Analyze and recommend as JSON:
       return { overallScore: 50, recommendations: [], scheduleDensity: "unknown", platformBalance: "unknown" };
     }
 
-    const response = await openaiWithRetry(() => openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
-    }), "getScheduleRecommendations");
+    });
 
     const content = response.choices[0]?.message?.content;
     if (!content) throw new Error("No AI response");

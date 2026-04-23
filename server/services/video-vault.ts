@@ -42,10 +42,23 @@ const MIN_FREE_SPACE_GB = 3;
 const DOWNLOAD_DELAY_MS = 10_000;
 // yt-dlp client priority list.
 // "android_testsuite" and "mediaconnect" were added in yt-dlp 2025.01+ specifically
-// to bypass YouTube's po_token requirement on datacenter/server IPs.  They hit a
-// different internal endpoint that does not check the proof-of-origin token.
-// Put them first so authenticated fallback succeeds on the first attempt.
-const PLAYER_CLIENTS = [
+// When an OAuth token is available, the `web` client plus an Authorization:Bearer
+// header is the most reliable path — YouTube validates the token and bypasses
+// po_token checking for authenticated sessions.  Fall back to the po_token-exempt
+// clients only if the authenticated path also fails.
+const PLAYER_CLIENTS_WITH_AUTH = [
+  "web",               // best with an OAuth Bearer header
+  "tv_embedded",       // also respects Bearer header; works well on server IPs
+  "android_testsuite", // po_token-exempt (2025+) — backup
+  "mediaconnect",      // po_token-exempt (2025+) — backup
+  "android_vr",
+  "ios",
+  "mweb",
+];
+
+// Without a token, skip the auth-dependent clients and go straight to the
+// po_token-exempt list.
+const PLAYER_CLIENTS_ANON = [
   "android_testsuite", // po_token-exempt (2025+)
   "mediaconnect",      // po_token-exempt (2025+)
   "tv_embedded",
@@ -837,14 +850,17 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     }
   }
 
-  // Fallback: yt-dlp multi-client loop — pass OAuth token when available so
-  // datacenter IP bot-detection is bypassed via authenticated requests.
+  // Fallback: yt-dlp multi-client loop.
+  // When an OAuth token is present, use the auth-prioritized list (web + tv_embedded
+  // first) — the Bearer header lets YouTube's servers bypass po_token enforcement.
+  // Without a token, jump straight to the po_token-exempt clients.
   const ytdlpAuthArgs = accessToken
     ? ["--add-header", `Authorization:Bearer ${accessToken}`]
     : [];
+  const clientList = accessToken ? PLAYER_CLIENTS_WITH_AUTH : PLAYER_CLIENTS_ANON;
   let lastErr = "";
   let allBotDetected = true;
-  for (const playerClient of PLAYER_CLIENTS) {
+  for (const playerClient of clientList) {
     try {
       await tryYtDlpDownload(url, outputPath, playerClient, ytdlpAuthArgs);
 
