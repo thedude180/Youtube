@@ -58,17 +58,17 @@ const INNERTUBE_CLIENTS: InnerTubeClient[] = [
   {
     name: "ANDROID",
     clientName: "ANDROID",
-    clientVersion: "19.09.37",
-    androidSdkVersion: 30,
-    userAgent: "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+    clientVersion: "19.44.38",
+    androidSdkVersion: 34,
+    userAgent: "com.google.android.youtube/19.44.38 (Linux; U; Android 14) gzip",
     apiClientName: "3",
   },
   {
     name: "IOS",
     clientName: "IOS",
-    clientVersion: "19.09.3",
+    clientVersion: "19.45.4",
     deviceModel: "iPhone16,2",
-    userAgent: "com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_4_1 like Mac OS X)",
+    userAgent: "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5 like Mac OS X)",
     apiClientName: "5",
   },
 ];
@@ -805,12 +805,16 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     }
   }
 
-  // Fallback: unauthenticated yt-dlp multi-client loop
+  // Fallback: yt-dlp multi-client loop — pass OAuth token when available so
+  // datacenter IP bot-detection is bypassed via authenticated requests.
+  const ytdlpAuthArgs = accessToken
+    ? ["--add-header", `Authorization:Bearer ${accessToken}`]
+    : [];
   let lastErr = "";
   let allBotDetected = true;
   for (const playerClient of PLAYER_CLIENTS) {
     try {
-      await tryYtDlpDownload(url, outputPath, playerClient, []);
+      await tryYtDlpDownload(url, outputPath, playerClient, ytdlpAuthArgs);
 
       if (fs.existsSync(outputPath)) {
         const stat = fs.statSync(outputPath);
@@ -841,7 +845,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       }
 
       allBotDetected = false;
-      logger.warn(`[Vault] ${playerClient} failed for ${youtubeId}: ${lastErr.substring(0, 120)}`);
+      logger.warn(`[Vault] ${playerClient} failed for ${youtubeId}: ${lastErr.substring(0, 400)}`);
     }
   }
 
