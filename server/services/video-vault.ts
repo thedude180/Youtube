@@ -1220,7 +1220,7 @@ export async function downloadVaultEntry(userId: string, entryId: number): Promi
 
   if (!entry) throw new Error(`Vault entry ${entryId} not found`);
 
-  if (entry.status === "downloaded" && entry.filePath && fs.existsSync(entry.filePath)) {
+  if (entry.filePath && fs.existsSync(entry.filePath)) {
     return entry.filePath;
   }
 

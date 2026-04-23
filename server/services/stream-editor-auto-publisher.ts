@@ -132,11 +132,12 @@ export async function scheduleClipsForAutoPublish(
 
 /**
  * Poller: called every 5 minutes by the server.
- * Finds YouTube autopilot_queue entries that are due (scheduledAt ≤ now + 90min)
+ * Finds YouTube autopilot_queue entries that are due (scheduledAt ≤ now + 8h)
  * and triggers the actual YouTube upload + scheduled publish.
+ * Also retries entries that failed with a transient error (up to 3 attempts).
  */
 export async function processAutoPublishQueue(): Promise<void> {
-  const horizon = new Date(Date.now() + 90 * 60_000);
+  const horizon = new Date(Date.now() + 8 * 3600_000);
 
   const dueItems = await db.select().from(autopilotQueue)
     .where(eq(autopilotQueue.status, "scheduled"))
@@ -182,13 +183,29 @@ export async function processAutoPublishQueue(): Promise<void> {
       const msg = (err as Error)?.message ?? String(err);
       logger.error(`[AutoPublisher] Failed to publish sv${studioVideoId}:`, msg);
 
-      await db.update(autopilotQueue)
-        .set({
-          status: "failed",
-          errorMessage: msg.slice(0, 500),
-          metadata: { ...meta, retryCount: ((meta.retryCount as number) ?? 0) + 1 } as any,
-        })
-        .where(eq(autopilotQueue.id, item.id));
+      const retryCount = ((meta.retryCount as number) ?? 0) + 1;
+      if (retryCount < 3) {
+        // Back off and retry: reschedule 30 minutes from now
+        const retryAt = new Date(Date.now() + 30 * 60_000);
+        await db.update(autopilotQueue)
+          .set({
+            status: "scheduled",
+            scheduledAt: retryAt,
+            errorMessage: msg.slice(0, 500),
+            metadata: { ...meta, retryCount } as any,
+          })
+          .where(eq(autopilotQueue.id, item.id));
+        logger.warn(`[AutoPublisher] sv${studioVideoId} failed (attempt ${retryCount}/3) — retry in 30min: ${msg}`);
+      } else {
+        await db.update(autopilotQueue)
+          .set({
+            status: "failed",
+            errorMessage: msg.slice(0, 500),
+            metadata: { ...meta, retryCount } as any,
+          })
+          .where(eq(autopilotQueue.id, item.id));
+        logger.error(`[AutoPublisher] sv${studioVideoId} permanently failed after 3 attempts: ${msg}`);
+      }
     }
   }
 }

@@ -325,6 +325,34 @@ async function healProductionPipeline(): Promise<void> {
       .set({ maxLongFormPerDay: 2, maxShortsPerDay: 4, updatedAt: new Date() })
       .where(lte(vodConfig.maxLongFormPerDay, 1));
 
+    // 7. Kick off pending pipeline entries.
+    //    The pipeline runner does NOT poll for "pending" status — it only fires
+    //    when an entry is explicitly triggered.  Any entry stuck in "pending"
+    //    (e.g. reset by heal above) will sit forever without this nudge.
+    //    We trigger up to 50 at boot; the AI semaphore (1 in-flight) queues the
+    //    rest naturally so they don't all hammer the API simultaneously.
+    try {
+      const pendingPipelines = await db.select().from(contentPipeline)
+        .where(eq(contentPipeline.status, "pending"))
+        .limit(50);
+
+      if (pendingPipelines.length > 0) {
+        const { executePipelineInBackground } = await import("./routes/pipeline");
+        for (const pipeline of pendingPipelines) {
+          executePipelineInBackground(
+            pipeline.id,
+            pipeline.videoTitle ?? "unknown",
+            pipeline.mode ?? "vod",
+            (pipeline.stepResults ?? {}) as Record<string, any>,
+            (pipeline.completedSteps ?? []) as string[],
+          ).catch(() => {});
+        }
+        process.stdout.write(`[prod-heal] Kicked ${pendingPipelines.length} pending pipeline entries\n`);
+      }
+    } catch (pipelineErr: any) {
+      process.stdout.write(`[prod-heal] Warning: could not kick pending pipelines: ${pipelineErr?.message}\n`);
+    }
+
     process.stdout.write(
       `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day\n`
     );

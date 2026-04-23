@@ -377,7 +377,11 @@ async function runJobInBackground(jobId: number): Promise<void> {
 
     let sourceFile = job.sourceFilePath ?? null;
 
-    if (job.downloadFirst) {
+    // Skip download if the file is already on disk — avoids yt-dlp bot-detection
+    // when vault entries were already downloaded in a previous run.
+    const fileAlreadyOnDisk = sourceFile && fs.existsSync(sourceFile);
+
+    if (job.downloadFirst && !fileAlreadyOnDisk) {
       await db.update(streamEditJobs).set({
         currentStage: "Downloading from YouTube",
       }).where(eq(streamEditJobs.id, jobId));
@@ -389,6 +393,25 @@ async function runJobInBackground(jobId: number): Promise<void> {
         sourceFilePath: sourceFile,
         currentStage: "Download complete — probing video",
       }).where(eq(streamEditJobs.id, jobId));
+    } else if (job.downloadFirst && fileAlreadyOnDisk) {
+      logger.info(`[StreamEditor] Job ${jobId}: vault file already on disk at ${sourceFile}, skipping download`);
+    }
+
+    // If we still don't have a file, check the vault entry directly
+    if (!sourceFile || !fs.existsSync(sourceFile)) {
+      if (job.vaultEntryId) {
+        const [vaultEntry] = await db
+          .select({ filePath: contentVaultBackups.filePath })
+          .from(contentVaultBackups)
+          .where(eq(contentVaultBackups.id, job.vaultEntryId))
+          .limit(1);
+        if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
+          sourceFile = vaultEntry.filePath;
+          await db.update(streamEditJobs).set({ sourceFilePath: sourceFile })
+            .where(eq(streamEditJobs.id, jobId));
+          logger.info(`[StreamEditor] Job ${jobId}: found vault file via DB lookup: ${sourceFile}`);
+        }
+      }
     }
 
     if (!sourceFile || !fs.existsSync(sourceFile)) {
