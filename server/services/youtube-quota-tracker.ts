@@ -61,7 +61,25 @@ export function invalidateLiveChatCache(channelDbId: number): void {
 }
 
 const DEFAULT_DAILY_LIMIT = 10000;
-const SAFETY_BUFFER = 200; // Reduced from 500 — gives ~300 more usable API units per day
+const SAFETY_BUFFER = 200; // Hard floor — never go below this for any operation
+
+/**
+ * Upload / write reserve — quota headroom that is always kept available
+ * for uploads and metadata updates, which have NO non-API alternative.
+ *
+ * 2 uploads/day  × 1600 units = 3200
+ * 10 metadata updates × 50 units =  500
+ * ─────────────────────────────────────
+ * Total reserve                   3700  (rounded up to 4000 for safety margin)
+ *
+ * Operations that HAVE non-API alternatives (reads, list, scraping-backed
+ * catalog indexing) must check canAffordOperation() which enforces this
+ * reserve so uploads and metadata always have room to run.
+ *
+ * Operations with NO alternative (upload, write, thumbnail) bypass the
+ * reserve and only require the hard SAFETY_BUFFER floor.
+ */
+const UPLOAD_RESERVE = 4000;
 
 function getPacificDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
@@ -174,10 +192,29 @@ export async function getQuotaStatus(userId: string): Promise<{
   };
 }
 
+/**
+ * Two-tier quota gate:
+ *
+ *  TIER 1 — no-alternative operations (upload, write, thumbnail):
+ *    Allowed as long as remaining >= cost + SAFETY_BUFFER.
+ *    These use the quota first because there is no other way to accomplish them.
+ *
+ *  TIER 2 — has-alternative operations (read, list, search, broadcast, livechat):
+ *    Allowed only when remaining >= cost + SAFETY_BUFFER + UPLOAD_RESERVE.
+ *    These must leave room for Tier-1 uploads/updates and should prefer
+ *    their non-API alternatives (yt-dlp scraping, page scraping) whenever
+ *    possible — only falling back to the API when alternatives are exhausted.
+ */
 export async function canAffordOperation(userId: string, operation: QuotaOperation, count: number = 1): Promise<boolean> {
   const status = await getQuotaStatus(userId);
   const cost = QUOTA_COSTS[operation] * count;
-  return status.remaining >= cost + SAFETY_BUFFER;
+
+  const isTier1 = operation === "upload" || operation === "write" || operation === "thumbnail";
+  const required = isTier1
+    ? cost + SAFETY_BUFFER                  // Tier 1: just the floor
+    : cost + SAFETY_BUFFER + UPLOAD_RESERVE; // Tier 2: must leave room for uploads
+
+  return status.remaining >= required;
 }
 
 export async function hasQuotaResetSinceLastPush(userId: string, lastPushDate: string): Promise<boolean> {

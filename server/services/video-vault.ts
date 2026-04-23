@@ -347,32 +347,49 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   logger.info("[Vault] Starting FULL channel index for user", userId);
 
   let allVideosRaw: ScrapedVideo[] = [];
-  let usedApi = false;
 
-  const accessTokenForIndex = await getVaultYouTubeToken(userId);
-  if (accessTokenForIndex) {
-    try {
-      allVideosRaw = await fetchVideosFromYouTubeAPI(accessTokenForIndex);
-      usedApi = true;
-      logger.info(`[Vault] YouTube API index returned ${allVideosRaw.length} videos`);
-    } catch (apiErr: any) {
-      logger.warn(`[Vault] YouTube API index failed (${apiErr.message}) — falling back to yt-dlp scraping`);
-    }
-  } else {
-    if (!_warnedNoToken.has(userId)) {
-      _warnedNoToken.add(userId);
-      logger.warn(`[Vault] No OAuth token for user ${userId} — using yt-dlp scraping`);
-    }
-  }
-
-  if (!usedApi) {
-    logger.info("[Vault] Scraping channel via yt-dlp:", PUBLIC_CHANNEL_URL);
+  // ── PRIORITY 1: yt-dlp scraping (zero quota cost) ──────────────────────────
+  // Always try the free scraping path first.  Catalog indexing HAS a non-API
+  // alternative, so quota should be preserved for uploads and metadata updates
+  // which have no other path.
+  logger.info("[Vault] Scraping channel via yt-dlp (quota-free):", PUBLIC_CHANNEL_URL);
+  try {
     const [videos, shorts, streams] = await Promise.all([
       scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`, "video"),
       scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`, "short"),
       scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream"),
     ]);
     allVideosRaw = [...videos, ...shorts, ...streams];
+    logger.info(`[Vault] yt-dlp scraping returned ${allVideosRaw.length} videos`);
+  } catch (scrapeErr: any) {
+    logger.warn(`[Vault] yt-dlp scraping failed (${scrapeErr.message}) — will try YouTube API fallback`);
+  }
+
+  // ── PRIORITY 2: YouTube API (uses quota) — only when scraping got nothing ──
+  // Catalog reads cost only 1 unit each, but we still guard them behind the
+  // UPLOAD_RESERVE so that uploads (1600 units each) always have headroom.
+  // Only attempt the API if scraping returned zero results.
+  if (allVideosRaw.length === 0) {
+    const accessTokenForIndex = await getVaultYouTubeToken(userId);
+    if (accessTokenForIndex) {
+      const { canAffordOperation } = await import("./youtube-quota-tracker");
+      const quotaOk = await canAffordOperation(userId, "read");
+      if (quotaOk) {
+        try {
+          allVideosRaw = await fetchVideosFromYouTubeAPI(accessTokenForIndex);
+          logger.info(`[Vault] YouTube API index returned ${allVideosRaw.length} videos (scraping fallback)`);
+        } catch (apiErr: any) {
+          logger.warn(`[Vault] YouTube API index also failed (${apiErr.message})`);
+        }
+      } else {
+        logger.warn(`[Vault] YouTube API index skipped — quota reserved for uploads/metadata`);
+      }
+    } else {
+      if (!_warnedNoToken.has(userId)) {
+        _warnedNoToken.add(userId);
+        logger.warn(`[Vault] No OAuth token for user ${userId}`);
+      }
+    }
   }
 
   const allVideos = allVideosRaw;
