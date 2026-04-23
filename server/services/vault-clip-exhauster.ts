@@ -133,43 +133,42 @@ export async function runVaultExhaustSweep(batchSize = 50): Promise<void> {
   isSweeping = true;
 
   try {
-    // Find all users that have channels
-    const { channels } = await import("@shared/schema");
-    const channelRows = await db
-      .select({ userId: channels.userId })
-      .from(channels)
-      .where(sql`${channels.userId} IS NOT NULL`);
-
-    const userIds = [...new Set(channelRows.map((r) => r.userId).filter(Boolean))] as string[];
-    if (userIds.length === 0) return;
-
-    for (const userId of userIds) {
-      // Find downloaded entries for this user
-      const downloadedEntries = await db
-        .select({ id: contentVaultBackups.id })
-        .from(contentVaultBackups)
-        .where(
-          and(
-            eq(contentVaultBackups.userId, userId),
-            eq(contentVaultBackups.status, "downloaded"),
-            // Skip synthetic local entries
-            sql`${contentVaultBackups.youtubeId} NOT LIKE 'local_%'`,
-            sql`${contentVaultBackups.youtubeId} NOT LIKE 'clip_%'`,
-          ),
+    // Single query: find downloaded vault entries that have NO non-error stream_edit_job.
+    // This replaces the old N+1 pattern (500 entries × 1 getMissingPlatforms query each)
+    // which was timing out on large vaults. One JOIN is fast even at 10,000+ rows.
+    const needsJobs = await db.execute(sql`
+      SELECT cvb.id, cvb.user_id
+      FROM content_vault_backups cvb
+      WHERE cvb.status = 'downloaded'
+        AND cvb.youtube_id NOT LIKE 'local_%'
+        AND cvb.youtube_id NOT LIKE 'clip_%'
+        AND NOT EXISTS (
+          SELECT 1 FROM stream_edit_jobs sej
+          WHERE sej.vault_entry_id = cvb.id
+            AND sej.user_id = cvb.user_id
+            AND sej.status != 'error'
         )
-        .limit(500); // broad cap — sweeps all recently-downloaded entries
+      LIMIT ${batchSize}
+    `);
 
+    const rows = (needsJobs as any).rows ?? needsJobs;
+    if (!rows || rows.length === 0) return;
+
+    // Group by user so we can log per-user counts
+    const byUser = new Map<string, number[]>();
+    for (const row of rows) {
+      const uid = (row.user_id ?? row.userId) as string;
+      const id = Number(row.id);
+      if (!byUser.has(uid)) byUser.set(uid, []);
+      byUser.get(uid)!.push(id);
+    }
+
+    for (const [userId, ids] of byUser) {
       let queued = 0;
-      for (const { id } of downloadedEntries) {
-        if (queued >= batchSize) break;
-
-        const missing = await getMissingPlatforms(userId, id);
-        if (missing.length === 0) continue;
-
+      for (const id of ids) {
         const result = await exhaustVaultEntry(userId, id);
         if (result.queued.length > 0) queued++;
       }
-
       if (queued > 0) {
         logger.info(`[Exhauster] Sweep: queued ${queued} new clip job(s) for user ${userId}`);
       }
