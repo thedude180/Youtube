@@ -214,8 +214,8 @@ async function healProductionPipeline(): Promise<void> {
     await restoreQuotaBreakerOnStartup();
     // ─────────────────────────────────────────────────────────────────────────
 
-    const { contentVaultBackups, streamEditJobs } = await import("@shared/schema");
-    const { eq, or, like } = await import("drizzle-orm");
+    const { contentVaultBackups, streamEditJobs, contentPipeline } = await import("@shared/schema");
+    const { eq, or, like, and, ne } = await import("drizzle-orm");
 
     // 1. Unstick in-flight downloads from dead server instance
     const stuckResult = await db
@@ -243,8 +243,33 @@ async function healProductionPipeline(): Promise<void> {
       .where(eq(streamEditJobs.status, "processing"));
     const jobCount = (jobResult as any)?.rowCount ?? "?";
 
+    // 4. Reset content_pipeline entries that were abandoned mid-run ("processing")
+    //    or failed with a transient AI budget 401 ("error" + message contains "401").
+    //    These entries will never self-recover without a nudge — the pipeline marks
+    //    them dead and never looks at them again.  Resetting to "pending" lets the
+    //    background pipeline runner pick them up on its next tick.
+    const pipelineStuckResult = await db
+      .update(contentPipeline)
+      .set({ status: "pending", errorMessage: null, startedAt: null })
+      .where(eq(contentPipeline.status, "processing"));
+    const pipelineStuckCount = (pipelineStuckResult as any)?.rowCount ?? "?";
+
+    const pipeline401Result = await db
+      .update(contentPipeline)
+      .set({ status: "pending", errorMessage: null, startedAt: null })
+      .where(
+        and(
+          eq(contentPipeline.status, "error"),
+          or(
+            like(contentPipeline.errorMessage, "%401%"),
+            like(contentPipeline.errorMessage, "%429%"),
+          )!
+        )!
+      );
+    const pipeline401Count = (pipeline401Result as any)?.rowCount ?? "?";
+
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);

@@ -4,7 +4,12 @@ import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
 
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+// 401 is included because the Replit AI integration gateway returns an empty
+// 401 when its free compute budget is exhausted.  After the user tops up their
+// balance, retrying the same request will succeed.  Real OpenAI 401s (invalid
+// API key) always have a JSON body — the withRetry loop caps retries at 3 so
+// a genuine bad-key scenario just fails after 3 attempts, same as before.
+const RETRYABLE_STATUS_CODES = new Set([401, 429, 500, 502, 503, 504]);
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 2000;
 const MAX_PRECALL_WAIT_MS = 120_000; // 2 minutes — engines wait in queue
