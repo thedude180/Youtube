@@ -190,8 +190,59 @@ async function resetDevPipelineData(): Promise<void> {
   }
 }
 
+// ── PRODUCTION PIPELINE SELF-HEAL ─────────────────────────────────────────────
+// Runs once at production startup to unstick the pipeline after a redeploy.
+//
+// What it fixes:
+//   1. "downloading" rows that were left in-flight when the old server died —
+//      they will never complete, so reset them to "indexed" for retry.
+//   2. "failed" rows caused by the old yt-dlp format selector
+//      ("Requested format is not available" with -f 18/best...) — the new
+//      InnerTube + 1080p format string will handle these correctly.
+//   3. stream_edit_jobs stuck in "processing" — reset to "queued".
+async function healProductionPipeline(): Promise<void> {
+  if (process.env.NODE_ENV !== "production") return;
+  try {
+    const { contentVaultBackups, streamEditJobs } = await import("@shared/schema");
+    const { eq, or, like } = await import("drizzle-orm");
+
+    // 1. Unstick in-flight downloads from dead server instance
+    const stuckResult = await db
+      .update(contentVaultBackups)
+      .set({ status: "indexed", filePath: null, downloadError: null })
+      .where(eq(contentVaultBackups.status, "downloading"));
+    const stuckCount = (stuckResult as any)?.rowCount ?? "?";
+
+    // 2. Reset old-format failures so they retry with the new InnerTube code
+    const fmtResult = await db
+      .update(contentVaultBackups)
+      .set({ status: "indexed", downloadError: null })
+      .where(
+        or(
+          like(contentVaultBackups.downloadError, "%format is not available%"),
+          like(contentVaultBackups.downloadError, "%-f 18%"),
+        )!
+      );
+    const fmtCount = (fmtResult as any)?.rowCount ?? "?";
+
+    // 3. Unstick edit jobs left "processing" by old server
+    const jobResult = await db
+      .update(streamEditJobs)
+      .set({ status: "queued" })
+      .where(eq(streamEditJobs.status, "processing"));
+    const jobCount = (jobResult as any)?.rowCount ?? "?";
+
+    process.stdout.write(
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued\n`
+    );
+  } catch (err: any) {
+    process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);
+  }
+}
+
 clearVault(); // wipe vault files (dev only)
 resetDevPipelineData(); // wipe pipeline DB rows (dev only)
+healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 
