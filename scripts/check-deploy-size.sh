@@ -8,7 +8,7 @@ echo "=== Deployment Size Check ==="
 echo ""
 
 EXCLUDE_DIRS=(
-  vault clips reels recordings streams downloads
+  vault data clips reels recordings streams downloads
   .cache .local .git .upm .config .vscode .replit.nix
   tmp attached_assets screenshots references
   server client shared script scripts
@@ -75,7 +75,7 @@ echo ""
 
 echo "--- Excluded by .dockerignore ---"
 EXCLUDED_MB=0
-for d in vault clips reels recordings streams downloads .cache .local .git attached_assets screenshots references tmp server client shared script scripts; do
+for d in vault data clips reels recordings streams downloads .cache .local .git attached_assets screenshots references tmp server client shared script scripts; do
   if [ -d "$d" ]; then
     D_SIZE=$(du -sk "$d" 2>/dev/null | awk '{print $1}')
     D_MB=$((D_SIZE / 1024))
@@ -99,7 +99,7 @@ echo ""
 ISSUES=0
 
 MISSING=""
-for critical in vault clips reels .cache .local .git server/ client/; do
+for critical in vault data clips reels .cache .local .git server/ client/; do
   if ! grep -q "^${critical}" .dockerignore 2>/dev/null; then
     MISSING="$MISSING $critical"
   fi
