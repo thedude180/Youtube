@@ -12,6 +12,10 @@ import { getYtdlpBin } from "../lib/dependency-check";
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
 
+// Optional: drop a cookies.txt (Netscape format) here to bypass datacenter
+// IP bot-detection. Users can upload via Settings → YouTube Cookies.
+const YT_COOKIES_PATH = path.join(process.cwd(), ".local", "yt-cookies.txt");
+
 let _detectGameFn: ((text: string) => string | null) | null = null;
 let _persistGameFn: ((name: string, source: string) => Promise<void>) | null = null;
 
@@ -857,6 +861,16 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   const ytdlpAuthArgs = accessToken
     ? ["--add-header", `Authorization:Bearer ${accessToken}`]
     : [];
+  // If the user uploaded cookies.txt via Settings, append --cookies so yt-dlp
+  // authenticates as a real browser session, bypassing datacenter IP blocks.
+  const cookiesActive = (() => {
+    try { return fs.existsSync(YT_COOKIES_PATH) && fs.statSync(YT_COOKIES_PATH).size > 10; }
+    catch { return false; }
+  })();
+  if (cookiesActive) {
+    ytdlpAuthArgs.push("--cookies", YT_COOKIES_PATH);
+    logger.debug(`[Vault] Using cookies.txt for ${youtubeId}`);
+  }
   const clientList = accessToken ? PLAYER_CLIENTS_WITH_AUTH : PLAYER_CLIENTS_ANON;
   let lastErr = "";
   let allBotDetected = true;

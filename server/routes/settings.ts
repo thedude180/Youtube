@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
+import * as fs from "fs";
+import * as path from "path";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
@@ -1143,5 +1145,40 @@ export function registerSettingsRoutes(app: Express) {
     } catch (e: any) {
       res.status(500).json({ error: "Failed to delete account" });
     }
+  }));
+
+  // ── YouTube cookies.txt — bypasses datacenter IP bot detection ───────────────
+  const COOKIES_PATH = path.join(process.cwd(), ".local", "yt-cookies.txt");
+
+  app.get("/api/settings/yt-cookies/status", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      if (!fs.existsSync(COOKIES_PATH)) return res.json({ active: false, cookieCount: 0 });
+      const content = fs.readFileSync(COOKIES_PATH, "utf-8");
+      const cookieCount = content.split("\n").filter(l => l.trim() && !l.startsWith("#")).length;
+      res.json({ active: cookieCount > 0, cookieCount });
+    } catch {
+      res.json({ active: false, cookieCount: 0 });
+    }
+  }));
+
+  app.post("/api/settings/yt-cookies", writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { cookies } = z.object({ cookies: z.string().min(10).max(500_000) }).parse(req.body);
+    const dir = path.join(process.cwd(), ".local");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(COOKIES_PATH, cookies, "utf-8");
+    const cookieCount = cookies.split("\n").filter(l => l.trim() && !l.startsWith("#")).length;
+    logger.info(`[settings] yt-cookies saved: ${cookieCount} cookie entries by ${userId.slice(0, 8)}`);
+    res.json({ ok: true, cookieCount });
+  }));
+
+  app.delete("/api/settings/yt-cookies", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH);
+    res.json({ ok: true });
   }));
 }

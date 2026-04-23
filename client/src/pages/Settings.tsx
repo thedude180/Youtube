@@ -527,6 +527,151 @@ function PlatformConnectionsCard({
   );
 }
 
+function YouTubeCookiesCard() {
+  const { toast } = useToast();
+  const [cookieText, setCookieText] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+
+  const { data: status, refetch: refetchStatus } = useQuery<{ active: boolean; cookieCount: number }>({
+    queryKey: ["/api/settings/yt-cookies/status"],
+    staleTime: 30_000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/settings/yt-cookies", { cookies: cookieText }),
+    onSuccess: (data: any) => {
+      toast({ title: "Cookies saved", description: `${data.cookieCount} entries active — downloads will retry now` });
+      setCookieText("");
+      setShowPaste(false);
+      refetchStatus();
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/yt-cookies/status"] });
+    },
+    onError: () => toast({ title: "Save failed", description: "Make sure you pasted valid cookies.txt content", variant: "destructive" }),
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", "/api/settings/yt-cookies"),
+    onSuccess: () => {
+      toast({ title: "Cookies cleared" });
+      refetchStatus();
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/yt-cookies/status"] });
+    },
+  });
+
+  return (
+    <Card data-testid="card-yt-cookies">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-primary" />
+          YouTube Download Cookies
+          {status?.active
+            ? <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600 border-green-500/20 ml-1">Active — {status.cookieCount} cookies</Badge>
+            : <Badge variant="secondary" className="text-xs bg-yellow-500/10 text-yellow-600 border-yellow-500/20 ml-1">Not set</Badge>
+          }
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3 space-y-3">
+        {status?.active ? (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-1">
+              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                Cookie authentication is active. The vault downloader will use your YouTube session to bypass server-side download blocks.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive flex-shrink-0"
+              data-testid="button-clear-yt-cookies"
+              onClick={() => clearMutation.mutate()}
+              disabled={clearMutation.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Clear
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-yellow-500/5 border border-yellow-500/20">
+              <AlertTriangle className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                The server's IP is being blocked by YouTube's bot detection. Pasting your browser cookies here lets the downloader authenticate as you and bypass the block — unlocking the full 8,400+ video backlog.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-foreground">How to get your cookies on mobile:</p>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Android</p>
+                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Install <span className="font-medium text-foreground">Kiwi Browser</span> from the Play Store (free)</li>
+                    <li>Open <span className="font-mono bg-muted px-1 rounded text-[11px]">kiwi://extensions</span> and search for <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span>, tap install</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in to your YouTube account</li>
+                    <li>Tap the puzzle-piece icon → <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → <span className="font-medium text-foreground">Export</span></li>
+                    <li>Tap <span className="font-medium text-foreground">Copy to clipboard</span>, then paste everything below</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">iPhone</p>
+                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Install <span className="font-medium text-foreground">Cookie-Editor</span> from the App Store (free Safari extension)</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> in Safari and sign in</li>
+                    <li>Tap <span className="font-medium">AA</span> in the address bar → <span className="font-medium">Manage Extensions</span> → Cookie-Editor</li>
+                    <li>Tap <span className="font-medium text-foreground">Export</span> → choose <span className="font-medium">Netscape</span> format → copy</li>
+                    <li>Paste everything below</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {!showPaste ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                data-testid="button-show-cookie-paste"
+                onClick={() => setShowPaste(true)}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Paste cookies.txt
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Paste the full cookies.txt content here (starts with # Netscape HTTP Cookie File)"
+                  value={cookieText}
+                  onChange={e => setCookieText(e.target.value)}
+                  className="font-mono text-xs min-h-[120px] resize-none"
+                  data-testid="textarea-yt-cookies"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    data-testid="button-save-yt-cookies"
+                    onClick={() => saveMutation.mutate()}
+                    disabled={saveMutation.isPending || cookieText.trim().length < 10}
+                  >
+                    {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1.5" />}
+                    {saveMutation.isPending ? "Saving..." : "Save & activate"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowPaste(false)} data-testid="button-cancel-cookie-paste">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function GeneralTab() {
   const { user, logout, isLoggingOut } = useAuth();
   const [, setLocation] = useLocation();
@@ -808,6 +953,10 @@ function GeneralTab() {
           toast={toast}
           setLocation={setLocation}
         />
+      </SectionErrorBoundary>
+
+      <SectionErrorBoundary fallbackTitle="Download settings failed to load">
+        <YouTubeCookiesCard />
       </SectionErrorBoundary>
 
       <Card>
