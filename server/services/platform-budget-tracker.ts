@@ -15,29 +15,34 @@ const logger = createLogger("platform-budget");
 //   kick    → live relay only (RTMP). No upload API exists. No publisher.
 //   rumble  → live relay only (RTMP). No upload API exists. No publisher.
 //
-// Daily caps are tuned for human-looking cadence, not maximum throughput:
-//   youtube       : 1–2 long-form uploads/day (active creator standard).
-//                   2 keeps well under the 10k daily API quota.
-//   youtubeshorts : Gaming Shorts creators post 2–5/day. 4 slots spread 2h
-//                   apart looks organic, not bot-like.
-//   tiktok        : 2–3/day is the sweet spot. Above 4 on a gaming account
-//                   risks shadow-ban.
-//   discord       : Announcement-style — posts when YouTube/TikTok content
-//                   goes out. 8/day with 30-min gaps is natural.
+// Daily caps tuned for human-looking cadence at each platform's safe maximum:
+//
+//   youtube       : 2/day, 6-hour gap.  Active creator standard; keeps well
+//                   under the 10k daily YouTube API quota (2 × 1600 = 3200 units).
+//
+//   youtubeshorts : 4/day, 2-hour gap.  Gaming Shorts creators routinely post
+//                   3-5/day; 4 with 2h spacing looks organic, not bot-like.
+//
+//   tiktok        : 5/day, 90-min gap.  Top gaming TikTokers (FaZe, SypherPK)
+//                   post 3-6/day.  5 is the safe aggressive max before TikTok's
+//                   spam heuristics start flagging — 90-min spacing fits 5 posts
+//                   into a normal 16-hour waking day without bunching.
+//
+//   discord       : 8/day, 30-min gap.  Announcement-style; fires when YouTube
+//                   and TikTok content goes out.
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
   youtube: 2,
   youtubeshorts: 4,
-  tiktok: 3,
+  tiktok: 5,
   discord: 8,
 };
 
 // Minimum gap between consecutive posts on the same platform.
-// These enforce the spacing real creators naturally maintain.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
-  youtube: 6 * 60 * 60_000,       // 6 hours between long-form uploads
-  youtubeshorts: 2 * 60 * 60_000, // 2 hours between Shorts
-  tiktok: 3 * 60 * 60_000,        // 3 hours between TikTok posts
-  discord: 30 * 60_000,           // 30 min between announcements
+  youtube: 6 * 60 * 60_000,         // 6 hours between long-form uploads
+  youtubeshorts: 2 * 60 * 60_000,   // 2 hours between Shorts
+  tiktok: 90 * 60_000,              // 90 min between TikTok posts (down from 3h)
+  discord: 30 * 60_000,             // 30 min between announcements
 };
 
 export interface PlatformBudgetStatus {
@@ -90,13 +95,18 @@ export async function getPlatformBudgetStatus(userId: string, platform: string):
   todayEnd.setHours(23, 59, 59, 999);
 
   try {
+    // Only "scheduled" posts hold a daily slot — they have a committed future
+    // scheduledAt time for today.  "pending" (content not yet generated) and
+    // "processing" (mid-generation, may still fail) do NOT hold slots because
+    // they haven't been committed to a publish time yet.  Counting them caused
+    // the budget to falsely read as exhausted even when zero posts had gone out.
     const [scheduledResult] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.userId, userId),
         eq(autopilotQueue.targetPlatform, platform),
-        inArray(autopilotQueue.status, ["scheduled", "pending", "processing"]),
+        inArray(autopilotQueue.status, ["scheduled"]),
         gte(autopilotQueue.scheduledAt, todayStart),
         lte(autopilotQueue.scheduledAt, todayEnd),
       ));
