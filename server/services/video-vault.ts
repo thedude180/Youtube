@@ -40,7 +40,38 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 const DOWNLOAD_QUALITY = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
 const DOWNLOAD_DELAY_MS = 10_000;
-const PLAYER_CLIENTS = ["android_vr", "ios", "mweb"];
+// Extended client list: tv_embedded often bypasses bot detection on data-center IPs
+const PLAYER_CLIENTS = ["tv_embedded", "android_vr", "ios", "mweb", "web"];
+
+// InnerTube API clients — used for direct authenticated download that bypasses
+// yt-dlp bot detection entirely (the OAuth Bearer token IS valid for InnerTube).
+interface InnerTubeClient {
+  name: string;
+  clientName: string;
+  clientVersion: string;
+  userAgent: string;
+  apiClientName: string;
+  androidSdkVersion?: number;
+  deviceModel?: string;
+}
+const INNERTUBE_CLIENTS: InnerTubeClient[] = [
+  {
+    name: "ANDROID",
+    clientName: "ANDROID",
+    clientVersion: "19.09.37",
+    androidSdkVersion: 30,
+    userAgent: "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip",
+    apiClientName: "3",
+  },
+  {
+    name: "IOS",
+    clientName: "IOS",
+    clientVersion: "19.09.3",
+    deviceModel: "iPhone16,2",
+    userAgent: "com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_4_1 like Mac OS X)",
+    apiClientName: "5",
+  },
+];
 
 const LIVE_EVENT_PATTERNS = [
   /live event will begin/i,
@@ -574,18 +605,145 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
   return videos;
 }
 
+/**
+ * Download a YouTube video directly via the InnerTube player API.
+ * This bypasses yt-dlp bot-detection entirely: the Bearer token is legitimate
+ * for InnerTube (YouTube's internal API), which returns signed stream URLs
+ * that ffmpeg can download without any extra auth.
+ */
+async function downloadViaInnerTube(youtubeId: string, outputPath: string, accessToken: string): Promise<boolean> {
+  for (const client of INNERTUBE_CLIENTS) {
+    try {
+      const body: Record<string, unknown> = {
+        context: {
+          client: {
+            clientName: client.clientName,
+            clientVersion: client.clientVersion,
+            hl: "en",
+            gl: "US",
+            ...(client.androidSdkVersion !== undefined ? { androidSdkVersion: client.androidSdkVersion } : {}),
+            ...(client.deviceModel !== undefined ? { deviceModel: client.deviceModel } : {}),
+          },
+        },
+        videoId: youtubeId,
+        params: "2AMBCgIQBg==",
+      };
+
+      const playerRes = await fetch("https://www.youtube.com/youtubei/v1/player", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-YouTube-Client-Name": client.apiClientName,
+          "X-YouTube-Client-Version": client.clientVersion,
+          "User-Agent": client.userAgent,
+          "Origin": "https://www.youtube.com",
+          "X-Goog-AuthUser": "0",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!playerRes.ok) {
+        logger.warn(`[Vault] InnerTube ${client.name}: HTTP ${playerRes.status} for ${youtubeId}`);
+        continue;
+      }
+
+      const playerData: Record<string, any> = await playerRes.json();
+      const streamingData = playerData?.streamingData;
+      const playStatus = playerData?.playabilityStatus?.status;
+      const playReason = playerData?.playabilityStatus?.reason;
+
+      if (!streamingData) {
+        logger.warn(`[Vault] InnerTube ${client.name}: no streamingData for ${youtubeId} (${playStatus}: ${playReason})`);
+        continue;
+      }
+
+      const allFormats: Record<string, any>[] = [
+        ...(streamingData.formats || []),
+        ...(streamingData.adaptiveFormats || []),
+      ];
+
+      // Prefer combined a/v formats with direct URLs (no signatureCipher needed)
+      const direct = allFormats.filter(f => f.url && !f.signatureCipher && !f.cipher);
+      const combined = direct
+        .filter(f => f.mimeType?.startsWith("video/") && f.height && f.audioQuality)
+        .sort((a, b) => (b.height || 0) - (a.height || 0));
+      const videoOnly = direct
+        .filter(f => f.mimeType?.startsWith("video/") && f.height && !f.audioQuality && f.height <= 1080)
+        .sort((a, b) => (b.height || 0) - (a.height || 0));
+      const audioOnly = direct
+        .filter(f => f.mimeType?.startsWith("audio/"))
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+      let videoUrl: string | null = null;
+      let audioUrl: string | null = null;
+      let quality = 0;
+
+      if (combined.length > 0) {
+        videoUrl = combined[0].url;
+        quality = combined[0].height || 0;
+        logger.info(`[Vault] InnerTube ${client.name}: combined ${quality}p for ${youtubeId}`);
+      } else if (videoOnly.length > 0 && audioOnly.length > 0) {
+        videoUrl = videoOnly[0].url;
+        audioUrl = audioOnly[0].url;
+        quality = videoOnly[0].height || 0;
+        logger.info(`[Vault] InnerTube ${client.name}: adaptive ${quality}p+audio for ${youtubeId}`);
+      }
+
+      if (!videoUrl) {
+        logger.warn(`[Vault] InnerTube ${client.name}: no direct-URL streams for ${youtubeId} (all need signatureCipher)`);
+        continue;
+      }
+
+      // Build ffmpeg args — pass auth header so throttled n-parameter URLs still work
+      const authHeader = `Authorization: Bearer ${accessToken}\r\nUser-Agent: ${client.userAgent}\r\n`;
+      const ffmpegArgs = ["-y", "-headers", authHeader];
+      if (audioUrl) {
+        ffmpegArgs.push(
+          "-i", videoUrl,
+          "-headers", authHeader,
+          "-i", audioUrl,
+          "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
+        );
+      } else {
+        ffmpegArgs.push("-i", videoUrl, "-c", "copy", "-movflags", "+faststart");
+      }
+      ffmpegArgs.push(outputPath);
+
+      await execFileAsync("ffmpeg", ffmpegArgs, { timeout: 3_600_000 });
+
+      if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1024) {
+        const sizeMB = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(1);
+        logger.info(`[Vault] InnerTube ${client.name}: ✓ ${youtubeId} ${quality}p (${sizeMB}MB)`);
+        return true;
+      }
+    } catch (err: any) {
+      logger.warn(`[Vault] InnerTube ${client.name} failed for ${youtubeId}: ${String(err?.message || err).substring(0, 300)}`);
+    }
+  }
+  return false;
+}
+
 async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
-  await execFileAsync(resolveYtdlp(), [
-    "-f", DOWNLOAD_QUALITY,
-    "--merge-output-format", "mp4",
-    "-o", outputPath,
-    "--no-warnings",
-    "--no-playlist",
-    "--retries", "2",
-    "--extractor-args", `youtube:player_client=${playerClient}`,
-    ...authArgs,
-    url,
-  ], { timeout: 600_000 });
+  try {
+    await execFileAsync(resolveYtdlp(), [
+      "-f", DOWNLOAD_QUALITY,
+      "--merge-output-format", "mp4",
+      "-o", outputPath,
+      "--no-warnings",
+      "--no-playlist",
+      "--retries", "1",
+      "--sleep-requests", "2",
+      "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "--extractor-args", `youtube:player_client=${playerClient}`,
+      ...authArgs,
+      url,
+    ], { timeout: 600_000 });
+  } catch (err: any) {
+    // Re-throw with yt-dlp's real stderr so callers can see the actual error
+    const stderr = String(err?.stderr || "").substring(0, 400);
+    throw new Error(`yt-dlp ${playerClient}: ${String(err?.message || "").substring(0, 150)}\nstderr: ${stderr}`);
+  }
 }
 
 async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$inferSelect, accessToken?: string | null): Promise<boolean> {
@@ -617,21 +775,24 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     .set({ status: "downloading", downloadError: null })
     .where(eq(contentVaultBackups.id, vaultEntry.id));
 
-  // Primary: web_creator player with OAuth — designed for authenticated channel owners
+  // Primary: InnerTube API authenticated download.
+  // The OAuth Bearer token is valid for YouTube's internal player API, so we
+  // bypass yt-dlp bot-detection entirely by getting signed stream URLs directly
+  // and downloading them with ffmpeg.
   if (accessToken) {
-    const authArgs = ["--add-headers", `Authorization:Bearer ${accessToken}`];
     try {
-      await tryYtDlpDownload(url, outputPath, "web_creator", authArgs);
-      if (fs.existsSync(outputPath)) {
+      const ok = await downloadViaInnerTube(youtubeId, outputPath, accessToken);
+      if (ok && fs.existsSync(outputPath)) {
         const stat = fs.statSync(outputPath);
         if (stat.size > 1024) {
           await db.update(contentVaultBackups)
             .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
             .where(eq(contentVaultBackups.id, vaultEntry.id));
-          logger.info(`[Vault] Downloaded via YouTube OAuth (web_creator): ${vaultEntry.title?.substring(0, 50)} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
           return true;
         }
       }
+      // InnerTube returned data but no usable file — fall through to yt-dlp
+      logger.warn(`[Vault] InnerTube produced no file for ${youtubeId} — falling back to yt-dlp clients`);
     } catch (err: any) {
       const msg = String(err?.message || err).substring(0, 200);
       if (LIVE_EVENT_PATTERNS.some(p => p.test(msg))) {
@@ -640,7 +801,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
           .where(eq(contentVaultBackups.id, vaultEntry.id));
         return false;
       }
-      logger.warn(`[Vault] OAuth web_creator failed for ${youtubeId}: ${msg.substring(0, 100)} — trying fallback clients`);
+      logger.warn(`[Vault] InnerTube failed for ${youtubeId}: ${msg} — falling back to yt-dlp clients`);
     }
   }
 
@@ -684,12 +845,19 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     }
   }
 
-  // If every player client was rejected by bot detection, skip permanently —
-  // YouTube won't allow unauthenticated yt-dlp access and retrying wastes resources.
+  // If every yt-dlp client was bot-detected, mark as failed (not permanently skipped).
+  // InnerTube was already attempted above — if both paths fail, a future cycle will
+  // retry after a fresh token is available.
   if (allBotDetected) {
-    logger.warn(`[Vault] All clients blocked by bot detection for ${youtubeId} — skipping (no cookie auth available)`);
+    logger.warn(`[Vault] All yt-dlp clients bot-detected for ${youtubeId} — marking failed for retry next cycle`);
+    const existingMeta = (vaultEntry.metadata as Record<string, any>) || {};
+    const failCount = (existingMeta.failCount || 0) + 1;
     await db.update(contentVaultBackups)
-      .set({ status: "skipped", downloadError: "YouTube bot detection — yt-dlp blocked on all clients (no cookie auth)" })
+      .set({
+        status: "failed",
+        downloadError: "YouTube bot detection on all yt-dlp clients (InnerTube path also attempted)",
+        metadata: { ...existingMeta, lastFailedAt: new Date().toISOString(), failCount },
+      })
       .where(eq(contentVaultBackups.id, vaultEntry.id));
     return false;
   }
@@ -708,13 +876,14 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
 }
 
 /**
- * When a valid OAuth token becomes available, reset vault entries that were permanently
- * skipped due to bot detection so they retry with authenticated yt-dlp.
- * Also signals the stream-editor to re-queue jobs that failed only because the source
- * file was missing (they will re-download now that auth is present).
+ * When a valid OAuth token becomes available, reset vault entries that were blocked
+ * by bot detection so they retry with the InnerTube authenticated path.
+ * Covers both "skipped" (old behaviour) and "failed" (new behaviour) status.
+ * Also cascades to re-queue stream-editor jobs whose source file was missing.
  */
 async function recoverBotDetectedEntries(userId: string, accessToken: string): Promise<void> {
   try {
+    // Reset both "skipped" and "failed" entries that mention bot detection
     const { rowCount } = await db
       .update(contentVaultBackups)
       .set({
@@ -729,14 +898,12 @@ async function recoverBotDetectedEntries(userId: string, accessToken: string): P
       .where(
         and(
           eq(contentVaultBackups.userId, userId),
-          eq(contentVaultBackups.status, "skipped"),
+          sql`${contentVaultBackups.status} IN ('skipped', 'failed')`,
           sql`${contentVaultBackups.downloadError} LIKE '%bot detection%'`,
         ),
       );
     if (rowCount && rowCount > 0) {
-      logger.info(`[Vault] OAuth recovery: reset ${rowCount} bot-detected skipped entries → indexed (token now available)`);
-      // Cascade: re-queue stream-editor jobs that failed only because source files were absent.
-      // Dynamic import avoids circular dependency (stream-editor imports downloadVaultEntry from here).
+      logger.info(`[Vault] InnerTube recovery: reset ${rowCount} bot-detected entries → indexed (will retry via InnerTube)`);
       try {
         const { recoverSourceNotFoundJobs } = await import("./stream-editor");
         await recoverSourceNotFoundJobs(userId);
@@ -745,7 +912,7 @@ async function recoverBotDetectedEntries(userId: string, accessToken: string): P
       }
     }
   } catch (err: any) {
-    logger.warn("[Vault] OAuth recovery reset failed:", err?.message);
+    logger.warn("[Vault] InnerTube recovery reset failed:", err?.message);
   }
 }
 
