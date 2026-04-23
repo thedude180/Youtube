@@ -1,3 +1,4 @@
+import { ensureRuntimeBinaries } from "./lib/ensure-binaries";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import compression from "compression";
@@ -43,6 +44,12 @@ import fs from "fs";
 import path from "path";
 import { jitter } from "./lib/timer-utils";
 import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
+
+// Kick off ffmpeg + yt-dlp downloads immediately (no-op if already present).
+// Runs in parallel with server startup so binaries are ready before any
+// encoding or vault-download jobs fire. Must be called after all imports so
+// the BIN_DIR path is set on process.env.PATH before child-process spawns.
+const _binariesReady = ensureRuntimeBinaries();
 
 // ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
 // In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
