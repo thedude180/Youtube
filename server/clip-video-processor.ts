@@ -6,7 +6,7 @@ import * as os from "os";
 import { pipeline } from "stream/promises";
 import { storage } from "./storage";
 import { db } from "./db";
-import { videos, channels } from "@shared/schema";
+import { videos, channels, contentVaultBackups } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { isFfmpegAvailable, isYtdlpAvailable, getYtdlpBin } from "./lib/dependency-check";
@@ -357,6 +357,28 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
     }
   } catch {}
 
+  // ── VAULT LOOKUP ─────────────────────────────────────────────────────────────
+  // Check the content vault before attempting any network download.  The vault
+  // stores the same videos already downloaded by the watcher.  Using vault files
+  // means zero yt-dlp calls and no dependency on Replit's server IPs.
+  try {
+    const [vaultEntry] = await db
+      .select({ filePath: contentVaultBackups.filePath, status: contentVaultBackups.status })
+      .from(contentVaultBackups)
+      .where(and(
+        eq(contentVaultBackups.youtubeId, youtubeId),
+        eq(contentVaultBackups.status, "downloaded"),
+      ))
+      .limit(1);
+
+    if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
+      logger.info("Using vault file as source (skipping yt-dlp)", { youtubeId, path: vaultEntry.filePath });
+      return vaultEntry.filePath;
+    }
+  } catch (vaultErr: any) {
+    logger.warn("Vault lookup failed, falling through to yt-dlp", { youtubeId, error: vaultErr.message });
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const failReason = isPermanentlyFailed(youtubeId);
   if (failReason) {

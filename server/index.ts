@@ -243,6 +243,24 @@ async function healProductionPipeline(): Promise<void> {
       .where(eq(streamEditJobs.status, "processing"));
     const jobCount = (jobResult as any)?.rowCount ?? "?";
 
+    // 3b. Reset stream_edit_jobs that failed due to yt-dlp download blocks.
+    //     The vault-lookup fix in clip-video-processor.ts now means these jobs
+    //     will find the already-downloaded vault file instead of trying yt-dlp.
+    const dlFailResult = await db
+      .update(streamEditJobs)
+      .set({ status: "queued", errorMessage: null, progress: 0, startedAt: null })
+      .where(
+        and(
+          eq(streamEditJobs.status, "error"),
+          or(
+            like(streamEditJobs.errorMessage, "%Failed to download%"),
+            like(streamEditJobs.errorMessage, "%Source video file not found%"),
+            like(streamEditJobs.errorMessage, "%yt-dlp%"),
+          )!
+        )!
+      );
+    const dlFailCount = (dlFailResult as any)?.rowCount ?? "?";
+
     // 4. Reset content_pipeline entries that were abandoned mid-run ("processing")
     //    or failed with a transient AI budget 401 ("error" + message contains "401").
     //    These entries will never self-recover without a nudge — the pipeline marks
@@ -308,7 +326,7 @@ async function healProductionPipeline(): Promise<void> {
       .where(lte(vodConfig.maxLongFormPerDay, 1));
 
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);
