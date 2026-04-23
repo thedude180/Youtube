@@ -14,14 +14,37 @@ downloads/
 .vscode/
 .replit.nix/
 *.log
-*.mp4
-*.mkv
-*.webm
-*.avi
-*.mov
-*.mp3
-*.wav
-*.flac
+**/*.log
+
+# Video — all formats, anywhere in the tree
+**/*.mp4
+**/*.mkv
+**/*.webm
+**/*.avi
+**/*.mov
+**/*.m4v
+**/*.flv
+**/*.wmv
+**/*.3gp
+**/*.ogv
+**/*.m2ts
+**/*.mts
+
+# HLS / DASH segments that ffmpeg writes out
+**/*.ts
+**/*.m3u8
+**/*.mpd
+**/*.fmp4
+
+# Audio
+**/*.mp3
+**/*.wav
+**/*.flac
+**/*.aac
+**/*.ogg
+**/*.m4a
+**/*.opus
+**/*.wma
 tmp/
 /tmp/
 attached_assets/

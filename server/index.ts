@@ -58,6 +58,21 @@ const _binariesReady = ensureRuntimeBinaries();
 // In PRODUCTION: vault/ is intentionally preserved. The deployed app downloads
 // videos there so the owner can browse and download them to an external drive.
 // Never clear vault/ in production.
+
+// Wipe the contents of a directory without removing the directory itself.
+// Returns the number of top-level entries removed.
+function wipeDir(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  let removed = 0;
+  for (const entry of fs.readdirSync(dir)) {
+    try {
+      fs.rmSync(path.join(dir, entry), { recursive: true, force: true });
+      removed++;
+    } catch { /* skip locked entry */ }
+  }
+  return removed;
+}
+
 async function clearVault(): Promise<void> {
   if (process.env.NODE_ENV === "production") {
     process.stdout.write("[vault-cleanup] Production env — vault preserved for downloads, skipping cleanup\n");
@@ -104,6 +119,26 @@ async function clearVault(): Promise<void> {
     if (msg) process.stdout.write(msg);
   } catch (err: any) {
     process.stdout.write(`[vault-cleanup] Warning: ${err?.message}\n`);
+  }
+
+  // Also wipe all other video working directories so they never accumulate
+  // in dev and never risk being included in a deployment snapshot.
+  const videoDirs = [
+    path.resolve(process.cwd(), "data", "stream-editor"),
+    path.resolve(process.cwd(), "data", "studio"),
+    path.resolve(process.cwd(), "clips"),
+    path.resolve(process.cwd(), "reels"),
+    path.resolve(process.cwd(), "recordings"),
+    path.resolve(process.cwd(), "streams"),
+    path.resolve(process.cwd(), "downloads"),
+  ];
+  for (const dir of videoDirs) {
+    try {
+      const n = wipeDir(dir);
+      if (n > 0) process.stdout.write(`[vault-cleanup] Dev cleanup: wiped ${n} item(s) from ${path.relative(process.cwd(), dir)}/\n`);
+    } catch (err: any) {
+      process.stdout.write(`[vault-cleanup] Warning clearing ${dir}: ${err?.message}\n`);
+    }
   }
 }
 
