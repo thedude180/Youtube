@@ -157,7 +157,7 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
 
     const hardTimeout = setTimeout(() => {
       proc.kill("SIGKILL");
-      reject(new Error("FFmpeg hard timeout — encoding exceeded 90 minutes, killed"));
+      reject(new Error("FFmpeg hard timeout — encoding exceeded 4 hours, killed"));
     }, FFMPEG_HARD_TIMEOUT_MS);
 
     proc.stderr.on("data", (data: Buffer) => {
@@ -342,10 +342,18 @@ export async function queueStreamEditJob(
 }
 
 async function pickUpNextQueuedJob(): Promise<void> {
+  // Prioritise jobs where the vault file is already on disk (download_first = false
+  // means the file existed when the job was created).  Jobs that still need a
+  // download go last — they must wait for the vault download processor to pull
+  // the video before encoding can start, and letting them cut the queue blocks
+  // all the ready-to-encode jobs behind them.
   const waiting = await db.select({ id: streamEditJobs.id })
     .from(streamEditJobs)
     .where(eq(streamEditJobs.status, "queued"))
-    .orderBy(streamEditJobs.createdAt)
+    .orderBy(
+      sql`CASE WHEN ${streamEditJobs.downloadFirst} = false THEN 0 ELSE 1 END`,
+      streamEditJobs.createdAt,
+    )
     .limit(1);
 
   if (waiting.length > 0) {
@@ -382,17 +390,56 @@ async function runJobInBackground(jobId: number): Promise<void> {
     const fileAlreadyOnDisk = sourceFile && fs.existsSync(sourceFile);
 
     if (job.downloadFirst && !fileAlreadyOnDisk) {
-      await db.update(streamEditJobs).set({
-        currentStage: "Downloading from YouTube",
-      }).where(eq(streamEditJobs.id, jobId));
+      // Before attempting a download, check the vault entry's current status.
+      // If it is still "indexed" or "failed" (not yet downloaded by the vault
+      // download processor), defer this job rather than hammering YouTube with a
+      // bot-detected download attempt.  The vault download processor runs in
+      // parallel and will download the file; once it succeeds, the exhauster
+      // creates a fresh job (downloadFirst=false) or this job will see the file
+      // on disk when it is retried.
+      if (job.vaultEntryId) {
+        const [vaultCheck] = await db
+          .select({ status: contentVaultBackups.status, filePath: contentVaultBackups.filePath })
+          .from(contentVaultBackups)
+          .where(eq(contentVaultBackups.id, job.vaultEntryId))
+          .limit(1);
 
-      logger.info(`[StreamEditor] Job ${jobId}: downloading vault entry ${job.vaultEntryId}`);
-      sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId!);
+        if (vaultCheck && vaultCheck.status === "downloaded" && vaultCheck.filePath && fs.existsSync(vaultCheck.filePath)) {
+          // Vault entry already downloaded — use the vault file directly
+          sourceFile = vaultCheck.filePath;
+          await db.update(streamEditJobs).set({ sourceFilePath: sourceFile, downloadFirst: false })
+            .where(eq(streamEditJobs.id, jobId));
+          logger.info(`[StreamEditor] Job ${jobId}: vault entry already downloaded at ${sourceFile}, using existing file`);
+        } else if (vaultCheck && (vaultCheck.status === "indexed" || vaultCheck.status === "failed")) {
+          // Vault download hasn't happened yet — defer the job so the vault
+          // download processor can pull the file first.  This prevents the
+          // infinite download-fail-heal-retry loop that blocks the entire queue.
+          logger.info(`[StreamEditor] Job ${jobId}: vault entry ${job.vaultEntryId} is "${vaultCheck?.status}" — deferring job until vault downloads it`);
+          await db.update(streamEditJobs).set({
+            status: "queued",
+            currentStage: "Waiting for vault download",
+            startedAt: null,
+          }).where(eq(streamEditJobs.id, jobId));
+          activeJobId = null;
+          await pickUpNextQueuedJob();
+          return;
+        }
+      }
 
-      await db.update(streamEditJobs).set({
-        sourceFilePath: sourceFile,
-        currentStage: "Download complete — probing video",
-      }).where(eq(streamEditJobs.id, jobId));
+      // Proceed with download only if the vault check didn't give us a file
+      if (!sourceFile || !fs.existsSync(sourceFile)) {
+        await db.update(streamEditJobs).set({
+          currentStage: "Downloading from YouTube",
+        }).where(eq(streamEditJobs.id, jobId));
+
+        logger.info(`[StreamEditor] Job ${jobId}: downloading vault entry ${job.vaultEntryId}`);
+        sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId!);
+
+        await db.update(streamEditJobs).set({
+          sourceFilePath: sourceFile,
+          currentStage: "Download complete — probing video",
+        }).where(eq(streamEditJobs.id, jobId));
+      }
     } else if (job.downloadFirst && fileAlreadyOnDisk) {
       logger.info(`[StreamEditor] Job ${jobId}: vault file already on disk at ${sourceFile}, skipping download`);
     }
@@ -682,7 +729,7 @@ async function watchdogCheck(): Promise<void> {
       .update(streamEditJobs)
       .set({
         status: "queued",
-        errorMessage: "Reset by watchdog — was stuck in processing >90 min",
+        errorMessage: "Reset by watchdog — was stuck in processing >5 hours",
         currentStage: "Re-queued (watchdog)",
         startedAt: null,
         completedAt: null,

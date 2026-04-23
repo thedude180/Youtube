@@ -51,8 +51,8 @@ async function getMissingPlatforms(
       and(
         eq(streamEditJobs.vaultEntryId, vaultEntryId),
         eq(streamEditJobs.userId, userId),
-        // Ignore permanently failed jobs so they can be re-queued
-        ne(streamEditJobs.status as any, "failed"),
+        // Ignore errored jobs so they can be re-queued for this vault entry
+        ne(streamEditJobs.status as any, "error"),
       ),
     );
 
@@ -125,7 +125,7 @@ export async function exhaustVaultEntry(
  * Processes up to `batchSize` entries per sweep to avoid overloading the
  * FFmpeg queue with hundreds of jobs at once.
  */
-export async function runVaultExhaustSweep(batchSize = 5): Promise<void> {
+export async function runVaultExhaustSweep(batchSize = 50): Promise<void> {
   if (isSweeping) {
     logger.debug("[Exhauster] Sweep already running — skipping");
     return;
@@ -157,7 +157,7 @@ export async function runVaultExhaustSweep(batchSize = 5): Promise<void> {
             sql`${contentVaultBackups.youtubeId} NOT LIKE 'clip_%'`,
           ),
         )
-        .limit(100); // reasonable cap
+        .limit(500); // broad cap — sweeps all recently-downloaded entries
 
       let queued = 0;
       for (const { id } of downloadedEntries) {

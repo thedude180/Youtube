@@ -239,7 +239,7 @@ async function healProductionPipeline(): Promise<void> {
     // 3. Unstick edit jobs left "processing" by old server
     const jobResult = await db
       .update(streamEditJobs)
-      .set({ status: "queued" })
+      .set({ status: "queued", currentStage: "Re-queued (server restart)" })
       .where(eq(streamEditJobs.status, "processing"));
     const jobCount = (jobResult as any)?.rowCount ?? "?";
 
@@ -248,7 +248,7 @@ async function healProductionPipeline(): Promise<void> {
     //     will find the already-downloaded vault file instead of trying yt-dlp.
     const dlFailResult = await db
       .update(streamEditJobs)
-      .set({ status: "queued", errorMessage: null, progress: 0, startedAt: null })
+      .set({ status: "queued", errorMessage: null, progress: 0, startedAt: null, currentStage: "Re-queued (vault retry)" })
       .where(
         and(
           eq(streamEditJobs.status, "error"),
@@ -353,6 +353,19 @@ async function healProductionPipeline(): Promise<void> {
       }
     } catch (pipelineErr: any) {
       process.stdout.write(`[prod-heal] Warning: could not kick pending pipelines: ${pipelineErr?.message}\n`);
+    }
+
+    // 8. Immediately run a large exhauster sweep so that downloaded vault entries
+    //    which have no stream_edit_job yet get jobs created before the first encode
+    //    cycle starts.  Normal periodic sweeps (every 10 min, 50 entries) are too
+    //    slow to clear a multi-thousand-entry backlog; this one-time boot sweep
+    //    creates up to 200 jobs straight away, then the periodic sweeps keep up.
+    try {
+      const { runVaultExhaustSweep } = await import("./services/vault-clip-exhauster");
+      await runVaultExhaustSweep(200);
+      process.stdout.write(`[prod-heal] Boot exhauster sweep complete\n`);
+    } catch (exhaustErr: any) {
+      process.stdout.write(`[prod-heal] Warning: boot exhauster sweep failed: ${exhaustErr?.message}\n`);
     }
 
     process.stdout.write(

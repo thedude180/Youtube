@@ -993,7 +993,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
 
   try {
     let consecutiveFailures = 0;
-    const MAX_CONSECUTIVE_FAILURES = 5;
+    const MAX_CONSECUTIVE_FAILURES = 20; // raised from 5 — many entries need multiple client attempts
 
     while (true) {
       const freeSpace = await getFreeSpaceGB();
