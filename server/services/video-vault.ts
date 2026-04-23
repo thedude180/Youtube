@@ -40,8 +40,20 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 const DOWNLOAD_QUALITY = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
 const DOWNLOAD_DELAY_MS = 10_000;
-// Extended client list: tv_embedded often bypasses bot detection on data-center IPs
-const PLAYER_CLIENTS = ["tv_embedded", "android_vr", "ios", "mweb", "web"];
+// yt-dlp client priority list.
+// "android_testsuite" and "mediaconnect" were added in yt-dlp 2025.01+ specifically
+// to bypass YouTube's po_token requirement on datacenter/server IPs.  They hit a
+// different internal endpoint that does not check the proof-of-origin token.
+// Put them first so authenticated fallback succeeds on the first attempt.
+const PLAYER_CLIENTS = [
+  "android_testsuite", // po_token-exempt (2025+)
+  "mediaconnect",      // po_token-exempt (2025+)
+  "tv_embedded",
+  "android_vr",
+  "ios",
+  "mweb",
+  "web",
+];
 
 // InnerTube API clients — used for direct authenticated download that bypasses
 // yt-dlp bot detection entirely (the OAuth Bearer token IS valid for InnerTube).
@@ -85,6 +97,9 @@ const BOT_DETECTION_PATTERNS = [
   /confirm you're not a bot/i,
   /cookies.*authentication/i,
   /use --cookies/i,
+  // YouTube po_token enforcement — datacenter IPs get HTTP 400 on metadata API
+  /unable to download api page.*400/i,
+  /http error 400.*bad request/i,
 ];
 
 // Resolved lazily after checkDependencies() runs at startup.
