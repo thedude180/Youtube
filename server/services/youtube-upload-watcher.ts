@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, getQuotaStatus, canAffordOperation } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, canAffordOperation, persistQuotaExhaustion } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("upload-watcher");
@@ -342,6 +342,11 @@ async function runWatcherScan(userId: string): Promise<void> {
     if (state) {
       state.lastError = err.message;
       state.lastScanAt = new Date();
+    }
+    const isQuotaErr = err?.message?.toLowerCase().includes("quota") || err?.code === 403 || err?.code === "QUOTA_EXCEEDED";
+    if (isQuotaErr) {
+      // Stamp the DB so the circuit breaker restore on next startup sees exhausted quota
+      persistQuotaExhaustion(userId).catch(() => {});
     }
     logger.warn(`[${userId}] Upload watcher scan error: ${err.message}`);
   }

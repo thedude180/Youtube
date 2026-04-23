@@ -4,7 +4,7 @@ import { db } from "../db";
 import { videos, channels } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, getQuotaStatus, canAffordOperation } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, canAffordOperation, persistQuotaExhaustion } from "./youtube-quota-tracker";
 
 const logger = createLogger("youtube-vod-watcher");
 
@@ -201,6 +201,11 @@ async function runWatcherScan(userId: string): Promise<void> {
     if (state) {
       state.lastError = err.message;
       state.lastScanAt = new Date();
+    }
+    const isQuotaErr = err?.message?.toLowerCase().includes("quota") || err?.code === 403 || err?.code === "QUOTA_EXCEEDED";
+    if (isQuotaErr) {
+      // Stamp the DB so the circuit breaker restore on next startup sees exhausted quota
+      persistQuotaExhaustion(userId).catch(() => {});
     }
     logger.warn(`[${userId}] VOD watcher scan error: ${err.message}`);
   }

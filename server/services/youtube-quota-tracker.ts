@@ -265,6 +265,32 @@ export function markQuotaErrorFromResponse(err: any): boolean {
 }
 
 /**
+ * Stamps the DB record for today as fully exhausted the moment a 403 quota
+ * error is returned from Google.
+ *
+ * trackQuotaUsage() only increments usage for *successful* API calls, so the
+ * DB can underestimate real consumption by thousands of units when calls fail
+ * with 403.  On the next server restart, restoreQuotaBreakerOnStartup() reads
+ * that stale DB value, concludes quota is healthy, and the startup burst fires
+ * again.  persistQuotaExhaustion() closes that gap: it sets unitsUsed = quotaLimit
+ * so every subsequent canAffordOperation() and restoreQuotaBreakerOnStartup()
+ * call sees the true "fully exhausted" state.
+ */
+export async function persistQuotaExhaustion(userId: string): Promise<void> {
+  try {
+    const record = await getOrCreateDailyRecord(userId);
+    if (record.unitsUsed < record.quotaLimit) {
+      await db.update(youtubeQuotaUsage)
+        .set({ unitsUsed: record.quotaLimit, lastUpdatedAt: new Date() })
+        .where(eq(youtubeQuotaUsage.id, record.id));
+      logger.info(`[QuotaTracker] Persisted exhaustion to DB for user ${userId} — unitsUsed stamped to ${record.quotaLimit}`);
+    }
+  } catch (err: any) {
+    logger.warn(`[QuotaTracker] Failed to persist quota exhaustion (non-fatal): ${err.message}`);
+  }
+}
+
+/**
  * Called once at server startup — reads today's quota record from the DB
  * and pre-trips the in-memory circuit breaker if the quota is already exhausted.
  *
