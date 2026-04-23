@@ -484,6 +484,15 @@ export class DatabaseStorage implements IStorage {
       }
 
       await tx.execute(sql`DELETE FROM thumbnails WHERE video_id IN ${videoSubquery}`);
+
+      // Explicit safety net: delete schedule_items that reference these videos.
+      // The loop above uses nested sql fragments that can silently miss rows in
+      // some Drizzle versions — this direct statement guarantees no FK violation.
+      await tx.execute(sql`DELETE FROM schedule_items WHERE video_id IN (SELECT id FROM videos WHERE channel_id = ${id})`);
+      // Also clear any user-level schedule items that reference these videos
+      // (rows created by the autopilot scheduler that may have been re-linked).
+      await tx.execute(sql`DELETE FROM autopilot_queue WHERE source_video_id IN (SELECT id FROM videos WHERE channel_id = ${id})`);
+
       await tx.delete(videos).where(eq(videos.channelId, id));
       await tx.delete(channels).where(eq(channels.id, id));
     });
