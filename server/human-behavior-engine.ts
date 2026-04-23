@@ -69,21 +69,24 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
     weekendMultiplier: 1.0,
   },
   // YouTube Shorts: more frequent than long-form, gaming clips do well 2–5/day.
+  // Gap reduced 2h→90min to match platform-budget-tracker's PLATFORM_MIN_GAP_MS.
   youtubeshorts: {
     peakHours: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
     offPeakHours: [10, 11, 22, 23],
     maxPostsPerDay: 4,
-    minGapMinutes: 120,   // 2 hours minimum between Shorts
-    avgGapMinutes: 180,   // target ~3 hours apart
+    minGapMinutes: 90,    // 90 min minimum (synced with budget tracker)
+    avgGapMinutes: 135,   // target ~2.25 hours apart across the day
     weekendMultiplier: 1.1,
   },
-  // TikTok: gaming community peaks in the evenings. 2–3 clips/day consistent.
+  // TikTok: 5/day at 90-min spacing. Gaming content peaks evenings + late night.
+  // 23:00 added to peak hours — gaming TikTok performs strongly 10pm-midnight.
+  // maxPostsPerDay and minGapMinutes synced with platform-budget-tracker.
   tiktok: {
-    peakHours: [15, 16, 17, 18, 19, 20, 21, 22],
-    offPeakHours: [11, 12, 13, 14, 23],
-    maxPostsPerDay: 3,
-    minGapMinutes: 180,   // 3 hours minimum
-    avgGapMinutes: 300,   // target ~5 hours apart
+    peakHours: [15, 16, 17, 18, 19, 20, 21, 22, 23],
+    offPeakHours: [11, 12, 13, 14],
+    maxPostsPerDay: 5,
+    minGapMinutes: 90,    // 90 min minimum (synced with budget tracker)
+    avgGapMinutes: 150,   // target ~2.5 hours apart across the day
     weekendMultiplier: 1.2,
   },
   // X/Twitter: shorter content, higher frequency is acceptable.
@@ -96,13 +99,14 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
     weekendMultiplier: 0.8,
   },
   // Discord: announcement-channel style. Posts shortly after YouTube/TikTok.
-  // Gaming communities are active evenings and late night.
+  // 12/day at 20-min gap — one announcement per content piece (11/day total)
+  // plus buffer. Synced with platform-budget-tracker PLATFORM_DAILY_LIMITS.
   discord: {
     peakHours: [14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
     offPeakHours: [10, 11, 12, 13],
-    maxPostsPerDay: 8,
-    minGapMinutes: 30,    // 30 min — announcement cadence, not spam
-    avgGapMinutes: 90,    // follows YouTube/TikTok schedule naturally
+    maxPostsPerDay: 12,
+    minGapMinutes: 20,    // 20 min — one announcement per content piece
+    avgGapMinutes: 45,    // follows YouTube/TikTok schedule naturally
     weekendMultiplier: 1.3,
   },
   // NOTE: twitch, kick, rumble are LIVE-STREAM ONLY (RTMP). They have no
@@ -244,14 +248,19 @@ export function shouldPostToday(platform: string): boolean {
   const now = new Date();
   const weekend = isWeekend(now);
 
-  let probability = 0.85;
+  // 0.97 base = ~3% skip rate across all distribution decisions.
+  // This keeps the channel posting almost every day while still
+  // preventing a perfectly-robotic "exactly N posts every single day"
+  // pattern that platform algorithms and viewers both notice.
+  // (Was 0.85 — that skipped ~1 in 7 decisions, causing visible gaps.)
+  let probability = 0.97;
   if (weekend) {
     probability *= timing.weekendMultiplier;
   }
 
   const dayOfWeek = now.getDay();
-  if (dayOfWeek === 1) probability *= 1.1;
-  if (dayOfWeek === 3) probability *= 1.05;
+  if (dayOfWeek === 1) probability *= 1.03; // slight Monday boost
+  if (dayOfWeek === 3) probability *= 1.02; // slight Wednesday boost
 
   return Math.random() < Math.min(1, probability);
 }
