@@ -605,13 +605,25 @@ function YouTubeCookiesCard() {
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Android</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Firefox (Android) — easiest</p>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Install <span className="font-medium text-foreground">Kiwi Browser</span> from the Play Store (free)</li>
-                    <li>Open <span className="font-mono bg-muted px-1 rounded text-[11px]">kiwi://extensions</span> and search for <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span>, tap install</li>
+                    <li>Open Firefox for Android → tap the three-dot menu → <span className="font-medium text-foreground">Add-ons</span></li>
+                    <li>Search for <span className="font-medium text-foreground">cookies.txt</span> (by Lennon Hill) → tap <span className="font-medium text-foreground">Add to Firefox</span></li>
                     <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in to your YouTube account</li>
-                    <li>Tap the puzzle-piece icon → <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → <span className="font-medium text-foreground">Export</span></li>
-                    <li>Tap <span className="font-medium text-foreground">Copy to clipboard</span>, then paste everything below</li>
+                    <li>Tap the three-dot menu → <span className="font-medium text-foreground">Add-ons</span> → tap <span className="font-medium text-foreground">cookies.txt</span></li>
+                    <li>Tap <span className="font-medium text-foreground">Click here to download</span> — the file downloads; open it and copy all the text</li>
+                    <li>Come back here, tap <span className="font-medium text-foreground">Paste cookies.txt</span> below and paste</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Kiwi Browser (Android — alternative)</p>
+                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Install <span className="font-medium text-foreground">Kiwi Browser</span> from the Play Store</li>
+                    <li>Open <span className="font-mono bg-muted px-1 rounded text-[11px]">kiwi://extensions</span> → search <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → install</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in</li>
+                    <li>Tap the puzzle-piece icon → <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → <span className="font-medium text-foreground">Export</span> → Copy to clipboard</li>
+                    <li>Paste everything below</li>
                   </ol>
                 </div>
 
