@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { withRetry } from "../lib/retry";
 import { createLogger } from "../lib/logger";
-import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
+import { isQuotaBreakerTripped, canAffordOperation } from "./youtube-quota-tracker";
 
 const logger = createLogger("youtube-analytics");
 
@@ -32,11 +32,20 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MILESTONE_BREAKPOINTS = [100, 500, 1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
 
 async function getFirstChannelForUser(userId: string): Promise<{ id: number; accessToken: string; channelId: string; subscriberCount: number | null } | null> {
-  // Gate: quota breaker tripped → all YouTube API calls blocked until midnight Pacific
+  // Gate 1: quota breaker tripped → all YouTube API calls blocked until midnight Pacific
   if (isQuotaBreakerTripped()) return null;
 
-  // Gate: recent 401 auth failure → back off for 30 minutes before retrying
+  // Gate 2: recent 401 auth failure → back off for 30 minutes before retrying
   if (isUserInAuthCooldown(userId)) return null;
+
+  // Gate 3: Tier-2 quota check — analytics has no upload alternative, but it is
+  // a background read that should not consume the headroom reserved for uploads
+  // and metadata writes (which have no non-API alternative).
+  const canAfford = await canAffordOperation(userId, "read");
+  if (!canAfford) {
+    logger.info(`[${userId}] Analytics skipped — quota reserved for uploads/metadata`);
+    return null;
+  }
 
   const channels = await storage.getChannelsByUser(userId);
   const ch = channels.find(c => c.accessToken && c.accessToken !== "dev_api_key_mode") || channels[0];

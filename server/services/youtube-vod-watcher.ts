@@ -4,7 +4,7 @@ import { db } from "../db";
 import { videos, channels } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, getQuotaStatus } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, canAffordOperation } from "./youtube-quota-tracker";
 
 const logger = createLogger("youtube-vod-watcher");
 
@@ -67,9 +67,12 @@ async function getAuthenticatedYouTube(channel: any) {
 async function scanUserForNewVods(userId: string): Promise<{ newVods: number; scanned: number }> {
   const { isQuotaBreakerTripped: breaker } = await import("./youtube-quota-tracker");
   if (breaker()) return { newVods: 0, scanned: 0 };
-  const quota = await getQuotaStatus(userId);
-  if (quota.remaining < 50) {
-    logger.warn(`[${userId}] VOD watcher skipped — quota too low (${quota.remaining} remaining)`);
+  // Tier-2 gate: VOD scanning has a scraping alternative — only use API quota
+  // when enough headroom exists for uploads (which have no alternative).
+  // canAffordOperation("read") requires remaining >= 1 + SAFETY_BUFFER + UPLOAD_RESERVE.
+  const canScan = await canAffordOperation(userId, "read");
+  if (!canScan) {
+    logger.info(`[${userId}] VOD watcher skipped — quota reserved for uploads/metadata`);
     return { newVods: 0, scanned: 0 };
   }
 

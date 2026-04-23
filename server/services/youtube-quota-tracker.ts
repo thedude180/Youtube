@@ -264,4 +264,31 @@ export function markQuotaErrorFromResponse(err: any): boolean {
   return false;
 }
 
+/**
+ * Called once at server startup — reads today's quota record from the DB
+ * and pre-trips the in-memory circuit breaker if the quota is already exhausted.
+ *
+ * Without this, every deploy resets the in-memory breaker to "not tripped."
+ * All background services then simultaneously fire YouTube API calls on boot,
+ * hit 403 quota-exceeded errors, and waste the startup window before the
+ * breaker finally trips from the first 403 response.
+ *
+ * With this call early in startup, the breaker is armed before any service
+ * runs, so zero wasted calls happen if the quota was spent before the deploy.
+ */
+export async function restoreQuotaBreakerOnStartup(): Promise<void> {
+  try {
+    const allUsers = await getQuotaForAllUsers();
+    const exhausted = allUsers.find(u => u.isExceeded || u.remaining < SAFETY_BUFFER);
+    if (exhausted) {
+      tripGlobalQuotaBreaker();
+      logger.info(`[QuotaBreaker] Startup restore: quota exhausted for user ${exhausted.userId} (${exhausted.remaining} remaining) — circuit breaker pre-tripped until midnight Pacific`);
+    } else {
+      logger.info(`[QuotaBreaker] Startup restore: quota healthy — breaker stays open`);
+    }
+  } catch (err: any) {
+    logger.warn(`[QuotaBreaker] Could not restore state from DB on startup (non-fatal): ${err.message}`);
+  }
+}
+
 export { QUOTA_COSTS, type QuotaOperation, getPacificDate, getNextResetTime };

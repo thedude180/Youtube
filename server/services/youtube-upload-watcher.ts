@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, getQuotaStatus } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, canAffordOperation } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("upload-watcher");
@@ -196,9 +196,12 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
 async function scanUserForNewUploads(userId: string): Promise<{ newUploads: number; scanned: number }> {
   const { isQuotaBreakerTripped: breaker } = await import("./youtube-quota-tracker");
   if (breaker()) return { newUploads: 0, scanned: 0 };
-  const quota = await getQuotaStatus(userId);
-  if (quota.remaining < 50) {
-    logger.warn(`[${userId}] Upload watcher skipped — quota too low (${quota.remaining} remaining)`);
+  // Tier-2 gate: upload detection uses playlist reads — only run when enough
+  // quota remains for actual uploads (Tier-1, no alternative).
+  // canAffordOperation("read") requires remaining >= 1 + SAFETY_BUFFER + UPLOAD_RESERVE.
+  const canScan = await canAffordOperation(userId, "read");
+  if (!canScan) {
+    logger.info(`[${userId}] Upload watcher skipped — quota reserved for uploads/metadata`);
     return { newUploads: 0, scanned: 0 };
   }
 

@@ -203,6 +203,17 @@ async function resetDevPipelineData(): Promise<void> {
 async function healProductionPipeline(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
   try {
+    // ── FIRST: restore the YouTube quota circuit breaker from DB ──────────────
+    // The in-memory breaker resets to "not tripped" on every server restart /
+    // deploy.  Without this call, all background services fire YouTube API calls
+    // simultaneously at boot, hit 403 quota-exceeded errors, and burn the startup
+    // window — even though the quota was already spent before the deploy.
+    // restoreQuotaBreakerOnStartup() reads today's DB record and pre-arms the
+    // breaker so every service sees "tripped" from the very first millisecond.
+    const { restoreQuotaBreakerOnStartup } = await import("./services/youtube-quota-tracker");
+    await restoreQuotaBreakerOnStartup();
+    // ─────────────────────────────────────────────────────────────────────────
+
     const { contentVaultBackups, streamEditJobs } = await import("@shared/schema");
     const { eq, or, like } = await import("drizzle-orm");
 
