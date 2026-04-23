@@ -100,8 +100,57 @@ async function clearVault(): Promise<void> {
   }
 }
 
-clearVault(); // run immediately on startup (dev only)
-setInterval(clearVault, jitter(60 * 60 * 1000)); // run ~every hour (dev only)
+// ── DEV FULL PIPELINE RESET ───────────────────────────────────────────────────
+// In DEVELOPMENT: on every startup, wipe all pipeline DB rows so the dev
+// environment always begins from a clean slate. Channel tokens, user accounts,
+// and the indexed video catalog are preserved — only in-progress pipeline data
+// is cleared. Production is never touched.
+//
+// Tables cleared in dev:
+//   content_vault_backups → reset to "indexed" (re-downloads will happen fresh)
+//   stream_edit_jobs       → deleted (no stale encode jobs)
+//   studio_videos          → deleted (no phantom upload records)
+//   autopilot_queue        → deleted (no ghost scheduled posts)
+//   content_clips          → deleted (no orphaned clip metadata)
+async function resetDevPipelineData(): Promise<void> {
+  if (process.env.NODE_ENV === "production") return;
+  try {
+    const {
+      contentVaultBackups,
+      streamEditJobs,
+      studioVideos,
+      autopilotQueue,
+      contentClips,
+    } = await import("@shared/schema");
+    const { sql: drizzleSql } = await import("drizzle-orm");
+
+    // Reset vault entries: keep the video catalog rows but wipe download state
+    // so InnerTube picks them up fresh next cycle.
+    await db.update(contentVaultBackups).set({
+      status: "indexed",
+      filePath: null,
+      fileSize: null,
+      downloadedAt: null,
+      downloadError: null,
+      metadata: drizzleSql`'{}'::jsonb`,
+    });
+
+    await db.delete(streamEditJobs);
+    await db.delete(studioVideos);
+    await db.delete(autopilotQueue);
+    await db.delete(contentClips);
+
+    process.stdout.write(
+      "[dev-reset] Dev pipeline cleared: vault→indexed, edit jobs, studio videos, clips, and queue entries wiped.\n"
+    );
+  } catch (err: any) {
+    process.stdout.write(`[dev-reset] Warning during pipeline reset: ${err?.message}\n`);
+  }
+}
+
+clearVault(); // wipe vault files (dev only)
+resetDevPipelineData(); // wipe pipeline DB rows (dev only)
+setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { healthBrain } from "./services/health-brain";
