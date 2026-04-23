@@ -440,6 +440,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
     const outputFiles: Array<{
       platform: string; clipIndex: number; label: string;
       filePath: string; fileSize: number; durationSecs: number;
+      studioVideoId?: number; scheduledPublishAt?: string;
     }> = [];
 
     await db.update(streamEditJobs).set({

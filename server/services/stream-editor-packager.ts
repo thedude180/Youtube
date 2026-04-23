@@ -230,7 +230,6 @@ export async function packageClips(
           seoScore: seo.seoScore,
           privacyStatus: "private",
           channelId: youtubeChannelId,
-          platform: clip.platform,
         },
       });
 
