@@ -15,34 +15,45 @@ const logger = createLogger("platform-budget");
 //   kick    → live relay only (RTMP). No upload API exists. No publisher.
 //   rumble  → live relay only (RTMP). No upload API exists. No publisher.
 //
-// Daily caps tuned for human-looking cadence at each platform's safe maximum:
+// Daily caps tuned for maximum human-like throughput on each platform.
 //
-//   youtube       : 2/day, 6-hour gap.  Active creator standard; keeps well
-//                   under the 10k daily YouTube API quota (2 × 1600 = 3200 units).
+//   youtube       : 2/day, 6-hour gap.
+//                   *** QUOTA-CONSTRAINED — cannot raise. ***
+//                   2 long-form + 4 Shorts = 6 uploads × 1,600 units = 9,600 units.
+//                   The 10k daily YouTube API quota is the hard ceiling here.
+//                   6-hour spacing matches what active gaming YouTubers maintain.
 //
-//   youtubeshorts : 4/day, 2-hour gap.  Gaming Shorts creators routinely post
-//                   3-5/day; 4 with 2h spacing looks organic, not bot-like.
+//   youtubeshorts : 4/day, 90-min gap.
+//                   *** QUOTA-CONSTRAINED — cannot raise beyond 4. ***
+//                   4 Shorts × 1,600 units = 6,400 units (see youtube note above).
+//                   Gap reduced 2h → 90 min: gives the scheduler ~50% more
+//                   flexibility in slot placement without changing the 4/day cap.
+//                   Top Shorts creators: 3-6/day with 1-2h spacing is normal.
 //
-//   tiktok        : 5/day, 90-min gap.  Top gaming TikTokers (FaZe, SypherPK)
-//                   post 3-6/day.  5 is the safe aggressive max before TikTok's
-//                   spam heuristics start flagging — 90-min spacing fits 5 posts
-//                   into a normal 16-hour waking day without bunching.
+//   tiktok        : 5/day, 90-min gap.
+//                   Top gaming TikTokers (FaZe, SypherPK) post 3-6/day.
+//                   5 is the safe aggressive max before TikTok spam heuristics
+//                   flag an account; 90-min spacing fits 5 posts naturally into
+//                   a 16-hour day without bunching.
 //
-//   discord       : 8/day, 30-min gap.  Announcement-style; fires when YouTube
-//                   and TikTok content goes out.
+//   discord       : 12/day, 20-min gap.
+//                   Webhooks are free — no API quota constraint.
+//                   Content output = 2 YouTube + 4 Shorts + 5 TikTok = 11/day.
+//                   12 gives one announcement per piece plus buffer for reposts.
+//                   20-min gap is natural for an active gaming community server.
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
   youtube: 2,
   youtubeshorts: 4,
   tiktok: 5,
-  discord: 8,
+  discord: 12,
 };
 
 // Minimum gap between consecutive posts on the same platform.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
-  youtube: 6 * 60 * 60_000,         // 6 hours between long-form uploads
-  youtubeshorts: 2 * 60 * 60_000,   // 2 hours between Shorts
-  tiktok: 90 * 60_000,              // 90 min between TikTok posts (down from 3h)
-  discord: 30 * 60_000,             // 30 min between announcements
+  youtube: 6 * 60 * 60_000,         // 6 h between long-form uploads
+  youtubeshorts: 90 * 60_000,        // 90 min between Shorts (down from 2 h)
+  tiktok: 90 * 60_000,              // 90 min between TikTok posts
+  discord: 20 * 60_000,             // 20 min between announcements (down from 30 min)
 };
 
 export interface PlatformBudgetStatus {
