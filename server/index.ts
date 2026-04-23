@@ -256,6 +256,8 @@ async function healProductionPipeline(): Promise<void> {
             like(streamEditJobs.errorMessage, "%Failed to download%"),
             like(streamEditJobs.errorMessage, "%Source video file not found%"),
             like(streamEditJobs.errorMessage, "%yt-dlp%"),
+            like(streamEditJobs.errorMessage, "%AI packaging produced no Studio videos%"),
+            like(streamEditJobs.errorMessage, "%Encoding completed but produced 0 clips%"),
           )!
         )!
       );

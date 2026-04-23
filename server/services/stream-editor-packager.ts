@@ -18,6 +18,9 @@ import { storage } from "../storage";
 import { getOpenAIClient } from "../lib/openai";
 import { generateThumbnailPrompt } from "../ai-engine";
 import { createLogger } from "../lib/logger";
+import { db } from "../db";
+import { channels } from "@shared/schema";
+import { and, eq } from "drizzle-orm";
 
 const logger = createLogger("stream-editor-packager");
 
@@ -182,6 +185,17 @@ export async function packageClips(
   onProgress?: (packaged: number, total: number) => void,
 ): Promise<RawClip[]> {
   const result: RawClip[] = [...clips];
+
+  // Resolve the user's YouTube channel ID once — publishStudioVideo hard-throws
+  // if channelId is missing from studio_video.metadata, so we must include it.
+  const [youtubeChannel] = await db.select({ id: channels.id })
+    .from(channels)
+    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+    .limit(1);
+  const youtubeChannelId = youtubeChannel?.id ?? null;
+  if (!youtubeChannelId) {
+    logger.warn("[Packager] No YouTube channel found for user — clips will be created without channelId, auto-publish will be skipped");
+  }
   let packaged = 0;
 
   // Group by platform so we know the total-clips count per platform
@@ -215,6 +229,8 @@ export async function packageClips(
           categoryId: "20",
           seoScore: seo.seoScore,
           privacyStatus: "private",
+          channelId: youtubeChannelId,
+          platform: clip.platform,
         },
       });
 

@@ -501,12 +501,21 @@ async function runJobInBackground(jobId: number): Promise<void> {
       }
     }
 
+    // Guard: if encoding produced no output files, mark as error rather than
+    // silently completing as "done" with nothing to publish.
+    if (outputFiles.length === 0) {
+      throw new Error(
+        `Encoding completed but produced 0 clips from ${numClips} expected — FFmpeg may have failed silently (check disk space or codec errors)`
+      );
+    }
+
     // ── AI Post-processing: generate SEO package + Studio videos for every clip ──
     await db.update(streamEditJobs).set({
       currentStage: "AI Packaging (0/" + outputFiles.length + ")",
     }).where(eq(streamEditJobs.id, jobId));
 
     let packagedOutputFiles = outputFiles;
+    let packagingError: string | null = null;
     try {
       const vaultEntry = job.vaultEntryId
         ? await db.select().from(contentVaultBackups).where(eq(contentVaultBackups.id, job.vaultEntryId)).limit(1).then(r => r[0] ?? null)
@@ -528,7 +537,17 @@ async function runJobInBackground(jobId: number): Promise<void> {
         },
       );
     } catch (packErr: any) {
-      logger.warn(`[StreamEditor] Job ${jobId}: AI packaging failed (clips still saved):`, packErr?.message);
+      packagingError = String(packErr?.message ?? packErr);
+      logger.warn(`[StreamEditor] Job ${jobId}: AI packaging failed:`, packagingError);
+    }
+
+    // If no clips were successfully packaged into Studio (no studioVideoId assigned),
+    // the YouTube publish chain is broken — surface this as a retryable error.
+    const anyPackaged = packagedOutputFiles.some(c => c.studioVideoId != null);
+    if (!anyPackaged && outputFiles.length > 0) {
+      throw new Error(
+        `AI packaging produced no Studio videos — ${packagingError ?? "all clips failed packaging"}. Clips are encoded on disk; retry will re-package.`
+      );
     }
 
     await db.update(streamEditJobs).set({
