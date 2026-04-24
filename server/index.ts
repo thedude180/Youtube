@@ -379,6 +379,8 @@ async function healProductionPipeline(): Promise<void> {
 clearVault(); // wipe vault files (dev only)
 resetDevPipelineData(); // wipe pipeline DB rows (dev only)
 healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
+// Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
+import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 

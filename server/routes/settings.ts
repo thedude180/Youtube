@@ -1148,13 +1148,51 @@ export function registerSettingsRoutes(app: Express) {
   }));
 
   // ── YouTube cookies.txt — bypasses datacenter IP bot detection ───────────────
+  // Cookies are persisted in channels.platform_data->ytCookiesData (survives
+  // redeployments) AND written to .local/yt-cookies.txt at save time + startup.
   const COOKIES_PATH = path.join(process.cwd(), ".local", "yt-cookies.txt");
+
+  function writeCookiesFile(content: string) {
+    const dir = path.join(process.cwd(), ".local");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(COOKIES_PATH, content, "utf-8");
+  }
+
+  async function saveCookiesToDb(userId: string, cookieContent: string) {
+    await db.execute(
+      sql`UPDATE channels
+          SET platform_data = COALESCE(platform_data, '{}'::jsonb)
+            || jsonb_build_object('ytCookiesData', ${cookieContent}::text, 'ytCookiesSavedAt', now()::text)
+          WHERE user_id = ${userId} AND platform = 'youtube'`
+    );
+  }
+
+  async function deleteCookiesFromDb(userId: string) {
+    await db.execute(
+      sql`UPDATE channels
+          SET platform_data = platform_data - 'ytCookiesData' - 'ytCookiesSavedAt'
+          WHERE user_id = ${userId} AND platform = 'youtube'`
+    );
+  }
 
   app.get("/api/settings/yt-cookies/status", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      if (!fs.existsSync(COOKIES_PATH)) return res.json({ active: false, cookieCount: 0 });
+      // Prefer the file (fastest); fall back to DB if file is missing (e.g. fresh deploy)
+      if (!fs.existsSync(COOKIES_PATH)) {
+        const row = await db.execute(
+          sql`SELECT platform_data->>'ytCookiesData' AS cookies FROM channels
+              WHERE user_id = ${userId} AND platform = 'youtube' LIMIT 1`
+        );
+        const stored = (row as any).rows?.[0]?.cookies as string | null;
+        if (stored && stored.length > 10) {
+          writeCookiesFile(stored); // restore to disk
+          const cookieCount = stored.split("\n").filter((l: string) => l.trim() && !l.startsWith("#")).length;
+          return res.json({ active: true, cookieCount });
+        }
+        return res.json({ active: false, cookieCount: 0 });
+      }
       const content = fs.readFileSync(COOKIES_PATH, "utf-8");
       const cookieCount = content.split("\n").filter(l => l.trim() && !l.startsWith("#")).length;
       res.json({ active: cookieCount > 0, cookieCount });
@@ -1163,13 +1201,37 @@ export function registerSettingsRoutes(app: Express) {
     }
   }));
 
+  // Convert Firefox Cookie Manager JSON export → Netscape cookies.txt format.
+  function convertJsonToNetscape(raw: string): string {
+    const parsed = JSON.parse(raw);
+    const arr: any[] = Array.isArray(parsed) ? parsed : (parsed.cookies ?? []);
+    const lines = ["# Netscape HTTP Cookie File", "# Converted from Firefox Cookie Manager JSON", ""];
+    for (const c of arr) {
+      const domain: string = c.domain ?? "";
+      const includeSubdomains = (!c.hostOnly && domain.startsWith(".")) ? "TRUE" : "FALSE";
+      const cookiePath: string = c.path ?? "/";
+      const secure = c.secure ? "TRUE" : "FALSE";
+      const expiry = c.session || !c.expirationDate ? "0" : Math.floor(c.expirationDate).toString();
+      lines.push(`${domain}\t${includeSubdomains}\t${cookiePath}\t${secure}\t${expiry}\t${c.name}\t${c.value}`);
+    }
+    return lines.join("\n");
+  }
+
   app.post("/api/settings/yt-cookies", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const { cookies } = z.object({ cookies: z.string().min(10).max(500_000) }).parse(req.body);
-    const dir = path.join(process.cwd(), ".local");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(COOKIES_PATH, cookies, "utf-8");
+    const { cookies: rawInput } = z.object({ cookies: z.string().min(10).max(500_000) }).parse(req.body);
+    // Auto-detect Firefox Cookie Manager JSON export and convert to Netscape format
+    let cookies = rawInput.trimStart();
+    if (cookies.startsWith("{") || cookies.startsWith("[")) {
+      try {
+        cookies = convertJsonToNetscape(cookies);
+      } catch {
+        return res.status(400).json({ error: "Invalid JSON cookie format — paste the full Firefox Cookie Manager export" });
+      }
+    }
+    writeCookiesFile(cookies);
+    await saveCookiesToDb(userId, cookies);
     const cookieCount = cookies.split("\n").filter(l => l.trim() && !l.startsWith("#")).length;
     logger.info(`[settings] yt-cookies saved: ${cookieCount} cookie entries by ${userId.slice(0, 8)}`);
     res.json({ ok: true, cookieCount });
@@ -1179,6 +1241,34 @@ export function registerSettingsRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH);
+    await deleteCookiesFromDb(userId).catch(() => {});
     res.json({ ok: true });
   }));
+}
+
+// Called at server startup to restore yt-cookies.txt from the DB so downloads
+// work immediately after a redeploy (before any user visits Settings).
+export async function restoreYtCookiesFromDb(): Promise<void> {
+  try {
+    const { db: database } = await import("../db");
+    const { sql: drizzleSql } = await import("drizzle-orm");
+    const COOKIES_PATH = path.join(process.cwd(), ".local", "yt-cookies.txt");
+    if (fs.existsSync(COOKIES_PATH)) return; // already on disk, nothing to do
+
+    const rows = await database.execute(
+      drizzleSql`SELECT platform_data->>'ytCookiesData' AS cookies
+                 FROM channels WHERE platform = 'youtube'
+                 AND platform_data ? 'ytCookiesData' LIMIT 1`
+    );
+    const stored = (rows as any).rows?.[0]?.cookies as string | null;
+    if (!stored || stored.length < 10) return;
+
+    const dir = path.join(process.cwd(), ".local");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(COOKIES_PATH, stored, "utf-8");
+    const count = stored.split("\n").filter((l: string) => l.trim() && !l.startsWith("#")).length;
+    process.stdout.write(`[yt-cookies] Restored ${count} cookies from DB to disk\n`);
+  } catch (err: any) {
+    process.stdout.write(`[yt-cookies] Warning: could not restore cookies from DB: ${err?.message}\n`);
+  }
 }

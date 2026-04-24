@@ -546,7 +546,7 @@ function YouTubeCookiesCard() {
       refetchStatus();
       queryClient.invalidateQueries({ queryKey: ["/api/settings/yt-cookies/status"] });
     },
-    onError: () => toast({ title: "Save failed", description: "Make sure you pasted valid cookies.txt content", variant: "destructive" }),
+    onError: () => toast({ title: "Save failed", description: "Make sure you pasted valid Netscape cookies.txt or Firefox Cookie Manager JSON", variant: "destructive" }),
   });
 
   const clearMutation = useMutation({
@@ -601,40 +601,45 @@ function YouTubeCookiesCard() {
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-foreground">How to get your cookies on mobile:</p>
+              <p className="text-xs font-semibold text-foreground">How to get your cookies:</p>
+              <p className="text-xs text-muted-foreground">You can paste <span className="font-medium text-foreground">Netscape cookies.txt</span> format <em>or</em> a <span className="font-medium text-foreground">Firefox Cookie Manager JSON export</span> — the server converts JSON automatically.</p>
 
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Firefox (Android) — easiest</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Firefox Desktop (Cookie Manager extension) — recommended</p>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Open Firefox for Android → tap the three-dot menu → <span className="font-medium text-foreground">Add-ons</span></li>
-                    <li>Search for <span className="font-medium text-foreground">cookies.txt</span> (by Lennon Hill) → tap <span className="font-medium text-foreground">Add to Firefox</span></li>
-                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in to your YouTube account</li>
-                    <li>Tap the three-dot menu → <span className="font-medium text-foreground">Add-ons</span> → tap <span className="font-medium text-foreground">cookies.txt</span></li>
-                    <li>Tap <span className="font-medium text-foreground">Click here to download</span> — the file downloads; open it and copy all the text</li>
-                    <li>Come back here, tap <span className="font-medium text-foreground">Paste cookies.txt</span> below and paste</li>
+                    <li>In Firefox, go to <span className="font-medium text-foreground">about:addons</span> → search <span className="font-medium text-foreground">Cookie Manager</span> (by Studio Banana) → install</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in</li>
+                    <li>Click the Cookie Manager icon → <span className="font-medium text-foreground">Export</span> → copy the full JSON</li>
+                    <li>Paste below — JSON is auto-converted</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Firefox Android</p>
+                  <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                    <li>Tap three-dot menu → <span className="font-medium text-foreground">Add-ons</span> → search <span className="font-medium text-foreground">cookies.txt</span> (by Lennon Hill) → install</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in</li>
+                    <li>Tap three-dot menu → <span className="font-medium text-foreground">Add-ons</span> → <span className="font-medium text-foreground">cookies.txt</span> → download the file and copy its contents</li>
+                    <li>Paste below</li>
                   </ol>
                 </div>
 
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Kiwi Browser (Android — alternative)</p>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Install <span className="font-medium text-foreground">Kiwi Browser</span> from the Play Store</li>
-                    <li>Open <span className="font-mono bg-muted px-1 rounded text-[11px]">kiwi://extensions</span> → search <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → install</li>
-                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in</li>
-                    <li>Tap the puzzle-piece icon → <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span> → <span className="font-medium text-foreground">Export</span> → Copy to clipboard</li>
-                    <li>Paste everything below</li>
+                    <li>Install <span className="font-medium text-foreground">Kiwi Browser</span> → open <span className="font-mono bg-muted px-1 rounded text-[11px]">kiwi://extensions</span> → install <span className="font-medium text-foreground">Get cookies.txt LOCALLY</span></li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> and sign in → puzzle icon → <span className="font-medium text-foreground">Export</span> → copy</li>
+                    <li>Paste below</li>
                   </ol>
                 </div>
 
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">iPhone</p>
                   <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-                    <li>Install <span className="font-medium text-foreground">Cookie-Editor</span> from the App Store (free Safari extension)</li>
-                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> in Safari and sign in</li>
-                    <li>Tap <span className="font-medium">AA</span> in the address bar → <span className="font-medium">Manage Extensions</span> → Cookie-Editor</li>
-                    <li>Tap <span className="font-medium text-foreground">Export</span> → choose <span className="font-medium">Netscape</span> format → copy</li>
-                    <li>Paste everything below</li>
+                    <li>Install <span className="font-medium text-foreground">Cookie-Editor</span> from the App Store</li>
+                    <li>Go to <span className="font-medium text-foreground">youtube.com</span> in Safari → tap <span className="font-medium">AA</span> → <span className="font-medium">Manage Extensions</span> → Cookie-Editor</li>
+                    <li>Tap <span className="font-medium text-foreground">Export</span> → choose <span className="font-medium">Netscape</span> → copy → paste below</li>
                   </ol>
                 </div>
               </div>
@@ -654,7 +659,7 @@ function YouTubeCookiesCard() {
             ) : (
               <div className="space-y-2">
                 <Textarea
-                  placeholder="Paste the full cookies.txt content here (starts with # Netscape HTTP Cookie File)"
+                  placeholder="Paste Netscape cookies.txt (starts with # Netscape HTTP Cookie File) or Firefox Cookie Manager JSON export (starts with {)"
                   value={cookieText}
                   onChange={e => setCookieText(e.target.value)}
                   className="font-mono text-xs min-h-[120px] resize-none"
