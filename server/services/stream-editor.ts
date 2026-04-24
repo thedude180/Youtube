@@ -150,9 +150,20 @@ function runProcess(bin: string, args: string[]): Promise<string> {
 // Hard-kill at 4 hours; the watchdog uses 5 hours to give encoding room to breathe.
 const FFMPEG_HARD_TIMEOUT_MS = 4 * 60 * 60 * 1000;  // 4 hours
 
+// ── Encoding CPU budget ───────────────────────────────────────────────────────
+// 4K libx264 will use every available core if unconstrained, starving the web
+// server and causing 504 timeouts. Two limits work together:
+//   1. nice -n 15  — OS scheduler gives the web server priority over FFmpeg
+//      whenever both compete for a core. The process still runs, just yields.
+//   2. -threads 2  — caps FFmpeg's own thread pool so it can't flood all cores.
+// With these in place the web server stays responsive during a long 4K encode.
+// If encoding speed is a concern later, raise FFMPEG_ENCODE_THREADS (max = cores−1).
+const FFMPEG_ENCODE_THREADS = 2;
+
 function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
+    // Spawn via `nice -n 15` so the OS deprioritises FFmpeg vs the Express server.
+    const proc = spawn("nice", ["-n", "15", FFMPEG_BIN, "-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let totalDuration = 0;
 
     const hardTimeout = setTimeout(() => {
@@ -289,7 +300,7 @@ async function processClip(
     "-color_trc", "bt709",
     "-colorspace", "bt709",
     "-movflags", "+faststart",
-    "-threads", "0",
+    "-threads", String(FFMPEG_ENCODE_THREADS),
     outputPath,
   ];
 
