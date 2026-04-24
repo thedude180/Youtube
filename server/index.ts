@@ -349,7 +349,43 @@ async function healProductionPipeline(): Promise<void> {
       .set({ maxLongFormPerDay: 2, maxShortsPerDay: 4, updatedAt: new Date() })
       .where(lte(vodConfig.maxLongFormPerDay, 1));
 
-    // 7. Kick off pending pipeline entries.
+    // 7. Reset VOD autopilot queue items that were stuck by two previously fixed bugs:
+    //    Bug A: vod-optimizer-engine inserted items with status="pending" (not "scheduled"),
+    //           so they were never picked up by the queue processor.
+    //    Bug B: vod-long-form and vod-short items were routed through publishToplatform
+    //           which always returned "skipped" for YouTube, setting them to "cancelled".
+    //    Scope: vod-optimization "pending" → all; vod-long-form/vod-short "cancelled"
+    //           → only within last 30 days (avoid resurrecting legitimately old items).
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000);
+    const { gte: gteOp } = await import("drizzle-orm");
+
+    const vodOptPendingResult = await db
+      .update(autopilotQueue)
+      .set({ status: "scheduled", scheduledAt: new Date() })
+      .where(
+        and(
+          eq(autopilotQueue.type, "vod-optimization"),
+          eq(autopilotQueue.status, "pending"),
+        )!
+      );
+    const vodOptPendingCount = (vodOptPendingResult as any)?.rowCount ?? "?";
+
+    const vodCancelledResult = await db
+      .update(autopilotQueue)
+      .set({ status: "scheduled", scheduledAt: new Date() })
+      .where(
+        and(
+          or(
+            eq(autopilotQueue.type, "vod-long-form"),
+            eq(autopilotQueue.type, "vod-short"),
+          )!,
+          eq(autopilotQueue.status, "cancelled"),
+          gteOp(autopilotQueue.createdAt, thirtyDaysAgo),
+        )!
+      );
+    const vodCancelledCount = (vodCancelledResult as any)?.rowCount ?? "?";
+
+    // 8. Kick off pending pipeline entries.
     //    The pipeline runner does NOT poll for "pending" status — it only fires
     //    when an entry is explicitly triggered.  Any entry stuck in "pending"
     //    (e.g. reset by heal above) will sit forever without this nudge.
@@ -391,7 +427,7 @@ async function healProductionPipeline(): Promise<void> {
     }
 
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);

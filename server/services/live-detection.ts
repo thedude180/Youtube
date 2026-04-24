@@ -225,8 +225,40 @@ async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedB
         markQuotaErrorFromResponse(err);
         logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
       }
-    } else {
+    } else if (quota.remaining >= 50) {
+      // Quota is low (< 500) but we have enough to make one cheap liveBroadcasts.list
+      // call (50 units) to pre-populate the liveChatId cache.  Without this, both
+      // live-chat-agent and stream-idle-engagement each independently call
+      // liveBroadcasts.list on activation (100 units total).  One call here saves
+      // one unit net.  We don't use the result for confirmation — that still requires
+      // a second scraping hit or a full quota budget.
+      try {
+        const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+        const apiBroadcasts = await checkYouTubeLiveBroadcasts(channelDbId);
+        await trackQuotaUsage(userId, "broadcast");
+        const active = (apiBroadcasts as any[]).filter((b: any) => b.status === "active" || b.status === "live");
+        if (active.length > 0 && active[0].liveChatId) {
+          cacheLiveChatId(channelDbId, active[0].liveChatId, active[0].broadcastId);
+          logger.info(`[LiveDetection] Pre-cached liveChatId during scraping-only detection (low quota)`);
+          return {
+            broadcast: {
+              platform: "youtube",
+              broadcastId: scrapedVideoId || active[0].broadcastId || `yt_scrape_${Date.now()}`,
+              title: scrapedTitle || active[0].title || "YouTube Live Stream",
+              description: "Detected via scraping + liveChatId pre-cached",
+              startedAt: new Date().toISOString(),
+              liveChatId: active[0].liveChatId,
+            },
+            pipeline: "scraping",
+          };
+        }
+      } catch (err: any) {
+        markQuotaErrorFromResponse(err);
+        logger.warn(`[LiveDetection] liveChatId pre-cache attempt failed (non-critical):`, err?.message);
+      }
       logger.info(`[LiveDetection] YouTube quota low (${quota.remaining} remaining) — scraping-only detection for ${userId.slice(0, 8)}`);
+    } else {
+      logger.info(`[LiveDetection] YouTube quota critically low (${quota.remaining} remaining) — scraping-only detection for ${userId.slice(0, 8)}`);
     }
   }
 
