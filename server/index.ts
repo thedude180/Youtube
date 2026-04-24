@@ -521,7 +521,11 @@ async function healProductionPipeline(): Promise<void> {
 }
 
 clearVault(); // wipe vault files (dev only)
-resetDevPipelineData(); // wipe pipeline DB rows (dev only)
+resetDevPipelineData().then(() => {
+  // Seed fake data immediately after the pipeline wipe so the UI always
+  // boots into a fully-populated, testable state in dev. No-op in production.
+  import("./dev-seed").then(m => m.seedDevData()).catch(() => {});
+});
 syncChannelTokens(); // restore missing YouTube tokens from users table (dev + prod)
 healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
