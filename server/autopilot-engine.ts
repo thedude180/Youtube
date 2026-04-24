@@ -1130,6 +1130,105 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
   }
 }
 
+async function handleVodLongFormPublish(
+  post: any, meta: any,
+): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
+  try {
+    if (!post.sourceVideoId) return { success: false, error: "No source video ID for VOD long-form" };
+    const [video] = await db.select().from(videos).where(eq(videos.id, post.sourceVideoId));
+    if (!video) return { success: false, error: "Source video not found" };
+    const ytMeta = (video.metadata as any) || {};
+    const youtubeId: string | null = ytMeta.youtubeId || ytMeta.youtubeVideoId || null;
+    if (!youtubeId) return { success: false, error: "Source video has no YouTube ID — cannot update metadata" };
+
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find((c: any) => c.accessToken);
+    if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
+
+    const newTitle = (post.caption || meta.optimizedTitle || video.title || "").substring(0, 100);
+    const newDescription = (post.content || video.description || "").substring(0, 5000);
+    const newTags: string[] = Array.isArray(meta.tags) ? meta.tags.slice(0, 30) : (ytMeta.tags || []);
+
+    const { updateYouTubeVideo } = await import("./youtube");
+    const { trackQuotaUsage } = await import("./services/youtube-quota-tracker");
+    await updateYouTubeVideo(ytChannel.id, youtubeId, { title: newTitle, description: newDescription, tags: newTags });
+    await trackQuotaUsage(post.userId, "write");
+
+    await storage.updateVideo(post.sourceVideoId, {
+      title: newTitle,
+      description: newDescription,
+      metadata: { ...ytMeta, tags: newTags, vodAutopilotOptimized: true, vodAutopilotOptimizedAt: new Date().toISOString() },
+    });
+    logger.info("VOD long-form metadata pushed to YouTube", { postId: post.id, youtubeId, title: newTitle.substring(0, 60) });
+    return { success: true, postId: youtubeId, postUrl: `https://www.youtube.com/watch?v=${youtubeId}` };
+  } catch (err: any) {
+    logger.error("VOD long-form publish failed", { postId: post.id, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleVodShortPublish(
+  post: any, meta: any,
+): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
+  try {
+    const clipId = meta?.clipId;
+    if (!clipId) return { success: false, error: "No clip ID in metadata for VOD short" };
+    const { processClipForYouTubeShorts } = await import("./clip-video-processor");
+    const result = await processClipForYouTubeShorts(Number(clipId), post.userId);
+    if (!result) return { success: false, error: "Clip processing failed or source file unavailable" };
+    logger.info("VOD short uploaded to YouTube", { postId: post.id, youtubeId: result.youtubeId, title: result.title });
+    return { success: true, postId: result.youtubeId, postUrl: `https://www.youtube.com/shorts/${result.youtubeId}` };
+  } catch (err: any) {
+    logger.error("VOD short publish failed", { postId: post.id, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
+async function handleVodOptimizationPublish(
+  post: any, meta: any,
+): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
+  try {
+    if (!post.sourceVideoId) return { success: false, error: "No source video ID for VOD optimization" };
+    const [video] = await db.select().from(videos).where(eq(videos.id, post.sourceVideoId));
+    if (!video) return { success: false, error: "Source video not found" };
+    const ytMeta = (video.metadata as any) || {};
+    const youtubeId: string | null = ytMeta.youtubeId || ytMeta.youtubeVideoId || null;
+    if (!youtubeId) return { success: false, error: "Source video has no YouTube ID — cannot optimize metadata" };
+
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")));
+    const ytChannel = ytChannels.find((c: any) => c.accessToken);
+    if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
+
+    let newTitle = (video.title || "").substring(0, 100);
+    let newDescription = (video.description || "").substring(0, 5000);
+    let newTags: string[] = ytMeta.tags || [];
+    try {
+      const parsed = typeof post.content === "string" ? JSON.parse(post.content) : (post.content || {});
+      if (parsed.newTitle) newTitle = String(parsed.newTitle).substring(0, 100);
+      if (parsed.newDescription) newDescription = String(parsed.newDescription).substring(0, 5000);
+      if (Array.isArray(parsed.newTags)) newTags = parsed.newTags.slice(0, 30);
+    } catch { /* keep video defaults on parse error */ }
+
+    const { updateYouTubeVideo } = await import("./youtube");
+    const { trackQuotaUsage } = await import("./services/youtube-quota-tracker");
+    await updateYouTubeVideo(ytChannel.id, youtubeId, { title: newTitle, description: newDescription, tags: newTags });
+    await trackQuotaUsage(post.userId, "write");
+
+    await storage.updateVideo(post.sourceVideoId, {
+      title: newTitle,
+      description: newDescription,
+      metadata: { ...ytMeta, tags: newTags, vodOptimizerApplied: true, vodOptimizerAppliedAt: new Date().toISOString() },
+    });
+    logger.info("VOD optimization pushed to YouTube", { postId: post.id, youtubeId, title: newTitle.substring(0, 60) });
+    return { success: true, postId: youtubeId, postUrl: `https://www.youtube.com/watch?v=${youtubeId}` };
+  } catch (err: any) {
+    logger.error("VOD optimization publish failed", { postId: post.id, error: err.message });
+    return { success: false, error: err.message };
+  }
+}
+
 async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string; skipped?: boolean }> {
   try {
     const sourceYoutubeId = meta.sourceYoutubeId;
@@ -1641,6 +1740,12 @@ export async function processScheduledPosts() {
         result = await handleMaximizerClipPublish(post, meta);
       } else if (post.type === "auto-clip" && post.targetPlatform === "youtube" && meta.sourceStreamId && meta.segmentStartMin != null) {
         result = await handleStreamClipPublish(post, meta);
+      } else if (post.type === "vod-long-form" && post.targetPlatform === "youtube") {
+        result = await handleVodLongFormPublish(post, meta);
+      } else if (post.type === "vod-short" && post.targetPlatform === "youtube") {
+        result = await handleVodShortPublish(post, meta);
+      } else if (post.type === "vod-optimization" && post.targetPlatform === "youtube") {
+        result = await handleVodOptimizationPublish(post, meta);
       } else {
         result = await publishToplatform(
           post.userId,

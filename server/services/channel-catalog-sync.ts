@@ -69,6 +69,12 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     return { total: 0, newLinks: 0, updated: 0, errors: 0 };
   }
 
+  const quotaBefore = await getQuotaStatus(userId);
+  if (quotaBefore.remaining < 50) {
+    logger.warn(`[${userId}] Quota too low for public catalog sync (${quotaBefore.remaining} remaining) — skipping`);
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
+
   const channelIdentifier = channel.channelId;
   if (!channelIdentifier) {
     logger.warn(`[${userId}] No channel ID for public sync`);
@@ -93,6 +99,7 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     for (const param of lookupStrategies) {
       const chUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&${param}${keyParam}`;
       const chResp = await fetch(chUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
+      await trackQuotaUsage(userId, "list", 1);
       if (!chResp.ok) continue;
       const chData = await chResp.json() as any;
       if (chData.items?.[0]) {
@@ -132,8 +139,14 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     let pages = 0;
 
     do {
+      const quotaMid = await getQuotaStatus(userId);
+      if (quotaMid.remaining < 20) {
+        logger.warn(`[${userId}] Quota running low during public playlist fetch (${quotaMid.remaining}) — stopping at ${allVideoIds.length} videos`);
+        break;
+      }
       const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}${keyParam}`;
       const plResp = await fetch(plUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
+      await trackQuotaUsage(userId, "list", 1);
       if (!plResp.ok) {
         logger.warn(`[${userId}] Playlist fetch failed: ${plResp.status}`);
         break;
@@ -162,9 +175,15 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
 
     for (let i = 0; i < allVideoIds.length; i += 50) {
       const batch = allVideoIds.slice(i, i + 50);
+      const quotaBatch = await getQuotaStatus(userId);
+      if (quotaBatch.remaining < 10) {
+        logger.warn(`[${userId}] Quota exhausted during public video detail fetch — processed ${i} of ${allVideoIds.length}`);
+        break;
+      }
       try {
         const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${batch.join(",")}${keyParam}`;
         const vResp = await fetch(vUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(20000) });
+        await trackQuotaUsage(userId, "list", 1);
         if (!vResp.ok) {
           logger.warn(`[${userId}] Video detail fetch failed at batch ${i}: ${vResp.status}`);
           errors += batch.length;

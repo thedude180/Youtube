@@ -190,7 +190,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
           expectedImpact: opt.expectedImpact,
         }),
         caption: `VOD Optimize: ${sanitizeForPrompt(opt.originalTitle)} → ${sanitizeForPrompt(opt.newTitle)}`,
-        status: "pending",
+        status: "scheduled",
         scheduledAt: new Date(Date.now() + Math.random() * 60 * 60 * 1000),
         metadata: {
           style: "vod-refresh",
