@@ -26,12 +26,16 @@ type Platform = (typeof ALL_PLATFORMS)[number];
 // Default clip duration: 60 minutes (processor will auto-split if needed)
 const DEFAULT_CLIP_DURATION_MINS = 60;
 
-// Default enhancements applied to every auto-created job
+// Default enhancements applied to every auto-created job.
+// upscale4k — Lanczos upscale to 3840×2160 with full filter chain:
+//   hqdn3d denoise → eq colour grade → unsharp pre-sharpen → scale → pad.
+// sharpen  — applied BEFORE the Lanczos scale so the upscaler has crisper
+//   source edges to work from; essential for the 1080p→4K jump.
 const DEFAULT_ENHANCEMENTS = {
-  upscale4k: false,
+  upscale4k: true,
   audioNormalize: true,
   colorEnhance: true,
-  sharpen: false,
+  sharpen: true,
 };
 
 let isSweeping = false;

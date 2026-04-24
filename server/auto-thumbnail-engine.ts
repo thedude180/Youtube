@@ -10,6 +10,30 @@ import { getQuotaStatus, trackQuotaUsage, isQuotaBreakerTripped, markQuotaErrorF
 const logger = createLogger("auto-thumbnail");
 const openai = getOpenAIClient();
 
+// ── 4K Thumbnail Feature Flag ─────────────────────────────────────────────────
+// YouTube currently supports a maximum of 2048×1152 for custom thumbnails.
+// When YouTube officially launches 4K thumbnail support, flip this to true —
+// no further code changes needed. The upload path, size budget, and Sharp
+// pipeline all scale automatically based on this single constant.
+//
+// HOW TO ACTIVATE (future):
+//   1. YouTube announces 4K thumbnail support
+//   2. Set YT_4K_THUMBNAILS_ENABLED = true
+//   3. Optionally raise YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES to match the new
+//      file-size cap YouTube publishes with the feature
+//   Done — every newly generated thumbnail will be uploaded at 4K.
+const YT_4K_THUMBNAILS_ENABLED = false;
+
+// Dimensions used for Sharp post-processing and YouTube upload.
+// Current YouTube maximum: 2048×1152 (better quality than the old 1280×720).
+// 4K (ready, dormant): 3840×2160.
+const THUMB_W = YT_4K_THUMBNAILS_ENABLED ? 3840 : 2048;
+const THUMB_H = YT_4K_THUMBNAILS_ENABLED ? 2160 : 1152;
+
+// YouTube's upload size cap is currently 2 MB for custom thumbnails.
+// When they support 4K, they will likely raise this; update the constant then.
+const YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES = 2_000_000;
+
 const MAX_THUMBNAILS_PER_RUN = 3;
 const disconnectedChannels = new Set<number>();
 let disconnectedChannelsTTL = 0;
@@ -79,7 +103,7 @@ Title: "${sanitizeForPrompt(videoTitle)}"
 Description: "${sanitizeForPrompt((videoDescription || "").substring(0, 300))}"
 Type: ${videoType}${gameName ? `\nGame: ${sanitizeForPrompt(gameName)}\n\nCRITICAL: This video is about "${sanitizeForPrompt(gameName)}". The thumbnail MUST visually represent "${sanitizeForPrompt(gameName)}" — its art style, characters, environments, and aesthetic. Do NOT depict any other game.` : ""}
 
-Return ONLY the image generation prompt, nothing else. Design for a LANDSCAPE 16:9 frame (1280x720 YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. No vertical or square framing.`,
+Return ONLY the image generation prompt, nothing else. Design for a HIGH-RESOLUTION LANDSCAPE 16:9 frame (${THUMB_W}x${THUMB_H} YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. Pack the frame with detail: vivid textures, sharp edges, and rich contrast that hold up at full resolution. No vertical or square framing.`,
         },
       ],
       max_completion_tokens: 400,
@@ -161,31 +185,33 @@ async function generateAndUploadThumbnail(
     let finalMimeType = "image/jpeg";
     try {
       const sharp = (await import("sharp")).default;
-      let quality = 82;
-      finalBuffer = await sharp(imageBuffer)
-        .resize(1280, 720, { fit: "cover", position: "center" })
-        .jpeg({ quality })
-        .toBuffer();
-      while (finalBuffer.length > 1.9 * 1024 * 1024 && quality > 30) {
-        quality -= 10;
-        finalBuffer = await sharp(imageBuffer)
-          .resize(1280, 720, { fit: "cover", position: "center" })
-          .jpeg({ quality })
+      // Start at high quality and step down until within the upload limit.
+      // Lanczos3 kernel gives the sharpest upscale from the AI-generated source.
+      let quality = 85;
+      const doResize = (q: number) =>
+        sharp(imageBuffer)
+          .resize(THUMB_W, THUMB_H, { fit: "cover", position: "center", kernel: "lanczos3" })
+          .jpeg({ quality: q, progressive: true })
           .toBuffer();
+      finalBuffer = await doResize(quality);
+      while (finalBuffer.length > YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES * 0.97 && quality > 30) {
+        quality -= 8;
+        finalBuffer = await doResize(quality);
       }
-      logger.info("Converted thumbnail to JPEG", { 
-        originalSize: imageBuffer.length, 
+      logger.info("Converted thumbnail to JPEG", {
+        originalSize: imageBuffer.length,
         newSize: finalBuffer.length,
         quality,
+        dimensions: `${THUMB_W}x${THUMB_H}`,
+        is4k: YT_4K_THUMBNAILS_ENABLED,
       });
     } catch (sharpErr) {
       logger.warn("Sharp conversion failed, falling back to original buffer", { error: String(sharpErr) });
       finalMimeType = "image/png";
     }
 
-    const YOUTUBE_THUMBNAIL_LIMIT = 2_000_000;
-    if (finalBuffer.length > YOUTUBE_THUMBNAIL_LIMIT) {
-      logger.warn("Thumbnail still exceeds 2 MB after compression — skipping", { videoDbId, size: finalBuffer.length });
+    if (finalBuffer.length > YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES) {
+      logger.warn("Thumbnail still exceeds upload limit after compression — skipping", { videoDbId, size: finalBuffer.length, limitBytes: YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES });
       try {
         const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
         const existMeta = (row?.metadata as any) || {};
