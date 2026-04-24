@@ -77,6 +77,7 @@ interface ConfirmationState {
 }
 
 const pendingConfirmations = new Map<string, ConfirmationState>();
+registerMap("liveDetection.pendingConfirmations", pendingConfirmations, 100);
 
 /**
  * Per-platform poll interval in ms. These are the minimum gaps between
@@ -92,6 +93,7 @@ const PLATFORM_POLL_MS: Record<string, number> = {
 
 /** Last time each channel was polled (channelDbId → timestamp) */
 const lastPollAt = new Map<number, number>();
+registerMap("liveDetection.lastPollAt", lastPollAt as any, 500);
 
 /** Returns true if enough time has passed to poll this channel's platform. */
 function canPollChannel(channelId: number, platform: string): boolean {

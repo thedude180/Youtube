@@ -16,9 +16,9 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20,                      // 20 slots — enough for 14+ background engines plus request handlers
+  max: 30,                      // 30 slots — headroom for 146 background services competing during memory recovery
   idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
-  connectionTimeoutMillis: 10_000, // 10s wait for a pool slot before failing
+  connectionTimeoutMillis: 5_000, // 5s wait for a pool slot — fail fast so services don't pile up
   allowExitOnIdle: false,
   statement_timeout: 10_000,
   query_timeout: 10_000,
@@ -93,7 +93,10 @@ export async function withRetry<T>(
       lastErr = err;
       const msg = String(err?.message || err);
       if (!isTransientDbError(msg) || attempt === maxRetries) break;
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+      // Add ±30% jitter to prevent thundering herd when all 146 background services retry simultaneously
+      const baseDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+      const jitter = Math.floor(baseDelay * 0.3 * (Math.random() * 2 - 1));
+      const delay = Math.max(200, baseDelay + jitter);
       dbLogger.warn("DB retry", { label, attempt, maxRetries, error: msg.substring(0, 80), retryMs: delay });
       await new Promise((r) => setTimeout(r, delay));
     }

@@ -8,6 +8,7 @@ import { promisify } from "util";
 
 import { createLogger } from "../lib/logger";
 import { getYtdlpBin } from "../lib/dependency-check";
+import { registerCache } from "./resilience-core";
 
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
@@ -37,6 +38,7 @@ const VAULT_DIR = path.join(process.cwd(), "vault");
 // Throttle: only warn once per server session per user for no-token situations
 const _warnedNoToken = new Set<string>();
 const _warnedNoDownloadToken = new Set<string>();
+registerCache("vault.warnedNoToken", () => { _warnedNoToken.clear(); _warnedNoDownloadToken.clear(); });
 const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 // 1080p gives the upscaler real detail to work with when encoding to 4K.
 // Format 18 (480p combined stream) was storage-efficient but produces blurry

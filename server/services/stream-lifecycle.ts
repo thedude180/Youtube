@@ -3,6 +3,7 @@ import { streamLifecycleStates, streamDetectionLog } from "@shared/schema";
 type StreamLifecycleState = typeof streamLifecycleStates.$inferSelect;
 type StreamDetectionLog = typeof streamDetectionLog.$inferSelect;
 import { ps5Detector, type LiveDetectionResult } from "./ps5-live-detector";
+import { registerMap } from "./resilience-core";
 import { fireAgentEvent } from "./agent-events";
 import { eq, desc } from "drizzle-orm";
 import { jobQueue } from "./intelligent-job-queue";
@@ -21,6 +22,7 @@ interface ConfirmationState {
 
 const pendingConfirmation = new Map<string, ConfirmationState>();
 const activeManagers = new Set<string>();
+registerMap("streamLifecycle.pendingConfirmation", pendingConfirmation, 100);
 
 /**
  * AUTONOMOUS: Manages the lifecycle of a stream.
@@ -166,6 +168,7 @@ function isValidTransition(from: StreamState, to: StreamState): boolean {
 }
 
 const managers = new Map<string, StreamLifecycleManager>();
+registerMap("streamLifecycle.managers", managers as any, 200);
 
 export const streamLifecycle = {
   transition,

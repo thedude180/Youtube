@@ -3,6 +3,7 @@ import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { videos } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { registerMap } from "./resilience-core";
 
 const logger = createLogger("agent-events");
 
@@ -61,6 +62,8 @@ export function onAgentEvent(type: AgentEventType, handler: AgentEventHandler): 
 }
 
 const recentDedupeKeys = new Map<string, number>();
+registerMap("agentEvents.recentDedupeKeys", recentDedupeKeys, 2000);
+registerMap("agentEvents.gameVaultPipelineTTL", _gameVaultPipelineTTL, 500);
 const DEDUPE_WINDOW_MS = 5 * 60_000;
 
 export function fireAgentEvent(type: AgentEventType, userId: string, payload?: Record<string, any>): void {
