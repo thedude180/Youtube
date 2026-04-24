@@ -374,7 +374,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       "--extractor-args", "youtube:player_client=web",
       ...cookiesArgs,
       tabUrl,
-    ], { timeout: 600_000, maxBuffer: 500 * 1024 * 1024 });
+    ], { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 });
 
     for (const line of stdout.split("\n").filter(Boolean)) {
       try {
@@ -410,11 +410,11 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   // which have no other path.
   logger.info("[Vault] Scraping channel via yt-dlp (quota-free):", PUBLIC_CHANNEL_URL);
   try {
-    const [videos, shorts, streams] = await Promise.all([
-      scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`, "video"),
-      scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`, "short"),
-      scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream"),
-    ]);
+    // Run tabs sequentially — concurrent execFile calls each allocate large buffers
+    // and previously caused memory spikes up to 1.5 GB simultaneously.
+    const videos  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`,  "video");
+    const shorts  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`,  "short");
+    const streams = await scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream");
     allVideosRaw = [...videos, ...shorts, ...streams];
     logger.info(`[Vault] yt-dlp scraping returned ${allVideosRaw.length} videos`);
   } catch (scrapeErr: any) {
@@ -1094,6 +1094,16 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     const MAX_CONSECUTIVE_FAILURES = 20; // raised from 5 — many entries need multiple client attempts
 
     while (true) {
+      // Memory pressure gate — halt downloads before the server OOMs.
+      // heapUsed / heapTotal > 80% means GC is thrashing; yt-dlp subprocesses
+      // will push RSS even higher and trigger a cascade DB timeout storm.
+      const memUsage = process.memoryUsage();
+      const memPct = memUsage.heapTotal > 0 ? memUsage.heapUsed / memUsage.heapTotal : 0;
+      if (memPct > 0.80) {
+        logger.warn(`[Vault] High memory pressure (${Math.round(memPct * 100)}%) — pausing downloads until memory recovers`);
+        break;
+      }
+
       const freeSpace = await getFreeSpaceGB();
       if (freeSpace < MIN_FREE_SPACE_GB) {
         logger.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB) — pausing vault downloads`);
@@ -1110,6 +1120,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
             ${contentVaultBackups.status} = 'indexed'
             OR (
               ${contentVaultBackups.status} = 'failed'
+              AND COALESCE((${contentVaultBackups.metadata}->>'failCount')::int, 0) < 5
               AND (
                 ${contentVaultBackups.metadata}->>'lastFailedAt' IS NULL
                 OR (${contentVaultBackups.metadata}->>'lastFailedAt')::timestamptz < NOW() - INTERVAL '2 hours'
