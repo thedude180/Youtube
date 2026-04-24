@@ -215,7 +215,7 @@ async function healProductionPipeline(): Promise<void> {
     // ─────────────────────────────────────────────────────────────────────────
 
     const { contentVaultBackups, streamEditJobs, contentPipeline } = await import("@shared/schema");
-    const { eq, or, like, and, ne } = await import("drizzle-orm");
+    const { eq, or, like, and, ne, sql: sqlTag } = await import("drizzle-orm");
 
     // 1. Unstick in-flight downloads from dead server instance
     const stuckResult = await db
@@ -224,14 +224,22 @@ async function healProductionPipeline(): Promise<void> {
       .where(eq(contentVaultBackups.status, "downloading"));
     const stuckCount = (stuckResult as any)?.rowCount ?? "?";
 
-    // 2. Reset old-format failures so they retry with the new InnerTube code
+    // 2. Reset old-format failures so they retry with the new InnerTube code.
+    //    Guard: only reset entries that have failed fewer than 3 times (failCount
+    //    tracked in metadata by the vault download code).  Entries that have
+    //    tried ≥3 times are genuinely undownloadable (deleted, members-only,
+    //    geo-blocked) and must NOT be re-queued — they form an infinite retry
+    //    loop that wastes CPU and blocks the entire download queue.
     const fmtResult = await db
       .update(contentVaultBackups)
       .set({ status: "indexed", downloadError: null })
       .where(
-        or(
-          like(contentVaultBackups.downloadError, "%format is not available%"),
-          like(contentVaultBackups.downloadError, "%-f 18%"),
+        and(
+          or(
+            like(contentVaultBackups.downloadError, "%format is not available%"),
+            like(contentVaultBackups.downloadError, "%-f 18%"),
+          )!,
+          sqlTag`COALESCE((${contentVaultBackups.metadata}->>'failCount')::int, 0) < 3`
         )!
       );
     const fmtCount = (fmtResult as any)?.rowCount ?? "?";
@@ -246,6 +254,12 @@ async function healProductionPipeline(): Promise<void> {
     // 3b. Reset stream_edit_jobs that failed due to yt-dlp download blocks.
     //     The vault-lookup fix in clip-video-processor.ts now means these jobs
     //     will find the already-downloaded vault file instead of trying yt-dlp.
+    //
+    //     Guard: skip re-queueing any job whose vault entry has already failed
+    //     3+ times (failCount ≥ 3 in metadata).  Those source videos are
+    //     undownloadable — re-queueing them just burns resources in an infinite
+    //     loop.  Jobs with no vault link (vaultEntryId IS NULL) are always
+    //     re-queued because they don't depend on a vault download.
     const dlFailResult = await db
       .update(streamEditJobs)
       .set({ status: "queued", errorMessage: null, progress: 0, startedAt: null, currentStage: "Re-queued (vault retry)" })
@@ -258,7 +272,15 @@ async function healProductionPipeline(): Promise<void> {
             like(streamEditJobs.errorMessage, "%yt-dlp%"),
             like(streamEditJobs.errorMessage, "%AI packaging produced no Studio videos%"),
             like(streamEditJobs.errorMessage, "%Encoding completed but produced 0 clips%"),
-          )!
+          )!,
+          sqlTag`(
+            ${streamEditJobs.vaultEntryId} IS NULL OR
+            EXISTS (
+              SELECT 1 FROM content_vault_backups cvb
+              WHERE cvb.id = ${streamEditJobs.vaultEntryId}
+              AND COALESCE((cvb.metadata->>'failCount')::int, 0) < 3
+            )
+          )`
         )!
       );
     const dlFailCount = (dlFailResult as any)?.rowCount ?? "?";
