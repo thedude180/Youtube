@@ -137,6 +137,14 @@ export async function scheduleClipsForAutoPublish(
  * Also retries entries that failed with a transient error (up to 3 attempts).
  */
 export async function processAutoPublishQueue(): Promise<void> {
+  // Quota gate: if the global circuit breaker is tripped (quota exhausted today),
+  // skip the entire poller tick — no point querying or attempting uploads.
+  const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
+  if (isQuotaBreakerTripped()) {
+    logger.info("[AutoPublisher] Quota circuit breaker tripped — skipping poller tick");
+    return;
+  }
+
   const horizon = new Date(Date.now() + 8 * 3600_000);
 
   const dueItems = await db.select().from(autopilotQueue)
@@ -155,6 +163,13 @@ export async function processAutoPublishQueue(): Promise<void> {
     const meta = (item.metadata ?? {}) as Record<string, unknown>;
     const studioVideoId = meta.studioVideoId as number | undefined;
     if (!studioVideoId) continue;
+
+    // Per-upload quota check: ensure we have enough budget for this specific upload
+    const affordable = await canAffordOperation(item.userId, "upload");
+    if (!affordable) {
+      logger.warn(`[AutoPublisher] Insufficient quota for upload of sv${studioVideoId} — deferring remaining items`);
+      break; // Stop processing further items this tick; poller will retry later
+    }
 
     await db.update(autopilotQueue)
       .set({ status: "publishing" })

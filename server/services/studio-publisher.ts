@@ -13,6 +13,7 @@
 import * as fs from "fs";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
+import { trackQuotaUsage, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 const logger = createLogger("studio-publisher");
 
@@ -126,6 +127,7 @@ export async function publishStudioVideo(
       publishedVideoId = uploadRes.data.id || publishedVideoId;
       logger.info(`[StudioPublisher] Video uploaded`, { studioVideoId, youtubeId: publishedVideoId });
 
+      await trackQuotaUsage(userId, "upload");
       await storage.updateStudioVideo(studioVideoId, { youtubeId: publishedVideoId });
       await setMeta(studioVideoId, { publishProgress: 50, publishStatus: publishAt ? "Uploaded — scheduled" : "Video uploaded, updating metadata…" });
     } else if (studioVideo.youtubeId) {
@@ -154,6 +156,7 @@ export async function publishStudioVideo(
         const thumbBuffer = Buffer.from(base64Data, "base64");
         const { setYouTubeThumbnail } = await import("../youtube");
         await setYouTubeThumbnail(channelId, publishedVideoId, thumbBuffer, "image/jpeg");
+        await trackQuotaUsage(userId, "thumbnail");
       } catch (thumbErr: unknown) {
         logger.warn(`[StudioPublisher] Thumbnail upload failed`, { studioVideoId, error: (thumbErr as Error)?.message });
       }
@@ -173,6 +176,8 @@ export async function publishStudioVideo(
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`[StudioPublisher] Publish failed`, { studioVideoId, error: msg });
+    // Trip the circuit breaker if this is a quota 403 so subsequent poller ticks bail early
+    markQuotaErrorFromResponse(err);
     await storage.updateStudioVideo(studioVideoId, {
       status: "error",
       metadata: { ...await freshMeta(studioVideoId), publishProgress: 0, publishStatus: `Publish failed: ${msg}` } as any,

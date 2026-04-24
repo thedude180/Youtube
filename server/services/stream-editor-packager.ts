@@ -90,12 +90,18 @@ Respond as strict JSON only:
   "seoScore": 85
 }`;
 
-  const r = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 2000,
-  });
+  const SEO_TIMEOUT_MS = 45_000; // 45 s — gpt-4o-mini should respond well within this
+  const r = await Promise.race([
+    openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 2000,
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`OpenAI SEO call timed out after ${SEO_TIMEOUT_MS / 1000}s`)), SEO_TIMEOUT_MS)
+    ),
+  ]);
 
   const raw = r.choices[0]?.message?.content ?? "{}";
   let parsed: Record<string, unknown>;
