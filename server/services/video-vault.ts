@@ -43,7 +43,37 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 // 4K output. bestvideo+bestaudio lets yt-dlp pick the best A/V and merge them.
 const DOWNLOAD_QUALITY = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best";
 const MIN_FREE_SPACE_GB = 3;
-const DOWNLOAD_DELAY_MS = 10_000;
+
+// ── Human-like download timing ────────────────────────────────────────────────
+// Returns a random delay (ms) that mimics the natural gap between videos a real
+// user would watch.  90% of the time it's 15–45 s; 10% of the time (coffee
+// break) it stretches to 2–5 min so the server's request cadence never looks
+// machine-regular.
+function humanVideoDelay(): number {
+  if (Math.random() < 0.10) return 120_000 + Math.random() * 180_000; // 2–5 min
+  return 15_000 + Math.random() * 30_000; // 15–45 s
+}
+
+// Pool of realistic desktop + mobile user-agents that rotate each download.
+// Mixing Windows/macOS/Android Chrome and Firefox means no two consecutive
+// requests share an identical fingerprint.
+const BROWSER_UA_POOL = [
+  // Chrome on Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+  // Chrome on macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  // Edge on Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+  // Firefox on Windows
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+  // Firefox on macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5; rv:125.0) Gecko/20100101 Firefox/125.0",
+  // Chrome on Android
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.61 Mobile Safari/537.36",
+  // Safari on macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+];
 // yt-dlp client priority list.
 // "android_testsuite" and "mediaconnect" were added in yt-dlp 2025.01+ specifically
 // When an OAuth token is available, the `web` client plus an Authorization:Bearer
@@ -328,12 +358,21 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
+    const ua = BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
+    const cookiesArgs: string[] = (() => {
+      try { return fs.existsSync(YT_COOKIES_PATH) && fs.statSync(YT_COOKIES_PATH).size > 10 ? ["--cookies", YT_COOKIES_PATH] : []; }
+      catch { return []; }
+    })();
     const { stdout } = await execFileAsync(resolveYtdlp(), [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
       "--no-warnings",
+      "--user-agent", ua,
+      "--add-header", "Accept-Language:en-US,en;q=0.9",
+      "--referer", "https://www.youtube.com/",
       "--extractor-args", "youtube:player_client=web",
+      ...cookiesArgs,
       tabUrl,
     ], { timeout: 600_000, maxBuffer: 500 * 1024 * 1024 });
 
@@ -774,6 +813,17 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
 }
 
 async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
+  // Pick a random user-agent from the pool so each download looks like a
+  // different browser/device — no consistent fingerprint across requests.
+  const ua = BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
+
+  // Randomise sub-request timing so the traffic pattern is irregular.
+  // --sleep-requests: pause between each HTTP request yt-dlp makes.
+  // --sleep-interval / --max-sleep-interval: per-fragment pause range.
+  const sleepReq = (2 + Math.random() * 3).toFixed(1);        // 2.0–5.0 s
+  const sleepMin = (0.5 + Math.random() * 2).toFixed(1);      // 0.5–2.5 s
+  const sleepMax = (parseFloat(sleepMin) + 1 + Math.random() * 4).toFixed(1); // +1–4 s more
+
   try {
     await execFileAsync(resolveYtdlp(), [
       "-f", DOWNLOAD_QUALITY,
@@ -781,15 +831,45 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
       "-o", outputPath,
       "--no-warnings",
       "--no-playlist",
-      "--retries", "1",
-      "--sleep-requests", "2",
-      "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+
+      // ── Retry / resilience ────────────────────────────────────────────────
+      "--retries", "3",
+      "--fragment-retries", "3",
+      "--file-access-retries", "3",
+
+      // ── Human-like request pacing ──────────────────────────────────────────
+      "--sleep-requests", sleepReq,
+      "--sleep-interval",   sleepMin,
+      "--max-sleep-interval", sleepMax,
+
+      // ── One fragment at a time — real browsers don't parallel-stream ───────
+      "--concurrent-fragments", "1",
+
+      // ── No .part temp files — reduces observable bot signals ───────────────
+      "--no-part",
+
+      // ── Rotate browser identity ────────────────────────────────────────────
+      "--user-agent", ua,
+
+      // ── Navigation context headers (Chromium Sec-Fetch-* suite) ───────────
+      // These are injected by every real browser; their absence is a bot signal.
+      "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "--add-header", "Accept-Language:en-US,en;q=0.9",
+      "--add-header", "Sec-Fetch-Dest:document",
+      "--add-header", "Sec-Fetch-Mode:navigate",
+      "--add-header", "Sec-Fetch-Site:none",
+      "--add-header", "Sec-Fetch-User:?1",
+      "--add-header", "Cache-Control:max-age=0",
+      "--add-header", "Upgrade-Insecure-Requests:1",
+
+      // ── Referrer: came from a YouTube page, not a raw URL ─────────────────
+      "--referer", "https://www.youtube.com/",
+
       "--extractor-args", `youtube:player_client=${playerClient}`,
       ...authArgs,
       url,
     ], { timeout: 600_000 });
   } catch (err: any) {
-    // Re-throw with yt-dlp's real stderr so callers can see the actual error
     const stderr = String(err?.stderr || "").substring(0, 400);
     throw new Error(`yt-dlp ${playerClient}: ${String(err?.message || "").substring(0, 150)}\nstderr: ${stderr}`);
   }
@@ -903,11 +983,15 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
 
       if (BOT_DETECTION_PATTERNS.some(p => p.test(lastErr))) {
         logger.warn(`[Vault] Bot detection on ${youtubeId} with ${playerClient}, trying next client...`);
+        // Brief random pause between client attempts — back-to-back retries look automated.
+        await new Promise(r => setTimeout(r, 5_000 + Math.random() * 10_000));
         continue;
       }
 
       allBotDetected = false;
       logger.warn(`[Vault] ${playerClient} failed for ${youtubeId}: ${lastErr.substring(0, 400)}`);
+      // Short breather between non-bot-detection failures too.
+      await new Promise(r => setTimeout(r, 3_000 + Math.random() * 5_000));
     }
   }
 
@@ -1058,7 +1142,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
         }
       }
 
-      await new Promise(resolve => setTimeout(resolve, DOWNLOAD_DELAY_MS));
+      await new Promise(resolve => setTimeout(resolve, humanVideoDelay()));
     }
   } finally {
     isVaultRunning = false;
