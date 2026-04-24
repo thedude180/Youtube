@@ -255,10 +255,21 @@ export async function getAuthenticatedClient(channelId: number) {
   // Resolve the access token to use.
   // Priority:
   //   1. channel.accessToken (set by the dedicated /api/youtube/auth OAuth flow)
-  //   2. Replit Google connector (google-mail integration) — the managed token
-  //      that covers the app's own YouTube channel without a separate OAuth dance.
-  //   3. channel.refreshToken exchange (legacy path)
+  //      — but only if not expired; if expired and a refresh token is available,
+  //      skip directly to path 3 to avoid a guaranteed 401 round-trip.
+  //   2. Google OAuth token from the users table (persisted on Google login)
+  //   3. channel.refreshToken exchange (legacy / proactive refresh path)
   let resolvedAccessToken: string | null = channel.accessToken;
+
+  // Proactively clear an expired access token so we go straight to the refresh
+  // path instead of sending it to Google and waiting for a 401 to trigger auto-refresh.
+  if (resolvedAccessToken && channel.tokenExpiresAt) {
+    const isExpired = new Date(channel.tokenExpiresAt).getTime() < Date.now() + 60_000;
+    if (isExpired) {
+      ytLogger.info(`[Auth] Stored access token for channel ${channelId} is expired — skipping to refresh`);
+      resolvedAccessToken = null;
+    }
+  }
 
   if (!resolvedAccessToken && channel.userId) {
     // Fall back to the Google OAuth token that was persisted in the users table
@@ -339,8 +350,23 @@ export async function getAuthenticatedClient(channelId: number) {
         if (tokens.access_token) updateData.accessToken = tokens.access_token;
         if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
         if (tokens.expiry_date) updateData.tokenExpiresAt = new Date(tokens.expiry_date);
-        if (Object.keys(updateData).length > 0) {
-          await storage.updateChannel(channelId, updateData);
+        if (Object.keys(updateData).length === 0) return;
+
+        // Update the main YouTube channel row
+        await storage.updateChannel(channelId, updateData);
+
+        // Also sync the token to the YouTubeShorts channel (same credential,
+        // separate row) so Shorts uploads don't fail with stale tokens.
+        if (channel.userId) {
+          try {
+            const userChannels = await storage.getChannelsByUser(channel.userId);
+            const shortsChannel = userChannels.find(c => c.platform === "youtubeshorts");
+            if (shortsChannel) {
+              await storage.updateChannel(shortsChannel.id, updateData);
+            }
+          } catch (shortsErr) {
+            ytLogger.warn("Token sync to Shorts channel failed (non-fatal):", String(shortsErr));
+          }
         }
       } catch (err) {
         ytLogger.error("Token persist failed", { error: String(err) });

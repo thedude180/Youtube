@@ -126,14 +126,23 @@ export async function registerPlatformRoutes(app: Express) {
       // OAuth redirect and Google's callback (which clears the in-memory
       // nonce map).  The callback already reads this key as its first fallback.
       (req.session as any).youtubeOAuthUserId = userId;
-      req.session.save((saveErr) => {
-        if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
-      });
       const acceptHeader = req.headers.accept || "";
       if (acceptHeader.includes("application/json")) {
+        // JSON path: client drives the redirect, so fire-and-forget the save
+        // and return the URL immediately — no redirect to block on.
+        req.session.save((saveErr) => {
+          if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
+        });
         res.json({ url });
       } else {
-        res.redirect(url);
+        // Browser redirect path: WAIT for the session to be written to the DB
+        // before redirecting.  If we redirect first, the session store write is
+        // still in-flight and the userId may NOT be in the session when Google
+        // sends the callback, causing tokens to be silently discarded.
+        req.session.save((saveErr) => {
+          if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
+          res.redirect(url);
+        });
       }
     } catch (error: any) {
       logger.error("[YouTube Auth] Error generating auth URL:", error);

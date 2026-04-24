@@ -48,13 +48,26 @@ function getOAuth2Client() {
 }
 
 async function getAuthenticatedYouTube(channel: any) {
-  if (!channel.accessToken) throw new Error("Channel has no access token");
+  if (!channel.accessToken && !channel.refreshToken) throw new Error("Channel has no access token");
   if (channel.accessToken === "dev_api_key_mode") {
     throw Object.assign(new Error("dev_bypass: no real YouTube credentials in dev mode"), { code: "DEV_BYPASS" });
   }
+  // Proactively skip an expired access token so the oauth2 client goes straight
+  // to the refresh path instead of sending a stale token and waiting for a 401.
+  let accessToken: string | null = channel.accessToken ?? null;
+  if (accessToken && channel.tokenExpiresAt) {
+    const isExpired = new Date(channel.tokenExpiresAt).getTime() < Date.now() + 60_000;
+    if (isExpired) {
+      logger.info(`[UploadWatcher] Access token for channel ${channel.id} is expired — relying on refresh token`);
+      accessToken = null;
+    }
+  }
+  // If both are missing, there's nothing we can do
+  if (!accessToken && !channel.refreshToken) throw new Error("Channel has no valid access token or refresh token");
+
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
-    access_token: channel.accessToken,
+    access_token: accessToken ?? undefined,
     refresh_token: channel.refreshToken,
     expiry_date: channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt).getTime() : undefined,
   });
