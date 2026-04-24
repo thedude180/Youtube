@@ -267,7 +267,32 @@ export async function getAuthenticatedClient(channelId: number) {
     // YouTube API calls.
     resolvedAccessToken = await getGoogleAccessTokenForUser(channel.userId);
     if (resolvedAccessToken) {
-      ytLogger.info(`[Auth] Using users-table Google token for channel ${channelId}`);
+      ytLogger.info(`[Auth] Using users-table Google token for channel ${channelId} — back-filling channel row`);
+      // Back-fill the channel row so the next call uses the token directly
+      // instead of repeating the users-table fallback.  Also copy the refresh
+      // token so token-refresh.ts can keep it alive going forward.
+      try {
+        const { users: usersTable } = await import("@shared/models/auth");
+        const { db: dbInst } = await import("./db");
+        const { eq: eqOp } = await import("drizzle-orm");
+        const [userRow] = await dbInst
+          .select({ googleRefreshToken: usersTable.googleRefreshToken, googleTokenExpiresAt: usersTable.googleTokenExpiresAt })
+          .from(usersTable)
+          .where(eqOp(usersTable.id, channel.userId!))
+          .limit(1);
+        const backfill: any = {
+          accessToken: resolvedAccessToken,
+          tokenExpiresAt: userRow?.googleTokenExpiresAt ?? new Date(Date.now() + 3600 * 1000),
+          lastSyncAt: new Date(),
+        };
+        if (userRow?.googleRefreshToken && !channel.refreshToken) {
+          backfill.refreshToken = userRow.googleRefreshToken;
+        }
+        await storage.updateChannel(channelId, backfill);
+        channel = (await storage.getChannel(channelId))!;
+      } catch (backfillErr: any) {
+        ytLogger.warn(`[Auth] Channel back-fill failed (non-fatal): ${backfillErr?.message}`);
+      }
     }
   }
 

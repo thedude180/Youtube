@@ -190,6 +190,92 @@ async function resetDevPipelineData(): Promise<void> {
   }
 }
 
+// ── YOUTUBE TOKEN SYNC ────────────────────────────────────────────────────────
+// Runs on every startup (dev + prod).  Finds YouTube channels whose access_token
+// and refresh_token are both NULL but whose owner user still has a valid
+// google_refresh_token in the users table — then refreshes the Google token and
+// writes it back to the channels row.  This auto-heals the most common cause of
+// "YouTube disconnected" without the user having to reconnect manually.
+async function syncChannelTokens(): Promise<void> {
+  try {
+    const { channels } = await import("@shared/schema");
+    const { users: usersTable } = await import("@shared/models/auth");
+    const { eq, isNull, and, ne } = await import("drizzle-orm");
+
+    const brokenChannels = await db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.platform, "youtube"),
+          isNull(channels.accessToken),
+          isNull(channels.refreshToken),
+          ne(channels.userId, "dev_bypass_user")
+        )
+      );
+
+    if (brokenChannels.length === 0) return;
+
+    for (const ch of brokenChannels) {
+      const [userRow] = await db
+        .select({
+          googleRefreshToken: usersTable.googleRefreshToken,
+          googleAccessToken: usersTable.googleAccessToken,
+          googleTokenExpiresAt: usersTable.googleTokenExpiresAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, ch.userId))
+        .limit(1);
+
+      if (!userRow?.googleRefreshToken && !userRow?.googleAccessToken) continue;
+
+      try {
+        let accessToken = userRow.googleAccessToken;
+        let expiresAt = userRow.googleTokenExpiresAt ?? new Date(Date.now() + 3600 * 1000);
+
+        if (userRow.googleRefreshToken) {
+          const { google: googleLib } = await import("googleapis");
+          const oauthClient = new googleLib.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET
+          );
+          oauthClient.setCredentials({ refresh_token: userRow.googleRefreshToken });
+          const tokenRes = await oauthClient.refreshAccessToken();
+          if (tokenRes.credentials.access_token) {
+            accessToken = tokenRes.credentials.access_token;
+            expiresAt = tokenRes.credentials.expiry_date
+              ? new Date(tokenRes.credentials.expiry_date)
+              : new Date(Date.now() + 3600 * 1000);
+            await db.update(usersTable).set({
+              googleAccessToken: accessToken,
+              googleTokenExpiresAt: expiresAt,
+            }).where(eq(usersTable.id, ch.userId));
+          }
+        }
+
+        if (!accessToken) continue;
+
+        await db.update(channels).set({
+          accessToken,
+          refreshToken: userRow.googleRefreshToken ?? ch.refreshToken,
+          tokenExpiresAt: expiresAt,
+          lastSyncAt: new Date(),
+        }).where(eq(channels.id, ch.id));
+
+        process.stdout.write(
+          `[token-sync] Restored YouTube token for channel ${ch.id} (${ch.channelName}) user=${ch.userId}\n`
+        );
+      } catch (chErr: any) {
+        process.stdout.write(
+          `[token-sync] Could not restore token for channel ${ch.id}: ${chErr?.message}\n`
+        );
+      }
+    }
+  } catch (err: any) {
+    process.stdout.write(`[token-sync] Warning: ${err?.message}\n`);
+  }
+}
+
 // ── PRODUCTION PIPELINE SELF-HEAL ─────────────────────────────────────────────
 // Runs once at production startup to unstick the pipeline after a redeploy.
 //
@@ -436,6 +522,7 @@ async function healProductionPipeline(): Promise<void> {
 
 clearVault(); // wipe vault files (dev only)
 resetDevPipelineData(); // wipe pipeline DB rows (dev only)
+syncChannelTokens(); // restore missing YouTube tokens from users table (dev + prod)
 healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});

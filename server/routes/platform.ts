@@ -121,6 +121,14 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     try {
       const url = getAuthUrl(userId);
+      // Pin the authenticated userId to the session so the callback can
+      // reliably identify the user even if the server restarts between the
+      // OAuth redirect and Google's callback (which clears the in-memory
+      // nonce map).  The callback already reads this key as its first fallback.
+      (req.session as any).youtubeOAuthUserId = userId;
+      req.session.save((saveErr) => {
+        if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
+      });
       const acceptHeader = req.headers.accept || "";
       if (acceptHeader.includes("application/json")) {
         res.json({ url });
