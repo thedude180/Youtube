@@ -91,12 +91,17 @@ function ChannelActions({ channels, onReconnect }: { channels: Channel[]; onReco
     },
   });
 
-  // YouTube uses the Replit Google connector for auth — channels.access_token is
-  // not required and will typically be null. Only flag reconnect when the
-  // platform explicitly marks the connection as expired.
-  const needsReconnect = safeArray<Channel>(channels).some(
-    ch => (ch.platformData as any)?._connectionStatus === "expired"
-  );
+  // Show the reconnect button when the platform marks the connection expired,
+  // OR when the access_token and refresh_token are both missing and the channel
+  // is not using a dev sentinel or an env-based auth method.
+  const needsReconnect = safeArray<Channel>(channels).some((ch) => {
+    const pd = (ch.platformData as any) || {};
+    if (pd._connectionStatus === "expired") return true;
+    const isDevSentinel = ch.accessToken === "dev_api_key_mode";
+    const isEnvAuth = pd.authMethod || pd._connectionStatus === "healthy";
+    if (isDevSentinel || isEnvAuth) return false;
+    return !ch.accessToken && !ch.refreshToken;
+  });
 
   return (
     <div className="flex items-center gap-2 flex-wrap">

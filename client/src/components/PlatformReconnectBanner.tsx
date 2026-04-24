@@ -54,7 +54,7 @@ export function PlatformReconnectBanner() {
         {data.count === 1 ? " needs reconnection" : " need reconnection"} — your AI team can't post or sync until you re-authorize.
       </span>
       <button
-        onClick={() => setLocation("/settings")}
+        onClick={() => setLocation("/content/channels")}
         className="flex items-center gap-1 font-medium underline underline-offset-2 hover:text-amber-500 dark:hover:text-amber-300 shrink-0 whitespace-nowrap"
         data-testid="button-reconnect-now"
       >
