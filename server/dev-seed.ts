@@ -535,6 +535,10 @@ export async function seedDevData(): Promise<void> {
       {
         userId: DEV_USER_ID,
         videoId: videoIds[1] ?? null,
+        // A fake youtubeId is set so the "Publish to YouTube" button is
+        // enabled in dev — this lets us exercise the full publish error
+        // path (DEV_BYPASS) and verify it fails gracefully.
+        youtubeId: "DEV_WARZONE_READY_001",
         title: "Warzone Rebirth Island Best Moments – Squad Wipes Compilation",
         description: "Compilation of the best Warzone Rebirth Island squad wipes. Every kill, every rotation, zero cuts.\n\n#Warzone #CallOfDuty #ETGaming274",
         thumbnailUrl: thumb(FAKE_YT_IDS[1]),
