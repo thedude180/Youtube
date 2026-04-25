@@ -356,6 +356,30 @@ type ScrapedVideo = {
   contentType: "video" | "short" | "stream";
 };
 
+// After each successful yt-dlp scrape, write the (possibly refreshed) cookies
+// back to the DB so they survive the next redeploy without expiring.
+async function syncCookiesFileToDb(): Promise<void> {
+  try {
+    if (!fs.existsSync(YT_COOKIES_PATH)) return;
+    const content = fs.readFileSync(YT_COOKIES_PATH, "utf-8");
+    if (content.length < 10) return;
+    await db.execute(sql`
+      UPDATE channels
+      SET platform_data = COALESCE(platform_data, '{}')::jsonb
+          || jsonb_build_object(
+              'ytCookiesData', ${content}::text,
+              'ytCookiesSavedAt', now()::text
+             )
+      WHERE platform = 'youtube'
+        AND platform_data ? 'ytCookiesData'
+    `);
+    const count = content.split("\n").filter(l => l.trim() && !l.startsWith("#")).length;
+    logger.info(`[Vault] Synced ${count} cookies from disk back to DB`);
+  } catch (err: any) {
+    logger.warn(`[Vault] Cookie sync to DB failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "stream"): Promise<ScrapedVideo[]> {
   const videos: ScrapedVideo[] = [];
   try {
@@ -425,6 +449,12 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
     const streams = await scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream");
     allVideosRaw = [...videos, ...shorts, ...streams];
     logger.info(`[Vault] yt-dlp scraping returned ${allVideosRaw.length} videos`);
+    if (allVideosRaw.length > 0) {
+      // yt-dlp may have refreshed session tokens inside the cookies file.
+      // Sync the updated file back to the DB so the next redeploy restores
+      // the freshest cookies rather than the ones saved during the last upload.
+      syncCookiesFileToDb().catch(() => {});
+    }
   } catch (scrapeErr: any) {
     logger.warn(`[Vault] yt-dlp scraping failed (${scrapeErr.message}) — will try YouTube API fallback`);
   }
