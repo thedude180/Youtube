@@ -5,6 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { PLATFORM_FEATURES } from "../services/platform-feature-detector";
 import { createLogger } from "../lib/logger";
 import { runPlatformFeatureDetection } from "../services/platform-feature-detector";
+import { getUserId } from "./helpers";
 
 const logger = createLogger("platform-features-routes");
 
@@ -13,7 +14,7 @@ export function registerPlatformFeaturesRoutes(app: any) {
   // Returns all known features enriched with the user's current eligibility status
   app.get("/api/platform-features", async (req: any, res: any) => {
     try {
-      const userId = req.user?.id;
+      const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const rows = await db.select()
@@ -39,7 +40,7 @@ export function registerPlatformFeaturesRoutes(app: any) {
   // User confirms they submitted an application for a feature
   app.post("/api/platform-features/:featureId/mark-applied", async (req: any, res: any) => {
     try {
-      const userId = req.user?.id;
+      const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const { featureId } = req.params;
@@ -71,7 +72,7 @@ export function registerPlatformFeaturesRoutes(app: any) {
   // Manually mark a feature as active (e.g. user received approval email)
   app.post("/api/platform-features/:featureId/activate", async (req: any, res: any) => {
     try {
-      const userId = req.user?.id;
+      const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const { featureId } = req.params;
@@ -120,7 +121,7 @@ export function registerPlatformFeaturesRoutes(app: any) {
   // Dismiss a feature notification (not interested)
   app.post("/api/platform-features/:featureId/dismiss", async (req: any, res: any) => {
     try {
-      const userId = req.user?.id;
+      const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const { featureId } = req.params;
@@ -145,7 +146,7 @@ export function registerPlatformFeaturesRoutes(app: any) {
   // Manually trigger a detection scan (useful for testing or after adding a channel)
   app.post("/api/platform-features/scan", async (req: any, res: any) => {
     try {
-      const userId = req.user?.id;
+      const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       runPlatformFeatureDetection().catch(() => {});

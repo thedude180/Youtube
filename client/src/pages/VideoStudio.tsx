@@ -18,6 +18,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
@@ -855,6 +859,7 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
 export default function VideoStudio() {
   usePageTitle("Video Studio");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [videoToDelete, setVideoToDelete] = useState<{ id: number; title: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1017,7 +1022,7 @@ export default function VideoStudio() {
                     className="h-6 w-6 p-0 text-muted-foreground hover:text-red-400"
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteMutation.mutate(video.id);
+                      setVideoToDelete({ id: video.id, title: video.title });
                     }}
                     data-testid={`button-delete-${video.id}`}
                   >
@@ -1029,6 +1034,30 @@ export default function VideoStudio() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!videoToDelete} onOpenChange={(open) => !open && setVideoToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove video from Studio?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{videoToDelete?.title}" will be removed from your Studio. Your original YouTube video is not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-delete-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-delete-confirm"
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (videoToDelete) deleteMutation.mutate(videoToDelete.id);
+                setVideoToDelete(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
