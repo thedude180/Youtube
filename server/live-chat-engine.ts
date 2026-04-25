@@ -21,6 +21,49 @@ const openai = getRawOpenAIClientForDirectUse();
 
 const IS_DEV = !process.env.REPLIT_DEPLOYMENT && process.env.NODE_ENV !== "production";
 
+// ---------------------------------------------------------------------------
+// Recent-reply dedup buffer — prevents the AI from repeating the same phrase
+// multiple times in the same stream session.
+// ---------------------------------------------------------------------------
+const _recentRepliesPerStream = new Map<number, string[]>();
+const MAX_RECENT_REPLIES = 6;
+
+function getRecentReplies(streamId: number): string[] {
+  return _recentRepliesPerStream.get(streamId) ?? [];
+}
+
+function recordRecentReply(streamId: number, reply: string): void {
+  const buf = _recentRepliesPerStream.get(streamId) ?? [];
+  buf.push(reply);
+  if (buf.length > MAX_RECENT_REPLIES) buf.shift();
+  _recentRepliesPerStream.set(streamId, buf);
+}
+
+// ---------------------------------------------------------------------------
+// Filler detection — pure reaction spam that no real streamer types back to.
+// These messages are stored but don't get an AI reply.
+// ---------------------------------------------------------------------------
+const FILLER_REACTIONS = new Set([
+  "lol", "lmao", "lmfao", "xd", "haha", "hehe", "kek",
+  "f", "w", "l", "gg", "rip", "pog", "poggers",
+  "kappa", "clap", "monkas", "pepega", "omegalul",
+  "+1", "1", "^", ".", "-",
+]);
+
+function isFillerMessage(message: string): boolean {
+  // Strip emojis and whitespace to find the text content.
+  const textOnly = message.replace(/\p{Emoji_Presentation}/gu, "").replace(/\s+/g, " ").trim();
+  if (textOnly.length === 0) return true; // pure emoji message
+
+  const words = textOnly.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return true;
+
+  // Single-word or two-word reactions where every word is in the filler set.
+  if (words.length <= 2 && words.every(w => FILLER_REACTIONS.has(w) || w.length <= 1)) return true;
+
+  return false;
+}
+
 /**
  * Dev-only: return a plausible canned reply so the stress-test pipeline
  * can be validated end-to-end even when the Replit integration quota is
@@ -109,31 +152,40 @@ async function getCreatorTone(userId: string): Promise<string> {
 function shouldRespondToMessage(message: string, metadata: any): { respond: boolean; priority: string } {
   const lower = message.toLowerCase();
 
+  // Donations always get a reply regardless of message content.
   if (metadata?.isDonation) {
     return { respond: true, priority: "high" };
   }
 
+  // Pure reaction spam — no real streamer types back to "lol" or a single emoji.
+  if (isFillerMessage(message)) {
+    return { respond: false, priority: "none" };
+  }
+
+  // Direct questions — highest priority, reply fastest.
   if (lower.includes("?")) {
     return { respond: true, priority: "high" };
   }
 
-  // High-value moments that always deserve a reply: new viewer arrivals and new subs.
+  // High-value moments: new viewer arrivals and new subs.
   const highValuePhrases = ["first time", "just subbed", "just sub", "new sub", "just followed"];
   if (highValuePhrases.some(p => lower.includes(p))) {
     return { respond: true, priority: "normal" };
   }
 
+  // Direct address — they're talking to the streamer specifically.
   const directMentions = ["@", "hey ", "yo ", "bro ", "dude ", "bruh "];
   if (directMentions.some(m => lower.startsWith(m) || lower.includes(m))) {
     return { respond: true, priority: "normal" };
   }
 
-  const engageWords = ["love", "amazing", "insane", "goated", "fire", "crazy", "clutch", "gg", "nice", "sick", "wow", "omg", "incredible", "cracked", "let's go", "lets go"];
+  // Hype/engage words — reply but with a natural lag (mid-game glance).
+  const engageWords = ["love", "amazing", "insane", "goated", "fire", "crazy", "clutch", "nice", "sick", "wow", "omg", "incredible", "cracked", "let's go", "lets go"];
   if (engageWords.some(w => lower.includes(w))) {
     return { respond: true, priority: "normal" };
   }
 
-  // Every viewer message gets a reply — no random sampling.
+  // Everything else with real content gets a reply at low priority (longest delay).
   return { respond: true, priority: "low" };
 }
 
@@ -196,6 +248,11 @@ export async function processLiveChatMessage(
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
   const streamContext = stream ? `Currently streaming: "${sanitizeForPrompt(stream.title)}" (${stream.category || "Gaming"})` : "";
 
+  const recentReplies = getRecentReplies(streamId);
+  const noRepeatClause = recentReplies.length > 0
+    ? `\n\nDO NOT reuse any of these recent replies — they've already been sent:\n${recentReplies.map(r => `• "${r}"`).join("\n")}`
+    : "";
+
   const systemMsg = `You ARE this creator responding in live chat during a stream. First person. Your voice.
 ${creatorTone}
 ${platformStyle}
@@ -213,7 +270,7 @@ CRITICAL RULES:
 - Use internet shorthand naturally (lol, ngl, fr, bruh)
 - Occasional typos are fine - you're mid-stream
 - NEVER sound like a bot or brand account
-- Vary your response style - don't always start the same way`;
+- Vary your response style - don't always start the same way${noRepeatClause}`;
 
   const prompt = `Recent chat:\n${chatContext}\n\nRespond to ${author}'s message: "${sanitizeForPrompt(message)}"\n\nOutput ONLY your reply. No quotes.`;
 
@@ -233,7 +290,10 @@ CRITICAL RULES:
     // We release the slot manually at the end of each branch.
     const timeoutPromise = new Promise<never>((_, reject) => {
       openAITimerId = setTimeout(
-        () => reject(Object.assign(new Error("Chat AI timeout"), { status: 429, throttled: true })),
+        // status 408 = request timeout; NOT 429 so the circuit breaker is not
+        // armed, and `throttled` is left undefined so the dev fallback path
+        // CAN fire (IS_DEV && !err?.throttled → true).
+        () => reject(Object.assign(new Error("Chat AI timeout"), { status: 408 })),
         8_000
       );
     });
@@ -261,6 +321,9 @@ CRITICAL RULES:
     const delay = calculateNaturalDelay(priority, 0);
     const typing = simulateTypingDelay(reply.length);
 
+    // Record before inserting so subsequent calls don't repeat the same phrase.
+    recordRecentReply(streamId, reply);
+
     const [aiMsg] = await db.insert(liveChatMessages).values({
       userId,
       streamId,
@@ -277,15 +340,20 @@ CRITICAL RULES:
       },
     }).returning();
 
-    sendSSEEvent(userId, "live-chat", {
-      type: "ai_response",
-      platform,
-      author,
-      originalMessage: message,
-      response: reply,
-      delay,
-      messageId: aiMsg.id,
-    });
+    // Fire the SSE after the natural delay so the chat bubble appears at human
+    // timing on the frontend.  The HTTP response is returned immediately below,
+    // which is what the caller (and the stress test) waits for.
+    setTimeout(() => {
+      sendSSEEvent(userId, "live-chat", {
+        type: "ai_response",
+        platform,
+        author,
+        originalMessage: message,
+        response: reply,
+        delay,
+        messageId: aiMsg.id,
+      });
+    }, delay);
 
     return {
       id: aiMsg.id,
@@ -312,6 +380,9 @@ CRITICAL RULES:
       const fallback = _devFallbackReply(message);
       logger.warn("[LiveChat] Dev fallback reply", { author, status, reply: fallback });
       const delay = calculateNaturalDelay(priority, 0);
+
+      recordRecentReply(streamId, fallback);
+
       const [aiMsg] = await db.insert(liveChatMessages).values({
         userId,
         streamId,
@@ -324,16 +395,18 @@ CRITICAL RULES:
         priority,
         metadata: { responseDelay: delay },
       }).returning();
-      sendSSEEvent(userId, "live-chat", {
-        type: "ai_response",
-        platform,
-        author,
-        originalMessage: message,
-        response: fallback,
-        delay,
-        messageId: aiMsg.id,
-        devFallback: true,
-      });
+      setTimeout(() => {
+        sendSSEEvent(userId, "live-chat", {
+          type: "ai_response",
+          platform,
+          author,
+          originalMessage: message,
+          response: fallback,
+          delay,
+          messageId: aiMsg.id,
+          devFallback: true,
+        });
+      }, delay);
       return { id: aiMsg.id, platform, author, message, response: fallback, delay };
     }
 
