@@ -684,7 +684,6 @@ export default function StreamCenter() {
     queryKey: ["/api/stream/unedited-vods"],
     refetchInterval: 5 * 60_000,
     staleTime: 2 * 60_000,
-    enabled: isActiveMode,
   });
 
   const markUploadedMutation = useMutation({
@@ -973,53 +972,8 @@ export default function StreamCenter() {
         </Suspense>
       )}
 
-      <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
-      {/* Stream Center Hero - shown in prep and live modes */}
-      {isActiveMode && <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
-        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
-                <Radio className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
-              </div>
-              {(ytLiveStatus?.broadcasts?.length ?? 0) > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-background animate-pulse" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <h1 data-testid="text-page-title" className="text-xl font-display font-extrabold holographic-text">Stream Center</h1>
-                {streamMode === "live" ? (
-                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold animate-pulse" data-testid="badge-stream-mode">● LIVE</Badge>
-                ) : streamMode === "prep" ? (
-                  <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-bold" data-testid="badge-stream-mode">● PREP</Badge>
-                ) : (
-                  <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]" data-testid="badge-stream-mode">● STANDBY</Badge>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground">AI managing {destinations?.length || 0} destinations · Multi-platform autopilot active</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { icon: Brain, label: "AI Advisor", value: "Active", color: "hsl(265 80% 60%)" },
-              { icon: Shield, label: "Copyright", value: "Clear", color: "hsl(142 70% 50%)" },
-              { icon: Signal, label: "Destinations", value: `${destinations?.length || 0}`, color: "hsl(200 80% 55%)" },
-              { icon: Activity, label: "Stream Health", value: ytLiveStatus?.connected ? "Online" : "Idle", color: ytLiveStatus?.connected ? "hsl(142 70% 50%)" : "hsl(45 90% 55%)" }
-            ].map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="flex flex-col items-center px-3 py-2 rounded-xl bg-muted/20 border border-border/30 min-w-[64px]">
-                <Icon className="w-3.5 h-3.5 mb-1" style={{ color }} />
-                <span className="text-[11px] font-bold metric-display" style={{ color }}>{value}</span>
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>}
-
-      {/* ─── Unedited Streams ─── */}
-      {streamMode === "live" && uneditedVods.length > 0 && (
+      {/* ─── Unedited Streams — outside gate so it always shows post-stream ─── */}
+      {uneditedVods.length > 0 && (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4" data-testid="section-unedited-vods">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -1088,6 +1042,51 @@ export default function StreamCenter() {
           </div>
         </div>
       )}
+
+      <UpgradeTabGate requiredTier="youtube" featureName="Stream Center" description="Go live across multiple platforms simultaneously with AI-powered stream optimization, chat management, and post-stream analytics.">
+      {/* Stream Center Hero - shown in prep and live modes */}
+      {isActiveMode && <div className="card-empire rounded-2xl p-5 relative overflow-hidden empire-glow">
+        <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+                <Radio className="w-7 h-7 text-primary" style={{ filter: "drop-shadow(0 0 8px hsl(265 80% 60% / 0.6))" }} />
+              </div>
+              {(ytLiveStatus?.broadcasts?.length ?? 0) > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 border-2 border-background animate-pulse" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <h1 data-testid="text-page-title" className="text-xl font-display font-extrabold holographic-text">Stream Center</h1>
+                {streamMode === "live" ? (
+                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] font-bold animate-pulse" data-testid="badge-stream-mode">● LIVE</Badge>
+                ) : streamMode === "prep" ? (
+                  <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-bold" data-testid="badge-stream-mode">● PREP</Badge>
+                ) : (
+                  <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]" data-testid="badge-stream-mode">● STANDBY</Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">AI managing {destinations?.length || 0} destinations · Multi-platform autopilot active</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { icon: Brain, label: "AI Advisor", value: "Active", color: "hsl(265 80% 60%)" },
+              { icon: Shield, label: "Copyright", value: "Clear", color: "hsl(142 70% 50%)" },
+              { icon: Signal, label: "Destinations", value: `${destinations?.length || 0}`, color: "hsl(200 80% 55%)" },
+              { icon: Activity, label: "Stream Health", value: ytLiveStatus?.connected ? "Online" : "Idle", color: ytLiveStatus?.connected ? "hsl(142 70% 50%)" : "hsl(45 90% 55%)" }
+            ].map(({ icon: Icon, label, value, color }) => (
+              <div key={label} className="flex flex-col items-center px-3 py-2 rounded-xl bg-muted/20 border border-border/30 min-w-[64px]">
+                <Icon className="w-3.5 h-3.5 mb-1" style={{ color }} />
+                <span className="text-[11px] font-bold metric-display" style={{ color }}>{value}</span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>}
 
       {/* ─── Multi-Stream Relay Engine (live mode only) ─── */}
       {streamMode === "live" && <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="multistream-relay-card">
