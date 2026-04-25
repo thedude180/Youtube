@@ -360,17 +360,23 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
-    const ua = BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
     const cookiesArgs: string[] = (() => {
       try { return fs.existsSync(YT_COOKIES_PATH) && fs.statSync(YT_COOKIES_PATH).size > 10 ? ["--cookies", YT_COOKIES_PATH] : []; }
       catch { return []; }
     })();
+    const hasCookies = cookiesArgs.length > 0;
+    // When cookies are present yt-dlp sends an authenticated session: let it use
+    // its own built-in UA so YouTube returns a consistent desktop response.
+    // Without cookies we rotate through the pool to blend in with organic traffic.
+    const ua = hasCookies
+      ? null
+      : BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
     const { stdout } = await execFileAsync(resolveYtdlp(), [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
       "--no-warnings",
-      "--user-agent", ua,
+      ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
       "--referer", "https://www.youtube.com/",
       "--extractor-args", "youtube:player_client=web",
