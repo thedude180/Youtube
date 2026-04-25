@@ -4,6 +4,7 @@ import { liveChatMessages, streams, streamDestinations } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClient } from "./lib/openai";
+import { isAIAvailableNow } from "./lib/ai-semaphore";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import {
   getCommentResponseDelay,
@@ -182,15 +183,25 @@ CRITICAL RULES:
 
   const prompt = `Recent chat:\n${chatContext}\n\nRespond to ${author}'s message: "${sanitizeForPrompt(message)}"\n\nOutput ONLY your reply. No quotes.`;
 
+  if (!isAIAvailableNow()) {
+    logger.debug("[LiveChat] AI busy or rate-limited — skipping auto-reply for this message");
+    return null;
+  }
+
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemMsg },
-        { role: "user", content: prompt },
-      ],
-      max_completion_tokens: 4000,
-    });
+    const response = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemMsg },
+          { role: "user", content: prompt },
+        ],
+        max_completion_tokens: 4000,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("Chat AI timeout"), { status: 429, throttled: true })), 5_000)
+      ),
+    ]);
 
     let reply = response.choices[0]?.message?.content || "";
     reply = reply.replace(/^["']|["']$/g, "").trim();

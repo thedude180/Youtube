@@ -1,8 +1,14 @@
 import { getOpenAIClient } from "../lib/openai";
+import { getAISemaphoreStats } from "../lib/ai-semaphore";
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { aiInsights, videos, channels, analyticsSnapshots } from "@shared/schema";
 import { eq, desc, and, sql, gte, isNull, or } from "drizzle-orm";
+
+/** Returns true when the OpenAI circuit-breaker is currently open (rate-limited). */
+function isRateLimited(): boolean {
+  return getAISemaphoreStats().rateLimitedUntil > Date.now();
+}
 
 export async function generateDashboardInsights(userId: string): Promise<{
   insights: Array<{
@@ -93,26 +99,42 @@ Return 3-6 insights and 2-4 opportunities. Return ONLY valid JSON.`;
   let insights: any[] = [];
   let opportunities: any[] = [];
 
-  try {
-    const openai = getOpenAIClient();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    });
-
-    const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
-    insights = parsed.insights || [];
-    opportunities = parsed.opportunities || [];
-  } catch (e) {
+  if (isRateLimited()) {
     insights = [{
       type: "system",
       title: "Analysis Temporarily Unavailable",
-      description: "AI analysis could not be completed at this time. Your data is still being collected.",
+      description: "AI analysis will resume shortly. Your data is still being collected.",
       severity: "info" as const,
       actionable: false,
     }];
+  } else {
+    try {
+      const openai = getOpenAIClient();
+      const timeoutMs = 8_000;
+      const response = await Promise.race([
+        openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(Object.assign(new Error("Dashboard insights timeout"), { status: 429, throttled: true })), timeoutMs)
+        ),
+      ]);
+
+      const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
+      insights = parsed.insights || [];
+      opportunities = parsed.opportunities || [];
+    } catch (e) {
+      insights = [{
+        type: "system",
+        title: "Analysis Temporarily Unavailable",
+        description: "AI analysis could not be completed at this time. Your data is still being collected.",
+        severity: "info" as const,
+        actionable: false,
+      }];
+    }
   }
 
   for (const insight of insights) {
@@ -200,14 +222,22 @@ Look for: content type performance patterns, engagement velocity changes, topic 
 
 Return ONLY valid JSON with a "trends" array.`;
 
+  if (isRateLimited()) return { trends: [] };
+
   try {
     const openai = getOpenAIClient();
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
-    });
+    const timeoutMs = 8_000;
+    const response = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("Trends timeout"), { status: 429, throttled: true })), timeoutMs)
+      ),
+    ]);
 
     const parsed = JSON.parse(response.choices[0]?.message?.content || "{}");
     return { trends: parsed.trends || [] };

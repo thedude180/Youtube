@@ -114,3 +114,18 @@ export function getAISemaphoreStats(): { active: number; queued: number; rateLim
     rateLimitedUntil: _rateLimitedUntil,
   };
 }
+
+/**
+ * Returns true if the AI slot is immediately available and the circuit breaker
+ * is not open. Use this for non-critical, optional AI calls (e.g. live-chat
+ * auto-replies) that should be skipped rather than queued when the system is busy.
+ */
+export function isAIAvailableNow(): boolean {
+  if (_rateLimitedUntil > Date.now()) return false;
+  if (_busy) return false;
+  const startupRem = STARTUP_HOLD_MS - (Date.now() - _bootTime);
+  if (startupRem > 0) return false;
+  const gapRem = MIN_INTER_CALL_DELAY_MS - (Date.now() - _lastReleaseAt);
+  if (gapRem > 0) return false;
+  return true;
+}

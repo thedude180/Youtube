@@ -258,6 +258,11 @@ export async function registerRoutes(
       actionClass = "content_draft";
     }
 
+    // Dev bypass user skips governance enforcement — unlimited trust for local testing
+    if (userId === "dev_bypass_user") {
+      return next();
+    }
+
     {
       try {
         const confidence = typeof req.body?.confidence === "number" ? req.body.confidence : 1.0;

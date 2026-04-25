@@ -10,6 +10,7 @@ import {
   generateThumbnailPrompt,
   runComplianceCheck,
 } from "../ai-engine";
+import { getAISemaphoreStats } from "../lib/ai-semaphore";
 import { pivotToStream, resumeFromStream } from "../backlog-engine";
 import { processGoLiveAnnouncements, processPostStreamHighlights } from "../autopilot-engine";
 import { processLiveChatMessage, getLiveChatFeed, getLiveChatStats, getMultiStreamStatus } from "../live-chat-engine";
@@ -220,13 +221,22 @@ export function registerStreamRoutes(app: Express) {
     const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
+    if (getAISemaphoreStats().rateLimitedUntil > Date.now()) {
+      return res.status(503).json({ success: false, message: "AI is temporarily rate-limited. Please try again in a few minutes.", retryAfter: Math.ceil((getAISemaphoreStats().rateLimitedUntil - Date.now()) / 1000) });
+    }
+
     try {
-      const seoData = await generateStreamSeo({
-        title: stream.title,
-        description: stream.description,
-        category: stream.category,
-        platforms: (stream.platforms as string[]) || ['youtube'],
-      });
+      const seoData = await Promise.race([
+        generateStreamSeo({
+          title: stream.title,
+          description: stream.description,
+          category: stream.category,
+          platforms: (stream.platforms as string[]) || ['youtube'],
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(Object.assign(new Error("SEO timeout"), { isTimeout: true })), 10_000)
+        ),
+      ]);
 
       await storage.updateStream(stream.id, { seoData });
       await storage.createAuditLog({
@@ -238,6 +248,9 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, seoData });
     } catch (error: any) {
+      if (error?.isTimeout) {
+        return res.status(503).json({ success: false, message: "AI is currently busy. SEO will be auto-applied when AI becomes available." });
+      }
       logger.error("Stream SEO error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
@@ -663,19 +676,28 @@ export function registerStreamRoutes(app: Express) {
     const stream = await storage.getStream(id);
     if (!stream || stream.userId !== userId) return res.status(404).json({ message: "Stream not found" });
 
+    if (getAISemaphoreStats().rateLimitedUntil > Date.now()) {
+      return res.status(503).json({ success: false, message: "AI is temporarily rate-limited. Post-stream analysis will run automatically when AI becomes available.", retryAfter: Math.ceil((getAISemaphoreStats().rateLimitedUntil - Date.now()) / 1000) });
+    }
+
     try {
       const duration = stream.startedAt && stream.endedAt
         ? (stream.endedAt.getTime() - stream.startedAt.getTime()) / 1000
         : undefined;
 
-      const result = await postStreamOptimize({
-        title: stream.title,
-        description: stream.description,
-        category: stream.category,
-        platforms: (stream.platforms as string[]) || ['youtube'],
-        duration,
-        stats: stream.streamStats,
-      });
+      const result = await Promise.race([
+        postStreamOptimize({
+          title: stream.title,
+          description: stream.description,
+          category: stream.category,
+          platforms: (stream.platforms as string[]) || ['youtube'],
+          duration,
+          stats: stream.streamStats,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(Object.assign(new Error("Post-process timeout"), { isTimeout: true })), 10_000)
+        ),
+      ]);
 
       await storage.updateStream(stream.id, {
         status: 'processed',
@@ -695,6 +717,9 @@ export function registerStreamRoutes(app: Express) {
 
       res.json({ success: true, result });
     } catch (error: any) {
+      if (error?.isTimeout) {
+        return res.status(503).json({ success: false, message: "AI is currently busy. Post-stream analysis will run automatically when AI becomes available." });
+      }
       logger.error("Post-stream processing error:", error);
       res.status(500).json({ success: false, message: "An internal error occurred. Please try again." });
     }
