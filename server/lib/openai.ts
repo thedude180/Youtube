@@ -3,6 +3,7 @@ import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
+let _rawDirectClient: OpenAI | null = null;
 
 // 401 is included because the Replit AI integration gateway returns an empty
 // 401 when its free compute budget is exhausted.  After the user tops up their
@@ -119,6 +120,23 @@ function getRawOpenAIClient(): OpenAI {
     });
   }
   return _client;
+}
+
+/**
+ * Returns a fully separate, unpatched OpenAI client instance that does NOT
+ * go through the semaphore middleware.  Use this only when the caller has
+ * already acquired the slot via tryAcquireAISlotNow() and will release it
+ * manually via releaseAISlot().  Separate instance avoids the in-place
+ * patch applied by getOpenAIClient().
+ */
+export function getRawOpenAIClientForDirectUse(): OpenAI {
+  if (!_rawDirectClient) {
+    _rawDirectClient = new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+  }
+  return _rawDirectClient;
 }
 
 interface AICallMetrics {

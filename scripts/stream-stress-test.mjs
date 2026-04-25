@@ -85,6 +85,38 @@ async function parallel(calls) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// Send chat messages one-at-a-time with a gap so the AI has a slot to reply to each.
+async function serialChat(streamId, messages, label) {
+  const results = [];
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const r = await hit(`${label} ${i+1}: ${msg.author}`, "POST", `/api/streams/${streamId}/chat`, msg, { soft: true, verbose: true });
+    results.push(r);
+    if (i < messages.length - 1) await sleep(4_500); // 3s inter-call gap + 1.5s buffer
+  }
+  return results;
+}
+
+// Read the chat feed and count AI responses.
+async function chatAIReport(streamId) {
+  try {
+    const r = await fetch(`${BASE}/api/streams/${streamId}/chat?limit=200`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${DEV_KEY}`,
+        "User-Agent": "Mozilla/5.0 (ET Gaming Stream Test)",
+      },
+    });
+    if (!r.ok) return { ai: 0, total: 0, pct: 0, msgs: [], error: `HTTP ${r.status}` };
+    const msgs = await r.json();
+    if (!Array.isArray(msgs)) return { ai: 0, total: 0, pct: 0, msgs: [], error: "Not array" };
+    const ai = msgs.filter(m => m.isAiResponse).length;
+    const total = msgs.filter(m => !m.isAiResponse).length;
+    const pct = total > 0 ? Math.round((ai / total) * 100) : 0;
+    return { ai, total, pct, msgs };
+  } catch (e) { return { ai: 0, total: 0, pct: 0, msgs: [], error: e.message }; }
+}
+
 function bar(n, total, w = 30) {
   const filled = Math.round((n / total) * w);
   return "█".repeat(filled) + "░".repeat(w - filled);
@@ -109,6 +141,40 @@ function checkpoint(h, viewers, chat, events) {
 header("PHASE 0 — PRE-FLIGHT CHECKS");
 
 const health = await hit("Server health", "GET", "/api/health", null, { verbose: true });
+
+// ── AI readiness: check circuit breaker and wait for startup grace ────────────
+{
+  const SEMAPHORE_HEADERS = {
+    "Authorization": `Bearer ${DEV_KEY}`,
+    "User-Agent": "Mozilla/5.0 (ET Gaming Stream Test)",
+  };
+  let aiReady = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const r = await fetch(`${BASE}/api/dev/ai-semaphore`, { headers: SEMAPHORE_HEADERS });
+    const s = await r.json();
+
+    if (s.rateLimitedUntilHuman !== "clear") {
+      console.log(`  ⏳ AI circuit breaker open (${s.rateLimitedUntilHuman}) — resetting...`);
+      await fetch(`${BASE}/api/dev/ai-semaphore/reset`, { method: "POST", headers: SEMAPHORE_HEADERS });
+      await sleep(1000);
+      continue;
+    }
+    if (s.startupGraceRemainingMs > 0) {
+      process.stdout.write(`  ⏳ Startup grace: ${Math.ceil(s.startupGraceRemainingMs/1000)}s remaining...\r`);
+      await sleep(Math.min(s.startupGraceRemainingMs + 200, 5000));
+      continue;
+    }
+    if (s.ready) {
+      console.log(`  ✅ AI semaphore ready — circuit breaker clear, startup grace elapsed, slot free`);
+      aiReady = true;
+      break;
+    }
+    console.log(`  ⏳ AI slot active, waiting 3s... (attempt ${attempt+1}/20)`);
+    await sleep(3000);
+  }
+  if (!aiReady) console.log(`  ⚠️  AI may still be busy — chat replies could be limited`);
+}
+
 const cmdCenter = await hit("Command center", "GET", "/api/stream/command-center", null, {
   verbose: true, soft: true
 });
@@ -187,6 +253,20 @@ await parallel([
 
 await sleep(MIN_MS * 5); // 5 min startup
 
+// Reset circuit breaker before chat — the SEO blast may have triggered a 429
+{
+  const SEMAPHORE_HEADERS = {
+    "Authorization": `Bearer ${DEV_KEY}`,
+    "User-Agent": "Mozilla/5.0 (ET Gaming Stream Test)",
+  };
+  await fetch(`${BASE}/api/dev/ai-semaphore/reset`, { method: "POST", headers: SEMAPHORE_HEADERS });
+  // Give the 3-second inter-call gap a moment to clear too
+  await sleep(3_500);
+  const r = await fetch(`${BASE}/api/dev/ai-semaphore`, { headers: SEMAPHORE_HEADERS });
+  const s = await r.json();
+  console.log(`\n  [CHAT AI] Circuit breaker reset before chat — status: ${s.ready ? "✅ ready" : "⚠️ " + (s.rateLimitedUntilHuman || "not ready")}`);
+}
+
 // Chat flood — first wave
 console.log("\n  [CHAT FLOOD — first 30 minutes]");
 const chatMessages = [
@@ -201,13 +281,16 @@ const chatMessages = [
 ];
 
 if (STREAM_ID) {
-  const chatResults = await parallel(chatMessages.map((msg, i) =>
-    hit(`Chat msg ${i+1}: ${msg.author}`, "POST", `/api/streams/${STREAM_ID}/chat`, msg, {
-      soft: true, verbose: true
-    })
-  ));
+  const chatResults = await serialChat(STREAM_ID, chatMessages, "Chat msg");
   const chatOk = chatResults.filter(r => r.ok).length;
   console.log(`  → ${chatOk}/${chatMessages.length} chat messages delivered`);
+  await sleep(3_000);
+  const h1ai = await chatAIReport(STREAM_ID);
+  console.log(`  → AI replies so far: ${h1ai.ai}/${h1ai.total} messages (${h1ai.pct}% response rate)`);
+  if (h1ai.ai > 0) {
+    const sample = h1ai.msgs.find(m => m.isAiResponse);
+    console.log(`     Sample reply: "${sample?.message?.substring(0, 80)}"`);
+  }
 }
 
 checkpoint(1, 47, 12, RESULTS.ok + RESULTS.failed);
@@ -234,6 +317,19 @@ for (let tick = 0; tick < 6; tick++) {
   const ok = tickResults.filter(r => r.ok).length;
   console.log(`${ok}/7 ok`);
   await sleep(MIN_MS * 5); // 5 min per poll cycle
+}
+
+// Reset circuit breaker before boss fight chat
+{
+  const SEMAPHORE_HEADERS = {
+    "Authorization": `Bearer ${DEV_KEY}`,
+    "User-Agent": "Mozilla/5.0 (ET Gaming Stream Test)",
+  };
+  await fetch(`${BASE}/api/dev/ai-semaphore/reset`, { method: "POST", headers: SEMAPHORE_HEADERS });
+  await sleep(3_500);
+  const r = await fetch(`${BASE}/api/dev/ai-semaphore`, { headers: SEMAPHORE_HEADERS });
+  const s = await r.json();
+  console.log(`\n  [CHAT AI] Circuit breaker reset before boss fight chat — status: ${s.ready ? "✅ ready" : "⚠️ " + (s.rateLimitedUntilHuman || "not ready")}`);
 }
 
 // Moment capture — boss fight begins
@@ -274,11 +370,12 @@ const bossChat = [
 ];
 
 if (STREAM_ID) {
-  const bossResults = await parallel(bossChat.map((msg, i) =>
-    hit(`Boss chat ${i+1}`, "POST", `/api/streams/${STREAM_ID}/chat`, msg, { soft: true })
-  ));
+  const bossResults = await serialChat(STREAM_ID, bossChat, "Boss chat");
   const ok = bossResults.filter(r => r.ok).length;
-  console.log(`\n  → ${ok}/${bossChat.length} boss fight chat messages delivered`);
+  console.log(`  → ${ok}/${bossChat.length} boss fight chat messages delivered`);
+  await sleep(3_000);
+  const bossAI = await chatAIReport(STREAM_ID);
+  console.log(`  → AI replies so far: ${bossAI.ai}/${bossAI.total} messages (${bossAI.pct}% response rate)`);
 }
 
 // Game detection during stream
@@ -390,6 +487,19 @@ const surge = await parallel([
   hit("Webhooks health", "GET", "/api/live-ops/webhooks/health", null, { soft: true, verbose: true }),
 ]);
 
+// Reset circuit breaker before finale chat — endurance + concurrent AI surge may have triggered 429s
+{
+  const SEMAPHORE_HEADERS = {
+    "Authorization": `Bearer ${DEV_KEY}`,
+    "User-Agent": "Mozilla/5.0 (ET Gaming Stream Test)",
+  };
+  await fetch(`${BASE}/api/dev/ai-semaphore/reset`, { method: "POST", headers: SEMAPHORE_HEADERS });
+  await sleep(3_500);
+  const r = await fetch(`${BASE}/api/dev/ai-semaphore`, { headers: SEMAPHORE_HEADERS });
+  const s = await r.json();
+  console.log(`\n  [CHAT AI] Circuit breaker reset before finale chat — status: ${s.ready ? "✅ ready" : "⚠️ " + (s.rateLimitedUntilHuman || "not ready")}`);
+}
+
 // Mass chat wave — finale hype
 const finaleChat = [
   { platform: "youtube", author: "HypeLord_420", message: "THOR FIGHT LETS FREAKIN GOOOOOOO 🔥🔥🔥🔥" },
@@ -410,11 +520,12 @@ const finaleChat = [
 ];
 
 if (STREAM_ID) {
-  const finaleResults = await parallel(finaleChat.map((msg, i) =>
-    hit(`Finale chat ${i+1}`, "POST", `/api/streams/${STREAM_ID}/chat`, msg, { soft: true })
-  ));
+  const finaleResults = await serialChat(STREAM_ID, finaleChat, "Finale chat");
   const ok = finaleResults.filter(r => r.ok).length;
-  console.log(`\n  → ${ok}/${finaleChat.length} finale chat messages delivered`);
+  console.log(`  → ${ok}/${finaleChat.length} finale chat messages delivered`);
+  await sleep(3_000);
+  const finaleAI = await chatAIReport(STREAM_ID);
+  console.log(`  → AI replies so far: ${finaleAI.ai}/${finaleAI.total} messages (${finaleAI.pct}% response rate)`);
 }
 
 // Concurrent AI assistance — max concurrent
@@ -609,6 +720,29 @@ if (RESULTS.errors.length > 0) {
     console.log(`    ... and ${RESULTS.errors.length - 15} more`);
   }
 }
+
+// ── AI Chat Report ────────────────────────────────────────────────────────────
+const finalAI = await chatAIReport(STREAM_ID);
+console.log(`\n  ACTIVE CHAT REPORT:`);
+console.log(`    Viewer messages:  ${finalAI.total}`);
+console.log(`    AI replies:       ${finalAI.ai}`);
+console.log(`    Response rate:    ${finalAI.pct}%`);
+if (finalAI.ai > 0) {
+  const samples = finalAI.msgs.filter(m => m.isAiResponse).slice(0, 3);
+  console.log(`    Sample AI replies:`);
+  for (const s of samples) {
+    console.log(`      → [${s.platform}] ${s.message?.substring(0, 75)}`);
+  }
+} else {
+  console.log(`    ⚠️  No AI replies — circuit breaker may have been open during test`);
+}
+
+const chatVerdict = finalAI.pct >= 50
+  ? "🟢 ACTIVE — AI responded to most messages"
+  : finalAI.pct >= 20
+  ? "🟡 PARTIAL — AI replied to some messages (rate-limiting likely)"
+  : "🔴 SILENT — AI did not respond to chat (check circuit breaker)";
+console.log(`    Chat status:      ${chatVerdict}`);
 
 const verdict = RESULTS.failed === 0
   ? "🟢 STREAM-READY — no hard failures across the full 8-hour simulation"

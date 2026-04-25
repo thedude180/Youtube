@@ -67,6 +67,7 @@ import {
   deductTrustBudget as governanceDeductBudget,
   enforceTenantIsolation,
 } from "./services/trust-governance";
+import { getAISemaphoreStats as getSemaphoreStats, resetCircuitBreaker, hardResetCircuitBreaker } from "./lib/ai-semaphore";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -156,6 +157,29 @@ export async function registerRoutes(
   app.get("/api/auth/mode", (_req, res) => {
     res.json({ mode: IS_DEV ? "replit" : "oauth" });
   });
+
+  // Dev-only: expose AI semaphore state and allow circuit breaker reset for testing
+  if (IS_DEV) {
+    app.get("/api/dev/ai-semaphore", (_req, res) => {
+      const s = getSemaphoreStats();
+      const now = Date.now();
+      res.json({
+        rateLimitedUntil: s.rateLimitedUntil,
+        rateLimitedUntilHuman: s.rateLimitedUntil > now
+          ? `${Math.round((s.rateLimitedUntil - now) / 1000)}s remaining`
+          : "clear",
+        active: s.active,
+        queued: s.queued,
+        startupGraceRemainingMs: s.startupGraceRemainingMs,
+        chatPriorityWindowRemainingMs: s.chatPriorityWindowRemainingMs,
+        ready: s.ready,
+      });
+    });
+    app.post("/api/dev/ai-semaphore/reset", (_req, res) => {
+      hardResetCircuitBreaker();
+      res.json({ ok: true, message: "Circuit breaker hard reset — queue drained, AI calls will proceed immediately" });
+    });
+  }
 
   createAsyncSafeApp(app);
 
