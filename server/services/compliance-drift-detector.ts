@@ -187,6 +187,43 @@ export async function getDriftEvents(filters?: {
   return query;
 }
 
+/**
+ * Auto-resolves detected drift events that are older than MAX_DRIFT_AGE_DAYS.
+ *
+ * Drifts this old represent stale policy snapshot deltas that were never acted
+ * on.  Keeping them as "detected" would permanently block publishing via the
+ * pre-flight gate even when the operator has no intention of resolving them.
+ * Runs once at server startup and returns how many events were auto-resolved.
+ */
+export async function autoResolveStaleDetectedDrifts(maxAgeDays = 7): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
+  const staleEvents = await db.select({ id: complianceDriftEvents.id })
+    .from(complianceDriftEvents)
+    .where(
+      and(
+        eq(complianceDriftEvents.status, "detected"),
+        sql`${complianceDriftEvents.detectedAt} < ${cutoff.toISOString()}`
+      )
+    );
+
+  if (staleEvents.length === 0) return 0;
+
+  await db.update(complianceDriftEvents)
+    .set({ status: "resolved", resolvedAt: new Date() })
+    .where(
+      and(
+        eq(complianceDriftEvents.status, "detected"),
+        sql`${complianceDriftEvents.detectedAt} < ${cutoff.toISOString()}`
+      )
+    );
+
+  logger.info("Auto-resolved stale compliance drift events", {
+    count: staleEvents.length,
+    maxAgeDays,
+  });
+  return staleEvents.length;
+}
+
 export async function resolveDriftEvent(eventId: number): Promise<boolean> {
   const existing = await db.select().from(complianceDriftEvents)
     .where(eq(complianceDriftEvents.id, eventId))

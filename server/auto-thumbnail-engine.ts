@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
 import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";

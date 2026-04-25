@@ -16,7 +16,7 @@ function requireAuth(req: Request, res: Response): string | null {
 
 const STEP_IDS = PIPELINE_STEPS.map(s => s.id);
 
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 import { createLogger } from "../lib/logger";

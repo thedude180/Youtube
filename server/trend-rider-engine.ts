@@ -2,7 +2,7 @@ import { db } from "./db";
 import { streams, trendOverrides, autopilotQueue, videos } from "@shared/schema";
 import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { detectContentContext, type ContentContext } from "./ai-engine";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { jitter } from "./lib/timer-utils";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";

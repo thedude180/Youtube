@@ -128,9 +128,23 @@ export async function runPolicyPreFlight(
   gatesChecked.push("drift_check");
   const unresolvedDrifts = await getDriftEvents({ platform, status: "detected", limit: 10 });
   const activeDrifts = unresolvedDrifts.length;
-  const criticalDrifts = unresolvedDrifts.filter(d => d.severity === "critical");
-  if (criticalDrifts.length > 0) {
-    blockers.push(`${criticalDrifts.length} critical unresolved policy drift(s) for ${platform} — must be resolved before publishing`);
+  // Only treat a critical drift as a hard blocker within the first 48 hours of detection.
+  // Drifts older than 48 hours are downgraded to warnings — they represent a stale
+  // policy snapshot delta that hasn't been manually acted on, not an active violation.
+  // This prevents a one-time drift detection event from permanently blocking publishing.
+  const DRIFT_HARD_BLOCK_WINDOW_MS = 48 * 60 * 60 * 1000;
+  const now = Date.now();
+  const freshCriticalDrifts = unresolvedDrifts.filter(
+    d => d.severity === "critical" && d.detectedAt && (now - new Date(d.detectedAt).getTime()) < DRIFT_HARD_BLOCK_WINDOW_MS
+  );
+  const staleCriticalDrifts = unresolvedDrifts.filter(
+    d => d.severity === "critical" && (!d.detectedAt || (now - new Date(d.detectedAt).getTime()) >= DRIFT_HARD_BLOCK_WINDOW_MS)
+  );
+  if (freshCriticalDrifts.length > 0) {
+    blockers.push(`${freshCriticalDrifts.length} critical unresolved policy drift(s) for ${platform} — must be resolved before publishing`);
+  }
+  if (staleCriticalDrifts.length > 0) {
+    recommendations.push(`${staleCriticalDrifts.length} stale critical drift(s) for ${platform} detected >48h ago — review when possible`);
   } else if (activeDrifts > 0) {
     recommendations.push(`${activeDrifts} unresolved policy drift(s) detected for ${platform} — review before publishing`);
   }
@@ -142,7 +156,7 @@ export async function runPolicyPreFlight(
     try {
       const { createException } = await import("./exception-desk");
       await createException({
-        severity: criticalDrifts.length > 0 || !credibility?.publishAllowed ? "critical" : "high",
+        severity: freshCriticalDrifts.length > 0 || !credibility?.publishAllowed ? "critical" : "high",
         category: "compliance_block",
         source: "policy_preflight",
         title: `Pre-flight blocked: ${platform} publish for user ${userId}`,

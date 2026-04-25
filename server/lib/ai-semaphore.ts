@@ -11,17 +11,24 @@
 //    throw immediately rather than waiting indefinitely (prevents unbounded growth).
 // 6. Hard reset: clears circuit breaker AND rejects all queued callers instantly,
 //    so tests/dev tooling can get a clean slate without waiting through the backlog.
+// 7. Background-tier callers (pipeline analysis, trend-rider, thumbnails, etc.)
+//    fail fast when BACKGROUND_MAX_QUEUE_DEPTH is reached, reserving queue slots
+//    for critical-path callers (publish, pre-flight, live-chat).
 
 export const MIN_INTER_CALL_DELAY_MS = 3_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 10;
+// Background callers fail-fast when this many are already queued.
+// Keeps the tail of the queue open for critical-path publish/chat callers.
+const BACKGROUND_MAX_QUEUE_DEPTH = 5;
 const _bootTime = Date.now();
 
 let _busy = false;
 let _lastReleaseAt = 0;
 
-type WakeEntry = { resolve: () => void; reject: (e: Error) => void };
+type WakeEntry = { resolve: () => void; reject: (e: Error) => void; background: boolean };
 const _releaseListeners: WakeEntry[] = [];
+let _backgroundQueueCount = 0;
 
 // Circuit-breaker state
 let _rateLimitedUntil = 0;
@@ -106,6 +113,7 @@ export function hardResetCircuitBreaker(): void {
   // Activate priority window so background callers can't steal the slot
   _chatPriorityUntil = Date.now() + CHAT_PRIORITY_WINDOW_MS;
   const drained = _releaseListeners.splice(0);
+  _backgroundQueueCount = 0;
   for (const { reject } of drained) {
     try { reject(new Error("AI semaphore hard reset")); } catch { /* ignore */ }
   }
@@ -126,12 +134,22 @@ async function _waitForCircuitBreaker(): Promise<void> {
   if (rem > 0) await _pause(rem + Math.random() * 3_000);
 }
 
-async function _waitForRelease(): Promise<void> {
+async function _waitForRelease(background: boolean): Promise<void> {
+  // Background callers fail fast when their tier is saturated, freeing the
+  // remaining queue depth for critical-path callers (publish, pre-flight).
+  if (background && _backgroundQueueCount >= BACKGROUND_MAX_QUEUE_DEPTH) {
+    throw new Error(`AI queue full for background tasks (${_backgroundQueueCount}/${BACKGROUND_MAX_QUEUE_DEPTH} background callers waiting) — request dropped`);
+  }
   if (_releaseListeners.length >= MAX_QUEUE_DEPTH) {
     throw new Error(`AI queue full (${MAX_QUEUE_DEPTH} callers waiting) — request dropped`);
   }
+  if (background) _backgroundQueueCount++;
   await new Promise<void>((resolve, reject) => {
-    _releaseListeners.push({ resolve, reject });
+    _releaseListeners.push({
+      resolve,
+      reject,
+      background,
+    });
   });
 }
 
@@ -166,7 +184,40 @@ export async function acquireAISlot(): Promise<void> {
 
     // Slot is busy — wait for a release signal, then loop to re-check.
     // This throws if a hard-reset drains the queue.
-    await _waitForRelease();
+    await _waitForRelease(false);
+  }
+}
+
+/**
+ * Background-tier variant of acquireAISlot().
+ *
+ * Identical to acquireAISlot() except it fails fast when BACKGROUND_MAX_QUEUE_DEPTH
+ * background callers are already queued.  Use this in non-critical background
+ * engines (pipeline analysis, trend detection, thumbnail generation, smart-scheduler,
+ * content variation, etc.) so they don't monopolise the queue and starve
+ * critical-path publish and chat-reply callers.
+ */
+export async function acquireAISlotBackground(): Promise<void> {
+  if (consumePreAcquireToken()) return;
+
+  if (_inChatPriorityWindow()) {
+    throw new Error("AI slot deferred: chat priority window active");
+  }
+
+  await _waitForStartupGrace();
+
+  while (true) {
+    await _waitForCircuitBreaker();
+
+    if (!_busy) {
+      _busy = true;
+      const gap = MIN_INTER_CALL_DELAY_MS - (Date.now() - _lastReleaseAt);
+      if (gap > 0) await _pause(gap);
+      return;
+    }
+
+    // background=true: fails fast when background tier is saturated
+    await _waitForRelease(true);
   }
 }
 
@@ -174,9 +225,13 @@ export function releaseAISlot(): void {
   _lastReleaseAt = Date.now();
   _busy = false;
   _preAcquiredToken = false; // clear any stale pre-acquire so it can't be misused
-  // Wake ONE waiting caller (it will re-check circuit-breaker before proceeding)
-  const wake = _releaseListeners.shift();
+  // Wake ONE waiting caller (it will re-check circuit-breaker before proceeding).
+  // Find the first non-background caller first (priority); fall back to background.
+  const criticalIdx = _releaseListeners.findIndex(e => !e.background);
+  const idx = criticalIdx >= 0 ? criticalIdx : 0;
+  const wake = idx < _releaseListeners.length ? _releaseListeners.splice(idx, 1)[0] : undefined;
   if (wake) {
+    if (wake.background) _backgroundQueueCount = Math.max(0, _backgroundQueueCount - 1);
     setTimeout(wake.resolve, MIN_INTER_CALL_DELAY_MS);
   }
 }
@@ -184,6 +239,7 @@ export function releaseAISlot(): void {
 export function getAISemaphoreStats(): {
   active: number;
   queued: number;
+  backgroundQueued: number;
   rateLimitedUntil: number;
   startupGraceRemainingMs: number;
   chatPriorityWindowRemainingMs: number;
@@ -193,6 +249,7 @@ export function getAISemaphoreStats(): {
   return {
     active: _busy ? 1 : 0,
     queued: _releaseListeners.length,
+    backgroundQueued: _backgroundQueueCount,
     rateLimitedUntil: _rateLimitedUntil,
     startupGraceRemainingMs: Math.max(0, STARTUP_HOLD_MS - (now - _bootTime)),
     chatPriorityWindowRemainingMs: Math.max(0, _chatPriorityUntil - now),

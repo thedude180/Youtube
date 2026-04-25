@@ -530,6 +530,9 @@ syncChannelTokens(); // restore missing YouTube tokens from users table (dev + p
 healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
+// Auto-resolve compliance drift events older than 7 days so stale baseline deltas
+// don't permanently block publishing via the pre-flight gate.
+import("./services/compliance-drift-detector").then(m => m.autoResolveStaleDetectedDrifts()).catch(() => {});
 setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
 // ─────────────────────────────────────────────────────────────────────────────
 

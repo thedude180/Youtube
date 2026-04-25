@@ -1,5 +1,5 @@
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
 import { autopilotQueue, channels } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";

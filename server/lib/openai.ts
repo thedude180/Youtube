@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
+import { acquireAISlot, acquireAISlotBackground, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
 let _client: OpenAI | null = null;
 let _trackedClient: OpenAI | null = null;
@@ -18,8 +18,8 @@ const MAX_PRECALL_WAIT_MS = 120_000; // 2 minutes — engines wait in queue
 // Global pre-call throttle: acquires a shared concurrent slot (shared with
 // Claude so OpenAI + Claude combined never exceed MAX_CONCURRENT_AI = 4)
 // then also verifies the sliding-window rate limit budget.
-async function awaitSystemSlot(endpoint: string): Promise<void> {
-  await acquireAISlot();
+async function awaitSystemSlot(endpoint: string, background = false): Promise<void> {
+  await (background ? acquireAISlotBackground() : acquireAISlot());
   try {
     let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
     const start = Date.now();
@@ -37,11 +37,11 @@ async function awaitSystemSlot(endpoint: string): Promise<void> {
   }
 }
 
-async function withRetry<T>(fn: () => Promise<T>, endpoint: string): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, endpoint: string, background = false): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     // Acquire a slot before each attempt — slots are released in the finally below
-    await awaitSystemSlot(endpoint);
+    await awaitSystemSlot(endpoint, background);
     try {
       const result = await fn();
       releaseAISlot(); // success — free the slot immediately
@@ -110,6 +110,50 @@ export function getOpenAIClient(): OpenAI {
     _trackedClient = baseClient;
   }
   return _trackedClient;
+}
+
+let _backgroundTrackedClient: OpenAI | null = null;
+
+/**
+ * Returns an OpenAI client that uses the background-tier semaphore slot.
+ *
+ * Use this in non-critical background engines (pipeline analysis, trend detection,
+ * thumbnail generation, smart-scheduler, content variation) so they fail fast when
+ * the background queue is saturated (≥ 5 callers) instead of blocking critical-path
+ * publish and live-chat callers from getting an AI slot.
+ */
+export function getOpenAIClientBackground(): OpenAI {
+  if (!_backgroundTrackedClient) {
+    const baseClient = new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
+    const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
+
+    (baseClient.chat.completions as any).create = async function(params: any, ...args: any[]) {
+      const start = Date.now();
+      const endpoint = params?.model || "unknown";
+      const isStreaming = params?.stream === true;
+      try {
+        const result = await withRetry(() => originalCreate(params, ...args), endpoint, true);
+        const latency = Date.now() - start;
+        if (isStreaming) {
+          trackAICall(endpoint, 0, 0, latency);
+        } else {
+          const tokensIn = (result as any)?.usage?.prompt_tokens || 0;
+          const tokensOut = (result as any)?.usage?.completion_tokens || 0;
+          trackAICall(endpoint, tokensIn, tokensOut, latency);
+        }
+        return result;
+      } catch (err: any) {
+        const latency = Date.now() - start;
+        trackAICall(endpoint, 0, 0, latency, err?.message);
+        throw err;
+      }
+    };
+    _backgroundTrackedClient = baseClient;
+  }
+  return _backgroundTrackedClient;
 }
 
 function getRawOpenAIClient(): OpenAI {

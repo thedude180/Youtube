@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";

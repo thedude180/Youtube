@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { acquireAISlot, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
+import { acquireAISlot, acquireAISlotBackground, releaseAISlot, notifyRateLimit } from "./ai-semaphore";
 
 import { createLogger } from "./logger";
 
@@ -19,8 +19,8 @@ const MAX_PRECALL_WAIT_MS = 120_000;
 
 // Shared concurrent-call semaphore (same pool as OpenAI — combined limit of 4
 // in-flight requests across ALL AI providers).
-async function awaitSystemSlot(): Promise<void> {
-  await acquireAISlot();
+async function awaitSystemSlot(background = false): Promise<void> {
+  await (background ? acquireAISlotBackground() : acquireAISlot());
   try {
     let { checkSystemRateLimit } = await import("../services/internal-rate-limiter");
     const start = Date.now();
@@ -38,10 +38,10 @@ async function awaitSystemSlot(): Promise<void> {
   }
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, background = false): Promise<T> {
   let lastErr: any;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    await awaitSystemSlot();
+    await awaitSystemSlot(background);
     try {
       const result = await fn();
       releaseAISlot();
@@ -103,6 +103,21 @@ export interface ClaudeCallResult {
 }
 
 export async function callClaude(params: ClaudeCallParams): Promise<ClaudeCallResult> {
+  return _callClaudeInternal(params, false);
+}
+
+/**
+ * Background-tier variant of callClaude().
+ *
+ * Uses acquireAISlotBackground() so the request fails fast when the background
+ * queue is saturated (≥ 5 callers), preserving queue capacity for critical-path
+ * callers (publish pipeline, pre-flight checks, live-chat replies).
+ */
+export async function callClaudeBackground(params: ClaudeCallParams): Promise<ClaudeCallResult> {
+  return _callClaudeInternal(params, true);
+}
+
+async function _callClaudeInternal(params: ClaudeCallParams, background: boolean): Promise<ClaudeCallResult> {
   const {
     system,
     prompt,
@@ -125,7 +140,8 @@ export async function callClaude(params: ClaudeCallParams): Promise<ClaudeCallRe
       temperature,
       ...(system ? { system } : {}),
       messages,
-    })
+    }),
+    background
   );
 
   const latencyMs = Date.now() - startTime;
