@@ -1,6 +1,6 @@
 import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
-import { isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
+import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
 
 const ytLogger = createLogger("youtube");
@@ -477,6 +477,12 @@ export async function refreshAllUserChannelStats(userId: string): Promise<void> 
 
 export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
+  // Look up the owner userId so we can gate and track quota precisely
+  const channelRow = await storage.getChannel(channelId);
+  const fnUserId: string | null = channelRow?.userId ?? null;
+  if (fnUserId && !(await canAffordOperation(fnUserId, "read"))) {
+    throw Object.assign(new Error("YouTube API quota too low to fetch videos safely"), { code: "QUOTA_EXCEEDED" });
+  }
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -500,12 +506,17 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
 
   try {
     do {
+      if (fnUserId && !(await canAffordOperation(fnUserId, "read"))) {
+        ytLogger.warn("[fetchYouTubeVideos] Quota too low — stopping playlist page fetch early", { fetched: allVideoIds.length });
+        break;
+      }
       const playlistResponse = await youtube.playlistItems.list({
         part: ["contentDetails"],
         playlistId: channelInfo.uploadsPlaylistId,
         maxResults: perPage,
         pageToken,
       });
+      if (fnUserId) await trackQuotaUsage(fnUserId, "list", 1);
 
       const ids = playlistResponse.data.items
         ?.map(item => item.contentDetails?.videoId)
@@ -528,12 +539,17 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
 
   const allVideos: any[] = [];
   for (let i = 0; i < allVideoIds.length; i += 50) {
+    if (fnUserId && !(await canAffordOperation(fnUserId, "read"))) {
+      ytLogger.warn("[fetchYouTubeVideos] Quota too low — stopping video details fetch early", { fetched: allVideos.length });
+      break;
+    }
     const batch = allVideoIds.slice(i, i + 50);
     try {
       const videosResponse = await youtube.videos.list({
         part: ["snippet", "statistics", "contentDetails", "status"],
         id: batch,
       });
+      if (fnUserId) await trackQuotaUsage(fnUserId, "list", 1);
       if (videosResponse.data.items) {
         allVideos.push(...videosResponse.data.items);
       }

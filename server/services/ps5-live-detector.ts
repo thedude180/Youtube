@@ -79,12 +79,12 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
   let apiResult = null;
   let rssResult = null;
 
-  // 1. Quota-aware API check
+  // 1. Quota-aware API check (liveBroadcasts.list costs 50 units)
   const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-  if (quota.remaining > 5) {
+  if (quota.remaining > 50) {
     try {
       const broadcasts = await checkYouTubeLiveBroadcasts(channel.id);
-      await trackQuotaUsage(userId, "list", 1).catch(() => {});
+      await trackQuotaUsage(userId, "broadcast").catch(() => {});
       apiResult = broadcasts.find(b => b.status === "active" || b.status === "live");
       signals.api = !!apiResult;
     } catch (err) {

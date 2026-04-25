@@ -148,12 +148,12 @@ async function checkAndEngageStream(userId: string): Promise<void> {
           let broadcastTitle: string | null = null;
           let detectedLive = false;
 
-          // Try YouTube API first (costs 1 quota unit) — only if > 5 units remaining
+          // Try YouTube API first (costs 50 quota units for liveBroadcasts.list) — only if > 50 units remaining
           const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-          if (quota.remaining > 5) {
+          if (quota.remaining > 50) {
             try {
               const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
-              await trackQuotaUsage(userId, "list", 1);
+              await trackQuotaUsage(userId, "broadcast");
               const activeBroadcast = broadcasts.find((b: any) =>
                 b.status === "live" || b.status === "liveStarting" || b.status === "testing"
               );

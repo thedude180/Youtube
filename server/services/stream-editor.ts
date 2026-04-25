@@ -762,10 +762,23 @@ let _watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startStreamEditorWatchdog(): void {
   if (_watchdogTimer) return; // already running
-  // Run immediately to clear any jobs that were frozen before this deploy
-  watchdogCheck().catch(() => {});
+  // Run immediately to clear any jobs that were frozen before this deploy,
+  // then kick the queue in case there are queued jobs left over from a restart.
+  watchdogCheck()
+    .then(() => {
+      if (activeJobId === null) {
+        return pickUpNextQueuedJob().catch(() => {});
+      }
+    })
+    .catch(() => {});
   _watchdogTimer = setInterval(() => {
-    watchdogCheck().catch(() => {});
+    watchdogCheck()
+      .then(() => {
+        if (activeJobId === null) {
+          return pickUpNextQueuedJob().catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, WATCHDOG_INTERVAL_MS);
   logger.info("[StreamEditor] Watchdog started — checks every 10 min, threshold 90 min");
 }
