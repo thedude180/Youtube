@@ -130,16 +130,11 @@ function shouldRespondToMessage(message: string, metadata: any): { respond: bool
 
   const engageWords = ["love", "amazing", "insane", "goated", "fire", "crazy", "clutch", "gg", "nice", "sick", "wow", "omg", "incredible", "cracked", "let's go", "lets go"];
   if (engageWords.some(w => lower.includes(w))) {
-    if (Math.random() < 0.35) {
-      return { respond: true, priority: "low" };
-    }
+    return { respond: true, priority: "normal" };
   }
 
-  if (Math.random() < 0.08) {
-    return { respond: true, priority: "low" };
-  }
-
-  return { respond: false, priority: "none" };
+  // Every viewer message gets a reply — no random sampling.
+  return { respond: true, priority: "low" };
 }
 
 function calculateNaturalDelay(priority: string, messageIndex: number): number {
