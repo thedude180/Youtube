@@ -327,7 +327,7 @@ CRITICAL RULES:
         aiResponseTo: chatMsg.id,
         sentiment: "positive",
         priority,
-        metadata: { responseDelay: delay, devFallback: true },
+        metadata: { responseDelay: delay },
       }).returning();
       sendSSEEvent(userId, "live-chat", {
         type: "ai_response",
