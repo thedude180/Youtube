@@ -210,7 +210,7 @@ function JobCard({ job, onCancel, onDelete }: {
             {job.currentStage && (() => {
               const isAiStage = job.currentStage.startsWith("AI Packaging");
               return (
-                <p className={`text-xs flex items-center gap-1.5 truncate ${isAiStage ? "text-purple-400" : "text-blue-400"}`}>
+                <p className={`text-xs flex items-center gap-1.5 truncate ${isAiStage ? "text-purple-400" : "text-blue-400"}`} data-testid="job-current-stage">
                   {isAiStage
                     ? <Sparkles className="h-3 w-3 shrink-0" />
                     : <Activity className="h-3 w-3 shrink-0" />}
