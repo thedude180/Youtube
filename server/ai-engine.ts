@@ -1715,11 +1715,12 @@ Respond as JSON:
   return JSON.parse(c);
 }
 
-export async function aiCommentManager(data: { comments: Array<{ text: string; author: string }>; channelName?: string }, userId?: string) {
+export async function aiCommentManager(data: { comments?: Array<{ text: string; author: string }>; channelName?: string }, userId?: string) {
   const ctx = await getCreatorContext(userId);
+  const comments = data.comments || [];
   const p = `Analyze these comments and draft personalized replies in the creator's voice. Also identify superfans and sentiment.
 Channel: ${sanitizeForPrompt(data.channelName || "Creator")}
-Comments: ${JSON.stringify(data.comments.slice(0, 20).map(c => ({ text: sanitizeForPrompt(c.text), author: sanitizeForPrompt(c.author) })))}
+Comments: ${JSON.stringify(comments.slice(0, 20).map(c => ({ text: sanitizeForPrompt(c.text), author: sanitizeForPrompt(c.author) })))}
 ${ctx ? `\n${ctx}` : ""}
 Respond as JSON:
 {
