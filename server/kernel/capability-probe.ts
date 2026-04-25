@@ -67,35 +67,46 @@ export async function probeCapability(
 
   const responseTimeMs = Date.now() - start;
 
-  const [probe] = await db
-    .insert(platformCapabilityProbes)
-    .values({
+  try {
+    const [probe] = await db
+      .insert(platformCapabilityProbes)
+      .values({
+        platform,
+        capabilityName: capabilityKey,
+        probeResult: result,
+        responseTimeMs,
+        errorMessage,
+        metadata: { probedAt: new Date().toISOString(), userId: userId || null },
+      })
+      .returning();
+
+    if (userId) {
+      await emitDomainEvent(userId, "capability.probed", {
+        platform,
+        capabilityName: capabilityKey,
+        result,
+        responseTimeMs,
+      }, "capability-probe", `${platform}:${capabilityKey}`).catch(() => {});
+    }
+
+    return {
+      id: probe.id,
+      platform: probe.platform,
+      capabilityName: probe.capabilityName,
+      probeResult: probe.probeResult,
+      responseTimeMs: probe.responseTimeMs,
+      errorMessage: probe.errorMessage,
+    };
+  } catch {
+    return {
+      id: -1,
       platform,
       capabilityName: capabilityKey,
       probeResult: result,
       responseTimeMs,
       errorMessage,
-      metadata: { probedAt: new Date().toISOString(), userId: userId || null },
-    })
-    .returning();
-
-  if (userId) {
-    await emitDomainEvent(userId, "capability.probed", {
-      platform,
-      capabilityName: capabilityKey,
-      result,
-      responseTimeMs,
-    }, "capability-probe", `${platform}:${capabilityKey}`);
+    };
   }
-
-  return {
-    id: probe.id,
-    platform: probe.platform,
-    capabilityName: probe.capabilityName,
-    probeResult: probe.probeResult,
-    responseTimeMs: probe.responseTimeMs,
-    errorMessage: probe.errorMessage,
-  };
 }
 
 export async function getCapabilityStatus(

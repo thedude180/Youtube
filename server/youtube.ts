@@ -982,11 +982,17 @@ export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId:
 
     try {
       const { processNewVideoUpload } = await import("./autopilot-engine");
-      for (const video of newVideos) {
-        processNewVideoUpload(userId, video.id).catch(err =>
-          ytLogger.error("Autopilot pipeline failed for video", { videoId: video.id, error: err?.message || String(err) })
-        );
-      }
+      // Stagger pipeline calls to prevent DB connection pool exhaustion.
+      // Firing all videos simultaneously can saturate all 30 pool slots when
+      // background services are also running. 4-second stagger keeps the pool
+      // headroom above zero while still processing a backlog quickly.
+      newVideos.forEach((video, idx) => {
+        setTimeout(() => {
+          processNewVideoUpload(userId, video.id).catch(err =>
+            ytLogger.error("Autopilot pipeline failed for video", { videoId: video.id, error: err?.message || String(err) })
+          );
+        }, idx * 4000);
+      });
     } catch (err) {
       ytLogger.error("Failed to trigger autopilot pipeline", { error: String(err) });
     }

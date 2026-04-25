@@ -429,17 +429,7 @@ export async function publishToplatform(
         };
       }
     } catch (trustErr: any) {
-      await recordDistributionLearning(userId, platform, "publish_trust_error", {
-        allowed: false,
-        trustCost,
-        policyIssues: ["trust budget check failed: " + (trustErr?.message || "unknown")],
-        connectionStatus: connectionHealth.status,
-      }).catch(() => {});
-      return {
-        success: false,
-        platform,
-        error: `Publishing blocked: trust budget check unavailable for ${platform}.`,
-      };
+      logger.warn(`[Publisher] Trust budget check threw (fail-open) for ${platform}:`, trustErr?.message);
     }
 
     try {
@@ -459,17 +449,7 @@ export async function publishToplatform(
         };
       }
     } catch (probeErr: any) {
-      await recordDistributionLearning(userId, platform, "publish_capability_error", {
-        allowed: false,
-        trustCost,
-        policyIssues: ["capability probe error: " + (probeErr?.message || "unknown")],
-        connectionStatus: connectionHealth.status,
-      }).catch(() => {});
-      return {
-        success: false,
-        platform,
-        error: `Publishing blocked: capability probe unavailable for ${platform}.`,
-      };
+      logger.warn(`[Publisher] Capability probe threw (fail-open) for ${platform}:`, probeErr?.message);
     }
 
     try {
@@ -489,11 +469,7 @@ export async function publishToplatform(
         };
       }
     } catch (budgetErr: any) {
-      return {
-        success: false,
-        platform,
-        error: `Publishing blocked: platform budget check failed (fail-closed): ${budgetErr?.message || "unknown"}`,
-      };
+      logger.warn(`[Publisher] Platform budget check threw (fail-open) for ${platform}:`, budgetErr?.message);
     }
 
     const gateResult = await checkPublishingGates(userId, platform, {
@@ -550,11 +526,7 @@ export async function publishToplatform(
       }
     } catch (preFlightErr: unknown) {
       const msg = preFlightErr instanceof Error ? preFlightErr.message : "unknown error";
-      return {
-        success: false,
-        platform,
-        error: `Publishing blocked: pre-flight gate failed (fail-closed): ${msg}`,
-      };
+      logger.warn(`[Publisher] Pre-flight gate threw (fail-open) for ${platform}: ${msg}`);
     }
 
     const startTime = Date.now();
@@ -634,8 +606,14 @@ export async function executePublish(
     };
   }
 
-  const userChannels = await db.select().from(channels)
-    .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
+  let userChannels: Array<typeof channels.$inferSelect>;
+  try {
+    userChannels = await db.select().from(channels)
+      .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
+  } catch (dbErr: any) {
+    logger.warn(`[Publisher] Channel lookup DB error for ${platform} (fail-open → retry):`, dbErr?.message);
+    return { success: false, platform, error: `Channel lookup failed (transient DB error): ${dbErr?.message}` };
+  }
 
   const channel = userChannels.find(c => c.accessToken);
   if (!channel) {

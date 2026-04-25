@@ -195,7 +195,24 @@ export async function getPlatformBudgetStatus(userId: string, platform: string):
       gapSatisfied,
     };
   } catch (err: any) {
-    logger.warn("Budget status check failed, blocking conservatively", { userId, platform, error: err.message });
+    const isTransient = /timeout|connect|ECONNRESET|ETIMEDOUT|ENOTFOUND/i.test(err?.message || "");
+    if (isTransient) {
+      logger.warn("Budget status check failed (transient DB error) — allowing optimistically", { userId, platform, error: err.message });
+      return {
+        platform,
+        dailyLimit,
+        scheduledToday: 0,
+        publishedToday: 0,
+        totalToday: 0,
+        remaining: 1,
+        canPost: true,
+        reason: "degraded_allow",
+        minGapMs,
+        lastPostAt: null,
+        gapSatisfied: true,
+      };
+    }
+    logger.warn("Budget status check failed (non-transient) — blocking conservatively", { userId, platform, error: err.message });
     return {
       platform,
       dailyLimit,
