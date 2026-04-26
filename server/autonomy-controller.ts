@@ -460,9 +460,9 @@ let autonomyInterval: ReturnType<typeof setInterval> | null = null;
 async function resetQueueFullBackoffs(): Promise<void> {
   // Engines that previously failed with "queue full" errors got pushed into long
   // exponential backoffs (up to 24 h) even though it wasn't their fault.
-  // On startup, reset them so they run at their normal interval again.
+  // Reset them so staggerStartupEngines can spread them properly.
   try {
-    const result = await db.update(autonomyEngineConfig)
+    await db.update(autonomyEngineConfig)
       .set({ failureCount: 0, status: "idle", nextRunAt: new Date(), lastError: null })
       .where(or(
         ilike(autonomyEngineConfig.lastError, "%queue full%"),
@@ -475,15 +475,66 @@ async function resetQueueFullBackoffs(): Promise<void> {
   }
 }
 
+async function staggerStartupEngines(): Promise<void> {
+  // After a restart, any engines that are already due (or about to be due)
+  // would all fire in the first cycle, overwhelming the AI queue.
+  // Spread them evenly across a 60-minute window so each engine gets a
+  // dedicated slot with breathing room.
+  //
+  // Strategy:
+  //   1. Find all engines due within the next 5 minutes.
+  //   2. Sort by intervalMinutes ASC — high-frequency engines (war_room,
+  //      platform_health) get the earliest slots since they're most time-sensitive.
+  //   3. Divide 60 minutes into equal slots, add ±20% jitter so engines
+  //      from multiple users don't land on the same second.
+  try {
+    const cutoff = new Date(Date.now() + 5 * 60_000);
+    const overdue = await db.select().from(autonomyEngineConfig)
+      .where(and(
+        eq(autonomyEngineConfig.enabled, true),
+        lte(autonomyEngineConfig.nextRunAt, cutoff),
+      ));
+
+    if (overdue.length === 0) {
+      logger.info("Startup stagger: no overdue engines found");
+      return;
+    }
+
+    // Sort by interval ascending (most frequent = earliest slot).
+    const sorted = [...overdue].sort(
+      (a, b) => (a.intervalMinutes ?? 60) - (b.intervalMinutes ?? 60),
+    );
+
+    const WINDOW_MS = 60 * 60_000; // 60-minute spread window
+    const slotMs = WINDOW_MS / sorted.length;
+
+    for (let i = 0; i < sorted.length; i++) {
+      const engine = sorted[i];
+      const jitterMs = (Math.random() - 0.5) * 0.4 * slotMs; // ±20% of slot
+      const nextRun = new Date(Date.now() + i * slotMs + jitterMs);
+      await db.update(autonomyEngineConfig)
+        .set({ nextRunAt: nextRun, status: "idle" })
+        .where(eq(autonomyEngineConfig.id, engine.id));
+    }
+
+    logger.info(`Startup stagger: spread ${sorted.length} engines across 60-minute window`);
+  } catch (e: any) {
+    logger.warn("staggerStartupEngines error", { error: e.message });
+  }
+}
+
 export function startAutonomyController() {
   if (autonomyInterval) return;
 
   logger.info("Autonomy Controller starting — 15-minute cycles");
 
-  // Clear any engines stuck in long backoff from prior queue-full errors.
-  resetQueueFullBackoffs().catch(e => logger.warn("resetQueueFullBackoffs error", { error: e.message }));
+  // 1. Clear queue-full backoffs, then 2. spread all due engines across 60 min.
+  // Both finish before the first cycle fires (90-second delay below).
+  resetQueueFullBackoffs()
+    .then(() => staggerStartupEngines())
+    .catch(e => logger.warn("Startup engine prep error", { error: e.message }));
 
-  setTimeout(() => runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message })), 90000);
+  setTimeout(() => runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message })), 90_000);
 
   autonomyInterval = setInterval(() => {
     runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message }));
