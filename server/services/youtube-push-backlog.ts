@@ -150,10 +150,15 @@ export async function processBacklog(): Promise<{
       sql`${youtubePushBacklog.updatedAt} < ${fiveMinutesAgo}`,
     ));
 
+  // Cap at 3 items per run.  processBacklog() is called every 15 minutes
+  // (96 runs/day), so 3 items/run = up to 288 writes/day in theory — but the
+  // daily op count cap in the quota tracker (30 write ops/day) is the real
+  // ceiling.  The small batch size prevents a midnight burst from consuming
+  // the entire 10,000-unit daily budget in a single sweep.
   const queuedItems = await db.select().from(youtubePushBacklog)
     .where(eq(youtubePushBacklog.status, "queued"))
     .orderBy(asc(youtubePushBacklog.priority), asc(youtubePushBacklog.createdAt))
-    .limit(50);
+    .limit(3);
 
   if (queuedItems.length === 0) {
     return { processed: 0, failed: 0, remaining: 0, quotaUsed: 0 };

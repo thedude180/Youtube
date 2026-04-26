@@ -81,6 +81,69 @@ const SAFETY_BUFFER = 200; // Hard floor — never go below this for any operati
  */
 const UPLOAD_RESERVE = 4000;
 
+/**
+ * Daily operation COUNT caps — independent of unit budget.
+ *
+ * Even if units remain, these hard limits prevent any single operation type
+ * from monopolising the full daily budget.  They are enforced in-memory
+ * (per Pacific date) so the check adds zero DB round-trips to the hot path.
+ *
+ * Budget breakdown at these caps:
+ *   upload    4 × 1600 =  6,400  (hard ceiling; studio uploads rarely reach 4)
+ *   write    30 ×   50 =  1,500  (metadata updates spread across 24 h)
+ *   thumbnail 20 ×   50 =  1,000  (AI thumbnail uploads spread across 24 h)
+ *   broadcast 40 ×   50 =  2,000  (live detection during an active stream)
+ *   search     3 ×  100 =    300  (search.list is 100 units — use sparingly)
+ *   read/list/livechat: uncapped (1 unit each, negligible)
+ *   ──────────────────────────────
+ *   Worst-case total             11,200  (all caps hit simultaneously — rare)
+ *   Normal daily usage           ~4,000–6,000 units with typical streaming
+ *
+ * The unit-budget gate in canAffordOperation() is still the ultimate backstop.
+ */
+const DAILY_OP_CAPS: Record<string, number> = {
+  upload:    4,
+  write:     30,
+  thumbnail: 20,
+  broadcast: 40,
+  search:    3,
+  read:      Infinity,
+  list:      Infinity,
+  livechat:  Infinity,
+};
+
+interface DailyOpCounter {
+  date: string;
+  upload: number;
+  write: number;
+  thumbnail: number;
+  broadcast: number;
+  search: number;
+}
+
+const _dailyOpCounters = new Map<string, DailyOpCounter>();
+
+function getDailyOpCounter(userId: string): DailyOpCounter {
+  const today = getPacificDate();
+  const existing = _dailyOpCounters.get(userId);
+  if (existing && existing.date === today) return existing;
+  const fresh: DailyOpCounter = { date: today, upload: 0, write: 0, thumbnail: 0, broadcast: 0, search: 0 };
+  _dailyOpCounters.set(userId, fresh);
+  return fresh;
+}
+
+function incrementDailyOpCounter(userId: string, operation: string): void {
+  const counter = getDailyOpCounter(userId);
+  if (operation in counter && operation !== "date") {
+    (counter as any)[operation] = ((counter as any)[operation] ?? 0) + 1;
+  }
+}
+
+export function getDailyOpCounts(userId: string): Record<string, number> {
+  const c = getDailyOpCounter(userId);
+  return { upload: c.upload, write: c.write, thumbnail: c.thumbnail, broadcast: c.broadcast, search: c.search };
+}
+
 function getPacificDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
 }
@@ -156,6 +219,10 @@ export async function trackQuotaUsage(userId: string, operation: QuotaOperation,
         lastUpdatedAt: new Date(),
       } as any)
       .where(eq(youtubeQuotaUsage.id, record.id));
+
+    // Mirror into in-memory daily op counter so canAffordOperation() can
+    // enforce count caps without an extra DB round-trip.
+    for (let i = 0; i < count; i++) incrementDailyOpCounter(userId, operation);
   } catch (err) {
     logger.error(`[QuotaTracker] Failed to track quota for ${userId}:`, err);
   }
@@ -206,6 +273,20 @@ export async function getQuotaStatus(userId: string): Promise<{
  *    possible — only falling back to the API when alternatives are exhausted.
  */
 export async function canAffordOperation(userId: string, operation: QuotaOperation, count: number = 1): Promise<boolean> {
+  // Gate 1: daily operation COUNT cap (in-memory, zero DB round-trips).
+  // Prevents any one operation type from monopolising the unit budget even when
+  // units appear plentiful (e.g. metadata pushes at midnight burning all 10k units).
+  const cap = DAILY_OP_CAPS[operation];
+  if (isFinite(cap)) {
+    const counter = getDailyOpCounter(userId);
+    const todayCount = (counter as any)[operation] ?? 0;
+    if (todayCount + count > cap) {
+      logger.info(`[QuotaTracker] Daily op cap reached for "${operation}": ${todayCount}/${cap} — operation blocked until midnight Pacific`);
+      return false;
+    }
+  }
+
+  // Gate 2: unit budget check.
   const status = await getQuotaStatus(userId);
   const cost = QUOTA_COSTS[operation] * count;
 
@@ -304,13 +385,48 @@ export async function persistQuotaExhaustion(userId: string): Promise<void> {
  */
 export async function restoreQuotaBreakerOnStartup(): Promise<void> {
   try {
-    const allUsers = await getQuotaForAllUsers();
-    const exhausted = allUsers.find(u => u.isExceeded || u.remaining < SAFETY_BUFFER);
-    if (exhausted) {
-      tripGlobalQuotaBreaker();
-      logger.info(`[QuotaBreaker] Startup restore: quota exhausted for user ${exhausted.userId} (${exhausted.remaining} remaining) — circuit breaker pre-tripped until midnight Pacific`);
-    } else {
-      logger.info(`[QuotaBreaker] Startup restore: quota healthy — breaker stays open`);
+    const today = getPacificDate();
+    const allRecords = await db.select().from(youtubeQuotaUsage)
+      .where(eq(youtubeQuotaUsage.date, today));
+
+    for (const record of allRecords) {
+      const userId = record.userId;
+
+      // Restore in-memory daily op counters from DB so post-deploy restarts
+      // don't reset count caps to zero and allow another burst.
+      //
+      // DB stores writeOps as write+thumbnail combined (no separate column).
+      // Seed both write and thumbnail conservatively with writeOps so neither
+      // cap is exceeded if the full writeOps budget was already spent on one type.
+      const counter = getDailyOpCounter(userId);
+      counter.write     = Math.min(record.writeOps ?? 0,  DAILY_OP_CAPS.write);
+      counter.thumbnail = Math.min(record.writeOps ?? 0,  DAILY_OP_CAPS.thumbnail);
+      counter.search    = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
+      counter.upload    = Math.min(record.uploadOps ?? 0, DAILY_OP_CAPS.upload);
+      // broadcast has no DB column — leave at 0 (a restarted server gets a fresh
+      // broadcast budget which is safe since live detection falls back to scraping)
+
+      const isExhausted = record.unitsUsed >= record.quotaLimit;
+      const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;
+      if (isExhausted || isNearLimit) {
+        tripGlobalQuotaBreaker();
+        logger.info(
+          `[QuotaBreaker] Startup restore: quota exhausted for user ${userId} ` +
+          `(${record.quotaLimit - record.unitsUsed} remaining) — circuit breaker pre-tripped until midnight Pacific`
+        );
+      }
+
+      logger.info(
+        `[QuotaBreaker] Startup op-counter restore for ${userId}: ` +
+        `write=${counter.write}/${DAILY_OP_CAPS.write} ` +
+        `thumbnail=${counter.thumbnail}/${DAILY_OP_CAPS.thumbnail} ` +
+        `search=${counter.search}/${DAILY_OP_CAPS.search} ` +
+        `upload=${counter.upload}/${DAILY_OP_CAPS.upload}`
+      );
+    }
+
+    if (allRecords.length === 0) {
+      logger.info(`[QuotaBreaker] Startup restore: no quota records for today — breaker stays open, counters at zero`);
     }
   } catch (err: any) {
     logger.warn(`[QuotaBreaker] Could not restore state from DB on startup (non-fatal): ${err.message}`);

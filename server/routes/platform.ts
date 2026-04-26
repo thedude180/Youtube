@@ -9,7 +9,7 @@ import { PLATFORM_INFO } from "@shared/schema";
 import { requireAuth, getUserId, parseNumericId } from "./helpers";
 import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
-import { trackQuotaUsage, getQuotaStatus } from "../services/youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, getDailyOpCounts } from "../services/youtube-quota-tracker";
 import { smartPushOrQueue, getBacklogStats, processBacklog, retryFailedItems } from "../services/youtube-push-backlog";
 import {
   startShortsPipeline, getShortsPipelineStatus, pauseShortsPipeline,
@@ -1012,7 +1012,8 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const quota = await getQuotaStatus(userId);
       const backlog = await getBacklogStats(userId);
-      res.json({ quota, backlog });
+      const opCounts = getDailyOpCounts(userId);
+      res.json({ quota, backlog, opCounts });
     } catch (error: any) {
       res.status(500).json({ error: "An internal error occurred. Please try again." });
     }
