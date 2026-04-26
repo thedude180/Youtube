@@ -825,6 +825,7 @@ export async function cleanupOrphanedPlaylists(userId: string): Promise<{
           .where(eq(playlistItems.playlistId, dup.id));
 
         for (const item of existingItems) {
+          if (!item.videoId) continue;
           const alreadyInCanonical = await isVideoInPlaylist(canonical.id, item.videoId);
           if (!alreadyInCanonical) {
             const pos = await db.select({ count: sql<number>`count(*)::int` })
