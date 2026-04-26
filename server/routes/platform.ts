@@ -684,7 +684,7 @@ export async function registerPlatformRoutes(app: Express) {
       if (!entry) {
         return res.status(404).json({ error: "Entry not found" });
       }
-      // If the file is locally downloaded and still on disk, stream it
+      // 1. File is on local disk — stream it directly
       if (entry.status === "downloaded" && entry.filePath) {
         const fs = await import("fs");
         if (fs.existsSync(entry.filePath)) {
@@ -697,7 +697,17 @@ export async function registerPlatformRoutes(app: Express) {
           return;
         }
       }
-      // Fallback: redirect to the original YouTube URL so the user can download from YouTube
+      // 2. File is in cloud storage — generate a 24-hour signed download URL
+      if (entry.youtubeId) {
+        try {
+          const { getVaultFileSignedUrl } = await import("../services/vault-object-storage");
+          const signedUrl = await getVaultFileSignedUrl(entry.youtubeId, 86400);
+          if (signedUrl) {
+            return res.redirect(302, signedUrl);
+          }
+        } catch {}
+      }
+      // 3. Last resort: redirect to YouTube so the user can download from there
       const ytUrl = entry.backupUrl || `https://www.youtube.com/watch?v=${entry.youtubeId}`;
       return res.redirect(302, ytUrl);
     } catch (error: any) {

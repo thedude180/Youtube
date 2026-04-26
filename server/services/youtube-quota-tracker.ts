@@ -317,4 +317,22 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
   }
 }
 
+/**
+ * Check whether there is enough quota to perform a catalog listing operation
+ * (channels.list, playlistItems.list, videos.list for indexing).
+ *
+ * Unlike canAffordOperation("read"), this does NOT require leaving the full
+ * UPLOAD_RESERVE headroom — because listing the channel catalog costs ~27 units
+ * for 1340 videos, which is negligible compared to a 1600-unit upload.
+ * We only require the hard SAFETY_BUFFER floor (200 units) so that metadata
+ * writes can always complete even if listing runs first.
+ *
+ * The quota breaker still blocks listing when it is fully tripped (quota = 0).
+ */
+export async function canAffordCatalogListing(userId: string, estimatedUnits: number = 50): Promise<boolean> {
+  if (isQuotaBreakerTripped()) return false;
+  const status = await getQuotaStatus(userId);
+  return status.remaining >= estimatedUnits + SAFETY_BUFFER;
+}
+
 export { QUOTA_COSTS, type QuotaOperation, getPacificDate, getNextResetTime };

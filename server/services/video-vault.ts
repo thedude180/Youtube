@@ -466,8 +466,11 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   if (allVideosRaw.length === 0) {
     const accessTokenForIndex = await getVaultYouTubeToken(userId);
     if (accessTokenForIndex) {
-      const { canAffordOperation } = await import("./youtube-quota-tracker");
-      const quotaOk = await canAffordOperation(userId, "read");
+      // Catalog listing costs ~27 units for 1340 videos — use the dedicated
+      // canAffordCatalogListing check (not canAffordOperation) so the 4000-unit
+      // upload reserve doesn't block index runs even when uploads are queued.
+      const { canAffordCatalogListing } = await import("./youtube-quota-tracker");
+      const quotaOk = await canAffordCatalogListing(userId, 50);
       if (quotaOk) {
         try {
           allVideosRaw = await fetchVideosFromYouTubeAPI(accessTokenForIndex);
@@ -476,7 +479,7 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
           logger.warn(`[Vault] YouTube API index also failed (${apiErr.message})`);
         }
       } else {
-        logger.warn(`[Vault] YouTube API index skipped — quota reserved for uploads/metadata`);
+        logger.warn(`[Vault] YouTube API index skipped — quota fully exhausted (breaker tripped)`);
       }
     } else {
       if (!_warnedNoToken.has(userId)) {
@@ -926,9 +929,30 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       await db.update(contentVaultBackups)
         .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
         .where(eq(contentVaultBackups.id, vaultEntry.id));
+      // Back up to cloud storage if not already there
+      import("./vault-object-storage").then(({ uploadVaultFileToStorage, vaultFileExistsInStorage }) =>
+        vaultFileExistsInStorage(youtubeId).then(exists => {
+          if (!exists) uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {});
+        }).catch(() => {})
+      ).catch(() => {});
       return true;
     }
   }
+
+  // Check cloud storage before downloading from YouTube — restores files that were
+  // lost after a deployment restart without consuming any YouTube API quota.
+  try {
+    const { downloadVaultFileFromStorage } = await import("./vault-object-storage");
+    const restored = await downloadVaultFileFromStorage(youtubeId, outputPath);
+    if (restored && fs.existsSync(outputPath)) {
+      const stat = fs.statSync(outputPath);
+      await db.update(contentVaultBackups)
+        .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
+        .where(eq(contentVaultBackups.id, vaultEntry.id));
+      logger.info(`[Vault] Restored ${youtubeId} from cloud storage (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+      return true;
+    }
+  } catch {}
 
   const freeSpace = await getFreeSpaceGB();
   if (freeSpace < MIN_FREE_SPACE_GB) {
@@ -955,6 +979,9 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
           await db.update(contentVaultBackups)
             .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
             .where(eq(contentVaultBackups.id, vaultEntry.id));
+          import("./vault-object-storage").then(({ uploadVaultFileToStorage }) =>
+            uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {})
+          ).catch(() => {});
           return true;
         }
       }
@@ -1003,6 +1030,9 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
             .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
             .where(eq(contentVaultBackups.id, vaultEntry.id));
           logger.info(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} via ${playerClient} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+          import("./vault-object-storage").then(({ uploadVaultFileToStorage }) =>
+            uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {})
+          ).catch(() => {});
           return true;
         }
       }
@@ -1370,6 +1400,20 @@ export async function downloadVaultEntry(userId: string, entryId: number): Promi
   if (entry.filePath && fs.existsSync(entry.filePath)) {
     return entry.filePath;
   }
+
+  // Before hitting YouTube, check cloud storage — files survive deployments there
+  const expectedLocalPath = path.join(VAULT_DIR, `${entry.youtubeId}.mp4`);
+  try {
+    const { downloadVaultFileFromStorage } = await import("./vault-object-storage");
+    const restored = await downloadVaultFileFromStorage(entry.youtubeId!, expectedLocalPath);
+    if (restored) {
+      const stat = fs.statSync(expectedLocalPath);
+      await db.update(contentVaultBackups)
+        .set({ status: "downloaded", filePath: expectedLocalPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
+        .where(eq(contentVaultBackups.id, entryId));
+      return expectedLocalPath;
+    }
+  } catch {}
 
   const accessToken = await getVaultYouTubeToken(userId);
   const success = await downloadSingleVideo(entry, accessToken);
