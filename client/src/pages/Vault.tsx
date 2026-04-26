@@ -38,6 +38,11 @@ interface VaultStats {
   vods: number; shorts: number; streams: number; protectedCount: number;
 }
 
+interface CloudStats {
+  originals: { count: number; bytes: number };
+  edited: { count: number; bytes: number };
+}
+
 interface VaultGame {
   gameName: string; totalVideos: number; vods: number; shorts: number;
   streams: number; downloaded: number; totalSizeMB: number;
@@ -843,12 +848,26 @@ export default function Vault() {
     };
   }, [showingDocSection]);
 
+  const { data: cloudStats, refetch: refetchCloudStats } = useQuery<CloudStats>({
+    queryKey: ["/api/vault/cloud-stats"],
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
+  });
+
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/sync"),
     onSuccess: () => {
       toast({ title: "Vault sync started", description: "Indexing all channel tabs in the background" });
       queryClient.invalidateQueries({ queryKey: ["/api/vault/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/vault/games"] });
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/vault/archive-to-cloud"),
+    onSuccess: () => {
+      toast({ title: "Cloud archive started", description: "Uploading all local videos to cloud storage. New downloads will also be archived automatically." });
+      setTimeout(() => refetchCloudStats(), 30_000);
     },
   });
 
@@ -991,6 +1010,10 @@ export default function Vault() {
               Backup to Drive
             </Button>
           </a>
+          <Button onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending} variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10" data-testid="button-archive-to-cloud">
+            {archiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+            Archive to Cloud
+          </Button>
           <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} variant="outline" data-testid="button-vault-sync">
             {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Sync Vault
@@ -1000,7 +1023,7 @@ export default function Vault() {
 
       {/* Stats (main view only) */}
       {showingMain && !statsError && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
           {[
             { key: "total", label: "Total", value: stats?.totalIndexed, Icon: HardDrive, color: "text-primary", bg: "bg-primary/10" },
             { key: "vods",  label: "VODs",  value: stats?.vods,         Icon: Video,    color: "text-blue-500",   bg: "bg-blue-500/10" },
@@ -1026,6 +1049,17 @@ export default function Vault() {
               <div>
                 {statsLoading ? <Skeleton className="h-7 w-14" /> : <p className="text-2xl font-bold">{stats?.totalSizeMB ? `${(stats.totalSizeMB / 1024).toFixed(1)}G` : "0G"}</p>}
                 <p className="text-xs text-muted-foreground">{stats?.freeSpaceGB}G free</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card data-testid="stat-cloud">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-sky-500/10"><UploadCloud className="h-5 w-5 text-sky-400" /></div>
+              <div>
+                <p className="text-2xl font-bold">{cloudStats ? (cloudStats.originals.count + cloudStats.edited.count).toLocaleString() : "—"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {cloudStats ? `${cloudStats.originals.count} orig · ${cloudStats.edited.count} clips` : "Cloud archive"}
+                </p>
               </div>
             </CardContent>
           </Card>

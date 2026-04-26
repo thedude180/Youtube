@@ -1385,6 +1385,52 @@ export async function startVaultSync(userId: string): Promise<void> {
 }
 
 /**
+ * Bulk-archive all locally-downloaded vault files to cloud storage.
+ * Called when the user explicitly requests "archive all to cloud".
+ *
+ * - For entries already downloaded to local disk: uploads to cloud immediately.
+ * - Also triggers the download queue so any pending (not-yet-downloaded) entries
+ *   get downloaded next and auto-upload on completion.
+ *
+ * Runs synchronously but uploads are rate-limited to avoid saturating the
+ * outbound network while other services are active.
+ */
+export async function archiveAllToCloud(userId: string): Promise<{ localUploaded: number; alreadyInCloud: number; pendingDownload: number }> {
+  const { uploadVaultFileToStorage, vaultFileExistsInStorage } = await import("./vault-object-storage");
+
+  const entries = await db.select()
+    .from(contentVaultBackups)
+    .where(and(
+      eq(contentVaultBackups.userId, userId),
+      eq(contentVaultBackups.status, "downloaded"),
+    ));
+
+  let localUploaded = 0;
+  let alreadyInCloud = 0;
+
+  for (const entry of entries) {
+    if (!entry.youtubeId || !entry.filePath) continue;
+    if (!fs.existsSync(entry.filePath)) continue;
+    try {
+      const exists = await vaultFileExistsInStorage(entry.youtubeId);
+      if (exists) { alreadyInCloud++; continue; }
+      const ok = await uploadVaultFileToStorage(entry.youtubeId, entry.filePath);
+      if (ok) localUploaded++;
+    } catch {}
+    // Brief pause between uploads to avoid saturating bandwidth
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  // Kick off the download queue for any videos not yet on disk (they'll auto-upload when done)
+  const stats = await getVaultStats(userId);
+  if (stats.pending > 0 && !isVaultRunning) {
+    startVaultSync(userId).catch(() => {});
+  }
+
+  return { localUploaded, alreadyInCloud, pendingDownload: stats.pending };
+}
+
+/**
  * Download a single vault entry by ID and wait for it to complete.
  * Used by the stream editor to auto-download before editing.
  * Returns the local file path on success, throws on failure.

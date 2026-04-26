@@ -632,6 +632,33 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.get("/api/vault/cloud-stats", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVaultStorageStats } = await import("../services/vault-object-storage");
+      const stats = await getVaultStorageStats();
+      res.json(stats ?? { originals: { count: 0, bytes: 0 }, edited: { count: 0, bytes: 0 } });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get cloud stats" });
+    }
+  });
+
+  app.post("/api/vault/archive-to-cloud", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { archiveAllToCloud } = await import("../services/video-vault");
+      // Fire off in background — can take a long time for large libraries
+      archiveAllToCloud(userId).then(result => {
+        logger.info(`[Vault] Cloud archive complete: ${result.localUploaded} uploaded, ${result.alreadyInCloud} already in cloud, ${result.pendingDownload} pending download`);
+      }).catch(err => logger.warn("[Vault] Cloud archive error:", err?.message));
+      res.json({ started: true, message: "Cloud archive started in background" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to start cloud archive" });
+    }
+  });
+
   app.post("/api/vault/sync", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

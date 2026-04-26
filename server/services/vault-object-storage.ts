@@ -171,15 +171,24 @@ export async function getEditedClipSignedUrl(objectName: string, ttlSeconds: num
   }
 }
 
-export async function getVaultStorageStats(): Promise<{ totalFiles: number; totalBytes: number } | null> {
+export async function getVaultStorageStats(): Promise<{
+  originals: { count: number; bytes: number };
+  edited: { count: number; bytes: number };
+} | null> {
   if (!isObjectStorageAvailable()) return null;
   const loc = getBucketAndObjectName("_check");
   if (!loc) return null;
   try {
     const bucket = objectStorageClient.bucket(loc.bucketName);
-    const [files] = await bucket.getFiles({ prefix: "vault/" });
-    const totalBytes = files.reduce((sum, f) => sum + Number((f.metadata as any).size || 0), 0);
-    return { totalFiles: files.length, totalBytes };
+    const [[origFiles], [editFiles]] = await Promise.all([
+      bucket.getFiles({ prefix: "vault/" }),
+      bucket.getFiles({ prefix: "vault-edited/" }),
+    ]);
+    const sum = (files: any[]) => files.reduce((s, f) => s + Number((f.metadata as any).size || 0), 0);
+    return {
+      originals: { count: origFiles.length, bytes: sum(origFiles) },
+      edited: { count: editFiles.length, bytes: sum(editFiles) },
+    };
   } catch {
     return null;
   }
