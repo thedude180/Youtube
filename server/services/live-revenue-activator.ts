@@ -14,6 +14,7 @@ import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 import {
   isQuotaBreakerTripped,
+  canAffordOperation,
   trackQuotaUsage,
   markQuotaErrorFromResponse,
   cacheLiveChatId,
@@ -185,7 +186,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
         if (cached.hit) {
           liveChatId = cached.liveChatId;
           (session as any).liveChatId = liveChatId;
-        } else if (!isQuotaBreakerTripped()) {
+        } else if (await canAffordOperation(session.userId, "broadcast").catch(() => false)) {
           try {
             const res = await youtube.liveBroadcasts.list({
               part: ["snippet"],
@@ -201,7 +202,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
         }
       }
 
-      if (liveChatId) {
+      if (liveChatId && await canAffordOperation(session.userId, "livechat").catch(() => false)) {
         await youtube.liveChatMessages.insert({
           part: ["snippet"],
           requestBody: {
@@ -214,6 +215,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
             }
           }
         });
+        await trackQuotaUsage(session.userId, "livechat");
         logger.info(`[${session.userId}] Membership prompt posted to YouTube chat`);
       }
     } catch (err: any) {

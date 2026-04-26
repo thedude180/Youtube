@@ -10,6 +10,7 @@ import { sendSSEEvent } from "../routes/events";
 import { withCreatorVoice } from "./creator-dna-builder";
 import {
   isQuotaBreakerTripped,
+  canAffordOperation,
   trackQuotaUsage,
   markQuotaErrorFromResponse,
   cacheLiveChatId,
@@ -201,8 +202,8 @@ async function getLiveChatId(channelDbId: number, userId?: string): Promise<stri
   const cached = getCachedLiveChatId(channelDbId);
   if (cached.hit) return cached.liveChatId;
 
-  if (isQuotaBreakerTripped()) {
-    logger.warn(`[IdleEngagement] Quota breaker tripped — skipping liveBroadcasts.list`);
+  if (isQuotaBreakerTripped() || (userId && !await canAffordOperation(userId, "broadcast").catch(() => false))) {
+    logger.warn(`[IdleEngagement] Broadcast cap reached or quota breaker tripped — skipping liveBroadcasts.list`);
     return null;
   }
 
@@ -263,6 +264,7 @@ async function tryAcquireChatId(session: IdleSession): Promise<boolean> {
 
 async function checkChatActivity(session: IdleSession): Promise<void> {
   try {
+    if (isQuotaBreakerTripped()) return;
     if (!await tryAcquireChatId(session)) return;
 
     const yt = await getYouTubeClient(session.channelDbId);
@@ -271,6 +273,8 @@ async function checkChatActivity(session: IdleSession): Promise<void> {
       part: ["snippet"],
       maxResults: 20,
     });
+    // liveChatMessages.list costs 5 units per YouTube Data API v3 quota docs
+    await trackQuotaUsage(session.userId, "read", 5);
 
     const messages = (chatRes as any).data?.items || [];
     const now = Date.now();
@@ -471,10 +475,15 @@ async function runIdleCheck(session: IdleSession): Promise<void> {
 
   try {
     if (!session.liveChatId) return;
+    if (!await canAffordOperation(session.userId, "livechat").catch(() => false)) {
+      logger.info(`[IdleEngagement] livechat cap reached — skipping idle engagement for ${session.userId.slice(0, 8)}`);
+      return;
+    }
     const yt = await getYouTubeClient(session.channelDbId);
     const posted = await postChatMessage(yt, session.liveChatId, message);
 
     if (posted) {
+      await trackQuotaUsage(session.userId, "livechat");
       session.lastEngagementAt = now;
       session.engagementCount++;
 

@@ -29,9 +29,9 @@ import { channels, streams } from "@shared/schema";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import {
-  getQuotaStatus,
   trackQuotaUsage,
   isQuotaBreakerTripped,
+  canAffordOperation,
   markQuotaErrorFromResponse,
   cacheLiveChatId,
 } from "./youtube-quota-tracker";
@@ -191,77 +191,46 @@ async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedB
     return { broadcast: null, pipeline: "scraping" };
   }
 
-  // Scraping says LIVE — now try to confirm with API if budget allows
-  if (!isQuotaBreakerTripped() && channelRow.accessToken && channelRow.accessToken !== "dev_api_key_mode") {
-    const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-    if (quota.remaining >= 500) {
-      try {
-        const { checkYouTubeLiveBroadcasts } = await import("../youtube");
-        const apiBroadcasts = await checkYouTubeLiveBroadcasts(channelDbId);
-        await trackQuotaUsage(userId, "broadcast");
+  // Scraping says LIVE — confirm with API only if the broadcast count cap allows it.
+  // Using canAffordOperation enforces the 20/day broadcast cap so a long stream
+  // cannot drain the full daily quota through repeated liveBroadcasts.list calls.
+  const canConfirmLive = channelRow.accessToken && channelRow.accessToken !== "dev_api_key_mode"
+    && await canAffordOperation(userId, "broadcast").catch(() => false);
+  if (canConfirmLive) {
+    try {
+      const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+      const apiBroadcasts = await checkYouTubeLiveBroadcasts(channelDbId);
+      await trackQuotaUsage(userId, "broadcast");
 
-        const active = apiBroadcasts.filter((b: any) => b.status === "active" || b.status === "live");
-        if (active.length > 0) {
-          const broadcast = active[0] as any;
-          const liveChatId = broadcast.liveChatId || null;
-          // Cache liveChatId so other services don't need an API call
-          if (liveChatId) cacheLiveChatId(channelDbId, liveChatId, broadcast.broadcastId);
-          return {
-            broadcast: {
-              platform: "youtube",
-              broadcastId: broadcast.broadcastId || scrapedVideoId || `yt_live_${Date.now()}`,
-              title: broadcast.title || scrapedTitle || "YouTube Live Stream",
-              description: "Confirmed via scraping + API",
-              startedAt: broadcast.startedAt || broadcast.scheduledStartTime || new Date().toISOString(),
-              liveChatId: liveChatId || undefined,
-            },
-            pipeline: "api",
-          };
-        }
+      const active = apiBroadcasts.filter((b: any) => b.status === "active" || b.status === "live");
+      if (active.length > 0) {
+        const broadcast = active[0] as any;
+        const liveChatId = broadcast.liveChatId || null;
+        // Cache liveChatId so other services don't need an API call
+        if (liveChatId) cacheLiveChatId(channelDbId, liveChatId, broadcast.broadcastId);
+        return {
+          broadcast: {
+            platform: "youtube",
+            broadcastId: broadcast.broadcastId || scrapedVideoId || `yt_live_${Date.now()}`,
+            title: broadcast.title || scrapedTitle || "YouTube Live Stream",
+            description: "Confirmed via scraping + API",
+            startedAt: broadcast.startedAt || broadcast.scheduledStartTime || new Date().toISOString(),
+            liveChatId: liveChatId || undefined,
+          },
+          pipeline: "api",
+        };
+      }
 
-        // API returned no active broadcasts despite scraping saying live.
-        // This happens during stream startup. Return scraping result — API will
-        // confirm on the next poll cycle (within 5 minutes).
-        logger.info(`[LiveDetection] YouTube API found no active broadcast; scraping confirmed. Will re-check in ${PLATFORM_POLL_MS.youtube / 60000} min.`);
-      } catch (err: any) {
-        markQuotaErrorFromResponse(err);
-        logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
-      }
-    } else if (quota.remaining >= 50) {
-      // Quota is low (< 500) but we have enough to make one cheap liveBroadcasts.list
-      // call (50 units) to pre-populate the liveChatId cache.  Without this, both
-      // live-chat-agent and stream-idle-engagement each independently call
-      // liveBroadcasts.list on activation (100 units total).  One call here saves
-      // one unit net.  We don't use the result for confirmation — that still requires
-      // a second scraping hit or a full quota budget.
-      try {
-        const { checkYouTubeLiveBroadcasts } = await import("../youtube");
-        const apiBroadcasts = await checkYouTubeLiveBroadcasts(channelDbId);
-        await trackQuotaUsage(userId, "broadcast");
-        const active = (apiBroadcasts as any[]).filter((b: any) => b.status === "active" || b.status === "live");
-        if (active.length > 0 && active[0].liveChatId) {
-          cacheLiveChatId(channelDbId, active[0].liveChatId, active[0].broadcastId);
-          logger.info(`[LiveDetection] Pre-cached liveChatId during scraping-only detection (low quota)`);
-          return {
-            broadcast: {
-              platform: "youtube",
-              broadcastId: scrapedVideoId || active[0].broadcastId || `yt_scrape_${Date.now()}`,
-              title: scrapedTitle || active[0].title || "YouTube Live Stream",
-              description: "Detected via scraping + liveChatId pre-cached",
-              startedAt: new Date().toISOString(),
-              liveChatId: active[0].liveChatId,
-            },
-            pipeline: "scraping",
-          };
-        }
-      } catch (err: any) {
-        markQuotaErrorFromResponse(err);
-        logger.warn(`[LiveDetection] liveChatId pre-cache attempt failed (non-critical):`, err?.message);
-      }
-      logger.info(`[LiveDetection] YouTube quota low (${quota.remaining} remaining) — scraping-only detection for ${userId.slice(0, 8)}`);
-    } else {
-      logger.info(`[LiveDetection] YouTube quota critically low (${quota.remaining} remaining) — scraping-only detection for ${userId.slice(0, 8)}`);
+      // API returned no active broadcasts despite scraping saying live.
+      // This happens during stream startup. Return scraping result — API will
+      // confirm on the next poll cycle.
+      logger.info(`[LiveDetection] YouTube API found no active broadcast; scraping confirmed. Will re-check in ${PLATFORM_POLL_MS.youtube / 60000} min.`);
+    } catch (err: any) {
+      markQuotaErrorFromResponse(err);
+      logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
     }
+  } else {
+    logger.info(`[LiveDetection] Broadcast cap reached or quota low — scraping-only detection for ${userId.slice(0, 8)}`);
   }
 
   // Return scraping-only result — gate requires a second scraping hit or API confirmation
@@ -716,22 +685,21 @@ export async function recoverActiveLiveStreams(): Promise<void> {
                 confirmedBroadcastId = scraped.videoId || `yt_recovery_${stream.id}`;
                 logger.info(`[LiveDetection] Recovery: YouTube still live for ${userId.slice(0, 8)} — "${stream.title}"`);
 
-                // If quota allows, also get the liveChatId so chat services restart cleanly
-                if (!isQuotaBreakerTripped() && ch.accessToken && ch.accessToken !== "dev_api_key_mode") {
-                  const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-                  if (quota.remaining >= 500) {
-                    try {
-                      const { checkYouTubeLiveBroadcasts } = await import("../youtube");
-                      const broadcasts = await checkYouTubeLiveBroadcasts(ch.id);
-                      await trackQuotaUsage(userId, "broadcast");
-                      const active = broadcasts.find((b: any) => b.status === "active" || b.status === "live") as any;
-                      if (active?.liveChatId) {
-                        confirmedLiveChatId = active.liveChatId;
-                        cacheLiveChatId(ch.id, active.liveChatId, active.broadcastId || confirmedBroadcastId);
-                      }
-                    } catch (err: any) {
-                      markQuotaErrorFromResponse(err);
+                // If broadcast count cap allows, also get liveChatId so chat services restart cleanly
+                const canFetchChatId = ch.accessToken && ch.accessToken !== "dev_api_key_mode"
+                  && await canAffordOperation(userId, "broadcast").catch(() => false);
+                if (canFetchChatId) {
+                  try {
+                    const { checkYouTubeLiveBroadcasts } = await import("../youtube");
+                    const broadcasts = await checkYouTubeLiveBroadcasts(ch.id);
+                    await trackQuotaUsage(userId, "broadcast");
+                    const active = broadcasts.find((b: any) => b.status === "active" || b.status === "live") as any;
+                    if (active?.liveChatId) {
+                      confirmedLiveChatId = active.liveChatId;
+                      cacheLiveChatId(ch.id, active.liveChatId, active.broadcastId || confirmedBroadcastId);
                     }
+                  } catch (err: any) {
+                    markQuotaErrorFromResponse(err);
                   }
                 }
                 break;

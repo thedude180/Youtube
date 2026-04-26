@@ -117,11 +117,11 @@ const DAILY_OP_CAPS: Record<string, number> = {
   write:       20,
   backlogWrite: 20,
   thumbnail:   20,
-  broadcast:   40,
+  broadcast:   20,   // 20 × 50 = 1,000 units — enough for live detection + chat startup
   search:      3,
+  livechat:    60,   // 60 × 50 = 3,000 units — caps chat inserts so a 12-h stream can't drain the day
   read:        Infinity,
   list:        Infinity,
-  livechat:    Infinity,
 };
 
 interface DailyOpCounter {
@@ -132,6 +132,7 @@ interface DailyOpCounter {
   thumbnail: number;
   broadcast: number;
   search: number;
+  livechat: number;
 }
 
 const _dailyOpCounters = new Map<string, DailyOpCounter>();
@@ -140,7 +141,7 @@ function getDailyOpCounter(userId: string): DailyOpCounter {
   const today = getPacificDate();
   const existing = _dailyOpCounters.get(userId);
   if (existing && existing.date === today) return existing;
-  const fresh: DailyOpCounter = { date: today, upload: 0, write: 0, backlogWrite: 0, thumbnail: 0, broadcast: 0, search: 0 };
+  const fresh: DailyOpCounter = { date: today, upload: 0, write: 0, backlogWrite: 0, thumbnail: 0, broadcast: 0, search: 0, livechat: 0 };
   _dailyOpCounters.set(userId, fresh);
   return fresh;
 }
@@ -161,6 +162,7 @@ export function getDailyOpCounts(userId: string): Record<string, number> {
     thumbnail: c.thumbnail,
     broadcast: c.broadcast,
     search: c.search,
+    livechat: c.livechat,
   };
 }
 
@@ -437,13 +439,18 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
         );
       }
 
+      // livechat has no DB column — restart gives a fresh 60-insert budget which is
+      // safe: a restarted server hasn't posted any chat messages yet in the new process.
+      counter.livechat = 0;
+
       logger.info(
         `[QuotaBreaker] Startup op-counter restore for ${userId}: ` +
         `write=${counter.write}/${DAILY_OP_CAPS.write} ` +
         `backlogWrite=${counter.backlogWrite}/${DAILY_OP_CAPS.backlogWrite} ` +
         `thumbnail=${counter.thumbnail}/${DAILY_OP_CAPS.thumbnail} ` +
         `search=${counter.search}/${DAILY_OP_CAPS.search} ` +
-        `upload=${counter.upload}/${DAILY_OP_CAPS.upload}`
+        `upload=${counter.upload}/${DAILY_OP_CAPS.upload} ` +
+        `livechat=${counter.livechat}/${DAILY_OP_CAPS.livechat}`
       );
     }
 

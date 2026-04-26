@@ -14,6 +14,7 @@ import { onAgentEvent } from "./agent-events";
 import { sendSSEEvent } from "../routes/events";
 import {
   isQuotaBreakerTripped,
+  canAffordOperation,
   trackQuotaUsage,
   markQuotaErrorFromResponse,
   cacheLiveChatId,
@@ -53,9 +54,9 @@ async function getLiveChatId(channelDbId: number, userId?: string): Promise<stri
   const cached = getCachedLiveChatId(channelDbId);
   if (cached.hit) return cached.liveChatId;
 
-  // Don't call the API if quota is burned out
-  if (isQuotaBreakerTripped()) {
-    logger.warn(`[LiveChatAgent] Quota breaker tripped — skipping liveBroadcasts.list`);
+  // Don't call the API if quota is burned out or the broadcast count cap is reached
+  if (isQuotaBreakerTripped() || (userId && !await canAffordOperation(userId, "broadcast").catch(() => false))) {
+    logger.warn(`[LiveChatAgent] Broadcast cap reached or quota breaker tripped — skipping liveBroadcasts.list`);
     return null;
   }
 
@@ -157,6 +158,12 @@ function isQuestion(text: string): boolean {
 async function processChatCycle(session: ChatSession): Promise<void> {
   const { userId, liveChatId, channelDbId, streamTitle, gameName, respondedMessageIds } = session;
 
+  // Respect the global quota breaker — no API calls when fully exhausted
+  if (isQuotaBreakerTripped()) {
+    logger.warn(`[LiveChatAgent] Quota breaker tripped — skipping chat cycle for ${userId.slice(0, 8)}`);
+    return;
+  }
+
   try {
     const yt = await getYouTubeClient(channelDbId);
 
@@ -166,6 +173,8 @@ async function processChatCycle(session: ChatSession): Promise<void> {
       maxResults: 50,
       pageToken: session.lastPageToken,
     });
+    // liveChatMessages.list costs 5 units per YouTube Data API v3 quota docs
+    await trackQuotaUsage(userId, "read", 5);
 
     session.lastPageToken = chatRes.data?.nextPageToken || undefined;
     const messages = chatRes.data?.items || [];
@@ -211,9 +220,12 @@ Bad responses (DO NOT do this):
       });
 
       const shoutout = aiRes.choices[0]?.message?.content?.trim();
-      if (shoutout) {
-        await postChatMessage(yt, liveChatId, shoutout);
-        session.messagesHandled++;
+      if (shoutout && await canAffordOperation(userId, "livechat").catch(() => false)) {
+        const posted = await postChatMessage(yt, liveChatId, shoutout);
+        if (posted) {
+          await trackQuotaUsage(userId, "livechat");
+          session.messagesHandled++;
+        }
       }
     }
 
@@ -285,9 +297,12 @@ Bad responses (NEVER do this):
         });
 
         const reply = aiRes.choices[0]?.message?.content?.trim();
-        if (reply && reply.length > 0) {
-          await postChatMessage(yt, liveChatId, reply);
-          session.messagesHandled++;
+        if (reply && reply.length > 0 && await canAffordOperation(userId, "livechat").catch(() => false)) {
+          const posted = await postChatMessage(yt, liveChatId, reply);
+          if (posted) {
+            await trackQuotaUsage(userId, "livechat");
+            session.messagesHandled++;
+          }
         }
 
         await new Promise(r => setTimeout(r, 3000));
