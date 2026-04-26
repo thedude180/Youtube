@@ -108,6 +108,69 @@ export async function getVaultFileSignedUrl(youtubeId: string, ttlSeconds: numbe
   }
 }
 
+/**
+ * Upload all edited clip files produced by a stream-editor job to cloud storage.
+ * Stored at: vault-edited/job_${jobId}/${platform}/clip_001.mp4
+ *
+ * Returns the cloud object name for each file that was successfully uploaded,
+ * keyed by the original local filePath.
+ */
+export async function uploadEditedClipsToStorage(
+  jobId: number,
+  clips: Array<{ platform: string; clipIndex: number; filePath: string }>,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (!isObjectStorageAvailable()) return result;
+  const loc = getBucketAndObjectName("_check");
+  if (!loc) return result;
+
+  const bucket = objectStorageClient.bucket(loc.bucketName);
+
+  for (const clip of clips) {
+    if (!fs.existsSync(clip.filePath)) continue;
+    const clipNum = String(clip.clipIndex + 1).padStart(3, "0");
+    const objectName = `vault-edited/job_${jobId}/${clip.platform}/clip_${clipNum}.mp4`;
+    try {
+      await bucket.upload(clip.filePath, {
+        destination: objectName,
+        metadata: { contentType: "video/mp4" },
+      });
+      result.set(clip.filePath, objectName);
+      logger.info(`[VaultStorage] Archived edited clip → gs://${loc.bucketName}/${objectName}`);
+    } catch (err: any) {
+      logger.warn(`[VaultStorage] Failed to archive clip ${clip.filePath}: ${err.message}`);
+    }
+  }
+  return result;
+}
+
+/**
+ * Get a signed download URL for an edited clip stored in cloud storage.
+ * objectName is the value stored in outputFiles[].cloudPath.
+ */
+export async function getEditedClipSignedUrl(objectName: string, ttlSeconds: number = 86400): Promise<string | null> {
+  if (!isObjectStorageAvailable()) return null;
+  const loc = getBucketAndObjectName("_check");
+  if (!loc) return null;
+  try {
+    const response = await fetch(`${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bucket_name: loc.bucketName,
+        object_name: objectName,
+        method: "GET",
+        expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      }),
+    });
+    if (!response.ok) return null;
+    const { signed_url } = await response.json() as { signed_url: string };
+    return signed_url;
+  } catch {
+    return null;
+  }
+}
+
 export async function getVaultStorageStats(): Promise<{ totalFiles: number; totalBytes: number } | null> {
   if (!isObjectStorageAvailable()) return null;
   const loc = getBucketAndObjectName("_check");

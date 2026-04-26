@@ -715,6 +715,51 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  app.get("/api/vault/edit-jobs/:jobId/clips/:platform/:clipIndex/download", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { streamEditJobs } = await import("@shared/schema");
+      const jobId = parseInt(req.params.jobId, 10);
+      const platform = req.params.platform;
+      const clipIndex = parseInt(req.params.clipIndex, 10);
+      if (isNaN(jobId) || isNaN(clipIndex)) return res.status(400).json({ error: "Invalid job or clip index" });
+
+      const [job] = await db.select().from(streamEditJobs)
+        .where(and(eq(streamEditJobs.id, jobId), eq(streamEditJobs.userId, userId)))
+        .limit(1);
+      if (!job) return res.status(404).json({ error: "Job not found" });
+
+      const clip = ((job.outputFiles ?? []) as any[]).find(
+        (f: any) => f.platform === platform && f.clipIndex === clipIndex
+      );
+
+      // 1. Local disk copy still present
+      const fs = await import("fs");
+      if (clip?.filePath && fs.existsSync(clip.filePath)) {
+        const safeName = `${platform}_clip_${String(clipIndex + 1).padStart(3, "0")}.mp4`;
+        res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+        res.setHeader("Content-Type", "video/mp4");
+        const stream = fs.createReadStream(clip.filePath);
+        stream.pipe(res);
+        return;
+      }
+
+      // 2. Cloud storage copy — use stored cloudPath or reconstruct deterministically
+      const cloudObjectName = clip?.cloudPath ||
+        `vault-edited/job_${jobId}/${platform}/clip_${String(clipIndex + 1).padStart(3, "0")}.mp4`;
+      try {
+        const { getEditedClipSignedUrl } = await import("../services/vault-object-storage");
+        const signedUrl = await getEditedClipSignedUrl(cloudObjectName, 86400);
+        if (signedUrl) return res.redirect(302, signedUrl);
+      } catch {}
+
+      return res.status(404).json({ error: "Clip file not available — may still be uploading to cloud" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to download clip" });
+    }
+  });
+
   app.get("/api/vault/download-zip", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

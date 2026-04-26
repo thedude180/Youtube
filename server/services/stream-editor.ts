@@ -643,6 +643,27 @@ async function runJobInBackground(jobId: number): Promise<void> {
     }).where(eq(streamEditJobs.id, jobId));
 
     logger.info(`[StreamEditor] Job ${jobId} complete — ${packagedOutputFiles.length} clips produced`);
+
+    // Archive all edited clips to cloud storage in the background.
+    // Files on local disk are wiped on deployment; cloud copies survive permanently.
+    // When done, each clip's cloudPath is written back into the outputFiles JSON.
+    import("./vault-object-storage").then(async ({ uploadEditedClipsToStorage }) => {
+      try {
+        const cloudPaths = await uploadEditedClipsToStorage(jobId, packagedOutputFiles);
+        if (cloudPaths.size > 0) {
+          const updatedFiles = packagedOutputFiles.map(clip => {
+            const cp = cloudPaths.get(clip.filePath);
+            return cp ? { ...clip, cloudPath: cp } : clip;
+          });
+          await db.update(streamEditJobs)
+            .set({ outputFiles: updatedFiles })
+            .where(eq(streamEditJobs.id, jobId));
+          logger.info(`[StreamEditor] Job ${jobId}: archived ${cloudPaths.size}/${packagedOutputFiles.length} clips to cloud`);
+        }
+      } catch (archErr: any) {
+        logger.warn(`[StreamEditor] Job ${jobId}: cloud archive failed (non-fatal): ${archErr.message}`);
+      }
+    }).catch(() => {});
   } catch (err: any) {
     logger.error(`[StreamEditor] Job ${jobId} failed:`, err?.message);
     await db.update(streamEditJobs).set({
