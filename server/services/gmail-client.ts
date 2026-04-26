@@ -82,7 +82,9 @@ function createRawEmail(to: string, subject: string, htmlBody: string): string {
   return Buffer.from(raw).toString("base64url");
 }
 
-const NON_ROUTABLE_DOMAINS = [".local", "@example.com", "@example.org", "@example.net", "@localhost"];
+// ".oauth" covers TikTok/YouTube/etc. placeholder addresses like <id>@tiktok.oauth
+// that are generated when OAuth logins don't return a real email address.
+const NON_ROUTABLE_DOMAINS = [".local", "@example.com", "@example.org", "@example.net", "@localhost", ".oauth"];
 
 export async function sendGmail(to: string, subject: string, htmlBody: string): Promise<boolean> {
   if (NON_ROUTABLE_DOMAINS.some(d => to.toLowerCase().endsWith(d) || to.toLowerCase().includes(d))) {

@@ -5,6 +5,7 @@ import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import cron from "node-cron";
 import { sendGmail } from "./gmail-client";
 import { createLogger } from "../lib/logger";
+import { withCronLock, registerCronHeartbeat } from "../lib/cron-lock";
 
 const logger = createLogger("daily-upload-digest");
 
@@ -270,23 +271,31 @@ export async function sendTestDailyDigest(userId: string): Promise<{ success: bo
   };
 }
 
+const DIGEST_LOCK_NAME = "daily-upload-digest";
+// 23-hour TTL — prevents a second send if the server restarts within the same
+// calendar day, while still allowing the job to run every 24 hours normally.
+const DIGEST_LOCK_TTL_MS = 23 * 60 * 60_000;
+
 export function initDailyUploadDigestEngine() {
+  registerCronHeartbeat(DIGEST_LOCK_NAME, 24 * 60 * 60_000);
+
   // 08:00 UTC daily
   cron.schedule("0 8 * * *", async () => {
-    try {
+    const acquired = await withCronLock(DIGEST_LOCK_NAME, DIGEST_LOCK_TTL_MS, async () => {
       const allChannels = await db.select({ userId: channels.userId }).from(channels);
       const userIds = Array.from(new Set(allChannels.map(c => c.userId).filter(Boolean))) as string[];
-      logger.info("[DailyDigest] Cron firing", { userCount: userIds.length });
+      logger.info("Cron firing", { userCount: userIds.length });
       for (const uid of userIds) {
         try {
           await sendDailyUploadDigest(uid);
         } catch (err: any) {
-          logger.error("[DailyDigest] Per-user send failed", { uid, error: err?.message });
+          logger.error("Per-user send failed", { uid, error: err?.message });
         }
       }
-    } catch (err: any) {
-      logger.error("[DailyDigest] Cron job failed", { error: err?.message });
+    });
+    if (!acquired) {
+      logger.info("Digest already running on another instance — skipping duplicate fire");
     }
   });
-  logger.info("[DailyDigest] Engine initialized (08:00 UTC daily)");
+  logger.info("Engine initialized (08:00 UTC daily)");
 }
