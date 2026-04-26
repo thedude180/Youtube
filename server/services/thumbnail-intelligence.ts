@@ -182,7 +182,12 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
       model: "gpt-4o-mini",
       messages: [{
         role: "user",
-        content: `You are a world-class YouTube thumbnail analyst specializing in gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and gaming in general.
+        content: `You are a world-class YouTube thumbnail analyst specialising in PS5 no-commentary gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and YouTube gaming in general.
+
+CHANNEL CONTEXT — ET Gaming 247:
+- PS5 gameplay, no face cam, no commentary
+- Brand aesthetic: cinematic dark backgrounds, vivid warm/neon accent colours (navy/charcoal base + orange, electric blue, or gold highlights)
+- Thumbnails rely entirely on in-game visuals — no creator face
 
 REFERENCE IMAGES FOUND (${uniqueRefs.length} results):
 ${uniqueRefs.map((r, i) => `${i + 1}. "${sanitizeForPrompt(r.title)}" — ${sanitizeForPrompt(r.source)}`).join("\n")}
@@ -191,31 +196,31 @@ WEB RESEARCH:
 ${webArticles || "No specific articles found"}
 ${generalArticles || ""}
 
-YOUR TASK: Analyze these references and extract actionable thumbnail intelligence for a NO COMMENTARY PS5 gaming channel. The thumbnails must attract clicks WITHOUT being clickbait — they should accurately represent the content while being visually compelling.
+YOUR TASK: Analyse these references and extract actionable thumbnail intelligence for this specific channel. Thumbnails must attract clicks without clickbait — accurately representing the content while being visually compelling.
 
-Key constraint: NO COMMENTARY channel = no face cam, no reaction shots. The thumbnail must rely entirely on:
-- In-game visuals (cinematics, boss fights, environments, key moments)
-- Dramatic composition and lighting
-- Color psychology
-- Visual storytelling without text (YouTube handles text)
-- Emotional atmosphere
+IMPORTANT — TEXT OVERLAYS ARE REQUIRED:
+YouTube does NOT add text to thumbnails. Successful gaming thumbnails include a bold 2–4 word hook rendered into the image itself. Your analysis must provide guidance on the best text hooks and placement for this game.
 
-Analyze the patterns you see in successful gaming thumbnails and provide:
+Key constraints:
+- No face cam / no reaction shots — rely on in-game characters, environments, boss fights, key moments
+- Text hook (2–4 bold words) placed in a corner that doesn't obscure the main action
+- Cinematic lighting, single strong focal point, depth of field
+- Content must match what the video actually shows (anti-clickbait)
 
 Return JSON:
 {
   "patterns": {
-    "colorSchemes": ["list of effective color combinations seen in top gaming thumbnails"],
-    "compositions": ["rule of thirds usage", "focal point patterns", "depth techniques"],
-    "emotionalTriggers": ["what emotions the best thumbnails evoke and how"],
-    "textOverlayStyles": ["how text is used on thumbnails — or deliberately avoided"],
-    "commonElements": ["recurring visual elements in high-performing gaming thumbnails"],
-    "avoidPatterns": ["clickbait tactics that damage trust — arrows, fake reactions, misleading imagery"]
+    "colorSchemes": ["list of effective colour combinations that work for this game's aesthetic"],
+    "compositions": ["focal point patterns", "rule-of-thirds usage", "depth techniques"],
+    "emotionalTriggers": ["emotions the best thumbnails evoke and what visual techniques create them"],
+    "textOverlayStyles": ["recommended 2-4 word hooks that work for this game", "font style guidance", "placement that avoids obscuring action"],
+    "commonElements": ["recurring visual elements in high-performing gaming thumbnails for this genre"],
+    "avoidPatterns": ["clickbait tactics that damage trust and long-term CTR"]
   },
-  "bestPractices": "paragraph — the definitive guide to making thumbnails for this game that get clicks honestly",
-  "gamingNicheInsights": "paragraph — specific to ${sanitizeForPrompt(gameName)} and no-commentary PS5 channels, what visual approaches work best",
-  "ctrTactics": "paragraph — proven psychological tactics that increase CTR without being deceptive (contrast, curiosity, visual hierarchy, color blocking)",
-  "antiClickbaitGuidelines": "paragraph — how to make thumbnails that promise exactly what the video delivers, building viewer trust and long-term CTR"
+  "bestPractices": "paragraph — definitive guide to making thumbnails for this specific game on a PS5 no-commentary channel that get honest clicks",
+  "gamingNicheInsights": "paragraph — specific to ${sanitizeForPrompt(gameName)}: which moments, characters, environments, and colour palette drive the most curiosity in thumbnails",
+  "ctrTactics": "paragraph — proven psychological tactics that increase CTR without deception (contrast, curiosity gaps, visual hierarchy, colour blocking, text hook placement)",
+  "antiClickbaitGuidelines": "paragraph — how to make thumbnails that promise exactly what the video delivers, building long-term viewer trust"
 }`,
       }],
       response_format: { type: "json_object" },
@@ -288,6 +293,9 @@ export async function getThumbnailContext(userId: string, gameName: string): Pro
     }
     if (patterns.emotionalTriggers?.length) {
       parts.push(`EMOTIONAL TRIGGERS: ${sanitizeForPrompt(patterns.emotionalTriggers.join("; "))}`);
+    }
+    if (patterns.textOverlayStyles?.length) {
+      parts.push(`TEXT HOOK INTELLIGENCE — recommended 2-4 word hooks and placement for this game: ${sanitizeForPrompt(patterns.textOverlayStyles.join("; "))}`);
     }
     if (patterns.commonElements?.length) {
       parts.push(`COMMON WINNING ELEMENTS: ${sanitizeForPrompt(patterns.commonElements.join("; "))}`);

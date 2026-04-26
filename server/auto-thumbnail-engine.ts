@@ -38,7 +38,7 @@ const MAX_THUMBNAILS_PER_RUN = 10;
 const disconnectedChannels = new Set<number>();
 let disconnectedChannelsTTL = 0;
 
-const THUMBNAIL_PROMPT_TOKENS = 400;
+const THUMBNAIL_PROMPT_TOKENS = 600;
 const THUMBNAIL_RATE_LIMIT_COOLDOWN_MS = 10 * 60_000;
 let thumbnailRateLimitCooldownUntil = 0;
 
@@ -65,6 +65,9 @@ async function generateThumbnailPrompt(videoTitle: string, videoDescription: str
     logger.info("Auto-thumbnail daily token budget exhausted — skipping prompt generation");
     return "";
   }
+
+  const isShort = videoType === "short";
+
   try {
     const researchSection = researchContext
       ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE:\nYou have studied real successful gaming thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\nAPPLY these research-backed patterns. Do NOT ignore this intelligence — it comes from analyzing what actually works on YouTube right now.`
@@ -75,38 +78,59 @@ async function generateThumbnailPrompt(videoTitle: string, videoDescription: str
       messages: [
         {
           role: "system",
-          content: `You are the world's best YouTube thumbnail designer — your thumbnails consistently achieve 8-15% CTR, outperforming 99% of creators. You combine the skills of:
+          content: `You are the world's best YouTube thumbnail designer, specialising in PS5 NO-COMMENTARY gaming channels. Your thumbnails consistently achieve 8–15% CTR.
 
-ELITE VISUAL DESIGNER: You understand color psychology (red/yellow = urgency, blue = trust), visual hierarchy, the rule of thirds, and how to create depth and dimension in a single frame.
+CHANNEL IDENTITY — ET Gaming 247:
+- PS5 gaming, no face cam, no commentary — the thumbnail must rely entirely on in-game visuals
+- Brand aesthetic: cinematic dark backgrounds, high-contrast warm/neon accent colours (deep navy or dark charcoal base + vivid orange, electric blue, or gold highlights)
+- Every thumbnail must feel like a movie poster for the game being played
 
-AUDIENCE PSYCHOLOGIST: You know that viewers decide to click in 0.3 seconds. You design thumbnails that trigger emotional responses — shock, curiosity, excitement, FOMO — that make clicking feel involuntary.
+VISUAL DESIGN RULES:
+- EXTREME contrast: dark background + bright subject or vice versa
+- Single clear focal point (rule of thirds or centred)
+- Cinematic lighting: rim light, god rays, dramatic spotlight — never flat lighting
+- Depth of field: sharp subject, blurred/bokeh background
+- Rich colour saturation that pops on both YouTube's white and dark mode backgrounds
+- No clutter — one hero subject dominates ≥ 50 % of the frame
 
-DATA-DRIVEN OPTIMIZER: You study what gets 10M+ views. High-contrast color blocking. Dramatic lighting with strong shadows. Clear focal point with bokeh/blur backgrounds. Expressive character reactions. Visual tension that implies a story.
+TEXT OVERLAY — CRITICAL BEST PRACTICE:
+YouTube does NOT add text to thumbnails. You MUST include a bold 2–4 word text hook rendered INTO the image.
+- Font style: thick bold sans-serif (like Impact or Anton), large enough to read at 336×188 px (thumbnail preview size)
+- Placement: top-left or top-right third, NEVER overlapping the main subject's face/key action
+- Text colour: white or bright yellow with a dark drop shadow or thick black stroke so it reads on any background
+- The text must be a punchy hook, NOT the full title (e.g. "FINAL BOSS", "THIS IS INSANE", "PERFECT RUN", "NO WAY OUT")
+- Keep it 2–4 words maximum — shorter is more readable
 
-ANTI-CLICKBAIT PRINCIPLE: Your thumbnails are compelling but HONEST. They accurately represent the video content. They create curiosity without deception. They build long-term viewer trust, not short-term clicks that lead to disappointment.
+SAFE-ZONE RULE (CRITICAL):
+The generated image is 1536×1024 (3:2) but will be centre-cropped to 16:9. The top and bottom ~8% of pixels will be cut off. Keep ALL critical content — subject, text, key action — within the central 85% of the vertical frame.
 
-RULES FOR THE IMAGE PROMPT:
-- Create EXTREME visual contrast (light vs dark, warm vs cool)
-- Feature dramatic action, reaction, or emotion as the focal point
-- Use cinematic lighting — golden hour, rim lighting, or dramatic spotlights
-- Include depth of field (sharp subject, blurred background)
-- Feature the most compelling action or peak intensity moments from the content
-- Colors must POP against YouTube's white/dark backgrounds
-- Never include text overlays — YouTube handles text separately
-- The image should tell a story or create a question in the viewer's mind
-- NEVER use misleading imagery — the thumbnail must truthfully represent what's in the video${researchSection}`,
+GAME ACCURACY — NON-NEGOTIABLE:
+If a game is specified, the thumbnail MUST faithfully reproduce that game's art style, character designs, colour palette, and environment. Do NOT substitute generic "video game" imagery or characters from a different game.
+
+ANTI-CLICKBAIT:
+Thumbnails must accurately represent the video. No misleading imagery. Build viewer trust.${researchSection}`,
         },
         {
           role: "user",
-          content: `Create a thumbnail image generation prompt for this video:
+          content: `Create a DALL-E image generation prompt for this YouTube thumbnail:
+
 Title: "${sanitizeForPrompt(videoTitle)}"
 Description: "${sanitizeForPrompt((videoDescription || "").substring(0, 300))}"
-Type: ${videoType}${gameName ? `\nGame: ${sanitizeForPrompt(gameName)}\n\nCRITICAL: This video is about "${sanitizeForPrompt(gameName)}". The thumbnail MUST visually represent "${sanitizeForPrompt(gameName)}" — its art style, characters, environments, and aesthetic. Do NOT depict any other game.` : ""}
+Type: ${videoType}${gameName ? `\nGame: "${sanitizeForPrompt(gameName)}"
 
-Return ONLY the image generation prompt, nothing else. Design for a HIGH-RESOLUTION LANDSCAPE 16:9 frame (${THUMB_W}x${THUMB_H} YouTube thumbnail). The composition must fill the widescreen frame — wide, horizontal scene with the focal point centered or rule-of-thirds. Pack the frame with detail: vivid textures, sharp edges, and rich contrast that hold up at full resolution. No vertical or square framing.`,
+CRITICAL GAME ACCURACY: This video is about "${sanitizeForPrompt(gameName)}". Every visual element must match the authentic art style, characters, environments, colour palette, and aesthetic of "${sanitizeForPrompt(gameName)}". Do NOT depict any other game or use generic imagery.` : ""}
+
+REQUIRED IN YOUR PROMPT:
+1. Specify the 2–4 word bold text hook to render in the image (derive it from the most exciting/curiosity-driving aspect of the title)
+2. Specify exact placement of that text (top-left or top-right, with dark stroke/drop-shadow)
+3. Describe the hero visual: the single most dramatic in-game moment, character, or environment that hooks the viewer
+4. Describe the lighting: cinematic and directional, not flat
+5. Describe the colour scheme: dark base + one or two vivid accent colours${isShort ? `\n6. SHORTS NOTE: The focal subject must fit within the central square (1:1) crop zone — YouTube Shorts shelf displays a square crop of the thumbnail` : ""}
+
+Output format: Return ONLY the image generation prompt as a single paragraph. No preamble, no labels, no JSON. The prompt must produce a photorealistic or hyper-cinematic 1536×1024 landscape image.`,
         },
       ],
-      max_completion_tokens: 400,
+      max_completion_tokens: 500,
     });
     const result = response.choices[0]?.message?.content?.trim() || "";
     if (result) {
@@ -167,8 +191,7 @@ async function generateAndUploadThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
-      // YouTube thumbnails are 16:9 landscape — use 1536x1024 for correct aspect ratio
-      imageBuffer = await genImg(prompt, "1536x1024");
+      imageBuffer = await genImg(prompt, "1536x1024", "high");
     } catch (imgErr) {
       logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
       return false;
