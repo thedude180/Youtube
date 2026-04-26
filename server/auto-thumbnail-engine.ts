@@ -5,7 +5,7 @@ import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
-import { getQuotaStatus, trackQuotaUsage, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
+import { getQuotaStatus, trackQuotaUsage, canAffordOperation, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
 
 const logger = createLogger("auto-thumbnail");
 const openai = getOpenAIClient();
@@ -34,7 +34,7 @@ const THUMB_H = YT_4K_THUMBNAILS_ENABLED ? 2160 : 1152;
 // When they support 4K, they will likely raise this; update the constant then.
 const YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES = 2_000_000;
 
-const MAX_THUMBNAILS_PER_RUN = 3;
+const MAX_THUMBNAILS_PER_RUN = 10;
 const disconnectedChannels = new Set<number>();
 let disconnectedChannelsTTL = 0;
 
@@ -222,7 +222,14 @@ async function generateAndUploadThumbnail(
       return false;
     }
 
+    const canUpload = await canAffordOperation(userId, "thumbnail").catch(() => false);
+    if (!canUpload) {
+      logger.warn("Auto-thumbnail skipped — insufficient quota for thumbnail upload", { videoDbId, youtubeId });
+      return false;
+    }
+
     await setYouTubeThumbnail(channelId, youtubeId, finalBuffer, finalMimeType);
+    await trackQuotaUsage(userId, "thumbnail").catch(() => {});
 
     const meta = ((await db.select().from(videos).where(eq(videos.id, videoDbId)))[0]?.metadata as any) || {};
     await db.update(videos).set({
@@ -298,17 +305,21 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
       }
 
       const userVideos = await db.select().from(videos)
-        .where(eq(videos.channelId, ytChannel.id))
+        .where(and(
+          eq(videos.channelId, ytChannel.id),
+          sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+          sql`(${videos.metadata}->>'autoThumbnailGenerated')::text IS DISTINCT FROM 'true'`,
+          sql`(${videos.metadata}->>'autoThumbnailFailed') IS NULL`,
+        ))
         .orderBy(desc(videos.createdAt))
-        .limit(10);
+        .limit(500);
 
       for (const video of userVideos) {
         if (generated >= MAX_THUMBNAILS_PER_RUN) break;
         const meta = (video.metadata as any) || {};
-        if (meta.autoThumbnailGenerated || meta.autoThumbnailFailed) continue;
         const youtubeId = meta.youtubeId;
         if (!youtubeId) continue;
-        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default")) {
+        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default") && !video.thumbnailUrl.includes("hqdefault")) {
           await db.update(videos).set({
             metadata: { ...meta, autoThumbnailGenerated: true, autoThumbnailSkipped: "already_has_custom_thumbnail" },
           }).where(eq(videos.id, video.id));
@@ -347,18 +358,19 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
 
       const userId = ytChannel.userId!;
       const userVideos = await db.select().from(videos)
-        .where(eq(videos.channelId, ytChannel.id))
+        .where(and(
+          eq(videos.channelId, ytChannel.id),
+          sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+          sql`(${videos.metadata}->>'autoThumbnailGenerated')::text IS DISTINCT FROM 'true'`,
+          sql`(${videos.metadata}->>'autoThumbnailFailed') IS NULL`,
+        ))
         .orderBy(desc(videos.createdAt))
-        .limit(20);
+        .limit(500);
 
       for (const video of userVideos) {
         if (generated >= MAX_THUMBNAILS_PER_RUN) break;
 
         const meta = (video.metadata as any) || {};
-        if (meta.autoThumbnailGenerated) {
-          skipped++;
-          continue;
-        }
 
         const youtubeId = meta.youtubeId;
         if (!youtubeId) {
@@ -366,10 +378,9 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
           continue;
         }
 
-        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default")) {
-          const existingMeta = meta;
+        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default") && !video.thumbnailUrl.includes("hqdefault")) {
           await db.update(videos).set({
-            metadata: { ...existingMeta, autoThumbnailGenerated: true, autoThumbnailSkipped: "already_has_custom_thumbnail" },
+            metadata: { ...meta, autoThumbnailGenerated: true, autoThumbnailSkipped: "already_has_custom_thumbnail" },
           }).where(eq(videos.id, video.id));
           skipped++;
           continue;
@@ -403,6 +414,111 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
   }
 
   return { generated, skipped };
+}
+
+/**
+ * Full-channel thumbnail backfill sweep.
+ * Processes ALL videos without custom thumbnails across the entire channel,
+ * prioritising long-form → stream_vod → regular → short, newest first within each type.
+ * Stops as soon as quota is exhausted. Safe to call repeatedly; already-processed
+ * videos are filtered out in the DB query.
+ */
+export async function runThumbnailBackfillSweep(userId: string): Promise<{ processed: number; remaining: number; quotaExhausted: boolean }> {
+  let processed = 0;
+  let quotaExhausted = false;
+
+  try {
+    if (isQuotaBreakerTripped()) {
+      logger.warn("Thumbnail backfill skipped — quota circuit breaker active", { userId });
+      return { processed, remaining: -1, quotaExhausted: true };
+    }
+
+    const ytChannels = await db.select().from(channels)
+      .where(and(
+        eq(channels.platform, "youtube"),
+        eq(channels.userId, userId),
+        sql`${channels.accessToken} IS NOT NULL`,
+      ));
+
+    if (ytChannels.length === 0) return { processed, remaining: 0, quotaExhausted: false };
+
+    for (const ytChannel of ytChannels) {
+      if (isChannelDisconnected(ytChannel.id)) continue;
+      if (ytChannel.tokenExpiresAt && ytChannel.tokenExpiresAt.getTime() < Date.now() - 86400_000) {
+        logger.info("Thumbnail backfill skipped — channel token expired", { channelId: ytChannel.id });
+        continue;
+      }
+
+      const typeOrder = sql`CASE
+        WHEN ${videos.type} = 'long' THEN 1
+        WHEN ${videos.type} = 'stream_vod' THEN 2
+        WHEN ${videos.type} = 'regular' THEN 3
+        WHEN ${videos.type} = 'short' THEN 4
+        ELSE 5
+      END`;
+
+      const needingThumbnails = await db.select().from(videos)
+        .where(and(
+          eq(videos.channelId, ytChannel.id),
+          sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+          sql`(${videos.metadata}->>'autoThumbnailGenerated')::text IS DISTINCT FROM 'true'`,
+          sql`(${videos.metadata}->>'autoThumbnailFailed') IS NULL`,
+        ))
+        .orderBy(typeOrder, desc(videos.createdAt))
+        .limit(2500);
+
+      logger.info("Thumbnail backfill sweep starting", {
+        userId,
+        channelId: ytChannel.id,
+        totalNeedingThumbnails: needingThumbnails.length,
+      });
+
+      for (const video of needingThumbnails) {
+        const canUpload = await canAffordOperation(userId, "thumbnail").catch(() => false);
+        if (!canUpload) {
+          logger.info("Thumbnail backfill paused — quota exhausted", { userId, processedThisRun: processed, stillRemaining: needingThumbnails.length - processed });
+          quotaExhausted = true;
+          return { processed, remaining: needingThumbnails.length - processed, quotaExhausted: true };
+        }
+
+        const meta = (video.metadata as any) || {};
+        const youtubeId = meta.youtubeId;
+        if (!youtubeId) continue;
+
+        if (video.thumbnailUrl && !video.thumbnailUrl.includes("default") && !video.thumbnailUrl.includes("hqdefault")) {
+          await db.update(videos).set({
+            metadata: { ...meta, autoThumbnailGenerated: true, autoThumbnailSkipped: "already_has_custom_thumbnail" },
+          }).where(eq(videos.id, video.id));
+          continue;
+        }
+
+        const result = await generateAndUploadThumbnail(
+          userId, video.id, video.title, video.description || "",
+          video.type || "video", youtubeId, ytChannel.id, meta.gameName
+        );
+
+        if (result === "channel_disconnected") {
+          logger.warn("Thumbnail backfill: channel disconnected, stopping", { channelId: ytChannel.id });
+          break;
+        }
+        if (result === true) {
+          processed++;
+          if (processed % 10 === 0) {
+            logger.info("Thumbnail backfill progress", { userId, processed, remainingEstimate: needingThumbnails.length - processed });
+          }
+        }
+      }
+
+      logger.info("Thumbnail backfill sweep complete for channel", {
+        userId, channelId: ytChannel.id, processed,
+        stillRemaining: needingThumbnails.length - processed,
+      });
+    }
+  } catch (err) {
+    logger.error("Thumbnail backfill sweep failed", { userId, error: String(err) });
+  }
+
+  return { processed, remaining: 0, quotaExhausted };
 }
 
 export async function generateThumbnailForNewVideo(userId: string, videoDbId: number): Promise<boolean> {

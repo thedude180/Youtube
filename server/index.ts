@@ -1802,6 +1802,27 @@ httpServer.listen(
         const ivClean = setInterval(() => m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup")), jitter(24 * 60 * 60_000));
         backgroundIntervals.push(ivClean);
       }).catch(slog("playlist-manager import"));
+      import("./auto-thumbnail-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(8 * 60_000)));
+        const { channels: channelsTable } = await import("@shared/schema");
+        const { sql: sqlTag, eq: eqOp, and: andOp } = await import("drizzle-orm");
+        const ytChannelRows = await db.select({ userId: channelsTable.userId }).from(channelsTable)
+          .where(andOp(
+            eqOp(channelsTable.platform, "youtube"),
+            sqlTag`${channelsTable.accessToken} IS NOT NULL`,
+            sqlTag`${channelsTable.userId} IS NOT NULL`,
+          ));
+        const uniqueUserIds = [...new Set(ytChannelRows.map(r => r.userId).filter(Boolean))] as string[];
+        for (const uid of uniqueUserIds) {
+          await m.runThumbnailBackfillSweep(uid).catch(slog("runThumbnailBackfillSweep"));
+        }
+        const iv = setInterval(async () => {
+          for (const uid of uniqueUserIds) {
+            await m.runThumbnailBackfillSweep(uid).catch(slog("runThumbnailBackfillSweep-interval"));
+          }
+        }, jitter(6 * 60 * 60_000));
+        backgroundIntervals.push(iv);
+      }).catch(slog("auto-thumbnail-backfill import"));
       import("./vod-optimizer-engine").then(async m => {
         await new Promise(r => setTimeout(r, stagger(7 * 60_000)));
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
