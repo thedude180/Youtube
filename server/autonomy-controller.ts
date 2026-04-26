@@ -1,6 +1,6 @@
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { db } from "./db";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, or, ilike } from "drizzle-orm";
 import { channels, videos, autopilotConfig, autopilotQueue, engineHeartbeats,
   autonomyEngineConfig, autonomyEngineRuns, aiDecisionLog, notifications, users
 } from "@shared/schema";
@@ -201,7 +201,10 @@ async function runAutonomyCycle() {
 
     logger.info(`Processing ${dueEngines.length}/${allDue.length} due engines for user ${userId}`);
 
-    for (const engine of dueEngines) {
+    for (let _ei = 0; _ei < dueEngines.length; _ei++) {
+      const engine = dueEngines[_ei];
+      // Small pause between consecutive engine runs to prevent queue burst.
+      if (_ei > 0) await new Promise<void>(r => setTimeout(r, 3_000));
       const startMs = Date.now();
       try {
         await db.update(autonomyEngineConfig).set({ status: "running" }).where(eq(autonomyEngineConfig.id, engine.id));
@@ -243,6 +246,25 @@ async function runAutonomyCycle() {
 
       } catch (error: any) {
         const durationMs = Date.now() - startMs;
+        const msg: string = error.message || "";
+
+        // "Queue full" is infrastructure contention — not the engine's fault.
+        // Don't increment failureCount, don't fire a notification; just defer.
+        const isQueueFull = /queue.?full|request.?dropped/i.test(msg);
+        if (isQueueFull) {
+          // Jittered 10-20 min retry so engines don't re-collide on the next burst.
+          const retryMinutes = 10 + Math.floor(Math.random() * 10);
+          const nextRun = new Date(now.getTime() + retryMinutes * 60_000);
+          await db.update(autonomyEngineConfig).set({
+            status: "idle", nextRunAt: nextRun,
+            lastError: "Deferred: AI queue was busy — will retry shortly",
+          }).where(eq(autonomyEngineConfig.id, engine.id));
+          await recordHeartbeat(engine.engineName, "idle", durationMs);
+          logger.info(`${sanitizeForPrompt(engine.engineName)} deferred (queue busy) — retrying in ${retryMinutes} min`);
+          continue;
+        }
+
+        const isTransientAIError = /429|rate.?limit|quota|too many requests|retry.?after/i.test(msg);
         const failureCount = (engine.failureCount || 0) + 1;
         const backoffMinutes = Math.min((engine.intervalMinutes || 15) * Math.pow(2, failureCount - 1), 1440);
         const nextRun = new Date(now.getTime() + backoffMinutes * 60000);
@@ -250,28 +272,27 @@ async function runAutonomyCycle() {
         await db.insert(autonomyEngineRuns).values({
           userId, engineName: engine.engineName, status: "failed",
           startedAt: now, completedAt: new Date(), durationMs, actionsExecuted: 0,
-          error: error.message,
+          error: msg,
         });
 
         const newTotalRuns = (engine.totalRuns || 0) + 1;
         await db.update(autonomyEngineConfig).set({
           status: "error", lastRunAt: now, nextRunAt: nextRun,
-          failureCount, lastError: error.message,
+          failureCount, lastError: msg,
           totalRuns: newTotalRuns,
           successRate: newTotalRuns > 0 ? ((newTotalRuns - failureCount) / newTotalRuns) : 0,
         }).where(eq(autonomyEngineConfig.id, engine.id));
 
-        await recordHeartbeat(engine.engineName, "error", durationMs, error.message);
+        await recordHeartbeat(engine.engineName, "error", durationMs, msg);
 
-        const isTransientAIError = /429|rate.?limit|quota|too many requests|retry.?after/i.test(error.message);
         if (failureCount >= 3 && !isTransientAIError) {
           await notifyExceptionOnly(userId, engine.engineName, "critical",
-            `Engine ${sanitizeForPrompt(engine.engineName)} has failed ${failureCount} times. Last error: ${sanitizeForPrompt(error.message)}`);
+            `Engine ${sanitizeForPrompt(engine.engineName)} has failed ${failureCount} times. Last error: ${sanitizeForPrompt(msg)}`);
         } else if (isTransientAIError) {
-          logger.info(`[AutonomyController] Suppressing notification for transient AI rate-limit on ${sanitizeForPrompt(engine.engineName)} (attempt ${failureCount})`);
+          logger.info(`Suppressing notification for transient AI error on ${sanitizeForPrompt(engine.engineName)} (attempt ${failureCount})`);
         }
 
-        logger.error(`${sanitizeForPrompt(engine.engineName)} FAILED: ${sanitizeForPrompt(error.message)}`);
+        logger.error(`${sanitizeForPrompt(engine.engineName)} FAILED: ${sanitizeForPrompt(msg)}`);
       }
     }
   }
@@ -436,10 +457,31 @@ export async function forceRunEngine(userId: string, engineName: string) {
 
 let autonomyInterval: ReturnType<typeof setInterval> | null = null;
 
+async function resetQueueFullBackoffs(): Promise<void> {
+  // Engines that previously failed with "queue full" errors got pushed into long
+  // exponential backoffs (up to 24 h) even though it wasn't their fault.
+  // On startup, reset them so they run at their normal interval again.
+  try {
+    const result = await db.update(autonomyEngineConfig)
+      .set({ failureCount: 0, status: "idle", nextRunAt: new Date(), lastError: null })
+      .where(or(
+        ilike(autonomyEngineConfig.lastError, "%queue full%"),
+        ilike(autonomyEngineConfig.lastError, "%request dropped%"),
+        ilike(autonomyEngineConfig.lastError, "%queue was busy%"),
+      ));
+    logger.info("Cleared queue-full backoffs on startup");
+  } catch (e: any) {
+    logger.warn("Could not clear queue-full backoffs", { error: e.message });
+  }
+}
+
 export function startAutonomyController() {
   if (autonomyInterval) return;
 
   logger.info("Autonomy Controller starting — 15-minute cycles");
+
+  // Clear any engines stuck in long backoff from prior queue-full errors.
+  resetQueueFullBackoffs().catch(e => logger.warn("resetQueueFullBackoffs error", { error: e.message }));
 
   setTimeout(() => runAutonomyCycle().catch(e => logger.error("Cycle error", { error: e.message })), 90000);
 
