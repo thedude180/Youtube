@@ -440,17 +440,31 @@ export async function initAutomationEngine() {
       await runVideoSync();
     }, { maxRetries: 2 });
 
+    // Resolve userId once — shared by VaultSync + CloudArchive below.
+    let startupUserId: string | null = null;
     await selfHealingCore("VaultSync-Startup", async () => {
       const allChannelRows = await db.select().from(channels);
       const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
       if (ytChannels.length > 0) {
         const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
-        const userId = adminRow[0]?.id || ytChannels[0].userId!;
+        startupUserId = adminRow[0]?.id || ytChannels[0].userId!;
         const { startVaultSync } = await import("./services/video-vault");
         logger.info("[Vault] Starting automatic vault sync on startup...");
-        await startVaultSync(userId);
+        await startVaultSync(startupUserId);
       }
     }, { maxRetries: 1 });
+
+    // Auto-archive any locally-downloaded files that aren't yet in cloud storage.
+    // Runs immediately after VaultSync so the startup sweep is fully autonomous —
+    // no human needs to click "Archive to Cloud".
+    if (startupUserId) {
+      await selfHealingCore("CloudArchive-Startup", async () => {
+        const { archiveAllToCloud } = await import("./services/video-vault");
+        logger.info("[Vault] Auto-archiving local vault to cloud storage (startup)...");
+        const result = await archiveAllToCloud(startupUserId!);
+        logger.info(`[Vault] Startup cloud archive complete — uploaded: ${result.localUploaded}, already in cloud: ${result.alreadyInCloud}, pending download: ${result.pendingDownload}`);
+      }, { maxRetries: 1 });
+    }
   }, 90_000);
 
   cron.schedule("0 */2 * * *", async () => {
@@ -461,16 +475,28 @@ export async function initAutomationEngine() {
 
   cron.schedule("0 */6 * * *", async () => {
     await withCronLock("VaultSync", 5 * 60 * 60 * 1000, async () => {
+      let cronUserId: string | null = null;
+
       await selfHealingCore("VaultSync", async () => {
         const allChannelRows = await db.select().from(channels);
         const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
         if (ytChannels.length > 0) {
           const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
-          const userId = adminRow[0]?.id || ytChannels[0].userId!;
+          cronUserId = adminRow[0]?.id || ytChannels[0].userId!;
           const { startVaultSync } = await import("./services/video-vault");
-          await startVaultSync(userId);
+          await startVaultSync(cronUserId);
         }
       });
+
+      // After every VaultSync, push any locally-downloaded files that aren't
+      // yet in cloud — keeps the vault 100% autonomous with no button clicks.
+      if (cronUserId) {
+        await selfHealingCore("CloudArchive", async () => {
+          const { archiveAllToCloud } = await import("./services/video-vault");
+          const result = await archiveAllToCloud(cronUserId!);
+          logger.info(`[Vault] Cloud archive cycle — uploaded: ${result.localUploaded}, already in cloud: ${result.alreadyInCloud}, pending download: ${result.pendingDownload}`);
+        });
+      }
     });
   });
 

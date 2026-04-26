@@ -857,7 +857,7 @@ export default function Vault() {
   const syncMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/sync"),
     onSuccess: () => {
-      toast({ title: "Vault sync started", description: "Indexing all channel tabs in the background" });
+      toast({ title: "Vault sync triggered", description: "Indexing all channel videos now. This also runs automatically every 6 hours." });
       queryClient.invalidateQueries({ queryKey: ["/api/vault/stats"] });
       queryClient.invalidateQueries({ queryKey: ["/api/vault/games"] });
     },
@@ -866,7 +866,7 @@ export default function Vault() {
   const archiveMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/vault/archive-to-cloud"),
     onSuccess: () => {
-      toast({ title: "Cloud archive started", description: "Uploading all local videos to cloud storage. New downloads will also be archived automatically." });
+      toast({ title: "Cloud archive triggered", description: "Uploading local videos to cloud now. This also runs automatically every 6 hours — no manual action needed." });
       setTimeout(() => refetchCloudStats(), 30_000);
     },
   });
@@ -1010,14 +1010,20 @@ export default function Vault() {
               Backup to Drive
             </Button>
           </a>
-          <Button onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending} variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10" data-testid="button-archive-to-cloud">
-            {archiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
-            Archive to Cloud
-          </Button>
-          <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} variant="outline" data-testid="button-vault-sync">
-            {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Sync Vault
-          </Button>
+          <div className="flex flex-col items-center gap-0.5">
+            <Button onClick={() => archiveMutation.mutate()} disabled={archiveMutation.isPending} variant="outline" className="border-sky-500/40 text-sky-400 hover:bg-sky-500/10" data-testid="button-archive-to-cloud">
+              {archiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+              Archive to Cloud
+            </Button>
+            <span className="text-[10px] text-emerald-400/70 flex items-center gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />auto · every 6h</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} variant="outline" data-testid="button-vault-sync">
+              {syncMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sync Vault
+            </Button>
+            <span className="text-[10px] text-emerald-400/70 flex items-center gap-0.5"><CheckCircle2 className="h-2.5 w-2.5" />auto · every 6h</span>
+          </div>
         </div>
       </div>
 
@@ -1099,17 +1105,18 @@ export default function Vault() {
                 Zero human interaction
               </Badge>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
               {[
-                { step: "1", label: "Vault Sync", detail: "Every 6 hours", status: "auto", icon: RefreshCw },
-                { step: "2", label: "Download", detail: stats?.isRunning ? "Running now" : "On demand", status: stats?.isRunning ? "active" : "ready", icon: Download },
-                { step: "3", label: "Clip All Platforms", detail: "On download complete", status: "auto", icon: Scissors },
-                { step: "4", label: "AI SEO + Thumbnail", detail: "On clip complete", status: "auto", icon: Sparkles },
-                { step: "5", label: "Auto Publish", detail: "Every 5 minutes", status: "auto", icon: UploadCloud },
-              ].map(({ step, label, detail, status, icon: Icon }) => (
-                <div key={step} className="flex items-start gap-2 p-2 rounded-lg bg-background/60 border border-border/30">
+                { label: "Vault Sync", detail: "Every 6 hours", status: "auto", icon: RefreshCw },
+                { label: "Download", detail: stats?.isRunning ? "Running now" : "Continuous", status: stats?.isRunning ? "active" : "auto", icon: Download },
+                { label: "Cloud Archive", detail: "On download + every 6h", status: "auto", icon: UploadCloud },
+                { label: "Clip All Platforms", detail: "On download complete", status: "auto", icon: Scissors },
+                { label: "AI SEO + Thumbnail", detail: "On clip complete", status: "auto", icon: Sparkles },
+                { label: "Auto Publish", detail: "Every 5 minutes", status: "auto", icon: Zap },
+              ].map(({ label, detail, status, icon: Icon }) => (
+                <div key={label} className="flex items-start gap-2 p-2 rounded-lg bg-background/60 border border-border/30">
                   <div className={`p-1.5 rounded-md mt-0.5 shrink-0 ${status === "active" ? "bg-blue-500/20" : "bg-emerald-500/15"}`}>
-                    <Icon className={`h-3 w-3 ${status === "active" ? "text-blue-400 animate-spin" : "text-emerald-400"}`} />
+                    <Icon className={`h-3 w-3 ${status === "active" ? "text-blue-400 animate-pulse" : "text-emerald-400"}`} />
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium text-xs">{label}</p>
@@ -1123,7 +1130,7 @@ export default function Vault() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2.5">
-              Once your platform tokens are connected, every video you publish is automatically downloaded, split into clips for YouTube, Shorts, TikTok, and Rumble, given AI-optimized titles and thumbnails, then published on an optimal schedule — no clicks required.
+              100% autonomous — no clicks required. Every video is indexed, downloaded, archived to cloud, clipped for all platforms, given AI-optimized titles and thumbnails, and published on an optimal schedule automatically.
             </p>
           </CardContent>
         </Card>
