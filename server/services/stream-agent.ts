@@ -139,7 +139,12 @@ async function checkAndEngageStream(userId: string): Promise<void> {
     let liveStream = userStreams.find(s => s.status === "live");
     let detectedVideoId: string | null = null;
 
-    // If no DB stream is live, check YouTube — API first (if quota available), then RSS fallback
+    // If no DB stream is live, check YouTube.
+    // Strategy: RSS/watch-page check FIRST (zero quota cost). Only call the
+    // YouTube liveBroadcasts.list API (50 units) when RSS confirms the channel
+    // IS live — to get the authoritative videoId and broadcast title.
+    // This prevents quota drain during the idle hours when ET Gaming is not
+    // streaming (the common case), saving ~49 out of every 50 API checks.
     if (!liveStream) {
       try {
         const userChannels = await storage.getChannelsByUser(userId);
@@ -148,41 +153,52 @@ async function checkAndEngageStream(userId: string): Promise<void> {
           let broadcastTitle: string | null = null;
           let detectedLive = false;
 
-          // Try YouTube API first (costs 50 quota units for liveBroadcasts.list) — only if > 50 units remaining
-          const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-          if (quota.remaining > 50) {
-            try {
-              const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
-              await trackQuotaUsage(userId, "broadcast");
-              const activeBroadcast = broadcasts.find((b: any) =>
-                b.status === "live" || b.status === "liveStarting" || b.status === "testing"
-              );
-              if (activeBroadcast) {
-                detectedLive = true;
-                broadcastTitle = activeBroadcast.title;
-                detectedVideoId = (activeBroadcast as any).videoId || (activeBroadcast as any).id || activeBroadcast.broadcastId || null;
-              }
-            } catch (apiErr: any) {
-              logger.warn(`[${userId}] YouTube API live check failed — trying RSS fallback: ${sanitizeForPrompt(apiErr.message)}`);
-            }
-          } else {
-            logger.warn(`[${userId}] YouTube quota low (${sanitizeForPrompt(quota.remaining)}) — using RSS fallback for live detection`);
-          }
-
-          // Watch-page fallback: zero-quota — checks RSS feed for recent videos, then confirms "isLive":true on watch page
-          if (!detectedLive && ytChannel.channelId) {
+          // Step 1: Zero-quota RSS/watch-page check.
+          // If the channel is not live, skip the API call entirely.
+          // Falls through (rssChecked=false) when no channelId is available,
+          // so Step 2 can still run via API as a last resort.
+          let rssChecked = false;
+          if (ytChannel.channelId) {
+            rssChecked = true;
             try {
               const check = await detectYouTubeLiveFromChannel(ytChannel.channelId);
               if (check.isLive) {
                 detectedLive = true;
-                broadcastTitle = check.title || broadcastTitle || "Live Stream";
+                broadcastTitle = check.title || "Live Stream";
                 detectedVideoId = check.videoId || null;
                 logger.info(`[${userId}] Live detected via watch-page check — videoId: ${check.videoId}, title: ${broadcastTitle}`);
               } else {
                 logger.info(`[${userId}] Watch-page check: channel ${ytChannel.channelId} is not live`);
               }
             } catch (checkErr: any) {
-              logger.warn(`[${userId}] Watch-page fallback failed: ${sanitizeForPrompt(checkErr.message)}`);
+              logger.warn(`[${userId}] Watch-page check failed — will try API: ${sanitizeForPrompt(checkErr.message)}`);
+              rssChecked = false; // RSS failed; allow API check to proceed
+            }
+          }
+
+          // Step 2: API call — runs ONLY when RSS confirms live (to get authoritative
+          // videoId/title), OR when RSS was unavailable (no channelId / RSS error).
+          // When RSS says "not live", this entire block is skipped, saving 50 quota
+          // units per poll (the common case when not streaming).
+          if (detectedLive || !rssChecked) {
+            const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
+            if (quota.remaining > 50) {
+              try {
+                const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
+                await trackQuotaUsage(userId, "broadcast");
+                const activeBroadcast = broadcasts.find((b: any) =>
+                  b.status === "live" || b.status === "liveStarting" || b.status === "testing"
+                );
+                if (activeBroadcast) {
+                  broadcastTitle = activeBroadcast.title || broadcastTitle;
+                  detectedVideoId = (activeBroadcast as any).videoId || (activeBroadcast as any).id || activeBroadcast.broadcastId || detectedVideoId;
+                }
+                // If API returns no active broadcast but RSS said live, trust RSS
+              } catch (apiErr: any) {
+                logger.warn(`[${userId}] API broadcast confirmation failed — trusting RSS: ${sanitizeForPrompt(apiErr.message)}`);
+              }
+            } else {
+              logger.warn(`[${userId}] YouTube quota low (${sanitizeForPrompt(quota.remaining)}) — skipping API confirmation, trusting RSS`);
             }
           }
 

@@ -18,6 +18,13 @@ const openai = getOpenAIClient();
 const _postingTimesCache = new Map<string, { result: any; cachedAt: number }>();
 const POSTING_TIMES_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+// In-flight promise deduplication: when the cache is cold (e.g. right after a
+// restart), multiple concurrent callers for the same userId:platform key would
+// each fire their own AI call before any one resolves and populates the cache.
+// This map coalesces them — the 2nd, 3rd, … caller returns the same Promise
+// the first caller is already awaiting, so only ONE AI call fires per key.
+const _inFlight = new Map<string, Promise<any>>();
+
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
@@ -30,6 +37,12 @@ export async function getOptimalPostingTimes(userId: string, platform: string) {
     return cached.result;
   }
 
+  // Coalesce concurrent callers: if a fetch is already in-flight for this key,
+  // wait for it rather than firing a second parallel AI request.
+  const existing = _inFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const fetchPromise = (async () => {
   try {
     const patterns = await db.select().from(audienceActivityPatterns)
       .where(and(
@@ -99,7 +112,13 @@ Provide 5-7 optimal posting slots based on ${safePlatform}'s known best practice
   } catch (error) {
     logger.error("Failed to get optimal posting times:", error);
     return { source: "default", platform, slots: [] };
+  } finally {
+    _inFlight.delete(cacheKey);
   }
+  })();
+
+  _inFlight.set(cacheKey, fetchPromise);
+  return fetchPromise;
 }
 
 export async function updateActivityPatterns(
