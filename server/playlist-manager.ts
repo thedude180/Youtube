@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { videos, channels, managedPlaylists, playlistItems, notifications } from "@shared/schema";
-import { eq, and, desc, sql, isNotNull } from "drizzle-orm";
+import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
@@ -19,10 +19,27 @@ interface GamePlaylistMapping {
   youtubePlaylistId: string | null;
 }
 
+const UNIDENTIFIED_GAMES = new Set(["general", "unknown", "uncategorized", "misc", "other", ""]);
+
+function isJunkGameName(gameName: string): boolean {
+  const lower = gameName.toLowerCase().trim();
+  if (UNIDENTIFIED_GAMES.has(lower)) return true;
+  const junkPrefixes = [
+    "list of", "category:", "category of", "characters of", "history of",
+    "timeline of", "overview of", "comparison of", "types of", "best of",
+    "top list", "wikipedia", "list", "this is ",
+  ];
+  if (junkPrefixes.some(p => lower.startsWith(p))) return true;
+  if (lower.includes(" list of ") || lower.startsWith("list of ")) return true;
+  if (lower.length > 50) return true;
+  return false;
+}
+
 async function detectGameFromVideo(video: any): Promise<string> {
   const meta = (video.metadata as any) || {};
   if (meta.gameName && meta.gameName !== "Unknown" && meta.gameName !== "Uncategorized") {
-    return meta.gameName.trim().toLowerCase();
+    const candidate = meta.gameName.trim().toLowerCase();
+    if (!isJunkGameName(candidate)) return candidate;
   }
 
   const title = (video.title || "").toLowerCase();
@@ -33,7 +50,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
   try {
     const { detectGameFromLearned } = await import("./services/web-game-lookup");
     const learnedMatch = detectGameFromLearned(combined);
-    if (learnedMatch) return learnedMatch.toLowerCase();
+    if (learnedMatch && !isJunkGameName(learnedMatch)) return learnedMatch.toLowerCase();
   } catch (err: any) {
     logger.warn(`Learned game detection failed in playlist manager: ${sanitizeForPrompt(err.message)}`);
   }
@@ -50,6 +67,7 @@ async function detectGameFromVideo(video: any): Promise<string> {
     "overwatch": ["overwatch"],
     "rocket league": ["rocket league"],
     "destiny 2": ["destiny 2", "destiny2"],
+    "destiny": ["destiny"],
     "elden ring": ["elden ring"],
     "baldur's gate 3": ["baldur's gate", "baldurs gate", "bg3"],
     "helldivers 2": ["helldivers"],
@@ -86,13 +104,24 @@ async function detectGameFromVideo(video: any): Promise<string> {
     "satisfactory": ["satisfactory"],
     "no man's sky": ["no man's sky"],
     "sea of thieves": ["sea of thieves"],
+    "assassin's creed": ["assassin's creed", "assassins creed"],
+    "dragon age": ["dragon age", "inquisition", "veilguard"],
+    "middle-earth": ["middle-earth", "shadow of mordor", "shadow of war"],
+    "hitman": ["hitman"],
+    "metal gear": ["metal gear"],
+    "ratchet & clank": ["ratchet", "clank"],
+    "sly cooper": ["sly cooper"],
+    "fez": ["fez game"],
+    "battlefield 6": ["battlefield 6", "bf6"],
   };
 
   for (const [game, patterns] of Object.entries(gamePatterns)) {
     if (patterns.some(p => combined.includes(p))) return game;
   }
 
-  if (meta.contentCategory) return meta.contentCategory.toLowerCase();
+  if (meta.contentCategory && !isJunkGameName(meta.contentCategory)) {
+    return meta.contentCategory.toLowerCase();
+  }
 
   try {
     const response = await openai.chat.completions.create({
@@ -100,25 +129,26 @@ async function detectGameFromVideo(video: any): Promise<string> {
       messages: [
         {
           role: "system",
-          content: `You are a content classifier. Given a video title, description, and tags, identify the primary topic/game/subject in 1-3 words. Return ONLY the topic name in lowercase. Examples: "battlefield 6", "cooking", "tech reviews", "fitness workout", "music production". If truly unidentifiable, return "general".`,
+          content: `You are a gaming content classifier. Given a video title, description, and tags, identify the primary game or gaming franchise in 1-4 words. Return ONLY the game name in lowercase. Examples: "battlefield 6", "call of duty", "elden ring", "minecraft", "gta v". If it's not a game video or you cannot identify a specific real game, return "general". IMPORTANT: Never return Wikipedia article names like "list of X", "category:", "characters of", or non-game topics.`,
         },
         {
           role: "user",
           content: `Title: ${sanitizeForPrompt(video.title || "unknown")}\nDescription: ${sanitizeForPrompt((video.description || "").substring(0, 200))}\nTags: ${tags.slice(0, 10).join(", ")}`,
         },
       ],
-      max_completion_tokens: 4000,
+      max_completion_tokens: 20,
     });
-    const detected = response.choices[0]?.message?.content?.trim().toLowerCase() || "general";
-    if (detected !== "general" && detected.length >= 2) {
+    const detected = (response.choices[0]?.message?.content?.trim() || "general").toLowerCase();
+    if (!isJunkGameName(detected) && detected !== "general" && detected.length >= 2) {
       try {
         const { persistGameToDatabase } = await import("./services/web-game-lookup");
         await persistGameToDatabase(detected, "playlist-ai-detect");
       } catch (err: any) {
         logger.warn(`Playlist game persist failed for "${detected}": ${sanitizeForPrompt(err.message)}`);
       }
+      return detected;
     }
-    return detected.length > 0 && detected.length < 50 ? detected : "general";
+    return "general";
   } catch {
     return "general";
   }
@@ -146,18 +176,13 @@ function generatePlaylistDescription(gameName: string, type: PlaylistType): stri
     : `${formattedGame} shorts, highlights, best moments, and clips. Updated automatically with new content.`;
 }
 
-const UNIDENTIFIED_GAMES = new Set(["general", "unknown", "uncategorized", "misc", "other", ""]);
-
-async function getOrCreateGamePlaylist(
+async function findExistingGamePlaylist(
   userId: string,
   gameName: string,
   playlistType: PlaylistType,
   channelId: number
-): Promise<GamePlaylistMapping> {
+): Promise<GamePlaylistMapping | null> {
   const normalizedGame = gameName.toLowerCase().trim();
-  if (UNIDENTIFIED_GAMES.has(normalizedGame)) {
-    throw new Error(`Refusing to create playlist for unidentified game: "${normalizedGame}"`);
-  }
   const strategy = playlistType === "longform" ? "game-longform" : "game-shorts";
 
   const existing = await db.select().from(managedPlaylists)
@@ -169,18 +194,27 @@ async function getOrCreateGamePlaylist(
 
   const match = existing.find(p => {
     const meta = (p.metadata as any) || {};
-    return meta.gameName === normalizedGame && meta.channelId === channelId;
+    return meta.gameName === normalizedGame;
   });
 
-  if (match) {
-    return {
-      gameName: normalizedGame,
-      playlistType,
-      playlistId: match.id,
-      youtubePlaylistId: match.youtubePlaylistId,
-    };
-  }
+  if (!match) return null;
 
+  return {
+    gameName: normalizedGame,
+    playlistType,
+    playlistId: match.id,
+    youtubePlaylistId: match.youtubePlaylistId,
+  };
+}
+
+async function createGamePlaylist(
+  userId: string,
+  gameName: string,
+  playlistType: PlaylistType,
+  channelId: number
+): Promise<GamePlaylistMapping> {
+  const normalizedGame = gameName.toLowerCase().trim();
+  const strategy = playlistType === "longform" ? "game-longform" : "game-shorts";
   const title = generatePlaylistTitle(normalizedGame, playlistType);
   const description = generatePlaylistDescription(normalizedGame, playlistType);
 
@@ -221,6 +255,17 @@ async function getOrCreateGamePlaylist(
     playlistId: created.id,
     youtubePlaylistId,
   };
+}
+
+async function getOrCreateGamePlaylist(
+  userId: string,
+  gameName: string,
+  playlistType: PlaylistType,
+  channelId: number
+): Promise<GamePlaylistMapping> {
+  const existing = await findExistingGamePlaylist(userId, gameName, playlistType, channelId);
+  if (existing) return existing;
+  return createGamePlaylist(userId, gameName, playlistType, channelId);
 }
 
 async function createYouTubePlaylist(channelId: number, title: string, description: string): Promise<string> {
@@ -318,7 +363,6 @@ async function generateAndSetPlaylistThumbnail(
     let imageBuffer: Buffer;
     try {
       const { generateImageBuffer } = await import("./replit_integrations/image/client");
-      // YouTube playlist thumbnails display in 16:9 — use landscape format
       imageBuffer = await generateImageBuffer(prompt, "1536x1024");
     } catch (imgErr) {
       logger.error("Image generation failed for playlist thumbnail", { error: String(imgErr) });
@@ -387,6 +431,21 @@ async function addVideoToYouTubePlaylist(channelId: number, playlistId: string, 
   }
 }
 
+async function deleteYouTubePlaylist(channelId: number, youtubePlaylistId: string): Promise<boolean> {
+  try {
+    const { getAuthenticatedClient } = await import("./youtube");
+    const { google } = await import("googleapis");
+    const { oauth2Client } = await getAuthenticatedClient(channelId);
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+    await youtube.playlists.delete({ id: youtubePlaylistId });
+    logger.info("Deleted YouTube playlist", { youtubePlaylistId });
+    return true;
+  } catch (err) {
+    logger.warn("Could not delete YouTube playlist (may not exist)", { youtubePlaylistId, error: String(err) });
+    return false;
+  }
+}
+
 async function isVideoInPlaylist(playlistId: number, videoId: number): Promise<boolean> {
   const existing = await db.select().from(playlistItems)
     .where(and(
@@ -395,6 +454,58 @@ async function isVideoInPlaylist(playlistId: number, videoId: number): Promise<b
     ))
     .limit(1);
   return existing.length > 0;
+}
+
+async function assignVideoToPlaylistRecord(
+  mapping: GamePlaylistMapping,
+  video: any,
+  channelId: number
+): Promise<boolean> {
+  const meta = (video.metadata as any) || {};
+  const youtubeId = meta.youtubeId;
+  if (!youtubeId) return false;
+
+  if (await isVideoInPlaylist(mapping.playlistId, video.id)) {
+    await db.update(videos).set({
+      metadata: { ...meta, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
+    }).where(eq(videos.id, video.id));
+    return true;
+  }
+
+  if (mapping.youtubePlaylistId) {
+    await addVideoToYouTubePlaylist(channelId, mapping.youtubePlaylistId, youtubeId);
+  }
+
+  const currentItems = await db.select({ count: sql<number>`count(*)::int` })
+    .from(playlistItems)
+    .where(eq(playlistItems.playlistId, mapping.playlistId));
+  const position = (currentItems[0]?.count || 0);
+
+  try {
+    await db.insert(playlistItems).values({
+      playlistId: mapping.playlistId,
+      videoId: video.id,
+      position,
+      addedAt: new Date(),
+    });
+  } catch (insertErr: any) {
+    if (insertErr.code === "23505") {
+      logger.info("Playlist item already exists (concurrent insert), skipping", { playlistId: mapping.playlistId, videoId: video.id });
+    } else {
+      throw insertErr;
+    }
+  }
+
+  await db.update(managedPlaylists).set({
+    videoCount: sql`${managedPlaylists.videoCount} + 1`,
+    lastUpdatedAt: new Date(),
+  }).where(eq(managedPlaylists.id, mapping.playlistId));
+
+  await db.update(videos).set({
+    metadata: { ...meta, detectedGame: mapping.gameName, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
+  }).where(eq(videos.id, video.id));
+
+  return true;
 }
 
 const PLAYLIST_BATCH_LIMIT = 20;
@@ -413,85 +524,85 @@ export async function organizePlaylistsForUser(userId: string): Promise<{ assign
 
     if (ytChannels.length === 0) return { assigned: 0, playlistsCreated: 0 };
 
-    const existingPlaylistsBefore = await db.select({ id: managedPlaylists.id })
+    const existingCountBefore = await db.select({ count: sql<number>`count(*)::int` })
       .from(managedPlaylists)
       .where(and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true)));
-    const beforeCount = existingPlaylistsBefore.length;
+    const beforeCount = existingCountBefore[0]?.count || 0;
 
     for (const channel of ytChannels) {
-      if (assigned >= PLAYLIST_BATCH_LIMIT) break;
       const channelVids = await db.select().from(videos)
         .where(eq(videos.channelId, channel.id))
         .orderBy(desc(videos.createdAt))
-        .limit(PLAYLIST_BATCH_LIMIT * 2);
+        .limit(PLAYLIST_BATCH_LIMIT * 4);
 
-      for (const video of channelVids) {
-        if (assigned >= PLAYLIST_BATCH_LIMIT) break;
-        const meta = (video.metadata as any) || {};
-        const youtubeId = meta.youtubeId;
-        if (!youtubeId) continue;
+      const unassigned = channelVids.filter(v => {
+        const meta = (v.metadata as any) || {};
+        return !meta.playlistAssigned && meta.youtubeId;
+      });
 
-        if (meta.playlistAssigned) continue;
+      if (unassigned.length === 0) continue;
 
+      type GroupEntry = { video: any; playlistType: PlaylistType };
+      const groups = new Map<string, GroupEntry[]>();
+
+      for (const video of unassigned) {
         const gameName = await detectGameFromVideo(video);
-
-        if (UNIDENTIFIED_GAMES.has(gameName.toLowerCase().trim())) {
-          logger.debug("Skipping unidentified video — no playlist created", { videoId: video.id, game: gameName });
+        if (isJunkGameName(gameName)) {
+          logger.debug("Skipping junk game name — no playlist", { videoId: video.id, game: gameName });
           continue;
         }
 
+        const meta = (video.metadata as any) || {};
         const isShort = video.type === "short" || video.type === "shorts" ||
           video.type === "short_video" ||
           (meta.duration && parseDuration(meta.duration) <= 60);
-
         const playlistType: PlaylistType = isShort ? "shorts" : "longform";
+        const key = `${gameName}::${playlistType}`;
 
-        const mapping = await getOrCreateGamePlaylist(userId, gameName, playlistType, channel.id);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push({ video, playlistType });
+      }
 
-        if (await isVideoInPlaylist(mapping.playlistId, video.id)) {
-          await db.update(videos).set({
-            metadata: { ...meta, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
-          }).where(eq(videos.id, video.id));
+      for (const [key, group] of groups) {
+        if (assigned >= PLAYLIST_BATCH_LIMIT) break;
+
+        const [gameName] = key.split("::");
+        const playlistType = group[0].playlistType;
+
+        const existingMapping = await findExistingGamePlaylist(userId, gameName, playlistType, channel.id);
+
+        if (!existingMapping && group.length < 2) {
+          logger.debug("Deferred playlist creation — only 1 video for game", {
+            gameName, playlistType, videoId: group[0].video.id
+          });
           continue;
         }
 
-        if (mapping.youtubePlaylistId) {
-          await addVideoToYouTubePlaylist(channel.id, mapping.youtubePlaylistId, youtubeId);
+        let mapping: GamePlaylistMapping;
+        if (existingMapping) {
+          mapping = existingMapping;
+        } else {
+          mapping = await createGamePlaylist(userId, gameName, playlistType, channel.id);
         }
 
-        const currentItems = await db.select({ count: sql<number>`count(*)::int` })
-          .from(playlistItems)
-          .where(eq(playlistItems.playlistId, mapping.playlistId));
-        const position = (currentItems[0]?.count || 0);
-
-        await db.insert(playlistItems).values({
-          playlistId: mapping.playlistId,
-          videoId: video.id,
-          position,
-          addedAt: new Date(),
-        });
-
-        await db.update(managedPlaylists).set({
-          videoCount: sql`${managedPlaylists.videoCount} + 1`,
-          lastUpdatedAt: new Date(),
-        }).where(eq(managedPlaylists.id, mapping.playlistId));
-
-        await db.update(videos).set({
-          metadata: { ...meta, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
-        }).where(eq(videos.id, video.id));
-
-        assigned++;
-        logger.info("Assigned video to playlist", {
-          videoId: video.id, title: video.title, game: gameName,
-          type: playlistType, playlistId: mapping.playlistId
-        });
+        for (const { video } of group) {
+          if (assigned >= PLAYLIST_BATCH_LIMIT) break;
+          const ok = await assignVideoToPlaylistRecord(mapping, video, channel.id);
+          if (ok) {
+            assigned++;
+            logger.info("Assigned video to playlist", {
+              videoId: video.id, title: video.title, game: gameName,
+              type: playlistType, playlistId: mapping.playlistId
+            });
+          }
+        }
       }
     }
 
-    const existingPlaylistsAfter = await db.select({ id: managedPlaylists.id })
+    const existingCountAfter = await db.select({ count: sql<number>`count(*)::int` })
       .from(managedPlaylists)
       .where(and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true)));
-    playlistsCreated = existingPlaylistsAfter.length - beforeCount;
+    playlistsCreated = (existingCountAfter[0]?.count || 0) - beforeCount;
 
     if (assigned > 0 || playlistsCreated > 0) {
       logger.info("Playlists organized", { userId, assigned, playlistsCreated });
@@ -556,15 +667,15 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
     if (!youtubeId) return false;
 
     let gameName = meta.detectedGame || meta.gameName;
-    if (!gameName) {
+    if (!gameName || isJunkGameName(gameName)) {
       gameName = await detectGameFromVideo(video);
       await db.update(videos).set({
         metadata: { ...meta, detectedGame: gameName },
       }).where(eq(videos.id, videoId));
     }
 
-    if (UNIDENTIFIED_GAMES.has((gameName || "").toLowerCase().trim())) {
-      logger.info("Skipping unidentified video — no playlist created for single assignment", { videoId, game: gameName });
+    if (isJunkGameName((gameName || "").toLowerCase().trim())) {
+      logger.info("Skipping junk/unidentified video — no playlist", { videoId, game: gameName });
       return false;
     }
 
@@ -572,53 +683,37 @@ export async function assignSingleVideoToPlaylist(userId: string, videoId: numbe
       (meta.duration && parseDuration(meta.duration) <= 60);
     const playlistType: PlaylistType = isShort ? "shorts" : "longform";
 
-    const mapping = await getOrCreateGamePlaylist(userId, gameName, playlistType, channelId);
+    const existingMapping = await findExistingGamePlaylist(userId, gameName, playlistType, channelId);
 
-    if (await isVideoInPlaylist(mapping.playlistId, videoId)) {
-      await db.update(videos).set({
-        metadata: { ...meta, detectedGame: gameName, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
-      }).where(eq(videos.id, videoId));
-      return true;
-    }
+    if (!existingMapping) {
+      const strategy = playlistType === "longform" ? "game-longform" : "game-shorts";
+      const sameGameVids = await db.select({ count: sql<number>`count(*)::int` })
+        .from(videos)
+        .where(and(
+          eq(videos.channelId, channelId),
+          sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+          sql`lower(trim(coalesce(${videos.metadata}->>'detectedGame', ${videos.metadata}->>'gameName', ''))) = ${gameName.toLowerCase().trim()}`,
+        ));
 
-    if (mapping.youtubePlaylistId) {
-      await addVideoToYouTubePlaylist(channelId, mapping.youtubePlaylistId, youtubeId);
-    }
-
-    const currentItems = await db.select({ count: sql<number>`count(*)::int` })
-      .from(playlistItems)
-      .where(eq(playlistItems.playlistId, mapping.playlistId));
-    const position = (currentItems[0]?.count || 0);
-
-    try {
-      await db.insert(playlistItems).values({
-        playlistId: mapping.playlistId,
-        videoId,
-        position,
-        addedAt: new Date(),
-      });
-    } catch (insertErr: any) {
-      if (insertErr.code === "23505") {
-        logger.info("Playlist item already exists (concurrent insert), skipping", { playlistId: mapping.playlistId, videoId });
-      } else {
-        throw insertErr;
+      const existingVideoCount = sameGameVids[0]?.count || 0;
+      if (existingVideoCount < 2) {
+        logger.info("Deferred playlist creation — waiting for 2nd video", {
+          videoId, gameName, playlistType, existingCount: existingVideoCount
+        });
+        return false;
       }
     }
 
-    await db.update(managedPlaylists).set({
-      videoCount: sql`${managedPlaylists.videoCount} + 1`,
-      lastUpdatedAt: new Date(),
-    }).where(eq(managedPlaylists.id, mapping.playlistId));
+    const mapping = await getOrCreateGamePlaylist(userId, gameName, playlistType, channelId);
+    const ok = await assignVideoToPlaylistRecord(mapping, video, channelId);
 
-    await db.update(videos).set({
-      metadata: { ...meta, detectedGame: gameName, playlistAssigned: true, assignedPlaylistId: mapping.playlistId },
-    }).where(eq(videos.id, videoId));
+    if (ok) {
+      logger.info("Assigned new clip to playlist", {
+        videoId, game: gameName, type: playlistType, playlistId: mapping.playlistId
+      });
+    }
 
-    logger.info("Assigned new clip to playlist", {
-      videoId, game: gameName, type: playlistType, playlistId: mapping.playlistId
-    });
-
-    return true;
+    return ok;
   } catch (err) {
     logger.error("Single video playlist assignment failed", { videoId, error: String(err) });
     return false;
@@ -639,7 +734,7 @@ export async function autoAssignVideoToPlaylist(userId: string, videoId: number,
     if (!video) return false;
 
     const meta = (video.metadata as any) || {};
-    if (!meta.detectedGame || meta.detectedGame === "general") {
+    if (!meta.detectedGame || meta.detectedGame === "general" || isJunkGameName(meta.detectedGame)) {
       await db.update(videos).set({
         metadata: { ...meta, detectedGame: gameName },
       }).where(eq(videos.id, videoId));
@@ -671,4 +766,134 @@ export async function runPlaylistOrganizationForAllUsers(): Promise<number> {
   }
 
   return usersProcessed;
+}
+
+export async function runPlaylistCleanupForAllUsers(): Promise<void> {
+  const userRows = await db
+    .selectDistinct({ userId: channels.userId })
+    .from(channels)
+    .where(and(eq(channels.platform, "youtube"), isNotNull(channels.userId)));
+
+  for (const row of userRows) {
+    if (!row.userId) continue;
+    try {
+      const result = await cleanupOrphanedPlaylists(row.userId);
+      if (result.deleted > 0 || result.merged > 0) {
+        logger.info("Playlist cleanup completed for user", { userId: row.userId, ...result });
+      }
+    } catch (err) {
+      logger.error("Playlist cleanup failed for user", { userId: row.userId, error: String(err) });
+    }
+  }
+}
+
+export async function cleanupOrphanedPlaylists(userId: string): Promise<{
+  deleted: number;
+  merged: number;
+  youtubeDeleted: number;
+}> {
+  let deleted = 0;
+  let merged = 0;
+  let youtubeDeleted = 0;
+
+  logger.info("[PlaylistCleanup] Starting orphaned playlist cleanup", { userId });
+
+  try {
+    const ytChannels = await db.select().from(channels)
+      .where(and(eq(channels.platform, "youtube"), eq(channels.userId, userId)));
+    const channelId = ytChannels[0]?.id;
+
+    const allPlaylists = await db.select().from(managedPlaylists)
+      .where(and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true)));
+
+    const titleStrategyGroups = new Map<string, typeof allPlaylists>();
+    for (const p of allPlaylists) {
+      const key = `${p.title}::${p.strategy}`;
+      if (!titleStrategyGroups.has(key)) titleStrategyGroups.set(key, []);
+      titleStrategyGroups.get(key)!.push(p);
+    }
+
+    for (const [key, group] of titleStrategyGroups) {
+      if (group.length <= 1) continue;
+
+      group.sort((a, b) => (b.videoCount || 0) - (a.videoCount || 0));
+      const canonical = group[0];
+      const duplicates = group.slice(1);
+
+      for (const dup of duplicates) {
+        const existingItems = await db.select().from(playlistItems)
+          .where(eq(playlistItems.playlistId, dup.id));
+
+        for (const item of existingItems) {
+          const alreadyInCanonical = await isVideoInPlaylist(canonical.id, item.videoId);
+          if (!alreadyInCanonical) {
+            const pos = await db.select({ count: sql<number>`count(*)::int` })
+              .from(playlistItems)
+              .where(eq(playlistItems.playlistId, canonical.id));
+            await db.insert(playlistItems).values({
+              playlistId: canonical.id,
+              videoId: item.videoId,
+              position: pos[0]?.count || 0,
+              addedAt: new Date(),
+            }).onConflictDoNothing();
+            await db.update(managedPlaylists)
+              .set({ videoCount: sql`${managedPlaylists.videoCount} + 1`, lastUpdatedAt: new Date() })
+              .where(eq(managedPlaylists.id, canonical.id));
+          }
+        }
+
+        await db.update(videos).set({
+          metadata: sql`jsonb_set(metadata, '{assignedPlaylistId}', ${canonical.id}::text::jsonb)`,
+        }).where(sql`${videos.metadata}->>'assignedPlaylistId' = ${String(dup.id)}`);
+
+        if (dup.youtubePlaylistId && channelId) {
+          const ytOk = await deleteYouTubePlaylist(channelId, dup.youtubePlaylistId);
+          if (ytOk) youtubeDeleted++;
+        }
+
+        await db.delete(playlistItems).where(eq(playlistItems.playlistId, dup.id));
+        await db.delete(managedPlaylists).where(eq(managedPlaylists.id, dup.id));
+        merged++;
+        logger.info("[PlaylistCleanup] Merged duplicate playlist", {
+          duplicate: dup.id, canonical: canonical.id, title: dup.title
+        });
+      }
+    }
+
+    const remainingPlaylists = await db.select().from(managedPlaylists)
+      .where(and(eq(managedPlaylists.userId, userId), eq(managedPlaylists.autoManaged, true)));
+
+    for (const playlist of remainingPlaylists) {
+      const itemCount = await db.select({ count: sql<number>`count(*)::int` })
+        .from(playlistItems)
+        .where(eq(playlistItems.playlistId, playlist.id));
+      const actualCount = itemCount[0]?.count || 0;
+
+      const isJunkTitle = isJunkGameName((playlist.metadata as any)?.gameName || "");
+
+      if (actualCount < 2 || isJunkTitle) {
+        if (playlist.youtubePlaylistId && channelId) {
+          const ytOk = await deleteYouTubePlaylist(channelId, playlist.youtubePlaylistId);
+          if (ytOk) youtubeDeleted++;
+        }
+
+        await db.update(videos).set({
+          metadata: sql`metadata - 'playlistAssigned' - 'assignedPlaylistId'`,
+        }).where(sql`${videos.metadata}->>'assignedPlaylistId' = ${String(playlist.id)}`);
+
+        await db.delete(playlistItems).where(eq(playlistItems.playlistId, playlist.id));
+        await db.delete(managedPlaylists).where(eq(managedPlaylists.id, playlist.id));
+        deleted++;
+        logger.info("[PlaylistCleanup] Deleted thin/junk playlist", {
+          id: playlist.id, title: playlist.title, actualCount, isJunkTitle
+        });
+      }
+    }
+
+    logger.info("[PlaylistCleanup] Complete", { userId, deleted, merged, youtubeDeleted });
+  } catch (err) {
+    logger.error("[PlaylistCleanup] Failed", { userId, error: String(err) });
+  }
+
+  return { deleted, merged, youtubeDeleted };
 }

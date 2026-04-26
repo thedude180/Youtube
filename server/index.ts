@@ -1796,8 +1796,11 @@ httpServer.listen(
       import("./playlist-manager").then(async m => {
         await new Promise(r => setTimeout(r, stagger(6 * 60_000)));
         await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));
+        await m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup"));
         const iv = setInterval(() => m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization")), jitter(6 * 60 * 60_000));
         backgroundIntervals.push(iv);
+        const ivClean = setInterval(() => m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup")), jitter(24 * 60 * 60_000));
+        backgroundIntervals.push(ivClean);
       }).catch(slog("playlist-manager import"));
       import("./vod-optimizer-engine").then(async m => {
         await new Promise(r => setTimeout(r, stagger(7 * 60_000)));
