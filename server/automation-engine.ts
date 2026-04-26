@@ -427,6 +427,13 @@ export async function initAutomationEngine() {
     }
   }
 
+  // ── Startup sync stagger ────────────────────────────────────────────────
+  // initAutomationEngine() is called at T+25 s (Wave 8).  The old 15 s internal
+  // delay put VideoSync + VaultSync at T+40 s — directly overlapping Wave 12
+  // (T+37–41 s) which registers 24 job handlers, bootstraps lifecycle managers
+  // and arms daily schedulers.  Moving to 90 s pushes these heavy operations to
+  // T+115 s — a quiet gap between Wave 10.5 (T+100 s) and Wave 11 (T+120 s)
+  // when all autonomous initialisation is already complete.
   setTimeout(async () => {
     await selfHealingCore("VideoSync-Startup", async () => {
       logger.info("[VideoSync] Running startup sync...");
@@ -444,7 +451,7 @@ export async function initAutomationEngine() {
         await startVaultSync(userId);
       }
     }, { maxRetries: 1 });
-  }, 15_000);
+  }, 90_000);
 
   cron.schedule("0 */2 * * *", async () => {
     await withCronLock("VideoSync", 90 * 60 * 1000, async () => {
