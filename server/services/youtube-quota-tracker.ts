@@ -14,7 +14,8 @@ const QUOTA_COSTS = {
   read: 1,           // channels.list, videos.list, playlistItems.list, etc.
   list: 1,           // alias for read
   search: 100,       // search.list — very expensive, use sparingly
-  write: 50,         // videos.update, playlists.insert, playlistItems.insert
+  write: 50,         // videos.update for NEW content (new uploads, autopilot, user-triggered)
+  backlogWrite: 50,  // videos.update via youtube-push-backlog (retroactive metadata optimisation)
   upload: 1600,      // videos.insert
   thumbnail: 50,     // thumbnails.set
   broadcast: 50,     // liveBroadcasts.list, liveBroadcasts.insert
@@ -89,33 +90,45 @@ const UPLOAD_RESERVE = 4000;
  * (per Pacific date) so the check adds zero DB round-trips to the hot path.
  *
  * Budget breakdown at these caps:
- *   upload    4 × 1600 =  6,400  (hard ceiling; studio uploads rarely reach 4)
- *   write    30 ×   50 =  1,500  (metadata updates spread across 24 h)
- *   thumbnail 20 ×   50 =  1,000  (AI thumbnail uploads spread across 24 h)
- *   broadcast 40 ×   50 =  2,000  (live detection during an active stream)
- *   search     3 ×  100 =    300  (search.list is 100 units — use sparingly)
+ *   upload       4 × 1600 =  6,400  (hard ceiling; studio uploads rarely reach 4)
+ *   write       20 ×   50 =  1,000  (NEW content only: new uploads, autopilot, user-triggered)
+ *   backlogWrite 20 ×   50 =  1,000  (retroactive backlog optimisation of existing videos)
+ *   thumbnail   20 ×   50 =  1,000  (AI thumbnail uploads spread across 24 h)
+ *   broadcast   40 ×   50 =  2,000  (live detection during an active stream)
+ *   search       3 × 100  =    300  (search.list is 100 units — use sparingly)
  *   read/list/livechat: uncapped (1 unit each, negligible)
- *   ──────────────────────────────
- *   Worst-case total             11,200  (all caps hit simultaneously — rare)
- *   Normal daily usage           ~4,000–6,000 units with typical streaming
+ *   ──────────────────────────────────────
+ *   Worst-case total              11,700  (all caps hit simultaneously — rare)
+ *   Normal daily usage            ~3,000–6,000 units with typical streaming
+ *
+ * IMPORTANT: write vs backlogWrite separation
+ *   "write"       — new content publishing paths (videos.update for just-uploaded
+ *                   content, autopilot pushes, user-triggered updates). Always
+ *                   has its own 20-op budget so new content is never blocked by
+ *                   backlog activity.
+ *   "backlogWrite" — youtube-push-backlog retroactive metadata optimisation of
+ *                   existing videos.  Has its own independent 20-op budget so
+ *                   heavy backlog processing cannot starve new content.
  *
  * The unit-budget gate in canAffordOperation() is still the ultimate backstop.
  */
 const DAILY_OP_CAPS: Record<string, number> = {
-  upload:    4,
-  write:     30,
-  thumbnail: 20,
-  broadcast: 40,
-  search:    3,
-  read:      Infinity,
-  list:      Infinity,
-  livechat:  Infinity,
+  upload:      4,
+  write:       20,
+  backlogWrite: 20,
+  thumbnail:   20,
+  broadcast:   40,
+  search:      3,
+  read:        Infinity,
+  list:        Infinity,
+  livechat:    Infinity,
 };
 
 interface DailyOpCounter {
   date: string;
   upload: number;
   write: number;
+  backlogWrite: number;
   thumbnail: number;
   broadcast: number;
   search: number;
@@ -127,7 +140,7 @@ function getDailyOpCounter(userId: string): DailyOpCounter {
   const today = getPacificDate();
   const existing = _dailyOpCounters.get(userId);
   if (existing && existing.date === today) return existing;
-  const fresh: DailyOpCounter = { date: today, upload: 0, write: 0, thumbnail: 0, broadcast: 0, search: 0 };
+  const fresh: DailyOpCounter = { date: today, upload: 0, write: 0, backlogWrite: 0, thumbnail: 0, broadcast: 0, search: 0 };
   _dailyOpCounters.set(userId, fresh);
   return fresh;
 }
@@ -141,7 +154,14 @@ function incrementDailyOpCounter(userId: string, operation: string): void {
 
 export function getDailyOpCounts(userId: string): Record<string, number> {
   const c = getDailyOpCounter(userId);
-  return { upload: c.upload, write: c.write, thumbnail: c.thumbnail, broadcast: c.broadcast, search: c.search };
+  return {
+    upload: c.upload,
+    write: c.write,
+    backlogWrite: c.backlogWrite,
+    thumbnail: c.thumbnail,
+    broadcast: c.broadcast,
+    search: c.search,
+  };
 }
 
 function getPacificDate(): string {
@@ -208,7 +228,7 @@ export async function trackQuotaUsage(userId: string, operation: QuotaOperation,
     const record = await getOrCreateDailyRecord(userId);
 
     const opField = operation === "read" || operation === "list" ? "readOps"
-      : operation === "write" || operation === "thumbnail" ? "writeOps"
+      : operation === "write" || operation === "backlogWrite" || operation === "thumbnail" ? "writeOps"
       : operation === "search" ? "searchOps"
       : "uploadOps";
 
@@ -290,7 +310,7 @@ export async function canAffordOperation(userId: string, operation: QuotaOperati
   const status = await getQuotaStatus(userId);
   const cost = QUOTA_COSTS[operation] * count;
 
-  const isTier1 = operation === "upload" || operation === "write" || operation === "thumbnail";
+  const isTier1 = operation === "upload" || operation === "write" || operation === "backlogWrite" || operation === "thumbnail";
   const required = isTier1
     ? cost + SAFETY_BUFFER                  // Tier 1: just the floor
     : cost + SAFETY_BUFFER + UPLOAD_RESERVE; // Tier 2: must leave room for uploads
@@ -399,8 +419,9 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       // Seed both write and thumbnail conservatively with writeOps so neither
       // cap is exceeded if the full writeOps budget was already spent on one type.
       const counter = getDailyOpCounter(userId);
-      counter.write     = Math.min(record.writeOps ?? 0,  DAILY_OP_CAPS.write);
-      counter.thumbnail = Math.min(record.writeOps ?? 0,  DAILY_OP_CAPS.thumbnail);
+      counter.write        = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.write);
+      counter.backlogWrite = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.backlogWrite);
+      counter.thumbnail    = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.thumbnail);
       counter.search    = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
       counter.upload    = Math.min(record.uploadOps ?? 0, DAILY_OP_CAPS.upload);
       // broadcast has no DB column — leave at 0 (a restarted server gets a fresh
@@ -419,6 +440,7 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       logger.info(
         `[QuotaBreaker] Startup op-counter restore for ${userId}: ` +
         `write=${counter.write}/${DAILY_OP_CAPS.write} ` +
+        `backlogWrite=${counter.backlogWrite}/${DAILY_OP_CAPS.backlogWrite} ` +
         `thumbnail=${counter.thumbnail}/${DAILY_OP_CAPS.thumbnail} ` +
         `search=${counter.search}/${DAILY_OP_CAPS.search} ` +
         `upload=${counter.upload}/${DAILY_OP_CAPS.upload}`

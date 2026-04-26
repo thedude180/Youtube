@@ -184,7 +184,7 @@ export async function processBacklog(): Promise<{
     for (const item of items) {
       if (isChannelKnownDisconnected(item.channelId)) continue;
 
-      const canPush = await canAffordOperation(userId, "write");
+      const canPush = await canAffordOperation(userId, "backlogWrite");
       if (!canPush) {
         break;
       }
@@ -200,7 +200,7 @@ export async function processBacklog(): Promise<{
         const { updateYouTubeVideo } = await import("../youtube");
         const updates = item.pendingUpdates as any;
         await updateYouTubeVideo(item.channelId, item.youtubeVideoId, updates);
-        await trackQuotaUsage(userId, "write");
+        await trackQuotaUsage(userId, "backlogWrite");
 
         if (updates.title) {
           await storage.updateVideo(item.videoId, { title: updates.title });
