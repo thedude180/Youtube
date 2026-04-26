@@ -1,9 +1,9 @@
-import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
-import { complianceRules, channels, complianceChecks } from "@shared/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { complianceRules, policyPackBaselines } from "@shared/schema";
+import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getPolicyPack, getSupportedPlatforms as getPackPlatforms, type PolicyPack } from "./policy-packs";
+import { getPolicyPack, getSupportedPlatforms as getPackPlatforms } from "./policy-packs";
+import { createHash } from "crypto";
 
 const logger = createLogger("platform-policy-tracker");
 
@@ -26,79 +26,147 @@ interface PolicyRule {
   sourceUrl: string;
 }
 
-const PLATFORM_POLICY_SOURCES: Record<string, { name: string; policyAreas: string[] }> = {
+/**
+ * Real policy page URLs for each platform.
+ * Each entry lists the official policy documents to fetch.
+ * AI only runs when the fetched content hash changes — no hallucination.
+ */
+const POLICY_PAGE_SOURCES: Record<string, { name: string; pages: Array<{ label: string; url: string }> }> = {
   youtube: {
     name: "YouTube",
-    policyAreas: [
-      "Community Guidelines", "Monetization Policies", "YouTube Shorts rules",
-      "Copyright & Content ID", "API Terms of Service", "Thumbnail policies",
-      "Metadata & tags spam rules", "Repeat content / reused content policies",
-      "AI-generated content disclosure", "Live streaming guidelines",
-      "Kids content (COPPA/Made for Kids)", "Advertiser-friendly content guidelines",
+    pages: [
+      { label: "Community Guidelines", url: "https://support.google.com/youtube/answer/2801973" },
+      { label: "Monetization Policies", url: "https://support.google.com/youtube/answer/1369308" },
+      { label: "AI & Altered Content Policy", url: "https://support.google.com/youtube/answer/13740009" },
+      { label: "Copyright Policies", url: "https://support.google.com/youtube/answer/2797468" },
+      { label: "Spam & Deceptive Practices", url: "https://support.google.com/youtube/answer/2801973" },
+      { label: "Advertiser-Friendly Guidelines", url: "https://support.google.com/youtube/answer/6162278" },
     ],
   },
   tiktok: {
     name: "TikTok",
-    policyAreas: [
-      "Community Guidelines", "Intellectual Property Policy",
-      "AI-generated content labeling", "TikTok Shop & commerce rules",
-      "Branded content & ad disclosure", "Music & sound usage",
-      "Account integrity (botting, fake engagement)", "Live streaming rules",
-      "Minor safety", "Misinformation policy",
+    pages: [
+      { label: "Community Guidelines", url: "https://www.tiktok.com/community-guidelines/en/" },
+      { label: "Integrity & Authenticity", url: "https://www.tiktok.com/community-guidelines/en/integrity-authenticity/" },
+      { label: "Branded Content Policy", url: "https://www.tiktok.com/legal/page/global/bc-policy/en" },
+      { label: "Music Usage Confirmation", url: "https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" },
     ],
   },
   twitch: {
     name: "Twitch",
-    policyAreas: [
-      "Community Guidelines", "DMCA & music policy",
-      "Simulcasting / multi-streaming rules", "Subscriber-only content rules",
-      "Branded content guidelines", "Hateful conduct & harassment",
-      "Sexual content policy", "Gambling content", "Drop & reward integrity",
-      "AI content rules",
+    pages: [
+      { label: "Community Guidelines", url: "https://safety.twitch.tv/s/article/Community-Guidelines" },
+      { label: "DMCA Guidelines", url: "https://www.twitch.tv/p/en/legal/dmca-guidelines/" },
+      { label: "Branded Content Policy", url: "https://safety.twitch.tv/s/article/Branded-Content-Policy" },
     ],
   },
   kick: {
     name: "Kick",
-    policyAreas: [
-      "Terms of Service", "Community Guidelines", "Streaming content rules",
-      "Gambling content policy", "Multi-streaming policy",
-      "Monetization & creator payouts", "DMCA policy",
+    pages: [
+      { label: "Community Guidelines", url: "https://kick.com/community-guidelines" },
+      { label: "Terms of Service", url: "https://kick.com/terms-of-service" },
     ],
   },
   discord: {
     name: "Discord",
-    policyAreas: [
-      "Community Guidelines", "Developer Terms of Service",
-      "Bot & automation rules", "Webhook usage policies",
-      "Server monetization rules", "NSFW content policy",
-      "Raid & spam prevention",
+    pages: [
+      { label: "Community Guidelines", url: "https://discord.com/guidelines" },
+      { label: "Developer Terms of Service", url: "https://discord.com/developers/docs/policies-and-agreements/developer-terms-of-service" },
+      { label: "Webhook Documentation", url: "https://discord.com/developers/docs/resources/webhook" },
     ],
   },
   rumble: {
     name: "Rumble",
-    policyAreas: [
-      "Terms & Conditions", "Content guidelines",
-      "Monetization eligibility", "Copyright policy",
-      "Live streaming rules",
+    pages: [
+      { label: "Community Guidelines", url: "https://rumble.com/s/community-guidelines" },
+      { label: "Terms & Conditions", url: "https://rumble.com/s/terms" },
     ],
   },
   x: {
     name: "X (Twitter)",
-    policyAreas: [
-      "Terms of Service", "Platform manipulation rules",
-      "Advertising & disclosure policies", "AI-generated content labeling",
-      "Content moderation", "Developer agreement",
+    pages: [
+      { label: "Platform Rules", url: "https://help.twitter.com/en/rules-and-policies/twitter-rules" },
+      { label: "Sensitive Media Policy", url: "https://help.twitter.com/en/rules-and-policies/media-policy" },
+      { label: "Synthetic & Manipulated Media", url: "https://help.twitter.com/en/rules-and-policies/manipulated-media" },
     ],
   },
   instagram: {
     name: "Instagram",
-    policyAreas: [
-      "Community Guidelines", "Branded content policies",
-      "AI content labeling", "Intellectual property",
-      "Engagement manipulation rules", "Reels & Stories policies",
+    pages: [
+      { label: "Community Guidelines", url: "https://help.instagram.com/477434105621119" },
+      { label: "Branded Content Policies", url: "https://help.instagram.com/116947042301556" },
+      { label: "Recommendation Guidelines", url: "https://help.instagram.com/313829416281232" },
     ],
   },
 };
+
+/**
+ * Fetches a policy page and returns stripped plain text.
+ * Returns null if the page cannot be reached or is bot-blocked.
+ */
+async function fetchPolicyPageText(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+      },
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    if (html.length < 500) return null;
+
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, " ")
+      .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, " ")
+      .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
+      .replace(/\s{3,}/g, "  ")
+      .trim()
+      .slice(0, 12000);
+
+    return text.length > 200 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function computeContentHash(texts: string[]): string {
+  return createHash("sha256")
+    .update(texts.join("\n---\n"))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+async function getPageSnapshotHash(platform: string): Promise<string | null> {
+  const key = `page_snapshot:${platform}`;
+  const [row] = await db.select({ policyHash: policyPackBaselines.policyHash })
+    .from(policyPackBaselines)
+    .where(eq(policyPackBaselines.platform, key));
+  return row?.policyHash || null;
+}
+
+async function setPageSnapshotHash(platform: string, hash: string): Promise<void> {
+  const key = `page_snapshot:${platform}`;
+  const [existing] = await db.select({ id: policyPackBaselines.id })
+    .from(policyPackBaselines)
+    .where(eq(policyPackBaselines.platform, key));
+  const version = new Date().toISOString().slice(0, 7);
+  if (existing) {
+    await db.update(policyPackBaselines)
+      .set({ policyHash: hash, version, updatedAt: new Date() })
+      .where(eq(policyPackBaselines.id, existing.id));
+  } else {
+    await db.insert(policyPackBaselines).values({ platform: key, policyHash: hash, version });
+  }
+}
 
 function buildPlatformLimits(): Record<string, any> {
   const limits: Record<string, any> = {};
@@ -128,6 +196,11 @@ function buildPlatformLimits(): Record<string, any> {
 
 const PLATFORM_LIMITS = buildPlatformLimits();
 
+/**
+ * Fetches real policy pages from each platform, detects genuine content changes
+ * via SHA-256 hash comparison, and only calls AI when pages actually changed.
+ * AI role: parse real fetched text → extract rules. No hallucination.
+ */
 export async function fetchLatestPlatformPolicies(): Promise<{
   rulesUpdated: number;
   rulesCreated: number;
@@ -135,10 +208,43 @@ export async function fetchLatestPlatformPolicies(): Promise<{
   changes: Array<{ platform: string; rule: string; action: string }>;
 }> {
   const result = { rulesUpdated: 0, rulesCreated: 0, platforms: [] as string[], changes: [] as Array<{ platform: string; rule: string; action: string }> };
+  const today = new Date().toISOString().slice(0, 10);
 
   for (const platform of PLATFORMS) {
     try {
-      const policyConfig = PLATFORM_POLICY_SOURCES[platform];
+      const pageSource = POLICY_PAGE_SOURCES[platform];
+      if (!pageSource) continue;
+
+      const fetchResults = await Promise.allSettled(
+        pageSource.pages.map(p => fetchPolicyPageText(p.url).then(text => ({ ...p, text })))
+      );
+
+      const fetchedPages = fetchResults
+        .filter((r): r is PromiseFulfilledResult<{ label: string; url: string; text: string | null }> => r.status === "fulfilled")
+        .map(r => r.value)
+        .filter(p => p.text !== null) as Array<{ label: string; url: string; text: string }>;
+
+      if (fetchedPages.length === 0) {
+        logger.warn("Policy page fetch: all pages inaccessible — skipping platform", {
+          platform,
+          pagesAttempted: pageSource.pages.length,
+        });
+        continue;
+      }
+
+      const contentHash = computeContentHash(fetchedPages.map(p => `${p.label}:${p.text}`));
+      const previousHash = await getPageSnapshotHash(platform);
+
+      if (previousHash && previousHash === contentHash) {
+        logger.info("Policy pages unchanged — skipping AI extraction", { platform, hash: contentHash });
+        result.platforms.push(platform);
+        continue;
+      }
+
+      const pagesBlock = fetchedPages
+        .map(p => `=== ${p.label} ===\nSource: ${p.url}\n\n${p.text}\n`)
+        .join("\n---\n\n");
+
       const existingRules = await db.select().from(complianceRules)
         .where(and(eq(complianceRules.platform, platform), eq(complianceRules.isActive, true)));
 
@@ -146,74 +252,80 @@ export async function fetchLatestPlatformPolicies(): Promise<{
         ? existingRules.map(r => `- ${r.ruleName}: ${r.description} [${r.severity}]`).join("\n")
         : "No rules currently stored.";
 
-      const limits = PLATFORM_LIMITS[platform];
-
       const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `You are a platform compliance expert. Your job is to provide the CURRENT, LATEST rules and policies for ${policyConfig.name} as of today's date. Focus on rules that directly affect content creators who post videos, shorts, live streams, and text posts.
+            content: `You are a compliance rules extractor for a gaming content creator platform.
+Below you will receive the ACTUAL text of ${pageSource.name}'s official policy pages, fetched today (${today}).
+Your job is to extract compliance rules directly from this text.
 
-Return ONLY actionable compliance rules that a content management system needs to enforce. Each rule should have specific keywords that would trigger a compliance check.
-
-Be precise and current. If a policy was recently updated (2024-2026), note that.`,
+CRITICAL RULES:
+- Only extract rules that are explicitly stated in the provided policy text below.
+- Do NOT add rules based on your training data or assumptions.
+- Do NOT modify severity levels based on your opinion — reflect the platform's own language ("will result in termination" = critical, "may" or "encouraged" = info/warning).
+- Every rule must include the sourceUrl from the page it came from.`,
           },
           {
             role: "user",
-            content: `Provide the latest ${policyConfig.name} compliance rules for these policy areas:
-${policyConfig.policyAreas.map(a => `- ${a}`).join("\n")}
+            content: `Here are the actual ${pageSource.name} policy pages fetched today:
 
-Current platform limits we enforce: ${JSON.stringify(sanitizeObjectForPrompt(limits), null, 2)}
+${pagesBlock}
 
-Existing rules we have:
+---
+
+Rules we already have in our system:
 ${existingRuleSummary}
+
+Extract compliance rules relevant to a gaming content creator (videos, shorts, live streams, clips, thumbnails, metadata, AI-generated content, sponsorships, affiliates).
 
 Return JSON with this EXACT structure:
 {
   "rules": [
     {
-      "ruleCategory": "category name",
+      "ruleCategory": "metadata|content_policy|monetization|copyright|ai_disclosure|integrity|streaming|safety",
       "ruleName": "unique_snake_case_name",
-      "description": "Clear description of what this rule enforces",
+      "description": "Clear description quoting or closely paraphrasing the actual policy text",
       "severity": "info|warning|critical",
       "keywords": ["keyword1", "keyword2"],
-      "sourceUrl": "URL to the official policy page",
-      "isNew": true/false,
-      "wasUpdated": true/false,
-      "updateSummary": "What changed (if updated)"
+      "sourceUrl": "URL of the policy page this rule came from",
+      "isNew": true,
+      "wasUpdated": false,
+      "updateSummary": ""
     }
   ],
   "limitsChanged": [
     {
       "limit": "titleMaxLength",
-      "oldValue": "100",
-      "newValue": "100",
+      "oldValue": "",
+      "newValue": "",
       "changed": false
     }
-  ],
-  "platformStatus": "active|degraded|major_changes",
-  "lastMajorPolicyChange": "description of most recent policy change"
+  ]
 }
 
-Only include rules that are DIFFERENT from or NOT IN the existing rules. If all rules are current, return empty rules array.`,
+Only include rules that are NEW or have CHANGED compared to the existing rules list above.
+If nothing changed, return {"rules": [], "limitsChanged": []}.`,
           },
         ],
         response_format: { type: "json_object" },
-        max_completion_tokens: 2000,
+        max_completion_tokens: 2500,
       });
 
-      const content = response.choices?.[0]?.message?.content;
-      if (!content) {
-        logger.warn("Empty AI response for platform policy check", { platform });
+      const aiContent = response.choices?.[0]?.message?.content;
+      if (!aiContent) {
+        logger.warn("Empty AI response for policy extraction", { platform });
+        await setPageSnapshotHash(platform, contentHash);
         continue;
       }
 
       let parsed: any;
       try {
-        parsed = JSON.parse(content);
+        parsed = JSON.parse(aiContent);
       } catch {
-        logger.warn("Failed to parse policy response", { platform });
+        logger.warn("Failed to parse policy extraction response", { platform });
+        await setPageSnapshotHash(platform, contentHash);
         continue;
       }
 
@@ -239,10 +351,10 @@ Only include rules that are DIFFERENT from or NOT IN the existing rules. If all 
               result.changes.push({
                 platform,
                 rule: rule.ruleName,
-                action: `Updated: ${rule.updateSummary || "Policy refreshed"}`,
+                action: `Updated: ${rule.updateSummary || "Policy text changed"}`,
               });
             }
-          } else if (rule.isNew !== false) {
+          } else {
             await db.insert(complianceRules).values({
               platform,
               ruleCategory: rule.ruleCategory || "general",
@@ -258,7 +370,7 @@ Only include rules that are DIFFERENT from or NOT IN the existing rules. If all 
             result.changes.push({
               platform,
               rule: rule.ruleName,
-              action: "New rule added",
+              action: "New rule extracted from policy page",
             });
           }
         }
@@ -284,7 +396,7 @@ Only include rules that are DIFFERENT from or NOT IN the existing rules. If all 
                 platform,
                 ruleCategory: "platform_limits",
                 ruleName: limitRuleName,
-                description: `Platform limit: ${limit.limit} = ${limit.newValue}`,
+                description: `Platform limit updated: ${limit.limit} = ${limit.newValue}`,
                 severity: "warning",
                 keywords: [limit.limit, String(limit.newValue)],
                 isActive: true,
@@ -301,9 +413,20 @@ Only include rules that are DIFFERENT from or NOT IN the existing rules. If all 
         }
       }
 
+      await setPageSnapshotHash(platform, contentHash);
       result.platforms.push(platform);
+
+      logger.info("Policy pages processed", {
+        platform,
+        pagesFetched: fetchedPages.length,
+        pagesAttempted: pageSource.pages.length,
+        hashChanged: previousHash !== contentHash,
+        rulesNew: result.rulesCreated,
+        rulesUpdated: result.rulesUpdated,
+      });
+
     } catch (err: any) {
-      logger.warn("Platform policy check failed", { platform, error: (err.message || String(err)).substring(0, 200) });
+      logger.warn("Platform policy fetch failed", { platform, error: (err.message || String(err)).substring(0, 200) });
     }
   }
 
