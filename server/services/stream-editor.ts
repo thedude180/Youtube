@@ -455,11 +455,15 @@ async function runJobInBackground(jobId: number): Promise<void> {
       logger.info(`[StreamEditor] Job ${jobId}: vault file already on disk at ${sourceFile}, skipping download`);
     }
 
-    // If we still don't have a file, check the vault entry directly
+    // If we still don't have a file, check the vault entry directly.
+    // This handles the case where downloadFirst=false (file was on disk when
+    // the job was queued) but the file has since been wiped — e.g. after a
+    // production deployment restart.  If the vault DB record exists, we
+    // re-download rather than failing immediately.
     if (!sourceFile || !fs.existsSync(sourceFile)) {
       if (job.vaultEntryId) {
         const [vaultEntry] = await db
-          .select({ filePath: contentVaultBackups.filePath })
+          .select({ filePath: contentVaultBackups.filePath, status: contentVaultBackups.status })
           .from(contentVaultBackups)
           .where(eq(contentVaultBackups.id, job.vaultEntryId))
           .limit(1);
@@ -468,6 +472,26 @@ async function runJobInBackground(jobId: number): Promise<void> {
           await db.update(streamEditJobs).set({ sourceFilePath: sourceFile })
             .where(eq(streamEditJobs.id, jobId));
           logger.info(`[StreamEditor] Job ${jobId}: found vault file via DB lookup: ${sourceFile}`);
+        } else {
+          // File is gone from disk (e.g. deployment restart wiped vault/).
+          // Re-download it now using the vault entry — this preserves both the
+          // original source and the edited output on the production filesystem.
+          logger.info(`[StreamEditor] Job ${jobId}: vault file missing from disk (status: ${vaultEntry?.status ?? "unknown"}, path: ${vaultEntry?.filePath ?? "none"}) — re-downloading`);
+          await db.update(streamEditJobs).set({
+            currentStage: "Re-downloading source (file missing after restart)",
+            downloadFirst: true,
+          }).where(eq(streamEditJobs.id, jobId));
+          try {
+            sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId);
+            await db.update(streamEditJobs).set({
+              sourceFilePath: sourceFile,
+              downloadFirst: false,
+              currentStage: "Download complete — probing video",
+            }).where(eq(streamEditJobs.id, jobId));
+            logger.info(`[StreamEditor] Job ${jobId}: re-download succeeded → ${sourceFile}`);
+          } catch (dlErr: any) {
+            throw new Error(`Source video file not found and re-download failed: ${dlErr.message}`);
+          }
         }
       }
     }
