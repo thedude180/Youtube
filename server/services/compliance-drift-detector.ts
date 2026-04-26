@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { complianceDriftEvents, complianceRules, policyPackBaselines } from "@shared/schema";
-import { eq, and, desc, count, sql, ne } from "drizzle-orm";
+import { eq, and, desc, count, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getPolicyPack, getPolicyPackHash, getSupportedPlatforms } from "./policy-packs";
 import { createHash } from "crypto";
@@ -142,20 +142,24 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
   }
 
   if (changes.length > 0) {
-    const severity = driftChanges.some(c => c.severity === "critical") ? "critical"
-      : driftChanges.some(c => c.severity === "warning") ? "high"
-      : "medium";
+    const isInitialBaseline = !previousHash;
 
-    await db.insert(complianceDriftEvents).values({
-      platform,
-      ruleCategory: driftChanges[0]?.category || "general",
-      driftType: previousHash ? "policy_update" : "initial_baseline",
-      previousHash: previousHash || null,
-      currentHash,
-      changesDetected: changes,
-      severity,
-      status: "detected",
-    });
+    if (!isInitialBaseline) {
+      const severity = driftChanges.some(c => c.severity === "critical") ? "critical"
+        : driftChanges.some(c => c.severity === "warning") ? "high"
+        : "medium";
+
+      await db.insert(complianceDriftEvents).values({
+        platform,
+        ruleCategory: driftChanges[0]?.category || "general",
+        driftType: "policy_update",
+        previousHash,
+        currentHash,
+        changesDetected: changes,
+        severity,
+        status: "detected",
+      });
+    }
   }
 
   await setBaselineHash(platform, currentHash, pack.version);
@@ -197,6 +201,7 @@ export async function getDriftEvents(filters?: {
  */
 export async function autoResolveStaleDetectedDrifts(maxAgeDays = 7): Promise<number> {
   const cutoff = new Date(Date.now() - maxAgeDays * 24 * 60 * 60 * 1000);
+
   const staleEvents = await db.select({ id: complianceDriftEvents.id })
     .from(complianceDriftEvents)
     .where(
@@ -206,22 +211,47 @@ export async function autoResolveStaleDetectedDrifts(maxAgeDays = 7): Promise<nu
       )
     );
 
-  if (staleEvents.length === 0) return 0;
-
-  await db.update(complianceDriftEvents)
-    .set({ status: "resolved", resolvedAt: new Date() })
+  const initialBaselineEvents = await db.select({ id: complianceDriftEvents.id })
+    .from(complianceDriftEvents)
     .where(
       and(
         eq(complianceDriftEvents.status, "detected"),
-        sql`${complianceDriftEvents.detectedAt} < ${cutoff.toISOString()}`
+        eq(complianceDriftEvents.driftType, "initial_baseline")
       )
     );
 
+  const totalCount = staleEvents.length + initialBaselineEvents.length;
+  if (totalCount === 0) return 0;
+
+  if (staleEvents.length > 0) {
+    await db.update(complianceDriftEvents)
+      .set({ status: "resolved", resolvedAt: new Date() })
+      .where(
+        and(
+          eq(complianceDriftEvents.status, "detected"),
+          sql`${complianceDriftEvents.detectedAt} < ${cutoff.toISOString()}`
+        )
+      );
+  }
+
+  if (initialBaselineEvents.length > 0) {
+    await db.update(complianceDriftEvents)
+      .set({ status: "resolved", resolvedAt: new Date() })
+      .where(
+        and(
+          eq(complianceDriftEvents.status, "detected"),
+          eq(complianceDriftEvents.driftType, "initial_baseline")
+        )
+      );
+  }
+
   logger.info("Auto-resolved stale compliance drift events", {
-    count: staleEvents.length,
+    count: totalCount,
+    stale: staleEvents.length,
+    initialBaseline: initialBaselineEvents.length,
     maxAgeDays,
   });
-  return staleEvents.length;
+  return totalCount;
 }
 
 export async function resolveDriftEvent(eventId: number): Promise<boolean> {
