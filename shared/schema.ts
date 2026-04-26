@@ -1841,6 +1841,8 @@ export const audienceActivityPatterns = pgTable("audience_activity_patterns", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("audience_activity_patterns_user_id_idx").on(table.userId),
+  // Composite covers the smart-scheduler's WHERE user_id=? AND platform=? ORDER BY activity_level DESC
+  userPlatformIdx: index("audience_activity_patterns_user_platform_idx").on(table.userId, table.platform),
 }));
 
 export const contentGapSuggestions = pgTable("content_gap_suggestions", {
@@ -2527,6 +2529,8 @@ export const aiResults = pgTable("ai_results", {
 }, (table) => ({
   userIdIdx: index("ai_results_user_id_idx").on(table.userId),
   featureKeyIdx: index("ai_results_feature_key_idx").on(table.featureKey),
+  // Index for the daily pruning job: DELETE FROM ai_results WHERE created_at < NOW() - INTERVAL '30 days'
+  createdAtIdx: index("ai_results_created_at_idx").on(table.createdAt),
 }));
 
 export const cronJobs = pgTable("cron_jobs", {
@@ -2540,6 +2544,8 @@ export const cronJobs = pgTable("cron_jobs", {
   status: text("status").notNull().default("idle"),
 }, (table) => ({
   userIdIdx: index("cron_jobs_user_id_idx").on(table.userId),
+  // processAllCronJobs queries WHERE enabled = true — index prevents full-table scan
+  enabledIdx: index("cron_jobs_enabled_idx").on(table.enabled),
 }));
 
 export const aiChains = pgTable("ai_chains", {
@@ -2565,6 +2571,8 @@ export const webhookEvents = pgTable("webhook_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index("webhook_events_user_id_idx").on(table.userId),
+  // Composite for querying unprocessed events by age: WHERE processed=false ORDER BY created_at
+  processedCreatedAtIdx: index("webhook_events_processed_created_at_idx").on(table.processed, table.createdAt),
 }));
 
 export const localizationRecommendations = pgTable("localization_recommendations", {
@@ -5347,6 +5355,10 @@ export const contentVaultBackups = pgTable("content_vault_backups", {
   index("vault_user_idx").on(table.userId),
   index("vault_platform_idx").on(table.platform),
   index("vault_youtube_id_idx").on(table.youtubeId),
+  // Composite for the createVideo existence check: WHERE user_id=? AND youtube_id=?
+  index("vault_user_youtube_idx").on(table.userId, table.youtubeId),
+  // Status index for vault sweeps that filter by status
+  index("vault_status_idx").on(table.status),
 ]);
 
 export const streamEditJobs = pgTable("stream_edit_jobs", {

@@ -3,7 +3,7 @@ import { storage } from "./storage";
 import { sendSSEEvent } from "./routes/events";
 import { db } from "./db";
 import { cronJobs, aiResults, aiChains, webhookEvents, channels, users } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import { selfHealingCore, getSystemHealthReport, type SystemHealthReport } from "./self-healing-core";
 import { withCronLock } from "./lib/cron-lock";
 import {
@@ -189,6 +189,36 @@ const RULE_ACTION_TYPES = [
 
 let cronProcessingSince: number | null = null;
 let chainProcessingSince: number | null = null;
+
+// Shared channel-user cache — eliminates 9+ redundant "SELECT userId FROM channels"
+// queries that every cron job fires independently.  Refreshed every 30 min; cheap
+// to let go stale since new users are rare and crons already stagger by hours.
+let _activeUserIdsCache: string[] | null = null;
+let _activeChannelsCache: any[] | null = null;
+let _channelCacheAt = 0;
+const CHANNEL_USERS_CACHE_TTL_MS = 30 * 60 * 1000;
+
+async function getActiveUserIds(): Promise<string[]> {
+  if (_activeUserIdsCache && Date.now() - _channelCacheAt < CHANNEL_USERS_CACHE_TTL_MS) {
+    return _activeUserIdsCache;
+  }
+  const rows = await db.select({ userId: channels.userId }).from(channels);
+  _activeUserIdsCache = Array.from(new Set(rows.map(r => r.userId).filter(Boolean))) as string[];
+  _channelCacheAt = Date.now();
+  return _activeUserIdsCache;
+}
+
+async function getActiveChannels(): Promise<any[]> {
+  if (_activeChannelsCache && Date.now() - _channelCacheAt < CHANNEL_USERS_CACHE_TTL_MS) {
+    return _activeChannelsCache;
+  }
+  const rows = await db.select().from(channels);
+  _activeChannelsCache = rows;
+  _activeUserIdsCache = Array.from(new Set(rows.map((r: any) => r.userId).filter(Boolean)));
+  _channelCacheAt = Date.now();
+  return rows;
+}
+
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 function acquireLock(lockRef: { since: number | null }): boolean {
@@ -254,7 +284,7 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("7-59/10 * * * *", async () => {   // offset :07, every 10 min (was */5)
+  cron.schedule("7-59/20 * * * *", async () => {   // offset :07, every 20 min (was every 10 min) — tokens expire at 1h; 20 min headroom is more than sufficient
     await withCronLock("TokenRefresh", 4 * 60 * 1000, async () => {
       await selfHealingCore("TokenRefresh", async () => {
         const { refreshExpiringTokens } = await import("./token-refresh");
@@ -290,8 +320,8 @@ export async function initAutomationEngine() {
     });
   });
 
-  cron.schedule("*/30 * * * *", async () => {
-    await withCronLock("ContentVerification", 25 * 60 * 1000, async () => {
+  cron.schedule("0 * * * *", async () => {   // every hour (was every 30 min) — verification latency of 1 h is acceptable
+    await withCronLock("ContentVerification", 50 * 60 * 1000, async () => {
       await selfHealingCore("ContentVerification", async () => {
         const { runContentVerificationSweep } = await import("./content-verification-engine");
         await runContentVerificationSweep();
@@ -349,8 +379,7 @@ export async function initAutomationEngine() {
       await selfHealingCore("GrowthMonitoring", async () => {
         const { refreshAllUserChannelStats } = await import("./youtube");
         const { runComplianceCheck } = await import("./growth-programs-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) {
             await refreshAllUserChannelStats(userId);
@@ -374,8 +403,7 @@ export async function initAutomationEngine() {
     await withCronLock("CommentResponder", 3 * 60 * 60 * 1000, async () => {
       await selfHealingCore("CommentResponder", async () => {
         const { processCommentResponses } = await import("./autopilot-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) await processCommentResponses(userId);
         }
@@ -387,8 +415,7 @@ export async function initAutomationEngine() {
     await withCronLock("ContentRecycler", 5 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ContentRecycler", async () => {
         const { processContentRecycling } = await import("./autopilot-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) await processContentRecycling(userId);
         }
@@ -400,8 +427,7 @@ export async function initAutomationEngine() {
     await withCronLock("RevenueSync", 5 * 60 * 60 * 1000, async () => {
       await selfHealingCore("RevenueSync", async () => {
         const { syncAllRevenue } = await import("./revenue-sync-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) await syncAllRevenue(userId);
         }
@@ -411,8 +437,8 @@ export async function initAutomationEngine() {
 
   async function runVideoSync() {
     const { syncYouTubeVideosToLibrary } = await import("./youtube");
-    const allChannelRows = await db.select().from(channels);
-    const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+    const allChannelRows = await getActiveChannels();
+    const ytChannels = allChannelRows.filter((c: any) => c.platform === "youtube" && c.userId);
     let totalNew = 0;
     for (const ch of ytChannels) {
       try {
@@ -443,14 +469,14 @@ export async function initAutomationEngine() {
     // Resolve userId once — shared by VaultSync + CloudArchive below.
     let startupUserId: string | null = null;
     await selfHealingCore("VaultSync-Startup", async () => {
-      const allChannelRows = await db.select().from(channels);
-      const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+      const allChannelRows = await getActiveChannels();
+      const ytChannels = allChannelRows.filter((c: any) => c.platform === "youtube" && c.userId);
       if (ytChannels.length > 0) {
         const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
         startupUserId = adminRow[0]?.id || ytChannels[0].userId!;
         const { startVaultSync } = await import("./services/video-vault");
         logger.info("[Vault] Starting automatic vault sync on startup...");
-        await startVaultSync(startupUserId);
+        await startVaultSync(startupUserId!);
       }
     }, { maxRetries: 1 });
 
@@ -478,13 +504,13 @@ export async function initAutomationEngine() {
       let cronUserId: string | null = null;
 
       await selfHealingCore("VaultSync", async () => {
-        const allChannelRows = await db.select().from(channels);
-        const ytChannels = allChannelRows.filter(c => c.platform === "youtube" && c.userId);
+        const allChannelRows = await getActiveChannels();
+        const ytChannels = allChannelRows.filter((c: any) => c.platform === "youtube" && c.userId);
         if (ytChannels.length > 0) {
           const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
           cronUserId = adminRow[0]?.id || ytChannels[0].userId!;
           const { startVaultSync } = await import("./services/video-vault");
-          await startVaultSync(cronUserId);
+          await startVaultSync(cronUserId!);
         }
       });
 
@@ -504,8 +530,7 @@ export async function initAutomationEngine() {
     await withCronLock("BacklogProcessing", 3 * 60 * 60 * 1000, async () => {
       await selfHealingCore("BacklogProcessing", async () => {
         const { startBacklogOnLogin } = await import("./backlog-manager");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) {
             const result = await startBacklogOnLogin(userId);
@@ -522,8 +547,7 @@ export async function initAutomationEngine() {
       await selfHealingCore("VideoOptimizer", async () => {
         const { startBacklogProcessing, getBacklogSession } = await import("./backlog-engine");
         const { getBacklogState } = await import("./backlog-manager");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (!userId) continue;
           const engineSession = getBacklogSession(userId);
@@ -548,8 +572,7 @@ export async function initAutomationEngine() {
     await withCronLock("AutoScheduler", 90 * 60 * 1000, async () => {
       await selfHealingCore("AutoScheduler", async () => {
         const { autoScheduleOptimizedContent } = await import("./backlog-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (!userId) continue;
           const count = await autoScheduleOptimizedContent(userId);
@@ -565,8 +588,7 @@ export async function initAutomationEngine() {
     await withCronLock("CrossPromotion", 10 * 60 * 60 * 1000, async () => {
       await selfHealingCore("CrossPromotion", async () => {
         const { processCrossPromotion } = await import("./autopilot-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds) {
           if (userId) await processCrossPromotion(userId);
         }
@@ -592,8 +614,7 @@ export async function initAutomationEngine() {
     await withCronLock("TrendPredictor", 5 * 60 * 60 * 1000, async () => {
       await selfHealingCore("TrendPredictor", async () => {
         const { scanForTrends } = await import("./trend-predictor");
-        const allUsers = await db.select().from(channels);
-        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           await scanForTrends(userId!);
         }
@@ -605,8 +626,7 @@ export async function initAutomationEngine() {
     await withCronLock("ContentCompounding", 7 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ContentCompounding", async () => {
         const { scanForCompoundingOpportunities } = await import("./compounding-engine");
-        const allUsers = await db.select().from(channels);
-        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           await scanForCompoundingOpportunities(userId!);
         }
@@ -618,8 +638,7 @@ export async function initAutomationEngine() {
     await withCronLock("ShadowBanDetector", 10 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ShadowBanDetector", async () => {
         const { scanForAnomalies } = await import("./shadowban-detector");
-        const allUsers = await db.select().from(channels);
-        const userIds = Array.from(new Set(allUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           for (const platform of ["youtube", "twitch", "kick"]) {
             await scanForAnomalies(userId!, platform);
@@ -690,12 +709,28 @@ export async function initAutomationEngine() {
     });
   }, { timezone: "America/Los_Angeles" });
 
+  // Prune aiResults rows older than 30 days.  Without this the table grows
+  // unboundedly — the cron processor inserts a row on every job execution.
+  // Runs at 02:17 daily (offset from midnight to avoid stampede with other
+  // midnight crons).
+  cron.schedule("17 2 * * *", async () => {
+    await withCronLock("AiResultsPrune", 10 * 60 * 1000, async () => {
+      await selfHealingCore("AiResultsPrune", async () => {
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const result = await db.delete(aiResults).where(lt(aiResults.createdAt, cutoff));
+        const deleted = (result as any).rowCount ?? 0;
+        if (deleted > 0) {
+          logger.info(`[AiResultsPrune] Pruned ${deleted} rows older than 30 days from aiResults`);
+        }
+      });
+    });
+  });
+
   cron.schedule("30 */8 * * *", async () => {
     await withCronLock("ContentSweep", 7 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ContentSweep", async () => {
         const { startContentSweep: startSweep } = await import("./services/content-sweep");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           if (userId) {
             try { await startSweep(userId); } catch {}
@@ -732,8 +767,7 @@ export async function initAutomationEngine() {
     await withCronLock("ContentIdeasGen", 3 * 60 * 60 * 1000, async () => {
       await selfHealingCore("ContentIdeasGen", async () => {
         const { generateContentIdeasFromEmpire: generateContentIdeas } = await import("./idea-empire-engine");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           if (userId) {
             try { await generateContentIdeas(userId); } catch {}
@@ -770,8 +804,7 @@ export async function initAutomationEngine() {
     await withCronLock("AnalyticsSnapshot", 5 * 60 * 60 * 1000, async () => {
       await selfHealingCore("AnalyticsSnapshot", async () => {
         const { analyticsSnapshots } = await import("@shared/schema");
-        const allChannelUsers = await db.select({ userId: channels.userId }).from(channels);
-        const userIds = Array.from(new Set(allChannelUsers.map(c => c.userId).filter(Boolean)));
+        const userIds = await getActiveUserIds();
         for (const userId of userIds.slice(0, 10)) {
           if (!userId) continue;
           try {
@@ -972,8 +1005,8 @@ async function processAutoPayments() {
 }
 
 async function processAutoLocalization() {
-  const allChannels = await db.select().from(channels);
-  const userIds = Array.from(new Set(allChannels.map((c) => c.userId)));
+  const allChannels = await getActiveChannels();
+  const userIds = Array.from(new Set(allChannels.map((c: any) => c.userId)));
   if (userIds.length === 0) userIds.push("system");
 
   for (const userId of userIds) {

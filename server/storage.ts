@@ -503,13 +503,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getVideosByUser(userId: string, page = 1, limit = 50): Promise<Video[]> {
-    const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+    // Only fetch the id column — avoids pulling full channel rows for a list we only use for IDs
+    const userChannels = await db.select({ id: channels.id }).from(channels).where(eq(channels.userId, userId));
     if (userChannels.length === 0) return [];
     const channelIds = userChannels.map(c => c.id);
+    // Cap raised to 2000 — the old 100-row hard cap silently truncated callers that
+    // requested 500+ videos (AI engines analyzing the full 1,340-video library).
+    const effectiveLimit = Math.min(limit, 2000);
     return await db.select().from(videos)
       .where(inArray(videos.channelId, channelIds))
-      .limit(Math.min(limit, 100))
-      .offset((page - 1) * Math.min(limit, 100))
+      .limit(effectiveLimit)
+      .offset((page - 1) * effectiveLimit)
       .orderBy(desc(videos.createdAt));
   }
 
