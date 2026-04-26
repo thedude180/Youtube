@@ -5,6 +5,9 @@ import { db } from "../db";
 import { vaultDocuments, VAULT_DOC_TYPES, type VaultDocType } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { addSseClient } from "../lib/vault-docs-sse";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("vault-docs");
 
 function parseDocType(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -58,7 +61,7 @@ export function registerVaultDocsRoutes(app: Express) {
       if (docs.length === 0) {
         generateAllVaultDocuments(userId).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error("[VaultDocs] Auto-seed generation error:", msg);
+          logger.error("Auto-seed generation failed", { error: msg });
         });
       }
 
@@ -137,7 +140,7 @@ export function registerVaultDocsRoutes(app: Express) {
 
       generateAllVaultDocuments(userId).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[VaultDocs] Background generation error:", msg);
+        logger.error("Background generation failed", { error: msg });
       });
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to start generation" });
@@ -158,7 +161,7 @@ export function registerVaultDocsRoutes(app: Express) {
 
       generateVaultDocument(userId, docType as VaultDocType).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[VaultDocs] Background generation error for ${docType}:`, msg);
+        logger.error("Background generation failed", { docType, error: msg });
       });
     } catch (err: unknown) {
       res.status(500).json({ error: "Failed to start generation" });
@@ -245,13 +248,13 @@ export function registerVaultDocsRoutes(app: Express) {
         res.json({ queued: true, message: `Generating ${docType} — refresh in ~30 seconds.` });
         generateVaultDocument(userId, docType as VaultDocType).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[VaultDocs] Background generation error for ${docType}:`, msg);
+          logger.error("Background generation failed", { docType, error: msg });
         });
       } else {
         res.json({ queued: true, message: "Generating all 6 documents — this takes a few minutes. Refresh to see progress." });
         generateAllVaultDocuments(userId).catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.error("[VaultDocs] Background generation error:", msg);
+          logger.error("Background generation failed", { error: msg });
         });
       }
     } catch (err: unknown) {

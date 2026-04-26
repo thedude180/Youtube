@@ -382,7 +382,12 @@ async function generateFullThrottleDistribution(
   ]);
 
   const scheduleType = contentType === "cross-promo" ? "engagement" : contentType === "go-live" ? "new-video" : contentType === "post-stream" ? "new-video" : contentType;
-  const schedule = await getAudienceDrivenStaggeredSchedule(activePlatforms, scheduleType, userId);
+  const schedule = await getAudienceDrivenStaggeredSchedule(activePlatforms, scheduleType, userId).catch((err: Error) => {
+    logger.warn("Audience-driven schedule unavailable, using immediate distribution", {
+      userId, contentType, error: err.message?.substring(0, 120),
+    });
+    return new Map<string, Date>();
+  });
 
   let queuedVideo = 0;
   let queuedText = 0;

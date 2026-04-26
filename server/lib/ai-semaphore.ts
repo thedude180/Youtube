@@ -15,6 +15,10 @@
 //    fail fast when BACKGROUND_MAX_QUEUE_DEPTH is reached, reserving queue slots
 //    for critical-path callers (publish, pre-flight, live-chat).
 
+import { createLogger } from "./logger";
+
+const logger = createLogger("ai-semaphore");
+
 export const MIN_INTER_CALL_DELAY_MS = 3_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 10;
@@ -55,7 +59,7 @@ export function notifyRateLimit(retryAfterMs?: number): void {
   // chat replies.  Suppress circuit-breaker re-arming so that a stale
   // in-flight background 429 doesn't immediately undo the reset.
   if (_chatPriorityUntil > now) {
-    console.log("[ai-semaphore] notifyRateLimit suppressed — chat priority window active");
+    logger.info("notifyRateLimit suppressed — chat priority window active");
     return;
   }
 
@@ -117,7 +121,7 @@ export function hardResetCircuitBreaker(): void {
   for (const { reject } of drained) {
     try { reject(new Error("AI semaphore hard reset")); } catch { /* ignore */ }
   }
-  console.log(`[ai-semaphore] Hard reset — drained ${drained.length} queued callers, chat priority for ${CHAT_PRIORITY_WINDOW_MS / 1000}s`);
+  logger.info(`Hard reset — drained ${drained.length} queued callers, chat priority for ${CHAT_PRIORITY_WINDOW_MS / 1000}s`);
 }
 
 async function _pause(ms: number): Promise<void> {

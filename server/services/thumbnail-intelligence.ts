@@ -26,9 +26,6 @@ async function searchBraveImages(query: string): Promise<Array<{ url: string; ti
     const braveUrl = `https://api.search.brave.com/res/v1/images/search`;
     const params = new URLSearchParams({ q: query, count: "10" });
     
-    // @ts-ignore
-    const { default: fetch } = await import("node-fetch" as any);
-    
     const apiKey = process.env.BRAVE_API_KEY;
     if (!apiKey) {
       logger.debug("No Brave API key, using OpenInt proxy path");
