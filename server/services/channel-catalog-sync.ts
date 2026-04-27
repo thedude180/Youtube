@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { videoCatalogLinks, channels } from "@shared/schema";
+import { videoCatalogLinks, channels, videos } from "@shared/schema";
 import { eq, and, inArray, desc, count, sql } from "drizzle-orm";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
@@ -469,8 +469,19 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
         updatedAt: new Date(),
       }).where(eq(videoCatalogLinks.id, link.id));
 
-      const existingVideos = await storage.getVideosByUser(userId);
-      let dbVideo = existingVideos.find((v: any) => (v.metadata as any)?.youtubeId === link.youtubeId);
+      // Query directly by YouTube ID — avoids the 50-row pagination limit
+      // that caused getVideosByUser() to miss existing videos and create duplicates.
+      const [existingVideo] = await db
+        .select()
+        .from(videos)
+        .where(
+          and(
+            eq(videos.channelId, link.channelId),
+            sql`${videos.metadata}->>'youtubeId' = ${link.youtubeId}`
+          )
+        )
+        .limit(1);
+      let dbVideo = existingVideo;
 
       if (!dbVideo) {
         dbVideo = await storage.createVideo({
