@@ -4,6 +4,7 @@ import { db } from "../db";
 import { videos } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { registerMap } from "./resilience-core";
+import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
 
 const logger = createLogger("agent-events");
 
@@ -136,26 +137,30 @@ async function optimizeLiveStreamSEO(userId: string, videoId: string | number, g
     model: "gpt-4o-mini",
     messages: [{
       role: "user",
-      content: `You are a YouTube live stream SEO expert for a NO COMMENTARY PS5 gaming channel. Optimize the live stream metadata to maximize discoverability and click-through rate.
+      content: `You are a YouTube live stream SEO expert for a NO COMMENTARY PS5 gaming channel. Optimize the stream metadata for maximum discoverability.
 
 GAME: ${sanitizeForPrompt(gameName)}
 CURRENT TITLE: "${sanitizeForPrompt(currentTitle)}"
 STREAM TYPE: Live gameplay, no commentary, PS5
 
-${thumbnailContext ? `THUMBNAIL INTELLIGENCE (from web research):\n${thumbnailContext.substring(0, 1500)}\n\nUse these visual insights to inform the description — reference the visual experience viewers will get.` : ""}
+${thumbnailContext ? `THUMBNAIL INTELLIGENCE:\n${thumbnailContext.substring(0, 1200)}\n\nReference the visual experience in hookLines and bodyParagraph.` : ""}
 
 RULES:
-- Title must create curiosity WITHOUT being clickbait — accurately represent the stream
-- Description first 2 lines must hook viewers (visible in search results)
-- Include relevant timestamps placeholder for key moments
+- Title must create curiosity WITHOUT clickbait — accurately represent the stream
+- Description fields are SEPARATE — they will be assembled with proper line breaks automatically
+- Do NOT include social links or website URLs — added automatically
 - Tags must mix broad gaming terms + specific game terms + trending keywords
-- For no-commentary channels: emphasize the cinematic, immersive, ASMR-like quality
+- Emphasize cinematic, immersive quality of no-commentary gameplay
 
-Return JSON:
+Return JSON with EXACTLY these keys:
 {
-  "optimizedTitle": "string — max 100 chars, high-CTR but honest",
-  "optimizedDescription": "string — SEO-optimized, first 2 lines are hooks, max 2000 chars",
-  "tags": ["array of 15-20 tags"],
+  "optimizedTitle": "max 100 chars, high-CTR but honest",
+  "hookLines": ["first punchy hook sentence visible in search", "optional second hook line"],
+  "bodyParagraph": "2-3 sentences describing the stream content with keywords. No timestamps. No links.",
+  "chapters": [{"time": "0:00", "label": "Stream start"}, {"time": "5:00", "label": "First match"}],
+  "ctaLine": "One natural CTA — subscribe, join, comment.",
+  "hashtags": ["#GameName", "#PS5", "#NoCommentary"],
+  "tags": ["array of 15-20 search tags"],
   "categoryId": "20"
 }`,
     }],
@@ -170,6 +175,21 @@ Return JSON:
 
   if (!parsed.optimizedTitle) return;
 
+  // Build the description from structured fields so formatting is always correct
+  let finalDescription: string;
+  if (parsed.hookLines || parsed.bodyParagraph) {
+    const parts: DescriptionParts = {
+      hookLines: Array.isArray(parsed.hookLines) ? parsed.hookLines : [parsed.hookLines || ""].filter(Boolean),
+      bodyParagraph: parsed.bodyParagraph || "",
+      chapters: Array.isArray(parsed.chapters) ? parsed.chapters : [],
+      ctaLine: parsed.ctaLine || "",
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+    };
+    finalDescription = buildDescription(parts);
+  } else {
+    finalDescription = reformatRawDescription(parsed.optimizedDescription || "");
+  }
+
   try {
     const numericId = typeof videoId === "number" ? videoId : parseInt(String(videoId), 10);
     if (!isNaN(numericId)) {
@@ -178,13 +198,12 @@ Return JSON:
       if (video) {
         await storage.updateVideo(numericId, {
           title: parsed.optimizedTitle,
-          description: parsed.optimizedDescription || video.description,
+          description: finalDescription,
           metadata: {
             ...video.metadata,
             tags: parsed.tags || [],
             aiOptimized: true,
             aiOptimizedAt: new Date().toISOString(),
-            // liveStreamSEO: true, // removed: not in metadata type
             thumbnailIntelligenceUsed: !!thumbnailContext,
           } as any,
         });
@@ -205,7 +224,7 @@ Return JSON:
         const { updateYouTubeVideo } = await import("../youtube");
         await updateYouTubeVideo(ch.id, youtubeId, {
           title: parsed.optimizedTitle,
-          description: parsed.optimizedDescription,
+          description: finalDescription,
           tags: parsed.tags,
         });
       }

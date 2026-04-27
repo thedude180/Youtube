@@ -808,6 +808,23 @@ function LibraryTab() {
     },
   });
 
+  const resetSeoMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/content/reset-seo", {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "SEO Re-run Started",
+        description: `Reset ${data.cleared} videos — regenerating descriptions with the improved format.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+    },
+    onError: () => {
+      toast({ title: "SEO Reset Failed", description: "Please try again.", variant: "destructive" });
+    },
+  });
+
   const toggleSelectVideo = (id: number) => {
     setSelectedVideoIds(prev =>
       prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
@@ -888,6 +905,22 @@ function LibraryTab() {
               <Pin className="h-3.5 w-3.5 mr-1.5" />
             )}
             Pin All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={resetSeoMutation.isPending}
+            onClick={() => resetSeoMutation.mutate()}
+            data-testid="button-reset-seo"
+            aria-label="Re-run SEO optimization on all videos with the improved description format"
+            title="Clears existing AI-generated descriptions and re-runs SEO optimization using the improved structured format with proper line breaks."
+          >
+            {resetSeoMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Re-run SEO
           </Button>
         </div>
       </div>

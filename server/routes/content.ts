@@ -218,6 +218,50 @@ export function registerContentRoutes(app: Express) {
     }
   }));
 
+  // Reset aiOptimized flag on all videos so the improved prompts re-run on them
+  app.post("/api/content/reset-seo", writeRateLimit, asyncHandler(async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "SEO Reset");
+    if (!userId) return;
+
+    try {
+      const allVideos = await storage.getVideosByUser(userId, 1, 500);
+      let cleared = 0;
+
+      for (const video of allVideos) {
+        if (video.metadata?.aiOptimized) {
+          const newMeta = { ...video.metadata, aiOptimized: false };
+          delete (newMeta as any).aiOptimizedAt;
+          await storage.updateVideo(video.id, { metadata: newMeta as any });
+          cleared++;
+        }
+      }
+
+      // Kick off background re-optimization using the improved prompts
+      const { vodSEOOptimizer } = await import("../services/vod-seo-optimizer");
+      const toRun = allVideos.slice(0, 30); // batch first 30 to avoid rate limits
+      (async () => {
+        for (const v of toRun) {
+          try {
+            await vodSEOOptimizer.optimize(userId, v.id);
+          } catch {}
+        }
+      })().catch(() => undefined);
+
+      await storage.createAuditLog({
+        userId,
+        action: "seo_reset_triggered",
+        target: `${cleared} videos cleared, ${toRun.length} queued for re-optimization`,
+        details: { cleared, queued: toRun.length },
+        riskLevel: "low",
+      });
+
+      res.json({ success: true, cleared, queued: toRun.length });
+    } catch (err: any) {
+      logger.error("SEO reset error:", err);
+      res.status(500).json({ message: "Failed to reset SEO optimization flags" });
+    }
+  }));
+
   app.post("/api/content/catalog-redetect", writeRateLimit, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "pro", "SEO Optimizer");
     if (!userId) return;

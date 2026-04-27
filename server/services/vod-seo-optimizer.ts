@@ -5,6 +5,7 @@ import { createLogger } from "../lib/logger";
 import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -90,19 +91,27 @@ export class VODSEOOptimizer {
       const seoLearnings = await getSEOLearnings(userId);
       const visualContext = await getThumbnailVisualContext(userId, gameName || "");
 
-      const basePrompt = `You are an SEO expert for YouTube. Optimize the following video metadata:
+      const basePrompt = `You are an SEO expert for a YouTube PS5 gaming channel. Optimize the following video metadata and return STRUCTURED JSON — each description section is a SEPARATE field so they can be assembled with proper line breaks.
+
 Current Title: ${sanitizeForPrompt(video.title, 200)}
 Current Description: ${sanitizeForPrompt(video.description || "None", 500)}
 ${gameContext}${seoLearnings}${visualContext}
 
-Return a JSON object with:
+Return a JSON object with EXACTLY these keys:
 1. "optimizedTitle": Catchy, high-CTR title (max 100 chars)
-2. "optimizedDescription": Engaging description with keywords and timestamps placeholder (max 5000 chars)
-3. "tags": Array of 15-20 relevant tags
-4. "chapters": Array of { "time": "MM:SS", "label": "Chapter Name" } (estimate 5-8 major chapters)
-5. "titleHook": A 1-sentence summary of the curiosity gap or emotional trigger in the title (this helps align thumbnails)
+2. "hookLines": Array of 1-2 short punchy sentences that open the description and appear in search previews. Each line is a separate array element. Max 25 words each. No timestamps here.
+3. "bodyParagraph": 2-3 sentences (one paragraph) describing what happens in the video with relevant keywords. No timestamps. No social links.
+4. "chapters": Array of { "time": "M:SS", "label": "Short chapter name" } — estimate 5-10 chapters based on the video. Use real-looking timestamps spread across the video duration.
+5. "ctaLine": One sentence asking viewers to subscribe / comment / share. Natural, not pushy.
+6. "hashtags": Array of 3-5 hashtag strings (include the # sign) relevant to the game and content.
+7. "tags": Array of 15-20 YouTube search tags (no # sign, plain keywords).
+8. "titleHook": 1-sentence summary of the curiosity gap or emotional hook in the title.
 
-Ensure the tone matches the creator's DNA.`;
+RULES:
+- hookLines, bodyParagraph, chapters, ctaLine, and hashtags are SEPARATE fields — do NOT combine them into one string.
+- Do NOT include social links or website URLs in any field — they are added automatically.
+- Do NOT use placeholder text like "[TIMESTAMPS]" or "[YOUR LINK HERE]".
+- Ensure tone is energetic and matches gaming content.`;
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 
@@ -114,17 +123,35 @@ Ensure the tone matches the creator's DNA.`;
 
       const optimized = safeParseJSON(aiResult.content, {} as any);
 
+      // Build the description from structured fields so formatting is always correct.
+      // If the AI returned the legacy flat string, reformat it as a fallback.
+      let finalDescription: string;
+      if (optimized.hookLines || optimized.bodyParagraph || optimized.chapters) {
+        const parts: DescriptionParts = {
+          hookLines: Array.isArray(optimized.hookLines) ? optimized.hookLines : [optimized.hookLines || ""].filter(Boolean),
+          bodyParagraph: optimized.bodyParagraph || "",
+          chapters: Array.isArray(optimized.chapters) ? optimized.chapters : [],
+          ctaLine: optimized.ctaLine || "",
+          hashtags: Array.isArray(optimized.hashtags) ? optimized.hashtags : [],
+        };
+        finalDescription = buildDescription(parts);
+      } else if (optimized.optimizedDescription) {
+        // Legacy fallback: reformat the flat string
+        finalDescription = reformatRawDescription(optimized.optimizedDescription);
+      } else {
+        finalDescription = video.description || "";
+      }
+
       logger.info(`[VODSEOOptimizer] Applying optimized metadata to video ${videoId}`);
       
       await storage.updateVideo(videoId, {
         title: optimized.optimizedTitle || video.title,
-        description: optimized.optimizedDescription || video.description,
+        description: finalDescription,
         metadata: {
           ...video.metadata,
           tags: optimized.tags || video.metadata?.tags || [],
           aiOptimized: true,
           aiOptimizedAt: new Date().toISOString(),
-          // seoRecommendations removed: not in metadata type
           seoTitleHook: optimized.titleHook || null,
         } as any
       });
