@@ -9937,3 +9937,13 @@ export const vaultDocuments = pgTable("vault_documents", {
 export const insertVaultDocumentSchema = createInsertSchema(vaultDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertVaultDocument = z.infer<typeof insertVaultDocumentSchema>;
 export type VaultDocument = typeof vaultDocuments.$inferSelect;
+
+// ── Database-backed OAuth nonces ──────────────────────────────────────────────
+// Stored in DB so nonce lookups work across server instances and restarts.
+// Avoids the bug where in-memory nonces are lost when prod/dev servers differ.
+export const oauthNonces = pgTable("oauth_nonces", {
+  nonce: text("nonce").primaryKey(),
+  userId: text("user_id").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});

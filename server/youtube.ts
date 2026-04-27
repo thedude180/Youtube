@@ -3,8 +3,8 @@ import { storage } from "./storage";
 import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
 import { db } from "./db";
-import { users as usersTable } from "@shared/models/auth";
-import { eq } from "drizzle-orm";
+import { users as usersTable, oauthNonces } from "@shared/schema";
+import { eq, lt } from "drizzle-orm";
 
 const ytLogger = createLogger("youtube");
 
@@ -24,16 +24,25 @@ const SCOPES = [
   "https://www.googleapis.com/auth/yt-analytics-monetary.readonly",
 ];
 
+// In-memory fast path (same-process lookups, milliseconds)
 const pendingOAuthUsers = new Map<string, { userId: string; timestamp: number }>();
 
 export function setPendingOAuthUser(nonce: string, userId: string) {
   pendingOAuthUsers.set(nonce, { userId, timestamp: Date.now() });
+  // Clean up stale in-memory entries
   const now = Date.now();
   const keysToDelete: string[] = [];
   pendingOAuthUsers.forEach((val, key) => {
     if (now - val.timestamp > 10 * 60 * 1000) keysToDelete.push(key);
   });
   keysToDelete.forEach(k => pendingOAuthUsers.delete(k));
+
+  // Also persist to DB so the nonce survives server restarts and cross-instance callbacks
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  db.insert(oauthNonces)
+    .values({ nonce, userId, expiresAt })
+    .onConflictDoUpdate({ target: oauthNonces.nonce, set: { userId, expiresAt } })
+    .catch(err => ytLogger.warn("[YouTube] Failed to persist OAuth nonce to DB:", err?.message));
 }
 
 export function getPendingOAuthUser(nonce: string): string | null {
@@ -43,6 +52,30 @@ export function getPendingOAuthUser(nonce: string): string | null {
     return entry.userId;
   }
   return null;
+}
+
+// DB-backed nonce lookup — used by the callback as Layer 1b when in-memory misses
+export async function getPendingOAuthUserFromDb(nonce: string): Promise<string | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(oauthNonces)
+      .where(eq(oauthNonces.nonce, nonce))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    if (row.expiresAt < new Date()) {
+      // Expired — clean up
+      await db.delete(oauthNonces).where(eq(oauthNonces.nonce, nonce)).catch(() => {});
+      return null;
+    }
+    // Consume: delete after use so it can't be replayed
+    await db.delete(oauthNonces).where(eq(oauthNonces.nonce, nonce)).catch(() => {});
+    return row.userId;
+  } catch (err: any) {
+    ytLogger.warn("[YouTube] DB nonce lookup failed (non-fatal):", err?.message);
+    return null;
+  }
 }
 
 function getOAuth2Client() {

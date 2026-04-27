@@ -41,7 +41,7 @@ import { generateCommunityPost } from "../ai-engine";
 import { z } from "zod";
 import { api } from "@shared/routes";
 import {
-  getAuthUrl, handleCallback, getPendingOAuthUser,
+  getAuthUrl, handleCallback, getPendingOAuthUser, getPendingOAuthUserFromDb,
   fetchYouTubeChannelInfo, fetchYouTubeVideos,
   updateYouTubeVideo, syncYouTubeVideosToLibrary,
   syncYouTubeVideosFromPublicFeed,
@@ -154,12 +154,17 @@ export async function registerPlatformRoutes(app: Express) {
     const googleError = req.query.error as string | undefined;
 
     // ── Resolve userId — four fallback layers ──────────────────────────────────
-    // Layer 1: in-memory nonce (fastest — only works if server hasn't restarted)
+    // Layer 1a: in-memory nonce (fastest — same process, no restart)
     let userId: string | null = null;
     let resolvedBy = "none";
     if (state) {
       userId = getPendingOAuthUser(state);
-      if (userId) resolvedBy = "nonce";
+      if (userId) resolvedBy = "nonce-memory";
+    }
+    // Layer 1b: DB-backed nonce (survives restarts and cross-instance callbacks)
+    if (!userId && state) {
+      userId = await getPendingOAuthUserFromDb(state);
+      if (userId) resolvedBy = "nonce-db";
     }
     // Layer 2: session key written by /api/youtube/auth BEFORE responding (guaranteed by session.save)
     if (!userId) {
