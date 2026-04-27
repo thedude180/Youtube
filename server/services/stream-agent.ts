@@ -8,6 +8,7 @@ import { fireAgentEvent } from "./agent-events";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
+import { shortsFactory } from "./shorts-factory";
 
 import { createLogger } from "../lib/logger";
 
@@ -327,11 +328,21 @@ async function checkAndEngageStream(userId: string): Promise<void> {
         logAction(state, "Clipping best moments", "AI scanning VOD for highlights");
         logAction(state, "Scheduling to all platforms", "Clips will post at peak times");
 
+        const capturedStreamId = state.streamId;
+        const capturedTitle = state.streamTitle || "Stream";
+        const streamDurationStr = streamDurationMs > 0 ? `${Math.round(streamDurationMs / 60000)} minutes` : undefined;
+
+        if (capturedStreamId) {
+          shortsFactory.process(userId, capturedStreamId, capturedTitle, streamDurationStr).catch((err: any) => {
+            logger.error(`[${userId}] ShortsFactory post-stream failed: ${err?.message}`);
+          });
+        }
+
         setTimeout(() => {
           const s = agentStates.get(userId);
           if (s && s.postStreamPhase === "processing") {
             s.postStreamPhase = "complete";
-            logAction(s, "All done", "VOD clipped, posts scheduled — nothing left to do");
+            logAction(s, "All done", "VOD clipped, Shorts queued, posts scheduled — nothing left to do");
           }
         }, 5 * 60 * 1000);
 

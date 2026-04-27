@@ -11829,3 +11829,247 @@ export async function aiDailyActionPlan(data: { channelGoals?: any; schedule?: a
   });
   return JSON.parse(res.choices[0].message.content || "{}");
 }
+
+export async function aiTrustSafetyRiskScorer(data: { title?: string; description?: string; tags?: string[]; scriptExcerpt?: string; durationSeconds?: number; uploadFrequencyPerWeek?: number; formatTemplateReuse?: number }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are YouTube's 2026 Trust & Safety risk intelligence analyst. You have internalized every enforcement wave from 2017 through March 2026 and the exact classifier triggers documented in the antitrust discovery and leaked internal guidance. You are honest, direct, and actionable.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Score this content for 2026 YouTube Trust & Safety risks.
+
+Title: ${sanitizeForPrompt(data.title || "not provided")}
+Description excerpt: ${sanitizeForPrompt((data.description || "").substring(0, 400))}
+Tags: ${JSON.stringify(sanitizeObjectForPrompt(data.tags || []))}
+Script excerpt: ${sanitizeForPrompt((data.scriptExcerpt || "").substring(0, 600))}
+Duration (seconds): ${data.durationSeconds || "unknown"}
+Upload frequency (per week): ${data.uploadFrequencyPerWeek || "unknown"}
+Format template reuse % (0-100): ${data.formatTemplateReuse ?? "unknown"}
+
+Score EACH risk 0-100 (0=safe, 100=critical risk). Apply the exact 2026 classifier knowledge:
+
+YELLOW-ICON RISK: triggers — profanity in first 30s, strong profanity in title/thumbnail, sensitive topics (war/death/tragedy/politics) without educational framing, sexually suggestive content. Gaming-specific: rage/yelling content, in-game mature violence, gambling adjacency.
+
+BORDERLINE RISK: triggers — health misinformation adjacent, conspiracy-adjacent, misleading clickbait (title promises content not delivered), politically inflammatory without informative framing, harmful behavior glorification without explicit instruction.
+
+INAUTHENTIC CONTENT RISK (2026 enforcement): triggers — format similarity score across uploads, upload frequency without proportional production effort, AI-generated voice/script/visual stack with no human additions, generic/scraped scripts, mass-produced identical thumbnails, lack of provenance (no SynthID), uniform pacing and length, no editorial commentary or original research.
+
+COPPA RISK: triggers — subject matter involving toys/kids/simple crafts/nursery rhymes, child actors, animated characters popular with children, kid-popular games (Minecraft, Roblox, Fortnite).
+
+Return JSON with keys: yellowIconRisk (0-100), borderlineRisk (0-100), inauthenticRisk (0-100), coppaRisk (0-100), overallRisk (0-100), topIssues (array of top 3 specific issues found), fixes (array of 3 specific actionable fixes), channelLevelWarning (string — if inauthentic risk >60, specific channel-level advice), urgency ("low"|"medium"|"high"|"critical").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiDiagnosticProtocol(data: { title?: string; currentDayAfterUpload?: number; ctr?: number; avgViewDuration?: number; views?: number; impressions?: number; channelAvgCtr?: number; channelAvgAvd?: number; retentionCurveShape?: string; trafficSources?: Record<string, number> }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a YouTube channel diagnostics specialist who runs the 14-day post-upload protocol. You know the exact intervention timings: Day 0-1 is early CTR/AVD triage, Day 2-3 is thumbnail/title test if CTR is weak, Day 4-7 is content editing if AVD is weak, Day 8-10 is card/end-screen strengthening, Day 11-14 is sequel and community post strategy. You give precise, day-specific actions.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Run the 14-day diagnostic protocol for this video.
+
+Title: ${sanitizeForPrompt(data.title || "not provided")}
+Day after upload: ${data.currentDayAfterUpload ?? 0}
+CTR: ${data.ctr != null ? `${data.ctr}%` : "unknown"} (channel avg: ${data.channelAvgCtr != null ? `${data.channelAvgCtr}%` : "unknown"})
+Avg View Duration: ${data.avgViewDuration != null ? `${data.avgViewDuration}s` : "unknown"} (channel avg: ${data.channelAvgAvd != null ? `${data.channelAvgAvd}s` : "unknown"})
+Views: ${data.views ?? "unknown"} | Impressions: ${data.impressions ?? "unknown"}
+Retention curve shape: ${sanitizeForPrompt(data.retentionCurveShape || "unknown")} (cliff-30s / slow-decline / mid-dip / late-cliff / spikes)
+Traffic sources: ${JSON.stringify(sanitizeObjectForPrompt(data.trafficSources || {}))}
+
+Based on Day ${data.currentDayAfterUpload ?? 0}, identify the exact phase and prescribed action from the 14-day protocol:
+
+Day 0-1: Triage — Is CTR above/below channel avg? Is AVD above/below? Set baseline.
+Day 2-3: If CTR weak (>1pt below channel avg), test new thumbnail/title NOW.
+Day 4-7: If AVD weak, recommend specific segments to trim or re-hook to add.
+Day 8-10: Strengthen session value — add cards, end screens pointing to series.
+Day 11-14: Publish sequel or community post to drive return traffic.
+
+Also interpret the retention curve shape: cliff-30s = broken hook, slow-decline = healthy, mid-dip = pacing collapse, late-cliff = broken ending, spikes = high-value moments.
+
+Return JSON with keys: dayPhase ("triage"|"thumbnail-test"|"content-edit"|"session-strength"|"sequel-drive"), status ("healthy"|"warning"|"critical"), ctrAssessment, avdAssessment, retentionAssessment, trafficMixHealth, immediateActions (array of 3 specific things to do today), weeklyForecast (string — what to expect this week if actions are taken), protocolComplete (boolean — day >14).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiGamingWindowDetector(data: { game?: string; currentDate?: string; recentPatchNotes?: string; upcomingEvents?: string[] }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a gaming content strategy specialist who tracks algorithmic windows for gaming channels. You know that during major esports events for a specific game, content related to those events gets 3-5x traffic spikes. You know patch cycles drive content windows (new map = boost, balance changes = guide opportunity). You know Battlefield 6 co-watch graphs densely overlap with Call of Duty, Helldivers 2, and other mil-sims. You identify actionable windows for immediate content scheduling.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Identify current algorithmic windows for this gaming channel.
+
+Game focus: ${sanitizeForPrompt(data.game || "Battlefield 6")}
+Current date: ${sanitizeForPrompt(data.currentDate || new Date().toISOString().split("T")[0])}
+Recent patch notes/updates: ${sanitizeForPrompt((data.recentPatchNotes || "none provided").substring(0, 500))}
+Known upcoming events: ${JSON.stringify(sanitizeObjectForPrompt(data.upcomingEvents || []))}
+
+Identify and score ALL current content windows:
+
+1. TOURNAMENT WINDOWS: Any major esports tournaments or competitive events happening for this game or closely co-watched games (CoD, Helldivers 2, mil-sims)? Score by traffic boost potential.
+
+2. PATCH CYCLE WINDOWS: Recent maps, weapons, balance changes, seasonal events? Each is a window. "Guide for new map X" outperforms older guides even if the older guide is better content.
+
+3. META SHIFT WINDOWS: If competitive meta has shifted (new dominant strategy, weapon nerf/buff), this is a guide opportunity window that drives Search surface traffic.
+
+4. CROSS-PROMOTION CLUSTER: Which channels share the co-watch graph? (BF6 audience watches CoD, Helldivers, mil-sims) — suggest collaboration or cross-topic content targets.
+
+Return JSON with keys: activeWindows (array of { windowType, title, trafficBoostEstimate "1x-5x", urgency "now/this-week/this-month", contentIdeas [3 specific video ideas], expiresIn "days" }), patchCycleStatus (string), crossWatchTargets (array of related games/channels to consider), schedulingPriority ("normal"|"elevated"|"urgent"), topOpportunity (string — single most important action to take this week).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiMidRollOptimizer(data: { title?: string; durationSeconds?: number; currentAdBreaks?: number; niche?: string; targetAudience?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const durationMin = data.durationSeconds ? Math.round(data.durationSeconds / 60) : null;
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a YouTube monetization optimizer who specializes in the 8-minute mid-roll threshold and ad break placement strategy. You know: videos 8+ minutes can run mid-roll ads, a 12-minute video with 3 ad breaks earns ~3x vs a 7-minute video, but padding videos to hit 8:01 hurts if retention drops (the satisfaction hit eats more revenue than the mid-roll creates). The current best practice is producing at the length the content demands, then adding mid-rolls at natural pacing breaks (never during high-tension moments). You also know that gaming niche CPM is $2-8 (vs $15-50 for finance), so mid-roll volume matters more for gaming channels.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize mid-roll ad placement for this video.
+
+Title: ${sanitizeForPrompt(data.title || "not provided")}
+Duration: ${durationMin != null ? `${durationMin} minutes (${data.durationSeconds}s)` : "unknown"}
+Current ad breaks set: ${data.currentAdBreaks ?? "unknown"}
+Niche: ${sanitizeForPrompt(data.niche || "gaming")}
+Target audience: ${sanitizeForPrompt(data.targetAudience || "gamers")}
+
+Gaming niche context: CPM $2-8, so mid-roll volume is critical for revenue. Each additional mid-roll at 60% fill rate adds ~$0.70-1.00 RPM to the video.
+
+Threshold check: Is this video above the 8-minute threshold? What is the revenue impact?
+
+If duration is below 8 minutes: Can adding genuine content reach 8+ minutes? What content would NOT be padding?
+If duration is 8-15 minutes: How many mid-rolls? Where should they be placed (natural pacing breaks)?
+If duration is 15+ minutes: Full mid-roll analysis.
+
+Return JSON with keys: hasThreshold (boolean — at or above 8 minutes), durationCategory ("short-sub8"|"threshold-8-15"|"long-15plus"), currentMidRolls (number estimate), optimalMidRolls (number), revenueMultiplierVsCurrentSetup (e.g. "2.1x"), estimatedRPMCurrent (string), estimatedRPMOptimized (string), midRollTimestamps (array of suggested timestamps as "MM:SS" — placed at natural pacing breaks), paddingWarning (boolean — is video likely padded to hit threshold?), recommendation (string — specific advice), contentAdditionSuggestion (string — if sub-8min, what genuine content could extend it).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTrafficSourceDiagnostic(data: { suggested?: number; browse?: number; search?: number; external?: number; direct?: number; channelPage?: number; totalViews?: number; channelAgeMonths?: number }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const total = Object.values(data).reduce((sum, v) => typeof v === "number" && v <= 100 ? sum + v : sum, 0);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a YouTube channel growth analyst who diagnoses growth phase from traffic source mix. You know: Suggested + Browse 50%+ = growing channel cracking the algorithm. Direct + notifications dominant = plateaued on existing audience. Search dominant = winning on metadata but capped by search volume. External dominant = cross-platform traffic that doesn't compound on YouTube. Channel page dominant = brand strength signal. These patterns, combined with channel age, reveal exactly where a channel is in its growth arc and what lever to pull.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Diagnose this channel's growth phase from traffic source mix.
+
+Traffic source breakdown (% of views):
+- Suggested Videos: ${data.suggested ?? "unknown"}%
+- Browse/Home: ${data.browse ?? "unknown"}%
+- Search: ${data.search ?? "unknown"}%
+- External (links/embeds): ${data.external ?? "unknown"}%
+- Direct/Notifications: ${data.direct ?? "unknown"}%
+- Channel Page: ${data.channelPage ?? "unknown"}%
+Total views in period: ${data.totalViews ?? "unknown"}
+Channel age: ${data.channelAgeMonths ?? "unknown"} months
+
+Key thresholds:
+- Suggested + Browse ≥50%: Algorithm-driven growth (healthy)
+- Search ≥40% dominant: Search-dependent (sustainable but capped by search volume)
+- Direct + Notifications ≥40% dominant: Subscriber-fed (plateaued, not growing reach)
+- External ≥20%: Cross-platform (doesn't compound on YouTube's algorithm)
+- Channel Page ≥20%: Brand strength signal
+
+Diagnose the full picture: What growth phase is this channel in? What does the algorithm think of this channel's content? What single lever would have the most impact?
+
+Return JSON with keys: channelPhase ("seed"|"algorithm-testing"|"algorithm-growing"|"search-dependent"|"plateaued"|"brand-strength"), algorithmTrust ("low"|"building"|"established"), primarySourceAnalysis (string), secondarySourceAnalysis (string), growthSignal ("stalled"|"slow"|"moderate"|"strong"|"viral"), topLever (string — the single highest-impact action), recommendations (array of 3 specific tactics), warningFlags (array of any concerning patterns), weeklyTarget (string — what to aim for in next 30 days).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiGeographicCPMOptimizer(data: { audienceCountryBreakdown?: Record<string, number>; niche?: string; currentRPM?: number; totalViews?: number }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a YouTube revenue optimization specialist focused on the geography × niche CPM matrix. You know: US CPM $7-12, UK/AU/CA $6-10, Germany $5-8, India $0.20-0.80, Brazil/Mexico $1-2. Gaming niche CPM: $2-8. The compound effect means gaming + India = ~$0.10-0.30 RPM while gaming + US = ~$1.50-4.00 RPM. A 100K Tier 1 view audience earns more than a 1M Tier 4 audience. You help creators understand their current audience geography premium/discount vs. potential and give specific content adjustments to attract higher-CPM regions.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize geographic CPM for this channel.
+
+Audience country breakdown (% of views): ${JSON.stringify(sanitizeObjectForPrompt(data.audienceCountryBreakdown || {}))}
+Niche: ${sanitizeForPrompt(data.niche || "gaming")}
+Current RPM: $${data.currentRPM ?? "unknown"}
+Total views in period: ${data.totalViews ?? "unknown"}
+
+CPM tiers (2026 data):
+Tier 1: US $7-12, UK/AU/CA $6-10, Germany/CH/Nordics $5-11
+Tier 2: Japan $4-7, South Korea $3-5, Israel $5-8, Spain/Italy/France $3-5
+Tier 3: Brazil/Mexico $1-2, Turkey/Eastern Europe $1-3
+Tier 4: India $0.20-0.80, Indonesia/Philippines $0.30-1, Pakistan $0.20-0.60
+
+Gaming niche CPM modifier: ×0.25-0.35 vs global average (structural low due to young demographic + advertiser caution)
+
+Calculate the weighted CPM potential vs. current mix. Identify the gap. Give specific content adjustments:
+- Posting timing changes to capture US/UK audiences
+- Title/thumbnail adjustments for Tier 1 market appeal
+- Topic choices that attract higher-CPM demographics (older gamers = higher CPM)
+
+Return JSON with keys: estimatedCurrentRPM (string), tier1Percentage (number 0-100), tier4Percentage (number 0-100), cpmGrade ("A"|"B"|"C"|"D" — A=mostly Tier 1), revenueLeakage (string — estimated monthly revenue lost vs. ideal geo mix), contentAdjustments (array of 3 specific changes to attract higher-CPM regions), timingRecommendation (string — when to post for Tier 1 audiences), topGeoOpportunity (string — the single biggest geographic opportunity), projectedRPMImprovement (string — if adjustments made).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiCTAEnforcementChecker(data: { ctaText?: string; videoTopic?: string; videoTitle?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a YouTube CTA (call-to-action) compliance specialist who understands the 2018+ engagement bait detection system. The classifier uses ASR transcripts to flag generic engagement requests and dampens the engagement signal. Generic CTAs that fail: "like and subscribe", "smash that bell", "drop a comment below", "type a 1 if you agree". CTAs that pass: those tied to the video's specific content, with a reason given. Examples of passing CTAs: "if this setup helped, drop your current loadout in the comments — it helps me see what to cover next", "comment which approach worked for you", "if the trick at 4:20 helped, a like tells the algorithm to show this to more people". The system rewards authenticity and penalizes hollow engagement farming.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Audit and rewrite this CTA for YouTube's 2026 engagement bait detection system.
+
+CTA text: ${sanitizeForPrompt(data.ctaText || "")}
+Video topic: ${sanitizeForPrompt(data.videoTopic || "")}
+Video title: ${sanitizeForPrompt(data.videoTitle || "")}
+
+Classify the CTA:
+- FLAGGED: Generic request with no content connection ("like and subscribe", "drop a comment", "hit the bell")
+- BORDERLINE: Has some specificity but still feels hollow
+- PASSING: Content-specific, gives a reason, asks for genuine engagement related to the video
+
+If flagged or borderline, rewrite 3 alternative CTAs that:
+1. Reference specific content from the video (use the topic/title as context)
+2. Give a reason for the engagement (helps the creator, helps the algorithm, helps other viewers)
+3. Ask a genuine question related to the video's content
+
+Return JSON with keys: classification ("flagged"|"borderline"|"passing"), classificationReason (string), engagementBaitRisk (0-100), alternatives (array of 3 rewritten CTAs with { text, reason, expectedSignal "comment"|"like"|"subscribe" }), bestAlternative (string — the single strongest replacement), implementationTip (string — where in the video to place it for maximum effect).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}

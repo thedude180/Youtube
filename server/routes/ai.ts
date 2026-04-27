@@ -189,6 +189,13 @@ import {
   aiEngagementRateAnalyzer,
   aiSatisfactionAnalyzer,
   aiSurfaceTargetOptimizer,
+  aiTrustSafetyRiskScorer,
+  aiDiagnosticProtocol,
+  aiGamingWindowDetector,
+  aiMidRollOptimizer,
+  aiTrafficSourceDiagnostic,
+  aiGeographicCPMOptimizer,
+  aiCTAEnforcementChecker,
 } from "../ai-engine";
 import {
   aiSubscriberGrowthAnalyzer,
@@ -8703,5 +8710,54 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try { const result = await aiSurfaceTargetOptimizer(req.body, userId); res.json(result); }
     catch (e: any) { logger.error("AI surface-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/trust-safety-risk", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTrustSafetyRiskScorer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI trust-safety-risk error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/diagnostic-protocol", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiDiagnosticProtocol(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI diagnostic-protocol error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/gaming-window-detector", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiGamingWindowDetector(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI gaming-window-detector error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/midroll-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiMidRollOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI midroll-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/traffic-source-diagnostic", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTrafficSourceDiagnostic(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI traffic-source-diagnostic error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/geo-cpm-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiGeographicCPMOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI geo-cpm-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/cta-enforcer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiCTAEnforcementChecker(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI cta-enforcer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 }
