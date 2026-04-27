@@ -500,7 +500,7 @@ function AdminTokenBudgetTab() {
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Coins className="w-5 h-5" />
           AI Token Budget
-          <span className="text-xs font-normal text-muted-foreground ml-1">(paced 24h)</span>
+          <span className="text-xs font-normal text-muted-foreground ml-1">(resets daily)</span>
         </h3>
         <div className="flex items-center gap-3 flex-wrap">
           {utcDate && (
@@ -523,8 +523,8 @@ function AdminTokenBudgetTab() {
       </div>
 
       <p className="text-xs text-muted-foreground -mt-2">
-        Each engine's daily allowance is spread evenly over 24 hours so AI tasks run consistently all day.
-        The <span className="text-sky-400 font-medium">blue marker</span> shows how much is unlocked right now — usage stays behind it until the next slot opens.
+        Each engine has a generous daily allowance spread over 24 hours with an 8-hour lookahead so engines stay active from midnight onward.
+        The <span className="text-sky-400 font-medium">blue marker</span> shows the current pacing ceiling — engines can run freely until the daily cap is reached.
       </p>
 
       <Card data-testid="card-token-budget">

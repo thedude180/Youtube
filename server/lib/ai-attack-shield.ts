@@ -855,24 +855,24 @@ export function adaptiveLearningGuard(): (req: Request, res: Response, next: Nex
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DAILY_CAPS: Record<string, number> = {
-  "content-grinder":          100_000,  // 50k → 100k  — more content per grind cycle
-  "ai-team-engine":           200_000,  // 100k → 200k — full AI team strategy sessions
-  "vod-optimizer":             80_000,  // 50k → 80k   — deeper VOD optimization passes
-  "content-consistency-agent": 60_000,  // 30k → 60k   — more consistency checks per day
-  "shorts-pipeline":           80_000,  // 40k → 80k   — double shorts output capacity
-  "thumbnail-intelligence":    50_000,  // 20k → 50k   — research more games per day
-  "repurpose-engine":          60_000,  // 30k → 60k   — more repurpose variations
-  "viral-optimizer":          300_000,  // 150k → 300k — full viral sweep on all videos
-  "autopilot":                160_000,  // 80k → 160k  — longer autonomy windows
-  "tos-monitor":               40_000,  // 20k → 40k   — more platform policy checks
-  "marketer-engine":          160_000,  // 80k → 160k  — more marketing touchpoints
-  "auto-thumbnail":            30_000,  // 15k → 30k   — generate more thumbnails daily
-  "smart-scheduler":           20_000,  // optimal posting time queries (cached 6h, rarely fires)
-  "upload-seo":                40_000,  // SEO optimization on video uploads (~13 calls/day max)
-  "trend-rider":               10_000,  // trend analysis — low cap, runs hourly not per-stream
+  "content-grinder":           500_000,  // 100k → 500k — never caps; main content workhorse
+  "ai-team-engine":            600_000,  // 200k → 600k — full-day autonomous strategy sessions
+  "vod-optimizer":             300_000,  // 80k  → 300k — full library SEO coverage daily
+  "content-consistency-agent": 200_000,  // 60k  → 200k — consistency across full backlog
+  "shorts-pipeline":           400_000,  // 80k  → 400k — high-velocity shorts production
+  "thumbnail-intelligence":    250_000,  // 50k  → 250k — deep game research + A/B analysis
+  "repurpose-engine":          200_000,  // 60k  → 200k — maximum repurpose variations
+  "viral-optimizer":           500_000,  // 300k → 500k — full viral sweep on entire library
+  "autopilot":                 400_000,  // 160k → 400k — all-day autonomous scheduling
+  "tos-monitor":               150_000,  // 40k  → 150k — comprehensive compliance monitoring
+  "marketer-engine":           400_000,  // 160k → 400k — full marketing automation
+  "auto-thumbnail":            150_000,  // 30k  → 150k — thumbnail generation for every video
+  "smart-scheduler":            80_000,  // 20k  → 80k  — optimal posting time queries
+  "upload-seo":                150_000,  // 40k  → 150k — SEO for all uploads
+  "trend-rider":                60_000,  // 10k  → 60k  — hourly trend analysis without limits
 };
 
-const DEFAULT_DAILY_CAP = 40_000;  // 20k → 40k for any engine not listed above
+const DEFAULT_DAILY_CAP = 150_000;  // fallback cap for any unlisted engine — generous to prevent surprise gaps
 
 interface BudgetEntry {
   used: number;
@@ -1031,7 +1031,9 @@ class TokenBudgetGuard {
    * still spreading usage evenly across the day.
    */
   static pacingCeiling(cap: number): number {
-    const PACING_LOOKAHEAD_HOURS = 2;
+    // 8-hour lookahead: at midnight engines can already use up to 33% of their daily cap,
+    // preventing early-morning starvation while still guarding against runaway overnight usage.
+    const PACING_LOOKAHEAD_HOURS = 8;
     const utcNow = new Date();
     const hoursElapsed = utcNow.getUTCHours() + utcNow.getUTCMinutes() / 60;
     return Math.min(cap, Math.floor(cap * Math.min(hoursElapsed + PACING_LOOKAHEAD_HOURS, 24) / 24));
