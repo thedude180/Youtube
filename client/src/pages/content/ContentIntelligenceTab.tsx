@@ -6,6 +6,7 @@ import {
   Shield, Brain, Activity, Crosshair, Eye,
   TrendingUp, AlertTriangle, CheckCircle2, Gauge,
 } from "lucide-react";
+import AIToolsTab from "./AIToolsTab";
 
 function GovernanceSummaryCard() {
   const { data, isLoading } = useQuery<any>({
@@ -310,6 +311,7 @@ export default function ContentIntelligenceTab() {
         <ContentVelocityCard />
       </div>
       <DemandInsightsCard />
+      <AIToolsTab />
     </div>
   );
 }

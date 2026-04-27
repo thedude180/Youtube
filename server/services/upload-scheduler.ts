@@ -8,6 +8,20 @@ const logger = createLogger("upload-scheduler");
 const YOUTUBE_NATURAL_PEAK_HOURS = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
 const MIN_GAP_BETWEEN_UPLOADS_MS = 3 * 3600_000;
 
+// Q4 revenue multiplier: gaming ad RPMs are 3-5x higher Oct-Dec vs January.
+// During Q4 we compress the search window (prefer sooner slots) to capture peak advertiser spend.
+// Outside Q4 we use the full 14-day lookahead to find the most optimal audience slot.
+function getQ4SchedulerConfig(): { lookaheadDays: number; isQ4: boolean; q4Month: string } {
+  const month = new Date().getMonth(); // 0-indexed
+  const q4Names: Record<number, string> = { 9: "October", 10: "November", 11: "December" };
+  const isQ4 = month >= 9 && month <= 11;
+  return {
+    lookaheadDays: isQ4 ? 4 : 14,
+    isQ4,
+    q4Month: q4Names[month] || "",
+  };
+}
+
 function getLocalDayOfWeek(utcDate: Date, offsetHours: number): number {
   const localMs = utcDate.getTime() + offsetHours * 3600_000;
   return new Date(localMs).getUTCDay();
@@ -106,11 +120,21 @@ export async function getNextOptimalPublishTime(userId: string, platform: string
     .limit(20);
 
   const hasAudienceData = patterns.length >= 3;
+  const q4Config = getQ4SchedulerConfig();
+  const lookahead = q4Config.lookaheadDays;
+
+  if (q4Config.isQ4) {
+    logger.info("Q4 scheduler active — compressed lookahead to capture peak RPM window", {
+      userId: userId.slice(0, 8),
+      q4Month: q4Config.q4Month,
+      lookaheadDays: lookahead,
+    });
+  }
 
   if (hasAudienceData) {
     const topSlots = patterns.slice(0, 10);
 
-    for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+    for (let dayOffset = 0; dayOffset < lookahead; dayOffset++) {
       const candidate = new Date(now);
       candidate.setDate(candidate.getDate() + dayOffset);
 
@@ -142,7 +166,7 @@ export async function getNextOptimalPublishTime(userId: string, platform: string
     }
   }
 
-  for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+  for (let dayOffset = 0; dayOffset < lookahead; dayOffset++) {
     const candidate = new Date(now);
     candidate.setDate(candidate.getDate() + dayOffset);
 
@@ -193,12 +217,16 @@ export async function getUploadScheduleSummary(userId: string): Promise<{
     .where(and(eq(audienceActivityPatterns.userId, userId), eq(audienceActivityPatterns.platform, "youtube")))
     .limit(1);
 
-  const schedulingSource = patterns.length > 0 ? "audience-analytics" : "youtube-peak-hours";
+  const q4Cfg = getQ4SchedulerConfig();
+  const baseSource = patterns.length > 0 ? "audience-analytics" : "youtube-peak-hours";
+  const schedulingSource = q4Cfg.isQ4 ? `${baseSource}+q4-priority` : baseSource;
 
   return {
     nextSlot,
     queueDepth: queueResult[0]?.count || 0,
     schedulingSource,
+    isQ4: q4Cfg.isQ4,
+    q4Month: q4Cfg.q4Month,
     upcomingSlots: [{ time: nextSlot, source: schedulingSource }],
   };
 }

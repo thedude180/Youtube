@@ -187,6 +187,8 @@ import {
   aiAudienceDemographics,
   aiWatchTimeOptimizer,
   aiEngagementRateAnalyzer,
+  aiSatisfactionAnalyzer,
+  aiSurfaceTargetOptimizer,
 } from "../ai-engine";
 import {
   aiSubscriberGrowthAnalyzer,
@@ -8687,5 +8689,19 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try { const result = await aiSeasonalContentPlanner({ ...req.body, quarter: "Q4" }, userId); res.json(result); }
     catch (e: any) { logger.error("AI autumn-content error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/satisfaction-analyzer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiSatisfactionAnalyzer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI satisfaction-analyzer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/surface-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiSurfaceTargetOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI surface-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 }

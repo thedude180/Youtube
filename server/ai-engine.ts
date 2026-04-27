@@ -1804,19 +1804,41 @@ Respond as JSON:
 
 export async function aiContentCalendarPlanner(data: { channelName: string; niche?: string; frequency?: string; upcomingEvents?: string[] }, userId?: string) {
   const ctx = await getCreatorContext(userId);
+  const now = new Date();
+  const currentMonth = now.getMonth(); // 0-indexed
+  const currentYear = now.getFullYear();
+  const isQ4 = currentMonth >= 9 && currentMonth <= 11;
+  const isApproachingQ4 = currentMonth === 8; // September
+  const q4MonthName = ["October", "November", "December"][currentMonth - 9] || "";
+  const q4Context = isQ4
+    ? `IMPORTANT: We are currently in Q4 (${q4MonthName} ${currentYear}). Advertiser spend is 3-5x higher than January. THIS IS THE HIGHEST-CPM PERIOD OF THE YEAR for gaming content. Schedule your highest-effort, best-produced videos NOW. Don't waste this window on routine uploads.`
+    : isApproachingQ4
+    ? `IMPORTANT: Q4 (October-December ${currentYear}) begins next month. Q4 RPMs run 3-5x higher than January — the biggest revenue opportunity of the year. Plan your highest-quality content to drop in Q4. Use September to batch-record and prepare.`
+    : `NOTE: Q4 (October-December) has 3-5x higher ad RPMs than January. If planning extends into Q4, mark those weeks as HIGH-VALUE — highest-effort content should land there.`;
   const p = `Generate a complete 30-day content calendar with specific video ideas, publishing schedule, and platform distribution.
 Channel: "${sanitizeForPrompt(data.channelName)}"
 Niche: ${sanitizeForPrompt(data.niche || "General")}
 Publishing Frequency: ${sanitizeForPrompt(data.frequency || "3x per week")}
 Upcoming Events: ${sanitizeForPrompt(data.upcomingEvents?.join(", ") || "None specified")}
+Today: ${now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+
+${q4Context}
+
+2026 ALGORITHM CONTEXT:
+- Satisfaction over watch time: deliver value in the first 5 seconds, cut padding
+- 3x long-form per week is the growth sweet spot for established channels
+- Channels combining Shorts with long-form grow 41% faster
+- Responding to 50+ comments in first 2 hours correlates with 15-20% higher reach
+- Q4 = schedule your hero content (highest production value, most searched topics)
 ${ctx ? `\n${ctx}` : ""}
 Respond as JSON:
 {
-  "monthPlan": [{"week": 1, "theme": "weekly theme", "videos": [{"day": "Monday", "title": "video title", "type": "long-form|short|live", "platform": "YouTube", "description": "brief concept", "priority": "hero|hub|help"}]}],
+  "monthPlan": [{"week": 1, "theme": "weekly theme", "isQ4Week": false, "videos": [{"day": "Monday", "title": "video title", "type": "long-form|short|live", "platform": "YouTube", "description": "brief concept", "priority": "hero|hub|help", "targetSurface": "home|suggested|search|shorts", "q4Priority": false}]}],
   "contentMix": {"longForm": 60, "shorts": 30, "live": 10},
   "themes": ["weekly theme ideas"],
-  "seasonalOpportunities": [{"event": "holiday/event", "date": "when", "contentIdea": "what to create"}],
-  "batchRecordingPlan": {"day": "best day to batch record", "videosPerSession": 3, "prepTime": "30 min per video"}
+  "seasonalOpportunities": [{"event": "holiday/event", "date": "when", "contentIdea": "what to create", "revenueImpact": "high|medium|low"}],
+  "batchRecordingPlan": {"day": "best day to batch record", "videosPerSession": 3, "prepTime": "30 min per video"},
+  "q4Strategy": "specific Q4 revenue maximization plan for this channel"
 }`;
   const r = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 10000 });
   const c = r.choices[0]?.message?.content;
@@ -3853,17 +3875,110 @@ Respond as JSON:
 }
 
 export async function aiWatchTimeOptimizer(data: { avgWatchTime?: string; videoDuration?: string }, userId?: string) {
-  const p = `Optimize watch time for video content.
+  const p = `Optimize watch time for video content using the 2026 YouTube model.
+CRITICAL 2026 SHIFT: YouTube now weights viewer SATISFACTION above raw watch time. A 6-minute video
+with 80% retention and positive post-watch survey beats a 20-minute video with 30% retention.
+Padding and slow intros now actively suppress videos. Optimize for satisfaction AND efficient retention.
 ${data.avgWatchTime ? `Average Watch Time: ${sanitizeForPrompt(data.avgWatchTime)}` : ""}
 ${data.videoDuration ? `Video Duration: ${sanitizeForPrompt(data.videoDuration)}` : ""}
 Respond as JSON:
 {
-  "current": "current watch time assessment",
-  "ideal": "ideal watch time target",
-  "strategies": "optimization strategies",
-  "segments": "content segment recommendations",
-  "hooks": "audience hook techniques",
-  "reEngagement": "re-engagement tactics"
+  "current": "current watch time assessment vs 2026 satisfaction model",
+  "ideal": "ideal watch time target (shorter with higher satisfaction beats longer with lower)",
+  "strategies": "optimization strategies focused on satisfaction not just duration",
+  "segments": "content segment recommendations (cut padding, front-load value)",
+  "hooks": "first-5-second hook techniques that deliver on the promise (no clickbait stall)",
+  "reEngagement": "re-engagement tactics that extend sessions (not just this video)",
+  "satisfactionTips": "specific moves to improve post-watch survey scores"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4000 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSatisfactionAnalyzer(data: {
+  avgRetention?: number;
+  commentCount?: number;
+  likeCount?: number;
+  viewCount?: number;
+  niche?: string;
+}, userId?: string) {
+  const commentRatio = (data.commentCount && data.viewCount) ? ((data.commentCount / data.viewCount) * 100).toFixed(2) : null;
+  const likeRatio = (data.likeCount && data.viewCount) ? ((data.likeCount / data.viewCount) * 100).toFixed(2) : null;
+  const p = `Analyze YouTube viewer satisfaction signals using the 2026 algorithm model.
+
+CONTEXT: YouTube pivoted fully to satisfaction-first ranking in 2024-2025. The system collects
+millions of post-watch surveys asking "was this worth your time?", tracks repeat viewing, session
+continuation (did they keep watching after?), comment sentiment via NLP, and likes. Raw watch time
+is now a secondary signal — satisfaction gates promotion.
+
+Metrics provided:
+${data.avgRetention != null ? `Average Retention: ${sanitizeForPrompt(data.avgRetention)}%` : ""}
+${data.commentCount != null ? `Comments: ${sanitizeForPrompt(data.commentCount)}` : ""}
+${data.likeCount != null ? `Likes: ${sanitizeForPrompt(data.likeCount)}` : ""}
+${data.viewCount != null ? `Views: ${sanitizeForPrompt(data.viewCount)}` : ""}
+${commentRatio ? `Comment rate: ${commentRatio}% of views` : ""}
+${likeRatio ? `Like rate: ${likeRatio}% of views` : ""}
+${data.niche ? `Niche: ${sanitizeForPrompt(data.niche)}` : ""}
+
+Respond as JSON:
+{
+  "satisfactionScore": "0-100 estimated satisfaction score",
+  "signalBreakdown": {
+    "retention": "retention quality assessment — shape matters (cliff vs flat curve)",
+    "commentQuality": "estimated comment engagement quality based on volume-to-view ratio",
+    "sessionContinuation": "likelihood viewers kept watching YouTube after this video",
+    "repeatViewing": "repeat view potential assessment",
+    "surveyPrediction": "predicted post-watch survey outcome: positive / neutral / negative"
+  },
+  "topIssue": "the single biggest satisfaction drag based on these numbers",
+  "quickWins": ["3 immediate changes to improve satisfaction signals this week"],
+  "contentStructure": "structural changes to deliver value faster and reduce padding",
+  "hookAdvice": "how to open videos so viewers feel the title promise is fulfilled immediately",
+  "efficiencyTarget": "recommended content length for this niche to maximize satisfaction per minute"
+}`;
+  const r = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4000 });
+  const c = r.choices[0]?.message?.content;
+  if (!c) throw new Error("No response from AI");
+  return JSON.parse(c);
+}
+
+export async function aiSurfaceTargetOptimizer(data: {
+  videoTitle: string;
+  videoType?: string;
+  gameName?: string;
+  targetSurface?: "home" | "suggested" | "search" | "subscriptions" | "shorts";
+}, userId?: string) {
+  const surface = data.targetSurface || "home";
+  const surfaceGuides: Record<string, string> = {
+    home: "Uses watch-history clusters (not broad topics). Rewards niche consistency. Reaches new audiences who've never subscribed. CTR is gate 1 — below 2% it stops testing.",
+    suggested: "Driven by topic co-watch patterns and recent watch history. Optimize for session chaining — YouTube wants to queue your video after one the viewer just finished. Pairing matters.",
+    search: "NLP understands semantic meaning — exact-match keywords matter less than topical alignment. YouTube tracks query satisfaction: if viewers bounce in 10s, you get demoted for that query specifically.",
+    subscriptions: "Chronological with light personalization. High prior engagement gives a slight bump. The only surface where subscriber count directly matters.",
+    shorts: "Swipe-away ratio in first second is the master metric. Completion rate beats total watch time. Replay count is critical. First 3 seconds determine everything — no slow build.",
+  };
+  const p = `Optimize a YouTube gaming video specifically for the ${surface.toUpperCase()} recommendation surface.
+
+SURFACE GUIDE — ${surface.toUpperCase()}:
+${surfaceGuides[surface]}
+
+Video Title: "${sanitizeForPrompt(data.videoTitle)}"
+Game: ${sanitizeForPrompt(data.gameName || "Gaming")}
+Type: ${sanitizeForPrompt(data.videoType || "long-form")}
+Target Surface: ${surface.toUpperCase()}
+
+Respond as JSON:
+{
+  "surface": "${surface}",
+  "primarySignal": "the single most important ranking signal for ${surface}",
+  "titleRecommendation": "rewritten title optimized for ${surface} discovery",
+  "descriptionStrategy": "description and keyword strategy specific to ${surface}",
+  "thumbnailGuidance": "thumbnail approach for ${surface} (CTR vs first-frame vs branding)",
+  "openingSeconds": "what the first 5-30 seconds must accomplish to win on ${surface}",
+  "doList": ["3 specific actions that boost ${surface} performance"],
+  "avoidList": ["2 things that hurt ${surface} ranking"],
+  "crossSurfaceFlywheel": "how ${surface} success feeds into the other four surfaces"
 }`;
   const r = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: p }], response_format: { type: "json_object" }, max_completion_tokens: 4000 });
   const c = r.choices[0]?.message?.content;

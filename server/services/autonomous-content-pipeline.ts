@@ -13,6 +13,43 @@ import { recordLearningEvent } from "../learning-engine";
 
 const logger = createLogger("autonomous-pipeline");
 
+// Q4 revenue intelligence — gaming RPMs are 3-5x higher Oct-Dec vs January
+function getQ4Context(): string {
+  const now = new Date();
+  const month = now.getMonth(); // 0-indexed
+  if (month >= 9 && month <= 11) {
+    const names = ["October", "November", "December"];
+    return `CRITICAL: We are in Q4 (${names[month - 9]}). Gaming ad RPMs are 3-5x higher than January. Scheduling advice MUST prioritize publishing THIS content NOW rather than deferring. High-effort optimized content published in Q4 earns significantly more revenue.`;
+  }
+  if (month === 8) {
+    return `NOTE: Q4 begins next month (October). High-quality content should be planned and scheduled to publish in October-December when gaming RPMs are 3-5x higher than January.`;
+  }
+  return `NOTE: Q4 (October-December) has 3-5x higher gaming ad RPMs. Reserve your highest-quality content for Q4 scheduling windows.`;
+}
+
+// Surface detection: determine the primary YouTube recommendation surface to target
+function detectTargetSurface(title: string, type: string, meta: Record<string, any>): string {
+  const t = title.toLowerCase();
+  const tags: string[] = (meta.tags || []).map((s: string) => s.toLowerCase());
+  const allText = `${t} ${tags.join(" ")}`;
+
+  if (type === "short" || type === "shorts") return "Shorts";
+  if (/how to|guide|tutorial|tips|trick|best way|walkthrough/.test(allText)) return "Search";
+  if (/live|stream|vod|highlights|recap|replay/.test(allText)) return "Suggested";
+  return "Home + Suggested";
+}
+
+// Surface-specific instruction block injected into the AI prompt
+function getSurfaceInstructions(surface: string): string {
+  const guides: Record<string, string> = {
+    "Search": "TARGET SURFACE: SEARCH — Semantic NLP alignment matters. Title must answer the exact query. Description should include related terms viewers search. YouTube tracks query satisfaction: if viewers bounce in 10s you get demoted for that term. Prioritize informational keywords over engagement bait.",
+    "Suggested": "TARGET SURFACE: SUGGESTED (Up Next) — Optimize for session chaining. The title/thumbnail should pair naturally with popular gaming videos viewers just finished. Mention the game prominently. Session continuation after this video is the key signal.",
+    "Shorts": "TARGET SURFACE: SHORTS FEED — Swipe-away ratio in first second is the master metric. First frame determines everything — no logo intros, no slow builds, lead with the payoff. Completion rate beats total watch time. Create replay-worthy moments. 30-60 seconds is the discovery sweet spot.",
+    "Home + Suggested": "TARGET SURFACE: HOME + SUGGESTED — Niche consistency signals matter. CTR is gate 1 (below 2% = suppressed). Thumbnail must stand out in a grid of similar gaming content. High CTR + low retention triggers clickbait suppression — the title must deliver on its promise.",
+  };
+  return guides[surface] || guides["Home + Suggested"];
+}
+
 export async function runFullContentOptimization(userId: string, videoId: number): Promise<void> {
   logger.info("Autonomous content pipeline triggered", { userId, videoId });
 
@@ -64,6 +101,10 @@ export async function runFullContentOptimization(userId: string, videoId: number
       }
     }
 
+    const q4Context = getQ4Context();
+    const targetSurface = detectTargetSurface(v.title || "", v.type || "", meta);
+    const surfaceInstructions = getSurfaceInstructions(targetSurface);
+
     const aiResult = await executeRoutedAICall(
       { taskType: "autonomous_full_optimize", userId, priority: "high" },
       `You are the autonomous content brain of a YouTube gaming empire. You have learned from hundreds of data points and competitive analysis. Your job is to take new content and make it the BEST version it can be — applying every proven strategy, every core principle, every competitive insight. Think like a human creator who has been doing this for 10 years and knows exactly what works.
@@ -85,6 +126,19 @@ ${vodStrategies || "No proven strategies yet — use best practices"}
 CORE PRINCIPLES:
 ${principleBlock || "No principles yet — use industry best practices"}
 
+${surfaceInstructions}
+
+REVENUE & SCHEDULING INTELLIGENCE:
+${q4Context}
+
+2026 SATISFACTION MODEL (replaces watch time as primary signal):
+- YouTube surveys viewers after every watch: "Was this worth your time?"
+- Satisfaction score = repeat views + session continuation + comment sentiment + likes
+- Clickbait-then-stall ACTIVELY suppresses: high CTR + low satisfaction = algorithmic penalty
+- Optimized title MUST deliver exactly what it promises within the first 30 seconds
+- Comments in the first 2 hours: responding to 50+ correlates with 15-20% higher reach
+- Hype feature: remind creator to ask community to Hype within 7 days (eligible if under 500K subs)
+
 Generate the BEST possible version of this content. Apply every insight you have.
 
 CRITICAL YOUTUBE POLICY REQUIREMENTS (April 2026):
@@ -99,11 +153,12 @@ Return JSON:
   "optimizedTags": ["15-20 highly targeted tags"],
   "thumbnailConcept": "specific visual concept for maximum CTR thumbnail",
   "shortsIdeas": ["3 viral shorts clip ideas from this content"],
-  "schedulingAdvice": "best time/day to publish based on patterns (respect max 3 videos + 6 shorts per day limit)",
+  "schedulingAdvice": "best time/day to publish — include Q4 urgency if applicable, surface-specific timing notes",
   "crossPromotionIdeas": ["2 ways to cross-promote with existing content"],
   "seoKeywords": ["5 primary search keywords to target"],
   "strategiesApplied": ["list of strategies used in this optimization"],
   "transformativeElements": ["list of transformative elements included for no-commentary compliance"],
+  "targetSurface": "${targetSurface}",
   "confidenceScore": 0-100
 }`
     );
@@ -237,7 +292,23 @@ Return JSON:
       strategies: (result.strategiesApplied || []).length,
       confidence: result.confidenceScore,
       autoApplied: autonomous && (result.confidenceScore || 0) >= 80,
+      targetSurface,
     });
+
+    // Fire a Hype notification via Discord so ET knows to ask the community to Hype this
+    // video within the 7-day window (eligible for channels 500-500K subs, free Explore boost)
+    try {
+      const { sendHypeNotification } = await import("./youtube-hype-notifier");
+      const youtubeVideoId = (v.metadata as any)?.youtubeVideoId || (v.metadata as any)?.youtubeId || undefined;
+      await sendHypeNotification({
+        userId,
+        videoId,
+        videoTitle: result.optimizedTitle || v.title || "",
+        youtubeVideoId,
+      });
+    } catch (hypeErr: any) {
+      logger.debug("Hype notifier skipped", { videoId, reason: hypeErr?.message?.slice(0, 60) });
+    }
   } catch (err) {
     logger.error("Autonomous content pipeline failed", { videoId, error: String(err).slice(0, 200) });
   }

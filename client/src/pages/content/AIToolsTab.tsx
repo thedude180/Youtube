@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, FileText, Hash, Zap, TrendingUp, Image, Captions, MonitorPlay } from "lucide-react";
+import { Loader2, Sparkles, FileText, Hash, Zap, TrendingUp, Image, Captions, MonitorPlay, ThumbsUp, Layers } from "lucide-react";
 
 type AIResponse = any;
 
@@ -374,6 +374,140 @@ function EndScreenOptimizer() {
   );
 }
 
+function SatisfactionAnalyzer() {
+  const [avgRetention, setAvgRetention] = useState("");
+  const [viewCount, setViewCount] = useState("");
+  const [likeCount, setLikeCount] = useState("");
+  const [commentCount, setCommentCount] = useState("");
+  const [niche, setNiche] = useState("gaming");
+  const [result, setResult] = useState<AIResponse>(null);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/satisfaction-analyzer", {
+        avgRetention: avgRetention ? parseFloat(avgRetention) : undefined,
+        viewCount: viewCount ? parseInt(viewCount) : undefined,
+        likeCount: likeCount ? parseInt(likeCount) : undefined,
+        commentCount: commentCount ? parseInt(commentCount) : undefined,
+        niche,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => setResult(data),
+  });
+
+  return (
+    <AIToolCard title="Satisfaction Analyzer (2026)" icon={ThumbsUp} testId="card-satisfaction-analyzer">
+      <Input
+        placeholder="Avg retention % (e.g. 55)"
+        value={avgRetention}
+        onChange={(e) => setAvgRetention(e.target.value)}
+        className="text-sm"
+        data-testid="input-satisfaction-retention"
+      />
+      <Input
+        placeholder="Views"
+        value={viewCount}
+        onChange={(e) => setViewCount(e.target.value)}
+        className="text-sm"
+        data-testid="input-satisfaction-views"
+      />
+      <Input
+        placeholder="Likes"
+        value={likeCount}
+        onChange={(e) => setLikeCount(e.target.value)}
+        className="text-sm"
+        data-testid="input-satisfaction-likes"
+      />
+      <Input
+        placeholder="Comments"
+        value={commentCount}
+        onChange={(e) => setCommentCount(e.target.value)}
+        className="text-sm"
+        data-testid="input-satisfaction-comments"
+      />
+      <Input
+        placeholder="Niche (gaming, tech...)"
+        value={niche}
+        onChange={(e) => setNiche(e.target.value)}
+        className="text-sm"
+        data-testid="input-satisfaction-niche"
+      />
+      <Button
+        size="sm"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending || (!avgRetention && !viewCount)}
+        data-testid="button-satisfaction-analyzer"
+      >
+        {mutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ThumbsUp className="h-3.5 w-3.5 mr-1" />}
+        Analyze
+      </Button>
+      <ResultDisplay data={result} testId="result-satisfaction-analyzer" />
+    </AIToolCard>
+  );
+}
+
+function SurfaceOptimizer() {
+  const [videoTitle, setVideoTitle] = useState("");
+  const [gameName, setGameName] = useState("");
+  const [targetSurface, setTargetSurface] = useState("home");
+  const [result, setResult] = useState<AIResponse>(null);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/surface-optimizer", {
+        videoTitle,
+        gameName,
+        targetSurface,
+        videoType: "long-form",
+      });
+      return res.json();
+    },
+    onSuccess: (data) => setResult(data),
+  });
+
+  return (
+    <AIToolCard title="Surface Optimizer" icon={Layers} testId="card-surface-optimizer">
+      <Input
+        placeholder="Video title..."
+        value={videoTitle}
+        onChange={(e) => setVideoTitle(e.target.value)}
+        className="text-sm"
+        data-testid="input-surface-title"
+      />
+      <Input
+        placeholder="Game name..."
+        value={gameName}
+        onChange={(e) => setGameName(e.target.value)}
+        className="text-sm"
+        data-testid="input-surface-game"
+      />
+      <select
+        value={targetSurface}
+        onChange={(e) => setTargetSurface(e.target.value)}
+        className="w-full text-sm rounded-md border border-input bg-background px-3 py-1.5 h-8"
+        data-testid="select-surface-target"
+      >
+        <option value="home">Home feed</option>
+        <option value="suggested">Suggested (Up Next)</option>
+        <option value="search">Search</option>
+        <option value="subscriptions">Subscriptions</option>
+        <option value="shorts">Shorts feed</option>
+      </select>
+      <Button
+        size="sm"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending || !videoTitle.trim()}
+        data-testid="button-surface-optimizer"
+      >
+        {mutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Layers className="h-3.5 w-3.5 mr-1" />}
+        Optimize for Surface
+      </Button>
+      <ResultDisplay data={result} testId="result-surface-optimizer" />
+    </AIToolCard>
+  );
+}
+
 export default function AIToolsTab() {
   return (
     <div className="space-y-3" data-testid="ai-tools-tab">
@@ -386,6 +520,8 @@ export default function AIToolsTab() {
         <ThumbnailABTest />
         <CaptionGenerator />
         <EndScreenOptimizer />
+        <SatisfactionAnalyzer />
+        <SurfaceOptimizer />
       </div>
     </div>
   );
