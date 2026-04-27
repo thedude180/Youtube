@@ -307,14 +307,25 @@ async function getHealthSnapshot(userId: string): Promise<{ score: number; statu
 // --------------------------------------------------------------------------
 async function runTokenKeepalive(): Promise<{ kept: number; failed: number; retried: number }> {
   try {
-    const { keepAliveAllTokens } = await import("../token-refresh");
-    const result = await keepAliveAllTokens();
+    const { keepAliveAllTokens, repairNullTokenChannels } = await import("../token-refresh");
 
+    // Standard keepalive — refreshes channels that still have a refresh_token
+    const result = await keepAliveAllTokens();
     if (result.kept > 0 || result.failed > 0) {
       logger.info(`Token keepalive: ${result.kept} refreshed, ${result.failed} failed`);
     }
 
-    return { kept: result.kept, failed: result.failed, retried: 0 };
+    // Guardian repair — targets channels where BOTH tokens became null (blind spot in keepalive)
+    // This is the safety net that catches post-rotation wipes or accidental DB clears.
+    const repair = await repairNullTokenChannels();
+    if (repair.repaired > 0) {
+      logger.info(`[TokenGuardian] Auto-repaired ${repair.repaired} null-token YouTube channel(s) from backup`);
+    }
+    if (repair.alerted > 0) {
+      logger.warn(`[TokenGuardian] ${repair.alerted} channel(s) could not be repaired — users have been notified to reconnect`);
+    }
+
+    return { kept: result.kept, failed: result.failed, retried: repair.repaired };
   } catch (err: any) {
     logger.warn(`Token keepalive error: ${err.message}`);
     return { kept: 0, failed: 0, retried: 0 };

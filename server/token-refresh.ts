@@ -3,7 +3,7 @@ import { OAUTH_CONFIGS } from "./oauth-config";
 import { db } from "./db";
 import { channels } from "@shared/schema";
 import { users as usersTable } from "@shared/models/auth";
-import { eq, lt, and, isNotNull } from "drizzle-orm";
+import { eq, lt, and, isNotNull, isNull, or } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
 
@@ -204,7 +204,45 @@ const REFRESH_BUFFER_MS = 24 * 60 * 60 * 1000;
 // 3 retries over 30 minutes avoids flagging tokens dead due to transient Google API outages.
 const PERMANENT_FAILURE_THRESHOLD = 3;
 
-async function markChannelExpired(channelId: number, existingPlatformData: any): Promise<void> {
+async function markChannelExpired(channelId: number, userId: string, existingPlatformData: any): Promise<void> {
+  // ── Last-ditch rescue: try users table google_refresh_token before accepting death ──
+  // This catches the scenario where channels.refresh_token was rotated and went stale,
+  // but a fresh users.google_refresh_token exists (e.g. from a recent manual reconnect).
+  if (userId) {
+    try {
+      const [userRow] = await db
+        .select({ googleRefreshToken: usersTable.googleRefreshToken })
+        .from(usersTable)
+        .where(eq(usersTable.id, userId))
+        .limit(1);
+
+      if (userRow?.googleRefreshToken) {
+        const rescued = await refreshGoogleToken(userRow.googleRefreshToken);
+        if (rescued.success && rescued.accessToken) {
+          const newRefresh = rescued.refreshToken || userRow.googleRefreshToken;
+          await db.update(channels).set({
+            accessToken: rescued.accessToken,
+            refreshToken: newRefresh,
+            tokenExpiresAt: rescued.expiresAt ?? new Date(Date.now() + 3600 * 1000),
+            platformData: {
+              ...(existingPlatformData || {}),
+              _connectionStatus: "active",
+              _lastRefresh: new Date().toISOString(),
+              _permanentFailures: 0,
+              _rescuedAt: new Date().toISOString(),
+            },
+          }).where(eq(channels.id, channelId));
+          await syncGoogleUserToken(userId, rescued.accessToken, newRefresh, rescued.expiresAt ?? null);
+          logger.info(`[TokenRefresh] ✓ Emergency rescue: channel ${channelId} restored from users-table backup`);
+          return; // Saved — skip the expiry write
+        }
+      }
+    } catch (rescueErr) {
+      logger.warn(`[TokenRefresh] Emergency rescue failed for channel ${channelId}:`, rescueErr);
+    }
+  }
+
+  // All rescue attempts exhausted — mark expired and send an in-app alert
   await db.update(channels).set({
     tokenExpiresAt: null,
     refreshToken: null,
@@ -215,6 +253,14 @@ async function markChannelExpired(channelId: number, existingPlatformData: any):
       _permanentFailures: 0,
     },
   }).where(eq(channels.id, channelId));
+
+  // Notify user in real-time so the reconnect banner fires immediately
+  if (userId) {
+    try {
+      const { sendSSEEvent } = await import("./routes/events");
+      sendSSEEvent(userId, "platform-disconnected", { platform: "youtube", reason: "token_expired" });
+    } catch { /* SSE not critical */ }
+  }
 }
 
 export async function refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
@@ -273,7 +319,7 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
         if (isExpiredPermanently) {
           const failures = (pd._permanentFailures || 0) + 1;
           if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-            await markChannelExpired(ch.id, pd);
+            await markChannelExpired(ch.id, ch.userId || "", pd);
             logger.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
           } else {
             // Don't wipe the token yet — wait for more failures to confirm it's truly dead
@@ -383,7 +429,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
           if (isPermanent) {
             const failures = (pd._permanentFailures || 0) + 1;
             if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-              await markChannelExpired(ch.id, pd);
+              await markChannelExpired(ch.id, ch.userId || "", pd);
               logger.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
             } else {
               await db.update(channels).set({
@@ -407,4 +453,100 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
 
   logger.info(`[TokenKeepalive] Done — ${kept} kept alive, ${failed} failed`);
   return { kept, failed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// repairNullTokenChannels — recovers channels where BOTH tokens became null
+// The regular keepalive only processes channels that still have a refresh_token.
+// This fills the gap: when both tokens are gone, try the users-table backup.
+// Called by the YouTube Token Guardian every 30 minutes.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function repairNullTokenChannels(): Promise<{ repaired: number; alerted: number }> {
+  let repaired = 0;
+  let alerted = 0;
+
+  try {
+    // Find Google-platform channels where access_token AND refresh_token are both null
+    const nullChannels = await db.select({
+      id: channels.id,
+      userId: channels.userId,
+      platform: channels.platform,
+      channelName: channels.channelName,
+      platformData: channels.platformData,
+    }).from(channels).where(
+      and(
+        or(isNull(channels.accessToken), eq(channels.accessToken, "")),
+        or(isNull(channels.refreshToken), eq(channels.refreshToken, "")),
+        or(eq(channels.platform, "youtube"), eq(channels.platform, "youtube_studio")),
+      )
+    );
+
+    if (nullChannels.length === 0) {
+      logger.info("[TokenGuardian] All YouTube channels have tokens — nothing to repair");
+      return { repaired, alerted };
+    }
+
+    logger.warn(`[TokenGuardian] Found ${nullChannels.length} YouTube channel(s) with null tokens — attempting repair`);
+
+    for (const ch of nullChannels) {
+      if (!ch.userId) continue;
+      const pd = (ch.platformData || {}) as any;
+
+      try {
+        // Look up users-table backup
+        const [userRow] = await db
+          .select({ googleRefreshToken: usersTable.googleRefreshToken })
+          .from(usersTable)
+          .where(eq(usersTable.id, ch.userId))
+          .limit(1);
+
+        if (!userRow?.googleRefreshToken) {
+          logger.warn(`[TokenGuardian] No backup token for channel ${ch.id} (${ch.channelName}) — user must reconnect`);
+          // Send SSE alert so the reconnect banner fires immediately
+          try {
+            const { sendSSEEvent } = await import("./routes/events");
+            sendSSEEvent(ch.userId, "platform-disconnected", { platform: ch.platform || "youtube", reason: "no_token" });
+          } catch { /* SSE not critical */ }
+          alerted++;
+          continue;
+        }
+
+        const rescued = await refreshGoogleToken(userRow.googleRefreshToken);
+        if (rescued.success && rescued.accessToken) {
+          const newRefresh = rescued.refreshToken || userRow.googleRefreshToken;
+          await db.update(channels).set({
+            accessToken: rescued.accessToken,
+            refreshToken: newRefresh,
+            tokenExpiresAt: rescued.expiresAt ?? new Date(Date.now() + 3600 * 1000),
+            platformData: {
+              ...pd,
+              _connectionStatus: "active",
+              _lastRefresh: new Date().toISOString(),
+              _permanentFailures: 0,
+              _guardianRepair: new Date().toISOString(),
+            },
+          }).where(eq(channels.id, ch.id));
+          await syncGoogleUserToken(ch.userId, rescued.accessToken, newRefresh, rescued.expiresAt ?? null);
+          logger.info(`[TokenGuardian] ✓ Repaired channel ${ch.id} (${ch.channelName}) from users-table backup`);
+          repaired++;
+        } else {
+          logger.warn(`[TokenGuardian] Backup token for channel ${ch.id} (${ch.channelName}) is also invalid — user must reconnect`);
+          try {
+            const { sendSSEEvent } = await import("./routes/events");
+            sendSSEEvent(ch.userId, "platform-disconnected", { platform: ch.platform || "youtube", reason: "backup_invalid" });
+          } catch { /* SSE not critical */ }
+          alerted++;
+        }
+      } catch (err) {
+        logger.error(`[TokenGuardian] Error repairing channel ${ch.id}:`, err);
+      }
+
+      await new Promise(r => setTimeout(r, 300));
+    }
+  } catch (e) {
+    logger.error("[TokenGuardian] Fatal error in repairNullTokenChannels:", e);
+  }
+
+  logger.info(`[TokenGuardian] Repair cycle done — ${repaired} repaired, ${alerted} users alerted`);
+  return { repaired, alerted };
 }
