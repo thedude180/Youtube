@@ -110,7 +110,9 @@ export async function handleCallback(code: string, userId: string) {
 
   const tokenFields: any = {
     accessToken: tokens.access_token,
-    tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+    tokenExpiresAt: tokens.expiry_date
+      ? new Date(tokens.expiry_date)
+      : new Date(Date.now() + 3600 * 1000),
     lastSyncAt: new Date(),
     platformData: reconnectedPlatformData,
   };
@@ -386,7 +388,9 @@ export async function getAuthenticatedClient(channelId: number) {
         const updateData: any = {};
         if (tokens.access_token) updateData.accessToken = tokens.access_token;
         if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
-        if (tokens.expiry_date) updateData.tokenExpiresAt = new Date(tokens.expiry_date);
+        updateData.tokenExpiresAt = tokens.expiry_date
+          ? new Date(tokens.expiry_date)
+          : new Date(Date.now() + 3600 * 1000);
         if (Object.keys(updateData).length === 0) return;
 
         // Update the main YouTube channel row

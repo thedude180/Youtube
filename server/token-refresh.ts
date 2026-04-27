@@ -9,6 +9,27 @@ import { createLogger } from "./lib/logger";
 
 const logger = createLogger("token-refresh");
 
+// ─── Per-channel refresh lock ───────────────────────────────────────────────
+// Prevents the race condition where multiple concurrent callers (connection-guardian,
+// autopilot-monitor, automation-engine, etc.) all try to refresh the same channel's
+// token at the same time.  Google rotates refresh tokens on use — if two calls run
+// simultaneously, the second arrives with an already-consumed refresh token and gets
+// invalid_grant, which counts as a permanent failure and eventually wipes the token.
+const refreshLocks = new Map<number, boolean>();
+
+async function withChannelLock<T>(channelId: number, fn: () => Promise<T>): Promise<T | null> {
+  if (refreshLocks.get(channelId)) {
+    logger.info(`[TokenRefresh] Channel ${channelId} refresh already in progress — skipping duplicate call`);
+    return null;
+  }
+  refreshLocks.set(channelId, true);
+  try {
+    return await fn();
+  } finally {
+    refreshLocks.delete(channelId);
+  }
+}
+
 // Keep the users.google_refresh_token in sync whenever a YouTube channel token is rotated.
 // Without this, the users-table backup diverges from the channel token over time.
 // When markChannelExpired wipes the channel token, syncChannelTokens tries to restore
@@ -236,17 +257,23 @@ async function markChannelExpired(channelId: number, userId: string, existingPla
           logger.info(`[TokenRefresh] ✓ Emergency rescue: channel ${channelId} restored from users-table backup`);
           return; // Saved — skip the expiry write
         }
-        // Rescue failed — the users-table backup is also dead (invalid_grant or network error).
-        // Clear it so future rescue attempts don't waste time on a known-bad token.
-        try {
-          await db.update(usersTable).set({
-            googleRefreshToken: null,
-            googleAccessToken: null,
-            googleTokenExpiresAt: null,
-          }).where(eq(usersTable.id, userId));
-          logger.warn(`[TokenRefresh] Cleared dead users-table Google token for user ${userId}`);
-        } catch (clearErr) {
-          logger.warn(`[TokenRefresh] Could not clear dead users-table token for user ${userId}:`, clearErr);
+        // Rescue failed. Only wipe the users-table backup if Google explicitly says the
+        // token is invalid (invalid_grant / revoked). Transient network errors must NOT
+        // clear the backup — doing so removes the last safety net for future recovery.
+        const isDefinitelyDead = rescued.error?.includes("invalid_grant") || rescued.error?.includes("Token has been expired or revoked");
+        if (isDefinitelyDead) {
+          try {
+            await db.update(usersTable).set({
+              googleRefreshToken: null,
+              googleAccessToken: null,
+              googleTokenExpiresAt: null,
+            }).where(eq(usersTable.id, userId));
+            logger.warn(`[TokenRefresh] Cleared dead users-table Google token for user ${userId} (confirmed invalid_grant)`);
+          } catch (clearErr) {
+            logger.warn(`[TokenRefresh] Could not clear dead users-table token for user ${userId}:`, clearErr);
+          }
+        } else {
+          logger.warn(`[TokenRefresh] Rescue failed with transient error for user ${userId} — keeping backup token intact: ${rescued.error?.substring(0, 100)}`);
         }
       }
     } catch (rescueErr) {
@@ -307,49 +334,67 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
       // Only stop retrying after hitting the permanent failure threshold
       if (pd._connectionStatus === "expired" && (pd._permanentFailures || 0) >= PERMANENT_FAILURE_THRESHOLD) continue;
 
-      const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
+      // Use per-channel lock to prevent race condition: if 8 concurrent background
+      // services all call refreshExpiringTokens at the same time, the second caller
+      // for the same channel would use an already-consumed refresh_token and get
+      // invalid_grant from Google, which cascades into a permanent token wipe.
+      const lockResult = await withChannelLock(ch.id, async () => {
+        const result = await refreshToken(ch.platform as Platform, ch.refreshToken!);
 
-      if (result.success && result.accessToken) {
-        const rotatedRefresh = result.refreshToken || ch.refreshToken;
-        await db.update(channels).set({
-          accessToken: result.accessToken,
-          refreshToken: rotatedRefresh,
-          tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
-          platformData: {
-            ...(pd),
-            _connectionStatus: "active",
-            _lastRefresh: new Date().toISOString(),
-            _permanentFailures: 0,
-          },
-        }).where(eq(channels.id, ch.id));
-        // Keep users.google_refresh_token in sync so the backup never goes stale.
-        // If this is skipped, the backup diverges and can't be used to restore after a wipe.
-        if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
-          await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, result.expiresAt || ch.tokenExpiresAt);
+        if (result.success && result.accessToken) {
+          const rotatedRefresh = result.refreshToken || ch.refreshToken!;
+          const newExpiry = result.expiresAt ?? new Date(Date.now() + 3600 * 1000);
+          await db.update(channels).set({
+            accessToken: result.accessToken,
+            refreshToken: rotatedRefresh,
+            tokenExpiresAt: newExpiry,
+            platformData: {
+              ...(pd),
+              _connectionStatus: "active",
+              _lastRefresh: new Date().toISOString(),
+              _permanentFailures: 0,
+            },
+          }).where(eq(channels.id, ch.id));
+          // Keep users.google_refresh_token in sync so the backup never goes stale.
+          // If this is skipped, the backup diverges and can't be used to restore after a wipe.
+          if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
+            await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
+          }
+          return { ok: true };
+        } else {
+          const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize") || result.error?.includes("invalid_grant");
+          if (isExpiredPermanently) {
+            const failures = (pd._permanentFailures || 0) + 1;
+            if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+              await markChannelExpired(ch.id, ch.userId || "", pd);
+              logger.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
+            } else {
+              // Don't wipe the token yet — wait for more failures to confirm it's truly dead
+              await db.update(channels).set({
+                platformData: {
+                  ...pd,
+                  _connectionStatus: "degraded",
+                  _permanentFailures: failures,
+                  _lastFailureAt: new Date().toISOString(),
+                },
+              }).where(eq(channels.id, ch.id));
+              logger.warn(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}) — will retry`);
+            }
+          } else {
+            logger.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
+          }
+          return { ok: false };
         }
+      });
+
+      if (lockResult === null) {
+        // Lock was held — another caller refreshed this channel, count it
+        refreshed++;
+        continue;
+      }
+      if (lockResult.ok) {
         refreshed++;
       } else {
-        const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
-        if (isExpiredPermanently) {
-          const failures = (pd._permanentFailures || 0) + 1;
-          if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-            await markChannelExpired(ch.id, ch.userId || "", pd);
-            logger.error(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} confirmed expired after ${failures} attempts — user must re-authorize`);
-          } else {
-            // Don't wipe the token yet — wait for more failures to confirm it's truly dead
-            await db.update(channels).set({
-              platformData: {
-                ...pd,
-                _connectionStatus: "degraded",
-                _permanentFailures: failures,
-                _lastFailureAt: new Date().toISOString(),
-              },
-            }).where(eq(channels.id, ch.id));
-            logger.warn(`[TokenRefresh] ${ch.platform} channel ${ch.channelName} failed (attempt ${failures}/${PERMANENT_FAILURE_THRESHOLD}) — will retry`);
-          }
-        } else {
-          logger.warn(`[TokenRefresh] Failed to refresh ${ch.platform} channel ${ch.channelName}: ${result.error}`);
-        }
         failed++;
       }
     }
@@ -415,46 +460,57 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
         }
       }
 
-      try {
-        const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
+      // Per-channel lock prevents the keepalive from racing with refreshExpiringTokens
+      // or another keepalive call for the same channel (same root cause as the wipe bug).
+      const kaLockResult = await withChannelLock(ch.id, async () => {
+        try {
+          const result = await refreshToken(ch.platform as Platform, ch.refreshToken!);
 
-        if (result.success && result.accessToken) {
-          const rotatedRefresh = result.refreshToken || ch.refreshToken;
-          await db.update(channels).set({
-            accessToken: result.accessToken,
-            refreshToken: rotatedRefresh,
-            tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
-            platformData: {
-              ...pd,
-              _connectionStatus: "active",
-              _lastRefresh: new Date().toISOString(),
-              _permanentFailures: 0,
-              _keepaliveAt: new Date().toISOString(),
-            },
-          }).where(eq(channels.id, ch.id));
-          // Mirror the latest refresh token back to the users table backup so it
-          // never goes stale. This is the key fix for the recurring token-loss bug.
-          if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
-            await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, result.expiresAt || ch.tokenExpiresAt);
-          }
-          kept++;
-        } else {
-          const isPermanent = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
-          if (isPermanent) {
-            const failures = (pd._permanentFailures || 0) + 1;
-            if (failures >= PERMANENT_FAILURE_THRESHOLD) {
-              await markChannelExpired(ch.id, ch.userId || "", pd);
-              logger.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
-            } else {
-              await db.update(channels).set({
-                platformData: { ...pd, _connectionStatus: "degraded", _permanentFailures: failures, _lastFailureAt: new Date().toISOString() },
-              }).where(eq(channels.id, ch.id));
+          if (result.success && result.accessToken) {
+            const rotatedRefresh = result.refreshToken || ch.refreshToken!;
+            const newExpiry = result.expiresAt ?? new Date(Date.now() + 3600 * 1000);
+            await db.update(channels).set({
+              accessToken: result.accessToken,
+              refreshToken: rotatedRefresh,
+              tokenExpiresAt: newExpiry,
+              platformData: {
+                ...pd,
+                _connectionStatus: "active",
+                _lastRefresh: new Date().toISOString(),
+                _permanentFailures: 0,
+                _keepaliveAt: new Date().toISOString(),
+              },
+            }).where(eq(channels.id, ch.id));
+            // Mirror the latest refresh token back to the users table backup so it
+            // never goes stale. This is the key fix for the recurring token-loss bug.
+            if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
+              await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
             }
+            return { ok: true };
+          } else {
+            const isPermanent = result.error?.includes("Token expired") || result.error?.includes("re-authorize") || result.error?.includes("invalid_grant");
+            if (isPermanent) {
+              const failures = (pd._permanentFailures || 0) + 1;
+              if (failures >= PERMANENT_FAILURE_THRESHOLD) {
+                await markChannelExpired(ch.id, ch.userId || "", pd);
+                logger.error(`[TokenKeepalive] ${ch.platform} ${ch.channelName} confirmed dead — user must re-authorize`);
+              } else {
+                await db.update(channels).set({
+                  platformData: { ...pd, _connectionStatus: "degraded", _permanentFailures: failures, _lastFailureAt: new Date().toISOString() },
+                }).where(eq(channels.id, ch.id));
+              }
+            }
+            return { ok: false };
           }
-          failed++;
+        } catch (e) {
+          logger.warn(`[TokenKeepalive] Error refreshing ${ch.platform} channel ${ch.id}:`, e);
+          return { ok: false };
         }
-      } catch (e) {
-        logger.warn(`[TokenKeepalive] Error refreshing ${ch.platform} channel ${ch.id}:`, e);
+      });
+
+      if (kaLockResult === null || kaLockResult.ok) {
+        kept++;
+      } else {
         failed++;
       }
 
