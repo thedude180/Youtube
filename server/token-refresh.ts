@@ -2,11 +2,32 @@ import type { Platform } from "@shared/schema";
 import { OAUTH_CONFIGS } from "./oauth-config";
 import { db } from "./db";
 import { channels } from "@shared/schema";
+import { users as usersTable } from "@shared/models/auth";
 import { eq, lt, and, isNotNull } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("token-refresh");
+
+// Keep the users.google_refresh_token in sync whenever a YouTube channel token is rotated.
+// Without this, the users-table backup diverges from the channel token over time.
+// When markChannelExpired wipes the channel token, syncChannelTokens tries to restore
+// from users.google_refresh_token — but if that's weeks out-of-date, Google rejects it
+// with invalid_grant, and the token is permanently lost until the user manually reconnects.
+async function syncGoogleUserToken(userId: string, accessToken: string, refreshToken: string | null | undefined, expiresAt: Date | null | undefined): Promise<void> {
+  try {
+    const update: Record<string, any> = {
+      googleAccessToken: accessToken,
+      googleTokenExpiresAt: expiresAt ?? new Date(Date.now() + 3600 * 1000),
+    };
+    if (refreshToken) {
+      update.googleRefreshToken = refreshToken;
+    }
+    await db.update(usersTable).set(update).where(eq(usersTable.id, userId));
+  } catch (e) {
+    logger.warn(`[TokenRefresh] Failed to sync Google user token for user ${userId}:`, e);
+  }
+}
 interface RefreshResult {
   success: boolean;
   accessToken?: string;
@@ -229,9 +250,10 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
       const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
 
       if (result.success && result.accessToken) {
+        const rotatedRefresh = result.refreshToken || ch.refreshToken;
         await db.update(channels).set({
           accessToken: result.accessToken,
-          refreshToken: result.refreshToken || ch.refreshToken,
+          refreshToken: rotatedRefresh,
           tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
           platformData: {
             ...(pd),
@@ -240,6 +262,11 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
             _permanentFailures: 0,
           },
         }).where(eq(channels.id, ch.id));
+        // Keep users.google_refresh_token in sync so the backup never goes stale.
+        // If this is skipped, the backup diverges and can't be used to restore after a wipe.
+        if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
+          await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, result.expiresAt || ch.tokenExpiresAt);
+        }
         refreshed++;
       } else {
         const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
@@ -332,9 +359,10 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
         const result = await refreshToken(ch.platform as Platform, ch.refreshToken);
 
         if (result.success && result.accessToken) {
+          const rotatedRefresh = result.refreshToken || ch.refreshToken;
           await db.update(channels).set({
             accessToken: result.accessToken,
-            refreshToken: result.refreshToken || ch.refreshToken,
+            refreshToken: rotatedRefresh,
             tokenExpiresAt: result.expiresAt || ch.tokenExpiresAt,
             platformData: {
               ...pd,
@@ -344,6 +372,11 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
               _keepaliveAt: new Date().toISOString(),
             },
           }).where(eq(channels.id, ch.id));
+          // Mirror the latest refresh token back to the users table backup so it
+          // never goes stale. This is the key fix for the recurring token-loss bug.
+          if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
+            await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, result.expiresAt || ch.tokenExpiresAt);
+          }
           kept++;
         } else {
           const isPermanent = result.error?.includes("Token expired") || result.error?.includes("re-authorize");
