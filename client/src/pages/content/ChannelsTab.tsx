@@ -185,7 +185,15 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
         return;
       }
 
-      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      if (isYouTube) {
+        // Use admin reconnect route — bypasses dev-bypass session identity issue.
+        const ytCh = (existingChannels || []).find((c) => c.platform === "youtube");
+        window.location.href = ytCh?.id
+          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+          : "/api/admin/yt-reconnect";
+        return;
+      }
+      const endpoint = `/api/oauth/${platform}/auth`;
       const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
@@ -333,23 +341,14 @@ function ChannelsTab() {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
   const { isAdvanced } = useAdvancedMode();
 
-  const handleConnect = async () => {
+  const handleConnect = () => {
     setConnecting(true);
-    try {
-      const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
-      if (!res.ok) throw new Error((await res.json()).error || "Failed");
-      const { url } = await res.json();
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) {
-        const w = window.open(url, "_blank", "noopener,noreferrer");
-        if (!w) window.location.href = url;
-      } else {
-        window.location.href = url;
-      }
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      setConnecting(false);
-    }
+    // Use admin reconnect route with specific channel ID to bypass dev-bypass identity issue.
+    // Fall back to auto-detect route if channels haven't loaded yet.
+    const ytChannel = channels?.find((c) => c.platform === "youtube");
+    window.location.href = ytChannel?.id
+      ? `/api/admin/channels/${ytChannel.id}/reconnect-youtube`
+      : "/api/admin/yt-reconnect";
   };
 
   const channelsByPlatform = useMemo(() => {

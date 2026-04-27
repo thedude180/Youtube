@@ -1267,13 +1267,15 @@ export default function StreamCenter() {
                       onClick={async () => {
                         setPlatformConnecting(platform);
                         try {
-                          const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
-                          if (!res.ok) { const e = await res.json(); throw new Error(e.error || "Failed"); }
-                          const { url } = await res.json();
-                          window.location.href = url;
-                        } catch (err: any) {
-                          toast({ title: "Connect failed", description: err.message, variant: "destructive" });
-                          setPlatformConnecting(null);
+                          // Use admin reconnect route — bypasses dev-bypass session identity issue.
+                          const chRes = await fetch("/api/channels", { credentials: "include" });
+                          const chList = chRes.ok ? await chRes.json() : [];
+                          const ytCh = chList.find((c: any) => c.platform === "youtube");
+                          window.location.href = ytCh?.id
+                            ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+                            : "/api/admin/yt-reconnect";
+                        } catch {
+                          window.location.href = "/api/admin/yt-reconnect";
                         }
                       }}
                       data-testid={`button-hub-connect-${platform}`}

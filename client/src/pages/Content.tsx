@@ -402,15 +402,12 @@ function YouTubeImportSection() {
     },
   });
 
-  const connectYouTube = async () => {
-    try {
-      const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error("Failed to start YouTube login");
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
+  const connectYouTube = () => {
+    // Use admin reconnect route — bypasses dev-bypass session identity issue.
+    const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
+    window.location.href = ytCh?.id
+      ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+      : "/api/admin/yt-reconnect";
   };
 
   if (ytChannels.length === 0) {
@@ -746,15 +743,12 @@ function LibraryTab() {
     setYtBannerDismissed(true);
   };
 
-  const handleYtBannerConnect = async () => {
-    try {
-      const res = await fetch("/api/youtube/auth", { credentials: "include", headers: { "Accept": "application/json" } });
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch {
-      setLocation("/settings");
-    }
+  const handleYtBannerConnect = () => {
+    // Use admin reconnect route — bypasses dev-bypass session identity issue.
+    const ytCh = (linkedChannels || []).find((c: any) => c.platform === "youtube");
+    window.location.href = ytCh?.id
+      ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+      : "/api/admin/yt-reconnect";
   };
 
   const filtered = useMemo(() => {

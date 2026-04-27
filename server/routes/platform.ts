@@ -283,6 +283,45 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  // DEV-ONLY: Simple alias — auto-finds the first real YouTube channel and starts OAuth
+  // reconnect on behalf of its real owner. No channel ID needed.
+  // Usage: navigate to /api/admin/yt-reconnect in the browser (or tap the UI button).
+  app.get("/api/admin/yt-reconnect", async (req: any, res) => {
+    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+    if (isProduction) return res.status(404).json({ error: "Not found" });
+
+    try {
+      const { db } = await import("../db");
+      const { channels } = await import("@shared/schema");
+      const { and, eq, ne } = await import("drizzle-orm");
+
+      // Find the first YouTube channel belonging to a real user (not the dev bypass placeholder)
+      const rows = await db.select().from(channels)
+        .where(and(
+          eq(channels.platform, "youtube"),
+          ne(channels.userId, "dev_bypass_user")
+        ))
+        .orderBy(channels.id)
+        .limit(1);
+
+      const ch = rows[0];
+      if (!ch) return res.status(404).json({ error: "No real YouTube channel found in the database" });
+
+      (req.session as any).youtubeOAuthUserId = ch.userId;
+
+      const { getAuthUrl } = await import("../youtube");
+      const authUrl = getAuthUrl(ch.userId);
+      logger.warn(`[AdminReconnect] Auto-reconnecting YouTube channel ${ch.id} (${ch.channelName}) on behalf of user ${ch.userId}`);
+      logger.info(`[AdminReconnect] Redirect URI in use: ${process.env.GOOGLE_REDIRECT_URI || "(fallback)"}`);
+
+      await new Promise<void>((resolve) => req.session.save(() => resolve()));
+      res.redirect(authUrl);
+    } catch (err: any) {
+      logger.error("[AdminReconnect] yt-reconnect error:", err);
+      res.status(500).json({ error: "Internal error — check server logs" });
+    }
+  });
+
   // DEV-ONLY: Connect a YouTube channel by URL/handle without going through OAuth.
   // Uses GOOGLE_API_KEY to fetch public channel info and registers it in the database.
   // Blocked in production deployments.

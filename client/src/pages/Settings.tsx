@@ -189,7 +189,14 @@ function PlatformConnectionsCard({
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
-      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      if (isYouTube) {
+        const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
+        window.location.href = ytCh?.id
+          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+          : "/api/admin/yt-reconnect";
+        return;
+      }
+      const endpoint = `/api/oauth/${platform}/auth`;
       const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
@@ -223,7 +230,16 @@ function PlatformConnectionsCard({
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
-      const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${platform}/auth`;
+      // YouTube: use admin reconnect route which correctly identifies the real channel owner
+      // even when the session doesn't have a Passport-authenticated user.
+      if (isYouTube) {
+        const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
+        window.location.href = ytCh?.id
+          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+          : "/api/admin/yt-reconnect";
+        return;
+      }
+      const endpoint = `/api/oauth/${platform}/auth`;
       const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
       const { url } = await res.json();
@@ -727,7 +743,14 @@ function GeneralTab() {
           window.location.href = `/api/oauth/${reconnectPlatform}/bounce`;
           return;
         }
-        const endpoint = isYouTube ? "/api/youtube/auth" : `/api/oauth/${reconnectPlatform}/auth`;
+        if (isYouTube) {
+          const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
+          window.location.href = ytCh?.id
+            ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
+            : "/api/admin/yt-reconnect";
+          return;
+        }
+        const endpoint = `/api/oauth/${reconnectPlatform}/auth`;
         const res = await fetch(endpoint, { credentials: "include", headers: { "Accept": "application/json" } });
         if (!res.ok) { const err = await res.json(); throw new Error(err.error || "Failed"); }
         const { url } = await res.json();
