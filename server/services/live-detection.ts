@@ -39,8 +39,12 @@ import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 
 import { registerMap } from "./resilience-core";
 import { createLogger } from "../lib/logger";
+import { PLATFORM_FIRST_POLL_OFFSET_MS } from "./boot-sequencer";
 
 const logger = createLogger("live-detection");
+
+/** Timestamp when this process started (used for first-poll offset gating). */
+const serverBootTime = Date.now();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,8 +99,18 @@ const PLATFORM_POLL_MS: Record<string, number> = {
 const lastPollAt = new Map<number, number>();
 registerMap("liveDetection.lastPollAt", lastPollAt as any, 500);
 
-/** Returns true if enough time has passed to poll this channel's platform. */
+/**
+ * Returns true if this channel's platform is ready to be polled.
+ * Two gates must both pass:
+ *   1. Boot-time offset — the platform's staggered first-poll delay has elapsed,
+ *      preventing all platforms from hitting their APIs simultaneously at T+10s.
+ *   2. Per-channel cooldown — enough time has passed since this channel was last
+ *      polled (enforces PLATFORM_POLL_MS minimum gaps).
+ */
 function canPollChannel(channelId: number, platform: string): boolean {
+  const bootOffset = PLATFORM_FIRST_POLL_OFFSET_MS[platform] ?? 0;
+  if (Date.now() - serverBootTime < bootOffset) return false;
+
   const minGap = PLATFORM_POLL_MS[platform] ?? 10 * 60 * 1000;
   const last = lastPollAt.get(channelId) ?? 0;
   return Date.now() - last >= minGap;

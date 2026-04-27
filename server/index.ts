@@ -952,6 +952,7 @@ const GLOBAL_RATE_WINDOW = 60_000;
 const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
 
 import { registerCleanup } from "./services/cleanup-coordinator";
+import { staggeredBoot } from "./services/boot-sequencer";
 registerCleanup("globalRateLimit", () => {
   const now = Date.now();
   for (const [key, entry] of globalRateLimitMap) {
@@ -1710,14 +1711,18 @@ httpServer.listen(
     });
 
     // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──
+    // Staggered 2 000ms apart — prevents simultaneous DB reads + platform API
+    // calls from all services firing in the same event loop tick.
     delay(13_000, () => {
-      import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import"));
-      import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import"));
-      import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import"));
-      import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(slog("bootstrapTikTokAutopublishers"))).catch(slog("tiktok-autopublisher import"));
-      import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(slog("wireMultistreamEvents"));
-      startConnectionGuardian();
-      initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) }));
+      staggeredBoot([
+        { label: "content-consistency-agent", fn: () => import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import")) },
+        { label: "stream-agent",              fn: () => import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import")) },
+        { label: "copyright-guardian",        fn: () => import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import")) },
+        { label: "tiktok-autopublisher",      fn: () => import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(slog("bootstrapTikTokAutopublishers"))).catch(slog("tiktok-autopublisher import")) },
+        { label: "multistream-engine",        fn: () => import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(slog("wireMultistreamEvents")) },
+        { label: "connection-guardian",       fn: () => { startConnectionGuardian(); } },
+        { label: "stripe-init",               fn: () => initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) })) },
+      ], 2_000);
     });
 
     // ── WAVE 5 (T+16s): Intelligence engines batch 1 ─────────────────────────
@@ -1735,18 +1740,22 @@ httpServer.listen(
     });
 
     // ── WAVE 6 (T+19s): Intelligence engines batch 2 + live agents ──────────
+    // Staggered 1 500ms apart — keeps AI engine initializations from flooding
+    // the OpenAI rate limiter (15 req/min) and DB connection pool simultaneously.
     delay(19_000, () => {
-      import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine"));
-      import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine"));
-      import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules"));
-      import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler"));
-      import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(slog("initLivestreamGrowthAgent"));
-      import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(slog("initLiveChatAgent"));
-      import("./services/chat-bridge").then(m => m.initChatBridge()).catch(slog("initChatBridge"));
-      import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(slog("initIdleEngagement"));
-      import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(slog("initLiveClipHighlighter"));
-      import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(slog("initLiveRaidScout"));
-      import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(slog("initLiveRevenueActivator"));
+      staggeredBoot([
+        { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
+        { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
+        { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
+        { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
+        { label: "livestream-growth-agent",       fn: () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(slog("initLivestreamGrowthAgent")) },
+        { label: "live-chat-agent",               fn: () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(slog("initLiveChatAgent")) },
+        { label: "chat-bridge",                   fn: () => import("./services/chat-bridge").then(m => m.initChatBridge()).catch(slog("initChatBridge")) },
+        { label: "stream-idle-engagement",        fn: () => import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(slog("initIdleEngagement")) },
+        { label: "live-clip-highlighter",         fn: () => import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(slog("initLiveClipHighlighter")) },
+        { label: "live-raid-scout",               fn: () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(slog("initLiveRaidScout")) },
+        { label: "live-revenue-activator",        fn: () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(slog("initLiveRevenueActivator")) },
+      ], 1_500);
     });
 
     // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
@@ -1874,32 +1883,41 @@ httpServer.listen(
     });
 
     // ── WAVE 10 (T+80s): Autonomous command engines ─────────────────────────
+    // Staggered 1 500ms apart — each engine may make YouTube/TikTok/Discord API
+    // calls on its first cycle; spreading start times avoids quota bursts.
     delay(80_000, () => {
-      import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor"));
-      import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter"));
-      import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(slog("startSmartContentDistributor"));
-      import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(slog("startEmpireBrain"));
-      import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync"));
-      import("./services/platform-feature-detector").then(m => m.startPlatformFeatureDetector()).catch(slog("startPlatformFeatureDetector"));
-      import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder"));
-      import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution"));
-      import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh"));
+      staggeredBoot([
+        { label: "tos-compliance-monitor",    fn: () => import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor")) },
+        { label: "media-command-center",      fn: () => import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter")) },
+        { label: "smart-content-distributor", fn: () => import("./services/smart-content-distributor").then(m => m.startSmartContentDistributor()).catch(slog("startSmartContentDistributor")) },
+        { label: "empire-brain",              fn: () => import("./services/empire-brain").then(m => m.startEmpireBrain()).catch(slog("startEmpireBrain")) },
+        { label: "channel-catalog-sync",      fn: () => import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync")) },
+        { label: "platform-feature-detector", fn: () => import("./services/platform-feature-detector").then(m => m.startPlatformFeatureDetector()).catch(slog("startPlatformFeatureDetector")) },
+        { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
+        { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
+        { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
+      ], 1_500);
     });
 
     // ── WAVE 10.5 (T+100s): Autonomous meta-intelligence engines ─────────────
+    // 12 engines — staggered 1 000ms apart (total spread: ~11s).
+    // These engines periodically call OpenAI (15 req/min limit) and read
+    // analytics data — spacing their starts keeps the AI rate limiter safe.
     delay(100_000, () => {
-      import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner"));
-      import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution"));
-      import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine"));
-      import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine"));
-      import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(slog("initAudienceIntelligenceEngine"));
-      import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(slog("initPredictiveGuardian"));
-      import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(slog("initEmpireIntelligenceEngine"));
-      import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect"));
-      import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter"));
-      import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler"));
-      import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine"));
-      import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine"));
+      staggeredBoot([
+        { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
+        { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
+        { label: "prompt-evolution-engine",     fn: () => import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine")) },
+        { label: "revenue-optimizer-engine",    fn: () => import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine")) },
+        { label: "audience-intelligence-engine",fn: () => import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(slog("initAudienceIntelligenceEngine")) },
+        { label: "predictive-guardian",         fn: () => import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(slog("initPredictiveGuardian")) },
+        { label: "empire-intelligence-engine",  fn: () => import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(slog("initEmpireIntelligenceEngine")) },
+        { label: "memory-architect",            fn: () => import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect")) },
+        { label: "autonomous-experimenter",     fn: () => import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter")) },
+        { label: "decision-chronicler",         fn: () => import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler")) },
+        { label: "autonomous-capability-engine",fn: () => import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine")) },
+        { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
+      ], 1_000);
     });
 
     // ── WAVE 11 (T+120s): Self-healing, webhook pipeline, health brain ───────
