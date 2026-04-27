@@ -222,13 +222,22 @@ export async function registerPlatformRoutes(app: Express) {
       const msg = result?.ytChannel ? `/?yt_connected=true&channel=${encodeURIComponent(channelTitle)}` : `/?yt_connected=true&channel=YouTube&quota_retry=1`;
       res.redirect(msg);
     } catch (error: any) {
-      logger.error(`[YouTube Callback] handleCallback failed for user ${userId}: ${error?.message}`);
-      const isNoChannel = error.message?.includes("No YouTube channel found");
-      const isNoToken = error.message?.includes("No access token");
+      const errMsg = error?.message || String(error);
+      logger.error(`[YouTube Callback] handleCallback failed for user ${userId}: ${errMsg} (resolvedBy=${resolvedBy})`);
+      const isNoChannel = errMsg.includes("No YouTube channel found");
+      const isNoToken = errMsg.includes("No access token");
+      const isRedirectMismatch = errMsg.includes("redirect_uri_mismatch");
+      const isInvalidGrant = errMsg.includes("invalid_grant");
       if (isNoChannel) {
         res.redirect("/?yt_no_channel=true");
       } else if (isNoToken) {
         res.redirect("/?yt_error=" + encodeURIComponent("Google did not return a token. Please try connecting again."));
+      } else if (isRedirectMismatch) {
+        logger.error(`[YouTube Callback] REDIRECT URI MISMATCH — GOOGLE_REDIRECT_URI=${process.env.GOOGLE_REDIRECT_URI || "(not set)"}. Register this URI in Google Cloud Console.`);
+        res.redirect("/?yt_error=" + encodeURIComponent("OAuth configuration error (redirect_uri_mismatch). The callback URL is not registered in Google Cloud Console."));
+      } else if (isInvalidGrant) {
+        logger.error(`[YouTube Callback] INVALID GRANT — code may have expired or been reused. User should retry OAuth.`);
+        res.redirect("/?yt_error=" + encodeURIComponent("Authorization code expired. Please try connecting again."));
       } else {
         res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
       }
@@ -258,11 +267,15 @@ export async function registerPlatformRoutes(app: Express) {
 
       // Impersonate the channel's real owner for the OAuth callback
       (req.session as any).youtubeOAuthUserId = ch.userId;
-      req.session.save(() => {});
 
       const { getAuthUrl } = await import("../youtube");
       const authUrl = getAuthUrl(ch.userId);
       logger.warn(`[AdminReconnect] Initiating YouTube OAuth for channel ${channelRowId} (${ch.channelName}) on behalf of user ${ch.userId}`);
+      logger.info(`[AdminReconnect] Redirect URI in use: ${process.env.GOOGLE_REDIRECT_URI || "(fallback)"}`);
+
+      // Wait for session to be persisted before redirecting — ensures Layer 2 (session-key)
+      // fallback works even if the in-memory nonce is lost due to a server restart.
+      await new Promise<void>((resolve) => req.session.save(() => resolve()));
       res.redirect(authUrl);
     } catch (err: any) {
       logger.error("[AdminReconnect] Error:", err);
