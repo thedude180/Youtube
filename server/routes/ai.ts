@@ -1038,6 +1038,35 @@ import {
   aiDailyActionPlan,
 } from "../ai-engine";
 import { createLogger } from "../lib/logger";
+import {
+  aiTikTokWatermarkChecker,
+  aiTikTokCompletionRateAdvisor,
+  aiTikTokSEOOptimizer,
+  aiInstagramReelsReadinessChecker,
+  aiInstagramDMShareOptimizer,
+  aiInstagramTrialReelAdvisor,
+  aiThreadsEngagementVelocityPlanner,
+  aiThreadsCommunityAdvisor,
+  aiTwitchCategoryOptimizer,
+  aiTwitchStreamHealthDiagnostic,
+  aiTwitchRaidNetworkAdvisor,
+  aiKickPartnerQualificationTracker,
+  aiKickMultistreamStrategy,
+  aiRumbleLicenseAdvisor,
+  aiRumbleAudienceFitAnalyzer,
+  aiRedditDemandSensor,
+  aiRedditSubredditTargeter,
+  aiDiscordCommunityHealthAnalyzer,
+  aiDiscordAlertStrategyAdvisor,
+  aiGmailSponsorshipTriager,
+  aiGmailDeliverabilityAdvisor,
+  aiStripeRevenueHealthAnalyzer,
+  aiStripeSubscriptionRecoveryAdvisor,
+  aiWatermarkIntegrityChecker,
+  aiConnectionHealthScorer,
+  aiContentSyndicationPlanner,
+  aiPlatformComplianceAuditor,
+} from "../ai-engine";
 
 
 const logger = createLogger("ai");
@@ -8759,5 +8788,229 @@ export function registerAiRoutes(app: Express) {
     if (!userId) return;
     try { const result = await aiCTAEnforcementChecker(req.body, userId); res.json(result); }
     catch (e: any) { logger.error("AI cta-enforcer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // TikTok
+  app.post("/api/ai/tiktok-watermark-checker", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTikTokWatermarkChecker(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI tiktok-watermark-checker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/tiktok-completion-rate", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTikTokCompletionRateAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI tiktok-completion-rate error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/tiktok-seo-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTikTokSEOOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI tiktok-seo-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Instagram
+  app.post("/api/ai/instagram-reels-readiness", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiInstagramReelsReadinessChecker(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI instagram-reels-readiness error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/instagram-dm-share-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiInstagramDMShareOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI instagram-dm-share-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/instagram-trial-reel-advisor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiInstagramTrialReelAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI instagram-trial-reel-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Threads
+  app.post("/api/ai/threads-velocity-planner", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiThreadsEngagementVelocityPlanner(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI threads-velocity-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/threads-community-advisor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiThreadsCommunityAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI threads-community-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Twitch
+  app.post("/api/ai/twitch-category-optimizer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTwitchCategoryOptimizer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI twitch-category-optimizer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/twitch-stream-health", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTwitchStreamHealthDiagnostic(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI twitch-stream-health error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/twitch-raid-network", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiTwitchRaidNetworkAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI twitch-raid-network error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Kick
+  app.post("/api/ai/kick-partner-tracker", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiKickPartnerQualificationTracker(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI kick-partner-tracker error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/kick-multistream-strategy", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiKickMultistreamStrategy(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI kick-multistream-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Rumble
+  app.post("/api/ai/rumble-license-advisor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiRumbleLicenseAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI rumble-license-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/rumble-audience-fit", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiRumbleAudienceFitAnalyzer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI rumble-audience-fit error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Reddit
+  app.post("/api/ai/reddit-demand-sensor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiRedditDemandSensor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI reddit-demand-sensor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/reddit-subreddit-targeter", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiRedditSubredditTargeter(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI reddit-subreddit-targeter error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Discord
+  app.post("/api/ai/discord-community-health", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiDiscordCommunityHealthAnalyzer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI discord-community-health error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/discord-alert-strategy", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiDiscordAlertStrategyAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI discord-alert-strategy error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Gmail
+  app.post("/api/ai/gmail-sponsorship-triage", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiGmailSponsorshipTriager(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI gmail-sponsorship-triage error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/gmail-deliverability", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiGmailDeliverabilityAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI gmail-deliverability error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Stripe
+  app.post("/api/ai/stripe-revenue-health", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiStripeRevenueHealthAnalyzer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI stripe-revenue-health error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/stripe-recovery-advisor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiStripeSubscriptionRecoveryAdvisor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI stripe-recovery-advisor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Cross-platform
+  app.post("/api/ai/watermark-integrity", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiWatermarkIntegrityChecker(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI watermark-integrity error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/connection-health-scorer", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiConnectionHealthScorer(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI connection-health-scorer error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/content-syndication-planner", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiContentSyndicationPlanner(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI content-syndication-planner error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  app.post("/api/ai/platform-compliance-auditor", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "AI Content Tools");
+    if (!userId) return;
+    try { const result = await aiPlatformComplianceAuditor(req.body, userId); res.json(result); }
+    catch (e: any) { logger.error("AI platform-compliance-auditor error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Reddit live demand feed
+  app.get("/api/reddit/demand-feed", aiRateLimit, async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "Platform Intelligence");
+    if (!userId) return;
+    try {
+      const { getGamingDemandSignals, extractTopContentIdeas } = await import("../services/reddit-listener");
+      const extra = req.query.subreddits ? String(req.query.subreddits).split(",") : [];
+      const feeds = await getGamingDemandSignals(extra);
+      const ideas = extractTopContentIdeas(feeds);
+      res.json({ feeds: feeds.map(f => ({ subreddit: f.subreddit, postCount: f.posts.length, topPosts: f.posts.slice(0, 5) })), topContentIdeas: ideas.slice(0, 10) });
+    } catch (e: any) { logger.error("Reddit demand-feed error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
+  });
+
+  // Platform fabric health
+  app.get("/api/platform/health", async (req, res) => {
+    const userId = await requireTier(req, res, "pro", "Platform Intelligence");
+    if (!userId) return;
+    try {
+      const { getQuickFabricHealth } = await import("../services/platform-health-scorer");
+      const report = getQuickFabricHealth();
+      res.json(report);
+    } catch (e: any) { logger.error("Platform health error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 }

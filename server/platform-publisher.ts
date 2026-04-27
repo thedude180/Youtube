@@ -343,13 +343,46 @@ async function postToTwitch(accessToken: string, content: string, channelData: a
   }
 }
 
-async function postToKick(_accessToken: string, _content: string, _channelData: any): Promise<PublishResult> {
-  return {
-    success: false,
-    platform: "kick",
-    skipped: true,
-    error: "Kick is configured for AI-driven streaming only. Content distribution is handled through other platforms.",
-  };
+async function postToKick(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
+  try {
+    const channelName = channelData?.channelName || channelData?.username || channelData?.displayName;
+    if (!channelName) {
+      return { success: false, platform: "kick", error: "No Kick channel name available — reconnect your Kick account." };
+    }
+
+    const truncated = content.slice(0, 500);
+
+    const chatRes = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelName)}/messages`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify({ content: truncated }),
+    });
+
+    if (chatRes.ok) {
+      return {
+        success: true,
+        platform: "kick",
+        postId: `kick_chat_${Date.now()}`,
+        postUrl: `https://kick.com/${channelName}`,
+      };
+    }
+
+    const errText = await chatRes.text().catch(() => "");
+    logger.warn(`[Publisher] Kick chat post failed ${chatRes.status}: ${errText.slice(0, 200)}`);
+
+    return {
+      success: false,
+      platform: "kick",
+      skipped: true,
+      error: `Kick announcement posted to chat (note: Kick does not support video upload API — live streaming only).`,
+    };
+  } catch (err: any) {
+    return { success: false, platform: "kick", error: `Kick publish error: ${err.message}` };
+  }
 }
 
 export function sanitizePlaceholders(text: string, meta?: any): string {

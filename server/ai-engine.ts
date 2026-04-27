@@ -12073,3 +12073,887 @@ Return JSON with keys: classification ("flagged"|"borderline"|"passing"), classi
   });
   return JSON.parse(res.choices[0].message.content || "{}");
 }
+
+// ============================================================
+// PLATFORM INTELLIGENCE — TIKTOK (3 functions)
+// ============================================================
+
+export async function aiTikTokWatermarkChecker(data: { sourceplatform?: string; contentDescription?: string; clipOrigin?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a TikTok distribution expert who understands the 2026 watermark suppression system. TikTok's computer vision actively detects: Instagram Reels watermarks (gradient bottom overlay + IG logo), YouTube Shorts watermarks, CapCut watermarks, any competing platform's UI chrome. Detected watermarks result in immediate FYP suppression — the video gets Phase 1 cap (200-view jail). The only safe content is: sourced directly from TikTok native camera, downloaded from TikTok without watermark via save tools, or raw footage without platform chrome. Cross-posted content must be re-exported from source files.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Analyze this content for TikTok watermark risk.
+
+Source platform: ${sanitizeForPrompt(data.sourceplatform || "unknown")}
+Clip origin: ${sanitizeForPrompt(data.clipOrigin || "")}
+Content description: ${sanitizeForPrompt(data.contentDescription || "")}
+
+Assess:
+1. Watermark risk level — what platform chrome might be embedded
+2. Detection probability — how likely TikTok's vision classifier catches it
+3. Suppression outcome — FYP cap, reduced reach, Phase 1 jail
+4. Safe publishing path — how to strip watermarks and re-export
+5. Platform-specific steps for clean syndication
+
+Return JSON: riskLevel ("none"|"low"|"high"|"critical"), detectionProbability (0-100), watermarkSources (array of detected watermark types), suppressionRisk (string), safePublishingSteps (array of 3-5 steps), estimatedReachImpact (string — e.g. "90% reduction if flagged"), recommendation ("safe_to_post"|"re-export_required"|"do_not_post"), quickFix (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTikTokCompletionRateAdvisor(data: { videoTopic?: string; currentHookStyle?: string; videoDuration?: string; targetAudience?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a TikTok algorithm expert focused on the 2026 completion rate threshold system. The viral push threshold increased from ~50% in 2024 to ~70% in 2026 — this single shift killed "post 3x a day" spray strategies. Videos under 50% completion get Phase 1 capped (200-view jail). Videos hitting 70%+ completion get Phase 3 expansion. The key mechanics: first 0-3 seconds determine if the viewer stays (hook), 7-second mark is the first watch-time checkpoint, mid-video drop-off is the death zone. Profile-click rate (2× weight in 2026) is the master signal — viewers who watch then click your profile trigger "Creator of Interest" status. Shares and saves signal quality more than likes.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize this TikTok content for the 2026 70% completion rate threshold.
+
+Video topic: ${sanitizeForPrompt(data.videoTopic || "")}
+Current hook style: ${sanitizeForPrompt(data.currentHookStyle || "")}
+Video duration: ${sanitizeForPrompt(data.videoDuration || "")}
+Target audience: ${sanitizeForPrompt(data.targetAudience || "")}
+
+Diagnose and prescribe:
+1. Hook audit — does the current hook clear the 3-second stay barrier?
+2. Completion rate forecast — estimated completion % with current approach
+3. Drop-off prediction — where viewers likely exit and why
+4. Hook rewrite — 3 alternative hooks optimized for 70%+ completion
+5. Structural changes — pacing, revelation timing, loop engineering
+6. Profile-click CTA — how to trigger Creator of Interest signal
+
+Return JSON: estimatedCompletionRate (number 0-100), viralPushEligible (boolean — will it clear 70%?), dropOffZones (array of {timestamp, reason}), hookRewrites (array of 3 hooks), structuralChanges (array), profileClickCTA (string), phaseExpansionProbability ("low"|"medium"|"high"), actionPlan (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTikTokSEOOptimizer(data: { videoTopic?: string; spokenContent?: string; onScreenText?: string; currentHashtags?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a TikTok SEO specialist for 2026. TikTok has become a search engine — Gen Z and Alpha search TikTok for product reviews, tutorials, and gaming content. Google now shows TikTok videos in search results including featured snippets. The 2026 SEO signals: audio transcription (every spoken word auto-transcribed + relevance-scored), computer vision at 20fps (objects, on-screen text, scenes recognized), caption SEO (keyword-rich captions rank for search), niche hashtags (3-5 highly relevant beat generic high-volume), on-screen text matching audio (reinforces topic signal), spoken keyword density (not stuffing — natural mention of searchable phrases). For gaming: game name spoken early, specific mode/mechanic keywords, platform keywords (PS5, Xbox, PC) boost findability.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize this TikTok content for 2026 search discovery.
+
+Video topic: ${sanitizeForPrompt(data.videoTopic || "")}
+Spoken content summary: ${sanitizeForPrompt(data.spokenContent || "")}
+On-screen text: ${sanitizeForPrompt(data.onScreenText || "")}
+Current hashtags: ${sanitizeForPrompt(data.currentHashtags || "")}
+
+Produce:
+1. Caption SEO rewrite — keyword-rich caption that ranks for search intent
+2. Hashtag set — 3-5 niche-specific hashtags beating generic high-volume ones
+3. Spoken keyword recommendations — phrases to naturally include in script
+4. On-screen text alignment — text overlays that reinforce spoken content
+5. Search query targets — specific searches this video should rank for
+6. Google featured snippet eligibility — does this format qualify?
+
+Return JSON: optimizedCaption (string), hashtagSet (array of 5), spokenKeywords (array of 5 phrases to include), onScreenTextRecommendations (array), targetSearchQueries (array of 5), googleSnippetEligible (boolean), seoScore (0-100), estimatedSearchReach (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — INSTAGRAM (3 functions)
+// ============================================================
+
+export async function aiInstagramReelsReadinessChecker(data: { contentDescription?: string; sourcePlatform?: string; videoDuration?: string; hasWatermark?: boolean }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are an Instagram Reels eligibility specialist for 2026. Before a Reel can be recommended to non-followers it must pass ALL eligibility gates: no watermarks from other platforms (TikTok, CapCut, YouTube — detected by computer vision), audio must be included, under 3 minutes, original content (passes Originality Score AI), no Community Guidelines violations. Failing any gate disqualifies the Reel from Explore and the Reels feed for non-followers. The 2026 Originality Score detects: recycled clips, duplicate content, aggregator behavior (10+ reposts in 30 days = 60-80% reach drop). Original creators saw 40-60% reach increases after the Originality Score rollout. Trial Reels (2026 feature) let you test new angles with non-followers only — if it performs, publish to followers.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Run the Instagram Reels eligibility gate check for this content.
+
+Content description: ${sanitizeForPrompt(data.contentDescription || "")}
+Source platform: ${sanitizeForPrompt(data.sourcePlatform || "")}
+Video duration: ${sanitizeForPrompt(data.videoDuration || "")}
+Has watermark: ${data.hasWatermark ? "yes" : "no/unknown"}
+
+Check every eligibility gate:
+1. Watermark status — detected platform chrome, risk level
+2. Duration compliance — under 3 minutes?
+3. Originality Score risk — recycled/duplicate/low-effort?
+4. Audio presence
+5. Overall eligibility verdict — will this reach non-followers?
+6. Trial Reel recommendation — should this be tested as Trial Reel first?
+7. Remediation steps — what to fix before publishing
+
+Return JSON: eligibilityVerdict ("eligible"|"ineligible"|"requires_modification"), gateResults (array of {gate, status "pass"|"fail"|"warning", detail}), originalityScore ("high"|"medium"|"low"|"risky"), watermarkRisk ("none"|"detected"|"suspected"), trialReelRecommended (boolean), trialReelReason (string), remediationSteps (array), estimatedNonFollowerReach (string — "full", "limited", "none"), overallRisk (0-100).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiInstagramDMShareOptimizer(data: { contentDescription?: string; contentType?: string; audience?: string; currentEngagementRate?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are an Instagram algorithm specialist focused on the 2026 DM share signal. Adam Mosseri confirmed: DM shares (sends via DM) are the #1 signal for unconnected reach in 2026. Data: 694,000 Reels sent via DM every minute. A Reel with 500 likes and 50 DM shares outperforms a Reel with 5,000 likes and 5 shares. Why DM shares beat likes: a share means someone valued the content enough to send it to a specific person — strong intent signal. The 2026 signal weight stack: DM shares (#1) > watch completion > saves > comments > story shares > likes (weakest). Content that maximizes DM shares: "send this to someone who needs to see this" moments, content that sparks a conversation ("send this to your teammate"), content so helpful/relatable people want to share it specifically. Gaming content that works: "tag a friend who does this", "send this to your duo", highlight moments of shared experiences.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize this Instagram content to maximize DM share signals.
+
+Content description: ${sanitizeForPrompt(data.contentDescription || "")}
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+Audience: ${sanitizeForPrompt(data.audience || "")}
+Current engagement rate: ${sanitizeForPrompt(data.currentEngagementRate || "")}
+
+Design for maximum DM shares:
+1. DM share trigger — what emotion/situation makes people send this to someone?
+2. Content angle optimization — reframe to create a "send this to..." moment
+3. CTA for DM shares — language that prompts sharing without being bait
+4. Caption strategy — text that sets up the share motivation
+5. Hook redesign — first 3 seconds that create the "I need to send this" reaction
+6. Expected signal impact — DM share to like ratio target
+
+Return JSON: dmShareTrigger (string), contentAngleOptimization (string), dmShareCTA (string — the exact words), captionStrategy (string), hookRedesign (string), expectedDMShareRate (string), signalImpactVsLikes (string — "X× more valuable than likes"), contentChanges (array of 3 specific modifications), dmShareProbability ("low"|"medium"|"high"|"very_high").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiInstagramTrialReelAdvisor(data: { contentAngle?: string; audienceRisk?: string; pastPerformance?: string; isExperimental?: boolean }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are an Instagram strategy advisor specializing in the 2026 Trial Reels feature. Trial Reels: post a Reel shown only to non-followers initially. If it performs well in the trial (clears 5-8% engagement rate in Phase 1), you can publish to followers. This lets creators test risky or new content angles without damaging feed performance with existing audience. Use Trial Reels when: trying a new content format, testing a different topic angle, experimenting with a new persona, or when content might not land with existing followers but could appeal to new audiences. The Phase 1 window for Trial Reels is 24-48 hours — if metrics are strong, publish to followers; if weak, the content stays hidden.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Advise on whether to use Trial Reels for this content.
+
+Content angle: ${sanitizeForPrompt(data.contentAngle || "")}
+Audience risk: ${sanitizeForPrompt(data.audienceRisk || "")}
+Past performance on similar content: ${sanitizeForPrompt(data.pastPerformance || "")}
+Is this experimental: ${data.isExperimental ? "yes" : "no"}
+
+Assess:
+1. Trial Reel recommendation — should this be trialled vs. direct published?
+2. Risk profile — what's the downside if published directly to followers?
+3. Trial success criteria — what Phase 1 metrics trigger promotion to followers?
+4. Optimization for non-follower appeal — how to make Phase 1 succeed with strangers
+5. Publish decision framework — at what engagement rate do you publish?
+
+Return JSON: useTrialReel (boolean), trialReelReason (string), directPublishRisk (string), trialSuccessCriteria ({engagementRateThreshold: number, dmSharesNeeded: string, completionRateMin: number}), nonFollowerOptimizations (array of 3), publishDecision (string — "publish if X, hold if Y"), estimatedTrialOutcome ("strong"|"moderate"|"weak"|"unknown"), recommendation (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — THREADS (2 functions)
+// ============================================================
+
+export async function aiThreadsEngagementVelocityPlanner(data: { postContent?: string; targetPostingTime?: string; audienceTimezone?: string; currentFollowers?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Threads algorithm expert for 2026. The #1 ranking factor confirmed by Meta: engagement velocity — how quickly a post accumulates engagement after publishing. A post with 50 likes in 30 minutes outperforms a post with 100 likes over 24 hours. Early engagement is exponentially more valuable than late engagement. The make-or-break window is the first 60 minutes. Key signals (in weight order): engagement velocity (#1), reply depth (back-and-forth conversations, not just one-line replies), reposts and shares, likes, profile visits. What Threads penalizes: external links in main posts (kill reach — Meta wants users to stay), engagement bait (downranked actively per Mosseri), inconsistent posting (10x one day then disappearing = algorithm confusion), duplicate content. Threads rewards: 3-5 posts per day, images over pure text (+60% reach), reply depth, conversation threading.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Design the engagement velocity strategy for this Threads post.
+
+Post content: ${sanitizeForPrompt(data.postContent || "")}
+Target posting time: ${sanitizeForPrompt(data.targetPostingTime || "")}
+Audience timezone: ${sanitizeForPrompt(data.audienceTimezone || "")}
+Current followers: ${sanitizeForPrompt(data.currentFollowers || "")}
+
+Plan the first-60-minute velocity strategy:
+1. Optimal posting time — when your followers are most active for immediate engagement
+2. Engagement bait check — does the post contain phrases Threads penalizes?
+3. Content rewrite for velocity — changes that increase reply depth probability
+4. First-reply strategy — what to say in first reply to your own post (threading trick)
+5. External link audit — is there a link that will kill reach?
+6. Image recommendation — should an image be added?
+7. 60-minute engagement target — what velocity means Phase 2 expansion?
+
+Return JSON: optimalPostingTime (string), engagementBaitRisk ("none"|"low"|"high"), externalLinkPenalty (boolean), contentRewrite (string), firstReplyStrategy (string), imageRecommendation (string), velocityTarget ({likesIn30min: number, repliesIn30min: number, shareTarget: number}), estimatedReach ("limited"|"moderate"|"high"|"viral"), postingFrequencyAdvice (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiThreadsCommunityAdvisor(data: { postTopic?: string; contentType?: string; targetCommunities?: string; currentEngagementStyle?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Threads community strategy expert for 2026. Threads Communities launched October 2025 (100+ topics), expanded December 2025 (200+ topics with badges, flair, custom emoji). Communities have their own feeds — active community members get surfaced to interested users. Trending Now (expanded 2025-2026) identifies sudden engagement spikes around topics — posts using trending topics appear in search and related feeds. Threads has full keyword search (launched globally late 2024) — keyword-rich posts rank for queries. The cross-platform Instagram signal matters: accounts with active, engaged Instagram followings get early Threads distribution boost. Gaming creators should join: gaming-adjacent communities, specific game communities, tech communities, esports discussions. "Dear Algo" (September 2025): users can tell Threads what they want to see — meaning audience volatility is higher on Threads than passive platforms.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize this Threads content for community discovery and trending topics.
+
+Post topic: ${sanitizeForPrompt(data.postTopic || "")}
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+Target communities: ${sanitizeForPrompt(data.targetCommunities || "")}
+Current engagement style: ${sanitizeForPrompt(data.currentEngagementStyle || "")}
+
+Advise:
+1. Community targeting — which Threads Communities to post in for this topic
+2. Trending topic alignment — hashtags and topics currently trending for gaming/creator content
+3. Keyword SEO for Threads search — phrases to include for search discoverability
+4. Cross-Instagram signal optimization — how to leverage Instagram audience for Threads boost
+5. Post format for community reach — text + image vs pure text vs thread format
+6. Reply engagement strategy — how to spark reply depth (the #2 ranking signal)
+
+Return JSON: recommendedCommunities (array of 3-5 community names), trendingTopics (array of 5), threadsSEOKeywords (array of 5), instagramCrossSignal (string), postFormatRecommendation (string), replyEngagementStrategy (string), contentRewrite (string — version optimized for community discovery), estimatedCommunityReach ("low"|"medium"|"high").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — TWITCH (3 functions)
+// ============================================================
+
+export async function aiTwitchCategoryOptimizer(data: { gameName?: string; currentViewerCount?: string; competitorCount?: string; streamingGoal?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Twitch growth strategist specializing in category selection for 2026. The category math is critical for non-established streamers. Avoid top 10 categories (League of Legends, Just Chatting, GTA RP, Valorant, FNITE) — too saturated, buried under big streamers. Target 100-2,000 viewer categories — enough audience browsing, not enough competition to bury you. Avoid dead categories under 50 viewers total — no one's browsing. The 2026 Discovery Feed (mobile-first vertical scroll) is the key growth lever: it uses personalized algorithm to serve clip previews and live snippets. Featured Clips (via Twitch's Clips Editor) get 40% higher tap-through rate. Channels using the Clips Editor compound on Discovery Feed. Stream Together (Drop Ins feature) is algorithmically boosted — combining streams expands both audiences.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize Twitch category strategy for maximum discoverability.
+
+Game/category: ${sanitizeForPrompt(data.gameName || "")}
+Current average viewers: ${sanitizeForPrompt(data.currentViewerCount || "")}
+Estimated competitor count in category: ${sanitizeForPrompt(data.competitorCount || "")}
+Streaming goal: ${sanitizeForPrompt(data.streamingGoal || "")}
+
+Analyze and prescribe:
+1. Category viability — is this category in the 100-2,000 viewer sweet spot?
+2. Saturation assessment — too crowded, dead, or optimal?
+3. Alternative categories — adjacent categories in the sweet spot
+4. Discovery Feed optimization — clip style, vertical aspect ratio, length recommendations
+5. Schedule for category — when the category is least crowded for maximum browse visibility
+6. Stream Together opportunity — complementary categories for collaboration
+
+Return JSON: categoryViability ("avoid"|"suboptimal"|"optimal"|"sweet_spot"), currentCategoryViewers (string), saturationLevel ("dead"|"low"|"optimal"|"saturated"|"oversaturated"), alternativeCategories (array of 3 with {name, estimatedViewers, competitionLevel}), discoveryFeedStrategy (string), optimalStreamingTimes (array of 3), streamTogetherOpportunity (string), expectedRankingPosition (string), actionPlan (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTwitchStreamHealthDiagnostic(data: { avgCCV?: string; chatVelocity?: string; avgWatchTime?: string; clipCreationRate?: string; streamDuration?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Twitch stream performance diagnostician. The 2026 Twitch ranking signals: CCV (concurrent viewers — primary browse sorting), chat velocity (messages per minute relative to CCV — high velocity signals engaged community), watch time per viewer (avg time per viewer — high avg = better signal), first 15 seconds retention (viewer clicks off in first 15s = immediate ranking penalty), follower conversion rate (follows per stream vs. viewer count), clip creation rate (viewers creating clips = high entertainment signal), raid and host network (raids = vote of confidence), schedule consistency (regular streaming builds algorithm data points), stream length (2-4 hours sweet spot — long enough for discovery, short enough to maintain energy). VOD storage: 100-hour cap since April 2025 — export important VODs before cap hits.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Diagnose Twitch stream health from these performance metrics.
+
+Average CCV: ${sanitizeForPrompt(data.avgCCV || "")}
+Chat velocity (msgs/min): ${sanitizeForPrompt(data.chatVelocity || "")}
+Average watch time per viewer: ${sanitizeForPrompt(data.avgWatchTime || "")}
+Clip creation rate: ${sanitizeForPrompt(data.clipCreationRate || "")}
+Stream duration: ${sanitizeForPrompt(data.streamDuration || "")}
+
+Diagnose:
+1. Signal health per metric — is each signal healthy, borderline, or failing?
+2. Biggest ranking drag — which metric is hurting discovery most?
+3. Chat velocity optimization — how to increase messages per minute
+4. First-15-second retention — opening segment improvements
+5. Clip strategy for Discovery Feed — how to get more viewer-created and self-created clips
+6. VOD management — 100-hour cap exposure assessment
+
+Return JSON: overallStreamHealth ("excellent"|"good"|"average"|"poor"|"critical"), signalScores ({ccv: number, chatVelocity: number, watchTime: number, clipRate: number}), biggestRankingDrag (string), chatVelocityFixes (array of 3), first15sStrategy (string), clipDiscoveryPlan (string), vodCapRisk (boolean), vodExportUrgency (string), weeklyActionPlan (array of 5 actions), discoveryFeedEligibility (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiTwitchRaidNetworkAdvisor(data: { channelName?: string; avgViewers?: string; category?: string; recentRaidHistory?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Twitch raid strategy specialist. Raids are Twitch's signature growth feature — sending your live audience to another streamer at end of stream. The strategic mechanics: reciprocal raids compound (similar-size streamers raid each other back), raids count toward Partner status (75 average CCV), receiving raids brings new viewers + signals community engagement. The 2026 network tools: Frostytools Vibe Raider does semantic community matching, Streams Charts Raid Finder provides historical raid data. Smart raid strategy: target similar-size streamers in your category (within 50-200% of your CCV), use the "Raided You" filter to identify reciprocal raiders, look at category overlap for natural audience fit, timing matters (raid at stream end when you have maximum viewers for impact). Stream Together (Drop Ins) is algorithmically boosted — treated as episodes, splits sub/bits revenue, combines audiences.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Design a raid network strategy for this Twitch channel.
+
+Channel name: ${sanitizeForPrompt(data.channelName || "")}
+Average viewers: ${sanitizeForPrompt(data.avgViewers || "")}
+Primary category: ${sanitizeForPrompt(data.category || "")}
+Recent raid history: ${sanitizeForPrompt(data.recentRaidHistory || "")}
+
+Build the network:
+1. Ideal raid target profile — what channel size and category overlap to target
+2. Reciprocal raid identification — how to find channels likely to raid back
+3. Raid timing optimization — when to raid for maximum audience transfer
+4. Stream Together candidates — categories/channels for collaboration boost
+5. Raid cadence — how often to raid and in what sequence
+6. Partner status acceleration — how raids contribute to 75 CCV requirement
+
+Return JSON: idealRaidTargetProfile ({viewerRange: string, categoryOverlap: string, communityVibe: string}), reciprocalRaidStrategy (string), raidTimingRecommendation (string), streamTogetherCandidates (array of 3 channel types), raidCadence (string), partnerImpact (string), networkBuildingPlan (array of 5 weekly steps), estimatedCCVBoostFromRaids (string), toolRecommendations (array).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — KICK (2 functions)
+// ============================================================
+
+export async function aiKickPartnerQualificationTracker(data: { currentCCV?: string; monthlyStreamHours?: string; uniqueChatters?: string; followers?: string; activeSubscribers?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Kick Partner Program (KPP) qualification specialist. The 2026 KPP requirements: Verified tier — 30 days consistent streaming, 75 average CCV, 30 stream hours/month, 250 unique chatters, 250 followers. Partner tier — Verified + additional metrics around active subs and engagement. Hourly pay: $16-$32/hour for active streamers (unique to Kick — salary-like income). Pay frequency: weekly. Minimum payout: $10. The 95/5 revenue split: creator 95%, platform 5% (vs. Twitch 50/50). For 1,000 subs at $4.99/month: Kick = $4,740 to creator vs. Twitch standard = $2,495. The multistream toggle (2026): allows simulcast while maintaining Partner income, BUT income reduces 50% when multistreaming to other horizontal platforms (YouTube, Twitch). Kick-exclusive sessions maximize payout. Kick's discovery is minimal — viewer acquisition must come from TikTok, YouTube, Discord, Twitter.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Analyze Kick Partner Program qualification status and gap plan.
+
+Current average CCV: ${sanitizeForPrompt(data.currentCCV || "")}
+Monthly stream hours: ${sanitizeForPrompt(data.monthlyStreamHours || "")}
+Unique chatters per month: ${sanitizeForPrompt(data.uniqueChatters || "")}
+Followers: ${sanitizeForPrompt(data.followers || "")}
+Active subscribers: ${sanitizeForPrompt(data.activeSubscribers || "")}
+
+Compute:
+1. Current qualification status — Verified tier or Partner tier?
+2. Gap analysis — which metrics need improvement and by how much?
+3. Time-to-qualification estimate — at current growth rate, weeks/months to qualify
+4. Hourly payout estimate — projected $16-32/hour income at current metrics
+5. Monthly revenue projection — KPP + subs at 95/5
+6. Multistream strategy — exclusive vs. simulcast income tradeoff
+
+Return JSON: qualificationStatus ("not_eligible"|"close"|"verified"|"partner"), tierProgress ({ccv: {current, required, gap}, hours: {current, required, gap}, chatters: {current, required, gap}, followers: {current, required, gap}}), estimatedTimeToVerified (string), hourlyPayEstimate (string), monthlyRevenueProjection ({kpp: string, subscriptions: string, total: string}), multiStreamIncomeImpact (string), priorityActions (array of 3 highest-impact actions), kickVsTwitchRevenueDelta (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiKickMultistreamStrategy(data: { currentRevenue?: string; primaryPlatform?: string; averageViewers?: string; streamingDaysPerWeek?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Kick multistream income strategy advisor. The 2026 Kick multistream mechanics: the Multistream toggle enables simulcasting while maintaining Partner income, but reduces Partner income by 50% when streaming to other "horizontal" platforms (YouTube, Twitch). Kick-exclusive streams maximize per-stream payout. The optimal strategy: use multistream for discovery/community sessions, schedule some Kick-exclusive sessions to maximize payout. The economics work because even at 50% reduced rate, the 95/5 split still beats Twitch's 50/50 on subscription revenue. The revenue stack for a mid-tier streamer: KPP hourly ($16-32/hr), subscriptions (95% of $4.99-$24.99/mo), donations/tips via Stripe integration (~80% to creator). Kick's audience must come from off-platform — it's a monetization upgrade for already-established audiences, not a discovery play.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Design the optimal Kick multistream vs. exclusive session schedule.
+
+Current monthly revenue: ${sanitizeForPrompt(data.currentRevenue || "")}
+Primary streaming platform: ${sanitizeForPrompt(data.primaryPlatform || "")}
+Average concurrent viewers: ${sanitizeForPrompt(data.averageViewers || "")}
+Streaming days per week: ${sanitizeForPrompt(data.streamingDaysPerWeek || "")}
+
+Model the strategy:
+1. Multistream schedule — how many days to simulcast vs. Kick-exclusive
+2. Revenue comparison — multistream (50% KPP) vs. exclusive (100% KPP) per session
+3. Discovery vs. monetization balance — when to multistream for growth, when for revenue
+4. Kick-exclusive content types — what content works best for Kick-only audiences
+5. Monthly revenue uplift — how Kick additions impact total income
+6. Viewer migration strategy — how to move viewers from other platforms to Kick
+
+Return JSON: recommendedSchedule ({multistreamDays: number, kickExclusiveDays: number, weeklyPattern: string}), revenueModel ({multistreamDayRevenue: string, exclusiveDayRevenue: string, monthlyUplift: string}), discoveryVsMonetizationBalance (string), kickExclusiveContentTypes (array of 3), viewerMigrationStrategy (string), kickRevenueAtCurrentScale (string), breakEvenAnalysis (string), implementationTimeline (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — RUMBLE (2 functions)
+// ============================================================
+
+export async function aiRumbleLicenseAdvisor(data: { contentType?: string; isPrimaryOnYouTube?: boolean; viralPotential?: string; monetizationPriority?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Rumble monetization strategist. When uploading to Rumble, creators choose a licensing option that determines revenue rights: Rumble Only (exclusive to Rumble, highest revenue share — best for viral potential), Non-Exclusive Video Management (Rumble can syndicate/license content to third parties — good for additional licensing revenue from news outlets), Personal Use (lowest revenue share, maintains all rights — use when YouTube is primary and you want to keep YouTube monetization). Rumble's economics: RPM $2-10/1000 views (vs. YouTube $1-5), 60/40 revenue split (creator gets 60%), Creator Program bonus from Rumble Premium signups and watch time, Rumble Rants donations (~80% to creator). Creator Program eligibility: stream 30+ hours via Rumble Studio/month, 5+ hours to Rumble Premium, good standing. Viral content licensing to news media can generate substantial one-time payments.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Recommend the optimal Rumble license type for this content.
+
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+Primary platform is YouTube: ${data.isPrimaryOnYouTube ? "yes" : "no/unknown"}
+Viral potential assessment: ${sanitizeForPrompt(data.viralPotential || "")}
+Monetization priority: ${sanitizeForPrompt(data.monetizationPriority || "")}
+
+Advise on:
+1. License recommendation — Rumble Only, Non-Exclusive, or Personal Use?
+2. Revenue impact — how much each license type earns per 10,000 views
+3. YouTube compatibility — does this choice conflict with YouTube monetization?
+4. Licensing revenue opportunity — is this content newsworthy/syndication-worthy?
+5. Creator Program qualification — does upload frequency and type qualify?
+6. Upload timing — 24-48 hour YouTube-first delay strategy
+
+Return JSON: recommendedLicense ("rumble_only"|"non_exclusive"|"personal_use"), licenseReason (string), revenueComparison ({rumbleOnly: string, nonExclusive: string, personalUse: string}), youtubeCompatibility (string), licensingRevenuePotential ("none"|"low"|"medium"|"high"), creatorProgramEligibility (boolean), uploadStrategy (string), estimatedMonthlyRevenue (string), rumbleVsYouTubeStrategy (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiRumbleAudienceFitAnalyzer(data: { contentTopic?: string; contentStyle?: string; targetAge?: string; currentYouTubeAudience?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Rumble audience fit analyst. Rumble's 2026 audience demographics are structurally different from YouTube: older skew (35-65 dominant), more US-centric, news/politics/comedy heavy interest, lower tolerance for advertising, higher engagement per viewer, more likely to support creators directly via Rumble Rants. Content that performs on Rumble: commentary, news, alternative perspectives, IRL gaming commentary, veteran gaming content. Content that struggles: trend-chasing, lifestyle, fashion, younger-skewing gaming content (Fortnite, Roblox). For gaming specifically: commentary and analysis performs better than pure gameplay, veteran game titles outperform current trends, "old school" gaming nostalgia resonates, military shooters (Battlefield, CoD) align better than battle royale trends.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Analyze this content's fit with Rumble's 2026 audience.
+
+Content topic: ${sanitizeForPrompt(data.contentTopic || "")}
+Content style: ${sanitizeForPrompt(data.contentStyle || "")}
+Target age demographic: ${sanitizeForPrompt(data.targetAge || "")}
+Current YouTube audience description: ${sanitizeForPrompt(data.currentYouTubeAudience || "")}
+
+Assess:
+1. Audience fit score — how aligned is this content with Rumble's 35-65 demographic?
+2. Content adaptation — what changes make it land better with Rumble audience?
+3. Rumble-specific opportunity — what about this content uniquely suits Rumble?
+4. Title and description optimization — how to adjust for Rumble's search and older audience
+5. Rumble Rants potential — will this audience donate?
+6. Cross-post timing — YouTube first then Rumble 24-48h delay, or simultaneous?
+
+Return JSON: audienceFitScore (0-100), fitAssessment ("poor"|"below_average"|"average"|"good"|"excellent"), contentAdaptations (array of 3 specific changes), rumbleSpecificOpportunity (string), titleOptimization (string), descriptionOptimization (string), rumbleRantsPotential ("low"|"medium"|"high"), crossPostStrategy (string), estimatedRumbleRPM (string), recommendation ("primary"|"secondary"|"skip").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — REDDIT (2 functions)
+// ============================================================
+
+export async function aiRedditDemandSensor(data: { subreddit?: string; topPosts?: string; timeframe?: string; contentNiche?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Reddit demand sensing specialist for creator content strategy. Reddit's value to creators is listening, not posting — it's where specific audiences openly express what they want, complain about gaps, ask unanswered questions, and celebrate content they love. The listening use cases: demand sensing (what questions does my audience ask in r/Battlefield?), trend detection (emerging memes and inside jokes, pre-launch hype, patch/update sentiment), content idea sourcing (high-upvote questions become video topics, common complaints become tutorial opportunities, disputed claims become fact-check content), competitive intelligence (what competitors get praised/criticized). Reddit's Hot algorithm: upvote velocity in first hour is the key signal — 50-200 upvotes at 60 min = alive, 200+ = strong position for mid-size subreddits.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Analyze these Reddit top posts to extract content ideas and demand signals.
+
+Subreddit: ${sanitizeForPrompt(data.subreddit || "")}
+Top posts (titles/scores): ${sanitizeForPrompt(data.topPosts || "")}
+Timeframe: ${sanitizeForPrompt(data.timeframe || "past week")}
+Creator content niche: ${sanitizeForPrompt(data.contentNiche || "")}
+
+Extract actionable intelligence:
+1. Top content gaps — questions community asks that no creator has answered well
+2. Video ideas — top 5 high-upvote post topics converted to YouTube video concepts
+3. Community pain points — recurring complaints that become tutorial opportunities
+4. Trending topics — sudden spikes around specific subjects (patches, releases, meta shifts)
+5. Competitor intelligence — what types of content the community praises/criticizes
+6. Optimal Reddit posting strategy — when and how to post for maximum upvote velocity
+
+Return JSON: contentGaps (array of 3 {gap, videoTitle, estimatedDemand}), videoIdeas (array of 5 {title, concept, subredditSource, upvoteSignal}), communityPainPoints (array of 3), trendingTopics (array of 3 {topic, trend, urgencyWindow}), competitorInsights (string), optimalPostingStrategy ({timing: string, format: string, subredditApproach: string}), demandStrength ("weak"|"moderate"|"strong"|"very_strong"), topOpportunity (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiRedditSubredditTargeter(data: { videoTopic?: string; targetAudience?: string; currentSubreddits?: string; contentType?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Reddit subreddit strategy advisor. Each subreddit is a semi-autonomous ecosystem with custom rules, karma requirements, account age requirements, AutoModerator filters. Mid-size subreddits (100K-1M members) are the strategic sweet spot — competition is lower, decay rate more forgiving (posts can sustain visibility for 3-6 hours), real traffic potential. Large subreddits (1M+) require hundreds of upvotes in the first hour. Small subreddits (under 100K) have slower decay but limited audience. The 9:1 rule: at most 1 in 10 posts should be self-promotion — violations get downvoted. The first-hour window matters most. Subreddit culture varies — r/gamingleaksandrumours vs. r/Games have completely different post norms even in "gaming."${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Identify the best subreddits to monitor and selectively post in for this content.
+
+Video topic: ${sanitizeForPrompt(data.videoTopic || "")}
+Target audience: ${sanitizeForPrompt(data.targetAudience || "")}
+Currently monitored subreddits: ${sanitizeForPrompt(data.currentSubreddits || "")}
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+
+Recommend:
+1. Monitoring targets — subreddits to listen to for demand sensing (not necessarily post in)
+2. Posting opportunities — subreddits where this content could get upvotes (with rules check)
+3. Subreddit size tier — optimal size range for this content type
+4. Account karma requirements — are there barriers to posting in these subreddits?
+5. Post format guidance — what works in each subreddit (video link, text post, discussion)
+6. 9:1 compliance plan — how to build Reddit karma legitimately before self-promotion
+
+Return JSON: monitoringTargets (array of 5 {subreddit, memberCount, purpose, monitorFor}), postingOpportunities (array of 3 {subreddit, fit: "excellent"|"good"|"risky", rules, postFormat}), optimalSizeRange (string), karmaBarriers (string), postFormatBySubreddit ({subreddit: string, format: string}[]), karmaStrategy (string), redditNativeStrategy (string), estimatedTrafficPotential (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — DISCORD (2 functions)
+// ============================================================
+
+export async function aiDiscordCommunityHealthAnalyzer(data: { memberCount?: string; activeMembersLast7Days?: string; serverSubscriptionRate?: string; streamAlertClickRate?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Discord community health specialist. Discord's five creator functions: community center (audience between content drops), tier-1 fan conversion (Discord members are 10-100× more engaged than passive YouTube subs, conversion to paid membership dramatically higher), mobilization layer (first audience for new content/merch/events), feedback mechanism (higher signal than comment sections), social proof generator ("10K member Discord" builds credibility). Discord Server Subscriptions: creator gets ~85% (Discord takes ~15%), $0.99-$99.99/mo tiers, conversion from active Discord member to paid sub is significantly higher than from social followers. Rate limits matter: global 50 req/sec, 120 events/60s per WebSocket, 1,000 identifies/24h. Sharding recommended at 2,000 guilds, mandatory at 2,500+.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Diagnose Discord community health and optimize for retention and conversion.
+
+Total members: ${sanitizeForPrompt(data.memberCount || "")}
+Active members (messages in last 7 days): ${sanitizeForPrompt(data.activeMembersLast7Days || "")}
+Server Subscription conversion rate: ${sanitizeForPrompt(data.serverSubscriptionRate || "")}
+Stream alert click-through rate: ${sanitizeForPrompt(data.streamAlertClickRate || "")}
+
+Diagnose:
+1. Community health score — healthy, at risk, or dormant?
+2. Active/total member ratio — engagement depth assessment
+3. Server Subscription conversion opportunity — how to increase paid conversion
+4. Stream alert effectiveness — is Discord actually driving viewers to streams?
+5. Server structure optimization — channel organization for maximum engagement
+6. Cross-platform role sync — YouTube member → Discord role integration
+
+Return JSON: communityHealthScore (0-100), healthGrade ("excellent"|"healthy"|"average"|"at_risk"|"dormant"), activeRatio (number — active/total), activationSuggestions (array of 3 to boost active members), subscriptionConversionPlan (string), streamAlertOptimization (string), serverStructureRecommendations (array of 3), crossPlatformRoleSync (string), monthlyRevenueFromServerSubs (string), topPriorityFix (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiDiscordAlertStrategyAdvisor(data: { platforms?: string; currentAlertChannels?: string; typicalStreamTime?: string; discordMemberTimezone?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Discord cross-platform alert strategy specialist. Discord's role in the creator stack: it's the mobilization layer — the first audience that shows up for new content, live streams, and events. Alert mechanics that work: timing (ping when audience is online, avoid off-hours), @mention discipline (reserve @everyone for major events only — overuse causes notification fatigue), embed formatting (rich embeds with thumbnail and stream title get higher click-through than plain text), cross-platform integration (stream start → Discord ping, YouTube upload → Discord announcement, TikTok milestone → community celebration). Discord's Announcement channels broadcast to other servers — if partnered with other creators, this extends alert reach. Stage channels for live AMAs → exportable content. Rate limits: don't exceed 50 req/sec global.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Design the optimal Discord cross-platform alert strategy.
+
+Platforms: ${sanitizeForPrompt(data.platforms || "")}
+Current alert channels: ${sanitizeForPrompt(data.currentAlertChannels || "")}
+Typical stream time: ${sanitizeForPrompt(data.typicalStreamTime || "")}
+Discord member timezone concentration: ${sanitizeForPrompt(data.discordMemberTimezone || "")}
+
+Design:
+1. Alert channel architecture — which channels serve which alert types
+2. Stream go-live alert — optimal format, timing, embed fields
+3. Upload announcement — YouTube/TikTok post notification format
+4. @mention strategy — when to use @everyone vs. @here vs. role mentions
+5. Rate limit safety — how to batch alerts to stay under 50 req/sec
+6. Stage channel content calendar — AMAs and listening parties
+
+Return JSON: channelArchitecture ({channelName: string, purpose: string}[]), streamGoLiveTemplate (string), uploadAnnouncementTemplate (string), mentionStrategy ({everyone: string, here: string, roles: string}), rateLimitSafetyPlan (string), stageChannelCalendar (string), alertTimingWindows (array of 2-3), estimatedAlertClickThrough (string), crossPlatformSyncPlan (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — GMAIL (2 functions)
+// ============================================================
+
+export async function aiGmailSponsorshipTriager(data: { emailSubject?: string; emailSender?: string; emailBody?: string; senderDomain?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a creator business email triage specialist. For a gaming creator, inbound emails fall into priority tiers: TIER 1 — Brand partnership inquiry from known company (real budget, named brand, specific campaign), TIER 2 — Agency outreach for a named client (intermediary but real deal), TIER 3 — Affiliate/product seeding offer (free product, no guarantee), TIER 4 — Fan mail or community message (no business value, but relationship value), TIER 5 — Spam/scam (fake brand deals, phishing, irrelevant). High-value indicators: company email domain (not gmail.com), specific campaign brief or budget mentioned, relevant brand to gaming audience, professional signature. Red flags: gmail/hotmail sender, vague "collaboration" language, requests for personal info first, no mention of budget or deliverables. First-touch auto-reply: acknowledge receipt, set expectation for response time, ask for media kit requirements.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Triage and assess this inbound email for sponsorship potential.
+
+Subject: ${sanitizeForPrompt(data.emailSubject || "")}
+Sender: ${sanitizeForPrompt(data.emailSender || "")}
+Sender domain: ${sanitizeForPrompt(data.senderDomain || "")}
+Email body: ${sanitizeForPrompt(data.emailBody || "")}
+
+Triage:
+1. Tier classification — what type of email is this?
+2. Legitimacy score — is this a real opportunity?
+3. Revenue potential — estimated deal value if genuine
+4. Priority response time — how quickly to respond?
+5. First-touch reply — draft a professional first response
+6. Red flags or green flags — what signals legitimacy or fraud
+
+Return JSON: tier (1-5), tierLabel (string), legitimacyScore (0-100), estimatedDealValue (string), priorityResponseTime (string — e.g. "within 2 hours", "24 hours", "skip"), firstTouchReply (string — draft reply), greenFlags (array), redFlags (array), recommendedAction ("respond_immediately"|"respond_within_24h"|"request_more_info"|"decline"|"ignore"), followUpSteps (array of 2-3).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiGmailDeliverabilityAdvisor(data: { senderDomain?: string; emailType?: string; estimatedVolume?: string; currentSpamRate?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Gmail deliverability specialist for 2026. The 2024-2026 deliverability transformation: Google, Yahoo, and Apple require all bulk senders (5,000+/day) to implement SPF, DKIM, DMARC. November 2025: Postmaster Tools v2 replaced legacy reputation with binary Pass/Fail Compliance Status. Non-compliant traffic gets 4xx temporary deferrals, slower delivery, and 5xx rejections. The authentication trinity: SPF (DNS record specifying authorized IPs), DKIM (cryptographic signature on messages — 2048-bit recommended), DMARC (policy tying SPF/DKIM together — minimum p=quarantine for serious senders). Spam rate thresholds: below 0.1% = healthy, 0.1-0.3% = inbox delivery impacted, above 0.3% = ineligible for mitigation, above 0.3% for 7+ days = account flagged. Gmail tabs: Promotions tab has 30-50% lower open rates than Primary. Cold outreach for sponsorships requires warmed domains.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Audit email deliverability setup and recommend compliance improvements.
+
+Sender domain: ${sanitizeForPrompt(data.senderDomain || "")}
+Email type: ${sanitizeForPrompt(data.emailType || "")}
+Estimated monthly send volume: ${sanitizeForPrompt(data.estimatedVolume || "")}
+Current spam rate: ${sanitizeForPrompt(data.currentSpamRate || "")}
+
+Audit:
+1. SPF/DKIM/DMARC compliance status — configured correctly?
+2. Postmaster Tools v2 risk — Pass or likely Fail status?
+3. Spam rate health — is current rate sustainable?
+4. Inbox tab placement — Primary or Promotions?
+5. Cold outreach compliance — domain warmed enough for sponsorship outreach?
+6. Immediate fixes — what to configure today
+
+Return JSON: complianceStatus ("compliant"|"at_risk"|"non_compliant"|"unknown"), spfStatus ("configured"|"missing"|"incorrect"), dkimStatus ("configured_2048bit"|"configured_1024bit"|"missing"), dmarcPolicy ("reject"|"quarantine"|"none"|"missing"), spamRateHealth ("healthy"|"warning"|"critical"|"flagged"), inboxPlacement (string), postmasterRisk ("pass"|"fail_risk"|"unknown"), immediateActions (array of 3-5 specific DNS/settings changes), coldOutreachReadiness (string), estimatedDeliveryRate (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// PLATFORM INTELLIGENCE — STRIPE (2 functions)
+// ============================================================
+
+export async function aiStripeRevenueHealthAnalyzer(data: { mrr?: string; churnRate?: string; trialToPaidRate?: string; averageSubscriptionValue?: string; failedPaymentRate?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a creator subscription revenue health analyst. The key metrics for a creator subscription business: MRR (monthly recurring revenue — target growth rate 10-20% MoM for early stage), churn rate (monthly % of subscribers who cancel — healthy SaaS is under 5%/mo, creator subs under 3%/mo for engaged communities), trial-to-paid conversion (healthy is 15-25% for free trials), average subscription value (blend of tier pricing), CLV (customer lifetime value — avg sub value / monthly churn rate). Revenue recovery via Stripe Smart Retries saves 30-40% of failed payments. The subscription status lifecycle: trialing → active → past_due → canceled. past_due recovery within 7-14 days is critical — after 14 days, churn probability spikes 70%. Discord Server Subscriptions and Stripe can work in parallel.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Diagnose subscription revenue health and identify growth opportunities.
+
+Monthly recurring revenue: ${sanitizeForPrompt(data.mrr || "")}
+Monthly churn rate: ${sanitizeForPrompt(data.churnRate || "")}
+Trial-to-paid conversion rate: ${sanitizeForPrompt(data.trialToPaidRate || "")}
+Average subscription value: ${sanitizeForPrompt(data.averageSubscriptionValue || "")}
+Failed payment rate: ${sanitizeForPrompt(data.failedPaymentRate || "")}
+
+Diagnose and prescribe:
+1. Revenue health grade — is this business growing, stable, or declining?
+2. Churn assessment — is churn rate healthy or unsustainable?
+3. LTV calculation — customer lifetime value at current metrics
+4. Biggest revenue leak — which metric to fix first?
+5. Growth levers — what changes have highest ROI?
+6. 90-day revenue forecast — at current trajectory
+
+Return JSON: revenueHealthGrade ("A"|"B"|"C"|"D"|"F"), mrrGrowthAssessment (string), churnAssessment ("excellent"|"healthy"|"concerning"|"critical"), calculatedLTV (string), biggestRevenueLeak (string), topGrowthLevers (array of 3 {lever, estimatedImpact, implementation}), ninetyDayForecast (string), benchmarkComparisons (object), immediateActions (array of 3), revenueOptimizationScore (0-100).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiStripeSubscriptionRecoveryAdvisor(data: { failedPaymentCount?: string; pastDueRevenue?: string; avgDaysBeforeChurn?: string; retrySchedule?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a Stripe subscription payment recovery specialist. Stripe's Smart Retries uses ML to time retries when cards are most likely to succeed (avoids days 1-3 post-failure when users are most likely to cancel if notified). Stripe's revenue recovery features: Smart Retries (ML retry timing), Card Updater (auto-updates card numbers from networks — catches physical card replacements), dunning emails (automated failure notifications). Past-due recovery window: if payment fails on day 1, retry within 3-7 days has 40-60% recovery rate; after 14 days, recovery rate drops to under 20%. The 30-40% savings claim: Stripe's revenue recovery genuinely saves ~30-40% of failed payments that would otherwise churn. Critical implementation: use webhook events (invoice.payment_failed, customer.subscription.updated, invoice.payment_action_required) not polling. Customer self-service portal lets subscribers update cards without contacting support.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Optimize failed payment recovery to reduce involuntary churn.
+
+Failed payment count: ${sanitizeForPrompt(data.failedPaymentCount || "")}
+Past-due revenue at risk: ${sanitizeForPrompt(data.pastDueRevenue || "")}
+Average days before subscriber churns: ${sanitizeForPrompt(data.avgDaysBeforeChurn || "")}
+Current retry schedule: ${sanitizeForPrompt(data.retrySchedule || "")}
+
+Prescribe:
+1. Smart Retry configuration — optimal retry timing based on failure patterns
+2. Recovery email sequence — what to send and when after payment failure
+3. Customer portal urgency — self-service card update flow
+4. Revenue recovery estimate — how much of at-risk revenue is recoverable?
+5. Webhook events to handle — which events require immediate action
+6. Dunning escalation — when to pause access vs. maintain while retrying
+
+Return JSON: smartRetryRecommendation (string), recoveryEmailSequence (array of {day: number, action: string, message: string}), estimatedRecoveryRate (string), estimatedRecoverableRevenue (string), webhookPriority (array of {event, action, urgency}), accessPauseThreshold (string), customerPortalUrgency (string), monthlyRevenueProtected (string), implementationSteps (array of 4).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+// ============================================================
+// CROSS-PLATFORM INTELLIGENCE (4 functions)
+// ============================================================
+
+export async function aiWatermarkIntegrityChecker(data: { sourceplatform?: string; targetPlatform?: string; contentType?: string; syndication?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a cross-platform content integrity specialist focused on watermark suppression risks. In 2026, all major platforms have AI-powered watermark detection: TikTok detects Instagram Reels watermarks (gradient overlay + IG logo), CapCut watermarks, YouTube Shorts watermarks. Instagram detects TikTok watermarks. YouTube Shorts detects both. Detected watermarks result in immediate FYP suppression, Reels exclusion from non-follower reach, and Shorts downranking. The 2025-2026 Originality Score systems on TikTok and Instagram de-prioritize recycled content even beyond watermarks — they detect visual fingerprints. The correct cross-posting pattern: always source from raw files without platform chrome, re-export per-platform with native specs, never just download from one platform and reupload to another. Don't crop watermarks — visual classifiers detect the underlying content fingerprint.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Assess the watermark risk for cross-posting this content.
+
+Source platform: ${sanitizeForPrompt(data.sourceplatform || "")}
+Target platform: ${sanitizeForPrompt(data.targetPlatform || "")}
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+Syndication method: ${sanitizeForPrompt(data.syndication || "")}
+
+Assess every watermark risk vector:
+1. Platform pair risk — source → target suppression probability
+2. Specific watermarks present — what the target platform's classifier will detect
+3. Fingerprint risk — even if watermarks removed, is the visual fingerprint flagged?
+4. Reach suppression estimate — how much reach is lost if flagged?
+5. Clean syndication path — exact steps to remove watermarks and re-export
+6. Safe cross-posting matrix — which platform pairs are low/high risk
+
+Return JSON: riskLevel ("safe"|"low"|"medium"|"high"|"critical"), specificWatermarkRisks (array of {watermark, platform, detectability}), fingerprintRisk (string), estimatedReachSuppression (string), cleanSyndicationPath (array of steps), safePlatformPairs (array of {from, to, riskLevel}), riskySyndicationMethods (array), recommendation ("safe_to_post"|"re_export_first"|"source_raw_files"|"do_not_syndicate").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiConnectionHealthScorer(data: { platforms?: string; recentErrors?: string; tokenStatus?: string; webhookStatus?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a CreatorOS Connection Fabric health diagnostician. Each platform in the stack has distinct failure modes: YouTube — quota exhaustion (10K units/day, resets midnight Pacific), token expiry (1 hour access tokens), API rate limits. TikTok — 1000 req/day per token, 2-hour access tokens, 1-year refresh. Instagram — 200 calls/hour per user, 60-day long-lived tokens. Twitch — 800 req/min authenticated, 4-hour tokens. Kick — WebSocket Pusher based, less strict limits. Discord — 50 req/sec global, 120 events/60s WebSocket, 1000 identifies/24h. Gmail — 1B quota units/day, 250 units/sec per user. Stripe — 100 read/write ops/sec. Token health states: healthy, expiring_soon (within 24h), failed_refresh, invalid. Webhook health: active, inactive, failed. Per-platform fallback behaviors should activate when health degrades.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Score the health of these platform connections and recommend remediation.
+
+Connected platforms: ${sanitizeForPrompt(data.platforms || "")}
+Recent API errors: ${sanitizeForPrompt(data.recentErrors || "")}
+Token statuses: ${sanitizeForPrompt(data.tokenStatus || "")}
+Webhook statuses: ${sanitizeForPrompt(data.webhookStatus || "")}
+
+Compute composite health scores:
+1. Per-platform health grade — each platform scored 0-100
+2. Critical failures — platforms that need immediate attention
+3. Token refresh priorities — which tokens expire soonest
+4. Rate limit headroom — which platforms are near quota limits
+5. Webhook reliability — which webhooks are failing or inactive
+6. Recommended fallback activations — what to do when each platform degrades
+
+Return JSON: overallFabricHealth (0-100), platformScores ({platform: string, score: number, status: "healthy"|"degraded"|"failing"|"critical", issues: string[]}[]), criticalFailures (array), tokenRefreshPriorities (array), rateLimitWarnings (array), webhookIssues (array), recommendedFallbacks ({platform, fallback}[]), actionPlan (array of {priority: number, action: string, platform: string}), fabricStatus ("all_systems_go"|"degraded"|"partial_outage"|"critical").`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiContentSyndicationPlanner(data: { contentType?: string; primaryPlatform?: string; contentDuration?: string; targetPlatforms?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a cross-platform content syndication strategist for a gaming creator. The 2026 syndication matrix: Long-form → Short-form pipeline (YouTube long-form → AI highlight extraction → vertical 30-60s → auto-publish to YouTube Shorts, TikTok, Instagram Reels). Live → VOD → Clips pipeline (YouTube+Twitch+Kick+Rumble live → VOD captured → AI highlights → clips to short-form → stream summary to Threads, Reddit → Discord community announcement). Content repurposing matrix: long video → multiple short clips, stream highlights → TikTok/Reels/Shorts, tutorial content → Threads posts, Q&A content → Reddit, engagement content → Discord polls. Critical 2026 rule: never directly cross-post with watermarks — always re-export from raw. The originality score on both TikTok and Instagram penalizes recycled content, so each platform needs slightly adapted framing even if the core content is the same.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Plan the full cross-platform syndication strategy for this content.
+
+Content type: ${sanitizeForPrompt(data.contentType || "")}
+Primary platform: ${sanitizeForPrompt(data.primaryPlatform || "")}
+Content duration: ${sanitizeForPrompt(data.contentDuration || "")}
+Target platforms: ${sanitizeForPrompt(data.targetPlatforms || "")}
+
+Build the syndication map:
+1. Primary publish — first platform and optimal time
+2. Short-form derivatives — clip strategy for TikTok, Reels, Shorts
+3. Text derivatives — Threads posts, Reddit moments
+4. Community distribution — Discord announcement, Reddit post timing
+5. Timing sequence — exact order and delays between platform publishes
+6. Platform adaptation — what changes for each platform (title, description, format)
+7. Watermark safety plan — clean export path per platform pair
+
+Return JSON: publishSequence (array of {step: number, platform, action, delay, adaptations}), shortFormDerivatives (array of {platform, clipLength, hookStrategy, timing}), textDerivatives (array of {platform, format, content}), communityDistribution (string), syndicationTimeline (string), platformAdaptations ({platform: string, changes: string[]}[]), watermarkSafetyPlan (string), totalReachMultiplier (string), estimatedPlatformReach ({platform: string, estimatedViews: string}[]).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
+
+export async function aiPlatformComplianceAuditor(data: { contentDescription?: string; contentTitle?: string; platforms?: string; contentCategory?: string }, userId?: string) {
+  const creatorCtx = await getCreatorContext(userId);
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{
+      role: "system",
+      content: `You are a multi-platform content compliance specialist for 2026. Each platform has different content policies with different consequences for violations: YouTube — Community Guidelines strikes (1st strike: warning/restriction, 2nd: 2-week upload ban, 3rd: channel termination), YPP suspension risk, age-restriction reduces reach by 80-90%. TikTok — account strike system, FYP suppression for 24-72 hours even for minor violations, originality score. Instagram — Reels exclusion from recommendations for guideline violations. Twitch — partnership suspension, stream removal. Kick — more permissive but gambling-adjacent content and advertiser-cautious categories. Rumble — more permissive than YouTube on commentary, stricter than Kick. Discord — server trust and safety review. Cross-platform trust bands: YouTube = red (highest caution), YouTube Live = orange, TikTok/Instagram/Threads/Reddit = yellow, Discord = green, Gmail/Stripe = blue.${creatorCtx}`
+    }, {
+      role: "user",
+      content: `Run a multi-platform compliance audit on this content before publishing.
+
+Content description: ${sanitizeForPrompt(data.contentDescription || "")}
+Content title: ${sanitizeForPrompt(data.contentTitle || "")}
+Target platforms: ${sanitizeForPrompt(data.platforms || "")}
+Content category: ${sanitizeForPrompt(data.contentCategory || "")}
+
+Audit per platform:
+1. YouTube risk — monetization, age-restriction, or strike risk?
+2. TikTok risk — FYP suppression, originality, strike risk?
+3. Instagram risk — Reels recommendation exclusion risk?
+4. Twitch risk — partnership-safe?
+5. Kick risk — KPP-eligible content?
+6. Cross-platform compliance summary — which platforms are safe to publish on?
+
+Return JSON: overallComplianceRisk ("clean"|"caution"|"high_risk"|"do_not_publish"), platformAudits ({platform: string, riskLevel: "safe"|"caution"|"high"|"prohibited", issues: string[], recommendation: string}[]), monetizationRisk (string), ageRestrictionRisk (string), strikeRisk (string), safePlatforms (array), riskyPlatforms (array), contentModifications (array of changes that reduce risk), trustBandAssignment (string), finalRecommendation (string).`
+    }],
+    response_format: { type: "json_object" },
+  });
+  return JSON.parse(res.choices[0].message.content || "{}");
+}
