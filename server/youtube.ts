@@ -2,6 +2,9 @@ import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
 import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
+import { db } from "./db";
+import { users as usersTable } from "@shared/models/auth";
+import { eq } from "drizzle-orm";
 
 const ytLogger = createLogger("youtube");
 
@@ -114,6 +117,21 @@ export async function handleCallback(code: string, userId: string) {
 
   if (existingShortsChannel) {
     await storage.updateChannel(existingShortsChannel.id, tokenFields);
+  }
+
+  // Always sync the fresh token back to the users table backup immediately.
+  // This ensures syncChannelTokens on restart can always restore from a valid token,
+  // preventing the "lost connection" cycle where the backup is stale after rotation.
+  try {
+    const userTokenUpdate: Record<string, any> = {
+      googleAccessToken: tokens.access_token,
+      googleTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(Date.now() + 3600 * 1000),
+    };
+    if (tokens.refresh_token) userTokenUpdate.googleRefreshToken = tokens.refresh_token;
+    await db.update(usersTable).set(userTokenUpdate).where(eq(usersTable.id, userId));
+    ytLogger.info(`[YouTube] Token synced to users table backup for user ${userId}`);
+  } catch (syncErr) {
+    ytLogger.warn(`[YouTube] Failed to sync token to users table for user ${userId} (non-fatal):`, syncErr);
   }
 
   ytLogger.info(`[YouTube] OAuth token saved for user ${userId} — fetching channel info...`);
