@@ -42,6 +42,26 @@ const ContentRevenueTab = lazyRetry(() => import("./content/ContentRevenueTab"))
 const CTAPlannerTab = lazyRetry(() => import("./content/CTAPlannerTab"));
 const ProductionPipelineTab = lazyRetry(() => import("./content/PipelineTab"));
 
+function VideoThumbnail({ url, className }: { url: string | null | undefined; className: string }) {
+  const [broken, setBroken] = useState(false);
+  const iconSize = className.includes("h-10") ? "h-4 w-4" : "h-3.5 w-3.5";
+  if (!url || broken) {
+    return (
+      <div className={`${className} bg-muted flex items-center justify-center shrink-0`}>
+        <Video className={`${iconSize} text-muted-foreground`} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className={`${className} object-cover shrink-0`}
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 function ContentStatsStrip() {
   const { data: videos, isLoading } = useVideos();
   const stats = useMemo(() => {
@@ -663,13 +683,7 @@ function PlatformCatalogsTab() {
               <Card key={video.id} data-testid={`card-catalog-${video.id}`}>
                 <CardContent className="p-2.5">
                   <div className="flex items-center gap-3">
-                    {video.thumbnailUrl ? (
-                      <img src={video.thumbnailUrl} alt="" className="h-9 w-16 rounded object-cover shrink-0" />
-                    ) : (
-                      <div className="h-9 w-16 rounded bg-muted flex items-center justify-center shrink-0">
-                        <Video className="h-3.5 w-3.5 text-muted-foreground" />
-                      </div>
-                    )}
+                    <VideoThumbnail url={video.thumbnailUrl} className="h-9 w-16 rounded" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate" data-testid={`text-catalog-title-${video.id}`}>
                         {video.title}
@@ -987,17 +1001,7 @@ function LibraryTab() {
                           data-testid={`checkbox-video-${video.id}`}
                         />
                       )}
-                      {video.thumbnailUrl ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt=""
-                          className="h-10 w-16 rounded-md object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="h-10 w-16 rounded-md bg-muted flex items-center justify-center shrink-0">
-                          <Video className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      )}
+                      <VideoThumbnail url={video.thumbnailUrl} className="h-10 w-16 rounded-md" />
                       <div className="min-w-0 flex-1 group">
                         <div className="flex items-center gap-1">
                           <p className="font-medium text-sm truncate flex-1" data-testid={`text-video-title-${video.id}`}>
