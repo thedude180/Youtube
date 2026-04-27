@@ -201,6 +201,8 @@ export async function getUploadScheduleSummary(userId: string): Promise<{
   nextSlot: Date;
   queueDepth: number;
   schedulingSource: string;
+  isQ4: boolean;
+  q4Month: string;
   upcomingSlots: { time: Date; source: string }[];
 }> {
   const nextSlot = await getNextOptimalPublishTime(userId, "youtube");
