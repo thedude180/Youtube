@@ -94,10 +94,25 @@ export async function handleCallback(code: string, userId: string) {
   const existingYt = existingChannels.find(c => c.platform === "youtube");
   const existingShortsChannel = existingChannels.find(c => c.platform === "youtubeshorts");
 
+  // Build the platformData reset object so any previous expired/failure state is
+  // cleared immediately after a successful manual reconnect.  Without this, the
+  // proactive refresh cycle would still see _connectionStatus="expired" and
+  // could skip the channel thinking it was permanently dead.
+  const existingPd = (existingYt?.platformData as any) || {};
+  const reconnectedPlatformData = {
+    ...existingPd,
+    _connectionStatus: "active",
+    _permanentFailures: 0,
+    _reconnectedAt: new Date().toISOString(),
+    // Clear any leftover expired-state fields from markChannelExpired
+    _expiredAt: undefined,
+  };
+
   const tokenFields: any = {
     accessToken: tokens.access_token,
     tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
     lastSyncAt: new Date(),
+    platformData: reconnectedPlatformData,
   };
   if (tokens.refresh_token) tokenFields.refreshToken = tokens.refresh_token;
 
@@ -116,7 +131,11 @@ export async function handleCallback(code: string, userId: string) {
   }
 
   if (existingShortsChannel) {
-    await storage.updateChannel(existingShortsChannel.id, tokenFields);
+    const shortsPd = (existingShortsChannel.platformData as any) || {};
+    await storage.updateChannel(existingShortsChannel.id, {
+      ...tokenFields,
+      platformData: { ...shortsPd, _connectionStatus: "active", _permanentFailures: 0, _reconnectedAt: new Date().toISOString(), _expiredAt: undefined },
+    });
   }
 
   // Always sync the fresh token back to the users table backup immediately.

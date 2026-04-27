@@ -18,6 +18,12 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("continuity-engine");
 
+// Track when we last performed a live YouTube token health probe (every 6 hours).
+// This probes the real Google API — not just "token not expired on paper" — so we
+// catch revoked/rotated refresh tokens before they silently kill the system.
+let lastTokenHealthProbeAt = 0;
+const TOKEN_HEALTH_PROBE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 // --------------------------------------------------------------------------
 // AGENT GAP REGISTRY
 // Defines the maximum idle period for each agent before the Continuity
@@ -305,6 +311,82 @@ async function getHealthSnapshot(userId: string): Promise<{ score: number; statu
 // Proactively refreshes all platform tokens before they expire.
 // Retries channels previously marked expired — the refresh token may still work.
 // --------------------------------------------------------------------------
+
+/**
+ * Every 6 hours: make a live YouTube API probe (channels.list with part=id)
+ * against every YouTube channel that has an accessToken.  This catches:
+ *   - Revoked refresh tokens (user removes app access in Google account)
+ *   - Token rotation drift (vault refreshed accessToken but lost refreshToken)
+ *   - Any other reason Google silently invalidated the credentials
+ *
+ * If we get 401 we immediately call markChannelExpired which fires the
+ * reconnect banner — BEFORE the next scheduled video upload would fail.
+ */
+async function runYouTubeTokenHealthProbe(): Promise<void> {
+  const now = Date.now();
+  if (now - lastTokenHealthProbeAt < TOKEN_HEALTH_PROBE_INTERVAL_MS) return;
+  lastTokenHealthProbeAt = now;
+
+  try {
+    const { isNotNull: isNotNullFn } = await import("drizzle-orm");
+    const ytChannels = await db.select().from(channels).where(
+      and(
+        eq(channels.platform, "youtube"),
+        isNotNullFn(channels.accessToken),
+      )
+    );
+
+    for (const ch of ytChannels) {
+      if (!ch.accessToken || !ch.userId) continue;
+      try {
+        const probeRes = await fetch(
+          `https://www.googleapis.com/youtube/v3/channels?part=id&mine=true`,
+          { headers: { Authorization: `Bearer ${ch.accessToken}`, Accept: "application/json" } }
+        );
+
+        if (probeRes.status === 401) {
+          // Access token is definitely invalid — try refresh before giving up
+          logger.warn(`[TokenProbe] 401 from YouTube for channel ${ch.id} (${ch.channelName}) — attempting recovery`);
+          const { refreshGoogleToken } = await import("../token-refresh");
+          if (ch.refreshToken) {
+            const refreshed = await refreshGoogleToken(ch.refreshToken);
+            if (refreshed.success && refreshed.accessToken) {
+              const newRefresh = refreshed.refreshToken || ch.refreshToken;
+              await db.update(channels).set({
+                accessToken: refreshed.accessToken,
+                refreshToken: newRefresh,
+                tokenExpiresAt: refreshed.expiresAt ?? new Date(Date.now() + 3600 * 1000),
+              }).where(eq(channels.id, ch.id));
+              // Sync to users-table backup
+              try {
+                const { users: usersTable } = await import("../../shared/models/auth");
+                await db.update(usersTable).set({
+                  googleAccessToken: refreshed.accessToken,
+                  googleRefreshToken: newRefresh,
+                  googleTokenExpiresAt: refreshed.expiresAt ?? null,
+                }).where(eq(usersTable.id, ch.userId));
+              } catch { /* non-fatal */ }
+              logger.info(`[TokenProbe] ✓ Proactively refreshed token for channel ${ch.id} after 401`);
+              continue; // Channel is recovered — no banner needed
+            }
+          }
+          // Refresh also failed — fire the banner NOW before anything else breaks
+          const { markChannelExpiredPublic } = await import("../token-refresh");
+          await markChannelExpiredPublic(ch.id, ch.userId, ch.platformData);
+          logger.error(`[TokenProbe] ✗ Channel ${ch.id} (${ch.channelName}) is dead — user notified`);
+        } else if (probeRes.ok) {
+          logger.info(`[TokenProbe] ✓ YouTube token healthy for channel ${ch.id}`);
+        }
+        // 403 = quota/scope issue (not auth failure) — don't fire banner
+      } catch (chErr: any) {
+        logger.warn(`[TokenProbe] Probe failed for channel ${ch.id}: ${chErr.message}`);
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`[TokenProbe] YouTube token health probe error: ${err.message}`);
+  }
+}
+
 async function runTokenKeepalive(): Promise<{ kept: number; failed: number; retried: number }> {
   try {
     const { keepAliveAllTokens, repairNullTokenChannels } = await import("../token-refresh");
@@ -324,6 +406,11 @@ async function runTokenKeepalive(): Promise<{ kept: number; failed: number; retr
     if (repair.alerted > 0) {
       logger.warn(`[TokenGuardian] ${repair.alerted} channel(s) could not be repaired — users have been notified to reconnect`);
     }
+
+    // Live probe — every 6 hours verify the token is actually accepted by Google
+    await runYouTubeTokenHealthProbe().catch(e =>
+      logger.warn(`[TokenProbe] Probe cycle threw: ${e.message}`)
+    );
 
     return { kept: result.kept, failed: result.failed, retried: repair.repaired };
   } catch (err: any) {

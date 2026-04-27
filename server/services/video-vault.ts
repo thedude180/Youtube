@@ -588,6 +588,7 @@ async function getVaultYouTubeToken(userId: string): Promise<string | null> {
         refreshToken: channels.refreshToken,
         tokenExpiresAt: channels.tokenExpiresAt,
         id: channels.id,
+        userId: channels.userId,
       })
       .from(channels)
       .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
@@ -619,13 +620,28 @@ async function getVaultYouTubeToken(userId: string): Promise<string | null> {
       }).toString(),
     });
     if (!refreshRes.ok) return null;
-    const tokens = await refreshRes.json() as { access_token?: string; expires_in?: number };
+    const tokens = await refreshRes.json() as { access_token?: string; expires_in?: number; refresh_token?: string };
     if (!tokens.access_token) return null;
 
     const newExpiry = new Date(Date.now() + (tokens.expires_in ?? 3600) * 1000);
-    await db.update(channels)
-      .set({ accessToken: tokens.access_token, tokenExpiresAt: newExpiry })
-      .where(eq(channels.id, ch.id));
+    // If Google rotates the refresh token (returns a new one), save it — otherwise
+    // the old token would be used on the next cycle and could be revoked/expired.
+    const updateData: Record<string, any> = { accessToken: tokens.access_token, tokenExpiresAt: newExpiry };
+    if (tokens.refresh_token) updateData.refreshToken = tokens.refresh_token;
+    await db.update(channels).set(updateData).where(eq(channels.id, ch.id));
+
+    // Also sync to users-table backup so restarts/emergency-rescue always have latest
+    if (tokens.refresh_token && ch.userId) {
+      try {
+        const { users: usersTable } = await import("../../shared/models/auth");
+        const { eq: eqFn } = await import("drizzle-orm");
+        await db.update(usersTable).set({
+          googleAccessToken: tokens.access_token,
+          googleRefreshToken: tokens.refresh_token,
+          googleTokenExpiresAt: newExpiry,
+        }).where(eqFn(usersTable.id, ch.userId));
+      } catch { /* non-fatal — token is already saved to channels */ }
+    }
 
     logger.info("[Vault] YouTube OAuth token refreshed successfully");
     return tokens.access_token;

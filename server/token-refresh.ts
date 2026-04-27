@@ -236,14 +236,28 @@ async function markChannelExpired(channelId: number, userId: string, existingPla
           logger.info(`[TokenRefresh] ✓ Emergency rescue: channel ${channelId} restored from users-table backup`);
           return; // Saved — skip the expiry write
         }
+        // Rescue failed — the users-table backup is also dead (invalid_grant or network error).
+        // Clear it so future rescue attempts don't waste time on a known-bad token.
+        try {
+          await db.update(usersTable).set({
+            googleRefreshToken: null,
+            googleAccessToken: null,
+            googleTokenExpiresAt: null,
+          }).where(eq(usersTable.id, userId));
+          logger.warn(`[TokenRefresh] Cleared dead users-table Google token for user ${userId}`);
+        } catch (clearErr) {
+          logger.warn(`[TokenRefresh] Could not clear dead users-table token for user ${userId}:`, clearErr);
+        }
       }
     } catch (rescueErr) {
       logger.warn(`[TokenRefresh] Emergency rescue failed for channel ${channelId}:`, rescueErr);
     }
   }
 
-  // All rescue attempts exhausted — mark expired and send an in-app alert
+  // All rescue attempts exhausted — fully wipe the channel tokens so no code path
+  // mistakenly treats a stale accessToken as valid.  The user MUST reconnect.
   await db.update(channels).set({
+    accessToken: null,
     tokenExpiresAt: null,
     refreshToken: null,
     platformData: {
@@ -550,3 +564,27 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
   logger.info(`[TokenGuardian] Repair cycle done — ${repaired} repaired, ${alerted} users alerted`);
   return { repaired, alerted };
 }
+
+// --------------------------------------------------------------------------
+// PUBLIC SURFACE — thin wrappers so other modules don't need to reach into
+// private functions that aren't designed for external use.
+// --------------------------------------------------------------------------
+
+/**
+ * Publicly callable `markChannelExpired`.  Used by the continuity-engine token
+ * health probe to fire the reconnect banner immediately when a live API probe
+ * detects that the access token has been revoked.
+ */
+export async function markChannelExpiredPublic(
+  channelId: number,
+  userId: string,
+  existingPlatformData: any
+): Promise<void> {
+  return markChannelExpired(channelId, userId, existingPlatformData);
+}
+
+/**
+ * Publicly callable `refreshGoogleToken`.  Used by the continuity-engine token
+ * health probe to attempt a token refresh before giving up and firing the banner.
+ */
+export { refreshGoogleToken };
