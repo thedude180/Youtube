@@ -218,6 +218,13 @@
       "when": 1777207126060,
       "tag": "0030_secret_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777318065194,
+      "tag": "0031_nasty_edwin_jarvis",
+      "breakpoints": true
     }
   ]
 }
