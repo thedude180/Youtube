@@ -5,7 +5,7 @@ import * as path from "path";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
-import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults } from "@shared/schema";
+import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults, linkedChannels } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
 import { cached, apiCache } from "../lib/cache";
 import {
@@ -1243,6 +1243,64 @@ export function registerSettingsRoutes(app: Express) {
     if (fs.existsSync(COOKIES_PATH)) fs.unlinkSync(COOKIES_PATH);
     await deleteCookiesFromDb(userId).catch(() => {});
     res.json({ ok: true });
+  }));
+
+  // ── Social Profile Links ─────────────────────────────────────────────────────
+  // These links appear in the "Follow ►" section of every YouTube description.
+  // Stored in linked_channels table (platform + profileUrl + username).
+
+  app.get("/api/settings/social-links", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const rows = await db.select({
+      platform: linkedChannels.platform,
+      username: linkedChannels.username,
+      profileUrl: linkedChannels.profileUrl,
+    }).from(linkedChannels).where(eq(linkedChannels.userId, userId));
+    res.json(rows);
+  }));
+
+  app.post("/api/settings/social-links", asyncHandler(async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    const schema = z.object({
+      links: z.array(z.object({
+        platform: z.string().min(1).max(50),
+        username: z.string().max(100).optional(),
+        profileUrl: z.string().url("Must be a valid URL").max(500).optional(),
+      })).max(20),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+
+    for (const link of parsed.data.links) {
+      // Try to update an existing row first, then insert if not found
+      const existing = await db.select({ id: linkedChannels.id })
+        .from(linkedChannels)
+        .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, link.platform)))
+        .limit(1);
+
+      if (existing.length > 0) {
+        await db.update(linkedChannels)
+          .set({ username: link.username ?? null, profileUrl: link.profileUrl ?? null })
+          .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, link.platform)));
+      } else {
+        await db.insert(linkedChannels).values({
+          userId,
+          platform: link.platform,
+          username: link.username ?? null,
+          profileUrl: link.profileUrl ?? null,
+          isConnected: false,
+          connectionType: "manual",
+        });
+      }
+    }
+
+    res.json({ ok: true, saved: parsed.data.links.length });
   }));
 }
 

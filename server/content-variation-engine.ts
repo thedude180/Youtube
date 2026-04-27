@@ -1,7 +1,7 @@
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { db } from "./db";
-import { autopilotQueue, channels } from "@shared/schema";
+import { autopilotQueue, channels, linkedChannels } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
@@ -59,6 +59,27 @@ function buildChannelUrl(platform: string, channelId: string, channelName: strin
 }
 
 export async function getUserChannelLinks(userId: string): Promise<ChannelLinks> {
+  // Start with the website
+  const links: ChannelLinks = { website: CREATOR_WEBSITE };
+
+  // Pull profile URLs explicitly saved by the user in linked_channels
+  const manualLinks = await db.select({
+    platform: linkedChannels.platform,
+    username: linkedChannels.username,
+    profileUrl: linkedChannels.profileUrl,
+  }).from(linkedChannels).where(eq(linkedChannels.userId, userId));
+
+  for (const lc of manualLinks) {
+    if (lc.profileUrl) {
+      links[lc.platform] = lc.profileUrl;
+    } else if (lc.username) {
+      const built = buildChannelUrl(lc.platform, "", lc.username);
+      if (built) links[lc.platform] = built;
+    }
+  }
+
+  // Also pull from connected channels table (OAuth-connected platforms)
+  // Only fill in gaps not already set by manual links above
   const userChannels = await db.select({
     platform: channels.platform,
     channelName: channels.channelName,
@@ -66,9 +87,8 @@ export async function getUserChannelLinks(userId: string): Promise<ChannelLinks>
     platformData: channels.platformData,
   }).from(channels).where(eq(channels.userId, userId));
 
-  const links: ChannelLinks = { website: CREATOR_WEBSITE };
-
   for (const ch of userChannels) {
+    if (links[ch.platform]) continue; // already set from manual entry — don't overwrite
     const pd = ch.platformData as any;
     const customUrl = pd?.customUrl || pd?.channelUrl || pd?.profileUrl || pd?.url;
     if (customUrl) {

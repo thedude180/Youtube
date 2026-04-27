@@ -6,8 +6,9 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   Trash2, Zap, Sun, Moon, Clock,
   Globe, CheckCircle,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound, Coins,
-  CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText,
+  CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText, Save,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { QualitySettingsPanel } from "@/components/resolution-intelligence";
 import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -767,6 +768,53 @@ function GeneralTab() {
     presetMutation.mutate(type);
   }, [presetMutation]);
 
+  // ── Social Profile Links ─────────────────────────────────────────────────────
+  const SOCIAL_PLATFORMS = [
+    { key: "youtube",   label: "YouTube",   icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
+    { key: "twitch",    label: "Twitch",    icon: "🎮", placeholder: "https://twitch.tv/yourname" },
+    { key: "kick",      label: "Kick",      icon: "🟢", placeholder: "https://kick.com/yourname" },
+    { key: "tiktok",    label: "TikTok",    icon: "🎵", placeholder: "https://tiktok.com/@yourname" },
+    { key: "x",         label: "X",         icon: "𝕏",  placeholder: "https://x.com/yourname" },
+    { key: "discord",   label: "Discord",   icon: "💬", placeholder: "https://discord.gg/yourserver" },
+    { key: "rumble",    label: "Rumble",    icon: "🔴", placeholder: "https://rumble.com/c/yourname" },
+    { key: "instagram", label: "Instagram", icon: "📸", placeholder: "https://instagram.com/yourname" },
+  ];
+
+  const { data: savedSocialLinks } = useQuery<Array<{ platform: string; profileUrl?: string }>>({
+    queryKey: ["/api/settings/social-links"],
+  });
+
+  const [socialDraft, setSocialDraft] = useState<Record<string, string>>({});
+  const [socialInitialized, setSocialInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!socialInitialized && savedSocialLinks !== undefined) {
+      const map: Record<string, string> = {};
+      for (const row of savedSocialLinks) {
+        map[row.platform] = row.profileUrl || "";
+      }
+      setSocialDraft(map);
+      setSocialInitialized(true);
+    }
+  }, [savedSocialLinks, socialInitialized]);
+
+  const saveSocialLinksMutation = useMutation({
+    mutationFn: async () => {
+      const links = Object.entries(socialDraft)
+        .filter(([, url]) => url.trim())
+        .map(([platform, profileUrl]) => ({ platform, profileUrl: profileUrl.trim() }));
+      const res = await apiRequest("POST", "/api/settings/social-links", { links });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/social-links"] });
+      toast({ title: "Social links saved", description: "These will appear in all new YouTube descriptions." });
+    },
+    onError: () => {
+      toast({ title: "Save failed", description: "Check that all URLs are valid.", variant: "destructive" });
+    },
+  });
+
   const [humanReviewMode, setHumanReviewMode] = useState(() => {
     const stored = localStorage.getItem("humanReviewMode");
     return stored === null ? false : stored === "true";
@@ -869,6 +917,56 @@ function GeneralTab() {
           ))}
         </div>
       </div>
+
+      {/* Social Profile Links — appear in every YouTube description footer */}
+      <Card data-testid="card-social-links">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            Social Profile Links
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These appear in the "Follow ►" section at the bottom of every YouTube video description. Enter your full profile URL for each platform.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {savedSocialLinks === undefined ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {SOCIAL_PLATFORMS.map(p => <div key={p.key} className="h-8 rounded bg-muted animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {SOCIAL_PLATFORMS.map(p => (
+                <div key={p.key} className="flex items-center gap-2">
+                  <span className="text-base w-6 text-center select-none shrink-0" title={p.label}>{p.icon}</span>
+                  <Input
+                    data-testid={`input-social-${p.key}`}
+                    placeholder={p.placeholder}
+                    value={socialDraft[p.key] || ""}
+                    onChange={e => setSocialDraft(prev => ({ ...prev, [p.key]: e.target.value }))}
+                    className="h-8 text-xs"
+                    aria-label={`${p.label} profile URL`}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <Button
+            size="sm"
+            className="gap-1.5 h-8"
+            disabled={saveSocialLinksMutation.isPending || savedSocialLinks === undefined}
+            onClick={() => saveSocialLinksMutation.mutate()}
+            data-testid="button-save-social-links"
+          >
+            {saveSocialLinksMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
+            Save Links
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-0">

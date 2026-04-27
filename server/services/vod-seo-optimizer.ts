@@ -6,6 +6,7 @@ import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
+import { getUserChannelLinks } from "../content-variation-engine";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -123,6 +124,9 @@ RULES:
 
       const optimized = safeParseJSON(aiResult.content, {} as any);
 
+      // Fetch actual social links from the DB so the footer has real URLs
+      const channelLinks = await getUserChannelLinks(userId).catch(() => undefined);
+
       // Build the description from structured fields so formatting is always correct.
       // If the AI returned the legacy flat string, reformat it as a fallback.
       let finalDescription: string;
@@ -134,10 +138,10 @@ RULES:
           ctaLine: optimized.ctaLine || "",
           hashtags: Array.isArray(optimized.hashtags) ? optimized.hashtags : [],
         };
-        finalDescription = buildDescription(parts);
+        finalDescription = buildDescription(parts, channelLinks);
       } else if (optimized.optimizedDescription) {
-        // Legacy fallback: reformat the flat string
-        finalDescription = reformatRawDescription(optimized.optimizedDescription);
+        // Legacy fallback: reformat the flat string with real links
+        finalDescription = reformatRawDescription(optimized.optimizedDescription, channelLinks);
       } else {
         finalDescription = video.description || "";
       }

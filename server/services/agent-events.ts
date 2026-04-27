@@ -5,6 +5,7 @@ import { videos } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { registerMap } from "./resilience-core";
 import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
+import { getUserChannelLinks } from "../content-variation-engine";
 
 const logger = createLogger("agent-events");
 
@@ -175,6 +176,9 @@ Return JSON with EXACTLY these keys:
 
   if (!parsed.optimizedTitle) return;
 
+  // Fetch actual social links from the DB so the footer has real URLs
+  const channelLinks = await getUserChannelLinks(userId).catch(() => undefined);
+
   // Build the description from structured fields so formatting is always correct
   let finalDescription: string;
   if (parsed.hookLines || parsed.bodyParagraph) {
@@ -185,9 +189,9 @@ Return JSON with EXACTLY these keys:
       ctaLine: parsed.ctaLine || "",
       hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
     };
-    finalDescription = buildDescription(parts);
+    finalDescription = buildDescription(parts, channelLinks);
   } else {
-    finalDescription = reformatRawDescription(parsed.optimizedDescription || "");
+    finalDescription = reformatRawDescription(parsed.optimizedDescription || "", channelLinks);
   }
 
   try {

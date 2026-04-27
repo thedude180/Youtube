@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Plus, Palette, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, Plus, Palette, Trash2, ChevronDown, ChevronUp, Link2, Save, Loader2 } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 
 type AIResponse = any;
@@ -53,6 +53,54 @@ function BrandTab() {
   const [aiNetworkStratLoading, setAiNetworkStratLoading] = useState(false);
   const [aiRepMonitor, setAiRepMonitor] = useState<AIResponse>(null);
   const [aiRepMonitorLoading, setAiRepMonitorLoading] = useState(false);
+
+  // ── Social Profile Links ─────────────────────────────────────────────────────
+  const SOCIAL_PLATFORMS = [
+    { key: "youtube",  label: "YouTube",  icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
+    { key: "twitch",   label: "Twitch",   icon: "🎮", placeholder: "https://twitch.tv/yourname" },
+    { key: "kick",     label: "Kick",     icon: "🟢", placeholder: "https://kick.com/yourname" },
+    { key: "tiktok",   label: "TikTok",   icon: "🎵", placeholder: "https://tiktok.com/@yourname" },
+    { key: "x",        label: "X",        icon: "𝕏",  placeholder: "https://x.com/yourname" },
+    { key: "discord",  label: "Discord",  icon: "💬", placeholder: "https://discord.gg/yourserver" },
+    { key: "rumble",   label: "Rumble",   icon: "🔴", placeholder: "https://rumble.com/c/yourname" },
+    { key: "instagram",label: "Instagram",icon: "📸", placeholder: "https://instagram.com/yourname" },
+  ];
+
+  // undefined until the query resolves — lets us distinguish "not loaded yet" from "empty array"
+  const { data: savedLinks } = useQuery<Array<{ platform: string; username?: string; profileUrl?: string }>>({
+    queryKey: ["/api/settings/social-links"],
+  });
+
+  const [socialDraft, setSocialDraft] = useState<Record<string, string>>({});
+  const [socialInitialized, setSocialInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!socialInitialized && savedLinks !== undefined) {
+      const map: Record<string, string> = {};
+      for (const row of savedLinks) {
+        map[row.platform] = row.profileUrl || "";
+      }
+      setSocialDraft(map);
+      setSocialInitialized(true);
+    }
+  }, [savedLinks, socialInitialized]);
+
+  const saveSocialLinksMutation = useMutation({
+    mutationFn: async () => {
+      const links = Object.entries(socialDraft)
+        .filter(([, url]) => url.trim())
+        .map(([platform, profileUrl]) => ({ platform, profileUrl: profileUrl.trim() }));
+      const res = await apiRequest("POST", "/api/settings/social-links", { links });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/social-links"] });
+      toast({ title: "Social links saved", description: "They'll appear in all new YouTube descriptions." });
+    },
+    onError: () => {
+      toast({ title: "Save failed", description: "Check that all URLs are valid.", variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     if (!aiToolsOpen) return;
@@ -202,6 +250,50 @@ function BrandTab() {
 
   return (
     <div className="space-y-6">
+      {/* Social Profile Links card — links appear in every YouTube description footer */}
+      <Card data-testid="card-social-links">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-primary" />
+            Social Profile Links
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These links appear in the "Follow ►" section at the bottom of every YouTube description. Enter your full profile URL for each platform.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SOCIAL_PLATFORMS.map(p => (
+              <div key={p.key} className="flex items-center gap-2">
+                <span className="text-base w-6 text-center select-none" title={p.label}>{p.icon}</span>
+                <Input
+                  data-testid={`input-social-${p.key}`}
+                  placeholder={p.placeholder}
+                  value={socialDraft[p.key] || ""}
+                  onChange={e => setSocialDraft(prev => ({ ...prev, [p.key]: e.target.value }))}
+                  className="h-8 text-xs"
+                  aria-label={`${p.label} profile URL`}
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            size="sm"
+            className="gap-1.5 h-8"
+            disabled={saveSocialLinksMutation.isPending}
+            onClick={() => saveSocialLinksMutation.mutate()}
+            data-testid="button-save-social-links"
+          >
+            {saveSocialLinksMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
+            Save Links
+          </Button>
+        </CardContent>
+      </Card>
+
       {aiBrandLoading ? (
         <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-brand" />
       ) : aiBrand ? (
