@@ -47,13 +47,10 @@ export function PlatformReconnectBanner() {
       sseRef.current = es;
 
       es.addEventListener("platform-disconnected", (e: MessageEvent) => {
-        // Force-refresh the reconnect check right away
         refetch();
         queryClient.invalidateQueries({ queryKey: ["/api/oauth/needs-reconnect"] });
         queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
-        // Clear any prior dismissal so the banner re-appears
         setDismissed("");
-        // Show a toast so the user knows instantly, regardless of which page they're on
         try {
           const payload = JSON.parse(e.data || "{}");
           const platformLabel = PLATFORM_LABELS[payload.platform ?? "youtube"] ?? "Platform";
@@ -64,6 +61,14 @@ export function PlatformReconnectBanner() {
             duration: 8000,
           });
         } catch { /* ignore JSON parse errors */ }
+      });
+
+      // Clear the banner immediately when a successful reconnect is confirmed
+      es.addEventListener("platform-connected", () => {
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ["/api/oauth/needs-reconnect"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/connections/health"] });
+        setDismissed("");
       });
 
       es.addEventListener("error", () => {

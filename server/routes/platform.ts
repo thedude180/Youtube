@@ -127,23 +127,21 @@ export async function registerPlatformRoutes(app: Express) {
       // nonce map).  The callback already reads this key as its first fallback.
       (req.session as any).youtubeOAuthUserId = userId;
       const acceptHeader = req.headers.accept || "";
-      if (acceptHeader.includes("application/json")) {
-        // JSON path: client drives the redirect, so fire-and-forget the save
-        // and return the URL immediately — no redirect to block on.
-        req.session.save((saveErr) => {
-          if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
-        });
-        res.json({ url });
-      } else {
-        // Browser redirect path: WAIT for the session to be written to the DB
-        // before redirecting.  If we redirect first, the session store write is
-        // still in-flight and the userId may NOT be in the session when Google
-        // sends the callback, causing tokens to be silently discarded.
-        req.session.save((saveErr) => {
-          if (saveErr) logger.warn("[YouTube Auth] Session save failed (non-fatal):", saveErr);
+
+      // ALWAYS wait for the session to be written to the database before
+      // returning/redirecting.  The original JSON path used fire-and-forget
+      // session.save() which meant the callback could arrive (especially on fast
+      // connections or after a server restart clears the in-memory nonce) before
+      // the session was persisted — causing userId to be null and the token to
+      // be silently discarded without the user ever knowing the reconnect failed.
+      req.session.save((saveErr) => {
+        if (saveErr) logger.warn("[YouTube Auth] Session save failed — callback may not find userId:", saveErr);
+        if (acceptHeader.includes("application/json")) {
+          res.json({ url });
+        } else {
           res.redirect(url);
-        });
-      }
+        }
+      });
     } catch (error: any) {
       logger.error("[YouTube Auth] Error generating auth URL:", error);
       res.status(500).json({ error: "An internal error occurred. Please try again." });
@@ -153,29 +151,55 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/youtube/callback", async (req, res) => {
     const code = req.query.code as string | undefined;
     const state = req.query.state as string | undefined;
+    const googleError = req.query.error as string | undefined;
 
-    const sessionUserId = (req.session as any)?.youtubeOAuthUserId
-      || (req.isAuthenticated() ? getUserId(req) : null);
-
+    // ── Resolve userId — four fallback layers ──────────────────────────────────
+    // Layer 1: in-memory nonce (fastest — only works if server hasn't restarted)
     let userId: string | null = null;
+    let resolvedBy = "none";
     if (state) {
       userId = getPendingOAuthUser(state);
+      if (userId) resolvedBy = "nonce";
     }
+    // Layer 2: session key written by /api/youtube/auth BEFORE responding (guaranteed by session.save)
     if (!userId) {
-      userId = sessionUserId;
+      userId = (req.session as any)?.youtubeOAuthUserId || null;
+      if (userId) resolvedBy = "session-key";
+    }
+    // Layer 3: active Passport session (user stayed logged in)
+    if (!userId && req.isAuthenticated()) {
+      userId = getUserId(req) || null;
+      if (userId) resolvedBy = "passport-session";
     }
 
+    logger.info(`[YouTube Callback] code=${!!code} state=${state?.slice(0,12)} userId=${userId} resolvedBy=${resolvedBy} googleError=${googleError || "none"}`);
+
+    // Google returned an error (user cancelled, access denied, etc.)
+    if (googleError) {
+      logger.warn(`[YouTube Callback] Google declined OAuth: ${googleError} — userId=${userId}`);
+      return res.redirect("/?yt_error=" + encodeURIComponent("Google declined the authorization. Please try connecting again."));
+    }
     if (!code) {
+      logger.error("[YouTube Callback] Missing authorization code from Google");
       return res.redirect("/?yt_error=" + encodeURIComponent("Missing authorization code from Google. Please try connecting again."));
     }
     if (!userId) {
-      return res.redirect("/?yt_error=" + encodeURIComponent("Session expired. Please log in and try connecting YouTube again."));
+      // Session was lost — this means session.save() failed OR the user's
+      // cookies were cleared between initiating OAuth and the callback.
+      // The user must log in again and retry.
+      logger.error("[YouTube Callback] CRITICAL: userId could not be resolved — session lost, nonce lost, not authenticated. Token cannot be saved.");
+      return res.redirect("/?yt_error=" + encodeURIComponent("Session expired during YouTube authorization. Please log in again and try reconnecting."));
     }
     try {
       const result = await handleCallback(code, userId);
       delete (req.session as any).youtubeOAuthUserId;
+      req.session.save(() => {}); // Persist the session key removal
+
+      logger.info(`[YouTube Callback] ✓ Token saved for user ${userId} via ${resolvedBy}`);
       sendSSEEvent(userId, "content-update", { type: "channel_connected", platform: "youtube" });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_connected", platform: "youtube" });
+      // Also fire a platform-connected event so the reconnect banner clears immediately
+      sendSSEEvent(userId, "platform-connected", { platform: "youtube" });
 
       // Kick off the upload watcher + initial scan immediately — don't wait for next login
       setImmediate(async () => {
@@ -193,7 +217,7 @@ export async function registerPlatformRoutes(app: Express) {
       const msg = result?.ytChannel ? `/?yt_connected=true&channel=${encodeURIComponent(channelTitle)}` : `/?yt_connected=true&channel=YouTube&quota_retry=1`;
       res.redirect(msg);
     } catch (error: any) {
-      logger.error("YouTube OAuth callback error:", error);
+      logger.error(`[YouTube Callback] handleCallback failed for user ${userId}: ${error?.message}`);
       const isNoChannel = error.message?.includes("No YouTube channel found");
       const isNoToken = error.message?.includes("No access token");
       if (isNoChannel) {
