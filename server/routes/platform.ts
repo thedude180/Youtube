@@ -290,16 +290,29 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const { db } = await import("../db");
       const { channels } = await import("@shared/schema");
-      const { and, eq, ne } = await import("drizzle-orm");
+      const { and, eq, ne, desc } = await import("drizzle-orm");
 
-      // Find the first YouTube channel belonging to a real user (not the dev bypass placeholder)
-      const rows = await db.select().from(channels)
+      // Find the YouTube channel for the known ET Gaming admin user specifically.
+      // Falls back to highest-ID real channel if not found.
+      const ET_GAMING_USER_ID = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
+      let rows = await db.select().from(channels)
         .where(and(
           eq(channels.platform, "youtube"),
-          ne(channels.userId, "dev_bypass_user")
+          eq(channels.userId, ET_GAMING_USER_ID)
         ))
-        .orderBy(channels.id)
+        .orderBy(desc(channels.id))
         .limit(1);
+
+      // Fallback: any real YouTube channel ordered by highest ID (most recent)
+      if (rows.length === 0) {
+        rows = await db.select().from(channels)
+          .where(and(
+            eq(channels.platform, "youtube"),
+            ne(channels.userId, "dev_bypass_user")
+          ))
+          .orderBy(desc(channels.id))
+          .limit(1);
+      }
 
       const ch = rows[0];
       if (!ch) return res.status(404).json({ error: "No real YouTube channel found in the database" });
