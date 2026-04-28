@@ -3,7 +3,6 @@ import { eq, and, gte, desc } from "drizzle-orm";
 import cron from "node-cron";
 import { getSystemHealthReport } from "./self-healing-core";
 import { videos, notifications, scheduleItems, channels, users, aiAgentActivities } from "@shared/schema";
-import { sendGmail } from "./services/gmail-client";
 
 import { createLogger } from "./lib/logger";
 
@@ -232,15 +231,9 @@ export async function sendWeeklyReportEmail(userId: string): Promise<boolean> {
     const html = buildEmailHtml(report);
     const subject = `Your Weekly AI Performance Report — CreatorOS`;
 
-    try {
-      const sent = await sendGmail(report.email, subject, html);
-      if (sent) {
-        return true;
-      }
-      return false;
-    } catch (gmailErr: any) {
-      return false;
-    }
+    // Weekly report email disabled — only daily-upload-digest sends scheduled email.
+    logger.info(`[WeeklyReport] Weekly report email suppressed for ${report.email}`);
+    return false;
   } catch (err: any) {
     logger.error(`[WeeklyReport] Failed to generate/send report for ${userId}:`, err.message);
     return false;

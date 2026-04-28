@@ -623,40 +623,7 @@ export async function runContentVerificationSweep() {
             });
             sendSSEEvent(userId, "notification", { type: "new" });
 
-            try {
-              const { users } = await import("@shared/models/auth");
-              const userRow = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-              const email = userRow[0]?.email;
-              if (email && (userRow[0]?.notifyEmail ?? true)) {
-                const { sendGmail } = await import("./services/gmail-client");
-                const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-                const contentTitle = post.content?.substring(0, 60) || "Content post";
-                const htmlBody = `
-                  <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #1a1a2e; color: #e0e0e0; border-radius: 12px; border: 1px solid #2d2d4e;">
-                    <div style="text-align: center; margin-bottom: 20px;">
-                      <h1 style="font-size: 22px; color: #f87171; margin: 0;">Content Removed</h1>
-                      <p style="font-size: 13px; color: #888; margin: 4px 0 0;">CreatorOS Content Verification</p>
-                    </div>
-                    <div style="background: #16213e; border-radius: 8px; padding: 16px; margin: 16px 0; border-left: 4px solid #f87171;">
-                      <p style="font-size: 14px; margin: 0 0 8px; color: #a78bfa;"><strong>Platform:</strong> ${platformName}</p>
-                      <p style="font-size: 14px; margin: 0 0 8px; color: #e0e0e0;"><strong>Content:</strong> ${contentTitle}</p>
-                    </div>
-                    <div style="background: #1e1e3a; border-radius: 8px; padding: 16px; margin: 16px 0;">
-                      <h3 style="font-size: 14px; color: #fbbf24; margin: 0 0 8px;">What Happened</h3>
-                      <p style="font-size: 14px; color: #ccc; margin: 0; line-height: 1.5;">
-                        A previously verified post on ${platformName} is no longer accessible. This could mean the content was removed by a moderator, flagged for policy violations, or deleted.
-                      </p>
-                    </div>
-                    <p style="font-size: 12px; color: #666; margin-top: 20px; text-align: center;">
-                      Manage notification preferences in Settings.
-                    </p>
-                  </div>
-                `;
-                await sendGmail(email, `[CreatorOS] Content removed from ${platformName}`, htmlBody);
-              }
-            } catch (emailErr: any) {
-              logger.warn("[Verification] Failed to send content removal email", { userId, error: emailErr?.message });
-            }
+            // Content removal email disabled — in-app notification handles this.
             continue;
           }
         }

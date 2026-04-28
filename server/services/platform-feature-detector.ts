@@ -15,7 +15,6 @@ import { channels, notifications, platformFeatureEligibility } from "@shared/sch
 import { users } from "@shared/models/auth";
 import { eq, and } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { sendGmail } from "./gmail-client";
 
 const logger = createLogger("platform-feature-detector");
 
@@ -377,25 +376,7 @@ async function sendEligibilityNotification(
     } as any,
   });
 
-  // ── Email notification ────────────────────────────────────────────────────
-  // Feature eligibility is a rare, high-value milestone — always send email
-  // regardless of the in-app notification severity gate.
-  try {
-    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-    if (user && (user as any).email) {
-      const platformLabel = feature.platform.charAt(0).toUpperCase() + feature.platform.slice(1);
-      const subject = isAutoActive
-        ? `[CreatorOS] ${feature.name} is now active on your ${platformLabel} channel`
-        : `[CreatorOS] You qualify for ${feature.name} on ${platformLabel} — action needed`;
-      const html = buildFeatureEmailHtml(channelName, feature, isAutoActive);
-      const sent = await sendGmail((user as any).email, subject, html);
-      if (sent) {
-        logger.info("Feature eligibility email sent", { userId, featureId: feature.id, email: (user as any).email });
-      }
-    }
-  } catch (emailErr: any) {
-    logger.warn("Feature eligibility email failed (non-fatal)", { userId, featureId: feature.id, error: emailErr.message });
-  }
+  // Feature eligibility email disabled — in-app notification handles this.
 
   // ── Mark notified ─────────────────────────────────────────────────────────
   await db.update(platformFeatureEligibility)

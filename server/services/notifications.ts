@@ -1,7 +1,6 @@
 import { db } from "../db";
-import { users, ADMIN_EMAIL, SUPPORT_EMAIL, type User } from "@shared/models/auth";
+import { users, SUPPORT_EMAIL, type User } from "@shared/models/auth";
 import { eq } from "drizzle-orm";
-import { sendGmail } from "./gmail-client";
 import webpush from "web-push";
 
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
@@ -25,27 +24,6 @@ export interface NotificationPayload {
   category?: string;
 }
 
-function buildEmailHtml(title: string, message: string, severity: NotificationSeverity): string {
-  const color = severity === "critical" ? "#dc2626" : severity === "warning" ? "#f59e0b" : "#6366f1";
-  return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-      <div style="background: ${color}; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
-        <h2 style="margin: 0; font-size: 18px;">${title}</h2>
-      </div>
-      <div style="background: #1a1a2e; color: #e0e0e0; padding: 24px; border-radius: 0 0 8px 8px;">
-        <p style="margin: 0 0 16px; line-height: 1.6;">${message}</p>
-        <p style="margin: 0; font-size: 12px; color: #888;">This is an automated alert from CreatorOS. Your system is running on autopilot — we only contact you when something needs attention.</p>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #666;">Contact us: <a href="mailto:${SUPPORT_EMAIL}" style="color: #6366f1;">${SUPPORT_EMAIL}</a></p>
-      </div>
-    </div>
-  `;
-}
-
-async function sendEmailNotification(email: string, title: string, message: string, severity: NotificationSeverity): Promise<boolean> {
-  const subject = `[CreatorOS ${severity === "critical" ? "URGENT" : "Alert"}] ${title}`;
-  const html = buildEmailHtml(title, message, severity);
-  return sendGmail(email, subject, html);
-}
 
 async function sendSmsNotification(phone: string, title: string, message: string): Promise<boolean> {
   try {
@@ -124,14 +102,7 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
       return result;
     }
 
-    if ((user as any).notifyEmail !== false && (user as any).email) {
-      try {
-        const sent = await sendEmailNotification((user as any).email, payload.title, payload.message, payload.severity);
-        result.email = sent;
-      } catch (emailErr) {
-        logger.error(`[Notifications] Email send failed for ${payload.userId}:`, emailErr);
-      }
-    }
+    // Email for in-app alerts is disabled — only critical-alert.ts and daily-upload-digest.ts send email.
 
     if (payload.severity === "critical" || payload.severity === "warning") {
       type UserPrefs = NonNullable<User['userPreferences']>;
@@ -175,13 +146,8 @@ export async function notifyUser(payload: NotificationPayload): Promise<{ email:
   return result;
 }
 
-export async function notifyAdmin(title: string, message: string, severity: NotificationSeverity): Promise<boolean> {
-  try {
-    const subject = `[CreatorOS ${severity === "critical" ? "URGENT" : "Alert"}] ${title}`;
-    const html = buildEmailHtml(title, message, severity);
-    return sendGmail(ADMIN_EMAIL, subject, html);
-  } catch (err) {
-    logger.error("[Notifications] Admin notify error:", err);
-    return false;
-  }
+export async function notifyAdmin(title: string, message: string, _severity: NotificationSeverity): Promise<boolean> {
+  // Admin email alerts are disabled — use critical-alert.ts for unrecoverable system errors.
+  logger.info(`[Notifications] Admin alert suppressed (email off): ${title}`);
+  return false;
 }

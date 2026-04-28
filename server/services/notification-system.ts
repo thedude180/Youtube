@@ -288,34 +288,7 @@ export async function processAllDigests() {
       continue;
     }
     const digest = await generateDigest(pref.userId, pref.digestFrequency || "daily");
-    if (digest) {
-      try {
-        const { sendGmail } = await import("./gmail-client");
-        const user = await db.select().from(users).where(eq(users.id, pref.userId)).then(r => r[0]);
-        const email = user?.email;
-        if (email) {
-          const htmlBody = `
-            <div style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a2e; color: #e0e0e0; border-radius: 8px;">
-              <h1 style="font-size: 20px; color: #a78bfa;">CreatorOS Daily Digest</h1>
-              <p style="font-size: 14px; color: #888;">You have <strong>${digest.total}</strong> new notification${digest.total !== 1 ? "s" : ""} since yesterday.</p>
-              ${Object.entries(digest.byCategory).map(([cat, items]: [string, any[]]) => `
-                <div style="margin: 16px 0; padding: 12px; background: #16213e; border-radius: 6px;">
-                  <h3 style="font-size: 14px; text-transform: capitalize; color: #a78bfa; margin: 0 0 8px;">${cat} (${items.length})</h3>
-                  ${items.slice(0, 5).map((item: any) => `
-                    <p style="font-size: 13px; margin: 4px 0; color: #ccc;">${item.title}</p>
-                  `).join("")}
-                  ${items.length > 5 ? `<p style="font-size: 12px; color: #888;">...and ${items.length - 5} more</p>` : ""}
-                </div>
-              `).join("")}
-              <p style="font-size: 12px; color: #666; margin-top: 20px;">Manage digest preferences in Settings.</p>
-            </div>
-          `;
-          await sendGmail(email, `CreatorOS Daily Digest - ${digest.total} updates`, htmlBody);
-        }
-      } catch (emailErr: any) {
-        logger.error(`[NotificationSystem] Failed to send digest email for ${pref.userId}: ${emailErr.message}`);
-      }
-    }
+    // Notification digest email disabled — daily-upload-digest.ts is the only scheduled email report.
     results.push({ userId: pref.userId, sent: !!digest });
   }
 

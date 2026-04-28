@@ -2,7 +2,6 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { channels } from "@shared/schema";
 import { eq, and, lt, isNotNull, isNull } from "drizzle-orm";
-import { sendGmail } from "./gmail-client";
 import { OAUTH_CONFIGS } from "../oauth-config";
 
 import { createLogger } from "../lib/logger";
@@ -150,19 +149,11 @@ async function sendConsolidatedReconnectEmail(userId: string, platforms: string[
       </div>
     `;
 
-    const sent = await sendGmail(
-      user.email,
-      `[CreatorOS] ${platformList} disconnected — quick reconnect needed`,
-      html,
-    );
-
-    if (sent) {
-      await markEmailSent(userId);
-    }
-
-    return sent;
+    // Reconnect emails are disabled — in-app banner handles this.
+    logger.info(`[AutoReconnect] Reconnect notification suppressed (email off) for user ${userId}, platforms: ${platformList}`);
+    return false;
   } catch (err) {
-    logger.error(`[AutoReconnect] Failed to send email:`, err);
+    logger.error(`[AutoReconnect] Reconnect notify error:`, err);
     return false;
   }
 }

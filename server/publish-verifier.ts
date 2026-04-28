@@ -113,41 +113,10 @@ async function sendUploadFailureEmail(userId: string, platform: string, title: s
     const notifyEmail = user[0]?.notifyEmail ?? true;
     if (!notifyEmail) return;
 
-    recentEmailKeys.set(dedupKey, Date.now());
-
-    const { sendGmail } = await import("./services/gmail-client");
-    const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-    const htmlBody = `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #1a1a2e; color: #e0e0e0; border-radius: 12px; border: 1px solid #2d2d4e;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h1 style="font-size: 22px; color: #f87171; margin: 0;">Upload Issue Detected</h1>
-          <p style="font-size: 13px; color: #888; margin: 4px 0 0;">CreatorOS Auto-Verification</p>
-        </div>
-        <div style="background: #16213e; border-radius: 8px; padding: 16px; margin: 16px 0; border-left: 4px solid #f87171;">
-          <p style="font-size: 14px; margin: 0 0 8px; color: #a78bfa;"><strong>Platform:</strong> ${platformName}</p>
-          <p style="font-size: 14px; margin: 0 0 8px; color: #e0e0e0;"><strong>Content:</strong> ${title || "Untitled"}</p>
-          ${contentUrl ? `<p style="font-size: 14px; margin: 0 0 8px;"><strong>Link:</strong> <a href="${contentUrl}" style="color: #60a5fa;">${contentUrl}</a></p>` : ""}
-        </div>
-        <div style="background: #1e1e3a; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <h3 style="font-size: 14px; color: #fbbf24; margin: 0 0 8px;">Why This Happened</h3>
-          <p style="font-size: 14px; color: #ccc; margin: 0; line-height: 1.5;">${reason}</p>
-        </div>
-        <div style="background: #16213e; border-radius: 8px; padding: 16px; margin: 16px 0;">
-          <h3 style="font-size: 14px; color: #34d399; margin: 0 0 8px;">What Happens Next</h3>
-          <p style="font-size: 14px; color: #ccc; margin: 0; line-height: 1.5;">
-            CreatorOS has already attempted to resolve this automatically. If the issue persists, you may need to check your account connections or review the content. Visit your dashboard for full details.
-          </p>
-        </div>
-        <p style="font-size: 12px; color: #666; margin-top: 20px; text-align: center;">
-          You're receiving this because upload verification is enabled. Manage preferences in Settings.
-        </p>
-      </div>
-    `;
-
-    await sendGmail(email, `[CreatorOS] Upload issue on ${platformName}: ${title || "Content"}`, htmlBody);
-    logger.info("[Verifier] Failure email sent", { userId, platform, email: email.substring(0, 3) + "***" });
+    // Upload failure email disabled — in-app notification handles this.
+    logger.info("[Verifier] Upload failure email suppressed (email off)", { userId, platform, title: (title || "").substring(0, 40) });
   } catch (err: any) {
-    logger.warn("[Verifier] Failed to send failure email", { userId, error: err.message });
+    logger.warn("[Verifier] Failure notify error", { userId, error: err.message });
   }
 }
 
