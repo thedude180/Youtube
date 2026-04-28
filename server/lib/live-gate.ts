@@ -13,6 +13,8 @@
  * within 90 seconds if still live, which re-arms the gate automatically.
  */
 
+import { setBackgroundAIConcurrency } from "./ai-semaphore";
+
 let _liveActive = false;
 let _liveStartedAt: Date | null = null;
 let _liveUserId: string | null = null;
@@ -21,6 +23,11 @@ export function setLiveActive(userId: string, active: boolean): void {
   _liveActive = active;
   _liveUserId = userId;
   _liveStartedAt = active ? new Date() : null;
+
+  // When live: throttle background AI to 1 concurrent slot so all ~15 background
+  // engines yield to real-time stream operations (live chat, SEO, stream ops).
+  // When stream ends: restore full background concurrency (5 slots).
+  setBackgroundAIConcurrency(active ? 1 : null);
 }
 
 export function isLiveActive(): boolean {

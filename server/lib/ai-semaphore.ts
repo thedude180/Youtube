@@ -33,6 +33,14 @@ let _lastReleaseAt = 0;
 type WakeEntry = { resolve: () => void; reject: (e: Error) => void; background: boolean };
 const _releaseListeners: WakeEntry[] = [];
 let _backgroundQueueCount = 0;
+// Runtime override — set to 1 during live streams so all background engines yield
+// their AI slots to real-time stream operations. null = use BACKGROUND_MAX_QUEUE_DEPTH.
+let _backgroundDepthOverride: number | null = null;
+
+export function setBackgroundAIConcurrency(limit: number | null): void {
+  _backgroundDepthOverride = limit;
+  logger.info(`[AI Semaphore] Background concurrency limit: ${limit ?? BACKGROUND_MAX_QUEUE_DEPTH} (${limit === null ? "normal" : "live-stream mode"})`);
+}
 
 // Circuit-breaker state
 let _rateLimitedUntil = 0;
@@ -141,8 +149,9 @@ async function _waitForCircuitBreaker(): Promise<void> {
 async function _waitForRelease(background: boolean): Promise<void> {
   // Background callers fail fast when their tier is saturated, freeing the
   // remaining queue depth for critical-path callers (publish, pre-flight).
-  if (background && _backgroundQueueCount >= BACKGROUND_MAX_QUEUE_DEPTH) {
-    throw new Error(`AI queue full for background tasks (${_backgroundQueueCount}/${BACKGROUND_MAX_QUEUE_DEPTH} background callers waiting) — request dropped`);
+  const bgLimit = _backgroundDepthOverride ?? BACKGROUND_MAX_QUEUE_DEPTH;
+  if (background && _backgroundQueueCount >= bgLimit) {
+    throw new Error(`AI queue full for background tasks (${_backgroundQueueCount}/${bgLimit} background callers waiting) — request dropped`);
   }
   if (_releaseListeners.length >= MAX_QUEUE_DEPTH) {
     throw new Error(`AI queue full (${MAX_QUEUE_DEPTH} callers waiting) — request dropped`);
