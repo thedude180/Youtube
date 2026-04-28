@@ -596,11 +596,16 @@ async function healProductionPipeline(): Promise<void> {
     // Each tick: if there are pending pipelines, kick one; if not, silently wait.
     // This means new pipelines added hours/days later are automatically picked up
     // within 2.5 minutes rather than waiting for a reboot.
+    // Priority order: live > replay > vod > refresh — stream content always jumps the queue.
     const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour max
     setInterval(async () => {
       try {
         const [next] = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
+          .orderBy(
+            sql`CASE WHEN ${contentPipeline.mode} = 'live' THEN 0 WHEN ${contentPipeline.mode} = 'replay' THEN 1 WHEN ${contentPipeline.mode} = 'vod' THEN 2 ELSE 3 END`,
+            contentPipeline.createdAt,
+          )
           .limit(1);
         if (!next) return; // nothing pending — silently wait for next tick
         const { executePipelineInBackground } = await import("./routes/pipeline");
@@ -661,7 +666,7 @@ import { anomalyResponder } from "./services/anomaly-responder";
 import { continuousAudit } from "./services/continuous-audit";
 import { webhookPipeline } from "./services/webhook-pipeline";
 import { userAutonomousSettings, autonomousActionLog, dailyBriefings, growthPlans, revenueStrategies } from "@shared/schema";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, gt, desc, sql } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { fireAgentEvent } from "./services/agent-events";
 import { startLifecycleManager, stopLifecycleManager, stopAllLifecycleManagers } from "./services/stream-lifecycle";
