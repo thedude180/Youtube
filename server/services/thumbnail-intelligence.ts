@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { thumbnailIntelligence, videos, channels } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 

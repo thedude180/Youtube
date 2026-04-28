@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { trafficStrategies, videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 import { createLogger } from "../lib/logger";

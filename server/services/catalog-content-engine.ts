@@ -3,7 +3,7 @@ import { db } from "../db";
 import { videos, channels, autopilotQueue } from "@shared/schema";
 import { eq, desc, and, gte, sql, lt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import { recordHeartbeat } from "./engine-heartbeat";

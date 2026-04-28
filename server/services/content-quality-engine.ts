@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { contentQualityScores, videos } from "@shared/schema";

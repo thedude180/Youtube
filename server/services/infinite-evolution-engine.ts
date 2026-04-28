@@ -2,7 +2,7 @@ import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shi
 import { db } from "../db";
 import { systemImprovements, discoveredStrategies, users, channels, videos, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import { jitter } from "../lib/timer-utils";

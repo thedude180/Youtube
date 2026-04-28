@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import { repurposedContent, scriptTemplates } from "@shared/schema";

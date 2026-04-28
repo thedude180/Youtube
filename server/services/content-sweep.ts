@@ -92,38 +92,31 @@ async function runSweep(userId: string): Promise<void> {
     logger.info(`[${userId}] Content sweep Phase 3: Repurposing ${toRepurpose.length} videos`);
 
     const { repurposeVideo } = await import("../repurpose-engine");
-    const BATCH_SIZE = 3;
-    const BATCH_DELAY_MS = 5000;
+    // Process ONE video at a time (was 3 in parallel) — the repurpose engine uses
+    // the background AI tier, so serial processing prevents background queue floods.
+    const INTER_VIDEO_DELAY_MS = 8000; // 8s between videos gives the semaphore room
     const FORMATS = ["blog", "twitter_thread", "instagram_caption"];
 
-    for (let i = 0; i < toRepurpose.length; i += BATCH_SIZE) {
+    for (const video of toRepurpose) {
       if (state.cancelRequested) { state.phase = "cancelled"; return; }
 
       const quota = await getQuotaStatus(userId);
       if (quota.remaining < 200) {
         logger.warn(`[${userId}] Quota too low (${quota.remaining}), pausing repurpose phase`);
         await delay(60_000);
-        continue;
       }
 
-      const batch = toRepurpose.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(
-        batch.map(async (video: any) => {
-          try {
-            await repurposeVideo(userId, video.id, FORMATS);
-            const updatedMeta = { ...(video.metadata as any), repurposedFormats: FORMATS };
-            await storage.updateVideo(video.id, { metadata: updatedMeta });
-            state.videosRepurposed++;
-            logger.info(`[${userId}] Repurposed video ${video.id} — ${state.videosRepurposed}/${state.videosTotal}`);
-          } catch (err: any) {
-            logger.warn(`[${userId}] Repurpose failed for video ${video.id}: ${err.message}`);
-          }
-        })
-      );
-
-      if (i + BATCH_SIZE < toRepurpose.length) {
-        await delay(BATCH_DELAY_MS);
+      try {
+        await repurposeVideo(userId, video.id, FORMATS);
+        const updatedMeta = { ...(video.metadata as any), repurposedFormats: FORMATS };
+        await storage.updateVideo(video.id, { metadata: updatedMeta });
+        state.videosRepurposed++;
+        logger.info(`[${userId}] Repurposed video ${video.id} — ${state.videosRepurposed}/${state.videosTotal}`);
+      } catch (err: any) {
+        logger.warn(`[${userId}] Repurpose failed for video ${video.id}: ${err.message}`);
       }
+
+      await delay(INTER_VIDEO_DELAY_MS);
     }
 
     state.phase = "complete";

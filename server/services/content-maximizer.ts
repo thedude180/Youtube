@@ -2,7 +2,7 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 
