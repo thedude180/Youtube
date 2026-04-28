@@ -563,58 +563,56 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] Warning: backlog recovery failed: ${backlogErr?.message}\n`);
     }
 
-    // 9. Kick off pending pipeline entries — in small batches to avoid flooding the
-    //    AI background queue (BACKGROUND_MAX_QUEUE_DEPTH = 5).  Kicking 6 at boot
-    //    fills the semaphore to capacity (1 active + 5 queued).  A 15-minute
-    //    periodic scanner then drips the remaining pending entries through steadily.
+    // 9. Kick off ONE pending pipeline entry at boot — just enough to prime the pump
+    //    without flooding the AI background queue (BACKGROUND_MAX_QUEUE_DEPTH = 5).
+    //    The drip-feed interval below handles the rest at a sustainable rate.
     try {
-      const pendingPipelines = await db.select().from(contentPipeline)
+      const [firstPipeline] = await db.select().from(contentPipeline)
         .where(eq(contentPipeline.status, "pending"))
-        .limit(6);
+        .limit(1);
 
-      if (pendingPipelines.length > 0) {
+      if (firstPipeline) {
         const { executePipelineInBackground } = await import("./routes/pipeline");
-        for (const pipeline of pendingPipelines) {
-          executePipelineInBackground(
-            pipeline.id,
-            pipeline.videoTitle ?? "unknown",
-            pipeline.mode ?? "vod",
-            (pipeline.stepResults ?? {}) as Record<string, any>,
-            (pipeline.completedSteps ?? []) as string[],
-          ).catch(() => {});
-        }
-        process.stdout.write(`[prod-heal] Kicked ${pendingPipelines.length} pending pipeline entries\n`);
+        executePipelineInBackground(
+          firstPipeline.id,
+          firstPipeline.videoTitle ?? "unknown",
+          firstPipeline.mode ?? "vod",
+          (firstPipeline.stepResults ?? {}) as Record<string, any>,
+          (firstPipeline.completedSteps ?? []) as string[],
+        ).catch(() => {});
+        process.stdout.write(`[prod-heal] Kicked 1 pending pipeline entry (drip-feed will handle the rest)\n`);
       }
     } catch (pipelineErr: any) {
       process.stdout.write(`[prod-heal] Warning: could not kick pending pipelines: ${pipelineErr?.message}\n`);
     }
 
-    // 9b. Periodic pipeline drip-feed: every 15 minutes, kick the next batch of
-    //     pending pipelines so the backlog clears steadily without overwhelming the
-    //     AI queue at once.  Stops automatically once no pending pipelines remain.
+    // 9b. Periodic pipeline drip-feed: kick 1 pipeline every 2.5 minutes.
+    //     This is the same throughput as "6 every 15 min" but smooth instead of
+    //     bursty — prevents 6 concurrent AI calls from saturating the background
+    //     queue (BACKGROUND_MAX_QUEUE_DEPTH = 5) and starving all other engines.
+    //     Stops automatically once no pending pipelines remain.
+    const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour
     const pipelineDripInterval = setInterval(async () => {
       try {
-        const remaining = await db.select().from(contentPipeline)
+        const [next] = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
-          .limit(6);
-        if (remaining.length === 0) {
+          .limit(1);
+        if (!next) {
           clearInterval(pipelineDripInterval);
           process.stdout.write("[prod-heal] Pipeline drip-feed complete — no more pending entries\n");
           return;
         }
         const { executePipelineInBackground } = await import("./routes/pipeline");
-        for (const p of remaining) {
-          executePipelineInBackground(
-            p.id,
-            p.videoTitle ?? "unknown",
-            p.mode ?? "vod",
-            (p.stepResults ?? {}) as Record<string, any>,
-            (p.completedSteps ?? []) as string[],
-          ).catch(() => {});
-        }
-        process.stdout.write(`[prod-heal] Drip-feed kicked ${remaining.length} pending pipelines\n`);
+        executePipelineInBackground(
+          next.id,
+          next.videoTitle ?? "unknown",
+          next.mode ?? "vod",
+          (next.stepResults ?? {}) as Record<string, any>,
+          (next.completedSteps ?? []) as string[],
+        ).catch(() => {});
+        process.stdout.write(`[prod-heal] Drip-feed kicked pipeline ${next.id} (1 of remaining pending)\n`);
       } catch { /* silent — interval will retry next tick */ }
-    }, 15 * 60_000);
+    }, DRIP_INTERVAL_MS);
 
     // 8. Immediately run a large exhauster sweep so that downloaded vault entries
     //    which have no stream_edit_job yet get jobs created before the first encode

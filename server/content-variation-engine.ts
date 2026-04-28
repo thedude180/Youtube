@@ -15,6 +15,9 @@ const openai = getOpenAIClient();
 
 let _rateLimitCooldownUntil = 0;
 const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000;
+// Hard concurrency cap: only 1 AI call from this engine at a time.
+// Prevents concurrent autopilot runs from stacking 6+ background slots simultaneously.
+let _aiCallInFlight = false;
 
 export interface ChannelLinks {
   youtube?: string;
@@ -487,10 +490,18 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
     logger.debug("[ContentVariation] Rate-limit cooldown active — skipping AI generation");
     return "";
   }
+  // Hard concurrency cap: skip if another call from this engine is already in-flight.
+  // This prevents 6+ concurrent social-post generations (one per platform per post batch)
+  // from all racing for the same 5 background AI slots simultaneously.
+  if (_aiCallInFlight) {
+    logger.debug("[ContentVariation] AI call already in-flight — skipping to avoid queue flood");
+    return "";
+  }
   if (!tokenBudget.checkBudget("content-variation", 1500)) {
     logger.debug("[ContentVariation] Token budget exhausted — skipping AI generation");
     return "";
   }
+  _aiCallInFlight = true;
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -505,13 +516,22 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
     return response.choices[0]?.message?.content?.trim() || "";
   } catch (err: any) {
     const status = err?.status ?? err?.response?.status;
+    const msg: string = err?.message ?? "";
     if (status === 429) {
       _rateLimitCooldownUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
       logger.warn("[ContentVariation] 429 rate limit — pausing for 10 minutes");
+    } else if (msg.includes("AI queue full") || msg.includes("AI slot deferred") || msg.includes("background callers waiting")) {
+      // Background AI queue is saturated by other engines — back off 3 minutes so they drain first.
+      // This prevents the content-variation-engine from hammering the queue every tick when the
+      // pipeline processors, trend-rider, and other engines are all competing for the same 5 slots.
+      _rateLimitCooldownUntil = Date.now() + 3 * 60_000;
+      logger.warn("[ContentVariation] AI background queue full — backing off 3 min to let other engines drain");
     } else {
       logger.error("[ContentVariation] AI generation error:", err);
     }
     return "";
+  } finally {
+    _aiCallInFlight = false;
   }
 }
 

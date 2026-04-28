@@ -518,7 +518,20 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
 
     const videoMeta = video.metadata as any;
     const youtubeVideoId = videoMeta?.youtubeVideoId || videoMeta?.youtube_id;
-    if (!youtubeVideoId) throw new Error("No YouTube video ID on video record");
+    if (!youtubeVideoId) {
+      // Video hasn't been pushed to YouTube yet (metadata backlog still clearing).
+      // Reschedule for 2 hours from now so the smart-edit queue item doesn't
+      // permanently fail — it will retry once the YouTube push backlog has cleared.
+      logger.info("Smart edit deferred — no YouTube video ID yet (push backlog still clearing)", { videoId, queueItemId });
+      await db.update(autopilotQueue)
+        .set({
+          status: "scheduled",
+          scheduledAt: new Date(Date.now() + 2 * 60 * 60_000),
+          errorMessage: null,
+        })
+        .where(eq(autopilotQueue.id, queueItemId));
+      return;
+    }
 
     await db.update(autopilotQueue)
       .set({ status: "processing" })
