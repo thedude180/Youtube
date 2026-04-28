@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { registerMap } from "./resilience-core";
 import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
 import { getUserChannelLinks } from "../content-variation-engine";
+import { setLiveActive } from "../lib/live-gate";
+import { pauseForLive, resumeAfterStream } from "../backlog-manager";
 
 const logger = createLogger("agent-events");
 
@@ -250,6 +252,11 @@ export async function wireAgentCoordination(): Promise<void> {
     const { videoId, gameTitle, liveChatId, title } = event.payload || {};
     logger.info(`stream.started for ${event.userId.slice(0, 8)} — launching pre-stream pipeline + multistream + recording`);
 
+    // ── RESOURCE SHIFT: pause all background pipelines, focus on the live stream ──
+    setLiveActive(event.userId, true);
+    pauseForLive(event.userId, 0); // 0 = placeholder streamId (only one stream at a time)
+    logger.info(`[LiveGate] Background pipelines paused — live stream active for ${event.userId.slice(0, 8)}`);
+
     if (videoId) {
       setTimeout(async () => {
         try {
@@ -386,6 +393,17 @@ export async function wireAgentCoordination(): Promise<void> {
   // When a stream ends → immediately scan for new uploads + run consistency
   onAgentEvent("stream.ended", async (event) => {
     logger.info(`Stream ended for ${event.userId.slice(0, 8)} — stopping relay + saving recording + creating edit copy`);
+
+    // ── RESOURCE SHIFT: release the live gate, resume all background pipelines ──
+    setLiveActive(event.userId, false);
+    // 30-second grace period before resuming so the post-stream factory can start
+    // without competing with the background pipeline drip-feed
+    setTimeout(() => {
+      resumeAfterStream(event.userId).catch(err =>
+        logger.warn(`[LiveGate] Resume after stream failed: ${err.message}`)
+      );
+      logger.info(`[LiveGate] Background pipelines resumed after stream — ${event.userId.slice(0, 8)}`);
+    }, 30_000);
 
     const videoId = event.payload?.videoId;
     const gameTitle = event.payload?.gameTitle || "Gaming Stream";

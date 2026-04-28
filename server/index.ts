@@ -16,6 +16,7 @@ import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./securi
 import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
 import { startConnectionGuardian, stopConnectionGuardian } from "./services/connection-guardian";
 import { startPerpetualRepair, stopPerpetualRepair } from "./services/perpetual-repair";
+import { isLiveActive } from "./lib/live-gate";
 import { startAutonomyController, stopAutonomyController } from "./autonomy-controller";
 import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
@@ -600,6 +601,10 @@ async function healProductionPipeline(): Promise<void> {
     const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour max
     setInterval(async () => {
       try {
+        // Pause during live streams — all resources shift to the live event.
+        // The live gate is set by agent-events.ts on stream.started / stream.ended.
+        if (isLiveActive()) return;
+
         const [next] = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
           .orderBy(

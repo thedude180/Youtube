@@ -235,23 +235,37 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       current.lastActivityAt = new Date();
       sendSSEEvent(userId, "backlog_update", { state: "idle", completed: true, totalProcessed: publishedVideos.length });
 
-      await storage.createNotification({
-        userId,
-        type: "backlog_complete",
-        title: "Backlog Refresh Complete",
-        message: `All ${publishedVideos.length} videos refreshed with updated titles, SEO, thumbnails, and cross-platform posts`,
-        severity: "info",
-      });
-      sendSSEEvent(userId, "notification", { type: "new" });
+      // Only send the notification once (first pass completion)
+      const notifKey = `backlog_complete_notified_${userId}`;
+      if (!(globalThis as any)[notifKey]) {
+        (globalThis as any)[notifKey] = true;
+        await storage.createNotification({
+          userId,
+          type: "backlog_complete",
+          title: "Backlog Refresh Complete",
+          message: `All ${publishedVideos.length} videos refreshed with updated titles, SEO, thumbnails, and cross-platform posts`,
+          severity: "info",
+        });
+        sendSSEEvent(userId, "notification", { type: "new" });
+        await storage.createAuditLog({
+          userId,
+          action: "backlog_refresh_complete",
+          target: `All ${publishedVideos.length} videos refreshed`,
+          details: { total: publishedVideos.length },
+          riskLevel: "low",
+        });
+      }
 
-      await storage.createAuditLog({
-        userId,
-        action: "backlog_refresh_complete",
-        target: `All ${publishedVideos.length} videos refreshed`,
-        details: { total: publishedVideos.length },
-        riskLevel: "low",
-      });
-      break;
+      // Instead of stopping, sleep 1 hour then re-scan for new videos from fresh streams.
+      // This way the backlog truly never stops — it keeps cycling indefinitely.
+      logger.info(`[BacklogManager] All ${publishedVideos.length} videos processed — sleeping 1h then re-scanning for new content`);
+      await new Promise<void>(resolve => setTimeout(resolve, 60 * 60_000));
+
+      // After sleep, check if we were paused or stopped during sleep
+      const afterSleep = sessions.get(userId);
+      if (!afterSleep || afterSleep.state !== "idle") break; // paused/cancelled during sleep
+      afterSleep.state = "running"; // re-arm for the next pass
+      continue; // back to top of while(true) to scan for new videos
     }
 
     const nextVideo = remaining[0];
