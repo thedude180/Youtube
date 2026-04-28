@@ -7,8 +7,9 @@
  *  1. Reset pipelines stuck in "processing" for > 2h → pending
  *  2. Reset pipeline errors caused by AI-queue saturation → pending (max 5)
  *  3. Reset backlog items failed due to token errors → queued (30-min delay)
- *  4. Detect empty autopilot queues → trigger backlog replenishment
- *  5. Record its own heartbeat so the ops health page tracks it
+ *  4. Rescue permanent_fail autopilot items older than 24h → queued (+1h)
+ *  5. Detect empty autopilot queues → trigger backlog replenishment
+ *  6. Record its own heartbeat so the ops health page tracks it
  *
  * This complements healProductionPipeline() which runs once on boot.
  * Together they ensure no stuck state survives more than 30 minutes.
@@ -101,7 +102,28 @@ async function runRepairCycle(): Promise<void> {
       summary.push(`${tokenErrorIds.length} token-error backlog → queued (+30m)`);
     }
 
-    // 4. Empty autopilot queues → replenish ───────────────────────────────
+    // 4. permanent_fail items older than 24h → rescue back to pending ────────
+    // auto-fix-engine sets permanent_fail after repeated failures, but the
+    // underlying cause (bad token, missing connection, rate limit) usually
+    // resolves within hours. Reset them once per day so they get another chance.
+    const permanentFailCutoff = new Date(Date.now() - 24 * 60 * 60_000);
+    const permanentFailIds = await db
+      .select({ id: autopilotQueue.id })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.status, "permanent_fail" as any),
+        lt(autopilotQueue.createdAt, permanentFailCutoff),
+      ))
+      .limit(50);
+    if (permanentFailIds.length > 0) {
+      const retryAt = new Date(Date.now() + 60 * 60_000); // 1h from now
+      await db.update(autopilotQueue)
+        .set({ status: "queued", scheduledAt: retryAt, errorMessage: null })
+        .where(inArray(autopilotQueue.id, permanentFailIds.map(r => r.id)));
+      summary.push(`${permanentFailIds.length} permanent_fail → queued (+1h)`);
+    }
+
+    // 5. Empty autopilot queues → replenish ───────────────────────────────
     // Find users with autopilot active but 0 queued or processing items.
     const activeUserRows = await db
       .selectDistinct({ userId: autopilotQueue.userId })

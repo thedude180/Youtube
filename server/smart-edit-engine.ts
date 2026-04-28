@@ -610,6 +610,12 @@ export async function runSmartEditJob(queueItemId: number, userId: string, video
       generateHighlightMetadata(video.title || "", gameName, segments, learningContext),
     ]);
 
+    const { isLiveActive: _smartEditLiveCheck } = await import("./lib/live-gate");
+    if (_smartEditLiveCheck()) {
+      logger.info("[SmartEdit] Live stream active — deferring highlight reel upload until stream ends", { title: metadata.title });
+      throw new Error("Live stream in progress — highlight reel upload deferred until stream ends");
+    }
+
     logger.info("Uploading highlight reel to YouTube", { title: metadata.title });
     const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
       title: metadata.title,

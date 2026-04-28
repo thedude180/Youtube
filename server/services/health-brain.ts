@@ -21,8 +21,15 @@ interface EngineRecord extends RegisteredEngine {
   status: EngineStatus;
   restartCount: number;
   lastRestartAt: number;
+  lastFailedAt: number;   // when the engine first entered "failed" (maxRestarts hit)
   inFlight: Promise<void> | null;
 }
+
+// After this much time in "failed" state, reset restartCount so the engine
+// can attempt another round of retries. Transient infra issues (OOM, DB blip)
+// resolve on their own within minutes — we shouldn't leave engines permanently
+// dead just because they crashed 5 times during that window.
+const ENGINE_COOLDOWN_RESET_MS = 30 * 60_000; // 30 minutes
 
 class HealthBrain {
   private engines = new Map<string, EngineRecord>();
@@ -37,6 +44,7 @@ class HealthBrain {
       status: "healthy",
       restartCount: 0,
       lastRestartAt: 0,
+      lastFailedAt: 0,
       inFlight: null,
     });
   }
@@ -97,7 +105,10 @@ class HealthBrain {
     } catch (err: any) {
       record.restartCount++;
       const maxR = record.maxRestarts ?? 5;
-      record.status = record.restartCount >= maxR ? "failed" : "recovering";
+      const nowHit = record.restartCount >= maxR;
+      record.status = nowHit ? "failed" : "recovering";
+      // Record when the engine first entered "failed" so the cooldown reset can fire
+      if (nowHit && record.lastFailedAt === 0) record.lastFailedAt = Date.now();
       logger.error(`[HealthBrain] Engine ${record.name} restart failed (attempt ${record.restartCount}/${maxR}): ${err.message}`);
     }
     record.lastRestartAt = Date.now();
@@ -130,7 +141,20 @@ class HealthBrain {
       logger.info("[HealthBrain] Tick summary", { dbPressure: this.dbPressure, memPressure: this.memPressure, engines: statuses });
     }
 
-    // Restart failed engines in dependency order
+    // Cooldown reset: if an engine has been hard-failed for >30 min, clear its
+    // restart counter so it gets another round of retries. This handles transient
+    // infra blips (OOM, DB hiccup) that would otherwise permanently strand engines.
+    const now = Date.now();
+    for (const record of this.engines.values()) {
+      if (record.status === "failed" && record.lastFailedAt > 0 && now - record.lastFailedAt > ENGINE_COOLDOWN_RESET_MS) {
+        logger.info(`[HealthBrain] Engine ${record.name} cooldown expired — resetting restart counter for another round`);
+        record.restartCount = 0;
+        record.lastFailedAt = 0;
+        record.status = "recovering";
+      }
+    }
+
+    // Restart failed/recovering engines in dependency order
     for (const record of this.sortedByDependency()) {
       if (record.status === "failed" || record.status === "recovering") {
         const maxR = record.maxRestarts ?? 5;

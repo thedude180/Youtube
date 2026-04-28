@@ -555,6 +555,12 @@ export async function processClipForYouTubeShorts(
   clipId: number,
   userId: string,
 ): Promise<{ youtubeId: string; title: string } | null> {
+  const { isLiveActive: _clipLiveCheck } = await import("./lib/live-gate");
+  if (_clipLiveCheck()) {
+    logger.info("[ClipProcessor] Live stream active — deferring Shorts upload until stream ends", { clipId, userId });
+    return null;
+  }
+
   const clips = await storage.getContentClips(userId);
   const clip = clips.find(c => c.id === clipId);
 
