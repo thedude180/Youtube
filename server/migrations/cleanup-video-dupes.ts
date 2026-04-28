@@ -28,11 +28,12 @@ const ET_GAMING_USER_ID = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
 export async function runVideoDeduplicationIfNeeded(): Promise<void> {
   try {
     // Guard: check if this migration already ran
-    const [existing] = await db.execute(sql`
+    const guardResult = await db.execute(sql`
       SELECT id FROM audit_logs
       WHERE action = ${MIGRATION_KEY}
       LIMIT 1
-    `) as any[];
+    `);
+    const existing = ((guardResult as any).rows ?? [])[0];
 
     if (existing) {
       logger.info(`[VideoDedup] Already ran — skipping (${MIGRATION_KEY})`);
@@ -42,11 +43,12 @@ export async function runVideoDeduplicationIfNeeded(): Promise<void> {
     logger.info(`[VideoDedup] Starting production video deduplication...`);
 
     // Count before
-    const [{ total_before }] = await db.execute(sql`
+    const beforeResult = await db.execute(sql`
       SELECT COUNT(*) as total_before FROM videos WHERE channel_id IN (
         SELECT id FROM channels WHERE user_id = ${ET_GAMING_USER_ID}
       )
-    `) as any[];
+    `);
+    const total_before = Number(((beforeResult as any).rows ?? [])[0]?.total_before ?? 0);
 
     logger.info(`[VideoDedup] Videos before cleanup: ${total_before}`);
 
@@ -315,11 +317,12 @@ export async function runVideoDeduplicationIfNeeded(): Promise<void> {
     `);
 
     // Count after
-    const [{ total_after }] = await db.execute(sql`
+    const afterResult = await db.execute(sql`
       SELECT COUNT(*) as total_after FROM videos WHERE channel_id IN (
         SELECT id FROM channels WHERE user_id = ${ET_GAMING_USER_ID}
       )
-    `) as any[];
+    `);
+    const total_after = Number(((afterResult as any).rows ?? [])[0]?.total_after ?? 0);
 
     logger.info(`[VideoDedup] Videos after cleanup: ${total_after} (was ${total_before})`);
     logger.info(`[VideoDedup] Removed ${Number(total_before) - Number(total_after)} duplicate entries`);
