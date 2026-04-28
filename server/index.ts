@@ -15,6 +15,7 @@ import { setServerStartTime } from "./lib/resource-governor";
 import { initSecurityEngine, evaluateThreat, trackSecurityEvent } from "./security-engine";
 import { startAutopilotMonitor, stopAutopilotMonitor } from "./services/autopilot-monitor";
 import { startConnectionGuardian, stopConnectionGuardian } from "./services/connection-guardian";
+import { startPerpetualRepair, stopPerpetualRepair } from "./services/perpetual-repair";
 import { startAutonomyController, stopAutonomyController } from "./autonomy-controller";
 import { storage } from "./storage";
 import { checkAccountLock, getAdaptiveRateLimit, updateIpReputation, analyzeRequestPattern, seedRetentionPolicies } from "./services/security-fortress";
@@ -591,17 +592,17 @@ async function healProductionPipeline(): Promise<void> {
     //     bursty — prevents 6 concurrent AI calls from saturating the background
     //     queue (BACKGROUND_MAX_QUEUE_DEPTH = 5) and starving all other engines.
     //     Stops automatically once no pending pipelines remain.
-    const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour
-    const pipelineDripInterval = setInterval(async () => {
+    // Drip-feed runs FOREVER (never clears itself).
+    // Each tick: if there are pending pipelines, kick one; if not, silently wait.
+    // This means new pipelines added hours/days later are automatically picked up
+    // within 2.5 minutes rather than waiting for a reboot.
+    const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour max
+    setInterval(async () => {
       try {
         const [next] = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
           .limit(1);
-        if (!next) {
-          clearInterval(pipelineDripInterval);
-          process.stdout.write("[prod-heal] Pipeline drip-feed complete — no more pending entries\n");
-          return;
-        }
+        if (!next) return; // nothing pending — silently wait for next tick
         const { executePipelineInBackground } = await import("./routes/pipeline");
         executePipelineInBackground(
           next.id,
@@ -610,8 +611,8 @@ async function healProductionPipeline(): Promise<void> {
           (next.stepResults ?? {}) as Record<string, any>,
           (next.completedSteps ?? []) as string[],
         ).catch(() => {});
-        process.stdout.write(`[prod-heal] Drip-feed kicked pipeline ${next.id} (1 of remaining pending)\n`);
-      } catch { /* silent — interval will retry next tick */ }
+        process.stdout.write(`[prod-heal] Drip-feed kicked pipeline ${next.id}\n`);
+      } catch { /* silent — retries next tick */ }
     }, DRIP_INTERVAL_MS);
 
     // 8. Immediately run a large exhauster sweep so that downloaded vault entries
@@ -2042,6 +2043,7 @@ httpServer.listen(
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
         healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
         healthBrain.register({ name: "resilience-watchdog", priority: 2, start: () => startResilienceWatchdog(), stop: () => stopResilienceWatchdog(), intervalMs: 30_000, maxRestarts: 5 });
+        healthBrain.register({ name: "perpetual-repair", priority: 1, start: () => startPerpetualRepair(), stop: () => stopPerpetualRepair(), intervalMs: 30 * 60_000, maxRestarts: 20 });
         logger.info("[SelfHeal] Health Brain engines registered");
       } catch (err: any) { logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) }); }
 
@@ -2497,6 +2499,7 @@ httpServer.listen(
     stopAutopilotMonitor();
     stopConnectionGuardian();
     stopAutonomyController();
+    stopPerpetualRepair();
     stopSentinel();
     stopThreatLearningEngine();
     stopCommunityAudienceEngine();

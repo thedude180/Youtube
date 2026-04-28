@@ -184,6 +184,16 @@ async function improveSystem(userId: string, system: SystemAudit): Promise<void>
   const domainConfig = SYSTEM_DOMAINS.find(d => d.name === system.domain);
   if (!domainConfig) return;
 
+  // Evaluation gate: wait at least 24 hours before re-evolving the same domain.
+  // This gives each change a full day to prove its worth before being replaced.
+  if (system.lastImprovedAt) {
+    const hoursSinceLast = (Date.now() - new Date(system.lastImprovedAt).getTime()) / 3_600_000;
+    if (hoursSinceLast < 24) {
+      logger.info(`[${userId.substring(0, 8)}] Skipping ${sanitizeForPrompt(system.domain)} — improved ${Math.round(hoursSinceLast)}h ago (min 24h eval window)`);
+      return;
+    }
+  }
+
   const existingStrategies = await db.select().from(discoveredStrategies)
     .where(and(
       eq(discoveredStrategies.userId, userId),

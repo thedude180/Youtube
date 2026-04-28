@@ -6,7 +6,7 @@ import { channels, videos, autopilotConfig, autopilotQueue, engineHeartbeats,
 } from "@shared/schema";
 import { createLogger } from "./lib/logger";
 import { humanizeText, getStealthAnalysis } from "./ai-humanizer-engine";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
 import { storage } from "./storage";
 
 const logger = createLogger("autonomy-controller");
