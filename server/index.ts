@@ -1782,6 +1782,11 @@ httpServer.listen(
       import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
     });
 
+    // ── Crash recovery check (T+3s): email owner if last shutdown was unplanned ─
+    delay(3_000, () => {
+      import("./services/critical-alert").then(m => m.checkAndReportCrashRecovery()).catch(() => {});
+    });
+
     delay(3_000, () => {
       import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or }) => {
         const readCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);

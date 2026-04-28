@@ -1,6 +1,7 @@
 import { pool } from "../db";
 import { createLogger } from "../lib/logger";
 import { jitter } from "../lib/timer-utils";
+import { sendCriticalAlert, writeCrashMarker } from "./critical-alert";
 
 const logger = createLogger("health-brain");
 
@@ -189,6 +190,10 @@ class HealthBrain {
     for (const [, record] of this.engines) {
       try { await Promise.resolve(record.stop()); } catch {}
     }
+    const reason = "Unrecoverable memory leak — server restarting";
+    const detail = "Memory usage remained above 350 MB after emergency relief. The server will restart automatically and resume all operations.";
+    writeCrashMarker(reason, detail);
+    await sendCriticalAlert(reason, detail);
     await new Promise(r => setTimeout(r, 3000));
     process.exit(1);
   }
