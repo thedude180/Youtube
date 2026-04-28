@@ -320,6 +320,16 @@ async function checkQuotaBudget(job: PushJob): Promise<{ allowed: boolean; retry
       return { allowed: false, retryMs };
     }
 
+    // Live-stream gate: hold actual video uploads while stream is active.
+    // Metadata updates (title/description/tags) are safe and continue unblocked.
+    if (job.type === "video_upload") {
+      const { isLiveActive } = await import("../lib/live-gate");
+      if (isLiveActive()) {
+        logger.info(`[PushScheduler] Live stream active — holding upload job ${job.id} for 30 min`);
+        return { allowed: false, retryMs: 30 * 60_000 };
+      }
+    }
+
     const opType = job.type === "video_upload" ? "upload" as const : "write" as const;
     const canAfford = await canAffordOperation(job.userId, opType);
     if (!canAfford) {

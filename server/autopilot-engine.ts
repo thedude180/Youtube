@@ -969,6 +969,12 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     const ytChannel = ytChannels.find(c => c.accessToken);
     if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
 
+    const { isLiveActive: _isLiveActive1 } = await import("./lib/live-gate");
+    if (_isLiveActive1()) {
+      logger.info("Stream clip upload held — live stream in progress, will retry after stream ends", { postId: post.id });
+      return { success: false, error: "Live stream in progress — clip deferred until stream ends" };
+    }
+
     const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
     const startSec = meta.segmentStartSec ?? startMin * 60;
     const endSec = meta.segmentEndSec ?? endMin * 60;
@@ -1250,6 +1256,12 @@ async function handleMaximizerClipPublish(post: any, meta: any): Promise<{ succe
       .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")));
     const ytChannel = ytChannels.find(c => c.accessToken);
     if (!ytChannel) return { success: false, error: "No YouTube channel connected" };
+
+    const { isLiveActive: _isLiveActive2 } = await import("./lib/live-gate");
+    if (_isLiveActive2()) {
+      logger.info("Maximizer clip upload held — live stream in progress, will retry after stream ends", { postId: post.id });
+      return { success: false, error: "Live stream in progress — clip deferred until stream ends" };
+    }
 
     const { downloadSourceVideo, cutClipFromVideo, cleanupClipFile } = await import("./clip-video-processor");
     const sourcePath = await downloadSourceVideo(sourceYoutubeId, post.userId);

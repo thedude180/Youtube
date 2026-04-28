@@ -145,6 +145,12 @@ export async function processAutoPublishQueue(): Promise<void> {
     return;
   }
 
+  const { isLiveActive } = await import("../lib/live-gate");
+  if (isLiveActive()) {
+    logger.info("[AutoPublisher] Live stream active — deferring auto-publish queue until stream ends");
+    return;
+  }
+
   const horizon = new Date(Date.now() + 8 * 3600_000);
 
   const dueItems = await db.select().from(autopilotQueue)

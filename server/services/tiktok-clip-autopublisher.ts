@@ -38,6 +38,12 @@ async function publishPendingClips(userId: string): Promise<void> {
 
   state.lastRunAt = new Date();
 
+  const { isLiveActive } = await import("../lib/live-gate");
+  if (isLiveActive()) {
+    logger.info(`[${userId}] Live stream active — deferring TikTok auto-publish until stream ends`);
+    return;
+  }
+
   const connected = await hasTikTokChannel(userId);
   if (!connected) {
     logger.info(`[${userId}] No TikTok account connected — skipping run`);
