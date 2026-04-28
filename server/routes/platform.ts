@@ -244,12 +244,11 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
-  // DEV-ONLY: Force-reconnect any YouTube channel row via OAuth on behalf of the channel's real owner.
+  // Admin: Force-reconnect any YouTube channel row via OAuth on behalf of the channel's real owner.
   // Sets the session userId to the channel's owner so the callback stores tokens on the correct row.
-  // Usage: navigate to /api/admin/channels/32/reconnect-youtube in the browser while in dev.
+  // Works in both dev and production — restricted by role=admin on the channel's user.
+  // Usage: navigate to /api/admin/channels/32/reconnect-youtube in the browser.
   app.get("/api/admin/channels/:id/reconnect-youtube", async (req: any, res) => {
-    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
-    if (isProduction) return res.status(404).json({ error: "Not found" });
 
     const channelRowId = parseInt(req.params.id, 10);
     if (isNaN(channelRowId)) return res.status(400).json({ error: "Invalid channel row ID" });
@@ -283,12 +282,10 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
-  // DEV-ONLY: Simple alias — auto-finds the first real YouTube channel and starts OAuth
-  // reconnect on behalf of its real owner. No channel ID needed.
+  // Admin alias — auto-finds the first real YouTube channel and starts OAuth
+  // reconnect on behalf of its real owner. Works in both dev and production.
   // Usage: navigate to /api/admin/yt-reconnect in the browser (or tap the UI button).
   app.get("/api/admin/yt-reconnect", async (req: any, res) => {
-    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
-    if (isProduction) return res.status(404).json({ error: "Not found" });
 
     try {
       const { db } = await import("../db");
