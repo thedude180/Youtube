@@ -6,18 +6,17 @@
  *
  *  1. Reset pipelines stuck in "processing" for > 2h → pending
  *  2. Reset pipeline errors caused by AI-queue saturation → pending (max 5)
- *  3. Reset backlog items failed due to token errors → queued
+ *  3. Reset backlog items failed due to token errors → queued (30-min delay)
  *  4. Detect empty autopilot queues → trigger backlog replenishment
- *  5. Detect AI semaphore deadlock → forcibly reset the background slot counter
- *  6. Record its own heartbeat so the ops health page tracks it
+ *  5. Record its own heartbeat so the ops health page tracks it
  *
  * This complements healProductionPipeline() which runs once on boot.
  * Together they ensure no stuck state survives more than 30 minutes.
  */
 
 import { db } from "../db";
-import { contentPipeline, autopilotQueue, channels, users } from "@shared/schema";
-import { eq, lt, and, or, ilike, sql, count, gte } from "drizzle-orm";
+import { contentPipeline, autopilotQueue, users } from "@shared/schema";
+import { eq, lt, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordHeartbeat } from "./engine-heartbeat";
 
@@ -38,21 +37,27 @@ async function runRepairCycle(): Promise<void> {
 
   try {
     // 1. Pipelines stuck in "processing" for > 2h ─────────────────────────
+    // contentPipeline uses startedAt for when processing began (no updatedAt col)
     const stuckCutoff = new Date(Date.now() - STUCK_PIPELINE_MS);
-    const stuckResult = await db.update(contentPipeline)
-      .set({ status: "pending", updatedAt: new Date() })
+    const stuckIds = await db
+      .select({ id: contentPipeline.id })
+      .from(contentPipeline)
       .where(and(
         eq(contentPipeline.status, "processing"),
-        lt(contentPipeline.updatedAt, stuckCutoff),
-      ))
-      .returning({ id: contentPipeline.id });
-    if (stuckResult.length > 0) {
-      summary.push(`${stuckResult.length} stuck-processing → pending`);
+        lt(contentPipeline.startedAt, stuckCutoff),
+      ));
+    if (stuckIds.length > 0) {
+      await db.update(contentPipeline)
+        .set({ status: "pending" })
+        .where(inArray(contentPipeline.id, stuckIds.map(r => r.id)));
+      summary.push(`${stuckIds.length} stuck-processing → pending`);
     }
 
     // 2. Pipelines failed with AI-queue-full errors → back to pending ──────
-    const aiErrorResult = await db.update(contentPipeline)
-      .set({ status: "pending", errorMessage: null, updatedAt: new Date() })
+    const recentErrorCutoff = new Date(Date.now() - 5 * 60_000); // failed > 5m ago
+    const aiErrorIds = await db
+      .select({ id: contentPipeline.id })
+      .from(contentPipeline)
       .where(and(
         eq(contentPipeline.status, "error"),
         or(
@@ -63,18 +68,21 @@ async function runRepairCycle(): Promise<void> {
           ilike(contentPipeline.errorMessage, "%429%"),
           ilike(contentPipeline.errorMessage, "%rate limit%"),
         ),
-        // Only reset items that have been stuck in error for at least 5 minutes
-        lt(contentPipeline.updatedAt, new Date(Date.now() - 5 * 60_000)),
       ))
-      .limit(MAX_AI_RESETS)
-      .returning({ id: contentPipeline.id });
-    if (aiErrorResult.length > 0) {
-      summary.push(`${aiErrorResult.length} AI-error pipelines → pending`);
+      .limit(MAX_AI_RESETS);
+    if (aiErrorIds.length > 0) {
+      await db.update(contentPipeline)
+        .set({ status: "pending", errorMessage: null })
+        .where(inArray(contentPipeline.id, aiErrorIds.map(r => r.id)));
+      summary.push(`${aiErrorIds.length} AI-error pipelines → pending`);
     }
 
     // 3. Backlog items failed due to token/auth errors → queued ────────────
-    const tokenErrorResult = await db.update(autopilotQueue)
-      .set({ status: "queued", scheduledFor: new Date(Date.now() + 30 * 60_000) })
+    // Schedule 30 min into the future so any token repair can complete first
+    const tokenRetryAt = new Date(Date.now() + 30 * 60_000);
+    const tokenErrorIds = await db
+      .select({ id: autopilotQueue.id })
+      .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.status, "failed"),
         or(
@@ -85,64 +93,43 @@ async function runRepairCycle(): Promise<void> {
           ilike(sql`${autopilotQueue.metadata}::text`, "%channel not found%"),
         ),
       ))
-      .limit(MAX_TOKEN_RESETS)
-      .returning({ id: autopilotQueue.id });
-    if (tokenErrorResult.length > 0) {
-      summary.push(`${tokenErrorResult.length} token-error backlog → queued`);
+      .limit(MAX_TOKEN_RESETS);
+    if (tokenErrorIds.length > 0) {
+      await db.update(autopilotQueue)
+        .set({ status: "queued", scheduledAt: tokenRetryAt })
+        .where(inArray(autopilotQueue.id, tokenErrorIds.map(r => r.id)));
+      summary.push(`${tokenErrorIds.length} token-error backlog → queued (+30m)`);
     }
 
     // 4. Empty autopilot queues → replenish ───────────────────────────────
-    // Find users with autopilot active but 0 queued items.
-    const autopilotUsers = await db.selectDistinct({ userId: autopilotQueue.userId })
+    // Find users with autopilot active but 0 queued or processing items.
+    const activeUserRows = await db
+      .selectDistinct({ userId: autopilotQueue.userId })
       .from(autopilotQueue)
-      .where(
-        or(
-          eq(autopilotQueue.status, "queued"),
-          eq(autopilotQueue.status, "processing"),
-        )
-      );
+      .where(or(
+        eq(autopilotQueue.status, "queued"),
+        eq(autopilotQueue.status, "processing"),
+      ));
+    const activeUserIds = new Set(activeUserRows.map(r => r.userId));
 
-    const activeUserIds = new Set(autopilotUsers.map(r => r.userId));
-
-    // Get all users who have autopilot config active
-    const allAutopilotUsers = await db.select({ id: users.id })
+    // Get all ultimate-tier users (autopilot enabled)
+    const ultimateUsers = await db
+      .select({ id: users.id })
       .from(users)
       .where(eq(users.tier, "ultimate"));
 
-    for (const u of allAutopilotUsers) {
+    for (const u of ultimateUsers) {
       if (!activeUserIds.has(u.id)) {
         // Queue is completely empty — trigger replenishment
         try {
           const { startBacklogOnLogin } = await import("../backlog-manager");
           await startBacklogOnLogin(u.id);
-          summary.push(`backlog replenished for user ${u.id.substring(0, 8)}`);
+          summary.push(`backlog replenished for ${u.id.substring(0, 8)}`);
           logger.info(`[perpetual-repair] Backlog replenished for idle user ${u.id.substring(0, 8)}`);
         } catch (err: any) {
-          logger.warn(`[perpetual-repair] Could not replenish backlog for ${u.id.substring(0, 8)}: ${err.message}`);
+          logger.warn(`[perpetual-repair] Could not replenish backlog for ${u.id.substring(0, 8)}: ${err.message?.substring(0, 100)}`);
         }
       }
-    }
-
-    // 5. AI semaphore health check ─────────────────────────────────────────
-    // If the background slot counter is at max and has been for a while with no
-    // heartbeat activity from background engines, reset it. We detect this via
-    // the "last_background_ai_call" sentinel stored in shared memory.
-    // (Best-effort — if it fails, the semaphore self-recovers via its own timeout)
-    try {
-      const { getAISemaphoreStats } = await import("../lib/openai");
-      if (typeof getAISemaphoreStats === "function") {
-        const stats = getAISemaphoreStats();
-        if (stats.backgroundQueueDepth >= stats.backgroundMaxDepth && stats.backgroundWaitingMs > 10 * 60_000) {
-          const { resetAIBackgroundQueue } = await import("../lib/openai");
-          if (typeof resetAIBackgroundQueue === "function") {
-            resetAIBackgroundQueue();
-            summary.push("AI background semaphore deadlock detected and reset");
-            logger.warn("[perpetual-repair] AI background semaphore deadlock — forced reset");
-          }
-        }
-      }
-    } catch {
-      // graceful — semaphore reset is optional, not critical
     }
 
     const elapsed = Date.now() - cycleStart;
@@ -154,8 +141,8 @@ async function runRepairCycle(): Promise<void> {
 
     await recordHeartbeat("perpetual-repair", "idle", elapsed);
   } catch (err: any) {
-    logger.error(`[perpetual-repair] Repair cycle failed: ${err.message}`);
-    await recordHeartbeat("perpetual-repair", "error", Date.now() - cycleStart, err.message);
+    logger.error(`[perpetual-repair] Repair cycle failed: ${err.message?.substring(0, 200)}`);
+    await recordHeartbeat("perpetual-repair", "error", Date.now() - cycleStart, err.message?.substring(0, 200));
   }
 }
 
