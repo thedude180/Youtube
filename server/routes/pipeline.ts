@@ -262,8 +262,12 @@ export async function executePipelineInBackground(id: number, videoTitle: string
     } catch (stepErr: any) {
       const isRateLimit = stepErr?.status === 429 || stepErr?.statusCode === 429 ||
         /rate.?limit|429|too many requests/i.test(stepErr?.message || "");
-      if (isRateLimit) {
-        logger.warn(`[Pipeline] 429 rate limit on step "${sanitizeForPrompt(step)}" for pipeline ${id} — resetting to pending for retry`);
+      // AI semaphore queue-full errors are transient — the queue will drain.
+      // Reset to pending so the heal cycle or next boot can retry.
+      const isQueueFull = /AI queue full|queue full|request dropped|AI slot deferred/i.test(stepErr?.message || "");
+      if (isRateLimit || isQueueFull) {
+        const reason = isQueueFull ? "AI queue full" : "429 rate limit";
+        logger.warn(`[Pipeline] ${reason} on step "${sanitizeForPrompt(step)}" for pipeline ${id} — resetting to pending for retry`);
         await db.update(contentPipeline)
           .set({ status: "pending", errorMessage: null })
           .where(eq(contentPipeline.id, id));

@@ -371,8 +371,44 @@ async function healProductionPipeline(): Promise<void> {
       );
     const dlFailCount = (dlFailResult as any)?.rowCount ?? "?";
 
-    // 4. Reset content_pipeline entries that were abandoned mid-run ("processing")
-    //    or failed with a transient AI budget 401 ("error" + message contains "401").
+    // 4. Ghost user ownership migration (idempotent).
+    //    A ghost user (no users-table record, can never log in) may own channels,
+    //    pipelines, and push-backlog rows that belong to the real ET Gaming admin.
+    //    We migrate all their data to the real admin on every boot — the check on
+    //    ghost-channel existence makes it effectively idempotent.
+    const GHOST_USER_ID = "ffc4776c-64d1-4715-baf5-e110062b4e87";
+    const REAL_USER_ID  = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
+    const { channels: channelsTable, youtubePushBacklog } = await import("@shared/schema");
+
+    const ghostChannelCheck = await db
+      .select({ id: channelsTable.id })
+      .from(channelsTable)
+      .where(eq(channelsTable.userId, GHOST_USER_ID))
+      .limit(1);
+
+    if (ghostChannelCheck.length > 0) {
+      process.stdout.write("[prod-heal] Ghost user data found — migrating to real ET Gaming user...\n");
+
+      const chResult = await db.update(channelsTable)
+        .set({ userId: REAL_USER_ID })
+        .where(eq(channelsTable.userId, GHOST_USER_ID));
+      process.stdout.write(`[prod-heal] Migrated ${(chResult as any)?.rowCount ?? "?"} channels\n`);
+
+      const cpResult = await db.update(contentPipeline)
+        .set({ userId: REAL_USER_ID })
+        .where(eq(contentPipeline.userId, GHOST_USER_ID));
+      process.stdout.write(`[prod-heal] Migrated ${(cpResult as any)?.rowCount ?? "?"} pipelines\n`);
+
+      const blResult = await db.update(youtubePushBacklog)
+        .set({ userId: REAL_USER_ID })
+        .where(eq(youtubePushBacklog.userId, GHOST_USER_ID));
+      process.stdout.write(`[prod-heal] Migrated ${(blResult as any)?.rowCount ?? "?"} backlog items\n`);
+    } else {
+      process.stdout.write("[prod-heal] Ghost user migration: no ghost channels found (already migrated or never existed)\n");
+    }
+
+    // 5. Reset content_pipeline entries that were abandoned mid-run ("processing")
+    //    or failed with a transient AI budget 401/429/queue-full error.
     //    These entries will never self-recover without a nudge — the pipeline marks
     //    them dead and never looks at them again.  Resetting to "pending" lets the
     //    background pipeline runner pick them up on its next tick.
@@ -395,6 +431,25 @@ async function healProductionPipeline(): Promise<void> {
         )!
       );
     const pipeline401Count = (pipeline401Result as any)?.rowCount ?? "?";
+
+    // Also reset AI-semaphore queue-full failures — these are transient, not permanent.
+    // The pipeline executor now auto-resets on queue-full (forward fix), but existing
+    // DB rows from before that fix need a one-time nudge.
+    const pipelineQueueFullResult = await db
+      .update(contentPipeline)
+      .set({ status: "pending", errorMessage: null, startedAt: null })
+      .where(
+        and(
+          eq(contentPipeline.status, "error"),
+          or(
+            like(contentPipeline.errorMessage, "%AI queue full%"),
+            like(contentPipeline.errorMessage, "%queue full%"),
+            like(contentPipeline.errorMessage, "%request dropped%"),
+          )!
+        )!
+      );
+    const pipelineQueueFullCount = (pipelineQueueFullResult as any)?.rowCount ?? "?";
+    process.stdout.write(`[prod-heal] Reset ${pipelineQueueFullCount} AI-queue-full pipeline failures to pending\n`);
 
     // 5. Reschedule autopilot_queue items that landed far in the future due to
     //    the "next occurrence of best weekday" bug.  Anything scheduled more than
@@ -471,16 +526,51 @@ async function healProductionPipeline(): Promise<void> {
       );
     const vodCancelledCount = (vodCancelledResult as any)?.rowCount ?? "?";
 
-    // 8. Kick off pending pipeline entries.
-    //    The pipeline runner does NOT poll for "pending" status — it only fires
-    //    when an entry is explicitly triggered.  Any entry stuck in "pending"
-    //    (e.g. reset by heal above) will sit forever without this nudge.
-    //    We trigger up to 50 at boot; the AI semaphore (1 in-flight) queues the
-    //    rest naturally so they don't all hammer the API simultaneously.
+    // 8. Reset exhausted YouTube push-backlog items that failed because the channel
+    //    had no OAuth token.  Now that tokens are stored, these should succeed.
+    //    Only reset items that explicitly failed with a token-related error — don't
+    //    blindly reset items that failed for other reasons (quota, network, etc.).
+    try {
+      const backlogTokenResult = await db
+        .update(youtubePushBacklog)
+        .set({ status: "queued", attempts: 0, lastError: null })
+        .where(
+          and(
+            eq(youtubePushBacklog.status, "failed"),
+            or(
+              like(youtubePushBacklog.lastError, "%missing access token%"),
+              like(youtubePushBacklog.lastError, "%not connected%"),
+              like(youtubePushBacklog.lastError, "%Channel not connected%"),
+              like(youtubePushBacklog.lastError, "%channel_disconnected%"),
+            )!
+          )!
+        );
+      const backlogTokenCount = (backlogTokenResult as any)?.rowCount ?? "?";
+      process.stdout.write(`[prod-heal] Reset ${backlogTokenCount} token-failed backlog items to queued\n`);
+
+      // Kick the backlog processor for the real ET Gaming user so it picks up
+      // the newly queued items straight away rather than waiting for a login event.
+      if ((backlogTokenCount as number) > 0 || true) {
+        try {
+          const { startBacklogOnLogin } = await import("./backlog-manager");
+          await startBacklogOnLogin(REAL_USER_ID);
+          process.stdout.write(`[prod-heal] Backlog processor started for ET Gaming user\n`);
+        } catch (blErr: any) {
+          process.stdout.write(`[prod-heal] Warning: could not start backlog processor: ${blErr?.message}\n`);
+        }
+      }
+    } catch (backlogErr: any) {
+      process.stdout.write(`[prod-heal] Warning: backlog recovery failed: ${backlogErr?.message}\n`);
+    }
+
+    // 9. Kick off pending pipeline entries — in small batches to avoid flooding the
+    //    AI background queue (BACKGROUND_MAX_QUEUE_DEPTH = 5).  Kicking 6 at boot
+    //    fills the semaphore to capacity (1 active + 5 queued).  A 15-minute
+    //    periodic scanner then drips the remaining pending entries through steadily.
     try {
       const pendingPipelines = await db.select().from(contentPipeline)
         .where(eq(contentPipeline.status, "pending"))
-        .limit(50);
+        .limit(6);
 
       if (pendingPipelines.length > 0) {
         const { executePipelineInBackground } = await import("./routes/pipeline");
@@ -498,6 +588,33 @@ async function healProductionPipeline(): Promise<void> {
     } catch (pipelineErr: any) {
       process.stdout.write(`[prod-heal] Warning: could not kick pending pipelines: ${pipelineErr?.message}\n`);
     }
+
+    // 9b. Periodic pipeline drip-feed: every 15 minutes, kick the next batch of
+    //     pending pipelines so the backlog clears steadily without overwhelming the
+    //     AI queue at once.  Stops automatically once no pending pipelines remain.
+    const pipelineDripInterval = setInterval(async () => {
+      try {
+        const remaining = await db.select().from(contentPipeline)
+          .where(eq(contentPipeline.status, "pending"))
+          .limit(6);
+        if (remaining.length === 0) {
+          clearInterval(pipelineDripInterval);
+          process.stdout.write("[prod-heal] Pipeline drip-feed complete — no more pending entries\n");
+          return;
+        }
+        const { executePipelineInBackground } = await import("./routes/pipeline");
+        for (const p of remaining) {
+          executePipelineInBackground(
+            p.id,
+            p.videoTitle ?? "unknown",
+            p.mode ?? "vod",
+            (p.stepResults ?? {}) as Record<string, any>,
+            (p.completedSteps ?? []) as string[],
+          ).catch(() => {});
+        }
+        process.stdout.write(`[prod-heal] Drip-feed kicked ${remaining.length} pending pipelines\n`);
+      } catch { /* silent — interval will retry next tick */ }
+    }, 15 * 60_000);
 
     // 8. Immediately run a large exhauster sweep so that downloaded vault entries
     //    which have no stream_edit_job yet get jobs created before the first encode
