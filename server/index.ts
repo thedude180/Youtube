@@ -656,6 +656,8 @@ syncChannelTokens(); // restore missing YouTube tokens from users table (dev + p
 healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 // One-time cleanup: remove duplicate video entries so DB matches real YouTube channel
 import("./migrations/cleanup-video-dupes").then(m => m.runVideoDeduplicationIfNeeded()).catch(() => {});
+// One-time cleanup: remove stale expired channels so UI reflects actual connected channels
+import("./migrations/cleanup-stale-channels").then(m => m.removeStaleChannelsIfNeeded()).catch(() => {});
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas
