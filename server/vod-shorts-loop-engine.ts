@@ -1,6 +1,7 @@
 import { db } from "./db";
-import { vodShortsLoopRuns, videos, channels, contentClips, autopilotQueue } from "@shared/schema";
+import { vodShortsLoopRuns, videos, channels, contentClips, autopilotQueue, users } from "@shared/schema";
 import { eq, and, desc, lt, asc, sql, inArray } from "drizzle-orm";
+import cron from "node-cron";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
@@ -318,15 +319,18 @@ async function runCrossPlatformDistribution(userId: string): Promise<any> {
     .where(and(eq(contentClips.userId, userId), inArray(contentClips.status, ["pending", "ai_ready"]), eq(contentClips.targetPlatform, "youtube-shorts")))
     .limit(5);
 
-  const connectedPlatforms = await db.select({ platform: channels.platform })
+  const connectedPlatforms = await db.select({ platform: channels.platform, id: channels.id })
     .from(channels).where(eq(channels.userId, userId));
-  const platforms = [...new Set(connectedPlatforms.map(c => c.platform))];
+  const platformSet = new Set(connectedPlatforms.map(c => c.platform));
+  const hasYoutubeShorts = platformSet.has("youtubeshorts") || platformSet.has("youtube");
 
   let distributed = 0;
-  for (const clip of pendingClips) {
-    const targetPlatforms = platforms.filter(p => ["tiktok", "discord"].includes(p));
+  let shortsQueued = 0;
 
-    for (const platform of targetPlatforms) {
+  for (const clip of pendingClips) {
+    // Queue cross-promo text posts for TikTok and Discord if connected
+    const crossPlatforms = [...platformSet].filter(p => ["tiktok", "discord"].includes(p));
+    for (const platform of crossPlatforms) {
       await db.insert(autopilotQueue).values({
         userId,
         sourceVideoId: clip.sourceVideoId,
@@ -335,15 +339,50 @@ async function runCrossPlatformDistribution(userId: string): Promise<any> {
         content: `${sanitizeForPrompt(clip.title)} | Watch full video on YouTube!`,
         caption: clip.title || "New Short",
         status: "scheduled",
-        scheduledAt: new Date(Date.now() + Math.random() * 7200000),
+        scheduledAt: new Date(Date.now() + Math.random() * 7_200_000),
       });
       distributed++;
+    }
+
+    // Queue as a YouTube Short for actual video upload via shorts-clip-publisher
+    if (hasYoutubeShorts && clip.sourceVideoId && clip.startTime != null && clip.endTime != null) {
+      const existingShort = await db.select({ id: autopilotQueue.id }).from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.type, "youtube_short"),
+          eq(autopilotQueue.sourceVideoId, clip.sourceVideoId),
+        ))
+        .limit(1);
+
+      if (existingShort.length === 0) {
+        // Spread uploads: one every ~4 hours with human-like jitter
+        const delayMs = shortsQueued * 4 * 3600_000 + Math.floor(Math.random() * 600_000);
+        await db.insert(autopilotQueue).values({
+          userId,
+          sourceVideoId: clip.sourceVideoId,
+          type: "youtube_short",
+          targetPlatform: "youtubeshorts",
+          content: sanitizeForPrompt(clip.title),
+          caption: clip.title || "New Short",
+          status: "scheduled",
+          scheduledAt: new Date(Date.now() + delayMs),
+          metadata: {
+            startSec: clip.startTime ?? undefined,
+            endSec: clip.endTime ?? undefined,
+            clipId: clip.id,
+            viralScore: (clip.metadata as any)?.viralScore,
+            contentType: "youtube_short_clip",
+          },
+        });
+        shortsQueued++;
+        distributed++;
+      }
     }
 
     await db.update(contentClips).set({ status: "approved" }).where(eq(contentClips.id, clip.id));
   }
 
-  return { distributed, platforms: platforms.length, clipsQueued: pendingClips.length };
+  return { distributed, platforms: platformSet.size, clipsQueued: pendingClips.length, shortsQueued };
 }
 
 async function runVodPerformanceVerification(userId: string): Promise<any> {
@@ -559,5 +598,77 @@ export async function cancelVodShortsLoop(userId: string): Promise<boolean> {
   return true;
 }
 
+async function runVodShortsForAllUsers(): Promise<void> {
+  try {
+    const allUsers = await db.select({ id: users.id }).from(users).limit(50);
+    for (const u of allUsers) {
+      try {
+        // Skip if a run is already active for this user
+        if (activeLoops.has(u.id)) {
+          logger.debug("Skipping user — loop already active", { userId: u.id });
+          continue;
+        }
+        await executeVodShortsLoop(u.id);
+        logger.info("VOD shorts loop triggered", { userId: u.id });
+      } catch (err: any) {
+        logger.warn("VOD shorts loop failed for user", { userId: u.id, error: err?.message?.slice(0, 200) });
+      }
+      // Stagger user runs by 4 seconds to avoid concurrent AI quota bursts
+      await new Promise(r => setTimeout(r, 4_000));
+    }
+  } catch (err: any) {
+    logger.error("runVodShortsForAllUsers error", { error: err?.message?.slice(0, 200) });
+  }
+}
+
+async function runShortsPipelineForAllUsers(): Promise<void> {
+  try {
+    const allUsers = await db.select({ id: users.id }).from(users).limit(50);
+    const { startShortsPipeline } = await import("./shorts-pipeline-engine");
+    for (const u of allUsers) {
+      try {
+        await startShortsPipeline(u.id, "new-only");
+        logger.info("Shorts pipeline triggered", { userId: u.id });
+      } catch (err: any) {
+        logger.warn("Shorts pipeline failed for user", { userId: u.id, error: err?.message?.slice(0, 200) });
+      }
+      await new Promise(r => setTimeout(r, 3_000));
+    }
+  } catch (err: any) {
+    logger.warn("runShortsPipelineForAllUsers error", { error: err?.message?.slice(0, 200) });
+  }
+}
+
 export function initVodShortsLoopEngine() {
+  // ── Cron 1: VOD optimisation + Shorts extraction from published videos ──
+  // Runs every 4 hours at :20 past the hour.
+  // Processes: content-scan, title optimisation, description SEO, thumbnail
+  // refresh, shorts-extraction (AI viral-moment detection) and cross-platform
+  // distribution for every user's YouTube catalog.
+  cron.schedule("20 */4 * * *", async () => {
+    logger.info("VOD Shorts Loop cron fired — running for all users");
+    await runVodShortsForAllUsers();
+    await recordHeartbeat("vodShortsLoopCron", "completed").catch(() => {});
+  });
+
+  // ── Cron 2: Shorts pipeline — deep transcript-based clip extraction ────
+  // Runs every 6 hours at :45, staggered from cron 1.
+  // Uses YouTube transcript API to find the best 3–8 clip moments per video
+  // and stores them in content_clips for downstream autopilot publishing.
+  cron.schedule("45 */6 * * *", async () => {
+    logger.info("Shorts pipeline cron fired — extracting clips for all users");
+    await runShortsPipelineForAllUsers();
+  });
+
+  // ── Startup warm-up run: 8-minute delay so other engines settle first ──
+  // Gives the YouTube catalog sync, vault exhauster, and smart-edit engine
+  // time to boot before the VOD loop adds AI load.
+  setTimeout(async () => {
+    logger.info("VOD Shorts Loop engine warm-up run starting");
+    await runVodShortsForAllUsers();
+    // Shorts pipeline 2 minutes after VOD loop to further stagger AI load
+    setTimeout(() => runShortsPipelineForAllUsers().catch(() => {}), 2 * 60_000);
+  }, 8 * 60_000);
+
+  logger.info("VOD Shorts Loop Engine initialised — VOD loop every 4h at :20, pipeline every 6h at :45, warm-up in 8 min");
 }
