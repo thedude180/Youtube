@@ -658,6 +658,8 @@ healProductionPipeline(); // unstick orphaned downloads/jobs (prod only)
 import("./migrations/cleanup-video-dupes").then(m => m.runVideoDeduplicationIfNeeded()).catch(() => {});
 // One-time cleanup: remove stale expired channels so UI reflects actual connected channels
 import("./migrations/cleanup-stale-channels").then(m => m.removeStaleChannelsIfNeeded()).catch(() => {});
+// One-time cleanup: reset ghost processing jobs, resolve irrecoverable DLQ entries, unstick pipelines
+import("./migrations/cleanup-ghost-data").then(m => m.cleanGhostDataIfNeeded()).catch(() => {});
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas
