@@ -660,6 +660,8 @@ import("./migrations/cleanup-video-dupes").then(m => m.runVideoDeduplicationIfNe
 import("./migrations/cleanup-stale-channels").then(m => m.removeStaleChannelsIfNeeded()).catch(() => {});
 // One-time cleanup: reset ghost processing jobs, resolve irrecoverable DLQ entries, unstick pipelines
 import("./migrations/cleanup-ghost-data").then(m => m.cleanGhostDataIfNeeded()).catch(() => {});
+// One-time cleanup: deduplicate content_pipeline entries caused by backlog-manager "pending" status bug
+import("./migrations/cleanup-pipeline-dupes").then(m => m.deduplicatePipelinesIfNeeded()).catch(() => {});
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas

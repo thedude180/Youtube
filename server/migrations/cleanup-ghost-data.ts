@@ -26,7 +26,7 @@ import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("ghost-data-cleanup");
-const MIGRATION_KEY = "production_ghost_data_cleanup_v1";
+const MIGRATION_KEY = "production_ghost_data_cleanup_v2";
 
 export async function cleanGhostDataIfNeeded(): Promise<void> {
   if (process.env.NODE_ENV !== "production" && !process.env.REPLIT_DEPLOYMENT) {
@@ -52,7 +52,7 @@ export async function cleanGhostDataIfNeeded(): Promise<void> {
   try {
     const stuckJobs = await db.execute(
       sql`UPDATE jobs
-          SET status = 'failed', error = 'Abandoned by previous server instance — reset by ghost-data-cleanup migration'
+          SET status = 'failed', error_message = 'Abandoned by previous server instance — reset by ghost-data-cleanup migration'
           WHERE status = 'processing'
             AND (
               type IN ('auto_backlog_processing', 'post_stream_automation', 'stream_automation')

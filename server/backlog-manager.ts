@@ -81,7 +81,7 @@ export async function startBacklogOnLogin(userId: string): Promise<{ started: bo
     .where(and(
       eq(contentPipeline.userId, userId),
       eq(contentPipeline.mode, "refresh"),
-      inArray(contentPipeline.status, ["completed", "processing", "queued", "error"]),
+      inArray(contentPipeline.status, ["pending", "completed", "processing", "queued", "error"]),
     ));
 
   const alreadyDoneVideoIds = new Set(
@@ -214,7 +214,7 @@ async function processBacklogContinuously(userId: string): Promise<void> {
       .where(and(
         eq(contentPipeline.userId, userId),
         eq(contentPipeline.mode, "refresh"),
-        inArray(contentPipeline.status, ["completed", "processing", "queued", "error"]),
+        inArray(contentPipeline.status, ["pending", "completed", "processing", "queued", "error"]),
       ));
 
     const alreadyDoneVideoIds = new Set(
@@ -345,7 +345,7 @@ export async function getBacklogStatus(userId: string): Promise<{
       .where(and(
         eq(contentPipeline.userId, userId),
         eq(contentPipeline.mode, "refresh"),
-        inArray(contentPipeline.status, ["completed", "processing", "queued", "error"]),
+        inArray(contentPipeline.status, ["pending", "completed", "processing", "queued", "error"]),
       ));
 
     const doneIds = new Set(existingRefreshPipelines.filter(p => p.videoId).map(p => p.videoId));
