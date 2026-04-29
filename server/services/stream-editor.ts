@@ -384,8 +384,34 @@ async function runJobInBackground(jobId: number): Promise<void> {
 
   activeJobId = jobId;
 
+  // Track whether failure was a transient DB connection error so the finally
+  // block can back off before immediately picking up the next job — otherwise
+  // we'd create a tight retry storm that exhausts the pool further.
+  let connectionError = false;
+
   try {
-    const [job] = await db.select().from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
+    // Retry the initial DB fetch with exponential backoff.  Under production
+    // load the pool (max 30) can be fully saturated by background services;
+    // a single 5-second timeout followed by an instant retry just hammers it
+    // harder.  Back off up to 60 s before actually giving up.
+    let job: typeof streamEditJobs.$inferSelect | undefined;
+    let dbAttempts = 0;
+    while (true) {
+      try {
+        const rows = await db.select().from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
+        job = rows[0];
+        break;
+      } catch (dbErr: any) {
+        dbAttempts++;
+        const isConnErr = /timeout|ETIMEDOUT|ECONNRESET|pool.*empty|too many clients/i.test(dbErr?.message ?? "");
+        if (!isConnErr || dbAttempts >= 6) { connectionError = isConnErr; throw dbErr; }
+        connectionError = true;
+        const delay = Math.min(60_000, 5_000 * Math.pow(2, dbAttempts - 1));
+        logger.warn(`[StreamEditor] Job ${jobId}: DB pool saturated (attempt ${dbAttempts}/6) — backing off ${delay / 1000}s`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+    connectionError = false;
     if (!job || job.status !== "queued") return;
 
     await db.update(streamEditJobs).set({
@@ -673,7 +699,14 @@ async function runJobInBackground(jobId: number): Promise<void> {
     }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
   } finally {
     activeJobId = null;
-    await pickUpNextQueuedJob();
+    // If the failure was a DB connection error, wait 30 s before picking up
+    // the next job.  Immediately re-queuing adds more pool pressure and creates
+    // a tight storm that prevents the pool from recovering.
+    if (connectionError) {
+      logger.warn(`[StreamEditor] Job ${jobId}: DB connection error — waiting 30 s before picking up next job`);
+      await new Promise(r => setTimeout(r, 30_000));
+    }
+    await pickUpNextQueuedJob().catch(() => {});
   }
 }
 
