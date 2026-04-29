@@ -346,6 +346,27 @@ async function healProductionPipeline(): Promise<void> {
       );
     const fmtCount = (fmtResult as any)?.rowCount ?? "?";
 
+    // 2b. Reset "downloaded" vault entries whose local file is gone (ephemeral disk).
+    //
+    //     The production server uses ephemeral disk storage — every deployment or
+    //     restart wipes /home/runner/workspace/vault/*.mp4.  After a restart, any
+    //     vault entry with status="downloaded" and a local file_path is stale:
+    //     the file no longer exists on disk, cloud-storage backups are not yet
+    //     reliable, and the vault downloader only picks up "indexed"/"failed"
+    //     entries.  Without this reset, 2,500+ entries stay permanently stuck in
+    //     "downloaded" with no file — the stream editor defers them, the
+    //     downloader skips them, and the entire pipeline stalls.
+    //
+    //     We identify local paths by the "/home/runner/" prefix.  Object-storage
+    //     cloud paths (gs:// or https://storage.googleapis.com/) are left intact.
+    const downloadedResetResult = await db.execute(
+      sqlTag`UPDATE content_vault_backups
+             SET status = 'indexed', file_path = NULL
+             WHERE status = 'downloaded'
+               AND file_path LIKE '/home/runner/%'`,
+    );
+    const downloadedResetCount = (downloadedResetResult as any)?.rowCount ?? "?";
+
     // 3. Unstick edit jobs left "processing" by old server
     const jobResult = await db
       .update(streamEditJobs)
@@ -752,7 +773,7 @@ async function healProductionPipeline(): Promise<void> {
     }
 
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${downloadedResetCount} stale-disk downloaded → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);

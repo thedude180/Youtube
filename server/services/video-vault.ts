@@ -3,6 +3,7 @@ import { contentVaultBackups, channels } from "@shared/schema";
 import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 
@@ -975,9 +976,11 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       // Back up to cloud storage if not already there
       import("./vault-object-storage").then(({ uploadVaultFileToStorage, vaultFileExistsInStorage }) =>
         vaultFileExistsInStorage(youtubeId).then(exists => {
-          if (!exists) uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {});
-        }).catch(() => {})
-      ).catch(() => {});
+          if (!exists) uploadVaultFileToStorage(youtubeId, outputPath).catch(err =>
+            logger.warn(`[VaultStorage] Upload failed for ${youtubeId}: ${err?.message}`),
+          );
+        }).catch(err => logger.warn(`[VaultStorage] Cloud-check failed for ${youtubeId}: ${err?.message}`))
+      ).catch(err => logger.warn(`[VaultStorage] import failed: ${err?.message}`));
       return true;
     }
   }
@@ -1023,8 +1026,10 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
             .set({ status: "downloaded", filePath: outputPath, fileSize: stat.size, downloadedAt: new Date(), downloadError: null })
             .where(eq(contentVaultBackups.id, vaultEntry.id));
           import("./vault-object-storage").then(({ uploadVaultFileToStorage }) =>
-            uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {})
-          ).catch(() => {});
+            uploadVaultFileToStorage(youtubeId, outputPath).catch(err =>
+              logger.warn(`[VaultStorage] InnerTube upload failed for ${youtubeId}: ${err?.message}`),
+            )
+          ).catch(err => logger.warn(`[VaultStorage] import failed: ${err?.message}`));
           return true;
         }
       }
@@ -1074,8 +1079,10 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
             .where(eq(contentVaultBackups.id, vaultEntry.id));
           logger.info(`[Vault] Downloaded: ${vaultEntry.title?.substring(0, 50)} via ${playerClient} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
           import("./vault-object-storage").then(({ uploadVaultFileToStorage }) =>
-            uploadVaultFileToStorage(youtubeId, outputPath).catch(() => {})
-          ).catch(() => {});
+            uploadVaultFileToStorage(youtubeId, outputPath).catch(err =>
+              logger.warn(`[VaultStorage] yt-dlp upload failed for ${youtubeId}: ${err?.message}`),
+            )
+          ).catch(err => logger.warn(`[VaultStorage] import failed: ${err?.message}`));
           return true;
         }
       }
@@ -1219,25 +1226,42 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     let memPressureWaits = 0;
     while (true) {
       // Memory pressure gate — halt downloads before the server OOMs.
-      // Production baseline is ~88% heap on this server due to 146 background
-      // services running simultaneously.  Thresholds calibrated to that reality:
-      //   > 96% = critical OOM risk — stop immediately
-      //   90-96% = high pressure — wait 60s up to 6× for GC, then stop
-      //   < 90% = normal operation — continue downloading
-      const memUsage = process.memoryUsage();
-      const memPct = memUsage.heapTotal > 0 ? memUsage.heapUsed / memUsage.heapTotal : 0;
-      if (memPct > 0.96) {
-        logger.warn(`[Vault] Critical memory pressure (${Math.round(memPct * 100)}%) — stopping downloads`);
+      //
+      // We use OS-level free-memory percentage as the primary signal because
+      // V8 heap ratio (heapUsed/heapTotal) is a misleading proxy: the GC
+      // lazily expands heapTotal, so the ratio stays at 90-96% even when the
+      // OS still has hundreds of MB free.  Blocking on heap ratio caused ALL
+      // vault downloads to be permanently skipped in production.
+      //
+      // OS thresholds (conservative — production server has ~512 MB–1 GB RAM):
+      //   < 4% OS free  = critical OOM risk → stop immediately
+      //   4–8% OS free  = high pressure → wait 30 s up to 4×, then stop
+      //   > 8% OS free  = normal operation → continue downloading
+      //
+      // V8 heap is kept as a last-resort safety net (> 98% = stop) to guard
+      // against pathological allocations that the OS metric would miss.
+      const osFreeRatio = os.freemem() / os.totalmem();
+      const heapUsage = process.memoryUsage();
+      const heapRatio = heapUsage.heapTotal > 0 ? heapUsage.heapUsed / heapUsage.heapTotal : 0;
+
+      if (osFreeRatio < 0.04 || heapRatio > 0.98) {
+        logger.warn(
+          `[Vault] Critical memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%, heap: ${Math.round(heapRatio * 100)}%) — stopping downloads`,
+        );
         break;
       }
-      if (memPct > 0.90) {
+      if (osFreeRatio < 0.08) {
         memPressureWaits++;
-        if (memPressureWaits > 6) {
-          logger.warn(`[Vault] Sustained memory pressure (${Math.round(memPct * 100)}%) — stopping downloads after ${memPressureWaits} waits`);
+        if (memPressureWaits > 4) {
+          logger.warn(
+            `[Vault] Sustained memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%) — stopping downloads after ${memPressureWaits} waits`,
+          );
           break;
         }
-        logger.warn(`[Vault] Memory pressure (${Math.round(memPct * 100)}%) — waiting 60 s for GC (${memPressureWaits}/6)`);
-        await new Promise(r => setTimeout(r, 60_000));
+        logger.warn(
+          `[Vault] Memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%, heap: ${Math.round(heapRatio * 100)}%) — waiting 30 s for GC (${memPressureWaits}/4)`,
+        );
+        await new Promise(r => setTimeout(r, 30_000));
         continue;
       }
       memPressureWaits = 0;
