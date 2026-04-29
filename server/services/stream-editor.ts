@@ -430,9 +430,7 @@ async function pickUpNextQueuedJob(): Promise<void> {
  * waiting for this vault entry as ready-to-encode (downloadFirst=false,
  * sourceFilePath set), then wakes the stream editor if it is idle.
  *
- * This is the "handoff" between vault and stream editor — without it the
- * stream editor would never know a file had arrived and those jobs would
- * stay deferred indefinitely.
+ * This is the [1/6] Download → [2/6] Edit handoff in the pipeline chain.
  */
 export async function onVaultDownloadComplete(vaultEntryId: number, filePath: string): Promise<void> {
   try {
@@ -440,7 +438,7 @@ export async function onVaultDownloadComplete(vaultEntryId: number, filePath: st
       .set({
         downloadFirst: false,
         sourceFilePath: filePath,
-        currentStage: "Ready to encode",
+        currentStage: "[2/6] Preparing — file ready, waiting for encoder",
       })
       .where(
         and(
@@ -448,11 +446,30 @@ export async function onVaultDownloadComplete(vaultEntryId: number, filePath: st
           eq(streamEditJobs.status, "queued"),
         )
       );
-    logger.info(`[StreamEditor] Vault entry ${vaultEntryId} downloaded — waking stream editor`);
+    logger.info(`[StreamEditor] [Pipeline] Step 1→2: vault entry ${vaultEntryId} downloaded — handing off to editor`);
     if (activeJobId === null) {
       await pickUpNextQueuedJob().catch(() => {});
     }
   } catch {}
+}
+
+/**
+ * Called immediately when a stream_edit_job finishes successfully.
+ * Triggers processAutoPublishQueue right away so clips that are due for
+ * publishing are uploaded to YouTube without waiting for the 5-minute poller.
+ *
+ * This is the [4/6] Upscale → [5/6] Package → [6/6] Publish handoff in the
+ * pipeline chain.
+ */
+export async function onEditingComplete(userId: string): Promise<void> {
+  try {
+    logger.info(`[StreamEditor] [Pipeline] Step 4→5→6: editing complete for user ${userId} — triggering auto-publisher`);
+    const { processAutoPublishQueue } = await import("./stream-editor-auto-publisher");
+    await processAutoPublishQueue();
+    logger.info(`[StreamEditor] [Pipeline] Auto-publisher cycle complete`);
+  } catch (err: any) {
+    logger.warn(`[StreamEditor] [Pipeline] Auto-publisher trigger failed (non-fatal):`, err?.message);
+  }
 }
 
 async function runJobInBackground(jobId: number): Promise<void> {
@@ -559,7 +576,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
             }).where(eq(contentVaultBackups.id, job.vaultEntryId));
             await db.update(streamEditJobs).set({
               status: "queued",
-              currentStage: "Waiting for vault re-download",
+              currentStage: "[1/6] Downloading — cloud restore pending",
               startedAt: null,
             }).where(eq(streamEditJobs.id, jobId));
             _jobWasDeferred = true;
@@ -573,7 +590,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
           logger.info(`[StreamEditor] Job ${jobId}: vault ${job.vaultEntryId} is "${vaultStatus}" — deferring until vault downloads it`);
           await db.update(streamEditJobs).set({
             status: "queued",
-            currentStage: `Waiting for vault download (${vaultStatus})`,
+            currentStage: `[1/6] Downloading (${vaultStatus})`,
             startedAt: null,
           }).where(eq(streamEditJobs.id, jobId));
           _jobWasDeferred = true;
@@ -620,7 +637,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
           }
           await db.update(streamEditJobs).set({
             status: "queued",
-            currentStage: `Waiting for vault download (${vaultStatus})`,
+            currentStage: `[1/6] Downloading (${vaultStatus})`,
             downloadFirst: true,
             startedAt: null,
           }).where(eq(streamEditJobs.id, jobId));
@@ -635,8 +652,9 @@ async function runJobInBackground(jobId: number): Promise<void> {
       throw new Error("Source video file not found — download may have failed");
     }
 
+    // ── Stage 2/6: Probe source file ─────────────────────────────────────────
     await db.update(streamEditJobs).set({
-      currentStage: "Probing source video",
+      currentStage: "[2/6] Preparing — probing source file",
     }).where(eq(streamEditJobs.id, jobId));
 
     const probe = await probeVideo(sourceFile);
@@ -664,9 +682,15 @@ async function runJobInBackground(jobId: number): Promise<void> {
       sourceDurationSecs: Math.round(probe.durationSecs),
       totalClips: totalTasks,
       outputDir: jobOutputDir,
-      currentStage: "Encoding",
+      currentStage: `[3/6] Editing — Clip 1/${numClips}`,
     }).where(eq(streamEditJobs.id, jobId));
 
+    // ── Stages 3/6 + 4/6: Edit then Upscale ─────────────────────────────────
+    // Edit (color grading, denoising, cuts) and upscale (Lanczos to 4K) happen
+    // in a single FFmpeg pass for efficiency — two separate passes would double
+    // encode time for every clip.  The progress callback transitions the stage
+    // label from [3/6] Editing to [4/6] Upscaling at the ~50% mark so the
+    // pipeline chain is visible without the performance cost.
     for (const platform of platforms) {
       const profile = PLATFORM_PROFILES[platform];
       const platformDir = path.join(jobOutputDir, platform);
@@ -678,8 +702,8 @@ async function runJobInBackground(jobId: number): Promise<void> {
         const clipLabel = `Part ${i + 1} of ${numClips} — ${profile.label}`;
         const outputPath = path.join(platformDir, `clip_${String(i + 1).padStart(3, "0")}.mp4`);
 
-        const stage = `${profile.label} · Clip ${i + 1}/${numClips}`;
-        logger.info(`[StreamEditor] Job ${jobId}: ${stage}`);
+        const clipRef = `Clip ${i + 1}/${numClips}`;
+        logger.info(`[StreamEditor] Job ${jobId}: [3/6→4/6] ${profile.label} · ${clipRef}`);
 
         await processClip(
           sourceFile,
@@ -692,10 +716,13 @@ async function runJobInBackground(jobId: number): Promise<void> {
           probe.width,
           probe.height,
           (pct, fps, speedLabel) => {
+            // First half of the FFmpeg filter chain = editing (denoise, colour, cuts).
+            // Second half = upscaling (Lanczos scale, post-sharpen).
+            const phase = pct < 50 ? "[3/6] Editing" : "[4/6] Upscaling";
             const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
             db.update(streamEditJobs).set({
               progress: overallPct,
-              currentStage: `${stage} · ${speedLabel}`,
+              currentStage: `${phase} — ${profile.label} · ${clipRef} · ${speedLabel}`,
             }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
           },
         );
@@ -729,9 +756,11 @@ async function runJobInBackground(jobId: number): Promise<void> {
       );
     }
 
-    // ── AI Post-processing: generate SEO package + Studio videos for every clip ──
+    // ── Stage 5/6: AI Packaging ───────────────────────────────────────────────
+    // Generate SEO titles/descriptions, create studio_video records, and
+    // schedule each clip in autopilot_queue for auto-publishing.
     await db.update(streamEditJobs).set({
-      currentStage: "AI Packaging (0/" + outputFiles.length + ")",
+      currentStage: `[5/6] Packaging — 0/${outputFiles.length} clips`,
     }).where(eq(streamEditJobs.id, jobId));
 
     let packagedOutputFiles = outputFiles;
@@ -751,7 +780,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
         job.autoPublish ?? false,
         (done, total) => {
           db.update(streamEditJobs).set({
-            currentStage: `AI Packaging (${done}/${total})`,
+            currentStage: `[5/6] Packaging — ${done}/${total} clips`,
             outputFiles: packagedOutputFiles,
           }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
         },
@@ -770,16 +799,21 @@ async function runJobInBackground(jobId: number): Promise<void> {
       );
     }
 
+    // ── Stage 6/6: Queue for publish ─────────────────────────────────────────
     await db.update(streamEditJobs).set({
       status: "done",
       progress: 100,
       completedClips: totalTasks,
       outputFiles: packagedOutputFiles,
-      currentStage: "Complete",
+      currentStage: "[6/6] Queued for publish",
       completedAt: new Date(),
     }).where(eq(streamEditJobs.id, jobId));
 
-    logger.info(`[StreamEditor] Job ${jobId} complete — ${packagedOutputFiles.length} clips produced`);
+    logger.info(`[StreamEditor] Job ${jobId} complete — ${packagedOutputFiles.length} clips produced — pipeline: Download→Edit→Upscale→Package→Publish`);
+
+    // Explicitly hand off to the auto-publisher — do NOT wait for the 5-minute
+    // poller.  This is the Edit→Publish link in the pipeline chain.
+    onEditingComplete(job.userId).catch(() => {});
 
     // Archive all edited clips to cloud storage in the background.
     // Files on local disk are wiped on deployment; cloud copies survive permanently.
