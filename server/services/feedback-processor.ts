@@ -1,5 +1,5 @@
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { db } from "../db";
 import { feedbackSubmissions } from "@shared/schema";
 import { SUBSCRIPTION_TIERS } from "@shared/models/auth";
@@ -10,7 +10,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("feedback-processor");
 function getOpenAI() {
-  return getOpenAIClient();
+  return getOpenAIClientBackground();
 }
 
 const ESCALATION_THRESHOLD = 3;

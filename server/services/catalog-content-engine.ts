@@ -3,13 +3,13 @@ import { db } from "../db";
 import { videos, channels, autopilotQueue } from "@shared/schema";
 import { eq, desc, and, gte, sql, lt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import { recordHeartbeat } from "./engine-heartbeat";
 
 const logger = createLogger("catalog-content-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const ENGINE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_OPPORTUNITIES_PER_CYCLE = 8;

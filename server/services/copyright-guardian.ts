@@ -18,7 +18,7 @@
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { jitter } from "../lib/timer-utils";
 import { runCopyrightCheck } from "./copyright-check";
 import type { CopyrightIssue } from "./copyright-check";
@@ -120,7 +120,7 @@ async function generateFullFix(
   detectedIssues: CopyrightIssue[],
 ): Promise<{ title: string; description: string; tags: string[] } | null> {
   try {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClientBackground();
     const issueList = detectedIssues.map(i => `• [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 
     const resp = await openai.chat.completions.create({

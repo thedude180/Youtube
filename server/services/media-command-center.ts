@@ -2,7 +2,7 @@ import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shi
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments, discoveredStrategies, notifications, users } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { getAdaptiveRule, getAllAdaptiveRules } from "./tos-compliance-monitor";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
@@ -326,7 +326,7 @@ async function generateStrategicDirectives(
 ): Promise<void> {
   if (health.score >= 80 && health.strikeRisk.level === "low") return;
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
   const rules = getAllAdaptiveRules();
 
   try {

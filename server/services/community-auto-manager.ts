@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, gt, lt, gte } from "drizzle-orm";
 import { withCreatorVoice } from "./creator-dna-builder";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { createLogger } from "../lib/logger";
 import { routeNotification } from "./notification-system";
@@ -163,7 +163,7 @@ export class CommunityAutoManager {
         ? `\nGames currently being played: ${activeGames.map(g => sanitizeForPrompt(g)).join(", ")}\nIMPORTANT: Reference the specific game(s) naturally — fans engage more with game-specific content than generic "gaming" posts.`
         : "";
       
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const basePrompt = `Generate an engaging YouTube community post based on the creator's recent activity.
       Recent videos: ${videoDetails.join(", ")}${gameContext}
       
@@ -272,7 +272,7 @@ export class CommunityAutoManager {
       const { getAuthenticatedClient } = await import("../youtube");
       const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
       const { google } = await import("googleapis");
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const MAX_REPLIES = 10;
       let totalReplied = 0;
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -395,7 +395,7 @@ export class CommunityAutoManager {
         return;
       }
 
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const basePrompt = `Generate a community poll for a gaming YouTube channel. 
       The poll should have a question and 4 engaging options.
       Recent topics: gaming, PS5 streaming, new releases.

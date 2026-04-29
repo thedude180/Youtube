@@ -3,7 +3,7 @@ import { db } from "../db";
 import { videos, channels, contentClips, autopilotQueue } from "@shared/schema";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import cron from "node-cron";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { canPostToPlatformToday, enforceCaptionLimit, getPlatformHashtagMax, humanJitterDelayMs } from "./platform-budget-tracker";
 import { createLogger } from "../lib/logger";
 
@@ -119,7 +119,7 @@ async function generatePlatformCaption(
   platform: TargetPlatform,
 ): Promise<PlatformCaption | null> {
   try {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClientBackground();
     const ctxTags = sanitizeForPrompt(video.tags.slice(0, 8).join(", "));
     const prompt = `You are a viral short-form content strategist for a no-commentary PS5 gaming channel.
 

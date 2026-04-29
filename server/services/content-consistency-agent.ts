@@ -1,6 +1,6 @@
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { jitter } from "../lib/timer-utils";
 import { tokenBudget, sanitizeForPrompt } from "../lib/ai-attack-shield";
 
@@ -265,7 +265,7 @@ async function generateAISuggestions(userId: string, issues: VideoRecommendation
   if (!issues.length) return [];
 
   const enriched: VideoRecommendation[] = [];
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
   const toProcess = issues.slice(0, BATCH_SIZE);
 
   for (const issue of toProcess) {

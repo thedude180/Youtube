@@ -7,9 +7,9 @@ import { createHash } from "crypto";
 
 const logger = createLogger("platform-policy-tracker");
 
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 function getOpenAI() {
-  return getOpenAIClient();
+  return getOpenAIClientBackground();
 }
 
 const POLICY_PACK_PLATFORMS = getPackPlatforms();

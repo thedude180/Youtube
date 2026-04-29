@@ -2,12 +2,12 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 
 const logger = createLogger("content-maximizer");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const NO_COMMENTARY_TAGS = ["no commentary", "no commentary gameplay", "PS5 gameplay", "no talking", "ambient gameplay", "pure gameplay"];
 const NO_COMMENTARY_TITLE_SUFFIX = " | No Commentary";

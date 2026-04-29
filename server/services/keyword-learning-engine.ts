@@ -2,12 +2,12 @@ import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shi
 import { db } from "../db";
 import { videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("keyword-learning-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 export async function analyzeChannelKeywords(userId: string) {
   const userChannels = await db.select().from(channels)

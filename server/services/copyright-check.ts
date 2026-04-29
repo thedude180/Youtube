@@ -1,6 +1,6 @@
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 
 const logger = createLogger("copyright-check");
 
@@ -171,7 +171,7 @@ async function runAICopyrightReview(
   platform: string,
   keywordIssues: CopyrightIssue[],
 ): Promise<CopyrightCheckResult | null> {
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   const issuesSummary = keywordIssues.map(i => `- [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 

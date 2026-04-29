@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte, lt, isNotNull, asc, inArray } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { shouldRunVodOptimization } from "./priority-orchestrator";
@@ -11,7 +11,7 @@ import { humanizeText } from "./ai-humanizer-engine";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("vod-optimizer");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const VODS_PER_BATCH = 5;
 const MIN_AGE_DAYS = 7;

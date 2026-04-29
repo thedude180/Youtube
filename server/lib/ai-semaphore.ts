@@ -23,8 +23,10 @@ export const MIN_INTER_CALL_DELAY_MS = 3_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 10;
 // Background callers fail-fast when this many are already queued.
-// Keeps the tail of the queue open for critical-path publish/chat callers.
-const BACKGROUND_MAX_QUEUE_DEPTH = 5;
+// Kept at 3 (was 5) so the 7 remaining queue slots are always available
+// for critical-path callers: pipeline analyze, publish, live-chat.
+// Background engines that exceed this limit will retry on their next cron cycle.
+const BACKGROUND_MAX_QUEUE_DEPTH = 3;
 const _bootTime = Date.now();
 
 let _busy = false;

@@ -1,14 +1,14 @@
 import { db } from "../db";
 import { trafficStrategies, videos, channels, keywordInsights, aiResults } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 import { createLogger } from "../lib/logger";
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 
 const logger = createLogger("traffic-growth-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const LEGIT_STRATEGY_TYPES = [
   "seo-optimization",

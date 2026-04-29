@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { callClaude, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { aiModelRoutingLogs } from "@shared/schema";
@@ -145,7 +145,7 @@ export async function executeRoutedAICall(
       completionTokens = result.outputTokens;
       tokensUsed = result.inputTokens + result.outputTokens;
     } else {
-      const client = getOpenAIClient();
+      const client = getOpenAIClientBackground();
       const response = await client.chat.completions.create({
         model: routing.model,
         max_completion_tokens: routing.maxTokens,

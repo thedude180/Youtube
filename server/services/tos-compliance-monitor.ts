@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { complianceRules, discoveredStrategies, notifications } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { tokenBudget, sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
@@ -123,7 +123,7 @@ export async function runTOSComplianceCheck(): Promise<{
 }
 
 async function detectPolicyChanges(): Promise<PolicyChange[]> {
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   const existingRules = await db.select({
     platform: complianceRules.platform,
