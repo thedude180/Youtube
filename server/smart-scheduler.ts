@@ -1,4 +1,4 @@
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -10,7 +10,7 @@ import { eq, desc, and, gte } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("smart-scheduler");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 // Cache optimal posting times per user+platform for 24 hours.
 // Posting-time recommendations don't change day-to-day and the AI call is

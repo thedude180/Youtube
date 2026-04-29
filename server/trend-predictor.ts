@@ -1,5 +1,5 @@
 import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { callClaude, CLAUDE_MODELS } from "./lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { predictiveTrends, videos, channels } from "@shared/schema";
@@ -68,7 +68,7 @@ Respond as JSON:
   ]
 }`;
 
-  const response = await callClaude({
+  const response = await callClaudeBackground({
     model: CLAUDE_MODELS.sonnet,
     prompt,
     maxTokens: 4000,
@@ -189,7 +189,7 @@ Respond as JSON:
   ]
 }`;
 
-  const response = await callClaude({
+  const response = await callClaudeBackground({
     model: CLAUDE_MODELS.sonnet,
     prompt,
     maxTokens: 4000,

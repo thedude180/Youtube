@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import { pipelineRuns, clipViralityScores, contentClips, videos } from "@shared/schema";
@@ -11,7 +11,7 @@ import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("shorts-pipeline-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 type PipelineState = "idle" | "running" | "paused" | "completed" | "failed";
 

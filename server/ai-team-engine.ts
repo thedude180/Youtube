@@ -2,7 +2,7 @@ import { db } from "./db";
 import { eq, and, desc, asc, sql, inArray, ne, lt } from "drizzle-orm";
 import { teamMembers, teamActivityLog, aiAgentTasks, videos, channels, users, managedPlaylists } from "@shared/schema";
 import type { AiAgentTask, TeamMember } from "@shared/schema";
-import { callClaude, CLAUDE_MODELS } from "./lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "./lib/claude";
 import { tokenBudget, sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
@@ -1488,8 +1488,8 @@ export async function executeAgentTask(task: AiAgentTask): Promise<{ result: Rec
   }
   tokenBudget.consumeBudget("ai-team-engine", 1500);
 
-  // callClaude has built-in retry/backoff — no need for a manual retry loop
-  const agentResponse = await callClaude({
+  // callClaudeBackground has built-in retry/backoff — no need for a manual retry loop
+  const agentResponse = await callClaudeBackground({
     model: CLAUDE_MODELS.sonnet,
     system: agentConfig.systemPrompt + "\n\nRespond with valid JSON only.",
     prompt: `CHANNEL CONTEXT:\n${channelCtx}${teamCtx}${parentResult}\n\nYOUR TASK:\nTitle: ${sanitizeForPrompt(task.title, 300)}\nType: ${task.taskType}\nAdditional Details: ${JSON.stringify(sanitizeObjectForPrompt(task.payload || {}))}\n\nExecute this task at the highest possible level. Apply your full expertise. If your work should be followed up by a specific colleague (e.g., your research needs a script, your script needs SEO optimization), specify the handoff. Do not hand off if the task is self-contained.`,

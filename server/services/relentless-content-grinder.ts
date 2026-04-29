@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { videos, channels, autopilotQueue, videoCatalogLinks, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, ne, sql, count, or } from "drizzle-orm";
-import { callClaude, CLAUDE_MODELS } from "../lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
@@ -228,7 +228,7 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
   tokenBudget.consumeBudget("content-grinder", 3000);
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt: `You are the most aggressive content extraction AI. Your goal: squeeze EVERY last piece of viral content from this video. Leave NOTHING on the table.
 
@@ -346,7 +346,7 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
   tokenBudget.consumeBudget("content-grinder", 2000);
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt: `You are the #1 YouTube SEO expert. Your titles get 3-5x more clicks than average. Optimize this video for MAXIMUM virality and watch time.
 
@@ -499,7 +499,7 @@ async function enhanceRetentionPacing(userId: string, video: any): Promise<boole
   tokenBudget.consumeBudget("content-grinder", 2000);
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt: `You are a YouTube retention expert. For a ${Math.floor(durSec / 60)}-minute NO COMMENTARY ${gameName} gameplay video, design the optimal pacing strategy to maximize watch time.
 

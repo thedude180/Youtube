@@ -1,5 +1,5 @@
 import { getOpenAIClientBackground } from "../lib/openai";
-import { callClaude, CLAUDE_MODELS } from "../lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { aiModelRoutingLogs } from "@shared/schema";
 import { eq, desc, sql } from "drizzle-orm";
@@ -133,7 +133,7 @@ export async function executeRoutedAICall(
 
   try {
     if (routing.provider === "claude") {
-      const result = await callClaude({
+      const result = await callClaudeBackground({
         system: systemPrompt,
         prompt: userPrompt,
         model: routing.model as any,

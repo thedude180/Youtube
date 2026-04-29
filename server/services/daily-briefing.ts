@@ -3,7 +3,7 @@ import { db } from "../db";
 import { dailyBriefings, autonomousActionLog, growthPlans, revenueStrategies } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { routeNotification } from "./notification-system";
 
 const logger = createLogger("daily-briefing");
@@ -58,7 +58,7 @@ export class DailyBriefing {
       }
 
       // 2. Call AI to generate briefing
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const prompt = `
         You are an AI Chief Operating Officer for a social media creator. 
         Your task is to generate a concise, professional daily briefing based on the following activity from the last 24 hours.

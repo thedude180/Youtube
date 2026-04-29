@@ -5,12 +5,12 @@ import {
 import { eq, and, desc, lt, notInArray, sql, gte, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { sendSSEEvent } from "./routes/events";
 import { recordHeartbeat } from "./services/engine-heartbeat";
 
 const logger = createLogger("vod-continuous");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 let globalInitDone = false;

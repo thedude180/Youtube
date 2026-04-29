@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { getAISemaphoreStats } from "../lib/ai-semaphore";
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
@@ -109,7 +109,7 @@ Return 3-6 insights and 2-4 opportunities. Return ONLY valid JSON.`;
     }];
   } else {
     try {
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const timeoutMs = 8_000;
       const response = await Promise.race([
         openai.chat.completions.create({
@@ -225,7 +225,7 @@ Return ONLY valid JSON with a "trends" array.`;
   if (isRateLimited()) return { trends: [] };
 
   try {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClientBackground();
     const timeoutMs = 8_000;
     const response = await Promise.race([
       openai.chat.completions.create({

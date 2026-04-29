@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -11,7 +11,7 @@ import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("youtube-manager");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 export async function createManagedPlaylist(
   userId: string,

@@ -1,6 +1,6 @@
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { withCronLock } from "./lib/cron-lock";
 import { db } from "./db";
@@ -146,7 +146,7 @@ export const ALL_BUSINESS_AGENTS = { ...BUSINESS_AGENTS };
 
 async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_AGENTS[string]): Promise<void> {
   try {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClientBackground();
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [

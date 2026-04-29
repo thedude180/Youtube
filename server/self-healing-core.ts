@@ -1,11 +1,11 @@
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { db, withRetry } from "./db";
 import { notifications } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 import { registerMap } from "./services/resilience-core";
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 interface SubsystemHealth {
   name: string;

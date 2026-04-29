@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { videos, streams, autopilotQueue, channels, notifications, audienceActivityPatterns } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte, isNotNull, ne, inArray } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { getUserTimezone, getTimezoneOffsetHours } from "./human-behavior-engine";
 import { sendSSEEvent } from "./routes/events";
@@ -13,7 +13,7 @@ import { storage } from "./storage";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("stream-exhaust");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 function isVideoPostable(video: any): boolean {
   const meta = (video.metadata as any) || {};

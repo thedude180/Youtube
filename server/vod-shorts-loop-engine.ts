@@ -4,11 +4,11 @@ import { eq, and, desc, lt, asc, sql, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { recordHeartbeat } from "./services/engine-heartbeat";
 
 const logger = createLogger("vod-shorts-loop");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 async function getUserChannelIds(userId: string): Promise<number[]> {
   const userChannels = await db.select({ id: channels.id }).from(channels)

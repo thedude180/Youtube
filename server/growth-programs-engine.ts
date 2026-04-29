@@ -2,7 +2,7 @@ import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { db } from "./db";
 import { platformGrowthPrograms, channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { callClaude, CLAUDE_MODELS } from "./lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "./lib/claude";
 import { getCreatorStyleContext } from "./creator-intelligence";
 
 import { createLogger } from "./lib/logger";
@@ -376,7 +376,7 @@ Respond as JSON:
 }`;
 
   try {
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt,
       maxTokens: 4000,
@@ -777,7 +777,7 @@ Respond as JSON:
 }`;
 
   try {
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt,
       maxTokens: 4000,

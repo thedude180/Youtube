@@ -127,8 +127,8 @@ async function optimizeLiveStreamSEO(userId: string, videoId: string | number, g
     logger.info(`[SEO] Token budget exhausted — skipping SEO optimization for video ${videoId}`);
     return;
   }
-  const { getOpenAIClient } = await import("../lib/openai");
-  const openai = getOpenAIClient();
+  const { getOpenAIClientBackground } = await import("../lib/openai");
+  const openai = getOpenAIClientBackground();
 
   let thumbnailContext = "";
   try {

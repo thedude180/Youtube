@@ -1,4 +1,4 @@
-import { callClaude, CLAUDE_MODELS } from "./lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "./lib/claude";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -179,7 +179,7 @@ Provide your response as JSON:
   "reasoning": "Why these changes improve discoverability"
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -252,7 +252,7 @@ Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -317,7 +317,7 @@ Respond as JSON:
   "relevanceScore": 0.8
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -416,7 +416,7 @@ Respond as JSON:
   "prediction": "Brief explanation of viral potential"
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -481,7 +481,7 @@ For each tag, evaluate its current health. Respond as JSON:
 
 Evaluate up to 15 most important tags.`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -551,7 +551,7 @@ Based on the content type, topic, and engagement ratio, predict the sentiment di
   "totalComments": ${commentCount}
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -616,7 +616,7 @@ Identify 2-3 current algorithm behaviors or recent changes. Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -779,7 +779,7 @@ For each video, classify as evergreen or not. Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -859,7 +859,7 @@ Identify pairs of videos that may be cannibalizing each other's performance. Res
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -938,7 +938,7 @@ Predict trends that are emerging or about to emerge. Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -1013,7 +1013,7 @@ Build a comprehensive Content DNA profile as JSON:
   "confidence": 0.75
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -1094,7 +1094,7 @@ Suggest specific changes to improve CTR. Respond as JSON:
   "reasoning": "Why these changes will improve CTR"
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -1178,7 +1178,7 @@ Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -1357,7 +1357,7 @@ Find 5 content gaps with high demand. Respond as JSON:
   ]
 }`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,
@@ -1424,7 +1424,7 @@ Respond as JSON:
 
 Include 8-10 best practices, 3-4 recent changes, 5 dos and 5 don'ts.`;
 
-    const response = await callClaude({
+    const response = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
       prompt,
       maxTokens: 4000,

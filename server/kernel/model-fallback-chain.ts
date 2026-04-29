@@ -1,5 +1,5 @@
-import { getOpenAIClient } from "../lib/openai";
-import { callClaude, CLAUDE_MODELS } from "../lib/claude";
+import { getOpenAIClientBackground } from "../lib/openai";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { db } from "../db";
 import { aiModelRoutingLogs } from "@shared/schema";
 
@@ -72,7 +72,7 @@ async function callModel(
   temperature: number
 ): Promise<{ content: string; tokensUsed: number }> {
   if (entry.provider === "claude") {
-    const result = await callClaude({
+    const result = await callClaudeBackground({
       system: systemPrompt,
       prompt: userPrompt,
       model: entry.model as any,
@@ -82,7 +82,7 @@ async function callModel(
     return { content: result.content, tokensUsed: result.inputTokens + result.outputTokens };
   }
 
-  const client = getOpenAIClient();
+  const client = getOpenAIClientBackground();
   const response = await client.chat.completions.create({
     model: entry.model,
     max_completion_tokens: maxTokens,

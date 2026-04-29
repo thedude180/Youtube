@@ -1,11 +1,11 @@
 import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { compoundingJobs, videos, channels } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const REFRESH_TYPES = ["title_update", "description_refresh", "tag_update", "thumbnail_swap", "trend_ride"] as const;
 

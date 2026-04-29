@@ -6,7 +6,7 @@ import {
   channels, videos, revenueRecords,
 } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import { callClaude, CLAUDE_MODELS } from "../lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
@@ -146,7 +146,7 @@ async function generateIndustryPlaybook(industry: string, businessType: string):
   if (!industryConfig) return;
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt: `You are a business operations AI. Generate a comprehensive playbook for running a "${businessType}" business in the "${industryConfig.label}" industry.
 
@@ -300,7 +300,7 @@ async function crossPollinateInsights(userId: string, businesses: any[]): Promis
   }));
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt: `You manage a business empire with ${businesses.length} businesses:
 
@@ -424,7 +424,7 @@ export async function adaptBusinessToIndustry(businessId: number, userId: string
   if (recentOps.length < 5) return;
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt: `Analyze recent operations for "${business[0].name}" (${business[0].industry} / ${business[0].businessType}) and suggest adaptations.
 
@@ -644,7 +644,7 @@ export async function assessExpansionReadiness(userId: string): Promise<Expansio
   let aiRecommendation = "";
 
   try {
-    const resp = await callClaude({
+    const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.opus,
       prompt: `You are the AI business advisor for a gaming YouTube channel empire. Based on these metrics, give a personalized 3-4 sentence recommendation on what to do next for expansion.
 

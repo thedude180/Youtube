@@ -1,4 +1,4 @@
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -12,7 +12,7 @@ import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("monetization-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 function daysAgo(days: number): Date {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);

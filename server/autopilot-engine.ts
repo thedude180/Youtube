@@ -2,7 +2,7 @@ import { db, withRetry } from "./db";
 import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications, streams, PLATFORM_CAPABILITIES, VIDEO_PLATFORMS, TEXT_ONLY_PLATFORMS, LIVE_STREAM_PLATFORMS } from "@shared/schema";
 import { eq, and, desc, lte, sql, gte, inArray } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
@@ -87,7 +87,7 @@ async function getTrafficStrategyContext(userId: string): Promise<string> {
   }
 }
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const AUTOPILOT_FEATURES = [
   "auto-clip",

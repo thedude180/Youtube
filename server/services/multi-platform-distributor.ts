@@ -3,7 +3,7 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { withCreatorVoice } from "./creator-dna-builder";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
-import { getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground } from "../lib/openai";
 import { db } from "../db";
 import { userAutonomousSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -53,7 +53,7 @@ Return a JSON object where keys are platform names and values are the generated 
 
       const prompt = await withCreatorVoice(userId, basePrompt);
       
-      const openai = getOpenAIClient();
+      const openai = getOpenAIClientBackground();
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],

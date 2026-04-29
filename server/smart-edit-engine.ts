@@ -7,7 +7,7 @@ import * as os from "os";
 import { db } from "./db";
 import { videos, channels, autopilotQueue, aiAgentTasks } from "@shared/schema";
 import { eq, and, desc, gte, or, sql, inArray } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { downloadSourceVideo, probeVideoResolution, buildUpscaleFilter } from "./clip-video-processor";
 import { uploadVideoToYouTube } from "./youtube";
@@ -23,7 +23,7 @@ import { lookupGameFromWeb } from "./services/web-game-lookup";
 
 const logger = createLogger("smart-edit-engine");
 const execFileAsync = promisify(execFile);
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const REEL_DIR = path.join(os.tmpdir(), "creatoros-reels");
 if (!fs.existsSync(REEL_DIR)) fs.mkdirSync(REEL_DIR, { recursive: true });

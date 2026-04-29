@@ -1,14 +1,14 @@
 import { db } from "./db";
 import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
 import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getQuotaStatus, trackQuotaUsage, canAffordOperation, isQuotaBreakerTripped, markQuotaErrorFromResponse } from "./services/youtube-quota-tracker";
 
 const logger = createLogger("auto-thumbnail");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 // ── 4K Thumbnail Feature Flag ─────────────────────────────────────────────────
 // YouTube currently supports a maximum of 2048×1152 for custom thumbnails.

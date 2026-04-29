@@ -2,7 +2,7 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, streams, autopilotQueue, autopilotConfig } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
 import { updateYouTubeVideo } from "../youtube";
@@ -12,7 +12,7 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("livestream-growth-agent");
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const SEO_INTERVAL_MS = 15 * 60 * 1000;
 const SOCIAL_BLAST_INTERVAL_MS = 20 * 60 * 1000;

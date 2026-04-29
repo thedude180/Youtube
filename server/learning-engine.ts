@@ -1,5 +1,5 @@
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import {
@@ -13,7 +13,7 @@ import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("learning-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 function hoursAgo(hours: number): Date {
   return new Date(Date.now() - hours * 60 * 60 * 1000);

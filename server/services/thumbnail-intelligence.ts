@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { thumbnailIntelligence, videos, channels } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 
@@ -169,7 +169,7 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
     `thumbnail psychology click through rate YouTube best practices`
   );
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   // Budget was already checked and reserved at function entry — consume it now.
   tokenBudget.consumeBudget("thumbnail-intelligence", 2000);

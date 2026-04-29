@@ -3,13 +3,13 @@ import { db } from "./db";
 import { securityEvents, securityRules } from "@shared/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { registerMap } from "./services/resilience-core";
 
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("security-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const ipFailureMap = new Map<string, { count: number; firstAttempt: number }>();
 registerMap("ipFailureMap", ipFailureMap, 500);

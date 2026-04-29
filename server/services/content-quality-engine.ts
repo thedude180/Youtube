@@ -1,4 +1,4 @@
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { contentQualityScores, videos } from "@shared/schema";
@@ -24,7 +24,7 @@ export async function scoreContentQuality(userId: string, videoId: number): Prom
   }
 
   const tags = (video.metadata as any)?.tags || [];
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -114,7 +114,7 @@ export async function smartSchedule(userId: string, contentType: string, platfor
     };
   });
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",

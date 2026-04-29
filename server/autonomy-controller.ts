@@ -6,7 +6,7 @@ import { channels, videos, autopilotConfig, autopilotQueue, engineHeartbeats,
 } from "@shared/schema";
 import { createLogger } from "./lib/logger";
 import { humanizeText, getStealthAnalysis } from "./ai-humanizer-engine";
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { storage } from "./storage";
 
 const logger = createLogger("autonomy-controller");
@@ -92,7 +92,7 @@ async function recordHeartbeat(engineName: string, status: string, durationMs?: 
 }
 
 async function runEngineWithAI(engineName: string, userId: string): Promise<{ actionsExecuted: number; result: any }> {
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   const enginePrompts: Record<string, string> = {
     daily_briefing: "Generate a concise daily creator briefing. Include: 1) overnight summary, 2) top 3 action items, 3) spotted opportunities, 4) motivation. Return JSON: {overnightSummary, actionItems:[], opportunities:[], motivation}.",

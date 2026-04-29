@@ -1,6 +1,6 @@
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { storage } from "./storage";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { createLogger } from "./lib/logger";
 import { BUSINESS_AGENTS } from "./business-agent-engine";
 import { LEGAL_AGENTS, TAX_AGENTS } from "./legal-tax-agent-engine";
@@ -370,7 +370,7 @@ async function runPhaseAgent(userId: string, agentId: string, phase: string, pre
 Generate a 1-sentence autonomous finding about your domain. Start with an action verb. No greeting.`;
 
   try {
-    const openai = getOpenAIClient();
+    const openai = getOpenAIClientBackground();
     const contextMessage = previousPhaseContext
       ? `Previous team findings: ${previousPhaseContext.slice(0, 300)}\n\nNow run your part of the company cycle.`
       : "Run your autonomous company cycle task now.";

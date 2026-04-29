@@ -1,5 +1,5 @@
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { aiResults, videos, channels, learningInsights, creatorDnaProfiles, contentDnaProfiles } from "@shared/schema";
@@ -8,7 +8,7 @@ import { recordLearningEvent } from "./learning-engine";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("youtube-learning-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 async function aiGenerate(prompt: string): Promise<any> {
   const response = await openai.chat.completions.create({

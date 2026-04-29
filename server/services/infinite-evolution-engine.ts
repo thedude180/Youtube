@@ -2,7 +2,7 @@ import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shi
 import { db } from "../db";
 import { systemImprovements, discoveredStrategies, users, channels, videos, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, gte, sql, count } from "drizzle-orm";
-import { getOpenAIClientBackground as getOpenAIClient } from "../lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import { jitter } from "../lib/timer-utils";
@@ -212,7 +212,7 @@ async function improveSystem(userId: string, system: SystemAudit): Promise<void>
 
   const performanceData = await gatherDomainMetrics(userId, system.domain);
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   try {
     const resp = await openai.chat.completions.create({
@@ -409,7 +409,7 @@ async function evolveAIPrompts(userId: string): Promise<void> {
 
   if (recentImprovements.length >= 3) return;
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   try {
     const resp = await openai.chat.completions.create({
@@ -527,7 +527,7 @@ async function crossSystemLearning(userId: string, systemHealth: SystemAudit[]):
 
   if (topPerformers.length === 0 || underperformers.length === 0) return;
 
-  const openai = getOpenAIClient();
+  const openai = getOpenAIClientBackground();
 
   try {
     const resp = await openai.chat.completions.create({

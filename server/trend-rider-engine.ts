@@ -2,13 +2,13 @@ import { db } from "./db";
 import { streams, trendOverrides, autopilotQueue, videos } from "@shared/schema";
 import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { detectContentContext, type ContentContext } from "./ai-engine";
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { jitter } from "./lib/timer-utils";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 
 const logger = createLogger("trend-rider-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 // Run trend lifecycle checks hourly — 15-min was too aggressive and caused 429s
 const TREND_CHECK_INTERVAL_MS = 60 * 60 * 1000;

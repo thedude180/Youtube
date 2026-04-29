@@ -1925,6 +1925,7 @@ httpServer.listen(
     delay(25_000, () => {
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
+      import("./services/pipeline-self-heal").then(m => m.initPipelineSelfHeal()).catch(slog("initPipelineSelfHeal"));
       import("./services/shorts-repurpose-engine").then(m => m.initShortsRepurposeEngine()).catch(slog("initShortsRepurposeEngine"));
       // Boot-level engines required for full autonomy
       import("./automation-engine").then(m => m.initAutomationEngine()).catch(slog("initAutomationEngine"));

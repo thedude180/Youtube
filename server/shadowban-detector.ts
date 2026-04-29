@@ -1,11 +1,11 @@
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 import { reachAnomalies } from "@shared/schema";
 import { sendSSEEvent } from "./routes/events";
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 export async function scanForAnomalies(userId: string, platform: string) {
   const response = await openai.chat.completions.create({

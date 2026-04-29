@@ -4,9 +4,9 @@ import { eq, and, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
 import { sendSSEEvent } from "./routes/events";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const logger = createLogger("playlist-manager");
 

@@ -1,5 +1,5 @@
 import { sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { callClaude, CLAUDE_MODELS } from "./lib/claude";
+import { callClaudeBackground, CLAUDE_MODELS } from "./lib/claude";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { creatorDnaProfiles, videos, channels } from "@shared/schema";
@@ -106,7 +106,7 @@ Respond as JSON:
   "maturityScore": number
 }`;
 
-  const response = await callClaude({
+  const response = await callClaudeBackground({
     model: CLAUDE_MODELS.opus,
     prompt,
     maxTokens: 4000,
@@ -215,7 +215,7 @@ Respond as JSON:
   "maturityScore": number
 }`;
 
-  const response = await callClaude({
+  const response = await callClaudeBackground({
     model: CLAUDE_MODELS.opus,
     prompt,
     maxTokens: 4000,
@@ -294,7 +294,7 @@ Respond as JSON:
   "toneNotes": "brief note on the tone choices made"
 }`;
 
-  const response = await callClaude({
+  const response = await callClaudeBackground({
     model: CLAUDE_MODELS.opus,
     prompt: aiPrompt,
     maxTokens: 4000,

@@ -1,14 +1,14 @@
 import { db } from "./db";
 import { marketingCampaigns, marketingConfig, channels, videos, trafficStrategies, keywordInsights, notifications, aiResults, autopilotQueue } from "@shared/schema";
 import { eq, and, desc, sql, gte } from "drizzle-orm";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 
 const logger = createLogger("marketer-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 const ORGANIC_STRATEGY_MAP = {
   seoOptimization: "SEO Optimization",

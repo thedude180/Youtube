@@ -1,5 +1,5 @@
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground } from "./lib/openai";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { users, aiResults, streamPipelines } from "@shared/schema";
@@ -30,7 +30,7 @@ import { creatorSkillProgress } from "@shared/schema";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("idea-empire-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 async function aiGenerate(prompt: string): Promise<any> {
   const response = await openai.chat.completions.create({

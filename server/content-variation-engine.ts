@@ -1,5 +1,5 @@
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { db } from "./db";
 import { autopilotQueue, channels, linkedChannels } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -11,7 +11,7 @@ import { PLATFORM_CONTENT_SPECS } from "@shared/platform-specs";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("content-variation-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 let _rateLimitCooldownUntil = 0;
 const RATE_LIMIT_COOLDOWN_MS = 10 * 60 * 1000;

@@ -1,4 +1,4 @@
-import { getOpenAIClientBackground as getOpenAIClient } from "./lib/openai";
+import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { storage } from "./storage";
 import { db } from "./db";
 import { repurposedContent, scriptTemplates } from "@shared/schema";
@@ -9,7 +9,7 @@ import { createLogger } from "./lib/logger";
 import { tokenBudget, sanitizeForPrompt } from "./lib/ai-attack-shield";
 
 const logger = createLogger("repurpose-engine");
-const openai = getOpenAIClient();
+const openai = getOpenAIClientBackground();
 
 // Throttle: only log budget-exhausted once per UTC day per budget type
 const _budgetExhaustedLoggedDay: Record<string, string> = {};
