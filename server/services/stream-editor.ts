@@ -231,32 +231,57 @@ function buildVideoFilter(
   enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean },
   profile: PlatformProfile,
   sourceFps: number,
+  sourceWidth: number,
+  sourceHeight: number,
 ): string {
   const parts: string[] = [];
 
+  // Determine whether we are genuinely upscaling or just fitting/downscaling.
+  // A source that is already >= the target in both dimensions does NOT need
+  // upscaling — applying an upscale filter chain to native 4K source only adds
+  // unnecessary re-encoding blur.  We still apply denoise + colour + sharpening;
+  // only the scale step changes.
+  const needsUpscale = sourceWidth < profile.width || sourceHeight < profile.height;
+
   if (enhancements.upscale4k) {
+    // Denoise at source resolution before any scaling — removes compression
+    // artefacts that would otherwise be amplified by the upscale step.
     parts.push("hqdn3d=luma_spatial=2:chroma_spatial=1.5:luma_tmp=3:chroma_tmp=2.5");
   }
   if (enhancements.colorEnhance) {
     parts.push("eq=brightness=0.02:contrast=1.06:saturation=1.12:gamma=0.98");
   }
-  if (enhancements.sharpen) {
+  if (enhancements.sharpen && needsUpscale) {
+    // Pre-upscale sharpening: strengthens edges at source resolution so they
+    // survive the interpolation step with less blurring.
     parts.push("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.9:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.3");
+  } else if (enhancements.sharpen) {
+    // Source already at or above target — lighter sharpen, no need to compensate
+    // for upscale blur.
+    parts.push("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.5:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.2");
   }
 
   if (profile.orientation === "portrait") {
     parts.push(
       `crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2`,
-      `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd`,
+      // full_chroma_int + full_chroma_inp preserve chroma precision during scale.
+      // sws_dither=ed uses error-diffusion dithering to avoid banding.
+      `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp:sws_dither=ed`,
     );
   } else {
     if (enhancements.upscale4k) {
       parts.push(
-        `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd:force_original_aspect_ratio=decrease`,
+        `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp:sws_dither=ed:force_original_aspect_ratio=decrease`,
         `pad=${profile.width}:${profile.height}:-1:-1:color=black`,
       );
+      if (needsUpscale && enhancements.sharpen) {
+        // Post-upscale sharpening: Lanczos interpolation introduces slight
+        // blurring at the target resolution — a gentle unsharp mask restores
+        // perceived edge crispness without amplifying noise.
+        parts.push("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.5:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.2");
+      }
     } else {
-      parts.push(`scale=-2:${profile.height}:flags=lanczos+accurate_rnd`);
+      parts.push(`scale=-2:${profile.height}:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp:sws_dither=ed`);
     }
   }
 
@@ -274,11 +299,13 @@ async function processClip(
   platform: StreamEditPlatform,
   enhancements: { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean },
   sourceFps: number,
+  sourceWidth: number,
+  sourceHeight: number,
   onProgress?: (pct: number, fps: number, stage: string) => void,
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
-  const vf = buildVideoFilter(enhancements, profile, sourceFps);
+  const vf = buildVideoFilter(enhancements, profile, sourceFps, sourceWidth, sourceHeight);
   const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
 
   const args: string[] = [
@@ -631,6 +658,8 @@ async function runJobInBackground(jobId: number): Promise<void> {
           platform,
           enhancements,
           probe.fps,
+          probe.width,
+          probe.height,
           (pct, fps, speedLabel) => {
             const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
             db.update(streamEditJobs).set({

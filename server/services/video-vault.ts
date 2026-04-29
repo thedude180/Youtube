@@ -40,10 +40,13 @@ const _warnedNoToken = new Set<string>();
 const _warnedNoDownloadToken = new Set<string>();
 registerCache("vault.warnedNoToken", () => { _warnedNoToken.clear(); _warnedNoDownloadToken.clear(); });
 const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
-// 1080p gives the upscaler real detail to work with when encoding to 4K.
-// Format 18 (480p combined stream) was storage-efficient but produces blurry
-// 4K output. bestvideo+bestaudio lets yt-dlp pick the best A/V and merge them.
-const DOWNLOAD_QUALITY = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=720]/best";
+// Download at the highest available resolution — no height cap.
+// The stream encoder handles whatever resolution arrives: native 4K sources
+// are encoded straight to 4K without upscaling; lower-res sources are
+// Lanczos-upscaled with pre/post sharpening to minimise interpolation blur.
+// bestvideo[ext=mp4] is tried first so yt-dlp merges a native MP4 video
+// track with the best audio rather than needing a container remux.
+const DOWNLOAD_QUALITY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best";
 const MIN_FREE_SPACE_GB = 3;
 
 // ── Human-like download timing ────────────────────────────────────────────────
@@ -827,7 +830,7 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
         .filter(f => f.mimeType?.startsWith("video/") && f.height && f.audioQuality)
         .sort((a, b) => (b.height || 0) - (a.height || 0));
       const videoOnly = direct
-        .filter(f => f.mimeType?.startsWith("video/") && f.height && !f.audioQuality && f.height <= 1080)
+        .filter(f => f.mimeType?.startsWith("video/") && f.height && !f.audioQuality)
         .sort((a, b) => (b.height || 0) - (a.height || 0));
       const audioOnly = direct
         .filter(f => f.mimeType?.startsWith("audio/"))
