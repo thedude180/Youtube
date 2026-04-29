@@ -5,7 +5,6 @@ import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { downloadVaultEntry } from "./video-vault";
 import { packageClips } from "./stream-editor-packager";
 
 const logger = createLogger("stream-editor");
@@ -340,6 +339,12 @@ let activeJobId: number | null = null;
 // same millisecond each see activeJobId===null, each find a queued job, and each
 // call runJobInBackground — causing the simultaneous-failures burst seen in prod.
 let _pickingUpJob = false;
+// Set to true when runJobInBackground defers a job back to "queued" because the
+// vault file isn't ready.  The finally block skips pickUpNextQueuedJob when this
+// is true — prevents a rapid spin through all 3,652 queued jobs when no vault
+// files are available.  The stream editor stays idle until onVaultDownloadComplete
+// or the watchdog wakes it.
+let _jobWasDeferred = false;
 
 export async function queueStreamEditJob(
   userId: string,
@@ -419,6 +424,37 @@ async function pickUpNextQueuedJob(): Promise<void> {
   }
 }
 
+/**
+ * Called by the vault download processor immediately after a vault file is
+ * successfully saved to disk.  Marks any queued stream_edit_jobs that were
+ * waiting for this vault entry as ready-to-encode (downloadFirst=false,
+ * sourceFilePath set), then wakes the stream editor if it is idle.
+ *
+ * This is the "handoff" between vault and stream editor — without it the
+ * stream editor would never know a file had arrived and those jobs would
+ * stay deferred indefinitely.
+ */
+export async function onVaultDownloadComplete(vaultEntryId: number, filePath: string): Promise<void> {
+  try {
+    await db.update(streamEditJobs)
+      .set({
+        downloadFirst: false,
+        sourceFilePath: filePath,
+        currentStage: "Ready to encode",
+      })
+      .where(
+        and(
+          eq(streamEditJobs.vaultEntryId, vaultEntryId),
+          eq(streamEditJobs.status, "queued"),
+        )
+      );
+    logger.info(`[StreamEditor] Vault entry ${vaultEntryId} downloaded — waking stream editor`);
+    if (activeJobId === null) {
+      await pickUpNextQueuedJob().catch(() => {});
+    }
+  } catch {}
+}
+
 async function runJobInBackground(jobId: number): Promise<void> {
   if (activeJobId !== null) {
     logger.info(`[StreamEditor] Job ${jobId} deferred — job ${activeJobId} is active`);
@@ -470,13 +506,13 @@ async function runJobInBackground(jobId: number): Promise<void> {
     const fileAlreadyOnDisk = sourceFile && fs.existsSync(sourceFile);
 
     if (job.downloadFirst && !fileAlreadyOnDisk) {
-      // Before attempting a download, check the vault entry's current status.
-      // If it is still "indexed" or "failed" (not yet downloaded by the vault
-      // download processor), defer this job rather than hammering YouTube with a
-      // bot-detected download attempt.  The vault download processor runs in
-      // parallel and will download the file; once it succeeds, the exhauster
-      // creates a fresh job (downloadFirst=false) or this job will see the file
-      // on disk when it is retried.
+      // The stream editor NEVER downloads files itself.  All downloading is done
+      // by the vault download processor which has proper memory management and
+      // bot-detection avoidance.  The stream editor only encodes files that are
+      // already on disk.  Any job whose file isn't ready gets deferred back to
+      // "queued" so the vault processor can download it and then wake us up via
+      // onVaultDownloadComplete().  This prevents the stream editor from blocking
+      // for 10+ minutes on failed download attempts that exhaust the DB pool.
       if (job.vaultEntryId) {
         const [vaultCheck] = await db
           .select({ status: contentVaultBackups.status, filePath: contentVaultBackups.filePath, youtubeId: contentVaultBackups.youtubeId })
@@ -484,15 +520,21 @@ async function runJobInBackground(jobId: number): Promise<void> {
           .where(eq(contentVaultBackups.id, job.vaultEntryId))
           .limit(1);
 
-        if (vaultCheck && vaultCheck.status === "downloaded" && vaultCheck.filePath && fs.existsSync(vaultCheck.filePath)) {
-          // Vault entry already downloaded — use the vault file directly
+        if (vaultCheck?.status === "skipped") {
+          // Video is permanently unavailable — fail this job immediately instead
+          // of leaving it to block the queue forever.
+          throw new Error(`Video permanently unavailable (${vaultCheck.youtubeId}) — skipped by vault downloader`);
+        }
+
+        if (vaultCheck?.status === "downloaded" && vaultCheck.filePath && fs.existsSync(vaultCheck.filePath)) {
+          // File is on disk — use it directly
           sourceFile = vaultCheck.filePath;
           await db.update(streamEditJobs).set({ sourceFilePath: sourceFile, downloadFirst: false })
             .where(eq(streamEditJobs.id, jobId));
-          logger.info(`[StreamEditor] Job ${jobId}: vault entry already downloaded at ${sourceFile}, using existing file`);
-        } else if (vaultCheck && vaultCheck.status === "downloaded" && vaultCheck.youtubeId) {
-          // Status is "downloaded" but the local file is gone (server restart cleared disk).
-          // Try to restore from cloud object storage before touching YouTube at all.
+          logger.info(`[StreamEditor] Job ${jobId}: vault file on disk at ${sourceFile}`);
+        } else if (vaultCheck?.status === "downloaded" && vaultCheck.youtubeId) {
+          // Marked downloaded but file missing (server restart cleared disk).
+          // Try cloud storage first — files survive deployments there.
           const expectedPath = path.join(process.cwd(), "vault", `${vaultCheck.youtubeId}.mp4`);
           try {
             const { downloadVaultFileFromStorage } = await import("./vault-object-storage");
@@ -506,10 +548,9 @@ async function runJobInBackground(jobId: number): Promise<void> {
           } catch {}
 
           if (!sourceFile || !fs.existsSync(sourceFile)) {
-            // Cloud storage also has nothing — reset vault entry to "indexed" so the
-            // vault download processor will re-queue and pull it fresh from YouTube.
-            // Then defer this job until the download completes.
-            logger.warn(`[StreamEditor] Job ${jobId}: vault entry ${job.vaultEntryId} has no local/cloud copy — resetting to "indexed" for vault re-download`);
+            // Nothing in cloud either — reset vault to "indexed" so the vault
+            // download processor re-queues it, then defer this job.
+            logger.warn(`[StreamEditor] Job ${jobId}: vault ${job.vaultEntryId} has no local/cloud copy — resetting to "indexed", deferring job`);
             await db.update(contentVaultBackups).set({
               status: "indexed",
               filePath: null,
@@ -521,39 +562,26 @@ async function runJobInBackground(jobId: number): Promise<void> {
               currentStage: "Waiting for vault re-download",
               startedAt: null,
             }).where(eq(streamEditJobs.id, jobId));
+            _jobWasDeferred = true;
             activeJobId = null;
-            await pickUpNextQueuedJob().catch(() => {});
             return;
           }
-        } else if (vaultCheck && (vaultCheck.status === "indexed" || vaultCheck.status === "failed")) {
-          // Vault download hasn't happened yet — defer the job so the vault
-          // download processor can pull the file first.  This prevents the
-          // infinite download-fail-heal-retry loop that blocks the entire queue.
-          logger.info(`[StreamEditor] Job ${jobId}: vault entry ${job.vaultEntryId} is "${vaultCheck?.status}" — deferring job until vault downloads it`);
+        } else {
+          // Vault entry is "indexed", "downloading", "failed", or unknown —
+          // vault processor will handle it.  Defer this job rather than blocking.
+          const vaultStatus = vaultCheck?.status ?? "unknown";
+          logger.info(`[StreamEditor] Job ${jobId}: vault ${job.vaultEntryId} is "${vaultStatus}" — deferring until vault downloads it`);
           await db.update(streamEditJobs).set({
             status: "queued",
-            currentStage: "Waiting for vault download",
+            currentStage: `Waiting for vault download (${vaultStatus})`,
             startedAt: null,
           }).where(eq(streamEditJobs.id, jobId));
+          _jobWasDeferred = true;
           activeJobId = null;
-          await pickUpNextQueuedJob().catch(() => {});
           return;
         }
-      }
-
-      // Proceed with download only if the vault check didn't give us a file
-      if (!sourceFile || !fs.existsSync(sourceFile)) {
-        await db.update(streamEditJobs).set({
-          currentStage: "Downloading from YouTube",
-        }).where(eq(streamEditJobs.id, jobId));
-
-        logger.info(`[StreamEditor] Job ${jobId}: downloading vault entry ${job.vaultEntryId}`);
-        sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId!);
-
-        await db.update(streamEditJobs).set({
-          sourceFilePath: sourceFile,
-          currentStage: "Download complete — probing video",
-        }).where(eq(streamEditJobs.id, jobId));
+      } else {
+        throw new Error("Job has downloadFirst=true but no vaultEntryId — cannot download");
       }
     } else if (job.downloadFirst && fileAlreadyOnDisk) {
       logger.info(`[StreamEditor] Job ${jobId}: vault file already on disk at ${sourceFile}, skipping download`);
@@ -577,25 +605,28 @@ async function runJobInBackground(jobId: number): Promise<void> {
             .where(eq(streamEditJobs.id, jobId));
           logger.info(`[StreamEditor] Job ${jobId}: found vault file via DB lookup: ${sourceFile}`);
         } else {
-          // File is gone from disk (e.g. deployment restart wiped vault/).
-          // Re-download it now using the vault entry — this preserves both the
-          // original source and the edited output on the production filesystem.
-          logger.info(`[StreamEditor] Job ${jobId}: vault file missing from disk (status: ${vaultEntry?.status ?? "unknown"}, path: ${vaultEntry?.filePath ?? "none"}) — re-downloading`);
-          await db.update(streamEditJobs).set({
-            currentStage: "Re-downloading source (file missing after restart)",
-            downloadFirst: true,
-          }).where(eq(streamEditJobs.id, jobId));
-          try {
-            sourceFile = await downloadVaultEntry(job.userId, job.vaultEntryId);
-            await db.update(streamEditJobs).set({
-              sourceFilePath: sourceFile,
-              downloadFirst: false,
-              currentStage: "Download complete — probing video",
-            }).where(eq(streamEditJobs.id, jobId));
-            logger.info(`[StreamEditor] Job ${jobId}: re-download succeeded → ${sourceFile}`);
-          } catch (dlErr: any) {
-            throw new Error(`Source video file not found and re-download failed: ${dlErr.message}`);
+          // File is gone from disk — defer back to queue so vault processor
+          // can re-download it.  Reset vault status to "indexed" if it was
+          // "downloaded" so the vault processor picks it up.
+          const vaultStatus = vaultEntry?.status ?? "unknown";
+          logger.info(`[StreamEditor] Job ${jobId}: vault file missing from disk (status: ${vaultStatus}) — deferring to vault processor`);
+          if (job.vaultEntryId && vaultEntry?.status === "downloaded") {
+            await db.update(contentVaultBackups).set({
+              status: "indexed",
+              filePath: null,
+              fileSize: null,
+              downloadError: "File missing after restart — queued for re-download",
+            }).where(eq(contentVaultBackups.id, job.vaultEntryId));
           }
+          await db.update(streamEditJobs).set({
+            status: "queued",
+            currentStage: `Waiting for vault download (${vaultStatus})`,
+            downloadFirst: true,
+            startedAt: null,
+          }).where(eq(streamEditJobs.id, jobId));
+          _jobWasDeferred = true;
+          activeJobId = null;
+          return;
         }
       }
     }
@@ -779,6 +810,19 @@ async function runJobInBackground(jobId: number): Promise<void> {
     }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
   } finally {
     activeJobId = null;
+    // Capture and immediately reset the defer flag BEFORE any async work so
+    // a concurrent onVaultDownloadComplete call doesn't race with us.
+    const wasDeferred = _jobWasDeferred;
+    _jobWasDeferred = false;
+    if (wasDeferred) {
+      // The job was put back in the queue because the vault file isn't ready.
+      // Do NOT immediately pick up the next job — all other queued jobs are
+      // also waiting for vault downloads and we'd just spin through all 3,652
+      // of them.  The stream editor stays idle until onVaultDownloadComplete
+      // or the watchdog wakes it.
+      logger.info(`[StreamEditor] Job ${jobId} deferred — stream editor idle, waiting for vault`);
+      return;
+    }
     // If the failure was a DB connection error, wait 30 s before picking up
     // the next job.  Immediately re-queuing adds more pool pressure and creates
     // a tight storm that prevents the pool from recovering.
@@ -876,30 +920,42 @@ export async function recoverSourceNotFoundJobs(userId: string): Promise<void> {
 const STUCK_JOB_THRESHOLD_MS = 5 * 60 * 60 * 1000; // 5 hours — allows 4K encodes to complete
 const WATCHDOG_INTERVAL_MS   = 10 * 60 * 1000;     // check every 10 minutes
 
-async function watchdogCheck(): Promise<void> {
+async function watchdogCheck(isStartup = false): Promise<void> {
   try {
-    const cutoff = new Date(Date.now() - STUCK_JOB_THRESHOLD_MS);
-    const stuck = await db
-      .select({ id: streamEditJobs.id })
-      .from(streamEditJobs)
-      .where(
-        and(
-          eq(streamEditJobs.status, "processing"),
-          sql`${streamEditJobs.startedAt} < ${cutoff.toISOString()}`,
-        ),
-      );
+    // On startup: any "processing" job is stale — it was running before the
+    // server restarted and its in-memory state was lost.  Reset them all
+    // immediately rather than waiting 5 hours for the normal threshold.
+    // After startup: only reset jobs that have been running > 5 hours.
+    const stuckQuery = isStartup
+      ? db.select({ id: streamEditJobs.id }).from(streamEditJobs)
+          .where(eq(streamEditJobs.status, "processing"))
+      : db.select({ id: streamEditJobs.id }).from(streamEditJobs)
+          .where(
+            and(
+              eq(streamEditJobs.status, "processing"),
+              sql`${streamEditJobs.startedAt} < ${new Date(Date.now() - STUCK_JOB_THRESHOLD_MS).toISOString()}`,
+            ),
+          );
+
+    const stuck = await stuckQuery;
 
     if (stuck.length === 0) return;
 
     const stuckIds = stuck.map((j) => j.id);
-    logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >5 hours — resetting to queued: ${stuckIds.join(", ")}`);
+    if (isStartup) {
+      logger.warn(`[StreamEditor] Startup recovery: ${stuckIds.length} job(s) left in "processing" from previous run — resetting to queued: ${stuckIds.join(", ")}`);
+    } else {
+      logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >5 hours — resetting to queued: ${stuckIds.join(", ")}`);
+    }
 
     await db
       .update(streamEditJobs)
       .set({
         status: "queued",
-        errorMessage: "Reset by watchdog — was stuck in processing >5 hours",
-        currentStage: "Re-queued (watchdog)",
+        errorMessage: isStartup
+          ? "Reset on startup — server restarted while job was running"
+          : "Reset by watchdog — was stuck in processing >5 hours",
+        currentStage: "Re-queued (restart recovery)",
         startedAt: null,
         completedAt: null,
       })
@@ -920,9 +976,11 @@ let _watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
 export function startStreamEditorWatchdog(): void {
   if (_watchdogTimer) return; // already running
-  // Run immediately to clear any jobs that were frozen before this deploy,
-  // then kick the queue in case there are queued jobs left over from a restart.
-  watchdogCheck()
+  // Run immediately with isStartup=true to reset any "processing" jobs that
+  // were left over from the previous server instance.  Those jobs lost their
+  // in-memory state when the process restarted — they must be re-queued so
+  // the vault download/encode cycle can pick them up cleanly.
+  watchdogCheck(true)
     .then(() => {
       if (activeJobId === null) {
         return pickUpNextQueuedJob().catch(() => {});

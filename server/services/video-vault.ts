@@ -1265,6 +1265,20 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       const success = await downloadSingleVideo(next, accessToken);
       if (success) {
         consecutiveFailures = 0;
+        // Notify stream editor — marks any queued stream_edit_jobs for this vault
+        // entry as ready-to-encode and wakes the stream editor if it is idle.
+        // This is the critical handoff between vault and encoder.
+        try {
+          const [updated] = await db.select({ filePath: contentVaultBackups.filePath })
+            .from(contentVaultBackups)
+            .where(eq(contentVaultBackups.id, next.id))
+            .limit(1);
+          if (updated?.filePath) {
+            import("./stream-editor").then(({ onVaultDownloadComplete }) =>
+              onVaultDownloadComplete(next.id, updated.filePath!).catch(() => {}),
+            ).catch(() => {});
+          }
+        } catch {}
         // Immediately exhaust this video into clips for all platforms
         // so the pipeline runs autonomously without any human click.
         import("./vault-clip-exhauster").then(m =>
@@ -1480,10 +1494,12 @@ export async function archiveAllToCloud(userId: string): Promise<{ localUploaded
     await new Promise(r => setTimeout(r, 500));
   }
 
-  // Kick off the download queue for any videos not yet on disk (they'll auto-upload when done)
+  // Kick off the download queue for any videos not yet on disk (they'll auto-upload when done).
+  // Use processVaultDownloads directly — NOT startVaultSync — to avoid re-running the
+  // channel scrape (which has already just completed a moment ago inside VaultSync).
   const stats = await getVaultStats(userId);
   if (stats.pending > 0 && !isVaultRunning) {
-    startVaultSync(userId).catch(() => {});
+    processVaultDownloads(userId).catch(() => {});
   }
 
   return { localUploaded, alreadyInCloud, pendingDownload: stats.pending };
