@@ -141,6 +141,18 @@ const LIVE_EVENT_PATTERNS = [
   /this video has not yet/i,
   /is an upcoming/i,
 ];
+// Errors that indicate the video can NEVER be downloaded regardless of client/token.
+// When any client hits one of these, skip immediately (no retry across clients).
+const PERMANENT_FAILURE_PATTERNS = [
+  /requested format is not available/i,
+  /no video formats found/i,
+  /this video is private/i,
+  /this video has been removed/i,
+  /this video is no longer available/i,
+  /video unavailable/i,
+  /content is not available in your country/i,
+  /no formats are available/i,
+];
 const BOT_DETECTION_PATTERNS = [
   /sign in to confirm.*bot/i,
   /confirm you're not a bot/i,
@@ -1065,6 +1077,18 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
         return false;
       }
 
+      if (PERMANENT_FAILURE_PATTERNS.some(p => p.test(lastErr))) {
+        logger.info(`[Vault] Permanently skipping ${youtubeId} — ${playerClient}: ${lastErr.substring(0, 120)}`);
+        await db.update(contentVaultBackups)
+          .set({
+            status: "skipped",
+            downloadError: `Permanent: ${lastErr.substring(0, 300)}`,
+            metadata: { ...((vaultEntry.metadata as Record<string, any>) || {}), failCount: 5, permanentSkip: true, skippedAt: new Date().toISOString() },
+          })
+          .where(eq(contentVaultBackups.id, vaultEntry.id));
+        return false;
+      }
+
       if (BOT_DETECTION_PATTERNS.some(p => p.test(lastErr))) {
         logger.warn(`[Vault] Bot detection on ${youtubeId} with ${playerClient}, trying next client...`);
         // Brief random pause between client attempts — back-to-back retries look automated.
@@ -1177,16 +1201,30 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     let consecutiveFailures = 0;
     const MAX_CONSECUTIVE_FAILURES = 20; // raised from 5 — many entries need multiple client attempts
 
+    let memPressureWaits = 0;
     while (true) {
       // Memory pressure gate — halt downloads before the server OOMs.
-      // heapUsed / heapTotal > 80% means GC is thrashing; yt-dlp subprocesses
-      // will push RSS even higher and trigger a cascade DB timeout storm.
+      // heapUsed / heapTotal > 92% = critical, stop immediately.
+      // 80-92% = soft pressure: wait up to 3 × 45 s for GC to recover before
+      // giving up.  Running consistently at 82% is normal on a busy server;
+      // stopping permanently at 80% would mean vault downloads never run.
       const memUsage = process.memoryUsage();
       const memPct = memUsage.heapTotal > 0 ? memUsage.heapUsed / memUsage.heapTotal : 0;
-      if (memPct > 0.80) {
-        logger.warn(`[Vault] High memory pressure (${Math.round(memPct * 100)}%) — pausing downloads until memory recovers`);
+      if (memPct > 0.92) {
+        logger.warn(`[Vault] Critical memory pressure (${Math.round(memPct * 100)}%) — stopping downloads`);
         break;
       }
+      if (memPct > 0.80) {
+        memPressureWaits++;
+        if (memPressureWaits > 3) {
+          logger.warn(`[Vault] Sustained memory pressure (${Math.round(memPct * 100)}%) — stopping downloads after ${memPressureWaits} waits`);
+          break;
+        }
+        logger.warn(`[Vault] Memory pressure (${Math.round(memPct * 100)}%) — waiting 45 s for GC (${memPressureWaits}/3)`);
+        await new Promise(r => setTimeout(r, 45_000));
+        continue;
+      }
+      memPressureWaits = 0;
 
       const freeSpace = await getFreeSpaceGB();
       if (freeSpace < MIN_FREE_SPACE_GB) {
