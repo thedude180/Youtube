@@ -499,6 +499,26 @@ export async function initAutomationEngine() {
     });
   });
 
+  // Restart the vault download processor every 30 minutes if it stopped
+  // (e.g. after memory pressure hit the threshold and exited the while-loop).
+  // The `isVaultRunning` guard in processVaultDownloads prevents duplicate runs.
+  cron.schedule("*/30 * * * *", async () => {
+    await withCronLock("VaultDownloadRestart", 25 * 60 * 1000, async () => {
+      await selfHealingCore("VaultDownloadRestart", async () => {
+        const { isVaultDownloading, processVaultDownloads } = await import("./services/video-vault");
+        if (!isVaultDownloading()) {
+          const allChannelRows = await getActiveChannels();
+          const ytChannels = allChannelRows.filter((c: any) => c.platform === "youtube" && c.userId);
+          if (ytChannels.length > 0) {
+            const adminRow = await db.select().from(users).where(eq(users.role, "admin")).limit(1);
+            const uid = adminRow[0]?.id || ytChannels[0].userId!;
+            processVaultDownloads(uid).catch(() => {});
+          }
+        }
+      });
+    });
+  });
+
   cron.schedule("0 */6 * * *", async () => {
     await withCronLock("VaultSync", 5 * 60 * 60 * 1000, async () => {
       let cronUserId: string | null = null;

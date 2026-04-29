@@ -178,6 +178,7 @@ function resolveYtdlp(): string {
 }
 
 let isVaultRunning = false;
+export function isVaultDownloading(): boolean { return isVaultRunning; }
 
 const GAME_PATTERNS: Array<[RegExp, string]> = [
   [/assassin'?s?\s*creed\s*valhalla\s*(?:dawn\s*of\s*ragnar[öo]k)/i, "AC Valhalla: Dawn of Ragnarok"],
@@ -1204,24 +1205,25 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     let memPressureWaits = 0;
     while (true) {
       // Memory pressure gate — halt downloads before the server OOMs.
-      // heapUsed / heapTotal > 92% = critical, stop immediately.
-      // 80-92% = soft pressure: wait up to 3 × 45 s for GC to recover before
-      // giving up.  Running consistently at 82% is normal on a busy server;
-      // stopping permanently at 80% would mean vault downloads never run.
+      // Production baseline is ~88% heap on this server due to 146 background
+      // services running simultaneously.  Thresholds calibrated to that reality:
+      //   > 96% = critical OOM risk — stop immediately
+      //   90-96% = high pressure — wait 60s up to 6× for GC, then stop
+      //   < 90% = normal operation — continue downloading
       const memUsage = process.memoryUsage();
       const memPct = memUsage.heapTotal > 0 ? memUsage.heapUsed / memUsage.heapTotal : 0;
-      if (memPct > 0.92) {
+      if (memPct > 0.96) {
         logger.warn(`[Vault] Critical memory pressure (${Math.round(memPct * 100)}%) — stopping downloads`);
         break;
       }
-      if (memPct > 0.80) {
+      if (memPct > 0.90) {
         memPressureWaits++;
-        if (memPressureWaits > 3) {
+        if (memPressureWaits > 6) {
           logger.warn(`[Vault] Sustained memory pressure (${Math.round(memPct * 100)}%) — stopping downloads after ${memPressureWaits} waits`);
           break;
         }
-        logger.warn(`[Vault] Memory pressure (${Math.round(memPct * 100)}%) — waiting 45 s for GC (${memPressureWaits}/3)`);
-        await new Promise(r => setTimeout(r, 45_000));
+        logger.warn(`[Vault] Memory pressure (${Math.round(memPct * 100)}%) — waiting 60 s for GC (${memPressureWaits}/6)`);
+        await new Promise(r => setTimeout(r, 60_000));
         continue;
       }
       memPressureWaits = 0;
