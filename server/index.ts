@@ -605,6 +605,15 @@ async function healProductionPipeline(): Promise<void> {
         // The live gate is set by agent-events.ts on stream.started / stream.ended.
         if (isLiveActive()) return;
 
+        // Concurrency gate: don't start another pipeline if one is already running.
+        // Without this, multiple pipelines pile into the AI semaphore simultaneously
+        // after a restart, saturate the queue, and all reset to pending in a loop.
+        // Max 1 concurrent pipeline keeps the AI queue free for other engines.
+        const [processingCount] = await db.select({ count: sql<number>`count(*)::int` })
+          .from(contentPipeline)
+          .where(eq(contentPipeline.status, "processing"));
+        if ((processingCount?.count ?? 0) >= 1) return; // already running one — wait
+
         const [next] = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
           .orderBy(
@@ -662,6 +671,9 @@ import("./migrations/cleanup-stale-channels").then(m => m.removeStaleChannelsIfN
 import("./migrations/cleanup-ghost-data").then(m => m.cleanGhostDataIfNeeded()).catch(() => {});
 // One-time cleanup: deduplicate content_pipeline entries caused by backlog-manager "pending" status bug
 import("./migrations/cleanup-pipeline-dupes").then(m => m.deduplicatePipelinesIfNeeded()).catch(() => {});
+// One-time cleanup: delete/reset stale "processing" duplicate pipeline rows that the previous migration
+// left behind (it only cleaned pending dupes; the processing ones re-entered the AI queue loop)
+import("./migrations/cleanup-processing-dupes").then(m => m.cleanupProcessingDupesIfNeeded()).catch(() => {});
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas
