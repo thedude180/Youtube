@@ -314,69 +314,106 @@ async function runShortsExtraction(userId: string): Promise<any> {
   return { shortsCreated, videosProcessed: Math.min(unprocessed.length, 3), remainingVideos: Math.max(0, unprocessed.length - 3) };
 }
 
+// Platforms that receive an actual short video clip upload
+const SHORT_VIDEO_PLATFORMS = ["youtubeshorts", "youtube", "tiktok"] as const;
+// Platforms that receive a tailored text post with a link to the original video
+const SHORT_TEXT_PLATFORMS = ["twitter", "x", "discord", "kick", "instagram"] as const;
+
 async function runCrossPlatformDistribution(userId: string): Promise<any> {
   const pendingClips = await db.select().from(contentClips)
-    .where(and(eq(contentClips.userId, userId), inArray(contentClips.status, ["pending", "ai_ready"]), eq(contentClips.targetPlatform, "youtube-shorts")))
+    .where(and(
+      eq(contentClips.userId, userId),
+      inArray(contentClips.status, ["pending", "ai_ready"]),
+      eq(contentClips.targetPlatform, "youtube-shorts"),
+    ))
     .limit(5);
 
-  const connectedPlatforms = await db.select({ platform: channels.platform, id: channels.id })
+  const connectedRows = await db.select({ platform: channels.platform })
     .from(channels).where(eq(channels.userId, userId));
-  const platformSet = new Set(connectedPlatforms.map(c => c.platform));
-  const hasYoutubeShorts = platformSet.has("youtubeshorts") || platformSet.has("youtube");
+  const platformSet = new Set(connectedRows.map(c => c.platform));
 
   let distributed = 0;
   let shortsQueued = 0;
 
   for (const clip of pendingClips) {
-    // Queue cross-promo text posts for TikTok and Discord if connected
-    const crossPlatforms = [...platformSet].filter(p => ["tiktok", "discord"].includes(p));
-    for (const platform of crossPlatforms) {
+    if (!clip.sourceVideoId || clip.startTime == null || clip.endTime == null) {
+      await db.update(contentClips).set({ status: "approved" }).where(eq(contentClips.id, clip.id));
+      continue;
+    }
+
+    // Resolve the source video's YouTube ID for cross-linking in captions
+    const [srcVideo] = await db.select({ metadata: videos.metadata })
+      .from(videos).where(eq(videos.id, clip.sourceVideoId)).limit(1);
+    const srcMeta = (srcVideo?.metadata ?? {}) as Record<string, unknown>;
+    const sourceYoutubeId =
+      (srcMeta.youtubeId as string | undefined) ||
+      (srcMeta.youtube_id as string | undefined);
+
+    // Find existing platform_short/youtube_short entries for this source video
+    const existingItems = await db
+      .select({ targetPlatform: autopilotQueue.targetPlatform })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        inArray(autopilotQueue.type, ["platform_short", "youtube_short", "platform_text_short"]),
+        eq(autopilotQueue.sourceVideoId, clip.sourceVideoId),
+      ));
+    const alreadyQueued = new Set(existingItems.map(i => i.targetPlatform));
+
+    // Stagger all posts: 4h between video-clips, 15min between text posts
+    const baseDelayMs = shortsQueued * 4 * 3600_000 + Math.floor(Math.random() * 600_000);
+    let videoDelay = 0;
+    let textDelay = 30 * 60_000; // text posts start 30 min after first video post
+
+    const clipMeta = (clip.metadata ?? {}) as Record<string, unknown>;
+    const sharedMeta = {
+      startSec: clip.startTime ?? undefined,
+      endSec: clip.endTime ?? undefined,
+      clipId: clip.id,
+      viralScore: clipMeta.viralScore,
+      hookLine: clipMeta.hookLine,
+      sourceYoutubeId,
+    };
+
+    // --- Video clip platforms ---
+    for (const platform of SHORT_VIDEO_PLATFORMS) {
+      if (!platformSet.has(platform)) continue;
+      if (alreadyQueued.has(platform)) continue;
+
       await db.insert(autopilotQueue).values({
         userId,
         sourceVideoId: clip.sourceVideoId,
-        type: "cross-promo",
+        type: "platform_short",
         targetPlatform: platform,
-        content: `${sanitizeForPrompt(clip.title)} | Watch full video on YouTube!`,
+        content: sanitizeForPrompt(clip.title),
         caption: clip.title || "New Short",
         status: "scheduled",
-        scheduledAt: new Date(Date.now() + Math.random() * 7_200_000),
+        scheduledAt: new Date(Date.now() + baseDelayMs + videoDelay),
+        metadata: { ...sharedMeta, contentType: "platform_short" } as any,
       });
+      videoDelay += 30 * 60_000; // 30-min stagger between video platforms
+      shortsQueued++;
       distributed++;
     }
 
-    // Queue as a YouTube Short for actual video upload via shorts-clip-publisher
-    if (hasYoutubeShorts && clip.sourceVideoId && clip.startTime != null && clip.endTime != null) {
-      const existingShort = await db.select({ id: autopilotQueue.id }).from(autopilotQueue)
-        .where(and(
-          eq(autopilotQueue.userId, userId),
-          eq(autopilotQueue.type, "youtube_short"),
-          eq(autopilotQueue.sourceVideoId, clip.sourceVideoId),
-        ))
-        .limit(1);
+    // --- Text + link platforms ---
+    for (const platform of SHORT_TEXT_PLATFORMS) {
+      if (!platformSet.has(platform)) continue;
+      if (alreadyQueued.has(platform)) continue;
 
-      if (existingShort.length === 0) {
-        // Spread uploads: one every ~4 hours with human-like jitter
-        const delayMs = shortsQueued * 4 * 3600_000 + Math.floor(Math.random() * 600_000);
-        await db.insert(autopilotQueue).values({
-          userId,
-          sourceVideoId: clip.sourceVideoId,
-          type: "youtube_short",
-          targetPlatform: "youtubeshorts",
-          content: sanitizeForPrompt(clip.title),
-          caption: clip.title || "New Short",
-          status: "scheduled",
-          scheduledAt: new Date(Date.now() + delayMs),
-          metadata: {
-            startSec: clip.startTime ?? undefined,
-            endSec: clip.endTime ?? undefined,
-            clipId: clip.id,
-            viralScore: (clip.metadata as any)?.viralScore,
-            contentType: "youtube_short_clip",
-          },
-        });
-        shortsQueued++;
-        distributed++;
-      }
+      await db.insert(autopilotQueue).values({
+        userId,
+        sourceVideoId: clip.sourceVideoId,
+        type: "platform_text_short",
+        targetPlatform: platform,
+        content: sanitizeForPrompt(clip.title),
+        caption: clip.title || "New Short",
+        status: "scheduled",
+        scheduledAt: new Date(Date.now() + baseDelayMs + textDelay),
+        metadata: { ...sharedMeta, contentType: "platform_text_short" } as any,
+      });
+      textDelay += 15 * 60_000; // 15-min stagger between text platforms
+      distributed++;
     }
 
     await db.update(contentClips).set({ status: "approved" }).where(eq(contentClips.id, clip.id));
