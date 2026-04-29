@@ -44,9 +44,20 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 // The stream encoder handles whatever resolution arrives: native 4K sources
 // are encoded straight to 4K without upscaling; lower-res sources are
 // Lanczos-upscaled with pre/post sharpening to minimise interpolation blur.
-// bestvideo[ext=mp4] is tried first so yt-dlp merges a native MP4 video
-// track with the best audio rather than needing a container remux.
-const DOWNLOAD_QUALITY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best";
+//
+// Format strategy (in order of preference):
+//  1. bestvideo[ext=mp4]+bestaudio[ext=m4a]  — best quality, native MP4 merge
+//  2. best[ext=mp4]                           — single-file MP4 (handles Shorts
+//                                               which have a merged container and
+//                                               no separate audio track; the old
+//                                               "+bestaudio" syntax fails on them)
+//  3. bestvideo+bestaudio                     — any container, best quality merge
+//  4. best                                    — last resort: whatever yt-dlp picks
+//
+// The previous format string omitted option 2, causing all YouTube Shorts and
+// any video served from the "android_testsuite" extractor to permanently fail
+// with "Requested format is not available".
+const DOWNLOAD_QUALITY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best";
 const MIN_FREE_SPACE_GB = 3;
 
 // ── Human-like download timing ────────────────────────────────────────────────

@@ -312,22 +312,36 @@ async function healProductionPipeline(): Promise<void> {
       .where(eq(contentVaultBackups.status, "downloading"));
     const stuckCount = (stuckResult as any)?.rowCount ?? "?";
 
-    // 2. Reset old-format failures so they retry with the new InnerTube code.
-    //    Guard: only reset entries that have failed fewer than 3 times (failCount
-    //    tracked in metadata by the vault download code).  Entries that have
-    //    tried ≥3 times are genuinely undownloadable (deleted, members-only,
-    //    geo-blocked) and must NOT be re-queued — they form an infinite retry
-    //    loop that wastes CPU and blocks the entire download queue.
+    // 2. Reset old-format failures so they retry with the updated format string.
+    //
+    //    The vault downloader now uses:
+    //      bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best
+    //    The previous string lacked "best[ext=mp4]", which caused YouTube Shorts
+    //    and android_testsuite-served videos to permanently fail with
+    //    "Requested format is not available".
+    //
+    //    We reset ANY entry whose error mentions "format is not available" —
+    //    regardless of failCount — because the failure was caused by a missing
+    //    format selector, not by the video being deleted or geo-blocked.
+    //    Non-format failures (deleted, members-only, geo-blocked) are left alone.
     const fmtResult = await db
       .update(contentVaultBackups)
-      .set({ status: "indexed", downloadError: null })
+      .set({
+        status: "indexed",
+        downloadError: null,
+        metadata: sqlTag`jsonb_set(
+          jsonb_set(
+            COALESCE(${contentVaultBackups.metadata}, '{}'::jsonb),
+            '{failCount}', '0'::jsonb
+          ),
+          '{permanentSkip}', 'false'::jsonb
+        )`,
+      })
       .where(
-        and(
-          or(
-            like(contentVaultBackups.downloadError, "%format is not available%"),
-            like(contentVaultBackups.downloadError, "%-f 18%"),
-          )!,
-          sqlTag`COALESCE((${contentVaultBackups.metadata}->>'failCount')::int, 0) < 3`
+        or(
+          like(contentVaultBackups.downloadError, "%format is not available%"),
+          like(contentVaultBackups.downloadError, "%-f 18%"),
+          like(contentVaultBackups.downloadError, "%Requested format%"),
         )!
       );
     const fmtCount = (fmtResult as any)?.rowCount ?? "?";
@@ -408,6 +422,96 @@ async function healProductionPipeline(): Promise<void> {
     } else {
       process.stdout.write("[prod-heal] Ghost user migration: no ghost channels found (already migrated or never existed)\n");
     }
+
+    // 4b. dev_bypass_user → real user migration for stream_edit_jobs.
+    //     dev_bypass_user is a legacy test identity used during early production
+    //     testing.  Any QUEUED stream_edit_jobs belonging to it should be
+    //     re-attributed to the real ET Gaming user so the stream editor processes
+    //     them under the correct identity.  Failed / errored jobs are left alone —
+    //     they reference vault entries that may be permanently unavailable.
+    const DEV_BYPASS_USER = "dev_bypass_user";
+    const { studioVideos, autopilotQueue: autopilotQueueTable } = await import("@shared/schema");
+
+    const devJobMigrateResult = await db
+      .update(streamEditJobs)
+      .set({ userId: REAL_USER_ID })
+      .where(
+        and(
+          eq(streamEditJobs.userId, DEV_BYPASS_USER),
+          eq(streamEditJobs.status, "queued"),
+        )!
+      );
+    const devJobCount = (devJobMigrateResult as any)?.rowCount ?? "?";
+    if (Number(devJobCount) > 0) {
+      process.stdout.write(`[prod-heal] Migrated ${devJobCount} queued stream_edit_job(s) from dev_bypass_user to real user\n`);
+    }
+
+    // 4c. Delete seeded fake studio_videos.
+    //     In early production testing a seeder created studio video records with
+    //     placeholder YouTube IDs (DEV_WARZONE_READY_001, PUBLISHED_DEV_001).
+    //     These are not real uploads — they have no file_path, no real YouTube ID,
+    //     and they pollute the dashboard and the auto-publisher queue.
+    //     We delete any studio_video owned by dev_bypass_user that has a fake
+    //     YouTube ID (starts with "DEV_" or "PUBLISHED_DEV_").
+    const fakeSvResult = await db
+      .delete(studioVideos)
+      .where(
+        and(
+          eq(studioVideos.userId, DEV_BYPASS_USER),
+          or(
+            like(studioVideos.youtubeId, "DEV_%"),
+            like(studioVideos.youtubeId, "PUBLISHED_DEV_%"),
+          )!
+        )!
+      );
+    const fakeSvCount = (fakeSvResult as any)?.rowCount ?? "?";
+    if (Number(fakeSvCount) > 0) {
+      process.stdout.write(`[prod-heal] Deleted ${fakeSvCount} fake seeded studio_video record(s)\n`);
+    }
+
+    // 4d. Delete fake autopilot_queue entries for dev_bypass_user.
+    //     Same seeder created youtube_upload / youtube_short queue entries that
+    //     have no studioVideoId in metadata and can never be processed by the
+    //     real publisher (which expects type "studio_auto_publish").
+    const fakeAqResult = await db
+      .delete(autopilotQueueTable)
+      .where(
+        and(
+          eq(autopilotQueueTable.userId, DEV_BYPASS_USER),
+          or(
+            eq(autopilotQueueTable.type, "youtube_upload"),
+            eq(autopilotQueueTable.type, "youtube_short"),
+          )!
+        )!
+      );
+    const fakeAqCount = (fakeAqResult as any)?.rowCount ?? "?";
+    if (Number(fakeAqCount) > 0) {
+      process.stdout.write(`[prod-heal] Deleted ${fakeAqCount} fake seeded autopilot_queue entry(ies)\n`);
+    }
+
+    // 4e. YouTube OAuth token check — emit a clear startup warning if the real
+    //     ET Gaming YouTube channel has no valid OAuth tokens.  Without tokens the
+    //     entire upload pipeline is blocked; this message makes the root cause
+    //     immediately visible in deployment logs.
+    try {
+      const ytChannelCheck = await db
+        .select({ id: channelsTable.id, channelName: channelsTable.channelName, accessToken: channelsTable.accessToken })
+        .from(channelsTable)
+        .where(
+          and(
+            eq(channelsTable.userId, REAL_USER_ID),
+            eq(channelsTable.platform, "youtube"),
+          )!
+        )
+        .limit(1);
+      if (ytChannelCheck.length === 0) {
+        process.stdout.write("[prod-heal] ⚠️  UPLOAD BLOCKED: No YouTube channel connected for ET Gaming — visit Settings → Channels to connect YouTube\n");
+      } else if (!ytChannelCheck[0].accessToken) {
+        process.stdout.write(`[prod-heal] ⚠️  UPLOAD BLOCKED: YouTube channel "${ytChannelCheck[0].channelName}" (id=${ytChannelCheck[0].id}) has no OAuth token — re-authenticate in Settings → Channels → YouTube → Reconnect\n`);
+      } else {
+        process.stdout.write(`[prod-heal] ✓  YouTube OAuth token present for channel id=${ytChannelCheck[0].id} ("${ytChannelCheck[0].channelName}")\n`);
+      }
+    } catch { /* non-fatal */ }
 
     // 5. Reset content_pipeline entries that were abandoned mid-run ("processing")
     //    or failed with a transient AI budget 401/429/queue-full error.
