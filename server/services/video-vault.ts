@@ -18,6 +18,46 @@ const execFileAsync = promisify(execFile);
 // IP bot-detection. Users can upload via Settings → YouTube Cookies.
 const YT_COOKIES_PATH = path.join(process.cwd(), ".local", "yt-cookies.txt");
 
+/**
+ * Ensures the yt-cookies.txt file is on disk before running yt-dlp.
+ *
+ * The file is written at startup via restoreYtCookiesFromDb() (server/index.ts),
+ * but there is a race condition: if cookies were saved to the DB AFTER the server
+ * booted (e.g. first-time upload, or a deploy that happened while cookies were
+ * being refreshed), the startup restoration finds nothing and the file is never
+ * written.
+ *
+ * This function is called right before every yt-dlp invocation.  It only hits
+ * the DB when the file is absent — so normal steady-state operation has zero
+ * overhead (file exists → returns immediately).
+ */
+let _cookieRestoreInFlight = false;
+async function ensureCookiesOnDisk(): Promise<void> {
+  if (fs.existsSync(YT_COOKIES_PATH) && fs.statSync(YT_COOKIES_PATH).size > 10) return;
+  if (_cookieRestoreInFlight) return;
+  _cookieRestoreInFlight = true;
+  try {
+    const rows = await db.execute(sql`
+      SELECT platform_data->>'ytCookiesData' AS cookies
+      FROM channels
+      WHERE platform = 'youtube'
+        AND platform_data ? 'ytCookiesData'
+      LIMIT 1
+    `);
+    const stored = (rows as any).rows?.[0]?.cookies as string | null;
+    if (!stored || stored.length < 10) return;
+    const dir = path.join(process.cwd(), ".local");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(YT_COOKIES_PATH, stored, "utf-8");
+    const count = stored.split("\n").filter((l: string) => l.trim() && !l.startsWith("#")).length;
+    logger.info(`[Vault] Restored ${count} YouTube cookies from DB to disk`);
+  } catch (err: any) {
+    logger.warn(`[Vault] Could not restore cookies from DB: ${err?.message}`);
+  } finally {
+    _cookieRestoreInFlight = false;
+  }
+}
+
 let _detectGameFn: ((text: string) => string | null) | null = null;
 let _persistGameFn: ((name: string, source: string) => Promise<void>) | null = null;
 
@@ -412,6 +452,10 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
+    // Ensure cookies are on disk before every yt-dlp call.
+    // Handles the boot-timing race where cookies were saved to DB after the
+    // startup restoration already ran and found nothing.
+    await ensureCookiesOnDisk();
     const cookiesArgs: string[] = (() => {
       try { return fs.existsSync(YT_COOKIES_PATH) && fs.statSync(YT_COOKIES_PATH).size > 10 ? ["--cookies", YT_COOKIES_PATH] : []; }
       catch { return []; }
@@ -454,7 +498,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     }
     logger.info(`[Vault] Tab ${contentType}: scraped ${videos.length} entries`);
   } catch (err: any) {
-    logger.error(`[Vault] Failed to scrape ${contentType} tab:`, err.message?.substring(0, 200));
+    logger.error(`[Vault] Failed to scrape ${contentType} tab:`, err.message?.substring(0, 500));
   }
   return videos;
 }
@@ -1051,6 +1095,7 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   // When an OAuth token is present, use the auth-prioritized list (web + tv_embedded
   // first) — the Bearer header lets YouTube's servers bypass po_token enforcement.
   // Without a token, jump straight to the po_token-exempt clients.
+  await ensureCookiesOnDisk(); // recover from boot-time race where DB had no cookies yet
   const ytdlpAuthArgs = accessToken
     ? ["--add-header", `Authorization:Bearer ${accessToken}`]
     : [];
