@@ -168,23 +168,35 @@ interface InnerTubeClient {
   userAgent: string;
   apiClientName: string;
   androidSdkVersion?: number;
+  deviceMake?: string;
   deviceModel?: string;
+  osName?: string;
+  osVersion?: string;
 }
+// Client versions synced from yt-dlp 2026.03.17 (latest as of Apr 2026).
+// YouTube returns HTTP 400 for client versions older than ~18 months.
+// When yt-dlp releases a new version, grep _INNERTUBE_CLIENTS in
+// yt_dlp/extractor/youtube/_base.py to pick up updated values.
 const INNERTUBE_CLIENTS: InnerTubeClient[] = [
   {
     name: "ANDROID",
     clientName: "ANDROID",
-    clientVersion: "19.44.38",
-    androidSdkVersion: 34,
-    userAgent: "com.google.android.youtube/19.44.38 (Linux; U; Android 14) gzip",
+    clientVersion: "21.02.35",
+    androidSdkVersion: 30,
+    osName: "Android",
+    osVersion: "11",
+    userAgent: "com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip",
     apiClientName: "3",
   },
   {
     name: "IOS",
     clientName: "IOS",
-    clientVersion: "19.45.4",
+    clientVersion: "21.02.3",
+    deviceMake: "Apple",
     deviceModel: "iPhone16,2",
-    userAgent: "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_5 like Mac OS X)",
+    osName: "iPhone",
+    osVersion: "18.3.2.22D82",
+    userAgent: "com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
     apiClientName: "5",
   },
 ];
@@ -452,6 +464,17 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
+
+    // Memory gate: yt-dlp is a Python process that needs 80–150 MB at startup.
+    // If a download is already running (another yt-dlp process) AND OS free
+    // memory is below 15%, skip the scrape to avoid OOM-killing either process.
+    // The scrape will re-run on the next scheduled cycle (typically minutes away).
+    const osFreeRatio = os.freemem() / os.totalmem();
+    if (isVaultRunning && osFreeRatio < 0.15) {
+      logger.warn(`[Vault] Skipping ${contentType} scrape — download in progress and OS free memory only ${Math.round(osFreeRatio * 100)}%`);
+      return videos;
+    }
+
     // Ensure cookies are on disk before every yt-dlp call.
     // Handles the boot-timing race where cookies were saved to DB after the
     // startup restoration already ran and found nothing.
@@ -839,7 +862,10 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
             hl: "en",
             gl: "US",
             ...(client.androidSdkVersion !== undefined ? { androidSdkVersion: client.androidSdkVersion } : {}),
+            ...(client.deviceMake !== undefined ? { deviceMake: client.deviceMake } : {}),
             ...(client.deviceModel !== undefined ? { deviceModel: client.deviceModel } : {}),
+            ...(client.osName !== undefined ? { osName: client.osName } : {}),
+            ...(client.osVersion !== undefined ? { osVersion: client.osVersion } : {}),
           },
         },
         videoId: youtubeId,

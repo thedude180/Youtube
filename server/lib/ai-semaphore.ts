@@ -19,15 +19,15 @@ import { createLogger } from "./logger";
 
 const logger = createLogger("ai-semaphore");
 
-export const MIN_INTER_CALL_DELAY_MS = 3_000;
+// 2 s between calls → 30 calls/min cap, well within OpenAI gpt-4o-mini limits
+// (previously 3 s / 20 calls/min — too conservative for 10+ autonomous agents).
+export const MIN_INTER_CALL_DELAY_MS = 2_000;
 const STARTUP_HOLD_MS = 40_000;
-const MAX_QUEUE_DEPTH = 10;
+const MAX_QUEUE_DEPTH = 12;
 // Background callers fail-fast when this many are already queued.
-// Raised from 3 → 6: production is a fully-autonomous deployment with no
-// live user-chat, so all 10 slots are available for background work.
-// Critical-path callers (publish, pipeline-analyze) are not background-tier
-// and bypass this limit entirely.
-const BACKGROUND_MAX_QUEUE_DEPTH = 6;
+// Raised from 6 → 8: more breathing room for the autonomous agent fleet.
+// Critical-path callers (publish, pipeline-analyze) bypass this limit entirely.
+const BACKGROUND_MAX_QUEUE_DEPTH = 8;
 const _bootTime = Date.now();
 
 let _busy = false;
