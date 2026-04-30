@@ -278,7 +278,13 @@ class IntelligentJobQueue {
         const types = (result.rows as { type: string }[]).map(r => r.type);
         if (types.length > 0) {
           logger.info(`[JobQueue] Recovery pump found ${types.length} queued job type(s): ${types.join(", ")}`);
-          await Promise.allSettled(types.map(t => this.processNext(t)));
+          // Process one type at a time — firing all simultaneously risks
+          // saturating the DB connection pool during high-load boot cycles.
+          for (const t of types) {
+            await this.processNext(t).catch((err: any) =>
+              logger.error(`[JobQueue] Recovery pump error for type ${t}: ${err?.message}`)
+            );
+          }
         }
       } catch (err: any) {
         logger.error(`[JobQueue] Recovery pump error: ${err.message}`);

@@ -1,4 +1,5 @@
 import { db, withRetry } from "./db";
+import { runInBatches } from "./lib/db-semaphore";
 import { autopilotQueue, commentResponses, autopilotConfig, videos, channels, notifications, streams, PLATFORM_CAPABILITIES, VIDEO_PLATFORMS, TEXT_ONLY_PLATFORMS, LIVE_STREAM_PLATFORMS } from "@shared/schema";
 import { eq, and, desc, lte, sql, gte, inArray } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
@@ -1432,13 +1433,13 @@ export async function flushQueueToAsap(): Promise<number> {
     if (futurePosts.length === 0) return 0;
 
     const staggerWindowMs = 5 * 60_000;
-    await Promise.all(futurePosts.map((post, i) => {
+    await runInBatches(futurePosts, (post, i) => {
       const jitterMs = (i / futurePosts.length) * staggerWindowMs + Math.random() * 30_000;
       const asapTime = new Date(now.getTime() + jitterMs);
       return db.update(autopilotQueue)
         .set({ scheduledAt: asapTime })
         .where(eq(autopilotQueue.id, post.id));
-    }));
+    }, 3);
 
     logger.info("Flushed future queue items to ASAP", { count: futurePosts.length });
 
@@ -1455,7 +1456,7 @@ export async function flushQueueToAsap(): Promise<number> {
       ));
 
     if (falselyBlocked.length > 0) {
-      await Promise.all(falselyBlocked.map((post, i) => {
+      await runInBatches(falselyBlocked, (post, i) => {
         const jitterMs = (i / falselyBlocked.length) * staggerWindowMs + Math.random() * 30_000;
         const asapTime = new Date(now.getTime() + jitterMs);
         return db.update(autopilotQueue)
@@ -1466,7 +1467,7 @@ export async function flushQueueToAsap(): Promise<number> {
             metadata: sql`${autopilotQueue.metadata} - 'complianceBlocked' - 'violations'`,
           })
           .where(eq(autopilotQueue.id, post.id));
-      }));
+      }, 3);
       logger.info("Reset falsely-blocked Shorts to scheduled", { count: falselyBlocked.length });
     }
 

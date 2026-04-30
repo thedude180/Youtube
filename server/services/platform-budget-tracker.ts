@@ -2,8 +2,30 @@ import { db } from "../db";
 import { autopilotQueue } from "@shared/schema";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { runWithDbLimit } from "../lib/db-semaphore";
 
 const logger = createLogger("platform-budget");
+
+// ─── SHORT-LIVED RESULT CACHE ─────────────────────────────────────────────────
+// Prevents DB bursts when many callers ask for the same platform budget within
+// the same tick (e.g. 19 simultaneous Discord budget checks observed in prod).
+// TTL is intentionally short (30 s) so scheduling decisions stay accurate.
+const BUDGET_CACHE_TTL_MS = 30_000;
+const _budgetCache = new Map<string, { value: PlatformBudgetStatus; expiresAt: number }>();
+
+function _cacheBudget(key: string, value: PlatformBudgetStatus): void {
+  _budgetCache.set(key, { value, expiresAt: Date.now() + BUDGET_CACHE_TTL_MS });
+}
+
+function _getCachedBudget(key: string): PlatformBudgetStatus | null {
+  const entry = _budgetCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    _budgetCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
 
 // ─── ACTIVE CONTENT DISTRIBUTION PLATFORMS ───────────────────────────────────
 // Only platforms with real publishers are listed here. The autopilot routes
@@ -100,48 +122,57 @@ export async function getPlatformBudgetStatus(userId: string, platform: string):
   const minGapMs = PLATFORM_MIN_GAP_MS[platform] || 90 * 60_000;
   const effectiveLimit = Math.max(1, dailyLimit + getDailyVariance(platform));
 
+  // Return cached result if fresh — prevents DB burst when many callers fire
+  // simultaneously for the same user+platform (observed: 19 at once in prod).
+  const cacheKey = `${userId}:${platform}`;
+  const cached = _getCachedBudget(cacheKey);
+  if (cached) return cached;
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
   try {
-    // Only "scheduled" posts hold a daily slot — they have a committed future
-    // scheduledAt time for today.  "pending" (content not yet generated) and
-    // "processing" (mid-generation, may still fail) do NOT hold slots because
-    // they haven't been committed to a publish time yet.  Counting them caused
-    // the budget to falsely read as exhausted even when zero posts had gone out.
-    const [scheduledResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(autopilotQueue)
-      .where(and(
-        eq(autopilotQueue.userId, userId),
-        eq(autopilotQueue.targetPlatform, platform),
-        inArray(autopilotQueue.status, ["scheduled"]),
-        gte(autopilotQueue.scheduledAt, todayStart),
-        lte(autopilotQueue.scheduledAt, todayEnd),
-      ));
+    // All three DB queries run through the global semaphore so they don't pile
+    // onto the connection pool alongside other concurrent callers.
+    const [scheduledResult] = await runWithDbLimit(() =>
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.targetPlatform, platform),
+          inArray(autopilotQueue.status, ["scheduled"]),
+          gte(autopilotQueue.scheduledAt, todayStart),
+          lte(autopilotQueue.scheduledAt, todayEnd),
+        ))
+    );
 
-    const [publishedResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(autopilotQueue)
-      .where(and(
-        eq(autopilotQueue.userId, userId),
-        eq(autopilotQueue.targetPlatform, platform),
-        inArray(autopilotQueue.status, ["published", "publishing"]),
-        gte(autopilotQueue.publishedAt, todayStart),
-      ));
+    const [publishedResult] = await runWithDbLimit(() =>
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.targetPlatform, platform),
+          inArray(autopilotQueue.status, ["published", "publishing"]),
+          gte(autopilotQueue.publishedAt, todayStart),
+        ))
+    );
 
-    const [lastPost] = await db
-      .select({ publishedAt: autopilotQueue.publishedAt })
-      .from(autopilotQueue)
-      .where(and(
-        eq(autopilotQueue.userId, userId),
-        eq(autopilotQueue.targetPlatform, platform),
-        eq(autopilotQueue.status, "published"),
-      ))
-      .orderBy(sql`${autopilotQueue.publishedAt} DESC NULLS LAST`)
-      .limit(1);
+    const [lastPost] = await runWithDbLimit(() =>
+      db
+        .select({ publishedAt: autopilotQueue.publishedAt })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.targetPlatform, platform),
+          eq(autopilotQueue.status, "published"),
+        ))
+        .orderBy(sql`${autopilotQueue.publishedAt} DESC NULLS LAST`)
+        .limit(1)
+    );
 
     const scheduledToday = scheduledResult?.count || 0;
     const publishedToday = publishedResult?.count || 0;
@@ -181,7 +212,7 @@ export async function getPlatformBudgetStatus(userId: string, platform: string):
       } catch {}
     }
 
-    return {
+    const result: PlatformBudgetStatus = {
       platform,
       dailyLimit: effectiveLimit,
       scheduledToday,
@@ -194,6 +225,8 @@ export async function getPlatformBudgetStatus(userId: string, platform: string):
       lastPostAt: lastPostAt ? new Date(lastPostAt) : null,
       gapSatisfied,
     };
+    _cacheBudget(cacheKey, result);
+    return result;
   } catch (err: any) {
     const isTransient = /timeout|connect|ECONNRESET|ETIMEDOUT|ENOTFOUND/i.test(err?.message || "");
     if (isTransient) {

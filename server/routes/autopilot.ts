@@ -795,16 +795,15 @@ export function registerAutopilotRoutes(app: Express) {
       let seeded = 0;
       const now = new Date();
 
-      const platformTimes = await Promise.all(
-        platforms.map(async (platform) => {
-          try {
-            const t = await getAudienceDrivenTime({ platform, userId, contentType: "new-video", urgency: "low" });
-            return { platform, hour: t.getHours(), minute: t.getMinutes() };
-          } catch {
-            return { platform, hour: 12 + Math.floor(Math.random() * 6), minute: Math.floor(Math.random() * 60) };
-          }
-        })
-      );
+      const platformTimes: { platform: string; hour: number; minute: number }[] = [];
+      for (const platform of platforms) {
+        try {
+          const t = await getAudienceDrivenTime({ platform, userId, contentType: "new-video", urgency: "low" });
+          platformTimes.push({ platform, hour: t.getHours(), minute: t.getMinutes() });
+        } catch {
+          platformTimes.push({ platform, hour: 12 + Math.floor(Math.random() * 6), minute: Math.floor(Math.random() * 60) });
+        }
+      }
       const timeMap = Object.fromEntries(platformTimes.map(t => [t.platform, t]));
 
       const batchValues: any[] = [];
