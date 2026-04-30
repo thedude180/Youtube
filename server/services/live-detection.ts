@@ -86,13 +86,18 @@ registerMap("liveDetection.pendingConfirmations", pendingConfirmations, 100);
 /**
  * Per-platform poll interval in ms. These are the minimum gaps between
  * API calls to each platform — used to throttle the detection loop.
+ *
+ * Tuned for fastest possible detection for PS5 → YouTube / Twitch / Kick:
+ *   YouTube scraping is free (no quota), so 45 s is safe indefinitely.
+ *   Twitch Helix allows ~800 points/min; GET /streams costs 1 point → 30 s fine.
+ *   Kick has no published rate limit; 45 s is conservative.
  */
 const PLATFORM_POLL_MS: Record<string, number> = {
-  youtube: 5 * 60 * 1000,   //  5 min — scraping is free, API only on confirm
-  twitch:  5 * 60 * 1000,   //  5 min — Helix is very generous
-  kick:   10 * 60 * 1000,   // 10 min — conservative
-  tiktok: 15 * 60 * 1000,   // 15 min — dev tier is limited
-  rumble: 30 * 60 * 1000,   // 30 min — RSS/public only
+  youtube: 45 * 1000,        //  45 s — scraping is free; API only on confirm
+  twitch:  30 * 1000,        //  30 s — Helix is extremely generous
+  kick:    45 * 1000,        //  45 s — conservative without published limit
+  tiktok: 15 * 60 * 1000,   //  15 min — dev tier is limited
+  rumble: 30 * 60 * 1000,   //  30 min — RSS/public only
 };
 
 /** Last time each channel was polled (channelDbId → timestamp) */
@@ -165,14 +170,26 @@ function clearPending(key: string): void {
 
 /**
  * Gate cleared when:
- *   YouTube: scraping ≥ 1 AND (api ≥ 1 OR scrapingHits ≥ 2)
- *     — requires at least one scraping confirmation; API agrees OR
- *       two independent scraping checks have both seen it live.
- *   Other platforms: totalHits ≥ 2 (two consecutive API hits)
+ *
+ *   YouTube:
+ *     - apiHits ≥ 1  — the YouTube API is only ever queried AFTER scraping has
+ *       already confirmed live in the same call, so one API hit is sufficient
+ *       proof that both pipelines agreed (possibly within the same poll cycle).
+ *     - OR scrapingHits ≥ 2 — two independent scraping checks both saw live;
+ *       used as fallback when quota is exhausted and the API cannot be called.
+ *
+ *   Other platforms: totalHits ≥ 2 (two consecutive API hits, ~30-45 s apart).
+ *
+ * Previous gate was `scrapingHits >= 1 AND (apiHits >= 1 OR scrapingHits >= 2)`.
+ * That was always false on the first poll when both pipelines agreed in one call
+ * because recordHit was only called once (with pipeline="api"), leaving
+ * scrapingHits=0. The new gate correctly handles single-poll resolution.
  */
 function isGateCleared(state: ConfirmationState, platform: string): boolean {
   if (platform === "youtube") {
-    return state.scrapingHits >= 1 && (state.apiHits >= 1 || state.scrapingHits >= 2);
+    // API is only called when scraping already confirmed → apiHits≥1 implies both agreed.
+    // Two scraping hits (no API, quota-low path) also clears.
+    return state.apiHits >= 1 || state.scrapingHits >= 2;
   }
   return state.totalHits >= 2;
 }
