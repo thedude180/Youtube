@@ -40,7 +40,9 @@ export async function detect(userId: string): Promise<LiveDetectionResult[]> {
 }
 
 async function detectKick(userId: string, channel: any): Promise<LiveDetectionResult> {
-  const channelName = channel.channelId; // For Kick we usually store the slug/username as channelId
+  // Kick stores the human-readable slug as channelName; channelId may be a
+  // numeric identifier.  The public v2 API endpoint requires the slug.
+  const channelName = channel.channelName || channel.channelId;
   const signals: Record<string, any> = {};
 
   if (!channelName) {
@@ -48,8 +50,13 @@ async function detectKick(userId: string, channel: any): Promise<LiveDetectionRe
   }
 
   try {
-    // Kick public API v2
-    const res = await fetch(`https://kick.com/api/v2/channels/${channelName}`);
+    // Kick public API v2 — no auth required
+    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelName)}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+      },
+    });
     
     if (!res.ok) {
       signals.api_error = `HTTP ${res.status}`;

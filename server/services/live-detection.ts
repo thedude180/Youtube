@@ -303,16 +303,68 @@ async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast | nul
   }
 }
 
+/**
+ * Try Kick's public v2 API (no auth required) for a given slug.
+ * Returns a broadcast object if the channel is live, null otherwise.
+ * This is used as both the primary path (when no OAuth token is available) and
+ * as a fallback when the authenticated v1 API returns a non-200 response.
+ */
+async function checkKickPublicApi(slug: string, channelDbId: number): Promise<DetectedBroadcast | null> {
+  try {
+    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) return null;
+    const data = await res.json();
+
+    if (!data.is_live) return null;
+
+    const ls = data.livestream || {};
+    return {
+      platform: "kick",
+      broadcastId: String(ls.id || data.id || Date.now()),
+      title: ls.session_title || ls.title || data.slug || "Kick Stream",
+      description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
+      startedAt: ls.created_at || ls.start_time,
+      viewerCount: ls.viewer_count || data.viewer_count,
+    };
+  } catch (err: any) {
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+    logger.warn(`[LiveDetection] Kick public API check ${isTimeout ? "timed out" : "failed"} for channel ${channelDbId}:`, err?.message ?? err);
+    return null;
+  }
+}
+
 async function checkKickLive(channelRow: any): Promise<DetectedBroadcast | null> {
   const token = channelRow.accessToken;
   const slug = channelRow.channelName || channelRow.channelId;
-  if (!token || !slug) return null;
+  if (!slug) return null;
+
+  // When no token is available, go straight to the public API.
+  if (!token) {
+    logger.debug(`[LiveDetection] Kick channel ${channelRow.id} has no token — using public API`);
+    return checkKickPublicApi(slug, channelRow.id);
+  }
 
   try {
     const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
     });
+
+    // 401 / 403 means the OAuth token has expired.  Fall back to the public
+    // v2 API which doesn't require authentication.
+    if (res.status === 401 || res.status === 403) {
+      logger.info(`[LiveDetection] Kick OAuth token expired for channel ${channelRow.id} (HTTP ${res.status}) — falling back to public API`);
+      return checkKickPublicApi(slug, channelRow.id);
+    }
+
     if (!res.ok) return null;
     const kickCt = res.headers.get("content-type") || "";
     if (!kickCt.includes("application/json")) return null;
@@ -334,7 +386,8 @@ async function checkKickLive(channelRow: any): Promise<DetectedBroadcast | null>
   } catch (err: any) {
     const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
     logger.warn(`[LiveDetection] Kick check ${isTimeout ? "timed out" : "failed"} for channel ${channelRow.id}:`, err?.message ?? err);
-    return null;
+    // On network error, still try the public API as a last resort
+    return checkKickPublicApi(slug, channelRow.id);
   }
 }
 

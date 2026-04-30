@@ -52,6 +52,28 @@ async function extractHlsUrl(videoId: string): Promise<string | null> {
   }
 }
 
+/**
+ * Try to extract the HLS manifest URL, retrying up to `maxAttempts` times
+ * with `delayMs` between retries.  YouTube embeds the manifest URL in the
+ * watch page a few seconds after the stream starts, so a single attempt
+ * made right when live detection fires often finds nothing.
+ */
+async function extractHlsUrlWithRetry(
+  videoId: string,
+  maxAttempts = 5,
+  delayMs = 10_000,
+): Promise<string | null> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const url = await extractHlsUrl(videoId);
+    if (url) return url;
+    if (attempt < maxAttempts) {
+      logger.info(`HLS manifest not ready (attempt ${attempt}/${maxAttempts}) — retrying in ${delayMs / 1000}s`, { videoId });
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  return null;
+}
+
 export async function startRecording(userId: string, videoId: string): Promise<{ success: boolean; error?: string }> {
   const key = `${userId}:${videoId}`;
 
@@ -60,10 +82,12 @@ export async function startRecording(userId: string, videoId: string): Promise<{
     return { success: true };
   }
 
-  const hlsUrl = await extractHlsUrl(videoId);
+  // Retry HLS extraction — YouTube embeds the manifest URL a few seconds after
+  // the stream starts, so a single attempt right after detection often misses it.
+  const hlsUrl = await extractHlsUrlWithRetry(videoId, 5, 10_000);
   if (!hlsUrl) {
-    logger.warn("Could not find HLS manifest — stream may not be live yet", { videoId });
-    return { success: false, error: "HLS manifest not available — stream may not be live yet" };
+    logger.warn("Could not find HLS manifest after 5 attempts — stream may not be live yet", { videoId });
+    return { success: false, error: "HLS manifest not available after retries" };
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -71,12 +95,22 @@ export async function startRecording(userId: string, videoId: string): Promise<{
 
   logger.info("Starting stream recording", { userId: userId.slice(0, 8), videoId, outputPath });
 
+  // Use fragmented MP4 (+frag_keyframe+empty_moov) instead of +faststart.
+  //
+  // +faststart moves the moov atom to the front AFTER writing the whole file.
+  // For a multi-hour live stream, the moov atom can be hundreds of MB — if ffmpeg
+  // is sent SIGINT to stop recording, it rarely has enough time to finalize it,
+  // which produces an unplayable file.
+  //
+  // +frag_keyframe+empty_moov writes a small moov atom at the very start and then
+  // appends moof+mdat fragments on every keyframe.  The file is valid and seekable
+  // at any point, even if ffmpeg is killed mid-stream.
   const ffmpegProcess = execFile("ffmpeg", [
     "-y",
     "-headers", `User-Agent: ${UA}\r\n`,
     "-i", hlsUrl,
     "-c", "copy",
-    "-movflags", "+faststart",
+    "-movflags", "+frag_keyframe+empty_moov",
     "-f", "mp4",
     outputPath,
   ], { timeout: 12 * 60 * 60 * 1000 });
