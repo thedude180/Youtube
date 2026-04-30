@@ -5,7 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
   Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, Loader2, X,
-  Activity,
+  Activity, PlayCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -593,6 +593,31 @@ export default function TeamDashboard() {
           task={selectedTask} 
           onClose={() => setSelectedTask(null)} 
         />
+
+        <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="card-growth-intel">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <PlayCircle className="h-4 w-4 text-primary" />
+              Growth Intel
+            </h2>
+            <span className="text-[11px] text-muted-foreground">Featured resource</span>
+          </div>
+          <div className="p-3">
+            <div className="relative w-full rounded-lg overflow-hidden bg-black" style={{ paddingTop: "56.25%" }}>
+              <iframe
+                src="https://www.youtube.com/embed/mPHdSkvoN10?rel=0&modestbranding=1"
+                title="YouTube Just Made It 10X Easier To Get Views In 2026"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 w-full h-full border-0"
+                data-testid="iframe-growth-intel"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2 px-0.5">
+              YouTube Just Made It 10X Easier To Get Views In 2026 · Romayroh
+            </p>
+          </div>
+        </div>
 
         {stats && (
           <div className="rounded-xl border border-border/30 bg-card/20 p-4">
