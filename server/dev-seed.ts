@@ -65,6 +65,13 @@ export async function seedDevData(): Promise<void> {
 
     const hasYT = existing.some(c => c.platform === "youtube");
     const hasShorts = existing.some(c => c.platform === "youtubeshorts");
+    const hasTwitch = existing.some(c => c.platform === "twitch");
+    const hasTikTok = existing.some(c => c.platform === "tiktok");
+    const hasKick = existing.some(c => c.platform === "kick");
+    const hasRumble = existing.some(c => c.platform === "rumble");
+    const hasDiscord = existing.some(c => c.platform === "discord");
+    const hasTwitter = existing.some(c => c.platform === "twitter");
+    const hasInstagram = existing.some(c => c.platform === "instagram");
 
     let ytChannelId: number;
 
@@ -122,6 +129,120 @@ export async function seedDevData(): Promise<void> {
         },
       });
       process.stdout.write("[dev-seed] Created dev YouTubeShorts channel\n");
+    }
+
+    // ── 1b. ALL OTHER PLATFORMS ──────────────────────────────────────────────
+    // Seed all streaming/social platforms so the full platform layer is active
+    // in dev — gives the AI tools, channel tabs, and platform health UI real
+    // connection records to render.
+    if (!hasTwitch) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "twitch",
+        channelName: "ETGaming274",
+        channelId: "twitch_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 3_200,
+        videoCount: 42,
+        viewCount: 680_000,
+        contentNiche: "gaming",
+        platformData: { displayName: "ETGaming274", broadcasterType: "affiliate", profileImageUrl: "https://static-cdn.jtvnw.net/user-default-pictures-uv/75305d54-c7cc-40d1-bb9c-91fbe85943c7-profile_image-70x70.png" },
+      });
+      process.stdout.write("[dev-seed] Created dev Twitch channel\n");
+    }
+
+    if (!hasTikTok) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "tiktok",
+        channelName: "@ETGaming274",
+        channelId: "tiktok_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 28_400,
+        videoCount: 156,
+        viewCount: 4_200_000,
+        contentNiche: "gaming",
+        platformData: { displayName: "ETGaming274", verified: false, bio: "Gaming clips & highlights 🎮" },
+      });
+      process.stdout.write("[dev-seed] Created dev TikTok channel\n");
+    }
+
+    if (!hasKick) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "kick",
+        channelName: "ETGaming274",
+        channelId: "kick_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 1_100,
+        videoCount: 18,
+        viewCount: 95_000,
+        contentNiche: "gaming",
+        platformData: { slug: "etgaming274", verified: false, isLive: false },
+      });
+      process.stdout.write("[dev-seed] Created dev Kick channel\n");
+    }
+
+    if (!hasRumble) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "rumble",
+        channelName: "ETGaming274",
+        channelId: "rumble_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 540,
+        videoCount: 29,
+        viewCount: 38_000,
+        contentNiche: "gaming",
+        platformData: { username: "ETGaming274", verified: false },
+      });
+      process.stdout.write("[dev-seed] Created dev Rumble channel\n");
+    }
+
+    if (!hasDiscord) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "discord",
+        channelName: "ET Gaming Community",
+        channelId: "discord_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 892,
+        contentNiche: "gaming",
+        platformData: { serverId: "dev_server_id", serverName: "ET Gaming Community", memberCount: 892, botInServer: true },
+      });
+      process.stdout.write("[dev-seed] Created dev Discord channel\n");
+    }
+
+    if (!hasTwitter) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "twitter",
+        channelName: "@ETGaming274",
+        channelId: "twitter_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 7_300,
+        videoCount: 0,
+        viewCount: 0,
+        contentNiche: "gaming",
+        platformData: { username: "ETGaming274", displayName: "ET Gaming 274", verified: false },
+      });
+      process.stdout.write("[dev-seed] Created dev Twitter/X channel\n");
+    }
+
+    if (!hasInstagram) {
+      await db.insert(channels).values({
+        userId: DEV_USER_ID,
+        platform: "instagram",
+        channelName: "@ETGaming274",
+        channelId: "instagram_dev_etgaming274",
+        accessToken: "dev_api_key_mode",
+        subscriberCount: 5_600,
+        videoCount: 74,
+        viewCount: 210_000,
+        contentNiche: "gaming",
+        platformData: { username: "ETGaming274", accountType: "CREATOR", verified: false },
+      });
+      process.stdout.write("[dev-seed] Created dev Instagram channel\n");
     }
 
     // ── 2. ENSURE CATALOG VIDEOS ─────────────────────────────────────────────

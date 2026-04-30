@@ -2564,4 +2564,42 @@ export async function registerPlatformRoutes(app: Express) {
       res.status(500).json({ success: false, error: "Failed to refresh all connections" });
     }
   });
+
+  // DEV-ONLY: Directly toggle the in-memory live gate + seed a live stream row.
+  // Used by the testing harness to simulate an active livestream without going
+  // through the full YouTube broadcast flow. Blocked in production.
+  app.post("/api/dev/set-live", async (req: any, res) => {
+    const isProduction = process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production";
+    if (isProduction) return res.status(404).json({ error: "Not found" });
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const active = req.body?.active !== false;
+      const { setLiveActive } = await import("../lib/live-gate");
+      setLiveActive(userId, active);
+
+      if (active) {
+        const existingStream = await storage.getStreams(userId);
+        const liveStream = existingStream.find((s: any) => s.status === "live");
+        if (!liveStream) {
+          const stream = await storage.createStream({
+            userId,
+            title: "[Dev] ET Gaming 274 – Live Now",
+            description: "Dev test livestream — all platform integrations active",
+            status: "live",
+            platforms: ["youtube", "twitch", "kick"],
+            category: "Gaming",
+            startedAt: new Date(),
+          });
+          return res.json({ success: true, active: true, streamId: stream.id, message: "Live gate set + stream created" });
+        }
+        return res.json({ success: true, active: true, streamId: liveStream.id, message: "Live gate set, stream already exists" });
+      } else {
+        return res.json({ success: true, active: false, message: "Live gate cleared" });
+      }
+    } catch (err: any) {
+      logger.error("[DevSetLive] Error:", err?.message);
+      res.status(500).json({ success: false, error: err?.message });
+    }
+  });
 }

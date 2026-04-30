@@ -65,16 +65,30 @@ export function CreatorModeProvider({ children }: { children: React.ReactNode })
     staleTime: 60_000,
   });
 
-  const isLive = !!(ytLiveStatus?.connected && ytLiveStatus?.liveStreamId) || !!(activeStream?.id && activeStream?.status === "running");
+  const { data: streamList = [] } = useQuery<any[]>({
+    queryKey: ["/api/streams"],
+    refetchInterval: 3 * 60_000,
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  const dbLiveStream = (streamList as any[]).find((s) => s.status === "live") ?? null;
+
+  const isLive =
+    !!(ytLiveStatus?.connected && ytLiveStatus?.liveStreamId) ||
+    !!(activeStream?.id && activeStream?.status === "running") ||
+    !!dbLiveStream;
 
   useEffect(() => {
     if (isLive && !prevLiveRef.current) {
       const info: LiveStreamInfo = {
-        id: ytLiveStatus?.liveStreamId ?? activeStream?.id,
-        title: ytLiveStatus?.title ?? activeStream?.youtubeVideoId ?? "Live Stream",
-        platform: ytLiveStatus?.connected ? "YouTube" : (activeStream?.platform ?? "YouTube"),
+        id: ytLiveStatus?.liveStreamId ?? activeStream?.id ?? dbLiveStream?.id,
+        title: ytLiveStatus?.title ?? activeStream?.youtubeVideoId ?? dbLiveStream?.title ?? "Live Stream",
+        platform: ytLiveStatus?.connected
+          ? "YouTube"
+          : (activeStream?.platform ?? (dbLiveStream?.platforms?.[0] as string | undefined) ?? "YouTube"),
         viewerCount: ytLiveStatus?.viewerCount ?? 0,
-        startedAt: activeStream?.startedAt ?? new Date().toISOString(),
+        startedAt: activeStream?.startedAt ?? dbLiveStream?.startedAt ?? new Date().toISOString(),
       };
       setLiveStream(info);
       setModeState("streaming");
@@ -83,7 +97,7 @@ export function CreatorModeProvider({ children }: { children: React.ReactNode })
       setLiveStream(null);
     }
     prevLiveRef.current = isLive;
-  }, [isLive, ytLiveStatus, activeStream]);
+  }, [isLive, ytLiveStatus, activeStream, dbLiveStream]);
 
   useEffect(() => {
     if (!isLive || !liveStream?.startedAt) return;
