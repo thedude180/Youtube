@@ -407,7 +407,7 @@ Return 5-8 trending topics, 4-6 growth strategies, 3-4 experiment hypotheses. On
     return;
   }
 
-  const parsed = safeParseJSON(result.content, null);
+  const parsed = safeParseJSON<Record<string, any>>(result.content, null);
   if (!parsed) {
     logger.warn("AI synthesis returned non-JSON response");
     return;
