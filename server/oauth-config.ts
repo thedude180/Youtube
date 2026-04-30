@@ -2,6 +2,21 @@ import type { Platform } from "@shared/schema";
 
 const isDevEnv = !process.env.REPLIT_DEPLOYMENT;
 
+/**
+ * Picks the best available env-var name for a platform credential.
+ * Tries the production name first; if that env var is unset it falls back to
+ * the dev variant.  This lets the same set of TWITCH_DEV_xx / KICK_DEV_xx secrets
+ * work in both the dev workspace and the production deployment without needing
+ * a duplicate set of TWITCH_CLIENT_ID / KICK_CLIENT_ID secrets.
+ */
+function resolveEnvKey(devName: string, prodName: string): string {
+  if (process.env[prodName]) return prodName;
+  if (process.env[devName]) return devName;
+  // Neither is set — return the canonical prod name so the missing-credentials
+  // error message is helpful ("Missing credentials for TWITCH_CLIENT_ID").
+  return prodName;
+}
+
 export interface OAuthPlatformConfig {
   platform: Platform;
   label: string;
@@ -28,14 +43,14 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     authUrl: "https://id.twitch.tv/oauth2/authorize",
     tokenUrl: "https://id.twitch.tv/oauth2/token",
     scopes: ["user:read:email", "channel:read:stream_key", "channel:manage:broadcast", "channel:manage:schedule"],
-    clientIdEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_ID ? "TWITCH_DEV_CLIENT_ID" : "TWITCH_CLIENT_ID",
-    clientSecretEnv: isDevEnv && process.env.TWITCH_DEV_CLIENT_SECRET ? "TWITCH_DEV_CLIENT_SECRET" : "TWITCH_CLIENT_SECRET",
+    clientIdEnv: resolveEnvKey("TWITCH_DEV_CLIENT_ID", "TWITCH_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("TWITCH_DEV_CLIENT_SECRET", "TWITCH_CLIENT_SECRET"),
     tokenAuthMethod: "body",
     additionalAuthParams: { force_verify: "true" },
     userInfoUrl: "https://api.twitch.tv/helix/users",
     userInfoHeaders: (token) => ({
       "Authorization": `Bearer ${token}`,
-      "Client-Id": (isDevEnv ? process.env.TWITCH_DEV_CLIENT_ID : undefined) || process.env.TWITCH_CLIENT_ID || "",
+      "Client-Id": process.env[resolveEnvKey("TWITCH_DEV_CLIENT_ID", "TWITCH_CLIENT_ID")] || "",
     }),
     parseUserId: (data) => ({ id: data.data[0].id, username: data.data[0].login, displayName: data.data[0].display_name, profileUrl: `https://twitch.tv/${data.data[0].login}` }),
   },
@@ -58,8 +73,8 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     authUrl: "https://www.tiktok.com/v2/auth/authorize/",
     tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
     scopes: ["user.info.basic", "video.list", "video.publish", "video.upload"],
-    clientIdEnv: isDevEnv && process.env.TIKTOK_DEV_CLIENT_ID ? "TIKTOK_DEV_CLIENT_ID" : "TIKTOK_CLIENT_ID",
-    clientSecretEnv: isDevEnv && process.env.TIKTOK_DEV_CLIENT_SECRET ? "TIKTOK_DEV_CLIENT_SECRET" : "TIKTOK_CLIENT_SECRET",
+    clientIdEnv: resolveEnvKey("TIKTOK_DEV_CLIENT_ID", "TIKTOK_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("TIKTOK_DEV_CLIENT_SECRET", "TIKTOK_CLIENT_SECRET"),
     usesClientKey: true,
     requiresPKCE: true,
     pkceChallengeMethod: "S256",
@@ -74,8 +89,8 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
     authUrl: "https://id.kick.com/oauth/authorize",
     tokenUrl: "https://id.kick.com/oauth/token",
     scopes: ["user:read", "channel:read", "chat:write", "streamkey:read"],
-    clientIdEnv: isDevEnv && process.env.KICK_DEV_CLIENT_ID ? "KICK_DEV_CLIENT_ID" : "KICK_CLIENT_ID",
-    clientSecretEnv: isDevEnv && process.env.KICK_DEV_CLIENT_SECRET ? "KICK_DEV_CLIENT_SECRET" : "KICK_CLIENT_SECRET",
+    clientIdEnv: resolveEnvKey("KICK_DEV_CLIENT_ID", "KICK_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("KICK_DEV_CLIENT_SECRET", "KICK_CLIENT_SECRET"),
     requiresPKCE: true,
     pkceChallengeMethod: "S256",
     tokenAuthMethod: "body",

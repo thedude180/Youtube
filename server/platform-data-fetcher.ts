@@ -17,8 +17,7 @@ export interface PlatformFetchedData {
 type PlatformFetcher = (accessToken: string, channelId: string) => Promise<PlatformFetchedData>;
 
 async function fetchTwitchData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const isDevEnv = !process.env.REPLIT_DEPLOYMENT;
-  const clientId = (isDevEnv ? process.env.TWITCH_DEV_CLIENT_ID : undefined) || process.env.TWITCH_CLIENT_ID || "";
+  const clientId = process.env.TWITCH_CLIENT_ID || process.env.TWITCH_DEV_CLIENT_ID || "";
   const headers = { "Authorization": `Bearer ${accessToken}`, "Client-Id": clientId };
 
   const result: PlatformFetchedData = { platformData: {} };

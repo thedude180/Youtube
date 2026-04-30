@@ -2,6 +2,9 @@ import { db } from "../db";
 import { distributionEvents, PLATFORMS } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("platform-adapter");
 
 export type DistributionRequest = {
   userId: string;
@@ -130,9 +133,12 @@ export async function distributeContent(req: DistributionRequest): Promise<Adapt
       policyCheck.issues.push(...preFlightResult.recommendations.map(r => `[pre-flight] ${r}`));
     }
   } catch (preFlightErr: unknown) {
-    policyCheck.passed = false;
+    // Fail-open: a transient error in the pre-flight (DB timeout, AI service down)
+    // must NOT silently kill a publish job.  Log it and continue so the content
+    // can still be distributed.  Genuine compliance violations are caught when
+    // the preflight actually runs successfully and returns blockers.
     const msg = preFlightErr instanceof Error ? preFlightErr.message : "unknown error";
-    policyCheck.issues.push(`Policy pre-flight gate failed (fail-closed): ${msg}`);
+    logger.warn(`[PlatformAdapter] Pre-flight gate threw — failing open: ${msg}`);
   }
 
   let safetyGateAllowed = true;

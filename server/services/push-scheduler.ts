@@ -424,13 +424,16 @@ async function processJob(job: PushJob): Promise<boolean> {
       const { uploadVideoToYouTube } = await import("../youtube");
       const video = await storage.getVideo(job.videoDbId);
       if (!video) {
+        logger.warn(`[PushScheduler] video_upload job ${job.id}: video ${job.videoDbId} not found in DB — dropping job`);
         return true;
       }
 
       const userChannels = await storage.getChannelsByUser(job.userId);
       const ytChannel = userChannels.find(c => c.platform === "youtube" && c.accessToken);
       if (!ytChannel) {
-        return true;
+        // No active YouTube channel — throw so the retry loop picks it up after
+        // the token refresh cycle has had a chance to restore the access token.
+        throw new Error(`No YouTube channel with active access token for user ${job.userId} — will retry`);
       }
 
       const { isMonetizationUnlocked } = await import("./monetization-check");
