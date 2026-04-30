@@ -341,11 +341,12 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
 
   if (fs.existsSync(outputPath)) {
     const stats = fs.statSync(outputPath);
-    const ageHours = (Date.now() - stats.mtimeMs) / (1000 * 60 * 60);
-    if (ageHours < 24 && stats.size > 1000) {
+    if (stats.size > 1000) {
       logger.info("Using cached source video", { youtubeId, path: outputPath });
       return outputPath;
     }
+    // File exists but is too small (truncated/corrupt) — delete and re-download
+    try { fs.unlinkSync(outputPath); } catch {}
   }
 
   try {

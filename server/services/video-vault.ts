@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { contentVaultBackups, channels } from "@shared/schema";
-import { eq, and, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, ne, sql, isNull, inArray } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -638,6 +638,19 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
         logger.warn(`Vault game persist failed for "${gameName}": ${err.message}`);
       });
     }
+
+    // Double-check with a fresh query right before insert to handle concurrent indexing
+    // runs that both built their existingMap before either inserted anything.
+    const [alreadyExists] = await db
+      .select({ id: contentVaultBackups.id })
+      .from(contentVaultBackups)
+      .where(and(
+        eq(contentVaultBackups.userId, userId),
+        eq(contentVaultBackups.youtubeId, video.id),
+      ))
+      .limit(1);
+    if (alreadyExists) continue;
+
     await db.insert(contentVaultBackups).values({
       userId,
       youtubeId: video.id,
@@ -1098,6 +1111,30 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
 
   ensureVaultDir();
   const outputPath = path.join(VAULT_DIR, `${youtubeId}.mp4`);
+
+  // ── Cross-row dedup guard ────────────────────────────────────────────────────
+  // If another vault row for the same youtubeId is already marked downloaded,
+  // reuse that entry's file path instead of downloading again.  This handles
+  // the case where concurrent indexing runs created two rows for the same video.
+  const [sibling] = await db
+    .select({ filePath: contentVaultBackups.filePath, fileSize: contentVaultBackups.fileSize })
+    .from(contentVaultBackups)
+    .where(and(
+      eq(contentVaultBackups.userId, vaultEntry.userId),
+      eq(contentVaultBackups.youtubeId, youtubeId),
+      eq(contentVaultBackups.status, "downloaded"),
+      ne(contentVaultBackups.id, vaultEntry.id),
+    ))
+    .limit(1);
+
+  if (sibling?.filePath && fs.existsSync(sibling.filePath)) {
+    logger.info(`[Vault] Dedup: ${youtubeId} already downloaded by another entry — marking this row downloaded`);
+    await db.update(contentVaultBackups)
+      .set({ status: "downloaded", filePath: sibling.filePath, fileSize: sibling.fileSize, downloadedAt: new Date(), downloadError: null })
+      .where(eq(contentVaultBackups.id, vaultEntry.id));
+    return true;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   if (fs.existsSync(outputPath)) {
     const stat = fs.statSync(outputPath);
@@ -1737,4 +1774,61 @@ export async function downloadVaultEntry(userId: string, entryId: number): Promi
 
   if (!updated?.filePath) throw new Error("Download succeeded but file path is missing");
   return updated.filePath;
+}
+
+/**
+ * One-time deduplication sweep.
+ *
+ * If the same youtubeId has multiple rows in content_vault_backups for the same
+ * user (caused by concurrent indexing runs), this collapses them: the "best"
+ * row is kept (downloaded > indexed > failed/skipped) and the rest are deleted.
+ * Safe to call on every server start — it is a no-op when no duplicates exist.
+ */
+export async function deduplicateVaultEntries(): Promise<void> {
+  try {
+    const STATUS_RANK: Record<string, number> = {
+      downloaded: 4, indexed: 3, failed: 2, skipped: 1, downloading: 0,
+    };
+
+    const dupes = await db.execute(sql`
+      SELECT user_id, youtube_id, ARRAY_AGG(id ORDER BY created_at ASC) AS ids
+      FROM content_vault_backups
+      WHERE youtube_id NOT LIKE 'local_%'
+        AND youtube_id NOT LIKE 'clip_%'
+      GROUP BY user_id, youtube_id
+      HAVING COUNT(*) > 1
+    `);
+
+    if (!dupes.rows || dupes.rows.length === 0) return;
+
+    logger.info(`[Vault] Dedup sweep: found ${dupes.rows.length} duplicate groups — consolidating`);
+
+    for (const row of dupes.rows as Array<{ user_id: string; youtube_id: string; ids: number[] }>) {
+      const entries = await db
+        .select()
+        .from(contentVaultBackups)
+        .where(inArray(contentVaultBackups.id, row.ids));
+
+      // Pick the best row: highest status rank wins; ties broken by newest updatedAt
+      entries.sort((a, b) => {
+        const rankA = STATUS_RANK[a.status ?? "indexed"] ?? 0;
+        const rankB = STATUS_RANK[b.status ?? "indexed"] ?? 0;
+        if (rankB !== rankA) return rankB - rankA;
+        return (b.downloadedAt?.getTime() ?? b.createdAt?.getTime() ?? 0) -
+               (a.downloadedAt?.getTime() ?? a.createdAt?.getTime() ?? 0);
+      });
+
+      const [keeper, ...losers] = entries;
+      const loserIds = losers.map(l => l.id);
+
+      if (loserIds.length > 0) {
+        await db.delete(contentVaultBackups).where(inArray(contentVaultBackups.id, loserIds));
+        logger.info(`[Vault] Dedup: kept entry ${keeper.id} for ${row.youtube_id}, removed ${loserIds.join(", ")}`);
+      }
+    }
+
+    logger.info("[Vault] Dedup sweep complete");
+  } catch (err: any) {
+    logger.warn("[Vault] Dedup sweep failed (non-fatal):", err?.message);
+  }
 }

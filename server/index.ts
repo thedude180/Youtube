@@ -835,6 +835,9 @@ import("./migrations/cleanup-pipeline-dupes").then(m => m.deduplicatePipelinesIf
 // One-time cleanup: delete/reset stale "processing" duplicate pipeline rows that the previous migration
 // left behind (it only cleaned pending dupes; the processing ones re-entered the AI queue loop)
 import("./migrations/cleanup-processing-dupes").then(m => m.cleanupProcessingDupesIfNeeded()).catch(() => {});
+// Ongoing dedup: collapse duplicate content_vault_backups rows (same user + youtubeId) caused by
+// concurrent indexing runs — keeps the best status row, deletes the rest.  No-op when clean.
+import("./services/video-vault").then(m => m.deduplicateVaultEntries()).catch(() => {});
 // Restore yt-cookies.txt from DB if the file is missing (survives redeployments)
 import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {});
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas
