@@ -1,13 +1,10 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import {
   Zap, TrendingUp, Youtube, MessageSquare, Gamepad2, Newspaper,
-  Globe, RefreshCw, ExternalLink, ArrowUpRight, Flame,
+  Globe, ExternalLink, ArrowUpRight, Flame,
 } from "lucide-react";
 
 interface Signal {
@@ -73,19 +70,9 @@ function ScoreDot({ score }: { score: number | null }) {
 }
 
 export default function OmniIntelligenceFeed() {
-  const { toast } = useToast();
-
   const { data, isLoading, error } = useQuery<IntelFeed>({
     queryKey: ["/api/intelligence/feed"],
     refetchInterval: 5 * 60_000,
-  });
-
-  const triggerMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/intelligence/run"),
-    onSuccess: () => {
-      toast({ title: "Intelligence harvest triggered", description: "Fresh signals will appear within 2 minutes." });
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["/api/intelligence/feed"] }), 90_000);
-    },
   });
 
   const hasData = data && (data.signals.length > 0 || data.trends.length > 0 || data.strategies.length > 0);
@@ -102,23 +89,11 @@ export default function OmniIntelligenceFeed() {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {data?.lastSignalAt && (
-            <span className="text-[10px] text-muted-foreground hidden sm:block">
-              {formatDistanceToNow(new Date(data.lastSignalAt), { addSuffix: true })}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => triggerMutation.mutate()}
-            disabled={triggerMutation.isPending}
-            data-testid="button-run-intelligence"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${triggerMutation.isPending ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
+        {data?.lastSignalAt && (
+          <span className="text-[10px] text-muted-foreground" data-testid="text-last-signal-at">
+            {formatDistanceToNow(new Date(data.lastSignalAt), { addSuffix: true })}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -130,18 +105,9 @@ export default function OmniIntelligenceFeed() {
       ) : !hasData ? (
         <div className="p-6 text-center">
           <Zap className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground mb-3">No intelligence harvested yet. First run in ~22 minutes after boot.</p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs h-7"
-            onClick={() => triggerMutation.mutate()}
-            disabled={triggerMutation.isPending}
-            data-testid="button-run-intelligence-empty"
-          >
-            <RefreshCw className={`h-3 w-3 mr-1 ${triggerMutation.isPending ? "animate-spin" : ""}`} />
-            Run now
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Awaiting first scan — runs automatically every 6 hours.
+          </p>
         </div>
       ) : (
         <div className="divide-y divide-border/10">
