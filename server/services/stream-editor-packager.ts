@@ -121,19 +121,27 @@ Respond as strict JSON only:
   };
 }
 
-/** Fire-and-forget thumbnail generation for a studio video. */
-async function generateThumbnailAsync(
-  studioVideoId: number,
+interface ThumbnailData {
+  jpegBuffer: Buffer;
+  prompt: string;
+  platform: string;
+}
+
+/**
+ * Phase 1 — Generate the thumbnail image only (no DB writes, no studioVideoId needed).
+ * Runs in PARALLEL with generateSeoPackage so both complete at the same time.
+ * Returns null on failure so callers can continue without a thumbnail.
+ */
+async function generateThumbnailImage(
   title: string,
-  description: string,
   gameName: string | null | undefined,
   platform: string,
   userId: string,
-): Promise<void> {
+): Promise<ThumbnailData | null> {
   try {
     const thumbnailPrompt = await generateThumbnailPrompt({
       title,
-      description,
+      description: "",
       platform: platform === "shorts" ? "youtube_shorts" : platform,
       type: "video",
       gameName: gameName ?? null,
@@ -141,7 +149,7 @@ async function generateThumbnailAsync(
 
     const { generateImageBuffer } = await import("../replit_integrations/image/client");
     const imageBuffer = await generateImageBuffer(thumbnailPrompt, "1536x1024");
-    if (!imageBuffer || imageBuffer.length < 1000) return;
+    if (!imageBuffer || imageBuffer.length < 1000) return null;
 
     const sharp = (await import("sharp")).default;
     const isVertical = platform === "tiktok" || platform === "shorts";
@@ -151,25 +159,41 @@ async function generateThumbnailAsync(
       .jpeg({ quality: 85 })
       .toBuffer();
 
-    const thumbPath = path.join(STUDIO_DIR, `thumb_sv${studioVideoId}_${Date.now()}.jpg`);
-    fs.writeFileSync(thumbPath, jpegBuffer);
+    return { jpegBuffer, prompt: thumbnailPrompt, platform };
+  } catch (err: unknown) {
+    logger.warn(`[Packager] Thumbnail image generation failed:`, (err as Error)?.message);
+    return null;
+  }
+}
 
-    const base64 = jpegBuffer.toString("base64");
+/**
+ * Phase 2 — Save a pre-generated thumbnail to the studio video DB record.
+ * Runs after storage.createStudioVideo() gives us the studioVideoId.
+ */
+async function saveThumbnailToVideo(
+  studioVideoId: number,
+  thumbData: ThumbnailData,
+): Promise<void> {
+  try {
+    const thumbPath = path.join(STUDIO_DIR, `thumb_sv${studioVideoId}_${Date.now()}.jpg`);
+    fs.writeFileSync(thumbPath, thumbData.jpegBuffer);
+
+    const base64 = thumbData.jpegBuffer.toString("base64");
     const dataUrl = `data:image/jpeg;base64,${base64}`;
 
     const existing = await storage.getStudioVideo(studioVideoId);
     if (!existing) return;
     const meta = (existing.metadata ?? {}) as Record<string, unknown>;
     const options = (meta.thumbnailOptions as Array<Record<string, unknown>>) ?? [];
-    options.push({ url: dataUrl, prompt: thumbnailPrompt });
+    options.push({ url: dataUrl, prompt: thumbData.prompt });
 
     await storage.updateStudioVideo(studioVideoId, {
-      metadata: { ...meta, thumbnailOptions: options, thumbnailPrompt },
+      metadata: { ...meta, thumbnailOptions: options, thumbnailPrompt: thumbData.prompt },
     } as Parameters<typeof storage.updateStudioVideo>[1]);
 
-    logger.info(`[Packager] Thumbnail generated for studio video ${studioVideoId}`);
+    logger.info(`[Packager] Thumbnail saved to studio video ${studioVideoId}`);
   } catch (err: unknown) {
-    logger.warn(`[Packager] Thumbnail generation failed for sv${studioVideoId}:`, (err as Error)?.message);
+    logger.warn(`[Packager] Thumbnail save failed for sv${studioVideoId}:`, (err as Error)?.message);
   }
 }
 
@@ -215,15 +239,25 @@ export async function packageClips(
     const totalForPlatform = clipsPerPlatform[clip.platform] ?? 1;
 
     try {
-      const seo = await generateSeoPackage(
-        sourceTitle,
-        gameName,
-        clip.platform,
-        clip.clipIndex,
-        totalForPlatform,
-        userId,
-      );
+      // ── Parallel phase: SEO + thumbnail image generate at the same time ──────
+      // SEO needs the source title; thumbnail image also starts from the source
+      // title so both can run simultaneously without waiting on each other.
+      // This halves the AI wait time per clip and ensures the thumbnail is ready
+      // before publishing starts (work order: SEO ∥ Thumbnail → DB write → Publish).
+      logger.info(`[Packager] Clip ${i + 1}/${result.length}: generating SEO + thumbnail in parallel…`);
+      const [seo, thumbData] = await Promise.all([
+        generateSeoPackage(
+          sourceTitle,
+          gameName,
+          clip.platform,
+          clip.clipIndex,
+          totalForPlatform,
+          userId,
+        ),
+        generateThumbnailImage(sourceTitle, gameName, clip.platform, userId),
+      ]);
 
+      // ── Sequential phase: create the DB record (needs SEO output) ─────────────
       const sv = await storage.createStudioVideo({
         userId,
         title: seo.title,
@@ -241,14 +275,19 @@ export async function packageClips(
         },
       });
 
+      // ── Save thumbnail to the DB record (needs studioVideoId) ─────────────────
+      // thumbData is already generated — this is just a DB write, not another AI call.
+      if (thumbData) {
+        await saveThumbnailToVideo(sv.id, thumbData);
+      } else {
+        logger.warn(`[Packager] Clip ${i + 1}/${result.length}: no thumbnail generated (AI may be busy)`);
+      }
+
       result[i] = { ...clip, studioVideoId: sv.id };
       packaged++;
       onProgress?.(packaged, result.length);
 
-      generateThumbnailAsync(sv.id, seo.title, seo.description, gameName, clip.platform, userId)
-        .catch(() => {});
-
-      logger.info(`[Packager] Clip ${i + 1}/${result.length} → Studio video ${sv.id} ("${seo.title}")`);
+      logger.info(`[Packager] Clip ${i + 1}/${result.length} → Studio video ${sv.id} ("${seo.title}") seo=${seo.seoScore} thumb=${thumbData ? "✓" : "✗"}`);
     } catch (err: unknown) {
       logger.warn(`[Packager] Failed to package clip ${i + 1}:`, (err as Error)?.message);
       packaged++;
