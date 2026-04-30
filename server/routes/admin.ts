@@ -1,12 +1,13 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { ADMIN_EMAIL, users, channels, videos } from "@shared/schema";
+import { ADMIN_EMAIL, users, channels, videos, managedPlaylists, playlistItems } from "@shared/schema";
 import { storage } from "../storage";
 import { logSecurityEvent } from "../lib/audit";
 import { db, pool } from "../db";
-import { desc, sql } from "drizzle-orm";
+import { desc, sql, eq, and, inArray } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
 import { cached } from "../lib/cache";
+import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 
@@ -361,6 +362,75 @@ export function registerAdminRoutes(app: Express) {
       res.json(exportData);
     } catch (e: any) {
       res.status(500).json({ error: "Export failed" });
+    }
+  });
+
+  app.post("/api/admin/playlist-prune", adminRateLimit, async (req, res) => {
+    const adminId = requireAdmin(req, res);
+    if (!adminId) return;
+    try {
+      const { userId, minVideoCount = 5, dryRun = false } = req.body as {
+        userId: string;
+        minVideoCount?: number;
+        dryRun?: boolean;
+      };
+      if (!userId) return res.status(400).json({ error: "userId required" });
+
+      const userChannels = await db
+        .select({ id: channels.id })
+        .from(channels)
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
+      const ytChannelId = userChannels[0]?.id;
+
+      const allPlaylists = await db
+        .select()
+        .from(managedPlaylists)
+        .where(eq(managedPlaylists.userId, userId));
+
+      const pruneTargets: Array<{ id: number; title: string; youtubePlaylistId: string | null; itemCount: number }> = [];
+
+      for (const playlist of allPlaylists) {
+        const [{ count }] = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(playlistItems)
+          .where(eq(playlistItems.playlistId, playlist.id));
+        if ((count || 0) < minVideoCount) {
+          pruneTargets.push({
+            id: playlist.id,
+            title: playlist.title,
+            youtubePlaylistId: playlist.youtubePlaylistId,
+            itemCount: count || 0,
+          });
+        }
+      }
+
+      if (dryRun) {
+        return res.json({ dryRun: true, targets: pruneTargets });
+      }
+
+      let ytDeleted = 0;
+      let dbDeleted = 0;
+      const results: Array<{ id: number; title: string; ytDeleted: boolean; itemCount: number }> = [];
+
+      for (const target of pruneTargets) {
+        let ytOk = false;
+        if (target.youtubePlaylistId && ytChannelId) {
+          ytOk = await deleteYouTubePlaylist(ytChannelId, target.youtubePlaylistId);
+          if (ytOk) ytDeleted++;
+        }
+        await db.delete(playlistItems).where(eq(playlistItems.playlistId, target.id));
+        await db.delete(managedPlaylists).where(eq(managedPlaylists.id, target.id));
+        dbDeleted++;
+        results.push({ id: target.id, title: target.title, ytDeleted: ytOk, itemCount: target.itemCount });
+        logger.info("[Admin] Pruned under-filled playlist", {
+          id: target.id, title: target.title, itemCount: target.itemCount, ytDeleted: ytOk,
+        });
+      }
+
+      res.json({ pruned: dbDeleted, ytDeleted, minVideoCount, results });
+    } catch (err: any) {
+      logger.error("[Admin] playlist-prune failed", { error: err?.message });
+      res.status(500).json({ error: "Playlist prune failed" });
     }
   });
 }

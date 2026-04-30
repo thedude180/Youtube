@@ -232,6 +232,8 @@ export async function registerRoutes(
     "/api/kernel/demo-mode",
     "/api/vitals",
     "/api/feedback",
+    // Admin routes already protected by requireAdmin (email check) — no extra tenant check needed
+    "/api/admin/",
     // System-internal operations triggered automatically on login — never user-controlled,
     // must not consume trust budget or be blocked by governance enforcement.
     "/api/sync/login",

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
@@ -283,6 +283,30 @@ function AdminSystemHealthTab() {
     refetchInterval: 60000,
   });
 
+  const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
+  const { toast } = useToast();
+  const [pruneResults, setPruneResults] = useState<any>(null);
+
+  const pruneMutation = useMutation({
+    mutationFn: async (dryRun: boolean) => {
+      const res = await apiRequest("POST", "/api/admin/playlist-prune", {
+        userId: profile?.id,
+        minVideoCount: 5,
+        dryRun,
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setPruneResults(data);
+      if (data.dryRun) {
+        toast({ title: `Dry run: ${data.targets?.length ?? 0} playlists would be removed` });
+      } else {
+        toast({ title: `Pruned ${data.pruned} playlists`, description: `${data.ytDeleted} removed from YouTube` });
+      }
+    },
+    onError: () => toast({ title: "Prune failed", variant: "destructive" }),
+  });
+
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -452,6 +476,65 @@ function AdminSystemHealthTab() {
               <p className="text-sm font-bold mt-1">{data?.memory?.rss ? formatBytes(data.memory.rss) : "N/A"}</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="card-playlist-maintenance">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ListX className="w-4 h-4" />
+            Playlist Maintenance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Remove playlists with fewer than 5 videos from your channel. This will delete them from YouTube and the database.
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => pruneMutation.mutate(true)}
+              disabled={pruneMutation.isPending || !profile?.id}
+              data-testid="button-playlist-dry-run"
+            >
+              {pruneMutation.isPending ? <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> : null}
+              Preview
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => pruneMutation.mutate(false)}
+              disabled={pruneMutation.isPending || !profile?.id}
+              data-testid="button-playlist-prune"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Remove Under-filled Playlists
+            </Button>
+          </div>
+          {pruneResults && (
+            <div className="text-xs bg-muted/30 rounded-md p-3 space-y-1" data-testid="text-prune-results">
+              {pruneResults.dryRun ? (
+                <>
+                  <p className="font-medium">{pruneResults.targets?.length ?? 0} playlists would be removed:</p>
+                  {pruneResults.targets?.map((t: any) => (
+                    <p key={t.id} className="text-muted-foreground">
+                      • {t.title} ({t.itemCount} videos){t.youtubePlaylistId ? " — on YouTube" : " — DB only"}
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-emerald-500">Removed {pruneResults.pruned} playlists ({pruneResults.ytDeleted} from YouTube)</p>
+                  {pruneResults.results?.map((r: any) => (
+                    <p key={r.id} className="text-muted-foreground">
+                      • {r.title} ({r.itemCount} videos){r.ytDeleted ? " ✓ YouTube" : ""}
+                    </p>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

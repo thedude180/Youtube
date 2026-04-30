@@ -431,7 +431,7 @@ async function addVideoToYouTubePlaylist(channelId: number, playlistId: string, 
   }
 }
 
-async function deleteYouTubePlaylist(channelId: number, youtubePlaylistId: string): Promise<boolean> {
+export async function deleteYouTubePlaylist(channelId: number, youtubePlaylistId: string): Promise<boolean> {
   try {
     const { getAuthenticatedClient } = await import("./youtube");
     const { google } = await import("googleapis");
