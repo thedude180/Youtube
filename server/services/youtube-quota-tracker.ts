@@ -426,8 +426,20 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       counter.thumbnail    = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.thumbnail);
       counter.search    = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
       counter.upload    = Math.min(record.uploadOps ?? 0, DAILY_OP_CAPS.upload);
-      // broadcast has no DB column — leave at 0 (a restarted server gets a fresh
-      // broadcast budget which is safe since live detection falls back to scraping)
+
+      // Restore broadcast + livechat from DB.
+      //
+      // The DB `uploadOps` column stores the combined count of upload + broadcast +
+      // livechat operations (all go to the same DB field in trackQuotaUsage).
+      // Subtract the actual upload count to get the broadcast+livechat ops already fired.
+      // Fill broadcast first up to its cap, then livechat with the remainder.
+      //
+      // This prevents in-memory caps from resetting to 0 on every server restart,
+      // which was the root cause of broadcast/livechat re-firing ~80 more ops each deploy
+      // (20 broadcast × 50 + 60 livechat × 50 = 4,000 units per restart).
+      const nonUploadOps = Math.max(0, (record.uploadOps ?? 0) - counter.upload);
+      counter.broadcast = Math.min(nonUploadOps, DAILY_OP_CAPS.broadcast);
+      counter.livechat  = Math.min(Math.max(0, nonUploadOps - counter.broadcast), DAILY_OP_CAPS.livechat);
 
       const isExhausted = record.unitsUsed >= record.quotaLimit;
       const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;
@@ -439,10 +451,6 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
         );
       }
 
-      // livechat has no DB column — restart gives a fresh 60-insert budget which is
-      // safe: a restarted server hasn't posted any chat messages yet in the new process.
-      counter.livechat = 0;
-
       logger.info(
         `[QuotaBreaker] Startup op-counter restore for ${userId}: ` +
         `write=${counter.write}/${DAILY_OP_CAPS.write} ` +
@@ -450,6 +458,7 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
         `thumbnail=${counter.thumbnail}/${DAILY_OP_CAPS.thumbnail} ` +
         `search=${counter.search}/${DAILY_OP_CAPS.search} ` +
         `upload=${counter.upload}/${DAILY_OP_CAPS.upload} ` +
+        `broadcast=${counter.broadcast}/${DAILY_OP_CAPS.broadcast} ` +
         `livechat=${counter.livechat}/${DAILY_OP_CAPS.livechat}`
       );
     }

@@ -270,7 +270,7 @@ export class CommunityAutoManager {
       }
 
       const { getAuthenticatedClient } = await import("../youtube");
-      const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+      const { isQuotaBreakerTripped, canAffordOperation, trackQuotaUsage, markQuotaErrorFromResponse } = await import("./youtube-quota-tracker");
       const { google } = await import("googleapis");
       const openai = getOpenAIClientBackground();
       const MAX_REPLIES = 10;
@@ -300,6 +300,11 @@ export class CommunityAutoManager {
         }
 
         try {
+          if (!await canAffordOperation(userId, "read").catch(() => false)) {
+            logger.warn("[CommunityAuto] Insufficient quota for commentThreads.list — stopping comment cycle");
+            break;
+          }
+
           const resp = await yt.commentThreads.list({
             part: ["snippet"],
             videoId: video.youtubeId,
@@ -307,6 +312,7 @@ export class CommunityAutoManager {
             order: "relevance",
             textFormat: "plainText",
           });
+          await trackQuotaUsage(userId, "read").catch(() => {});
 
           const unanswered = (resp.data.items || [])
             .filter(t => (t.snippet?.totalReplyCount ?? 0) === 0)
@@ -316,6 +322,11 @@ export class CommunityAutoManager {
             const topSnippet = thread.snippet?.topLevelComment?.snippet;
             const commentId = thread.snippet?.topLevelComment?.id;
             if (!commentId || !topSnippet?.textDisplay?.trim()) continue;
+
+            if (isQuotaBreakerTripped() || !await canAffordOperation(userId, "write").catch(() => false)) {
+              logger.warn("[CommunityAuto] Insufficient quota for comments.insert — stopping reply loop");
+              break;
+            }
 
             const commentText = topSnippet.textDisplay.substring(0, 300);
             const author = topSnippet.authorDisplayName || "viewer";
@@ -342,6 +353,7 @@ export class CommunityAutoManager {
                 },
               },
             });
+            await trackQuotaUsage(userId, "write").catch(() => {});
 
             totalReplied++;
 
@@ -357,6 +369,7 @@ export class CommunityAutoManager {
             }
           }
         } catch (videoErr: any) {
+          markQuotaErrorFromResponse(videoErr);
           logger.debug(`[CommunityAuto] Comment fetch failed for video ${video.youtubeId}: ${videoErr.message?.substring(0, 120)}`);
         }
       }
