@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { requireAuth, getUserId } from "./helpers";
+import { requireAuthMw, getUserId } from "./helpers";
 import { getVaultDocuments, generateVaultDocument, generateAllVaultDocuments, DOC_META } from "../services/vault-docs-generator";
 import { db } from "../db";
 import { vaultDocuments, VAULT_DOC_TYPES, type VaultDocType } from "@shared/schema";
@@ -17,7 +17,7 @@ function parseDocType(raw: unknown): string | null {
 
 export function registerVaultDocsRoutes(app: Express) {
   // GET /api/vault-docs — list all documents (metadata only, no full content)
-  app.get("/api/vault-docs", requireAuth, async (req, res) => {
+  app.get("/api/vault-docs", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const docs = await db
@@ -72,7 +72,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // GET /api/vault-docs/stream — SSE endpoint for real-time document status updates
-  app.get("/api/vault-docs/stream", requireAuth, (req, res) => {
+  app.get("/api/vault-docs/stream", requireAuthMw, (req, res) => {
     const userId = getUserId(req);
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -100,7 +100,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // GET /api/vault-docs/:docType — get a single document with full content
-  app.get("/api/vault-docs/:docType", requireAuth, async (req, res) => {
+  app.get("/api/vault-docs/:docType", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const docType = parseDocType(req.params["docType"]);
@@ -133,7 +133,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // POST /api/vault-docs/generate/all — generate all 6 documents (async)
-  app.post("/api/vault-docs/generate/all", requireAuth, async (req, res) => {
+  app.post("/api/vault-docs/generate/all", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       res.json({ queued: true, message: "Generating all 6 documents — this takes a few minutes. Refresh to see progress." });
@@ -148,7 +148,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // POST /api/vault-docs/generate/:docType — generate a single document (async)
-  app.post("/api/vault-docs/generate/:docType", requireAuth, async (req, res) => {
+  app.post("/api/vault-docs/generate/:docType", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const docType = parseDocType(req.params["docType"]);
@@ -169,7 +169,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // GET /api/vault-docs/:docType/export — download as .md file
-  app.get("/api/vault-docs/:docType/export", requireAuth, async (req, res) => {
+  app.get("/api/vault-docs/:docType/export", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const docType = parseDocType(req.params["docType"]);
@@ -200,7 +200,7 @@ export function registerVaultDocsRoutes(app: Express) {
   // ── Backward-compatible aliases at /api/vault/documents ──────────────────
 
   // GET /api/vault/documents — alias of /api/vault-docs
-  app.get("/api/vault/documents", requireAuth, async (req, res) => {
+  app.get("/api/vault/documents", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const docs = await db
@@ -238,7 +238,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // POST /api/vault/documents/generate — optional { docType } in body
-  app.post("/api/vault/documents/generate", requireAuth, async (req, res) => {
+  app.post("/api/vault/documents/generate", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const body = req.body as { docType?: string };
@@ -263,7 +263,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // GET /api/vault/documents/:idOrDocType — supports both numeric ID and docType string
-  app.get("/api/vault/documents/:idOrDocType", requireAuth, async (req, res) => {
+  app.get("/api/vault/documents/:idOrDocType", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const param = String(req.params["idOrDocType"] ?? "");
@@ -290,7 +290,7 @@ export function registerVaultDocsRoutes(app: Express) {
   });
 
   // GET /api/vault/documents/:idOrDocType/export — supports both numeric ID and docType string
-  app.get("/api/vault/documents/:idOrDocType/export", requireAuth, async (req, res) => {
+  app.get("/api/vault/documents/:idOrDocType/export", requireAuthMw, async (req, res) => {
     try {
       const userId = getUserId(req);
       const param = String(req.params["idOrDocType"] ?? "");

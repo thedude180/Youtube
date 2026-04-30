@@ -385,7 +385,7 @@ export default function Money() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
 
-  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, enabled: activeTab === "checkout" || activeTab === "revenue" });
+  const { data: rawPayments, isLoading: paymentsLoading, error: paymentsError } = useQuery<any[]>({ queryKey: ['/api/stripe/payments'], refetchInterval: 5 * 60_000, staleTime: 3 * 60_000, enabled: activeTab === "checkout" || activeTab === "revenue" || activeTab === "payments" });
   const payments = safeArray(rawPayments);
 
   const createPaymentMutation = useMutation({
@@ -420,10 +420,6 @@ export default function Money() {
   }, [toast]);
 
 
-  const isLoading = activeTab === "payments" && paymentsLoading;
-
-  const activeError = (activeTab === "payments" && paymentsError) || null;
-
   const isStripeError = useMemo(() => {
     if (paymentsError instanceof Error) {
       return paymentsError.message?.toLowerCase().includes("stripe not configured") || 
@@ -436,53 +432,6 @@ export default function Money() {
     }
     return false;
   }, [paymentsError]);
-
-  const activeErrorQueryKey = useMemo(
-    () => activeTab === "payments" ? ["/api/stripe/payments"] : ["/api/revenue"],
-    [activeTab]
-  );
-
-  if (isLoading) {
-    return (
-      <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
-        <Skeleton className="h-8 w-48" data-testid="skeleton-title" />
-        <Skeleton className="h-10 w-full rounded-md" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl" />
-        </div>
-        <Skeleton className="h-48 rounded-xl" />
-      </div>
-    );
-  }
-
-  if (activeError) {
-    if (activeTab === "payments" && isStripeError) {
-      return (
-        <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
-          <Card data-testid="card-stripe-not-configured" className="border-amber-500/50 bg-amber-500/10">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="h-5 w-5" />
-                Billing System Offline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Subscription billing is not configured yet. Contact the admin to set up Stripe.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-    return (
-      <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto">
-        <QueryErrorReset error={activeError instanceof Error ? activeError : null} queryKey={activeErrorQueryKey} label={`Failed to load ${activeTab}`} />
-      </div>
-    );
-  }
 
   const totalPotential = sponsorData?.totalPotentialRevenue ?? "$0";
   const paymentCount = payments?.length ?? 0;
@@ -609,6 +558,33 @@ export default function Money() {
 
         <TabsContent value="payments" className="mt-2">
           <div className="space-y-3">
+            {paymentsLoading && (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            )}
+            {!paymentsLoading && paymentsError && (
+              isStripeError ? (
+                <Card data-testid="card-stripe-not-configured" className="border-amber-500/50 bg-amber-500/10">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-5 w-5" />
+                      Billing System Offline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Subscription billing is not configured yet. Contact the admin to set up Stripe.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <QueryErrorReset error={paymentsError instanceof Error ? paymentsError : null} queryKey={["/api/stripe/payments"]} label="Failed to load payments" />
+              )
+            )}
+            {!paymentsLoading && !paymentsError && (<>
             <div className="flex justify-between items-center gap-4 flex-wrap">
               <h2 data-testid="text-payments-title" className="text-lg font-semibold">Stripe Payments</h2>
               <Dialog open={paymentDialogOpen} onOpenChange={(open) => { setPaymentDialogOpen(open); if (!open) setPaymentUrl(""); }}>
@@ -721,6 +697,7 @@ export default function Money() {
                 </CardContent>
               )}
             </Card>
+            </>)}
           </div>
         </TabsContent>
 
