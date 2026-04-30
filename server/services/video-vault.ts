@@ -887,17 +887,61 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
       });
 
       if (!playerRes.ok) {
-        logger.warn(`[Vault] InnerTube ${client.name}: HTTP ${playerRes.status} for ${youtubeId}`);
-        continue;
+        // Log the response body so we can see the exact rejection reason.
+        let errBody = "";
+        try { const t = await playerRes.text(); errBody = t.substring(0, 200); } catch {}
+        logger.warn(`[Vault] InnerTube ${client.name}: HTTP ${playerRes.status} for ${youtubeId} — ${errBody}`);
+        // HTTP 400 often means the Bearer token is expired (short-lived access tokens).
+        // Retry this client without the Authorization header — public content is
+        // accessible unauthenticated and YouTube returns 200 in that case.
+        if (playerRes.status === 400) {
+          try {
+            const unauthRes = await fetch("https://www.youtube.com/youtubei/v1/player", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-YouTube-Client-Name": client.apiClientName,
+                "X-YouTube-Client-Version": client.clientVersion,
+                "User-Agent": client.userAgent,
+                "Origin": "https://www.youtube.com",
+              },
+              body: JSON.stringify(body),
+            });
+            if (unauthRes.ok) {
+              logger.info(`[Vault] InnerTube ${client.name}: unauth fallback succeeded for ${youtubeId}`);
+              const unauthData = await unauthRes.json() as Record<string, any>;
+              if (unauthData?.streamingData) {
+                // Replace playerRes data and continue processing below
+                Object.assign(playerRes, { _unauthData: unauthData });
+              }
+            }
+          } catch {}
+        }
+        if (!(playerRes as any)._unauthData) continue;
       }
 
-      const playerData: Record<string, any> = await playerRes.json();
+      const playerData: Record<string, any> = (playerRes as any)._unauthData ?? await playerRes.json();
       const streamingData = playerData?.streamingData;
       const playStatus = playerData?.playabilityStatus?.status;
       const playReason = playerData?.playabilityStatus?.reason;
 
       if (!streamingData) {
         logger.warn(`[Vault] InnerTube ${client.name}: no streamingData for ${youtubeId} (${playStatus}: ${playReason})`);
+        // If InnerTube (authenticated OR unauthenticated) confirms the video is
+        // permanently gone (deleted, private, region-blocked), throw a special error
+        // so the caller can skip yt-dlp and mark it skipped immediately.
+        // This saves the 5-minute yt-dlp retry cycle for each permanently dead video.
+        const PERMANENT_PLAY_STATUSES = ["ERROR", "UNPLAYABLE", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED"];
+        const isPermanentlyGone =
+          PERMANENT_PLAY_STATUSES.includes(playStatus ?? "") &&
+          // LIVE_STREAM status should NOT be treated as permanent — it just means
+          // the video is still live and cannot be downloaded yet.
+          !/live.*stream|upcoming|premiere/i.test(playReason ?? "");
+        if (isPermanentlyGone && (playerRes as any)._unauthData) {
+          // Confirmed via unauth check (no Bearer bias) — throw so the caller can
+          // immediately mark the vault entry as permanently skipped.
+          throw new Error(`PERM_UNAVAILABLE:${playStatus}:${playReason}`);
+        }
         continue;
       }
 
@@ -961,7 +1005,11 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
         return true;
       }
     } catch (err: any) {
-      logger.warn(`[Vault] InnerTube ${client.name} failed for ${youtubeId}: ${String(err?.message || err).substring(0, 300)}`);
+      const errMsg = String(err?.message || err);
+      // Rethrow PERM_UNAVAILABLE so it propagates up to downloadSingleVideo
+      // and the video is permanently skipped without burning yt-dlp retry cycles.
+      if (errMsg.startsWith("PERM_UNAVAILABLE:")) throw err;
+      logger.warn(`[Vault] InnerTube ${client.name} failed for ${youtubeId}: ${errMsg.substring(0, 300)}`);
     }
   }
   return false;
@@ -1106,10 +1154,29 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       // InnerTube returned data but no usable file — fall through to yt-dlp
       logger.warn(`[Vault] InnerTube produced no file for ${youtubeId} — falling back to yt-dlp clients`);
     } catch (err: any) {
-      const msg = String(err?.message || err).substring(0, 200);
+      const msg = String(err?.message || err).substring(0, 300);
       if (LIVE_EVENT_PATTERNS.some(p => p.test(msg))) {
         await db.update(contentVaultBackups)
           .set({ status: "skipped", downloadError: "Live or upcoming event — cannot download" })
+          .where(eq(contentVaultBackups.id, vaultEntry.id));
+        return false;
+      }
+      // InnerTube (unauth-confirmed) permanent unavailability — mark as permanently skipped
+      // so yt-dlp doesn't waste 5+ minutes attempting a download that cannot succeed.
+      if (msg.startsWith("PERM_UNAVAILABLE:")) {
+        const detail = msg.replace("PERM_UNAVAILABLE:", "");
+        logger.info(`[Vault] Permanently skipping ${youtubeId} — InnerTube confirmed unavailable: ${detail}`);
+        await db.update(contentVaultBackups)
+          .set({
+            status: "skipped",
+            downloadError: `Permanent: ${detail}`,
+            metadata: {
+              ...((vaultEntry.metadata as Record<string, any>) || {}),
+              failCount: 5,
+              permanentSkip: true,
+              skippedAt: new Date().toISOString(),
+            },
+          })
           .where(eq(contentVaultBackups.id, vaultEntry.id));
         return false;
       }
