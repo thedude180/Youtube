@@ -41,42 +41,67 @@ function curlDownload(url: string, dest: string, timeoutMs = 180_000): void {
 }
 
 // How old (ms) the yt-dlp binary can be before we force a fresh download.
-// YouTube's InnerTube API changes frequently; an outdated binary causes HTTP 400
-// on every metadata fetch, making all downloads fail.  Re-downloading takes ~2 s.
-const YTDLP_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+// YouTube rotates its extraction API format roughly every few days; a binary older
+// than 12 h produces HTTP 400 "Unable to download API page" on every metadata
+// fetch, stalling all vault downloads until the next restart.
+const YTDLP_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+// Prevent concurrent update attempts (startup + periodic refresh racing).
+let _ytdlpUpdateInFlight = false;
 
 async function ensureYtDlp(): Promise<void> {
-  let needsDownload = true;
-
-  if (fs.existsSync(YTDLP_DEST)) {
-    const ageMs = Date.now() - fs.statSync(YTDLP_DEST).mtimeMs;
-    if (ageMs < YTDLP_MAX_AGE_MS) {
-      log.info(`yt-dlp binary is fresh (${Math.round(ageMs / 3600000)}h old) — skipping download`);
-      needsDownload = false;
-    } else {
-      log.info(`yt-dlp binary is ${Math.round(ageMs / 86400000)}d old — refreshing to latest`);
-    }
-  } else {
-    log.info("yt-dlp binary not found — downloading...");
-  }
-
-  if (!needsDownload) return;
-
+  if (_ytdlpUpdateInFlight) return;
+  _ytdlpUpdateInFlight = true;
   try {
-    fs.mkdirSync(BIN_DIR, { recursive: true });
-    const tmp = `${YTDLP_DEST}.tmp`;
-    curlDownload(YTDLP_URL, tmp, 120_000);
-    // Atomic replace so a partial download never breaks the running binary
-    fs.renameSync(tmp, YTDLP_DEST);
-    log.info("yt-dlp updated to latest");
-  } catch (err: any) {
-    // If update fails but old binary still exists, keep using it
+    let needsDownload = true;
+
     if (fs.existsSync(YTDLP_DEST)) {
-      log.warn("yt-dlp update failed — using existing binary");
+      const ageMs = Date.now() - fs.statSync(YTDLP_DEST).mtimeMs;
+      if (ageMs < YTDLP_MAX_AGE_MS) {
+        log.info(`yt-dlp binary is fresh (${Math.round(ageMs / 3600000)}h old) — skipping download`);
+        needsDownload = false;
+      } else {
+        log.info(`yt-dlp binary is ${Math.round(ageMs / 3600000)}h old — refreshing to latest`);
+      }
     } else {
-      log.error("yt-dlp download failed — vault downloads will degrade", err);
+      log.info("yt-dlp binary not found — downloading...");
     }
+
+    if (!needsDownload) return;
+
+    try {
+      fs.mkdirSync(BIN_DIR, { recursive: true });
+      const tmp = `${YTDLP_DEST}.tmp`;
+      curlDownload(YTDLP_URL, tmp, 120_000);
+      // Atomic replace so a partial download never breaks the running binary
+      fs.renameSync(tmp, YTDLP_DEST);
+      log.info("yt-dlp updated to latest");
+    } catch (err: any) {
+      // If update fails but old binary still exists, keep using it
+      if (fs.existsSync(YTDLP_DEST)) {
+        log.warn("yt-dlp update failed — using existing binary");
+      } else {
+        log.error("yt-dlp download failed — vault downloads will degrade", err);
+      }
+    }
+  } finally {
+    _ytdlpUpdateInFlight = false;
   }
+}
+
+/**
+ * Schedules a background yt-dlp refresh every 6 hours so the binary never
+ * drifts more than ~6 h past the 12-hour freshness window during long uptimes.
+ * Safe to call multiple times — the in-flight guard prevents concurrent fetches.
+ */
+export function schedulePeriodicYtDlpRefresh(): void {
+  const SIX_HOURS = 6 * 60 * 60 * 1000;
+  setInterval(() => {
+    ensureYtDlp().catch(err =>
+      log.warn(`Periodic yt-dlp refresh failed: ${err?.message ?? err}`)
+    );
+  }, SIX_HOURS).unref(); // .unref() so the timer doesn't keep the process alive
+  log.info("Periodic yt-dlp refresh scheduled (every 6 h)");
 }
 
 async function ensureFfmpeg(): Promise<void> {

@@ -495,6 +495,10 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       "--dump-json",
       "--no-download",
       "--no-warnings",
+      // Use Node.js as the JS runtime for YouTube's obfuscated extraction.
+      // Required since YouTube's Nov 2024 API changes; without this, yt-dlp
+      // falls back to deno (not installed) and misses many formats / gets 400s.
+      "--js-runtimes", "node",
       ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
       "--referer", "https://www.youtube.com/",
@@ -1034,6 +1038,14 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
       "-o", outputPath,
       "--no-warnings",
       "--no-playlist",
+
+      // ── JS runtime for YouTube's obfuscated extraction ─────────────────────
+      // YouTube's API (since Nov 2024) requires JS execution to derive stream
+      // URLs.  Without a runtime yt-dlp falls back to deno (not installed),
+      // producing "No supported JavaScript runtime" warnings and missing formats.
+      // Node.js 20 is present in PATH from Nix.  Note: yt-dlp's runtime flag
+      // uses "node" not "nodejs".
+      "--js-runtimes", "node",
 
       // ── Retry / resilience ────────────────────────────────────────────────
       "--retries", "3",

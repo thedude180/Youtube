@@ -1,4 +1,4 @@
-import { ensureRuntimeBinaries } from "./lib/ensure-binaries";
+import { ensureRuntimeBinaries, schedulePeriodicYtDlpRefresh } from "./lib/ensure-binaries";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import compression from "compression";
@@ -51,7 +51,9 @@ import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
 // Runs in parallel with server startup so binaries are ready before any
 // encoding or vault-download jobs fire. Must be called after all imports so
 // the BIN_DIR path is set on process.env.PATH before child-process spawns.
-const _binariesReady = ensureRuntimeBinaries();
+const _binariesReady = ensureRuntimeBinaries().then(() => {
+  schedulePeriodicYtDlpRefresh();
+});
 
 // ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
 // In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
@@ -345,6 +347,40 @@ async function healProductionPipeline(): Promise<void> {
         )!
       );
     const fmtCount = (fmtResult as any)?.rowCount ?? "?";
+
+    // 2c. Reset yt-dlp HTTP 400 "Unable to download API page" failures.
+    //
+    //     A stale yt-dlp binary (older than ~12–24 h) triggers HTTP 400 on YouTube's
+    //     extraction API page.  These failures show up with download_error text like
+    //     "Unable to download API page: HTTP Error 400".  The ensure-binaries startup
+    //     routine now refreshes the binary every 12 h, so these are transient — on
+    //     the next boot with a fresh binary they will succeed.  Reset them to
+    //     "indexed" so they join the download queue on every restart.
+    //
+    //     Also reset "YouTube bot detection on all yt-dlp clients" failures that
+    //     were recorded from previous deploy cycles and may now succeed with the
+    //     fresh binary and updated Node.js JS-runtime support.
+    const botResult = await db
+      .update(contentVaultBackups)
+      .set({
+        status: "indexed",
+        downloadError: null,
+        metadata: sqlTag`jsonb_set(
+          COALESCE(${contentVaultBackups.metadata}, '{}'::jsonb),
+          '{failCount}', '0'::jsonb
+        )`,
+      })
+      .where(
+        and(
+          eq(contentVaultBackups.status, "failed"),
+          or(
+            like(contentVaultBackups.downloadError, "%Unable to download API page%"),
+            like(contentVaultBackups.downloadError, "%HTTP Error 400%"),
+            like(contentVaultBackups.downloadError, "%YouTube bot detection on all yt-dlp clients%"),
+          )!,
+        )!
+      );
+    const botCount = (botResult as any)?.rowCount ?? "?";
 
     // 2b. Reset "downloaded" vault entries whose local file is gone (ephemeral disk).
     //
@@ -773,7 +809,7 @@ async function healProductionPipeline(): Promise<void> {
     }
 
     process.stdout.write(
-      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${downloadedResetCount} stale-disk downloaded → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
+      `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${botCount} HTTP-400 bot-detect failures → indexed, ${downloadedResetCount} stale-disk downloaded → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
     );
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);
