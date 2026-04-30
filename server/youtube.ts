@@ -3,7 +3,7 @@ import { storage } from "./storage";
 import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
 import { db } from "./db";
-import { users as usersTable, oauthNonces } from "@shared/schema";
+import { users as usersTable, oauthNonces, channels as channelsTable } from "@shared/schema";
 import { eq, lt } from "drizzle-orm";
 
 const ytLogger = createLogger("youtube");
@@ -943,6 +943,86 @@ function isValidYouTubeChannelUrl(url: string): boolean {
   }
 }
 
+/**
+ * Fetch the latest videos from a YouTube channel using the public RSS feed.
+ *
+ * YouTube exposes a free, unauthenticated Atom feed for every channel:
+ *   https://www.youtube.com/feeds/videos.xml?channel_id=UCxxxxxx
+ *
+ * This has zero API quota cost, no authentication required, and is completely
+ * immune to datacenter IP bot-detection because it is just a public XML file.
+ * It returns the 15 most recent uploads within seconds of publishing.
+ * Use this as the FIRST discovery path before trying yt-dlp or the Data API.
+ */
+export async function fetchChannelVideosViaRss(youtubeChannelId: string): Promise<Array<{
+  youtubeId: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string;
+  publishedAt: string;
+  duration: string;
+  viewCount: number;
+  likeCount: number;
+}>> {
+  if (!youtubeChannelId?.startsWith("UC")) {
+    ytLogger.warn("fetchChannelVideosViaRss: invalid channel ID", { youtubeChannelId });
+    return [];
+  }
+
+  const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeChannelId}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+    const res = await fetch(feedUrl, {
+      signal: controller.signal,
+      headers: { "Accept": "application/atom+xml,application/xml,text/xml" },
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      ytLogger.warn("YouTube RSS feed returned non-200", { status: res.status, feedUrl });
+      return [];
+    }
+
+    const xml = await res.text();
+    const entries: Array<{
+      youtubeId: string; title: string; description: string;
+      thumbnailUrl: string; publishedAt: string; duration: string;
+      viewCount: number; likeCount: number;
+    }> = [];
+
+    const entryBlocks = xml.match(/<entry>([\s\S]*?)<\/entry>/g) || [];
+    for (const block of entryBlocks) {
+      const videoIdMatch = block.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+      const titleMatch   = block.match(/<media:title>([^<]+)<\/media:title>/) || block.match(/<title>([^<]+)<\/title>/);
+      const publishedMatch = block.match(/<published>([^<]+)<\/published>/);
+      const descMatch    = block.match(/<media:description>([\s\S]*?)<\/media:description>/);
+      const thumbMatch   = block.match(/<media:thumbnail[^>]+url="([^"]+)"/);
+      const viewsMatch   = block.match(/<media:statistics views="([^"]+)"/);
+
+      if (!videoIdMatch) continue;
+      const videoId = videoIdMatch[1].trim();
+
+      entries.push({
+        youtubeId: videoId,
+        title: titleMatch ? titleMatch[1].trim().replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"') : "",
+        description: descMatch ? descMatch[1].trim() : "",
+        thumbnailUrl: thumbMatch ? thumbMatch[1] : `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        publishedAt: publishedMatch ? publishedMatch[1].trim() : new Date().toISOString(),
+        duration: "PT0S",
+        viewCount: viewsMatch ? parseInt(viewsMatch[1], 10) || 0 : 0,
+        likeCount: 0,
+      });
+    }
+
+    ytLogger.info("YouTube RSS feed scraped videos", { count: entries.length, youtubeChannelId });
+    return entries;
+  } catch (err: any) {
+    ytLogger.warn("YouTube RSS feed fetch failed", { error: err?.message?.substring(0, 200), feedUrl });
+    return [];
+  }
+}
+
 export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHANNEL_URL, maxVideos = 100): Promise<Array<{
   youtubeId: string;
   title: string;
@@ -974,13 +1054,15 @@ export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHA
 
   try {
     const videosUrl = channelUrl.includes("/videos") ? channelUrl : `${channelUrl}/videos`;
+    // NOTE: --extractor-args youtube:player_client=web is intentionally omitted
+    // for flat-playlist (listing only). That flag triggers YouTube's bot-detection
+    // on datacenter IPs. It is only needed when actually downloading stream files.
     const { stdout } = await execFileAsync(ytDlpBin, [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
       "--no-warnings",
       "--playlist-end", String(maxVideos),
-      "--extractor-args", "youtube:player_client=web",
       videosUrl,
     ], { timeout: 120_000, maxBuffer: 50 * 1024 * 1024 });
 
@@ -1022,7 +1104,37 @@ export async function fetchChannelVideosViaYtDlp(channelUrl: string = PUBLIC_CHA
 
 export async function syncYouTubeVideosFromPublicFeed(channelId: number, userId: string, channelUrl: string = PUBLIC_CHANNEL_URL): Promise<{ synced: any[]; newVideos: any[] }> {
   ytLogger.info("Syncing videos from public feed", { channelUrl });
-  const ytVideos = await fetchChannelVideosViaYtDlp(channelUrl);
+
+  let ytVideos: Awaited<ReturnType<typeof fetchChannelVideosViaYtDlp>> = [];
+
+  // ── Priority 1: YouTube RSS feed ─────────────────────────────────────────
+  // Free, no quota, no bot-detection. Returns the 15 most recent uploads.
+  // Look up the YouTube UC... channel ID stored in the channels table.
+  try {
+    const [channelRow] = await db
+      .select({ channelId: channelsTable.channelId })
+      .from(channelsTable)
+      .where(eq(channelsTable.id, channelId))
+      .limit(1);
+    const ucId = channelRow?.channelId;
+    if (ucId) {
+      ytVideos = await fetchChannelVideosViaRss(ucId);
+      if (ytVideos.length > 0) {
+        ytLogger.info("RSS discovery succeeded", { count: ytVideos.length });
+      }
+    }
+  } catch (rssErr: any) {
+    ytLogger.warn("RSS lookup failed, will try yt-dlp", { error: rssErr?.message });
+  }
+
+  // ── Priority 2: yt-dlp scraping ──────────────────────────────────────────
+  // Falls back here when RSS returns nothing (new channel with no uploads yet,
+  // or temporary YouTube feed outage).
+  if (ytVideos.length === 0) {
+    ytLogger.info("RSS returned 0 videos — falling back to yt-dlp scraping");
+    ytVideos = await fetchChannelVideosViaYtDlp(channelUrl);
+  }
+
   if (ytVideos.length === 0) {
     ytLogger.warn("No videos found from public feed — falling back to existing library");
     return { synced: [], newVideos: [] };

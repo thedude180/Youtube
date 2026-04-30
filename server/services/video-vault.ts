@@ -502,7 +502,9 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
       "--referer", "https://www.youtube.com/",
-      "--extractor-args", "youtube:player_client=web",
+      // player_client=web is intentionally omitted for flat-playlist listing:
+      // it triggers YouTube's datacenter-IP bot detection but is NOT needed
+      // to enumerate video IDs. Only set it when downloading actual streams.
       ...cookiesArgs,
       tabUrl,
     ], { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 });
