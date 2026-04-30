@@ -4,6 +4,8 @@ import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordEngineKnowledge } from "./knowledge-mesh";
 import { PLATFORM_DAILY_LIMITS, PLATFORM_MIN_GAP_MS } from "./platform-budget-tracker";
+import { getIntelligenceContext, getTopTrendingTopics } from "./intelligence-context";
+import { audienceActivityPatterns } from "@shared/schema";
 
 const logger = createLogger("content-distributor");
 
@@ -82,6 +84,37 @@ export async function runContentDistribution(): Promise<{
   return { itemsRedistributed, conflictsResolved, daysSpanned: maxDaySpan };
 }
 
+async function getAudiencePeakHours(userId: string): Promise<Record<string, number[]>> {
+  const rows = await db.select({
+    platform: audienceActivityPatterns.platform,
+    hourOfDay: audienceActivityPatterns.hourOfDay,
+    activityLevel: audienceActivityPatterns.activityLevel,
+  }).from(audienceActivityPatterns)
+    .where(eq(audienceActivityPatterns.userId, userId))
+    .orderBy(desc(audienceActivityPatterns.activityLevel))
+    .limit(120);
+
+  const byPlatform: Record<string, Array<{ hour: number; level: number }>> = {};
+  for (const row of rows) {
+    if (!row.platform || row.hourOfDay === null || row.activityLevel === null) continue;
+    if (!byPlatform[row.platform]) byPlatform[row.platform] = [];
+    byPlatform[row.platform].push({ hour: row.hourOfDay, level: row.activityLevel });
+  }
+
+  const result: Record<string, number[]> = {};
+  for (const [platform, entries] of Object.entries(byPlatform)) {
+    // Take top 6 peak hours sorted by activity level, then re-sort by hour for natural ordering
+    const topHours = entries
+      .sort((a, b) => b.level - a.level)
+      .slice(0, 6)
+      .map(e => e.hour)
+      .sort((a, b) => a - b);
+    if (topHours.length >= 3) result[platform] = topHours;
+  }
+
+  return result;
+}
+
 async function distributeForUser(userId: string): Promise<{ redistributed: number; conflicts: number; daysUsed: number }> {
   const now = new Date();
   const futureWindow = new Date(now.getTime() + 30 * 86400_000);
@@ -97,6 +130,13 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
     .limit(200);
 
   if (pendingItems.length === 0) return { redistributed: 0, conflicts: 0, daysUsed: 0 };
+
+  // Fetch live trending topics to drive priority decisions
+  const intelCtx = await getIntelligenceContext(userId).catch(() => null);
+  const trendingTopics = intelCtx ? getTopTrendingTopics(intelCtx) : [];
+
+  // Fetch audience-specific peak hours per platform (overrides hardcoded defaults when available)
+  const audiencePeakHoursMap = await getAudiencePeakHours(userId).catch(() => ({} as Record<string, number[]>));
 
   const alreadyPublished = await db.select({
     targetPlatform: autopilotQueue.targetPlatform,
@@ -151,8 +191,8 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
       if (dayItems.length > available) {
         conflicts += dayItems.length - available;
         const sorted = [...dayItems].sort((a, b) => {
-          const priorityA = getPriority(a);
-          const priorityB = getPriority(b);
+          const priorityA = getPriority(a, trendingTopics);
+          const priorityB = getPriority(b, trendingTopics);
           return priorityB - priorityA;
         });
 
@@ -160,7 +200,7 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
         const spillItems = sorted.slice(available);
         overflowItems.push(...spillItems);
 
-        const spacedTimes = generateSpacedTimes(dayKey, keepItems.length, minGap, platform);
+        const spacedTimes = generateSpacedTimes(dayKey, keepItems.length, minGap, platform, audiencePeakHoursMap[platform]);
         for (let i = 0; i < keepItems.length; i++) {
           const newTime = spacedTimes[i];
           if (newTime && keepItems[i].scheduledAt?.getTime() !== newTime.getTime()) {
@@ -169,7 +209,7 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
           }
         }
       } else {
-        const spacedTimes = generateSpacedTimes(dayKey, dayItems.length, minGap, platform);
+        const spacedTimes = generateSpacedTimes(dayKey, dayItems.length, minGap, platform, audiencePeakHoursMap[platform]);
         for (let i = 0; i < dayItems.length; i++) {
           const current = dayItems[i].scheduledAt;
           const newTime = spacedTimes[i];
@@ -185,7 +225,7 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
     }
 
     if (overflowItems.length > 0) {
-      const daysUsed = await distributeOverflow(userId, platform, overflowItems, effectiveLimit, minGap);
+      const daysUsed = await distributeOverflow(userId, platform, overflowItems, effectiveLimit, minGap, audiencePeakHoursMap[platform]);
       redistributed += overflowItems.length;
       maxDaysUsed = Math.max(maxDaysUsed, daysUsed);
     }
@@ -194,7 +234,7 @@ async function distributeForUser(userId: string): Promise<{ redistributed: numbe
   return { redistributed, conflicts, daysUsed: maxDaysUsed };
 }
 
-function getPriority(item: any): number {
+function getPriority(item: any, trendingTopics: string[] = []): number {
   const meta = item.metadata || {};
   let priority = 0;
 
@@ -204,13 +244,23 @@ function getPriority(item: any): number {
   if (meta.contentCategory === "video") priority += 2;
   if (meta.trendRide) priority += 4;
 
+  // Intelligence boost: promote items whose title/game matches live trending topics
+  if (trendingTopics.length > 0) {
+    const titleLower = (item.title || meta.title || "").toLowerCase();
+    const gameLower = (meta.game || meta.gameName || "").toLowerCase();
+    const searchText = `${titleLower} ${gameLower}`;
+    const matchesTrend = trendingTopics.some(topic => searchText.includes(topic));
+    if (matchesTrend) priority += 5;
+  }
+
   return priority;
 }
 
-function generateSpacedTimes(dayKey: string, count: number, minGapMinutes: number, platform: string): Date[] {
+function generateSpacedTimes(dayKey: string, count: number, minGapMinutes: number, platform: string, audiencePeaks?: number[]): Date[] {
   if (count === 0) return [];
 
-  const peaks = PLATFORM_PEAK_HOURS[platform] || [10, 14, 17, 20];
+  // Use audience-derived peaks when available (>= 3 hours identified), fall back to hardcoded defaults
+  const peaks = (audiencePeaks && audiencePeaks.length >= 3) ? audiencePeaks : (PLATFORM_PEAK_HOURS[platform] || [10, 14, 17, 20]);
 
   const times: Date[] = [];
 
@@ -264,6 +314,7 @@ async function distributeOverflow(
   items: any[],
   dailyLimit: number,
   minGap: number,
+  audiencePeaks?: number[],
 ): Promise<number> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -306,7 +357,7 @@ async function distributeOverflow(
     if (available > 0) {
       const batchSize = Math.min(available, items.length - itemIndex);
       const batchItems = items.slice(itemIndex, itemIndex + batchSize);
-      const spacedTimes = generateSpacedTimes(dayKey, batchSize, minGap, platform);
+      const spacedTimes = generateSpacedTimes(dayKey, batchSize, minGap, platform, audiencePeaks);
 
       for (let i = 0; i < batchItems.length; i++) {
         const newTime = spacedTimes[i];

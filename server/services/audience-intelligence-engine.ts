@@ -1,10 +1,11 @@
 import { db } from "../db";
-import { users, videos, channels, discoveredStrategies } from "@shared/schema";
+import { users, videos, channels, discoveredStrategies, intelligenceSignals, predictiveTrends } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 import { executeRoutedAICall } from "./ai-model-router";
+import { invalidateIntelligenceCache } from "./intelligence-context";
 
 const logger = createLogger("audience-intelligence");
 
@@ -137,6 +138,46 @@ Analyze audience behavior patterns. Output JSON:
       }
     }
 
+    // Feed audience insights back into the shared intelligence layer
+    const expiresAt = new Date(Date.now() + 7 * 86400_000);
+    const signalInserts: any[] = [];
+
+    if (parsed.audienceWants?.length) {
+      for (const topic of (parsed.audienceWants as string[]).slice(0, 3)) {
+        signalInserts.push({
+          userId,
+          source: "audience_intelligence",
+          category: "audience_signal",
+          title: topic,
+          score: (parsed.confidence || 55) * 0.75,
+          metadata: { type: "audience_want", shift: parsed.actionableShift, retentionInsights: parsed.retentionInsights },
+          processed: true,
+          expiresAt,
+        });
+      }
+    }
+
+    if (signalInserts.length > 0) {
+      await db.insert(intelligenceSignals).values(signalInserts).onConflictDoNothing().catch(() => {});
+    }
+
+    // Promote high-confidence content gaps into predictive trends so the content pipeline can act on them
+    if (parsed.contentGaps?.length && (parsed.confidence || 55) >= 70) {
+      for (const gap of (parsed.contentGaps as string[]).slice(0, 2)) {
+        await db.insert(predictiveTrends).values({
+          userId,
+          platform: "youtube",
+          topic: gap,
+          category: "audience_gap",
+          confidence: (parsed.confidence || 55) / 100,
+          velocity: 0.2,
+          status: "rising",
+          signals: [{ source: "audience_intelligence", shift: parsed.actionableShift }],
+        }).onConflictDoNothing().catch(() => {});
+      }
+    }
+
+    invalidateIntelligenceCache(userId);
     logger.info(`Audience intelligence: ${parsed.actionableShift}`, { userId: userId.substring(0, 8) });
     invalidateUserData(audStore, userId, "strategies");
   } catch (err) {

@@ -4,6 +4,7 @@ import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { getIntelligenceContext, formatThumbnailIntelligenceBlock } from "./intelligence-context";
 
 const logger = createLogger("thumbnail-intelligence");
 
@@ -170,6 +171,8 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
   );
 
   const openai = getOpenAIClientBackground();
+  const intelCtx = await getIntelligenceContext(userId).catch(() => null);
+  const intelThumbnailBlock = intelCtx ? formatThumbnailIntelligenceBlock(intelCtx) : "";
 
   // Budget was already checked and reserved at function entry — consume it now.
   tokenBudget.consumeBudget("thumbnail-intelligence", 2000);
@@ -191,7 +194,7 @@ ${uniqueRefs.map((r, i) => `${i + 1}. "${sanitizeForPrompt(r.title)}" — ${sani
 
 WEB RESEARCH:
 ${webArticles || "No specific articles found"}
-${generalArticles || ""}
+${generalArticles || ""}${intelThumbnailBlock ? `\n\nOMNI INTELLIGENCE SIGNALS:\n${sanitizeForPrompt(intelThumbnailBlock)}` : ""}
 
 YOUR TASK: Analyse these references and extract actionable thumbnail intelligence for this specific channel. Thumbnails must attract clicks without clickbait — accurately representing the content while being visually compelling.
 

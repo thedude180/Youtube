@@ -4,8 +4,8 @@ import { eq } from "drizzle-orm";
 import { executeRoutedAICall } from "./ai-model-router";
 import { storage } from "../storage";
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
-
 import { createLogger } from "../lib/logger";
+import { getIntelligenceContext, getTopTrendingTopics } from "./intelligence-context";
 
 const logger = createLogger("creator-dna-builder");
 export interface CreatorDNA {
@@ -49,7 +49,14 @@ export class CreatorDNABuilder {
       platform: c.platform
     }));
 
-    // 3. Call AI to analyze patterns (Claude Opus for deep personality analysis)
+    // 3. Fetch live intelligence context to inform DNA with trending topics
+    const intelCtx = await getIntelligenceContext(userId).catch(() => null);
+    const trendingTopics = intelCtx ? getTopTrendingTopics(intelCtx) : [];
+    const trendingBlock = trendingTopics.length > 0
+      ? `\n\nCURRENTLY TRENDING TOPICS (incorporate into contentThemes if relevant to this creator's niche): ${trendingTopics.join(", ")}`
+      : "";
+
+    // 4. Call AI to analyze patterns (Claude Opus for deep personality analysis)
     const result = await executeRoutedAICall(
       { taskType: "creator_dna_analysis", userId, priority: "high" },
       `You are an expert brand strategist and personality profiler. 
@@ -64,7 +71,7 @@ Return a JSON object matching this structure:
   "bannedPhrases": ["unethical words", "competitor names"],
   "contentThemes": [{ "topic": "gaming", "sentiment": "positive" }],
   "maturityScore": 0.8
-}`,
+}${trendingBlock}`,
       JSON.stringify(sanitizeObjectForPrompt({ channelData, videoData }))
     );
 

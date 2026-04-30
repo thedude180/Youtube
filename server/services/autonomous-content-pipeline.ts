@@ -10,6 +10,8 @@ import { executeRoutedAICall } from "./ai-model-router";
 import { buildKnowledgeContext, getApplicableStrategies } from "./knowledge-context-builder";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { recordLearningEvent } from "../learning-engine";
+import { getIntelligenceContext, formatIntelligenceBlock } from "./intelligence-context";
+import { intelligenceSignals } from "@shared/schema";
 
 const logger = createLogger("autonomous-pipeline");
 
@@ -105,11 +107,14 @@ export async function runFullContentOptimization(userId: string, videoId: number
     const targetSurface = detectTargetSurface(v.title || "", v.type || "", meta);
     const surfaceInstructions = getSurfaceInstructions(targetSurface);
 
+    const intelCtx = await getIntelligenceContext(userId);
+    const intelBlock = formatIntelligenceBlock(intelCtx);
+
     const aiResult = await executeRoutedAICall(
       { taskType: "autonomous_full_optimize", userId, priority: "high" },
       `You are the autonomous content brain of a YouTube gaming empire. You have learned from hundreds of data points and competitive analysis. Your job is to take new content and make it the BEST version it can be — applying every proven strategy, every core principle, every competitive insight. Think like a human creator who has been doing this for 10 years and knows exactly what works.
 
-${knowledge}`,
+${knowledge}${intelBlock ? `\n\n${intelBlock}` : ""}`,
       `NEW CONTENT TO OPTIMIZE:
 Title: "${v.title}"
 Type: ${v.type}
@@ -286,6 +291,25 @@ Return JSON:
     }
 
     await recordLearningEvent(userId, "autonomous-content-pipeline", "content_optimized", { videoId, strategiesApplied: result.strategiesApplied || [], confidence: result.confidenceScore || 50, optimizedTitle: result.optimizedTitle });
+
+    // Feed processed content back as intelligence signal so the engine learns what topics are being acted on
+    if (gameName && gameName !== "Gaming" && gameName !== "Unknown") {
+      db.insert(intelligenceSignals).values({
+        userId,
+        source: "content_pipeline",
+        category: "content_processed",
+        title: `Optimized: ${result.optimizedTitle || v.title}`,
+        score: result.confidenceScore ? result.confidenceScore * 0.8 : 40,
+        metadata: {
+          game: gameName,
+          surface: targetSurface,
+          strategiesApplied: (result.strategiesApplied || []).length,
+          seoKeywords: result.seoKeywords || [],
+        },
+        processed: true,
+        expiresAt: new Date(Date.now() + 7 * 86400_000),
+      }).onConflictDoNothing().catch(() => {});
+    }
 
     logger.info("Autonomous content pipeline complete", {
       videoId,
