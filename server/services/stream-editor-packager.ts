@@ -4,9 +4,11 @@
  * After FFmpeg finishes producing clips for a stream edit job, this service:
  *  1. Calls GPT-4o-mini once per clip to generate a platform-specific SEO package
  *     (title, description, tags, seoScore).
- *  2. Creates a Studio video record for each clip so it shows up in the Studio
- *     ready to review and publish.
- *  3. Fires off AI thumbnail generation in the background (non-blocking).
+ *  2. Generates a thumbnail image in PARALLEL with SEO so both complete together.
+ *  3. Creates a Studio video record for each clip with SEO data attached.
+ *  4. Saves the thumbnail to the studio video record.
+ *  5. Both SEO and thumbnail are fully complete before the next clip starts
+ *     or auto-publish is scheduled — preserving the work order.
  *
  * Returns an updated outputFiles array with `studioVideoId` filled in for
  * every successfully packaged clip.
