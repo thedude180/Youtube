@@ -2,15 +2,17 @@ import { db } from "./db";
 import {
   vodAutopilotConfig, videos, channels, contentClips, autopilotQueue,
 } from "@shared/schema";
-import { eq, and, desc, lt, notInArray, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, lt, notInArray, sql, gte, inArray, or, isNull } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
-import { getOpenAIClientBackground } from "./lib/openai";
+import { getOpenAIClient } from "./lib/openai";
 import { sendSSEEvent } from "./routes/events";
 import { recordHeartbeat } from "./services/engine-heartbeat";
 
 const logger = createLogger("vod-continuous");
-const openai = getOpenAIClientBackground();
+// Use foreground (critical-path) client so the upload cycle isn't ejected by
+// the 8-slot background queue cap when other background services saturate it.
+const openai = getOpenAIClient();
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 let globalInitDone = false;
@@ -133,10 +135,15 @@ async function runCycle(userId: string) {
     const longFormBudget = Math.max(0, cfg.maxLongFormPerDay - todayLong);
 
     if (longFormBudget > 0 && ytChannel) {
+      // Filter on publishedAt (actual YouTube publish date) not createdAt (DB import date).
+      // All 2,600+ videos were bulk-imported on the same day; using createdAt would
+      // block the entire library for 7 days after import even though the videos are
+      // months/years old on YouTube. NULL publishedAt = old enough, always include.
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
       const candidateVideos = channelIds.length > 0 ? await db.select().from(videos)
         .where(and(
           inArray(videos.channelId, channelIds),
-          lt(videos.createdAt, new Date(Date.now() - 7 * 86400_000)),
+          or(isNull(videos.publishedAt), lt(videos.publishedAt, sevenDaysAgo)),
         ))
         .orderBy(desc(videos.createdAt))
         .limit(20) : [];
