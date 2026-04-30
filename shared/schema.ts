@@ -9938,6 +9938,33 @@ export const insertVaultDocumentSchema = createInsertSchema(vaultDocuments).omit
 export type InsertVaultDocument = z.infer<typeof insertVaultDocumentSchema>;
 export type VaultDocument = typeof vaultDocuments.$inferSelect;
 
+// ── Omni Intelligence Signals ─────────────────────────────────────────────────
+// Raw signals harvested from YouTube, Reddit, Twitch, RSS, and web search.
+// Each row is one signal (a trending video, reddit post, news article, etc.).
+// The AI synthesizer consumes these and writes to predictive_trends / growth_strategies.
+export const intelligenceSignals = pgTable("intelligence_signals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  source: text("source").notNull(), // youtube_trending|reddit|twitch|rss|web_search
+  category: text("category"),       // viral_video|trending_game|strategy_article|news|community_pulse
+  title: text("title").notNull(),
+  url: text("url"),
+  score: real("score").default(0),  // raw virality/relevance 0-100
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  processed: boolean("processed").default(false),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("is_user_idx").on(t.userId),
+  index("is_source_idx").on(t.source),
+  index("is_processed_idx").on(t.processed),
+  index("is_created_idx").on(t.createdAt),
+]);
+
+export const insertIntelligenceSignalSchema = createInsertSchema(intelligenceSignals).omit({ id: true, createdAt: true });
+export type InsertIntelligenceSignal = z.infer<typeof insertIntelligenceSignalSchema>;
+export type IntelligenceSignal = typeof intelligenceSignals.$inferSelect;
+
 // ── Database-backed OAuth nonces ──────────────────────────────────────────────
 // Stored in DB so nonce lookups work across server instances and restarts.
 // Avoids the bug where in-memory nonces are lost when prod/dev servers differ.

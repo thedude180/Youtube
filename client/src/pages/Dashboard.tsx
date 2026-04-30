@@ -21,6 +21,7 @@ import { FirstLiveMission } from "@/components/FirstLiveMission";
 import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
 import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
+import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 
@@ -593,6 +594,8 @@ export default function TeamDashboard() {
           task={selectedTask} 
           onClose={() => setSelectedTask(null)} 
         />
+
+        <OmniIntelligenceFeed />
 
         <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="card-growth-intel">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
