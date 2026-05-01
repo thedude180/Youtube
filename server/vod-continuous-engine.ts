@@ -280,7 +280,7 @@ async function runCycle(userId: string) {
       nextCycleAt: nextCycleAt.toISOString(),
     });
 
-    await recordHeartbeat("vodContinuousEngine", "completed", nextCycleMs);
+    await recordHeartbeat("vodContinuousEngine", "completed", Math.round(nextCycleMs));
     logger.info("[VOD-Continuous] Cycle complete", { userId, longFormQueued, shortsQueued, nextCycleAt });
 
     scheduleNextCycle(userId, nextCycleMs);

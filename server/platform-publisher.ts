@@ -626,10 +626,6 @@ export async function executePublish(
     };
   }
 
-  if (platform === "kick") {
-    return postToKick("", formattedContent, null);
-  }
-
   if (platform === "rumble") {
     return {
       success: false,
@@ -669,6 +665,8 @@ export async function executePublish(
   switch (platform) {
     case "discord":
       return postToDiscord(accessToken, formattedContent, channel);
+    case "kick":
+      return postToKick(accessToken, formattedContent, channel);
     case "twitch":
       return { success: false, platform: "twitch", error: "Twitch is configured for AI-driven streaming only. Content distribution is handled through other platforms." };
     default:

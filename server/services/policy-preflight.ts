@@ -135,7 +135,10 @@ export async function runPolicyPreFlight(
   const DRIFT_HARD_BLOCK_WINDOW_MS = 48 * 60 * 60 * 1000;
   const now = Date.now();
   const freshCriticalDrifts = unresolvedDrifts.filter(
-    d => d.severity === "critical" && d.detectedAt && (now - new Date(d.detectedAt).getTime()) < DRIFT_HARD_BLOCK_WINDOW_MS
+    d => d.severity === "critical"
+      && d.driftType !== "policy_update"
+      && d.detectedAt
+      && (now - new Date(d.detectedAt).getTime()) < DRIFT_HARD_BLOCK_WINDOW_MS
   );
   const staleCriticalDrifts = unresolvedDrifts.filter(
     d => d.severity === "critical" && (!d.detectedAt || (now - new Date(d.detectedAt).getTime()) >= DRIFT_HARD_BLOCK_WINDOW_MS)
