@@ -567,6 +567,61 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] Deleted ${fakeAqCount} fake seeded autopilot_queue entry(ies)\n`);
     }
 
+    // 4e-pre-dedup. Remove duplicate channel rows and orphaned ghost channels.
+    //
+    // Background: Google OAuth re-logins and auto-channel-creation scripts have
+    // historically created >1 row per (user_id, platform).  Two Rumble rows for
+    // the main user caused double-posting; a Rumble row owned by the ephemeral
+    // TikTok OAuth user ID was a ghost that never mapped to a real account.
+    //
+    // Strategy:
+    //   - For each (user_id, platform) pair keep ONLY the row with the best
+    //     credentials (refresh+access > access-only > none), tiebreak = higher id.
+    //   - Delete channels whose user_id does not exist in the users table (orphans).
+    try {
+      // Step 1: delete intra-user duplicate channels
+      const dedupResult = await db.execute(
+        sql`
+          DELETE FROM channels
+          WHERE id IN (
+            SELECT id FROM (
+              SELECT id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY user_id, platform
+                  ORDER BY
+                    CASE
+                      WHEN refresh_token IS NOT NULL AND length(refresh_token) > 10 THEN 0
+                      WHEN access_token  IS NOT NULL AND length(access_token)  > 10 THEN 1
+                      ELSE 2
+                    END ASC,
+                    id DESC
+                ) AS rn
+              FROM channels
+            ) ranked
+            WHERE rn > 1
+          )
+        `
+      );
+      const dedupCount = (dedupResult as any)?.rowCount ?? 0;
+      if (Number(dedupCount) > 0) {
+        process.stdout.write(`[prod-heal] ✓  Removed ${dedupCount} duplicate channel row(s)\n`);
+      }
+
+      // Step 2: delete orphaned channels whose user_id has no users row
+      const orphanResult = await db.execute(
+        sql`
+          DELETE FROM channels
+          WHERE user_id NOT IN (SELECT id FROM users)
+        `
+      );
+      const orphanCount = (orphanResult as any)?.rowCount ?? 0;
+      if (Number(orphanCount) > 0) {
+        process.stdout.write(`[prod-heal] ✓  Removed ${orphanCount} orphaned channel row(s) with no matching user\n`);
+      }
+    } catch (dedupErr: any) {
+      process.stdout.write(`[prod-heal] ⚠️  Channel dedup heal failed: ${dedupErr.message}\n`);
+    }
+
     // 4e-pre. If the 'youtube' (long-form) channel row is missing but a
     //         'youtubeshorts' channel exists for the same user with valid tokens,
     //         clone those tokens into a new 'youtube' channel row.  This heals
