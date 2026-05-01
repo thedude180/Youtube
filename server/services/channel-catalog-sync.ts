@@ -3,7 +3,7 @@ import { videoCatalogLinks, channels, videos } from "@shared/schema";
 import { eq, and, inArray, desc, count, sql } from "drizzle-orm";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, getQuotaStatus } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("catalog-sync");
@@ -996,6 +996,11 @@ export async function getPlatformCatalogSummary(userId: string): Promise<{
 }
 
 async function runCatalogCycle(): Promise<void> {
+  if (isQuotaBreakerTripped()) {
+    logger.info("Catalog sync cycle skipped — YouTube quota circuit breaker is active");
+    return;
+  }
+
   logger.info("Catalog sync cycle starting");
 
   try {

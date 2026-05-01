@@ -753,9 +753,29 @@ export async function fetchYouTubeVideoDetails(
 export async function updateYouTubeVideo(
   channelId: number,
   videoId: string,
-  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean }
+  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean },
+  /** Callers that manage their own quota gate+tracking (e.g. youtube-push-backlog) pass
+   *  the correct op type here so the internal tracking uses the right daily cap bucket.
+   *  Pass "skip" to disable internal quota management entirely (caller is responsible). */
+  opType: "write" | "backlogWrite" | "skip" = "write",
 ) {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
+
+  // Resolve userId from channel row for quota tracking (non-fatal if lookup fails)
+  let resolvedUserId: string | undefined;
+  if (opType !== "skip") {
+    try {
+      const [ch] = await db.select({ userId: channelsTable.userId })
+        .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+      resolvedUserId = ch?.userId;
+    } catch { /* non-fatal */ }
+
+    // Gate: enforce daily write cap and upload-reserve tier
+    if (resolvedUserId && !(await canAffordOperation(resolvedUserId, opType).catch(() => true))) {
+      throw Object.assign(new Error(`YouTube ${opType} quota cap reached — metadata update deferred until tomorrow`), { code: "QUOTA_CAP" });
+    }
+  }
+
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
@@ -764,46 +784,59 @@ export async function updateYouTubeVideo(
     parts.push("status");
   }
 
-  const currentVideo = await youtube.videos.list({
-    part: parts,
-    id: [videoId],
-  });
+  try {
+    const currentVideo = await youtube.videos.list({
+      part: parts,
+      id: [videoId],
+    });
+    // Track the preflight read (1 unit) — free regardless of op type
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
 
-  const item = currentVideo.data.items?.[0];
-  const snippet = item?.snippet;
-  if (!snippet) throw new Error("Video not found on YouTube");
+    const item = currentVideo.data.items?.[0];
+    const snippet = item?.snippet;
+    if (!snippet) throw new Error("Video not found on YouTube");
 
-  const requestBody: any = {
-    id: videoId,
-    snippet: {
-      title: updates.title || snippet.title || "",
-      description: updates.description !== undefined ? updates.description : (snippet.description || ""),
-      tags: updates.tags || snippet.tags || [],
-      categoryId: updates.categoryId || snippet.categoryId || "22",
-    },
-  };
-
-  if (updates.enableMonetization) {
-    requestBody.status = {
-      ...(item?.status || {}),
-      selfDeclaredMadeForKids: false,
-      embeddable: true,
-      license: "youtube",
-      publicStatsViewable: true,
+    const requestBody: any = {
+      id: videoId,
+      snippet: {
+        title: updates.title || snippet.title || "",
+        description: updates.description !== undefined ? updates.description : (snippet.description || ""),
+        tags: updates.tags || snippet.tags || [],
+        categoryId: updates.categoryId || snippet.categoryId || "22",
+      },
     };
+
+    if (updates.enableMonetization) {
+      requestBody.status = {
+        ...(item?.status || {}),
+        selfDeclaredMadeForKids: false,
+        embeddable: true,
+        license: "youtube",
+        publicStatsViewable: true,
+      };
+    }
+
+    const response = await youtube.videos.update({
+      part: parts,
+      requestBody,
+    });
+    // Track the update (50 units) using the caller-specified op bucket
+    if (resolvedUserId && opType !== "skip") {
+      await trackQuotaUsage(resolvedUserId, opType).catch(() => {});
+    }
+
+    return {
+      id: response.data.id,
+      title: response.data.snippet?.title,
+      description: response.data.snippet?.description,
+      tags: response.data.snippet?.tags,
+    };
+  } catch (err: any) {
+    if (markQuotaErrorFromResponse(err) && resolvedUserId) {
+      await persistQuotaExhaustion(resolvedUserId).catch(() => {});
+    }
+    throw err;
   }
-
-  const response = await youtube.videos.update({
-    part: parts,
-    requestBody,
-  });
-
-  return {
-    id: response.data.id,
-    title: response.data.snippet?.title,
-    description: response.data.snippet?.description,
-    tags: response.data.snippet?.tags,
-  };
 }
 
 export async function uploadVideoToYouTube(
@@ -898,21 +931,44 @@ export async function setYouTubeThumbnail(
   mimeType: string = "image/png"
 ) {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
+
+  // Resolve userId from channel row for quota tracking (non-fatal if lookup fails)
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
+  // Gate: enforce daily thumbnail cap and upload-reserve tier
+  if (resolvedUserId && !(await canAffordOperation(resolvedUserId, "thumbnail").catch(() => true))) {
+    throw Object.assign(new Error("YouTube thumbnail quota cap reached — thumbnail upload deferred until tomorrow"), { code: "QUOTA_CAP" });
+  }
+
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
   const { Readable } = await import("stream");
   const stream = Readable.from(thumbnailBuffer);
 
-  const response = await youtube.thumbnails.set({
-    videoId,
-    media: {
-      mimeType,
-      body: stream,
-    },
-  });
+  try {
+    const response = await youtube.thumbnails.set({
+      videoId,
+      media: {
+        mimeType,
+        body: stream,
+      },
+    });
+    // Track the thumbnail upload (50 units)
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "thumbnail").catch(() => {});
 
-  return response.data;
+    return response.data;
+  } catch (err: any) {
+    if (markQuotaErrorFromResponse(err) && resolvedUserId) {
+      await persistQuotaExhaustion(resolvedUserId).catch(() => {});
+    }
+    throw err;
+  }
 }
 
 export async function optimizeShortsForAllPlatforms(userId: string, shorts: any[]): Promise<{ optimized: number; platforms: string[] }> {
@@ -1364,28 +1420,42 @@ export async function checkYouTubeLiveBroadcasts(channelId: number) {
 
 export async function fetchYouTubeComments(channelId: number, youtubeVideoId: string, maxResults = 20) {
   if (isQuotaBreakerTripped()) return [];
+
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
-  const response = await youtube.commentThreads.list({
-    part: ["snippet"],
-    videoId: youtubeVideoId,
-    maxResults,
-    order: "time",
-    textFormat: "plainText",
-  });
+  try {
+    const response = await youtube.commentThreads.list({
+      part: ["snippet"],
+      videoId: youtubeVideoId,
+      maxResults,
+      order: "time",
+      textFormat: "plainText",
+    });
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
 
-  const threads = response.data.items || [];
-  return threads.map(thread => {
-    const snippet = thread.snippet?.topLevelComment?.snippet;
-    return {
-      commentId: thread.snippet?.topLevelComment?.id || "",
-      author: snippet?.authorDisplayName || "Unknown",
-      text: snippet?.textDisplay || "",
-      likeCount: snippet?.likeCount || 0,
-      publishedAt: snippet?.publishedAt || "",
-    };
-  }).filter(c => c.text.length > 0);
+    const threads = response.data.items || [];
+    return threads.map(thread => {
+      const snippet = thread.snippet?.topLevelComment?.snippet;
+      return {
+        commentId: thread.snippet?.topLevelComment?.id || "",
+        author: snippet?.authorDisplayName || "Unknown",
+        text: snippet?.textDisplay || "",
+        likeCount: snippet?.likeCount || 0,
+        publishedAt: snippet?.publishedAt || "",
+      };
+    }).filter(c => c.text.length > 0);
+  } catch (err: any) {
+    markQuotaErrorFromResponse(err);
+    return [];
+  }
 }
 
 export async function replyToYouTubeComment(channelId: number, commentId: string, replyText: string) {
@@ -1406,6 +1476,15 @@ export async function replyToYouTubeComment(channelId: number, commentId: string
 }
 
 export async function postAndPinComment(channelId: number, youtubeVideoId: string, commentText: string): Promise<{ success: boolean; commentId?: string; error?: string }> {
+  if (isQuotaBreakerTripped()) return { success: false, error: "quota_breaker" };
+
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
   try {
     const { oauth2Client, channel } = await getAuthenticatedClient(channelId);
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
@@ -1424,6 +1503,8 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
         },
       },
     });
+    // commentThreads.insert = 50 units (same bucket as livechat inserts)
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "livechat").catch(() => {});
 
     const newCommentId = insertRes.data.snippet?.topLevelComment?.id;
     if (!newCommentId) {
@@ -1441,6 +1522,9 @@ export async function postAndPinComment(channelId: number, youtubeVideoId: strin
 
     return { success: true, commentId: newCommentId };
   } catch (err: any) {
+    if (markQuotaErrorFromResponse(err) && resolvedUserId) {
+      await persistQuotaExhaustion(resolvedUserId).catch(() => {});
+    }
     ytLogger.error("Post & pin comment failed", { error: err.message });
     return { success: false, error: err.message };
   }

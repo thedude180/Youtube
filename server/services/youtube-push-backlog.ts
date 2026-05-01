@@ -82,8 +82,8 @@ export async function smartPushOrQueue(params: {
       const beforeMeta = (beforeVideo?.metadata as any) || {};
 
       const { updateYouTubeVideo } = await import("../youtube");
-      await updateYouTubeVideo(params.channelId, params.youtubeVideoId, params.updates);
-      await trackQuotaUsage(params.userId, "write");
+      // opType="write" → internal gate + tracking handled inside updateYouTubeVideo
+      await updateYouTubeVideo(params.channelId, params.youtubeVideoId, params.updates, "write");
 
       if (params.updates.title) {
         await storage.updateVideo(params.videoId, { title: params.updates.title });
@@ -199,8 +199,8 @@ export async function processBacklog(): Promise<{
 
         const { updateYouTubeVideo } = await import("../youtube");
         const updates = item.pendingUpdates as any;
-        await updateYouTubeVideo(item.channelId, item.youtubeVideoId, updates);
-        await trackQuotaUsage(userId, "backlogWrite");
+        // opType="backlogWrite" → uses the backlog daily cap bucket; internal tracking handles it
+        await updateYouTubeVideo(item.channelId, item.youtubeVideoId, updates, "backlogWrite");
 
         if (updates.title) {
           await storage.updateVideo(item.videoId, { title: updates.title });
