@@ -2169,6 +2169,9 @@ httpServer.listen(
       // production queue items (dev and prod share the same DB).
       if (process.env.NODE_ENV === "production") {
         import("./services/stream-editor-auto-publisher").then(m => {
+          // Fire immediately on startup so pending items are processed as soon as
+          // the server boots (e.g. right after quota resets at midnight Pacific).
+          m.processAutoPublishQueue().catch(slog("processAutoPublishQueue startup"));
           const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
           backgroundIntervals.push(iv);
         }).catch(slog("stream-editor-auto-publisher import"));

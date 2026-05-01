@@ -1526,6 +1526,7 @@ export async function processScheduledPosts() {
     WHERE id IN (
       SELECT id FROM autopilot_queue
       WHERE status = 'scheduled' AND scheduled_at <= NOW()
+        AND type != 'studio_auto_publish'
       ORDER BY
         CASE type
           WHEN 'go-live'            THEN 1

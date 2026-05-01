@@ -196,9 +196,31 @@ export async function processAutoPublishQueue(): Promise<void> {
       const msg = (err as Error)?.message ?? String(err);
       logger.error(`[AutoPublisher] Failed to publish sv${studioVideoId}:`, msg);
 
+      // Auth errors are not retryable failures — they mean the YouTube channel
+      // needs to be reconnected by the user.  Don't burn the retry budget;
+      // reschedule 1 hour from now and stop processing further items this tick
+      // (other uploads will also fail with the same auth error).
+      const isAuthError = msg.includes("Channel not connected")
+        || msg.includes("missing access token")
+        || msg.includes("not connected or");
+
+      if (isAuthError) {
+        const retryAt = new Date(Date.now() + 60 * 60_000);
+        await db.update(autopilotQueue)
+          .set({
+            status: "scheduled",
+            scheduledAt: retryAt,
+            errorMessage: `YouTube auth error — reconnect channel in the app: ${msg.slice(0, 420)}`,
+            metadata: meta as any,
+          })
+          .where(eq(autopilotQueue.id, item.id));
+        logger.warn(`[AutoPublisher] sv${studioVideoId} — auth error, retry in 60min (retryCount unchanged): ${msg}`);
+        break;
+      }
+
       const retryCount = ((meta.retryCount as number) ?? 0) + 1;
-      if (retryCount < 3) {
-        // Back off and retry: reschedule 30 minutes from now
+      if (retryCount < 6) {
+        // Back off and retry: reschedule 30 minutes from now (up to 6 attempts = ~3 hours)
         const retryAt = new Date(Date.now() + 30 * 60_000);
         await db.update(autopilotQueue)
           .set({
@@ -208,7 +230,7 @@ export async function processAutoPublishQueue(): Promise<void> {
             metadata: { ...meta, retryCount } as any,
           })
           .where(eq(autopilotQueue.id, item.id));
-        logger.warn(`[AutoPublisher] sv${studioVideoId} failed (attempt ${retryCount}/3) — retry in 30min: ${msg}`);
+        logger.warn(`[AutoPublisher] sv${studioVideoId} failed (attempt ${retryCount}/6) — retry in 30min: ${msg}`);
       } else {
         await db.update(autopilotQueue)
           .set({
@@ -217,7 +239,7 @@ export async function processAutoPublishQueue(): Promise<void> {
             metadata: { ...meta, retryCount } as any,
           })
           .where(eq(autopilotQueue.id, item.id));
-        logger.error(`[AutoPublisher] sv${studioVideoId} permanently failed after 3 attempts: ${msg}`);
+        logger.error(`[AutoPublisher] sv${studioVideoId} permanently failed after 6 attempts: ${msg}`);
       }
     }
   }
