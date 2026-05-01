@@ -1420,6 +1420,10 @@ export async function flushQueueToAsap(): Promise<number> {
       ELSE 5
     END`;
 
+    // Short types have carefully spaced audience-driven schedules — do NOT
+    // collapse them into the 5-minute ASAP window.  Flushing Shorts causes
+    // multiple uploads to fire within seconds of each other on server restart,
+    // which violates YouTube rate-limits and delivers a poor channel cadence.
     const futurePosts = await db
       .select({ id: autopilotQueue.id, type: autopilotQueue.type })
       .from(autopilotQueue)
@@ -1427,6 +1431,7 @@ export async function flushQueueToAsap(): Promise<number> {
         eq(autopilotQueue.status, "scheduled"),
         sql`${autopilotQueue.scheduledAt} > NOW()`,
         sql`${autopilotQueue.scheduledAt} < ${maxFutureWindow}`,
+        sql`${autopilotQueue.type} NOT IN ('platform_short', 'youtube_short', 'platform_text_short')`,
       ))
       .orderBy(flushPriority, autopilotQueue.scheduledAt);
 
@@ -1441,7 +1446,7 @@ export async function flushQueueToAsap(): Promise<number> {
         .where(eq(autopilotQueue.id, post.id));
     }, 3);
 
-    logger.info("Flushed future queue items to ASAP", { count: futurePosts.length });
+    logger.info("Flushed future queue items to ASAP (Shorts preserved)", { count: futurePosts.length });
 
     // Reset auto-clip Shorts that were falsely blocked by the yt_shorts_duration
     // compliance rule (which matched "#Shorts" keyword in descriptions).

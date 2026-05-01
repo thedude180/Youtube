@@ -346,10 +346,31 @@ export function registerAutopilotRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      await db.update(autopilotQueue)
-        .set({ status: "scheduled", errorMessage: null, scheduledAt: new Date(Date.now() + 60_000) })
-        .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")));
-      res.json({ success: true, message: "Failed posts re-queued for retry" });
+      // Fetch failed items so we can stagger their retry times instead of
+      // scheduling them all at once (which could dump multiple Shorts within
+      // seconds of each other into the publisher).
+      const SHORT_TYPES = new Set(["platform_short", "youtube_short", "platform_text_short", "auto-clip"]);
+      const SHORT_STAGGER_MS = 4 * 3600_000; // 4 h between Shorts
+      const OTHER_STAGGER_MS = 30 * 60_000;  // 30 min between other types
+
+      const failedItems = await db
+        .select({ id: autopilotQueue.id, type: autopilotQueue.type })
+        .from(autopilotQueue)
+        .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "failed")))
+        .orderBy(autopilotQueue.id);
+
+      let shortIdx = 0;
+      let otherIdx = 0;
+      for (const item of failedItems) {
+        const isShort = SHORT_TYPES.has(item.type ?? "");
+        const staggerMs = isShort
+          ? (++shortIdx) * SHORT_STAGGER_MS + Math.random() * 600_000   // each Short 4 h apart
+          : (++otherIdx) * OTHER_STAGGER_MS + Math.random() * 60_000;   // other content 30 min apart
+        await db.update(autopilotQueue)
+          .set({ status: "scheduled", errorMessage: null, scheduledAt: new Date(Date.now() + staggerMs) })
+          .where(eq(autopilotQueue.id, item.id));
+      }
+      res.json({ success: true, message: `Re-queued ${failedItems.length} failed posts with staggered schedules` });
     } catch (err) {
       logger.error("[Autopilot] Retry failed error:", err);
       res.status(500).json({ error: "Failed to retry" });
