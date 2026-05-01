@@ -188,6 +188,26 @@ export async function handleCallback(code: string, userId: string) {
     ytLogger.warn(`[YouTube] Failed to sync token to users table for user ${userId} (non-fatal):`, syncErr);
   }
 
+  // Save to vault (Layer 3 backup — independent of channels and users rows)
+  if (tokens.refresh_token) {
+    try {
+      const { saveToVault } = await import("./services/token-vault");
+      await saveToVault({
+        userId,
+        channelId: channel?.id ?? null,
+        platform: "youtube",
+        channelExternalId: null,
+        refreshToken: tokens.refresh_token,
+        accessToken: tokens.access_token ?? null,
+        tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        source: "oauth-callback",
+      });
+      ytLogger.info(`[YouTube] Token saved to vault for user ${userId}`);
+    } catch (vaultErr) {
+      ytLogger.warn(`[YouTube] Failed to save token to vault for user ${userId} (non-fatal):`, vaultErr);
+    }
+  }
+
   ytLogger.info(`[YouTube] OAuth token saved for user ${userId} — fetching channel info...`);
 
   // ─── Step 2: Fetch channel info (best-effort — quota/network failures are OK) ─

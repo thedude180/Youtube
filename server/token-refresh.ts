@@ -6,6 +6,7 @@ import { users as usersTable } from "@shared/models/auth";
 import { eq, lt, and, isNotNull, isNull, or } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
+import { saveToVault, restoreFromVault } from "./services/token-vault";
 
 const logger = createLogger("token-refresh");
 
@@ -360,6 +361,19 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
             await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
           }
+          // Save to vault (Layer 3 backup — survives channel row deletion)
+          if (ch.userId) {
+            await saveToVault({
+              userId: ch.userId,
+              channelId: ch.id,
+              platform: ch.platform,
+              channelExternalId: (ch as any).channelId || null,
+              refreshToken: rotatedRefresh,
+              accessToken: result.accessToken,
+              tokenExpiresAt: newExpiry,
+              source: "refresh-expiring",
+            });
+          }
           return { ok: true };
         } else {
           const isExpiredPermanently = result.error?.includes("Token expired") || result.error?.includes("re-authorize") || result.error?.includes("invalid_grant");
@@ -486,6 +500,19 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
             if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
               await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
             }
+            // Save to vault (Layer 3 backup — survives channel row deletion)
+            if (ch.userId) {
+              await saveToVault({
+                userId: ch.userId,
+                channelId: ch.id,
+                platform: ch.platform,
+                channelExternalId: (ch as any).channelId || null,
+                refreshToken: rotatedRefresh,
+                accessToken: result.accessToken,
+                tokenExpiresAt: newExpiry,
+                source: "keepalive",
+              });
+            }
             return { ok: true };
           } else {
             const isPermanent = result.error?.includes("Token expired") || result.error?.includes("re-authorize") || result.error?.includes("invalid_grant");
@@ -570,8 +597,20 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
           .where(eq(usersTable.id, ch.userId))
           .limit(1);
 
-        if (!userRow?.googleRefreshToken) {
-          logger.warn(`[TokenGuardian] No backup token for channel ${ch.id} (${ch.channelName}) — user must reconnect`);
+        // Layer 2: users table backup
+        let refreshTokenToTry = userRow?.googleRefreshToken || null;
+
+        // Layer 3: vault fallback if users table is also empty
+        if (!refreshTokenToTry) {
+          const vaultEntry = await restoreFromVault(ch.userId, ch.platform);
+          if (vaultEntry?.refreshToken) {
+            refreshTokenToTry = vaultEntry.refreshToken;
+            logger.info(`[TokenGuardian] Using vault backup for channel ${ch.id} (${ch.channelName}) — saved ${vaultEntry.savedAt.toISOString()} via ${vaultEntry.source}`);
+          }
+        }
+
+        if (!refreshTokenToTry) {
+          logger.warn(`[TokenGuardian] No backup token anywhere for channel ${ch.id} (${ch.channelName}) — user must reconnect`);
           // Send SSE alert so the reconnect banner fires immediately
           try {
             const { sendSSEEvent } = await import("./routes/events");
@@ -581,9 +620,9 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
           continue;
         }
 
-        const rescued = await refreshGoogleToken(userRow.googleRefreshToken);
+        const rescued = await refreshGoogleToken(refreshTokenToTry);
         if (rescued.success && rescued.accessToken) {
-          const newRefresh = rescued.refreshToken || userRow.googleRefreshToken;
+          const newRefresh = rescued.refreshToken || refreshTokenToTry;
           await db.update(channels).set({
             accessToken: rescued.accessToken,
             refreshToken: newRefresh,
@@ -597,10 +636,20 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
             },
           }).where(eq(channels.id, ch.id));
           await syncGoogleUserToken(ch.userId, rescued.accessToken, newRefresh, rescued.expiresAt ?? null);
-          logger.info(`[TokenGuardian] ✓ Repaired channel ${ch.id} (${ch.channelName}) from users-table backup`);
+          await saveToVault({
+            userId: ch.userId,
+            channelId: ch.id,
+            platform: ch.platform,
+            channelExternalId: (ch as any).channelId || null,
+            refreshToken: newRefresh,
+            accessToken: rescued.accessToken,
+            tokenExpiresAt: rescued.expiresAt ?? null,
+            source: "guardian-repair",
+          });
+          logger.info(`[TokenGuardian] ✓ Repaired channel ${ch.id} (${ch.channelName}) from backup`);
           repaired++;
         } else {
-          logger.warn(`[TokenGuardian] Backup token for channel ${ch.id} (${ch.channelName}) is also invalid — user must reconnect`);
+          logger.warn(`[TokenGuardian] All backup tokens for channel ${ch.id} (${ch.channelName}) are invalid — user must reconnect`);
           try {
             const { sendSSEEvent } = await import("./routes/events");
             sendSSEEvent(ch.userId, "platform-disconnected", { platform: ch.platform || "youtube", reason: "backup_invalid" });

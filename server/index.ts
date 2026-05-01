@@ -231,19 +231,40 @@ async function syncChannelTokens(): Promise<void> {
         .where(eq(usersTable.id, ch.userId))
         .limit(1);
 
-      if (!userRow?.googleRefreshToken && !userRow?.googleAccessToken) continue;
+      // Layer 2: users table backup
+      let refreshTokenSource = userRow?.googleRefreshToken || null;
+      let accessTokenSource = userRow?.googleAccessToken || null;
+      let expiresAtSource = userRow?.googleTokenExpiresAt || null;
+
+      // Layer 3: vault fallback if users table is also empty
+      if (!refreshTokenSource && !accessTokenSource) {
+        try {
+          const { restoreFromVault } = await import("./services/token-vault");
+          const vaultEntry = await restoreFromVault(ch.userId, "youtube");
+          if (vaultEntry?.refreshToken) {
+            refreshTokenSource = vaultEntry.refreshToken;
+            accessTokenSource = vaultEntry.accessToken;
+            expiresAtSource = vaultEntry.tokenExpiresAt;
+            process.stdout.write(
+              `[token-sync] Layer 3 vault fallback for channel ${ch.id} — entry from ${vaultEntry.savedAt.toISOString()} (${vaultEntry.source})\n`
+            );
+          }
+        } catch { /* vault read failed — non-fatal */ }
+      }
+
+      if (!refreshTokenSource && !accessTokenSource) continue;
 
       try {
-        let accessToken = userRow.googleAccessToken;
-        let expiresAt = userRow.googleTokenExpiresAt ?? new Date(Date.now() + 3600 * 1000);
+        let accessToken = accessTokenSource;
+        let expiresAt = expiresAtSource ?? new Date(Date.now() + 3600 * 1000);
 
-        if (userRow.googleRefreshToken) {
+        if (refreshTokenSource) {
           const { google: googleLib } = await import("googleapis");
           const oauthClient = new googleLib.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET
           );
-          oauthClient.setCredentials({ refresh_token: userRow.googleRefreshToken });
+          oauthClient.setCredentials({ refresh_token: refreshTokenSource });
           const tokenRes = await oauthClient.refreshAccessToken();
           if (tokenRes.credentials.access_token) {
             accessToken = tokenRes.credentials.access_token;
@@ -261,7 +282,7 @@ async function syncChannelTokens(): Promise<void> {
 
         await db.update(channels).set({
           accessToken,
-          refreshToken: userRow.googleRefreshToken ?? ch.refreshToken,
+          refreshToken: refreshTokenSource ?? ch.refreshToken,
           tokenExpiresAt: expiresAt,
           lastSyncAt: new Date(),
         }).where(eq(channels.id, ch.id));
