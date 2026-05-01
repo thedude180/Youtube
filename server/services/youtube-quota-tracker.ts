@@ -432,14 +432,17 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       // The DB `uploadOps` column stores the combined count of upload + broadcast +
       // livechat operations (all go to the same DB field in trackQuotaUsage).
       // Subtract the actual upload count to get the broadcast+livechat ops already fired.
-      // Fill broadcast first up to its cap, then livechat with the remainder.
       //
-      // This prevents in-memory caps from resetting to 0 on every server restart,
-      // which was the root cause of broadcast/livechat re-firing ~80 more ops each deploy
-      // (20 broadcast × 50 + 60 livechat × 50 = 4,000 units per restart).
+      // CONSERVATIVE RESTORE: both broadcast AND livechat are capped against the
+      // full nonUploadOps value (not nonUploadOps minus broadcast).  If the server
+      // restarts before the DB has fully flushed in-flight ops (a race condition),
+      // the old "subtract broadcast first" formula understated livechat usage and
+      // allowed another burst of ~50 × 50-unit chat inserts to fire.  Using the
+      // larger base ensures we never under-restore livechat at the cost of a few
+      // fewer AI chat messages — a safe trade.
       const nonUploadOps = Math.max(0, (record.uploadOps ?? 0) - counter.upload);
       counter.broadcast = Math.min(nonUploadOps, DAILY_OP_CAPS.broadcast);
-      counter.livechat  = Math.min(Math.max(0, nonUploadOps - counter.broadcast), DAILY_OP_CAPS.livechat);
+      counter.livechat  = Math.min(nonUploadOps, DAILY_OP_CAPS.livechat);
 
       const isExhausted = record.unitsUsed >= record.quotaLimit;
       const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;

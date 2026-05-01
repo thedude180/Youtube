@@ -1,6 +1,6 @@
 import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
-import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation } from "./services/youtube-quota-tracker";
+import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation, persistQuotaExhaustion } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
 import { db } from "./db";
 import { users as usersTable, oauthNonces, channels as channelsTable } from "@shared/schema";
@@ -673,7 +673,11 @@ export async function fetchYouTubeVideos(channelId: number, maxResults = 1000) {
   }));
 }
 
-export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId: string): Promise<{
+export async function fetchYouTubeVideoDetails(
+  channelId: number,
+  youtubeVideoId: string,
+  userId?: string,
+): Promise<{
   title: string;
   description: string;
   tags: string[];
@@ -688,6 +692,22 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
   defaultAudioLanguage?: string;
 } | null> {
   if (isQuotaBreakerTripped()) return null;
+
+  // Resolve userId from channel row if not supplied by caller
+  let resolvedUserId = userId;
+  if (!resolvedUserId) {
+    try {
+      const [ch] = await db.select({ userId: channelsTable.userId })
+        .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+      resolvedUserId = ch?.userId;
+    } catch { /* non-fatal — quota tracking skipped if lookup fails */ }
+  }
+
+  // Respect the upload-reserve tier: only read if quota headroom allows
+  if (resolvedUserId && !(await canAffordOperation(resolvedUserId, "read").catch(() => true))) {
+    return null;
+  }
+
   try {
     const { oauth2Client } = await getAuthenticatedClient(channelId);
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
@@ -696,6 +716,9 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
       part: ["snippet", "statistics", "contentDetails", "status"],
       id: [youtubeVideoId],
     });
+
+    // Track this call so the quota system sees it
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
 
     const v = response.data.items?.[0];
     if (!v) return null;
@@ -716,6 +739,10 @@ export async function fetchYouTubeVideoDetails(channelId: number, youtubeVideoId
     };
   } catch (err: any) {
     const msg = String(err?.message || "");
+    // Trip the circuit breaker on quota errors so all downstream services stop immediately
+    if (markQuotaErrorFromResponse(err) && resolvedUserId) {
+      await persistQuotaExhaustion(resolvedUserId).catch(() => {});
+    }
     if (!msg.includes("not connected") && !msg.includes("missing access token")) {
       ytLogger.error("Failed to fetch video details", { youtubeVideoId, error: msg });
     }

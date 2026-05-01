@@ -7,6 +7,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
+import { isQuotaBreakerTripped, trackQuotaUsage, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 const logger = createLogger("stream-operator");
 
@@ -231,16 +232,21 @@ export const streamOperator = {
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
     // AUTONOMOUS: Fetch real live stream viewer count from YouTube API
+    // Gated: skip if the quota breaker is tripped to avoid burning remaining units
     let currentViewers = 0;
-    try {
-      const videoRes = await youtube.videos.list({
-        part: ["liveStreamingDetails"],
-        id: [state.videoId || ""],
-      });
-      const details = videoRes.data.items?.[0]?.liveStreamingDetails;
-      currentViewers = parseInt(details?.concurrentViewers || "0", 10);
-    } catch {
-      currentViewers = 0;
+    if (!isQuotaBreakerTripped()) {
+      try {
+        const videoRes = await youtube.videos.list({
+          part: ["liveStreamingDetails"],
+          id: [state.videoId || ""],
+        });
+        await trackQuotaUsage(state.userId, "read").catch(() => {});
+        const details = videoRes.data.items?.[0]?.liveStreamingDetails;
+        currentViewers = parseInt(details?.concurrentViewers || "0", 10);
+      } catch (err: any) {
+        markQuotaErrorFromResponse(err);
+        currentViewers = 0;
+      }
     }
 
     // Track viewer count history (last 10 samples = ~100 minutes)
