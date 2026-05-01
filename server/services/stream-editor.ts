@@ -3,7 +3,7 @@ import * as path from "path";
 import { spawn } from "child_process";
 import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, or, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { packageClips } from "./stream-editor-packager";
 
@@ -896,6 +896,68 @@ export async function cancelEditJob(userId: string, jobId: number): Promise<void
       activeJobId = null;
       await pickUpNextQueuedJob();
     }
+  }
+}
+
+/**
+ * Retry a failed or errored job by resetting it back to "queued".
+ * Only works for jobs that failed at packaging/SEO — clips are already on disk
+ * so re-packaging is safe. If the job is in "processing" state it is left alone.
+ */
+export async function retryEditJob(userId: string, jobId: number): Promise<{ ok: boolean; reason?: string }> {
+  const [job] = await db.select().from(streamEditJobs)
+    .where(and(eq(streamEditJobs.id, jobId), eq(streamEditJobs.userId, userId)))
+    .limit(1);
+  if (!job) return { ok: false, reason: "Job not found" };
+  if (job.status === "processing") return { ok: false, reason: "Job is still processing" };
+  if (job.status === "completed") return { ok: false, reason: "Job already completed" };
+  await db.update(streamEditJobs).set({
+    status: "queued",
+    errorMessage: null,
+    currentStage: "Re-queued (manual retry)",
+    startedAt: null,
+    completedAt: null,
+  }).where(eq(streamEditJobs.id, jobId));
+  logger.info(`[StreamEditor] Job ${jobId} manually retried → queued`);
+  await pickUpNextQueuedJob();
+  return { ok: true };
+}
+
+/**
+ * Watchdog: auto-retry jobs that failed ONLY because of a packaging / SEO
+ * timeout — these leave clips encoded on disk and are safe to re-package.
+ * Called on a schedule so stale failures self-heal once the AI queue recovers.
+ */
+export async function autoRetryPackagingFailedJobs(): Promise<void> {
+  try {
+    const { rowCount } = await db
+      .update(streamEditJobs)
+      .set({
+        status: "queued",
+        errorMessage: null,
+        currentStage: "Re-queued (packaging auto-retry)",
+        startedAt: null,
+        completedAt: null,
+      })
+      .where(
+        and(
+          or(
+            eq(streamEditJobs.status, "error"),
+            eq(streamEditJobs.status, "failed"),
+          ),
+          or(
+            sql`${streamEditJobs.errorMessage} LIKE '%packaging%'`,
+            sql`${streamEditJobs.errorMessage} LIKE '%SEO call timed out%'`,
+            sql`${streamEditJobs.errorMessage} LIKE '%AI packaging produced no Studio videos%'`,
+          ),
+        ),
+      );
+    if (rowCount && rowCount > 0) {
+      logger.info(`[StreamEditor] Packaging auto-retry watchdog: reset ${rowCount} failed job(s) → queued`);
+      await pickUpNextQueuedJob();
+    }
+  } catch (err: any) {
+    logger.warn("[StreamEditor] Packaging auto-retry watchdog failed:", err?.message);
   }
 }
 

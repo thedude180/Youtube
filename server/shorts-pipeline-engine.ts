@@ -134,6 +134,18 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
       current.clipsFound += (clips?.length || 0);
     } catch (err: any) {
       current.errors.push({ videoId: video.id, error: err.message, timestamp: new Date() });
+      // If the AI background queue is saturated, stop immediately and defer the
+      // rest of the batch to the next scheduled run.  Continuing to iterate
+      // only fills the log with failures and starves other services.
+      if (
+        typeof err.message === "string" &&
+        (err.message.includes("AI queue full") || err.message.includes("request dropped"))
+      ) {
+        logger.info(
+          `[ShortsPipeline] AI queue saturated — deferring pipeline batch after ${current.processedVideos} videos`
+        );
+        break;
+      }
     }
 
     current.processedVideos++;

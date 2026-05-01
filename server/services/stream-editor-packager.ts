@@ -92,7 +92,10 @@ Respond as strict JSON only:
   "seoScore": 85
 }`;
 
-  const SEO_TIMEOUT_MS = 45_000; // 45 s — gpt-4o-mini should respond well within this
+  // 3-minute timeout: the critical-path AI semaphore may queue this call for
+  // up to ~2 min when the circuit breaker is recovering from a 429.  The actual
+  // OpenAI API call is only a few seconds — the budget is for queue-wait time.
+  const SEO_TIMEOUT_MS = 180_000;
   const r = await Promise.race([
     openai.chat.completions.create({
       model: "gpt-4o-mini",

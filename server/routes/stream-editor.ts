@@ -7,6 +7,7 @@ import {
   getEditJob,
   cancelEditJob,
   deleteEditJob,
+  retryEditJob,
   PLATFORM_PROFILES,
 } from "../services/stream-editor";
 import { getVaultEntries } from "../services/video-vault";
@@ -134,6 +135,15 @@ export function registerStreamEditorRoutes(app: Express): void {
     const jobId = parseInt(req.params.id as string, 10);
     if (isNaN(jobId)) return res.status(400).json({ error: "Invalid job ID" });
     await cancelEditJob(userId, jobId);
+    res.json({ ok: true });
+  }));
+
+  app.post("/api/stream-editor/jobs/:id/retry", requireAuthMw, asyncHandler(async (req, res) => {
+    const userId = (req.user as any)?.claims?.sub;
+    const jobId = parseInt(req.params.id as string, 10);
+    if (isNaN(jobId)) return res.status(400).json({ error: "Invalid job ID" });
+    const result = await retryEditJob(userId, jobId);
+    if (!result.ok) return res.status(400).json({ error: result.reason });
     res.json({ ok: true });
   }));
 

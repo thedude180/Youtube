@@ -140,10 +140,11 @@ function JobStatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={s.className}>{s.label}</Badge>;
 }
 
-function JobCard({ job, onCancel, onDelete }: {
-  job: EditJob; onCancel: (id: number) => void; onDelete: (id: number) => void;
+function JobCard({ job, onCancel, onDelete, onRetry }: {
+  job: EditJob; onCancel: (id: number) => void; onDelete: (id: number) => void; onRetry: (id: number) => void;
 }) {
   const isActive = job.status === "processing" || job.status === "queued";
+  const isFailed = job.status === "error" || job.status === "failed";
   return (
     <Card className="bg-card/60 border-border/50" data-testid={`job-card-${job.id}`}>
       <CardContent className="p-4 space-y-3">
@@ -169,6 +170,13 @@ function JobCard({ job, onCancel, onDelete }: {
               <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400"
                 onClick={() => onCancel(job.id)} data-testid={`cancel-job-${job.id}`}>
                 <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {isFailed && (
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-blue-400"
+                onClick={() => onRetry(job.id)} data-testid={`retry-job-${job.id}`}
+                title="Retry packaging — clips are already encoded">
+                <RefreshCw className="h-3.5 w-3.5" />
               </Button>
             )}
             {!isActive && (
@@ -343,6 +351,17 @@ export default function StreamEditor() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/stream-editor/jobs/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/stream-editor/jobs"] }),
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/stream-editor/jobs/${id}/retry`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/stream-editor/jobs"] });
+      toast({ title: "Job re-queued", description: "Packaging will retry shortly." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Retry failed", description: err?.message ?? "Unknown error", variant: "destructive" });
+    },
   });
 
   const allEntries = streamsData?.entries ?? [];
@@ -600,6 +619,7 @@ export default function StreamEditor() {
                   job={job}
                   onCancel={id => cancelMutation.mutate(id)}
                   onDelete={id => deleteMutation.mutate(id)}
+                  onRetry={id => retryMutation.mutate(id)}
                 />
               ))}
             </div>

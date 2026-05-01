@@ -2174,6 +2174,12 @@ httpServer.listen(
       // queue never gets permanently frozen by a hung ffmpeg or yt-dlp process.
       import("./services/stream-editor").then(m => {
         m.startStreamEditorWatchdog();
+        // Auto-retry jobs that failed only because of a packaging/SEO timeout.
+        // Clips are already encoded on disk — safe to re-package once the AI
+        // queue recovers. Runs once on startup then every 15 min.
+        m.autoRetryPackagingFailedJobs().catch(slog("autoRetryPackagingFailedJobs startup"));
+        const rpiv = setInterval(() => m.autoRetryPackagingFailedJobs().catch(slog("autoRetryPackagingFailedJobs")), jitter(15 * 60_000));
+        backgroundIntervals.push(rpiv);
       }).catch(slog("stream-editor watchdog import"));
 
       // Vault Clip Exhauster — zero-touch: runs immediately after each download
