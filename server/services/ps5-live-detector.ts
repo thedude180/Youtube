@@ -86,10 +86,20 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
   let apiResult = null;
   let rssResult = null;
 
-  // 1. Quota-aware API check (liveBroadcasts.list costs 50 units).
-  // Must pass canAffordOperation("broadcast") — which enforces the 20/day op cap AND
-  // requires UPLOAD_RESERVE headroom — to avoid draining quota needed for video uploads.
-  if (await canAffordOperation(userId, "broadcast").catch(() => false)) {
+  // Step 1: Free scraping check (RSS + /live page — zero quota cost).
+  // This is the primary detection method. The API is NEVER called unless
+  // scraping first confirms a live signal — so weeks of idle time cost nothing.
+  try {
+    rssResult = await detectYouTubeLiveFromChannel(channel.channelId);
+    signals.rss = rssResult.isLive;
+  } catch (err) {
+    signals.rss_error = err instanceof Error ? err.message : String(err);
+  }
+
+  // Step 2: API confirm (liveBroadcasts.list = 50 units) — ONLY when scraping says live.
+  // canAffordOperation enforces the 20/day broadcast cap AND the UPLOAD_RESERVE floor so
+  // the confirm call can never starve video uploads.
+  if (rssResult?.isLive && await canAffordOperation(userId, "broadcast").catch(() => false)) {
     try {
       const broadcasts = await checkYouTubeLiveBroadcasts(channel.id);
       await trackQuotaUsage(userId, "broadcast").catch(() => {});
@@ -98,16 +108,10 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
     } catch (err) {
       signals.api_error = err instanceof Error ? err.message : String(err);
     }
+  } else if (!rssResult?.isLive) {
+    signals.api_skipped = "scraping_not_live";
   } else {
     signals.api_skipped = "broadcast_cap_or_upload_reserve";
-  }
-
-  // 2. RSS/Watch-page fallback
-  try {
-    rssResult = await detectYouTubeLiveFromChannel(channel.channelId);
-    signals.rss = rssResult.isLive;
-  } catch (err) {
-    signals.rss_error = err instanceof Error ? err.message : String(err);
   }
 
   const isLive = !!apiResult || (rssResult?.isLive ?? false);
