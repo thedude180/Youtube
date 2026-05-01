@@ -9,8 +9,11 @@
  * Each upload tests a different duration (5 / 10 / 15 / 20 / 30 / 45 / 60 min)
  * to help discover which video length maximises watch time for the channel.
  *
- * Runs every 2 hours; publishes at most 1 item per run to stay well within
- * YouTube quota limits.
+ * Upload strategy:
+ *   Batch-upload all items scheduled within the next 14 days to YouTube NOW,
+ *   passing each item's scheduledAt as YouTube's publishAt so YouTube's own
+ *   scheduler releases them 48 h apart automatically.  Long-form ffmpeg
+ *   encodes are expensive so the batch cap is kept at 5/run.
  */
 
 import path from "path";
@@ -24,11 +27,11 @@ import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
-import { canPostToPlatformToday } from "./platform-budget-tracker";
 
 const logger = createLogger("long-form-publisher");
 
-const MAX_PER_RUN = 1;
+const MAX_PER_RUN = 5;
+const BATCH_WINDOW_DAYS = 14; // Look 14 days ahead for batch scheduling
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
 const LONG_FORM_TEMP_DIR = path.join(process.cwd(), "data", "longform-tmp");
 
@@ -128,12 +131,15 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
   try {
     const now = new Date();
+    // Batch window: pick up all long-form clips scheduled in the next 14 days.
+    // Upload them all now with publishAt set so YouTube spaces their release.
+    const batchWindow = new Date(now.getTime() + BATCH_WINDOW_DAYS * 86400_000);
 
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.type, "auto-clip"),
         eq(autopilotQueue.status, "scheduled"),
-        lte(autopilotQueue.scheduledAt, now),
+        lte(autopilotQueue.scheduledAt, batchWindow),
         sql`${autopilotQueue.metadata}->>'contentType' = 'long-form-clip'`,
       ))
       .orderBy(autopilotQueue.scheduledAt)
@@ -141,15 +147,15 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
 
+    // Check YouTube API quota once — stop the whole batch if tripped
+    const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+    if (isQuotaBreakerTripped()) {
+      logger.warn("YouTube quota breaker active — skipping long-form batch");
+      return { published: 0, failed: 0, skipped: dueItems.length };
+    }
+
     for (const item of dueItems) {
       if (published >= MAX_PER_RUN) break;
-
-      const budget = await canPostToPlatformToday(item.userId, "youtube");
-      if (!budget.allowed) {
-        logger.info("Daily YouTube budget exhausted — skipping long-form clip", { userId: item.userId });
-        skipped++;
-        continue;
-      }
 
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const startSec = Number(itemMeta.segmentStartSec ?? 0);
@@ -236,7 +242,10 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           description,
           tags: [...tags.slice(0, 12), "Gaming", "PS5", "NoCommentary", gameName],
           categoryId: "20",
+          // Pass scheduledAt as YouTube's publishAt — YouTube releases the video
+          // at the right time automatically; we can batch-upload everything now.
           privacyStatus: "public",
+          scheduledStartTime: item.scheduledAt ? item.scheduledAt.toISOString() : undefined,
           videoFilePath: encodedPath,
           enableMonetization: true,
         });

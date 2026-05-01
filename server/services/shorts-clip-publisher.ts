@@ -18,8 +18,14 @@
  *   Every caption includes a cross-link to the original full YouTube video so
  *   audiences can discover the full VOD from any platform.
  *
- * Hard limits per run:
- *   MAX_PER_RUN = 3  — never upload more than 3 items in a single 30-min window.
+ * Upload strategy:
+ *   Batch-upload all items scheduled within the next 14 days to YouTube NOW,
+ *   passing each item's scheduledAt as YouTube's publishAt so YouTube's own
+ *   scheduler publishes them at the right spaced time.  This lets the channel
+ *   batch-prepare a full fortnight of content in one session while keeping
+ *   the feed evenly spaced (6 h between Shorts, 48 h between long-form).
+ *
+ *   MAX_PER_RUN = 20  — capped by YouTube API quota, not by artificial limit.
  */
 
 import path from "path";
@@ -38,7 +44,9 @@ import { getOpenAIClientBackground } from "../lib/openai";
 
 const logger = createLogger("shorts-publisher");
 
-const MAX_PER_RUN = 3;
+const MAX_PER_RUN = 20;
+// How far ahead to look when picking up scheduled items for batch-upload
+const BATCH_WINDOW_DAYS = 14;
 const MAX_DURATION_SEC = 60;
 const SHORT_TEMP_DIR = path.join(process.cwd(), "data", "shorts-tmp");
 
@@ -290,6 +298,7 @@ async function uploadToYouTube(opts: {
   description: string;
   tags: string[];
   videoFilePath: string;
+  scheduledStartTime?: string;
 }): Promise<{ success: boolean; youtubeId?: string; error?: string }> {
   try {
     const result = await uploadVideoToYouTube(opts.channelId, {
@@ -297,7 +306,10 @@ async function uploadToYouTube(opts: {
       description: opts.description.slice(0, 5000),
       tags: [...opts.tags.slice(0, 15), "Shorts", "Gaming"],
       categoryId: "20",
+      // If publishing in the future use YouTube's built-in scheduler (publishAt)
+      // so all items can be batch-uploaded now and go live at their spaced times.
       privacyStatus: "public",
+      scheduledStartTime: opts.scheduledStartTime,
       videoFilePath: opts.videoFilePath,
       enableMonetization: true,
     });
@@ -363,17 +375,28 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
 
   try {
     const now = new Date();
+    // Batch window: pick up everything scheduled within the next 14 days so we
+    // can upload them all to YouTube NOW with publishAt set → YouTube publishes
+    // each one at its spaced time automatically.
+    const batchWindow = new Date(now.getTime() + BATCH_WINDOW_DAYS * 86400_000);
 
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
         inArray(autopilotQueue.type, ["youtube_short", "platform_short", "platform_text_short"]),
         eq(autopilotQueue.status, "scheduled"),
-        lte(autopilotQueue.scheduledAt, now),
+        lte(autopilotQueue.scheduledAt, batchWindow),
       ))
       .orderBy(autopilotQueue.scheduledAt)
       .limit(MAX_PER_RUN * 4);
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
+
+    // Check YouTube API quota once before the loop — stop the entire batch if tripped
+    const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+    if (isQuotaBreakerTripped()) {
+      logger.warn("YouTube quota breaker active — skipping shorts batch");
+      return { published: 0, failed: 0, skipped: dueItems.length };
+    }
 
     for (const item of dueItems) {
       if (published >= MAX_PER_RUN) break;
@@ -381,12 +404,15 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const userId = item.userId;
       const platform = item.targetPlatform;
 
-      // Platform budget check
-      const budget = await canPostToPlatformToday(userId, platform);
-      if (!budget.allowed) {
-        logger.info("Daily budget exhausted — skipping", { userId, platform });
-        skipped++;
-        continue;
+      // For non-YouTube platforms still respect the daily budget so we don't
+      // spam TikTok / Discord / etc.
+      if (platform !== "youtube" && platform !== "youtubeshorts") {
+        const budget = await canPostToPlatformToday(userId, platform);
+        if (!budget.allowed) {
+          logger.info("Daily budget exhausted — skipping", { userId, platform });
+          skipped++;
+          continue;
+        }
       }
 
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
@@ -517,6 +543,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   description: ytDesc.slice(0, 5000),
                   tags: [...tags.slice(0, 12), "Shorts", "Gaming", "PS5"],
                   videoFilePath: encodedPath,
+                  // Pass the item's original scheduledAt so YouTube publishes it
+                  // at the right spaced time rather than immediately.
+                  scheduledStartTime: item.scheduledAt ? item.scheduledAt.toISOString() : undefined,
                 });
 
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });
