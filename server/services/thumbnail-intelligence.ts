@@ -158,9 +158,36 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
     await new Promise(r => setTimeout(r, 1500));
   }
 
-  const uniqueRefs = allReferences
+  // Filter Brave results to reject cross-game contamination.
+  // Brave image searches sometimes return results for completely different games
+  // (e.g., Sonic thumbnails when searching for Assassin's Creed Valhalla), which
+  // poisons the DALL-E prompt and produces wrong-game thumbnails.
+  const gameWords = gameName
+    .toLowerCase()
+    .replace(/['']/g, "")
+    .split(/[\s\-_:]+/)
+    .filter(w => w.length >= 4 && !["game", "gameplay", "best", "this", "that", "with", "from"].includes(w));
+
+  const GENERIC_TERMS = ["thumbnail", "ctr", "click through", "youtube", "ps5", "ps4", "gaming channel", "best practice", "design tip", "high ctr", "no commentary", "viral", "clickbait"];
+
+  const filteredRefs = allReferences.filter(ref => {
+    const combined = (ref.title + " " + ref.source).toLowerCase();
+    // Accept if any meaningful game word appears in title/source
+    if (gameWords.length > 0 && gameWords.some(w => combined.includes(w))) return true;
+    // Accept if clearly generic thumbnail/design content (no specific wrong-game name)
+    if (GENERIC_TERMS.some(t => combined.includes(t))) return true;
+    // Reject: no game words and not clearly generic — likely a different game's result
+    logger.debug(`[ThumbnailIntelligence] Filtered cross-game result: "${ref.title.substring(0, 80)}"`);
+    return false;
+  });
+
+  const uniqueRefs = filteredRefs
     .filter((r, i, arr) => arr.findIndex(a => a.url === r.url) === i)
     .slice(0, 15);
+
+  if (filteredRefs.length < allReferences.length) {
+    logger.info(`[ThumbnailIntelligence] Cross-game filter: kept ${uniqueRefs.length}/${allReferences.length} refs for "${sanitizeForPrompt(gameName)}"`, { userId: userId.substring(0, 8) });
+  }
 
   const webArticles = await searchWebForThumbnailArticles(
     `YouTube thumbnail design CTR optimization gaming ${sanitizeForPrompt(gameName)}`
@@ -184,19 +211,23 @@ export async function researchThumbnailsForGame(userId: string, gameName: string
         role: "user",
         content: `You are a world-class YouTube thumbnail analyst specialising in PS5 no-commentary gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and YouTube gaming in general.
 
+⚠️ GAME ACCURACY (NON-NEGOTIABLE): Your entire analysis must be specifically about "${sanitizeForPrompt(gameName)}" thumbnails.
+If any reference image title or source appears to be about a DIFFERENT game, IGNORE IT COMPLETELY — do not let it influence your patterns, colour schemes, or recommendations.
+Only extract patterns that authentically apply to "${sanitizeForPrompt(gameName)}"'s art style, characters, and environments.
+
 CHANNEL CONTEXT — ET Gaming 247:
 - PS5 gameplay, no face cam, no commentary
 - Brand aesthetic: cinematic dark backgrounds, vivid warm/neon accent colours (navy/charcoal base + orange, electric blue, or gold highlights)
 - Thumbnails rely entirely on in-game visuals — no creator face
 
-REFERENCE IMAGES FOUND (${uniqueRefs.length} results):
+REFERENCE IMAGES FOUND (${uniqueRefs.length} results for "${sanitizeForPrompt(gameName)}"):
 ${uniqueRefs.map((r, i) => `${i + 1}. "${sanitizeForPrompt(r.title)}" — ${sanitizeForPrompt(r.source)}`).join("\n")}
 
 WEB RESEARCH:
 ${webArticles || "No specific articles found"}
 ${generalArticles || ""}${intelThumbnailBlock ? `\n\nOMNI INTELLIGENCE SIGNALS:\n${sanitizeForPrompt(intelThumbnailBlock)}` : ""}
 
-YOUR TASK: Analyse these references and extract actionable thumbnail intelligence for this specific channel. Thumbnails must attract clicks without clickbait — accurately representing the content while being visually compelling.
+YOUR TASK: Analyse these references and extract actionable thumbnail intelligence for "${sanitizeForPrompt(gameName)}" on this specific channel. Thumbnails must attract clicks without clickbait — accurately representing the content while being visually compelling.
 
 IMPORTANT — TEXT OVERLAYS ARE REQUIRED:
 YouTube does NOT add text to thumbnails. Successful gaming thumbnails include a bold 2–4 word hook rendered into the image itself. Your analysis must provide guidance on the best text hooks and placement for this game.

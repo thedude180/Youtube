@@ -70,7 +70,7 @@ async function generateThumbnailPrompt(videoTitle: string, videoDescription: str
 
   try {
     const researchSection = researchContext
-      ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE:\nYou have studied real successful gaming thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\nAPPLY these research-backed patterns. Do NOT ignore this intelligence — it comes from analyzing what actually works on YouTube right now.`
+      ? `\n\nWEB RESEARCH — REAL THUMBNAIL INTELLIGENCE FOR "${gameName ? sanitizeForPrompt(gameName).toUpperCase() : "THIS GAME"}":\nYou have studied real successful ${gameName ? sanitizeForPrompt(gameName) : "gaming"} thumbnails from the internet. Use these findings to inform your design:\n\n${researchContext}\n\n⚠️ APPLY only patterns that are authentic to ${gameName ? `"${sanitizeForPrompt(gameName)}"` : "this specific game"}. Ignore any cross-game patterns that may have slipped into the research. The thumbnail must look like a ${gameName ? `"${sanitizeForPrompt(gameName)}"` : "this game"} video — not any other game.`
       : "";
 
     const response = await openai.chat.completions.create({
