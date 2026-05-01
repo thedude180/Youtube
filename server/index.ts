@@ -639,8 +639,13 @@ async function healProductionPipeline(): Promise<void> {
     //    the "next occurrence of best weekday" bug.  Anything scheduled more than
     //    3 days out gets pulled back to 24 h from now so it publishes quickly
     //    rather than trickling out over weeks.
+    //
+    //    EXCEPTION: Shorts and long-form clips are intentionally batch-uploaded
+    //    to YouTube with publishAt set to their scheduled time (up to 14 days
+    //    out).  These items must NOT be collapsed — YouTube is already holding
+    //    them as "Scheduled" at the right release time.
     const { autopilotQueue, scheduleItems, vodAutopilotConfig: vodConfig } = await import("@shared/schema");
-    const { gt, lte } = await import("drizzle-orm");
+    const { gt, lte, notInArray } = await import("drizzle-orm");
     const cutoff = new Date(Date.now() + 3 * 86400_000);      // 3 days from now
     const pullBackTo = new Date(Date.now() + 86400_000);       // 24 h from now
 
@@ -651,6 +656,10 @@ async function healProductionPipeline(): Promise<void> {
         and(
           eq(autopilotQueue.status, "scheduled"),
           gt(autopilotQueue.scheduledAt, cutoff),
+          // Preserve Shorts and long-form clips — these use YouTube's publishAt
+          // scheduler and must keep their spaced release times intact.
+          notInArray(autopilotQueue.type, ["platform_short", "youtube_short", "platform_text_short"]),
+          sql`NOT (${autopilotQueue.type} = 'auto-clip' AND ${autopilotQueue.metadata}->>'contentType' = 'long-form-clip')`,
         )!
       );
     const farFutureQueueCount = (farFutureQueueResult as any)?.rowCount ?? "?";
