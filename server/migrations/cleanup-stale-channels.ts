@@ -10,11 +10,16 @@
  *
  * Runs once at server startup in production. Guards itself with an audit_logs
  * entry so it never runs again.
+ *
+ * SAFETY: Never deletes a channel that has a live access_token.
+ * Uses storage.deleteChannel() for proper cascading deletes across all FK tables.
  */
 
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { channels } from "@shared/schema";
+import { sql, inArray, and, isNull, eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { storage } from "../storage";
 
 const logger = createLogger("stale-channel-cleanup");
 const MIGRATION_KEY = "production_stale_channel_cleanup_v1";
@@ -40,34 +45,85 @@ export async function removeStaleChannelsIfNeeded(): Promise<void> {
   const results: Record<string, number> = {};
 
   try {
-    // Remove expired channels with no refresh token (30, 31, 38)
-    const expiredResult = await db.execute(
-      sql`DELETE FROM channels WHERE id IN (30, 31, 38) AND refresh_token IS NULL`
-    );
-    results.expiredChannels = (expiredResult as any).rowCount ?? 0;
-    logger.info(`[StaleChannelCleanup] Deleted ${results.expiredChannels} expired no-refresh channels (30, 31, 38)`);
+    // Remove expired channels with no refresh token (30, 31, 38) AND no access token (safety guard)
+    const expiredCandidates = await db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          inArray(channels.id, [30, 31, 38]),
+          isNull(channels.refreshToken),
+          isNull(channels.accessToken),
+        )
+      );
 
-    // Remove ghost user's Twitch channel 36 — same thedude180 account as ET Gaming's channel 34
-    // but owned by the TikTok ghost user. Safe: no content references this row ID.
-    const ghostTwitchResult = await db.execute(
-      sql`DELETE FROM channels WHERE id = 36 AND user_id = 'tiktok_-000hfXLzkfKJGE24wvR-qZP9Pw6iwxLWyeM'`
-    );
-    results.ghostTwitch = (ghostTwitchResult as any).rowCount ?? 0;
-    logger.info(`[StaleChannelCleanup] Deleted ${results.ghostTwitch} ghost-user Twitch channel (36)`);
+    let expiredCount = 0;
+    for (const ch of expiredCandidates) {
+      try {
+        await storage.deleteChannel(ch.id);
+        expiredCount++;
+        logger.info(`[StaleChannelCleanup] Deleted expired no-token channel id=${ch.id}`);
+      } catch (e) {
+        logger.warn(`[StaleChannelCleanup] Could not delete channel ${ch.id} (may not exist):`, e);
+      }
+    }
+    results.expiredChannels = expiredCount;
+
+    // Remove ghost user's Twitch channel 36 — safe, no content references this row
+    const ghostCandidates = await db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.id, 36),
+          eq(channels.userId, 'tiktok_-000hfXLzkfKJGE24wvR-qZP9Pw6iwxLWyeM'),
+          isNull(channels.accessToken),
+        )
+      );
+
+    let ghostCount = 0;
+    for (const ch of ghostCandidates) {
+      try {
+        await storage.deleteChannel(ch.id);
+        ghostCount++;
+      } catch (e) {
+        logger.warn(`[StaleChannelCleanup] Could not delete ghost channel ${ch.id}:`, e);
+      }
+    }
+    results.ghostTwitch = ghostCount;
+    logger.info(`[StaleChannelCleanup] Deleted ${ghostCount} ghost-user Twitch channel(s) (36)`);
 
     // Remove duplicate YouTubeShorts channel 43 — same channel_id as 47, 47 is newer
-    const shortsResult = await db.execute(
-      sql`DELETE FROM channels WHERE id = 43 AND user_id = '7210ff92-76dd-4d0a-80bb-9eb5be27508b' AND platform = 'youtubeshorts'`
-    );
-    results.duplicateShorts = (shortsResult as any).rowCount ?? 0;
-    logger.info(`[StaleChannelCleanup] Deleted ${results.duplicateShorts} duplicate YouTubeShorts channel (43)`);
+    const shortsCandidates = await db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.id, 43),
+          eq(channels.userId, '7210ff92-76dd-4d0a-80bb-9eb5be27508b'),
+          eq(channels.platform, 'youtubeshorts'),
+          isNull(channels.accessToken),
+        )
+      );
+
+    let shortsCount = 0;
+    for (const ch of shortsCandidates) {
+      try {
+        await storage.deleteChannel(ch.id);
+        shortsCount++;
+      } catch (e) {
+        logger.warn(`[StaleChannelCleanup] Could not delete duplicate shorts channel ${ch.id}:`, e);
+      }
+    }
+    results.duplicateShorts = shortsCount;
+    logger.info(`[StaleChannelCleanup] Deleted ${shortsCount} duplicate YouTubeShorts channel(s) (43)`);
 
     await db.execute(
       sql`INSERT INTO audit_logs (user_id, action, target, details, risk_level, created_at)
-          VALUES ('system', ${MIGRATION_KEY}, 'channels', ${JSON.stringify(results)}, 'low', NOW())`
+          VALUES ('system', ${MIGRATION_KEY}, 'channels', ${JSON.stringify(results)}::jsonb, 'low', NOW())`
     );
 
-    logger.info("[StaleChannelCleanup] Complete — UI now accurately reflects active channels");
+    logger.info("[StaleChannelCleanup] Complete — UI now accurately reflects active channels", results);
   } catch (err) {
     logger.error("[StaleChannelCleanup] Failed:", err);
   }

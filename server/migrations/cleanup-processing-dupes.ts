@@ -80,7 +80,7 @@ export async function cleanupProcessingDupesIfNeeded(): Promise<void> {
       '7210ff92-76dd-4d0a-80bb-9eb5be27508b',
       ${MIGRATION_KEY},
       'content_pipeline',
-      ${JSON.stringify({ deletedDupes: deletedCount, resetToPending: resetCount })},
+      ${JSON.stringify({ deletedDupes: deletedCount, resetToPending: resetCount })}::jsonb,
       'low'
     )
   `);

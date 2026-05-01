@@ -118,7 +118,7 @@ export async function cleanGhostDataIfNeeded(): Promise<void> {
   try {
     await db.execute(
       sql`INSERT INTO audit_logs (user_id, action, target, details, risk_level, created_at)
-          VALUES ('system', ${MIGRATION_KEY}, 'jobs,dead_letter_queue,content_pipeline', ${JSON.stringify(results)}, 'low', NOW())`
+          VALUES ('system', ${MIGRATION_KEY}, 'jobs,dead_letter_queue,content_pipeline', ${JSON.stringify(results)}::jsonb, 'low', NOW())`
     );
     logger.info("[GhostDataCleanup] Complete —", JSON.stringify(results));
   } catch (err) {

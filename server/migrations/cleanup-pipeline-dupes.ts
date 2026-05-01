@@ -103,7 +103,7 @@ export async function deduplicatePipelinesIfNeeded(): Promise<void> {
   try {
     await db.execute(
       sql`INSERT INTO audit_logs (user_id, action, target, details, risk_level, created_at)
-          VALUES ('system', ${MIGRATION_KEY}, 'content_pipeline,dead_letter_queue', ${JSON.stringify(results)}, 'low', NOW())`
+          VALUES ('system', ${MIGRATION_KEY}, 'content_pipeline,dead_letter_queue', ${JSON.stringify(results)}::jsonb, 'low', NOW())`
     );
     logger.info("[PipelineDedup] Complete —", JSON.stringify(results));
   } catch (err) {
