@@ -11,6 +11,19 @@ const logger = createLogger("content-grinder");
 
 const GRIND_INTERVAL_MS = 45 * 60_000;
 
+/**
+ * Strip markdown code fences and parse JSON from an AI response.
+ * Claude sometimes wraps output in ```json\n...\n``` blocks even when
+ * told not to — this makes raw JSON.parse throw a SyntaxError.
+ */
+function extractJsonFromResponse(raw: string): any {
+  let content = (raw || "{}").trim();
+  // Strip ```json ... ``` or ``` ... ``` fences
+  const fenceMatch = content.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/i);
+  if (fenceMatch) content = fenceMatch[1].trim();
+  return JSON.parse(content);
+}
+
 // Track when the thumbnail-intelligence token budget was last exhausted per user.
 // If exhausted, skip all thumbnail research for that user for the rest of the day
 // to avoid hammering the budget check on every video in the loop.
@@ -237,6 +250,10 @@ Duration: ${Math.floor(durSec / 60)} minutes
 Already extracted clips: ${existingClips.length}
 Already covered time ranges: ${JSON.stringify(sanitizeObjectForPrompt(coveredRanges.slice(0, 20)))}
 
+⚠️ GAME ACCURACY (NON-NEGOTIABLE): This video is EXCLUSIVELY "${sanitizeForPrompt(gameName, 100)}" gameplay.
+Every clip title MUST reference "${sanitizeForPrompt(gameName, 100)}" or a recognizable aspect of it.
+Do NOT mention any other game — even if the video title says otherwise (the title may be incorrect).
+
 Find moments in the UNCOVERED time ranges that can become viral Shorts or clips.
 
 For NO COMMENTARY PS5 gaming, viral moments include:
@@ -257,7 +274,7 @@ VIRAL RULES:
 - End on a HIGH NOTE or a cliffhanger (never fade out)
 - Titles must create curiosity gap: "This Boss Had Me SHAKING" not "Boss Fight Gameplay"
 
-Return ONLY valid JSON:
+Return raw JSON only (no markdown code blocks):
 {
   "moments": [
     {
@@ -276,8 +293,7 @@ Return ONLY valid JSON:
       temperature: 0.8,
     });
 
-    const content = resp.content || "{}";
-    const parsed = JSON.parse(content);
+    const parsed = extractJsonFromResponse(resp.content || "{}");
     const moments = Array.isArray(parsed.moments) ? parsed.moments : [];
 
     let queued = 0;
@@ -356,6 +372,10 @@ GAME: ${sanitizeForPrompt(gameName, 100)}
 VIEWS SO FAR: ${viewCount.toLocaleString()}
 STYLE: No commentary PS5 gameplay
 
+⚠️ GAME ACCURACY RULE (NON-NEGOTIABLE): This video is EXCLUSIVELY about "${sanitizeForPrompt(gameName, 100)}".
+Your title and description MUST reference "${sanitizeForPrompt(gameName, 100)}" specifically.
+Do NOT substitute, replace, or mention any other video game — even if the current title contains a different game name (the current title may be wrong).
+
 YOUR OPTIMIZATION GOALS:
 1. TITLE: Create intense curiosity gap. Use power words (INSANE, IMPOSSIBLE, TERRIFYING, BEAUTIFUL). Keep under 70 chars.
    - BAD: "God of War Ragnarök Gameplay"
@@ -364,12 +384,12 @@ YOUR OPTIMIZATION GOALS:
    - Include timestamps that tease what's coming ("12:34 — The moment everything changes")
    - Natural keyword density for search
    - Call-to-action for watch time: "Watch till the end for..." 
-3. TAGS: 20 tags mixing broad + specific + trending
+3. TAGS: 20 tags mixing broad + specific + trending for ${sanitizeForPrompt(gameName, 100)}
 4. CHAPTERS: Timestamps worded as cliffhangers to keep people watching
    - BAD: "Boss Fight" → GOOD: "The Boss That Broke Me"
    - BAD: "Exploring Area" → GOOD: "I Should NOT Have Gone Here"
 
-Return JSON:
+Return raw JSON only (no markdown code blocks):
 {
   "title": "string",
   "description": "string",
@@ -382,8 +402,7 @@ Return JSON:
       temperature: 0.7,
     });
 
-    const content = resp.content || "{}";
-    const parsed = JSON.parse(content);
+    const parsed = extractJsonFromResponse(resp.content || "{}");
 
     if (parsed.title && parsed.description) {
       await storage.updateVideo(video.id, {
@@ -533,8 +552,7 @@ Return JSON:
       temperature: 0.7,
     });
 
-    const content = resp.content || "{}";
-    const parsed = JSON.parse(content);
+    const parsed = extractJsonFromResponse(resp.content || "{}");
 
     const chapters = Array.isArray(parsed.chapters) ? parsed.chapters : [];
     const currentDesc = video.description || "";
