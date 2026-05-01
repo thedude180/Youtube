@@ -233,17 +233,22 @@ async function autoConnectYouTubeFromGoogle(
 
   const existingChannels = await storage.getChannelsByUser(userId);
   const existingYt = existingChannels.find((c) => c.platform === "youtube");
+  const existingYtShorts = existingChannels.find((c) => c.platform === "youtubeshorts");
+
+  // Always sync fresh tokens to whichever YouTube-family channels already exist.
+  // This prevents a scenario where one row gets updated while the other goes stale.
+  const tokenUpdate: any = {
+    accessToken,
+    tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+    lastSyncAt: new Date(),
+  };
+  if (refreshToken) tokenUpdate.refreshToken = refreshToken;
 
   if (existingYt) {
-    const tokenUpdate: any = {
-      accessToken,
-      tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
-      lastSyncAt: new Date(),
-    };
-    if (refreshToken) {
-      tokenUpdate.refreshToken = refreshToken;
-    }
     await storage.updateChannel(existingYt.id, tokenUpdate);
+  }
+  if (existingYtShorts) {
+    await storage.updateChannel(existingYtShorts.id, tokenUpdate);
   }
 
   try {

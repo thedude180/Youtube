@@ -567,6 +567,59 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] Deleted ${fakeAqCount} fake seeded autopilot_queue entry(ies)\n`);
     }
 
+    // 4e-pre. If the 'youtube' (long-form) channel row is missing but a
+    //         'youtubeshorts' channel exists for the same user with valid tokens,
+    //         clone those tokens into a new 'youtube' channel row.  This heals
+    //         the case where a Google OAuth re-login wiped the youtube row while
+    //         leaving the youtubeshorts row intact.
+    try {
+      const existingYoutubeRows = await db
+        .select({ id: channelsTable.id })
+        .from(channelsTable)
+        .where(and(eq(channelsTable.userId, REAL_USER_ID), eq(channelsTable.platform, "youtube")))
+        .limit(1);
+
+      if (existingYoutubeRows.length === 0) {
+        // Look for a youtubeshorts channel we can copy tokens from
+        const shortsRows = await db
+          .select()
+          .from(channelsTable)
+          .where(and(eq(channelsTable.userId, REAL_USER_ID), eq(channelsTable.platform, "youtubeshorts")))
+          .limit(1);
+
+        if (shortsRows.length > 0 && shortsRows[0].accessToken) {
+          const src = shortsRows[0];
+          // Strip " Shorts" suffix from channel name if present
+          const ytName = (src.channelName || "ET Gaming 274").replace(/ Shorts$/i, "").trim() || "ET Gaming 274";
+          // The youtubeshorts channelId is the YouTube UCxxxxx ID — same for regular uploads
+          await db.insert(channelsTable).values({
+            userId: REAL_USER_ID,
+            platform: "youtube",
+            channelName: ytName,
+            channelId: src.channelId || "",
+            accessToken: src.accessToken,
+            refreshToken: src.refreshToken,
+            tokenExpiresAt: src.tokenExpiresAt,
+            subscriberCount: src.subscriberCount,
+            videoCount: src.videoCount,
+            viewCount: src.viewCount,
+            platformData: src.platformData ?? {},
+            lastSyncAt: new Date(),
+            settings: {
+              preset: "normal" as const,
+              autoUpload: false,
+              minShortsPerDay: 1,
+              maxEditsPerDay: 3,
+              cooldownMinutes: 60,
+            },
+          } as any);
+          process.stdout.write(`[prod-heal] ✓  Auto-created missing 'youtube' channel from 'youtubeshorts' (src id=${src.id}, channelId=${src.channelId})\n`);
+        }
+      }
+    } catch (healErr: any) {
+      process.stdout.write(`[prod-heal] ⚠️  youtube-channel-clone heal failed: ${healErr.message}\n`);
+    }
+
     // 4e. YouTube OAuth token check — emit a clear startup warning if the real
     //     ET Gaming YouTube channel has no valid OAuth tokens.  Without tokens the
     //     entire upload pipeline is blocked; this message makes the root cause
