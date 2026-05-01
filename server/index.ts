@@ -2164,10 +2164,15 @@ httpServer.listen(
         backgroundIntervals.push(iv);
       }).catch(slog("token-refresh import"));
 
-      import("./services/stream-editor-auto-publisher").then(m => {
-        const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("stream-editor-auto-publisher import"));
+      // Only run the auto-publish poller in production. In dev the poller would
+      // try to upload to YouTube with no OAuth token and permanently fail real
+      // production queue items (dev and prod share the same DB).
+      if (process.env.NODE_ENV === "production") {
+        import("./services/stream-editor-auto-publisher").then(m => {
+          const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
+          backgroundIntervals.push(iv);
+        }).catch(slog("stream-editor-auto-publisher import"));
+      }
 
       // Stream-editor watchdog — resets jobs stuck in "processing" for >90 min on
       // startup and every 10 min thereafter. Releases the activeJobId lock so the
