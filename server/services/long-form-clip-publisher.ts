@@ -1,12 +1,15 @@
 /**
  * long-form-clip-publisher.ts
  *
- * Publishes AI-identified long-form clips (5-60 min) that the relentless
+ * Publishes AI-identified long-form clips (8-60 min) that the relentless
  * content grinder queues for length experimentation.  These are regular
  * horizontal (16:9) YouTube videos — not Shorts — cut from the best
  * segment of each source recording.
  *
- * Each upload tests a different duration (5 / 10 / 15 / 20 / 30 / 45 / 60 min)
+ * Minimum 8 min enforces the YouTube AdSense mid-roll threshold so every
+ * upload is eligible for ad revenue from day one.
+ *
+ * Each upload tests a different duration (8 / 10 / 15 / 30 / 45 / 60 min)
  * to help discover which video length maximises watch time for the channel.
  *
  * Upload strategy:

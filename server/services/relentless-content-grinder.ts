@@ -355,9 +355,10 @@ Return raw JSON only (no markdown code blocks):
   }
 }
 
-// Long-form clip duration targets in seconds (5 min → 60 min).
-// Each cycle randomly picks one target to experiment with different lengths.
-const LONG_FORM_DURATION_TARGETS_SEC = [300, 600, 900, 1800, 2700, 3600];
+// Long-form clip duration targets in seconds (8 min → 60 min).
+// 8 min is the AdSense mid-roll threshold — clips shorter than that earn no
+// ad revenue.  Each cycle randomly picks one target to experiment with lengths.
+const LONG_FORM_DURATION_TARGETS_SEC = [480, 600, 900, 1800, 2700, 3600];
 // Minimum gap between long-form clip extractions for the same video (30 days).
 const LONG_FORM_REEXTRACT_GAP_MS = 30 * 86400_000;
 // Minimum gap between consecutive long-form uploads for a user (48 hours — 2 full days to breathe).
@@ -385,16 +386,18 @@ async function getOptimalLongFormScheduleTime(userId: string): Promise<Date> {
 }
 
 /**
- * Identifies 1 compelling long-form clip (5-60 min) from the video and queues
+ * Identifies 1 compelling long-form clip (8-60 min) from the video and queues
  * it for upload. Picks a random duration to experiment with which lengths work
  * best for the channel.  Returns 1 if queued, 0 otherwise.
+ *
+ * Minimum 8 min ensures every clip qualifies for YouTube AdSense mid-roll ads.
  */
 async function extractLongFormMoments(userId: string, video: any): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 0;
 
-  // Only process videos long enough to yield at least a 5-min clip
-  if (durSec < 300) return 0;
+  // Only process videos long enough to yield at least an 8-min clip (AdSense threshold)
+  if (durSec < 480) return 0;
 
   // Skip if we already extracted long-form clips from this video recently
   const lastExtracted = meta.longFormClipExtractedAt
