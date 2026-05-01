@@ -156,8 +156,12 @@ async function generateThumbnailImage(
       typeof thumbResult === "string"
         ? thumbResult
         : ((thumbResult as Record<string, unknown>).prompt as string) ?? "";
-    const imageSize: string =
-      (thumbResult as Record<string, unknown>)?.imageSize as string ?? "1536x1024";
+    const imageSizeRaw = (thumbResult as Record<string, unknown>)?.imageSize as string ?? "1536x1024";
+    const VALID_SIZES = ["1024x1024", "1024x1536", "1536x1024", "auto"] as const;
+    type ValidSize = typeof VALID_SIZES[number];
+    const imageSize: ValidSize = (VALID_SIZES as readonly string[]).includes(imageSizeRaw)
+      ? (imageSizeRaw as ValidSize)
+      : "1536x1024";
 
     if (!thumbnailPromptStr) return null;
 

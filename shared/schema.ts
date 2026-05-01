@@ -2689,6 +2689,7 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     deferredUntil?: string;
     studioVideoId?: number;
     scheduledPublishAt?: string;
+    publishImmediately?: boolean;
   }>(),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
