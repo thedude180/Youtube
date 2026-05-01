@@ -8,6 +8,11 @@ const logger = createLogger("upload-scheduler");
 const YOUTUBE_NATURAL_PEAK_HOURS = [10, 11, 12, 14, 15, 16, 17, 18, 19, 20];
 const MIN_GAP_BETWEEN_UPLOADS_MS = 3 * 3600_000;
 
+// Real upload timestamps should never land on a whole minute boundary — that's
+// an automation tell.  These helpers sprinkle a natural sub-minute offset.
+const rSec = () => Math.floor(Math.random() * 60);
+const rMs  = () => Math.floor(Math.random() * 1000);
+
 // Q4 revenue multiplier: gaming ad RPMs are 3-5x higher Oct-Dec vs January.
 // During Q4 we compress the search window (prefer sooner slots) to capture peak advertiser spend.
 // Outside Q4 we use the full 14-day lookahead to find the most optimal audience slot.
@@ -146,7 +151,7 @@ export async function getNextOptimalPublishTime(userId: string, platform: string
 
         const offset = getOffsetFn(timezone, candidate);
         const targetUtcHour = (((slot.hourOfDay ?? 0) - offset) % 24 + 24) % 24;
-        candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, 0, 0);
+        candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, rSec(), rMs());
 
         if (candidate.getTime() < earliestAllowed.getTime()) continue;
 
@@ -175,7 +180,7 @@ export async function getNextOptimalPublishTime(userId: string, platform: string
 
     for (const localHour of shuffledHours) {
       const targetUtcHour = ((localHour - offset) % 24 + 24) % 24;
-      candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, 0, 0);
+      candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, rSec(), rMs());
 
       if (candidate.getTime() < earliestAllowed.getTime()) continue;
 

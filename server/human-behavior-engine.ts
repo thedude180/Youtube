@@ -109,9 +109,18 @@ const PLATFORM_TIMING: Record<string, PlatformTimingProfile> = {
     avgGapMinutes: 45,    // follows YouTube/TikTok schedule naturally
     weekendMultiplier: 1.3,
   },
-  // NOTE: twitch, kick, rumble are LIVE-STREAM ONLY (RTMP). They have no
-  // content upload API and are not in ALL_DISTRIBUTION_PLATFORMS. No timing
-  // profile needed — autopilot never schedules content posts to these platforms.
+  rumble: {
+    // Rumble VOD uploads follow a YouTube-like pattern — same long-form gaming
+    // audience. Slightly higher weekend traffic (alt-tech skew).
+    peakHours: [14, 15, 16, 17, 18, 19, 20, 21],
+    offPeakHours: [10, 11, 12, 13, 22],
+    maxPostsPerDay: 3,
+    minGapMinutes: 240,   // 4 hours between Rumble uploads
+    avgGapMinutes: 480,   // target ~8 hours apart
+    weekendMultiplier: 1.4,
+  },
+  // NOTE: twitch and kick are LIVE-STREAM ONLY (RTMP relay). No timing
+  // profile is needed — autopilot never schedules VOD posts to those two.
 };
 
 function gaussianRandom(mean: number, stddev: number): number {
@@ -182,26 +191,33 @@ export function generateHumanScheduledTime(options: HumanScheduleOptions): Date 
   return scheduledDate;
 }
 
-// Platform posting priority — defines the order in which ACTIVE distribution
-// platforms receive content. YouTube goes first, Discord announces shortly
-// after, then TikTok follows with a wider gap. Mirrors real creator behavior.
-// twitch, kick, and rumble are RTMP live-stream only — omitted intentionally.
+// Priority order mirrors real creator workflow:
+//   1. Upload to YouTube (primary)
+//   2. Upload to Rumble in parallel (same file, different audience)
+//   3. Tweet / X-post about it shortly after upload live
+//   4. Discord announcement (community)
+//   5. TikTok short-form clip (requires separate edit — longest lag)
 const PLATFORM_PRIORITY_ORDER = [
   "youtube",        // primary — uploads here first
-  "youtubeshorts",  // same channel, Shorts have their own schedule
-  "discord",        // announcement follows shortly after
-  "tiktok",         // short-form clip, delayed for stagger
+  "youtubeshorts",  // same channel, Shorts run in parallel
+  "rumble",         // parallel VOD platform — shortly after YouTube
+  "x",              // tweet about the new video
+  "twitter",        // alias of x
+  "discord",        // community announcement
+  "tiktok",         // short-form clip, longest post-production lag
 ];
 
-// Cross-platform stagger gaps (minutes). After the primary platform posts,
-// each subsequent platform waits this long before its slot. Values are
-// intentionally varied so all platforms don't march in lockstep.
-// Only includes platforms with real publishers and upload capability.
+// Cross-platform stagger gaps (minutes). Values are intentionally uneven
+// and asymmetric to avoid a robotic "every N minutes" pattern.
+// The actual delay is (base + |gaussian jitter|) minutes.
 const CROSS_PLATFORM_STAGGER_MINUTES: Record<string, number> = {
-  youtube: 0,          // primary — base time, no stagger
+  youtube: 0,          // primary — no stagger
   youtubeshorts: 0,    // own schedule, parallel to long-form
-  discord: 20,         // announce ~20 min after YouTube goes live
-  tiktok: 60,          // TikTok clip ~1 hour after YouTube
+  rumble: 13,          // upload to Rumble right after YouTube goes live
+  x: 27,              // tweet "new video up" ~27 min later
+  twitter: 27,         // alias
+  discord: 43,         // Discord announcement after the tweet
+  tiktok: 78,          // TikTok clip needs processing time — ~78 min after
 };
 
 export function generateStaggeredSchedule(
@@ -230,8 +246,10 @@ export function generateStaggeredSchedule(
 
   for (const platform of ordered) {
     const staggerBase = CROSS_PLATFORM_STAGGER_MINUTES[platform] ?? 60;
-    // Add Gaussian jitter (±10 min) so posts don't all land at the exact offset
-    const jitterMinutes = gaussianRandom(0, 10);
+    // Add absolute Gaussian jitter so posts don't all land at the exact offset.
+    // Using Math.abs prevents negative jitter from moving a post BEFORE the
+    // primary platform's time.
+    const jitterMinutes = Math.abs(gaussianRandom(0, 10));
     const totalOffsetMs = (staggerBase + jitterMinutes) * 60_000;
     schedule.set(platform, new Date(primaryTime.getTime() + totalOffsetMs));
   }
@@ -240,7 +258,19 @@ export function generateStaggeredSchedule(
 }
 
 export function addHumanMicroDelay(): number {
-  return Math.floor(gaussianRandom(0, 3) * 60000);
+  // Always a positive pause: Gaussian centred at 2 min, σ=1 min, floored at
+  // 30 s so content never fires too close together.
+  return Math.max(30_000, gaussianRandom(2, 1) * 60_000);
+}
+
+/** Random seconds 0–59 so scheduled times never end in :00:00. */
+function randomSec(): number {
+  return Math.floor(Math.random() * 60);
+}
+
+/** Random sub-second offset 0–999 ms. */
+function randomMs(): number {
+  return Math.floor(Math.random() * 1000);
 }
 
 export function shouldPostToday(platform: string): boolean {
@@ -350,7 +380,7 @@ export async function getAudienceDrivenTime(options: HumanScheduleOptions): Prom
         const minuteJitter = Math.floor(gaussianRandom(25, 15));
         const offset = getTimezoneOffsetHours(timezone, candidate);
         const targetUtcHour = ((picked.hourOfDay - offset) % 24 + 24) % 24;
-        candidate.setUTCHours(Math.round(targetUtcHour), Math.max(0, Math.min(59, minuteJitter)), 0, 0);
+        candidate.setUTCHours(Math.round(targetUtcHour), Math.max(0, Math.min(59, minuteJitter)), randomSec(), randomMs());
 
         return candidate;
       }
@@ -370,10 +400,17 @@ export async function getAudienceDrivenStaggeredSchedule(
   let lastTime = new Date();
 
   const timezone = await getUserTimezone(userId);
-  const shuffled = [...platforms].sort(() => Math.random() - 0.5);
 
-  for (let i = 0; i < shuffled.length; i++) {
-    const platform = shuffled[i];
+  // Sort by PLATFORM_PRIORITY_ORDER so YouTube always precedes Twitter/Discord/TikTok.
+  // Random shuffling could put TikTok before YouTube, which looks odd.
+  const ordered = [...platforms].sort((a, b) => {
+    const ai = PLATFORM_PRIORITY_ORDER.indexOf(a);
+    const bi = PLATFORM_PRIORITY_ORDER.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  for (let i = 0; i < ordered.length; i++) {
+    const platform = ordered[i];
     const timing = PLATFORM_TIMING[platform] || PLATFORM_TIMING.x;
 
     let time: Date;
@@ -386,7 +423,8 @@ export async function getAudienceDrivenStaggeredSchedule(
         timezone,
       });
     } else {
-      const gapMinutes = gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3);
+      // Use absolute gap so time never goes backwards relative to lastTime.
+      const gapMinutes = Math.abs(gaussianRandom(timing.avgGapMinutes, timing.avgGapMinutes * 0.3));
       const actualGap = Math.max(timing.minGapMinutes, gapMinutes);
       const afterGap = new Date(lastTime.getTime() + actualGap * 60000);
 
@@ -405,12 +443,15 @@ export async function getAudienceDrivenStaggeredSchedule(
             const candidate = new Date(afterGap);
             const currentDay = candidate.getDay();
             let daysUntil = (picked.dayOfWeek - currentDay + 7) % 7;
+            // Cap at 2 days — a 7-day rollover stacks content too far in the future.
+            if (daysUntil > 2) daysUntil = 2;
             candidate.setDate(candidate.getDate() + daysUntil);
             const offset = getTimezoneOffsetHours(timezone, candidate);
             const targetUtcHour = ((picked.hourOfDay - offset) % 24 + 24) % 24;
-            candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, 0, 0);
+            candidate.setUTCHours(Math.round(targetUtcHour), Math.floor(Math.random() * 45) + 5, randomSec(), randomMs());
+            // If the computed time still precedes afterGap, just use afterGap + 1 day.
             if (candidate.getTime() < afterGap.getTime()) {
-              candidate.setDate(candidate.getDate() + 7);
+              candidate.setDate(candidate.getDate() + 1);
             }
             time = candidate;
           } else {
@@ -424,7 +465,8 @@ export async function getAudienceDrivenStaggeredSchedule(
       }
     }
 
-    const jitterMinutes = gaussianRandom(0, 7);
+    // Always a positive jitter so post times only drift later, never earlier.
+    const jitterMinutes = Math.abs(gaussianRandom(0, 7));
     time = new Date(time.getTime() + jitterMinutes * 60000);
 
     schedule.set(platform, time);
