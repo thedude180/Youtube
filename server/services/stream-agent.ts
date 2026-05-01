@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { getOpenAIClient } from "../lib/openai";
 import { fireAgentEvent } from "./agent-events";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
-import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
+import { canAffordOperation, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 import { shortsFactory } from "./shorts-factory";
 
@@ -182,8 +182,9 @@ async function checkAndEngageStream(userId: string): Promise<void> {
           // When RSS says "not live", this entire block is skipped, saving 50 quota
           // units per poll (the common case when not streaming).
           if (detectedLive || !rssChecked) {
-            const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-            if (quota.remaining > 50) {
+            // canAffordOperation enforces the 20/day broadcast cap AND the UPLOAD_RESERVE
+            // floor so live-detection can never starve video uploads of quota.
+            if (await canAffordOperation(userId, "broadcast").catch(() => false)) {
               try {
                 const broadcasts = await checkYouTubeLiveBroadcasts(ytChannel.id);
                 await trackQuotaUsage(userId, "broadcast");
@@ -199,7 +200,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
                 logger.warn(`[${userId}] API broadcast confirmation failed — trusting RSS: ${sanitizeForPrompt(apiErr.message)}`);
               }
             } else {
-              logger.warn(`[${userId}] YouTube quota low (${sanitizeForPrompt(quota.remaining)}) — skipping API confirmation, trusting RSS`);
+              logger.warn(`[${userId}] Broadcast cap or upload reserve gate — skipping API confirmation, trusting RSS`);
             }
           }
 

@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { channels, streamDetectionLog } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { getQuotaStatus, trackQuotaUsage } from "./youtube-quota-tracker";
+import { canAffordOperation, trackQuotaUsage } from "./youtube-quota-tracker";
 import { detectYouTubeLiveFromChannel } from "../lib/youtube-live-check";
 import { checkYouTubeLiveBroadcasts } from "../youtube";
 
@@ -86,9 +86,10 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
   let apiResult = null;
   let rssResult = null;
 
-  // 1. Quota-aware API check (liveBroadcasts.list costs 50 units)
-  const quota = await getQuotaStatus(userId).catch(() => ({ remaining: 0 }));
-  if (quota.remaining > 50) {
+  // 1. Quota-aware API check (liveBroadcasts.list costs 50 units).
+  // Must pass canAffordOperation("broadcast") — which enforces the 20/day op cap AND
+  // requires UPLOAD_RESERVE headroom — to avoid draining quota needed for video uploads.
+  if (await canAffordOperation(userId, "broadcast").catch(() => false)) {
     try {
       const broadcasts = await checkYouTubeLiveBroadcasts(channel.id);
       await trackQuotaUsage(userId, "broadcast").catch(() => {});
@@ -98,7 +99,7 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
       signals.api_error = err instanceof Error ? err.message : String(err);
     }
   } else {
-    signals.api_skipped = "low_quota";
+    signals.api_skipped = "broadcast_cap_or_upload_reserve";
   }
 
   // 2. RSS/Watch-page fallback
