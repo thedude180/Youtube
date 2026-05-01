@@ -142,7 +142,7 @@ async function generateThumbnailImage(
   userId: string,
 ): Promise<ThumbnailData | null> {
   try {
-    const thumbnailPrompt = await generateThumbnailPrompt({
+    const thumbResult = await generateThumbnailPrompt({
       title,
       description: "",
       platform: platform === "shorts" ? "youtube_shorts" : platform,
@@ -150,8 +150,19 @@ async function generateThumbnailImage(
       gameName: gameName ?? null,
     }, userId);
 
+    // generateThumbnailPrompt returns a JSON object {prompt, style, imageSize, …}
+    // — extract the prompt string so we don't pass an object to the image API.
+    const thumbnailPromptStr: string =
+      typeof thumbResult === "string"
+        ? thumbResult
+        : ((thumbResult as Record<string, unknown>).prompt as string) ?? "";
+    const imageSize: string =
+      (thumbResult as Record<string, unknown>)?.imageSize as string ?? "1536x1024";
+
+    if (!thumbnailPromptStr) return null;
+
     const { generateImageBuffer } = await import("../replit_integrations/image/client");
-    const imageBuffer = await generateImageBuffer(thumbnailPrompt, "1536x1024");
+    const imageBuffer = await generateImageBuffer(thumbnailPromptStr, imageSize);
     if (!imageBuffer || imageBuffer.length < 1000) return null;
 
     const sharp = (await import("sharp")).default;
@@ -162,7 +173,7 @@ async function generateThumbnailImage(
       .jpeg({ quality: 85 })
       .toBuffer();
 
-    return { jpegBuffer, prompt: thumbnailPrompt, platform };
+    return { jpegBuffer, prompt: thumbnailPromptStr, platform };
   } catch (err: unknown) {
     logger.warn(`[Packager] Thumbnail image generation failed:`, (err as Error)?.message);
     return null;

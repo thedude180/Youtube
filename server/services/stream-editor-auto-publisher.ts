@@ -2,26 +2,22 @@
  * stream-editor-auto-publisher.ts
  *
  * After the stream editor packager creates Studio video records, this service
- * schedules each clip for zero-touch publishing:
+ * queues each clip for IMMEDIATE publishing — stream editor clips are treated
+ * as the user's top-priority content and go live as soon as the next poller
+ * tick runs (≤ 5 minutes), not at some future "optimal" window.
  *
  *  • YouTube / Shorts  — inserts an `autopilotQueue` row with type
- *    "studio_auto_publish". The auto-publish poller (server/index.ts) picks
- *    this up and calls publishStudioVideo() with a `publishAt` date so YouTube
- *    holds the video private and releases it at the scheduled time.
+ *    "studio_auto_publish" and scheduledAt = now. The poller publishes the
+ *    clip as PUBLIC immediately (no YouTube scheduled-publish delay).
  *
- *  • Rumble / TikTok   — no direct upload API exists; inserts a row with
- *    status "manual_required" so the UI can surface "ready on [date]".
- *
- * Scheduling uses getNextOptimalPublishTime() from upload-scheduler.ts, which
- * blends audience-activity data with peak-hour heuristics and enforces a
- * minimum 3-hour gap between uploads on the same platform.
+ *  • Rumble / TikTok   — no direct upload API; inserts a "manual_required"
+ *    row so the UI surfaces "ready to post".
  */
 
 import { db } from "../db";
-import { autopilotQueue, studioVideos } from "@shared/schema";
+import { autopilotQueue } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
-import { getNextOptimalPublishTime } from "./upload-scheduler";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("stream-editor-auto-publisher");
@@ -55,7 +51,10 @@ export async function scheduleClipsForAutoPublish(
       const platform = clip.platform === "shorts" ? "youtube" : clip.platform;
       const isYoutubePlatform = YOUTUBE_PLATFORMS.has(clip.platform);
 
-      const scheduledAt = await getNextOptimalPublishTime(userId, platform);
+      // Stream editor clips are user-initiated top-priority uploads — publish NOW,
+      // not at some optimal future window.  scheduledAt = new Date() means the
+      // poller picks this up on its very next tick (≤ 5 min).
+      const scheduledAt = new Date();
 
       const studioVideo = await storage.getStudioVideo(clip.studioVideoId);
       if (!studioVideo) {
@@ -75,10 +74,10 @@ export async function scheduleClipsForAutoPublish(
           scheduledAt,
           metadata: {
             studioVideoId: clip.studioVideoId,
-            scheduledPublishAt: scheduledAt.toISOString(),
             channelId: youtubeChannel.id,
             title: studioVideo.title,
             autoQueued: true,
+            publishImmediately: true,
           },
         }).returning();
 
@@ -86,15 +85,14 @@ export async function scheduleClipsForAutoPublish(
           metadata: {
             ...currentMeta,
             channelId: youtubeChannel.id,
-            scheduledPublishAt: scheduledAt.toISOString(),
             autoScheduled: true,
             autopilotQueueId: queueEntry.id,
-            privacyStatus: "private",
+            privacyStatus: "public",
           } as any,
         });
 
         scheduled.set(clip.studioVideoId, scheduledAt.toISOString());
-        logger.info(`[AutoPublisher] Scheduled clip ${clip.studioVideoId} → YouTube at ${scheduledAt.toISOString()}`);
+        logger.info(`[AutoPublisher] Queued clip ${clip.studioVideoId} for IMMEDIATE YouTube publish`);
       } else {
         await db.insert(autopilotQueue).values({
           userId,
@@ -105,7 +103,6 @@ export async function scheduleClipsForAutoPublish(
           scheduledAt,
           metadata: {
             studioVideoId: clip.studioVideoId,
-            scheduledPublishAt: scheduledAt.toISOString(),
             autoQueued: true,
           },
         });
@@ -113,14 +110,12 @@ export async function scheduleClipsForAutoPublish(
         await storage.updateStudioVideo(clip.studioVideoId, {
           metadata: {
             ...currentMeta,
-            scheduledPublishAt: scheduledAt.toISOString(),
             autoScheduled: true,
-            privacyStatus: "private",
           } as any,
         });
 
         scheduled.set(clip.studioVideoId, scheduledAt.toISOString());
-        logger.info(`[AutoPublisher] Queued ${platform} clip ${clip.studioVideoId} as manual_required at ${scheduledAt.toISOString()}`);
+        logger.info(`[AutoPublisher] Queued ${platform} clip ${clip.studioVideoId} as manual_required`);
       }
     } catch (err: unknown) {
       logger.warn(`[AutoPublisher] Failed to schedule clip ${clip.studioVideoId}:`, (err as Error)?.message);
@@ -132,8 +127,8 @@ export async function scheduleClipsForAutoPublish(
 
 /**
  * Poller: called every 5 minutes by the server.
- * Finds YouTube autopilot_queue entries that are due (scheduledAt ≤ now + 8h)
- * and triggers the actual YouTube upload + scheduled publish.
+ * Picks up ALL queued studio_auto_publish items regardless of scheduledAt
+ * (stream editor clips are top-priority and should go live immediately).
  * Also retries entries that failed with a transient error (up to 3 attempts).
  */
 export async function processAutoPublishQueue(): Promise<void> {
@@ -151,19 +146,15 @@ export async function processAutoPublishQueue(): Promise<void> {
     return;
   }
 
-  const horizon = new Date(Date.now() + 8 * 3600_000);
-
+  // No horizon limit: stream editor clips are always top-priority and should
+  // be published immediately regardless of when they were originally scheduled.
   const dueItems = await db.select().from(autopilotQueue)
     .where(eq(autopilotQueue.status, "scheduled"))
-    .then(rows => rows.filter(r =>
-      r.type === "studio_auto_publish" &&
-      r.scheduledAt != null &&
-      new Date(r.scheduledAt) <= horizon,
-    ));
+    .then(rows => rows.filter(r => r.type === "studio_auto_publish"));
 
   if (dueItems.length === 0) return;
 
-  logger.info(`[AutoPublisher] Processing ${dueItems.length} due auto-publish jobs`);
+  logger.info(`[AutoPublisher] Processing ${dueItems.length} auto-publish jobs`);
 
   for (const item of dueItems) {
     const meta = (item.metadata ?? {}) as Record<string, unknown>;
@@ -188,8 +179,9 @@ export async function processAutoPublishQueue(): Promise<void> {
       }
 
       const { publishStudioVideo } = await import("./studio-publisher");
-      const publishAt = item.scheduledAt ? new Date(item.scheduledAt) : undefined;
-      const { youtubeId } = await publishStudioVideo(studioVideoId, item.userId, publishAt);
+      // Always publish as public immediately — do NOT pass a future publishAt
+      // so YouTube does not hold the video as "private/scheduled".
+      const { youtubeId } = await publishStudioVideo(studioVideoId, item.userId, undefined);
 
       await db.update(autopilotQueue)
         .set({
