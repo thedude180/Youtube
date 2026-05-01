@@ -314,8 +314,12 @@ async function runShortsExtraction(userId: string): Promise<any> {
   return { shortsCreated, videosProcessed: Math.min(unprocessed.length, 3), remainingVideos: Math.max(0, unprocessed.length - 3) };
 }
 
-// Platforms that receive an actual short video clip upload
-const SHORT_VIDEO_PLATFORMS = ["youtubeshorts", "youtube", "tiktok"] as const;
+// Platforms that receive an actual short video clip upload.
+// NOTE: "youtube" (regular long-form) is intentionally excluded here — a
+// ≤60s clip must only go to "youtubeshorts", not also post as a regular
+// YouTube video.  Including both caused the same clip to be uploaded twice
+// to the same channel (once as a Short, once as a regular video).
+const SHORT_VIDEO_PLATFORMS = ["youtubeshorts", "tiktok"] as const;
 // Platforms that receive a tailored text post with a link to the original video
 const SHORT_TEXT_PLATFORMS = ["twitter", "x", "discord", "kick", "instagram"] as const;
 
