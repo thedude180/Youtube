@@ -16,7 +16,7 @@
 
 import { db } from "../db";
 import { autopilotQueue } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 
@@ -148,9 +148,16 @@ export async function processAutoPublishQueue(): Promise<void> {
 
   // No horizon limit: stream editor clips are always top-priority and should
   // be published immediately regardless of when they were originally scheduled.
+  // Also recover "failed" items — they may have been failed by the general
+  // autopilot engine (which no longer claims studio_auto_publish items after
+  // the engine fix), not by a real upload error.
   const dueItems = await db.select().from(autopilotQueue)
-    .where(eq(autopilotQueue.status, "scheduled"))
-    .then(rows => rows.filter(r => r.type === "studio_auto_publish"));
+    .where(
+      and(
+        inArray(autopilotQueue.status, ["scheduled", "failed", "permanent_fail"]),
+        eq(autopilotQueue.type, "studio_auto_publish"),
+      )
+    );
 
   if (dueItems.length === 0) return;
 
