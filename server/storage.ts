@@ -493,6 +493,10 @@ export class DatabaseStorage implements IStorage {
       // (rows created by the autopilot scheduler that may have been re-linked).
       await tx.execute(sql`DELETE FROM autopilot_queue WHERE source_video_id IN (SELECT id FROM videos WHERE channel_id = ${id})`);
 
+      // Null out channel_id in token_vault (no FK so rows survive — vault
+      // tokens stay accessible by user_id+platform as recovery backups).
+      await tx.execute(sql`UPDATE token_vault SET channel_id = NULL WHERE channel_id = ${id}`);
+
       await tx.delete(videos).where(eq(videos.channelId, id));
       await tx.delete(channels).where(eq(channels.id, id));
     });

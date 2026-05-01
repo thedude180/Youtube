@@ -77,6 +77,9 @@ const IGNORE = new Set([
   "channels",          // the target table being deleted
   "content_insights",  // has channel_id FK with onDelete: "cascade" — auto-deleted
   "video_catalog_links", // has channel_id FK with onDelete: "cascade" — auto-deleted
+  "token_vault",       // intentionally NOT deleted — channel_id is nulled via UPDATE so
+                       // the vault token survives channel deletion as a Layer 3 backup.
+                       // Rows remain accessible by (user_id, platform) for token recovery.
 ]);
 
 // ── 4. Cross-reference ────────────────────────────────────────────────────────
