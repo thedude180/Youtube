@@ -1432,6 +1432,7 @@ export async function flushQueueToAsap(): Promise<number> {
         sql`${autopilotQueue.scheduledAt} > NOW()`,
         sql`${autopilotQueue.scheduledAt} < ${maxFutureWindow}`,
         sql`${autopilotQueue.type} NOT IN ('platform_short', 'youtube_short', 'platform_text_short')`,
+        sql`NOT (${autopilotQueue.type} = 'auto-clip' AND ${autopilotQueue.metadata}->>'contentType' = 'long-form-clip')`,
       ))
       .orderBy(flushPriority, autopilotQueue.scheduledAt);
 

@@ -55,6 +55,7 @@ interface GrindState {
   videosExhausted: number;
   videosWithRemaining: number;
   clipsQueued: number;
+  longFormClipsQueued: number;
   seoRefreshed: number;
   thumbnailsRedesigned: number;
   pacingEnhanced: number;
@@ -73,8 +74,8 @@ export async function runGrindCycle(): Promise<void> {
         if (!autonomous) continue;
 
         const state = await grindUserContent(user.id);
-        if (state.clipsQueued > 0 || state.seoRefreshed > 0) {
-          logger.info(`[${user.id.substring(0, 8)}] Grind cycle: ${state.clipsQueued} clips queued, ${state.seoRefreshed} SEO refreshed, ${state.thumbnailsRedesigned} thumbnails redesigned, ${state.pacingEnhanced} pacing enhanced. ${state.videosExhausted} fully exhausted, ${state.videosWithRemaining} still have content.`);
+        if (state.clipsQueued > 0 || state.longFormClipsQueued > 0 || state.seoRefreshed > 0) {
+          logger.info(`[${user.id.substring(0, 8)}] Grind cycle: ${state.clipsQueued} Shorts queued, ${state.longFormClipsQueued} long-form clips queued, ${state.seoRefreshed} SEO refreshed, ${state.thumbnailsRedesigned} thumbnails redesigned, ${state.pacingEnhanced} pacing enhanced. ${state.videosExhausted} fully exhausted, ${state.videosWithRemaining} still have content.`);
         }
       } catch (err: any) {
         logger.warn(`[${user.id.substring(0, 8)}] Grind cycle failed: ${err.message?.substring(0, 200)}`);
@@ -90,6 +91,7 @@ async function grindUserContent(userId: string): Promise<GrindState> {
     videosExhausted: 0,
     videosWithRemaining: 0,
     clipsQueued: 0,
+    longFormClipsQueued: 0,
     seoRefreshed: 0,
     thumbnailsRedesigned: 0,
     pacingEnhanced: 0,
@@ -130,6 +132,11 @@ async function grindUserContent(userId: string): Promise<GrindState> {
         const newClips = await extractUntappedMoments(userId, video);
         state.clipsQueued += newClips;
       }
+
+      // Also extract long-form clips (5-60 min) for length experimentation.
+      // Capped at 1 long-form clip per video per grind cycle to control cost.
+      const lfClips = await extractLongFormMoments(userId, video);
+      state.longFormClipsQueued += lfClips;
 
       const seoResult = await viralSEORefresh(userId, video);
       if (seoResult) state.seoRefreshed++;
@@ -343,6 +350,167 @@ Return raw JSON only (no markdown code blocks):
     return queued;
   } catch (err: any) {
     logger.warn(`[${userId.substring(0, 8)}] Moment extraction failed: ${err.message?.substring(0, 200)}`);
+    return 0;
+  }
+}
+
+// Long-form clip duration targets in seconds (5 min → 60 min).
+// Each cycle randomly picks one target to experiment with different lengths.
+const LONG_FORM_DURATION_TARGETS_SEC = [300, 600, 900, 1800, 2700, 3600];
+// Minimum gap between long-form clip extractions for the same video (30 days).
+const LONG_FORM_REEXTRACT_GAP_MS = 30 * 86400_000;
+// Minimum gap between consecutive long-form uploads for a user (12 hours).
+const LONG_FORM_UPLOAD_GAP_MS = 12 * 3600_000;
+
+async function getOptimalLongFormScheduleTime(userId: string): Promise<Date> {
+  // Find the furthest-future long-form clip already in the queue for this user.
+  const latest = await db.select({ scheduledAt: autopilotQueue.scheduledAt })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.status, "scheduled"),
+      sql`${autopilotQueue.metadata}->>'contentType' = 'long-form-clip'`,
+    ))
+    .orderBy(desc(autopilotQueue.scheduledAt))
+    .limit(1);
+
+  const baseMs = latest.length > 0 && latest[0].scheduledAt
+    ? Math.max(new Date(latest[0].scheduledAt).getTime(), Date.now())
+    : Date.now();
+
+  // Add 12-24 h gap plus a small random jitter
+  const gapMs = LONG_FORM_UPLOAD_GAP_MS + Math.random() * 12 * 3600_000;
+  return new Date(baseMs + gapMs);
+}
+
+/**
+ * Identifies 1 compelling long-form clip (5-60 min) from the video and queues
+ * it for upload. Picks a random duration to experiment with which lengths work
+ * best for the channel.  Returns 1 if queued, 0 otherwise.
+ */
+async function extractLongFormMoments(userId: string, video: any): Promise<number> {
+  const meta = (video.metadata as any) || {};
+  const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 0;
+
+  // Only process videos long enough to yield at least a 5-min clip
+  if (durSec < 300) return 0;
+
+  // Skip if we already extracted long-form clips from this video recently
+  const lastExtracted = meta.longFormClipExtractedAt
+    ? new Date(meta.longFormClipExtractedAt).getTime() : 0;
+  if (Date.now() - lastExtracted < LONG_FORM_REEXTRACT_GAP_MS) return 0;
+
+  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const youtubeId = meta.youtubeId || meta.youtubeVideoId;
+
+  // Pick a random target duration that fits in the video
+  const validTargets = LONG_FORM_DURATION_TARGETS_SEC.filter(t => t < durSec * 0.9);
+  if (validTargets.length === 0) return 0;
+  const targetSec = validTargets[Math.floor(Math.random() * validTargets.length)];
+  const targetMin = Math.round(targetSec / 60);
+
+  if (!tokenBudget.checkBudget("content-grinder", 2000)) return 0;
+  tokenBudget.consumeBudget("content-grinder", 2000);
+
+  try {
+    const resp = await callClaudeBackground({
+      model: CLAUDE_MODELS.sonnet,
+      prompt: `You are an expert YouTube video editor. Identify the BEST ${targetMin}-minute segment from this video that can stand alone as a compelling YouTube video.
+
+VIDEO: "${sanitizeForPrompt(video.title, 200)}"
+GAME: "${sanitizeForPrompt(gameName, 100)}"
+TOTAL DURATION: ${Math.floor(durSec / 60)} minutes
+
+⚠️ GAME ACCURACY (NON-NEGOTIABLE): This video is EXCLUSIVELY "${sanitizeForPrompt(gameName, 100)}" gameplay.
+All titles MUST reference "${sanitizeForPrompt(gameName, 100)}" specifically.
+
+TARGET CLIP DURATION: exactly ~${targetMin} minutes (${targetSec} seconds)
+
+For NO COMMENTARY PS5 gameplay, the best long-form segments are:
+- A complete boss fight from start to finish
+- A key story mission or chapter
+- An exploration sequence with beautiful environments
+- A skill/speed run of a recognizable area
+- An intense combat gauntlet
+- Any sequence with strong pacing that keeps viewers engaged
+
+The segment MUST:
+- Start with something visually compelling (action, a vista, a dramatic moment) — NOT a loading screen, menu, or slow walk
+- Have internal pacing — something interesting every 60-90 seconds
+- End on a satisfying note (victory, discovery, cinematic moment)
+
+Return raw JSON only (no markdown):
+{
+  "startSec": number,
+  "endSec": number,
+  "title": "string — compelling YouTube title under 80 chars (NOT clickbait, genuinely describes the content)",
+  "description": "string — 2-sentence hook for the YouTube description",
+  "reasonThisWorks": "string — why this segment keeps viewers watching",
+  "contentQualityScore": 1-10
+}`,
+      maxTokens: 600,
+      temperature: 0.7,
+    });
+
+    const parsed = extractJsonFromResponse(resp.content || "{}");
+
+    const startSec = Number(parsed.startSec);
+    const endSec = Number(parsed.endSec);
+    const actualDurSec = endSec - startSec;
+
+    // Validate: segment must be within 50% of target, at least 3 min, within video
+    if (
+      !parsed.title
+      || isNaN(startSec) || isNaN(endSec)
+      || actualDurSec < 180
+      || actualDurSec < targetSec * 0.5
+      || actualDurSec > targetSec * 1.5
+      || endSec > durSec
+      || startSec < 0
+    ) {
+      logger.debug(`[ContentGrinder] Long-form clip validation failed for video ${video.id}: start=${startSec} end=${endSec} target=${targetSec}s`);
+      return 0;
+    }
+
+    const scheduledAt = await getOptimalLongFormScheduleTime(userId);
+    const title = String(parsed.title).substring(0, 90);
+    const description = String(parsed.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`).substring(0, 5000);
+
+    await db.insert(autopilotQueue).values({
+      userId,
+      sourceVideoId: video.id,
+      type: "auto-clip",
+      targetPlatform: "youtube",
+      content: description,
+      caption: title,
+      status: "scheduled",
+      scheduledAt,
+      metadata: {
+        contentType: "long-form-clip",
+        segmentStartSec: startSec,
+        segmentEndSec: endSec,
+        targetDurationSec: targetSec,
+        actualDurationSec: actualDurSec,
+        gameName,
+        sourceYoutubeId: youtubeId,
+        noCommentary: true,
+        contentQualityScore: parsed.contentQualityScore || 5,
+        reasonThisWorks: parsed.reasonThisWorks || "",
+        grinderGenerated: true,
+        lengthExperiment: true,
+        tags: ["no commentary", "PS5", gameName, "gaming", "gameplay", `${targetMin} minutes`],
+      },
+    });
+
+    // Mark this video as having had a long-form clip extracted
+    await storage.updateVideo(video.id, {
+      metadata: { ...meta, longFormClipExtractedAt: new Date().toISOString() },
+    });
+
+    logger.info(`[ContentGrinder] Long-form clip queued: video ${video.id} → ${targetMin}min clip [${startSec}s–${endSec}s] for "${sanitizeForPrompt(gameName, 50)}"`, { userId: userId.substring(0, 8), scheduledAt });
+    return 1;
+  } catch (err: any) {
+    logger.warn(`[${userId.substring(0, 8)}] Long-form clip extraction failed for video ${video.id}: ${err.message?.substring(0, 200)}`);
     return 0;
   }
 }
