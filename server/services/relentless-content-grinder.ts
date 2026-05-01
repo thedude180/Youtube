@@ -499,7 +499,7 @@ Return raw JSON only (no markdown):
         grinderGenerated: true,
         lengthExperiment: true,
         tags: ["no commentary", "PS5", gameName, "gaming", "gameplay", `${targetMin} minutes`],
-      },
+      } as any,
     });
 
     // Mark this video as having had a long-form clip extracted
