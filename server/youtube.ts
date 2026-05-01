@@ -854,6 +854,20 @@ export async function uploadVideoToYouTube(
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
+
+  // Resolve userId from channel row for quota tracking (non-fatal if lookup fails)
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
+  // Gate: enforce daily upload cap and unit budget (1600 units per videos.insert)
+  if (resolvedUserId && !(await canAffordOperation(resolvedUserId, "upload").catch(() => true))) {
+    throw Object.assign(new Error("YouTube upload quota cap reached — upload deferred until tomorrow"), { code: "QUOTA_CAP" });
+  }
+
   const { oauth2Client } = await getAuthenticatedClient(channelId);
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
   const { Readable } = await import("stream");
@@ -893,35 +907,44 @@ export async function uploadVideoToYouTube(
 
   const monetizationLabel = options.enableMonetization === true ? ", monetization: enabled" : "";
 
-  const response = await youtube.videos.insert({
-    part: ["snippet", "status"],
-    requestBody: {
-      snippet: {
-        title: cleanTitle,
-        description: cleanDescription,
-        tags: cleanTags,
-        categoryId: options.categoryId || "22",
-        defaultLanguage: "en",
+  try {
+    const response = await youtube.videos.insert({
+      part: ["snippet", "status"],
+      requestBody: {
+        snippet: {
+          title: cleanTitle,
+          description: cleanDescription,
+          tags: cleanTags,
+          categoryId: options.categoryId || "22",
+          defaultLanguage: "en",
+        },
+        status: statusBody,
       },
-      status: statusBody,
-    },
-    media: {
-      mimeType: "video/mp4",
-      body: mediaBody,
-    },
-  });
+      media: {
+        mimeType: "video/mp4",
+        body: mediaBody,
+      },
+    });
 
-  const youtubeId = response.data.id;
-  if (!youtubeId) {
-    throw new Error("YouTube upload succeeded but no video ID returned");
+    const youtubeId = response.data.id;
+    if (!youtubeId) {
+      throw new Error("YouTube upload succeeded but no video ID returned");
+    }
+
+    // Track the upload cost (1600 units) so the quota tracker stays accurate
+    if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "upload").catch(() => {});
+
+    return {
+      youtubeId,
+      title: response.data.snippet?.title || cleanTitle,
+      status: response.data.status?.privacyStatus || statusBody.privacyStatus,
+    };
+  } catch (err: any) {
+    if (markQuotaErrorFromResponse(err) && resolvedUserId) {
+      await persistQuotaExhaustion(resolvedUserId).catch(() => {});
+    }
+    throw err;
   }
-
-
-  return {
-    youtubeId,
-    title: response.data.snippet?.title || cleanTitle,
-    status: response.data.status?.privacyStatus || statusBody.privacyStatus,
-  };
 }
 
 export async function setYouTubeThumbnail(
