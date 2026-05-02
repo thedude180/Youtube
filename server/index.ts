@@ -949,6 +949,64 @@ async function healProductionPipeline(): Promise<void> {
     process.stdout.write(
       `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${botCount} HTTP-400 bot-detect failures → indexed, ${downloadedResetCount} stale-disk downloaded → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
     );
+
+    // 9. Catch-up: trigger the content maximizer on long-form catalog videos (≥60 min)
+    //    that never produced experiment clips because the previous durationSec bug caused
+    //    meta.duration ("PT10H7M21S") to shadow meta.durationSec (numeric seconds),
+    //    making all duration math produce NaN.  Run up to 6 videos per startup so we
+    //    don't spike the AI queue on every restart.
+    try {
+      const { videos: videosTable, channels: channelsTbl, autopilotQueue: aqTable } = await import("@shared/schema");
+      const { gte: gteOp2, inArray: inArrayOp } = await import("drizzle-orm");
+
+      // Join videos → channels to get userId; pick up to 6 random long-form (≥60 min) videos
+      const longFormVideos: Array<{ id: number; channelId: number; userId: string }> = await db
+        .select({
+          id: videosTable.id,
+          channelId: videosTable.channelId,
+          userId: channelsTbl.userId,
+        })
+        .from(videosTable)
+        .innerJoin(channelsTbl, eq(channelsTbl.id, videosTable.channelId))
+        .where(sql`(${videosTable.metadata}->>'durationSec')::float >= 3600`)
+        .orderBy(sql`RANDOM()`)
+        .limit(6);
+
+      const recency = new Date(Date.now() - 48 * 3600_000);
+      let maximizerCatchUpCount = 0;
+
+      for (const vid of longFormVideos) {
+        const { userId } = vid;
+        if (!userId) continue;
+
+        const existing = await db.select({ id: aqTable.id }).from(aqTable)
+          .where(and(
+            eq(aqTable.userId, userId),
+            eq(aqTable.sourceVideoId, vid.id),
+            sql`${aqTable.type} = 'auto-clip'`,
+            sql`(${aqTable.metadata}->>'maximizerGenerated')::boolean = true`,
+            gteOp2(aqTable.createdAt, recency),
+          )).limit(1);
+
+        if (existing.length > 0) continue;
+
+        import("./services/content-maximizer").then(({ maximizeContentFromVideo }) =>
+          maximizeContentFromVideo(userId, vid.id).then(r => {
+            if (r.longFormsQueued > 0 || r.experimentsCreated > 0) {
+              process.stdout.write(`[prod-heal] Maximizer catch-up: video ${vid.id} → ${r.longFormsQueued} long-forms, ${r.experimentsCreated} experiments\n`);
+            }
+          }).catch(() => undefined)
+        ).catch(() => undefined);
+
+        maximizerCatchUpCount++;
+      }
+
+      if (maximizerCatchUpCount > 0) {
+        process.stdout.write(`[prod-heal] Content maximizer catch-up: ${maximizerCatchUpCount} long-form videos queued for re-processing\n`);
+      }
+    } catch (catchUpErr: any) {
+      process.stdout.write(`[prod-heal] Warning: maximizer catch-up failed: ${catchUpErr?.message}\n`);
+    }
   } catch (err: any) {
     process.stdout.write(`[prod-heal] Warning during self-heal: ${err?.message}\n`);
   }

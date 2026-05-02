@@ -14,7 +14,17 @@ const NO_COMMENTARY_TITLE_SUFFIX = " | No Commentary";
 const NO_COMMENTARY_DESC_HEADER = "Pure PS5 gameplay — no commentary, no distractions. Just the game.\n\n";
 
 const SHORT_DURATIONS_TO_TEST = [15, 30, 45, 59];
-const LONG_FORM_DURATIONS_TO_TEST = [1200, 1800, 2700, 3600];
+const LONG_FORM_DURATIONS_TO_TEST = [480, 600, 900, 1200, 1800, 2700, 3600];
+
+function parseDurationSec(raw: any): number {
+  if (typeof raw === "number") return raw;
+  if (!raw || typeof raw !== "string") return 0;
+  const m = raw.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+  if (m) {
+    return (parseInt(m[1] || "0") * 3600) + (parseInt(m[2] || "0") * 60) + parseFloat(m[3] || "0");
+  }
+  return parseFloat(raw) || 0;
+}
 
 interface ExtractedMoment {
   startSec: number;
@@ -134,13 +144,20 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
   }
 
   const meta = (video.metadata as any) || {};
-  const durationSec = meta.duration || meta.durationSec || 0;
+  // Prefer numeric durationSec over ISO 8601 string (e.g. "PT10H7M21S") which
+  // caused NaN in all downstream math when meta.duration was evaluated first.
+  const durationSec = (typeof meta.durationSec === "number" && meta.durationSec > 0)
+    ? meta.durationSec
+    : parseDurationSec(meta.duration ?? meta.durationSeconds ?? 0);
   if (durationSec < 3600) {
     logger.info("Content maximizer: video under 60 min, skipping", { videoId, durationSec });
     return { shortsQueued: 0, longFormsQueued: 0, experimentsCreated: 0 };
   }
 
-  const youtubeId = meta.youtubeId || meta.youtubeVideoId;
+  // Accept youtubeId from several possible metadata keys, including a bare URL.
+  const rawYtUrl: string | undefined = meta.youtubeUrl || meta.youtube_url;
+  const youtubeId = meta.youtubeId || meta.youtubeVideoId
+    || (rawYtUrl ? (rawYtUrl.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1] ?? null) : null);
   if (!youtubeId) {
     logger.warn("Content maximizer: no YouTube ID", { videoId });
     return { shortsQueued: 0, longFormsQueued: 0, experimentsCreated: 0 };
