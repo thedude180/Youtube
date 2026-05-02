@@ -4507,6 +4507,8 @@ export const youtubeQuotaUsage = pgTable("youtube_quota_usage", {
   writeOps: integer("write_ops").notNull().default(0),
   searchOps: integer("search_ops").notNull().default(0),
   uploadOps: integer("upload_ops").notNull().default(0),
+  broadcastOps: integer("broadcast_ops").notNull().default(0),
+  livechatOps: integer("livechat_ops").notNull().default(0),
   quotaLimit: integer("quota_limit").notNull().default(10000),
   lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
 }, (table) => [

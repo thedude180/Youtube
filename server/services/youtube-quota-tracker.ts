@@ -113,15 +113,25 @@ const UPLOAD_RESERVE = 4000;
  * The unit-budget gate in canAffordOperation() is still the ultimate backstop.
  */
 const DAILY_OP_CAPS: Record<string, number> = {
-  upload:      4,
-  write:       20,
-  backlogWrite: 20,
-  thumbnail:   20,
-  broadcast:   20,   // 20 × 50 = 1,000 units — enough for live detection + chat startup
-  search:      3,
-  livechat:    60,   // 60 × 50 = 3,000 units — caps chat inserts so a 12-h stream can't drain the day
-  read:        Infinity,
-  list:        Infinity,
+  upload:       4,    //  4 × 1600 = 6,400 units — hard ceiling; always reserved for real uploads
+  write:        8,    //  8 ×   50 =   400 units — new content pushes
+  backlogWrite: 8,    //  8 ×   50 =   400 units — backlog optimisation
+  thumbnail:    6,    //  6 ×   50 =   300 units — AI thumbnails
+  broadcast:    12,   // 12 ×   50 =   600 units — live detection polling
+  search:       3,    //  3 ×  100 =   300 units — search.list (very expensive)
+  livechat:     24,   // 24 ×   50 = 1,200 units — AI chat (~2/h over a 12-h stream)
+  read:         Infinity,
+  list:         Infinity,
+  // ──────────────────────────────────────────────────────────────────────────
+  // Budget summary (worst case, all caps hit simultaneously):
+  //   uploads   4 × 1600 = 6,400
+  //   50-unit  (8+8+6+12+24) × 50 = 2,900
+  //   reads     ~1,000  (scanners at 90-min intervals)
+  //   search    3 × 100 =   300
+  //   safety buffer     =   200
+  //   ─────────────────────────────────────────
+  //   Total               10,800  (slack: the 4 upload slots rarely all hit)
+  //   Typical day w/ no stream: 6,400 + ~1,000 reads + 600 = ~8,000
 };
 
 interface DailyOpCounter {
@@ -229,10 +239,14 @@ export async function trackQuotaUsage(userId: string, operation: QuotaOperation,
     const cost = QUOTA_COSTS[operation] * count;
     const record = await getOrCreateDailyRecord(userId);
 
+    // Each operation type maps to its own dedicated DB column so restart
+    // restoration can accurately recover every per-type daily cap.
     const opField = operation === "read" || operation === "list" ? "readOps"
       : operation === "write" || operation === "backlogWrite" || operation === "thumbnail" ? "writeOps"
       : operation === "search" ? "searchOps"
-      : "uploadOps";
+      : operation === "broadcast" ? "broadcastOps"
+      : operation === "livechat" ? "livechatOps"
+      : "uploadOps"; // actual videos.insert (1600 units each)
 
     await db.update(youtubeQuotaUsage)
       .set({
@@ -417,32 +431,26 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       // Restore in-memory daily op counters from DB so post-deploy restarts
       // don't reset count caps to zero and allow another burst.
       //
-      // DB stores writeOps as write+thumbnail combined (no separate column).
-      // Seed both write and thumbnail conservatively with writeOps so neither
-      // cap is exceeded if the full writeOps budget was already spent on one type.
+      // Each operation type now has its own dedicated DB column, so restoration
+      // is exact — no heuristics or combined-column arithmetic needed.
+      //
+      // PREVIOUS BUG: broadcast and livechat ops were stored in the same
+      // `uploadOps` column as real video uploads.  On restart, the formula
+      // `counter.upload = min(uploadOps, 4)` set upload=4 once any 4+ broadcast
+      // calls had fired, permanently blocking all video uploads for the rest of
+      // the day — even though zero real uploads had occurred.  The new dedicated
+      // columns fix that entirely.
       const counter = getDailyOpCounter(userId);
+      counter.upload       = Math.min(record.uploadOps    ?? 0, DAILY_OP_CAPS.upload);
+      counter.broadcast    = Math.min(record.broadcastOps ?? 0, DAILY_OP_CAPS.broadcast);
+      counter.livechat     = Math.min(record.livechatOps  ?? 0, DAILY_OP_CAPS.livechat);
+      // writeOps stores write + backlogWrite + thumbnail combined (no separate column).
+      // Seed all three conservatively so a day that spent all writeOps on one type
+      // doesn't allow the others to fire again on restart.
       counter.write        = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.write);
       counter.backlogWrite = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.backlogWrite);
       counter.thumbnail    = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.thumbnail);
-      counter.search    = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
-      counter.upload    = Math.min(record.uploadOps ?? 0, DAILY_OP_CAPS.upload);
-
-      // Restore broadcast + livechat from DB.
-      //
-      // The DB `uploadOps` column stores the combined count of upload + broadcast +
-      // livechat operations (all go to the same DB field in trackQuotaUsage).
-      // Subtract the actual upload count to get the broadcast+livechat ops already fired.
-      //
-      // CONSERVATIVE RESTORE: both broadcast AND livechat are capped against the
-      // full nonUploadOps value (not nonUploadOps minus broadcast).  If the server
-      // restarts before the DB has fully flushed in-flight ops (a race condition),
-      // the old "subtract broadcast first" formula understated livechat usage and
-      // allowed another burst of ~50 × 50-unit chat inserts to fire.  Using the
-      // larger base ensures we never under-restore livechat at the cost of a few
-      // fewer AI chat messages — a safe trade.
-      const nonUploadOps = Math.max(0, (record.uploadOps ?? 0) - counter.upload);
-      counter.broadcast = Math.min(nonUploadOps, DAILY_OP_CAPS.broadcast);
-      counter.livechat  = Math.min(nonUploadOps, DAILY_OP_CAPS.livechat);
+      counter.search       = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
 
       const isExhausted = record.unitsUsed >= record.quotaLimit;
       const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;

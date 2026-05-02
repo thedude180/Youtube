@@ -24,7 +24,7 @@ interface UploadWatcherState {
 }
 
 const watcherSessions = new Map<string, UploadWatcherState>();
-const SCAN_INTERVAL_MIN = 45;   // base: ~45 minutes between upload checks
+const SCAN_INTERVAL_MIN = 90;   // base: ~90 minutes between upload checks (saves ~480 read units/day)
 const SCAN_INTERVAL_JITTER = 20; // ±20 minutes random jitter — looks organic, avoids pattern detection
 
 /** Returns a randomised delay between (base - jitter) and (base + jitter) minutes */

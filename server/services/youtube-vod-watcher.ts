@@ -19,7 +19,7 @@ interface WatcherState {
 }
 
 const watcherSessions = new Map<string, WatcherState>();
-const SCAN_INTERVAL_MIN = 60;    // base: ~60 minutes between VOD scans
+const SCAN_INTERVAL_MIN = 120;   // base: ~120 minutes between VOD scans (saves ~360 read units/day)
 const SCAN_INTERVAL_JITTER = 20; // ±20 minutes random jitter
 
 function nextScanDelayMs(): number {
