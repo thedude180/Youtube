@@ -21,6 +21,7 @@ import {
   getCachedLiveChatId,
 } from "./youtube-quota-tracker";
 
+import { isLiveActive } from "../lib/live-gate";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("live-revenue-activator");
@@ -186,7 +187,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
         if (cached.hit) {
           liveChatId = cached.liveChatId;
           (session as any).liveChatId = liveChatId;
-        } else if (await canAffordOperation(session.userId, "broadcast").catch(() => false)) {
+        } else if (isLiveActive() && await canAffordOperation(session.userId, "broadcast").catch(() => false)) {
           try {
             const res = await youtube.liveBroadcasts.list({
               part: ["snippet"],

@@ -957,9 +957,11 @@ async function healProductionPipeline(): Promise<void> {
     //    don't spike the AI queue on every restart.
     try {
       const { videos: videosTable, channels: channelsTbl, autopilotQueue: aqTable } = await import("@shared/schema");
-      const { gte: gteOp2, inArray: inArrayOp } = await import("drizzle-orm");
+      const { inArray: inArrayOp } = await import("drizzle-orm");
 
-      // Join videos → channels to get userId; pick up to 6 random long-form (≥60 min) videos
+      // Join videos → channels to get userId; pick up to 20 long-form (≥60 min) videos
+      // that have never been through the content maximizer, ordered randomly so a
+      // different batch is processed on each restart and the whole catalog gets covered.
       const longFormVideos: Array<{ id: number; channelId: number; userId: string }> = await db
         .select({
           id: videosTable.id,
@@ -970,22 +972,22 @@ async function healProductionPipeline(): Promise<void> {
         .innerJoin(channelsTbl, eq(channelsTbl.id, videosTable.channelId))
         .where(sql`(${videosTable.metadata}->>'durationSec')::float >= 3600`)
         .orderBy(sql`RANDOM()`)
-        .limit(6);
+        .limit(20);
 
-      const recency = new Date(Date.now() - 48 * 3600_000);
       let maximizerCatchUpCount = 0;
 
       for (const vid of longFormVideos) {
         const { userId } = vid;
         if (!userId) continue;
 
+        // Skip if this video already has ANY maximizer-generated clips (not just recent ones).
+        // This prevents re-processing the entire catalog on every restart.
         const existing = await db.select({ id: aqTable.id }).from(aqTable)
           .where(and(
             eq(aqTable.userId, userId),
             eq(aqTable.sourceVideoId, vid.id),
             sql`${aqTable.type} = 'auto-clip'`,
             sql`(${aqTable.metadata}->>'maximizerGenerated')::boolean = true`,
-            gteOp2(aqTable.createdAt, recency),
           )).limit(1);
 
         if (existing.length > 0) continue;

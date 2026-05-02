@@ -21,6 +21,7 @@ import {
   getCachedLiveChatId,
 } from "./youtube-quota-tracker";
 
+import { isLiveActive } from "../lib/live-gate";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("live-chat-agent");
@@ -50,6 +51,12 @@ async function getYouTubeClient(channelDbId: number) {
 }
 
 async function getLiveChatId(channelDbId: number, userId?: string): Promise<string | null> {
+  // Hard gate — never call the broadcast API when not streaming (saves 50 units per call)
+  if (!isLiveActive()) {
+    logger.debug(`[LiveChatAgent] Not live — skipping liveBroadcasts.list`);
+    return null;
+  }
+
   // Check shared cache first — live-status route may have already resolved this (saves 50 units)
   const cached = getCachedLiveChatId(channelDbId);
   if (cached.hit) return cached.liveChatId;

@@ -1,13 +1,32 @@
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue, contentExperiments } from "@shared/schema";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, sql, max } from "drizzle-orm";
 import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 
 const logger = createLogger("content-maximizer");
 const openai = getOpenAIClientBackground();
+
+/**
+ * Returns the timestamp (ms) of the latest already-scheduled item for this user,
+ * or Date.now() if none exists. Used to chain new schedules forward so each
+ * call to maximizeContentFromVideo() appends to the end of the queue rather
+ * than piling up from Date.now() and creating collisions.
+ */
+async function getLastScheduledSlotMs(userId: string): Promise<number> {
+  try {
+    const [row] = await db
+      .select({ latest: max(autopilotQueue.scheduledAt) })
+      .from(autopilotQueue)
+      .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "scheduled")));
+    const latest = row?.latest;
+    return latest ? Math.max(latest.getTime(), Date.now()) : Date.now();
+  } catch {
+    return Date.now();
+  }
+}
 
 const NO_COMMENTARY_TAGS = ["no commentary", "no commentary gameplay", "PS5 gameplay", "no talking", "ambient gameplay", "pure gameplay"];
 const NO_COMMENTARY_TITLE_SUFFIX = " | No Commentary";
@@ -202,6 +221,11 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     return { shortsQueued: 0, longFormsQueued: 0, experimentsCreated: 0 };
   }
 
+  // Anchor all new schedule slots to the END of the existing queue so this video's
+  // content chains forward rather than piling up at Date.now() and colliding with
+  // clips already scheduled from previous maximizer runs.
+  const anchorMs = await getLastScheduledSlotMs(userId);
+
   const shorts = moments.filter(m => m.type === "short");
   for (let i = 0; i < shorts.length; i++) {
     const moment = shorts[i];
@@ -209,7 +233,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     const actualDuration = Math.min(experimentDuration, moment.endSec - moment.startSec);
     const adjustedEnd = moment.startSec + actualDuration;
 
-    const scheduleTime = new Date(Date.now() + (i + 1) * 3600_000 + Math.random() * 1800_000);
+    const scheduleTime = new Date(anchorMs + (i + 1) * 3600_000 + Math.random() * 1800_000);
     const title = `${moment.title.substring(0, 80)}${NO_COMMENTARY_TITLE_SUFFIX} #Shorts`;
     const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#Shorts #PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")}`;
 
@@ -274,7 +298,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
         const endSec = Math.min(startSec + experimentDuration, durationSec);
         if (endSec - startSec < 600) continue;
 
-        const scheduleTime = new Date(Date.now() + (i + 1) * 86400_000 + Math.random() * 14400_000);
+        const scheduleTime = new Date(anchorMs + (i + 1) * 86400_000 + Math.random() * 14400_000);
         const partNum = i + 1;
         const title = `${sanitizeForPrompt(gameName)} Full Gameplay Part ${partNum}${NO_COMMENTARY_TITLE_SUFFIX}`;
         const description = `${NO_COMMENTARY_DESC_HEADER}${sanitizeForPrompt(gameName)} pure gameplay walkthrough — Part ${partNum}.\n\nTimestamps:\n0:00 Start\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")} #Gaming`;
@@ -332,7 +356,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     } else {
       for (let i = 0; i < longForms.length; i++) {
         const moment = longForms[i];
-        const scheduleTime = new Date(Date.now() + (i + 1) * 86400_000 + Math.random() * 14400_000);
+        const scheduleTime = new Date(anchorMs + (i + 1) * 86400_000 + Math.random() * 14400_000);
         const title = `${moment.title.substring(0, 80)}${NO_COMMENTARY_TITLE_SUFFIX}`;
         const description = `${NO_COMMENTARY_DESC_HEADER}${moment.reasoning}\n\nFrom: ${sanitizeForPrompt(video.title)}\n\n#PS5 #NoCommentary #${sanitizeForPrompt(gameName).replace(/\s+/g, "")}`;
 
