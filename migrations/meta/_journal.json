@@ -232,6 +232,13 @@
       "when": 1777532236133,
       "tag": "0032_gigantic_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1777744438474,
+      "tag": "0033_odd_silver_sable",
+      "breakpoints": true
     }
   ]
 }
