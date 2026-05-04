@@ -2,38 +2,89 @@ import { pgTable, serial, varchar, text, timestamp, jsonb, integer, boolean, rea
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const PIPELINE_STATUS = ["queued", "downloading", "analyzing", "clipping", "publishing", "done", "failed"] as const;
-export type PipelineStatus = (typeof PIPELINE_STATUS)[number];
+// ─── Pipeline Types ────────────────────────────────────────────────────────────
 
-export const CLIP_STATUS = ["pending", "ready", "published", "skipped"] as const;
-export type ClipStatus = (typeof CLIP_STATUS)[number];
+export const PIPELINE_TYPES = ["livestream", "content"] as const;
+export type PipelineType = (typeof PIPELINE_TYPES)[number];
 
-/** One full stream → content pipeline run. Created when a stream ends. */
+export const LIVESTREAM_STAGES = [
+  "detecting",    // YouTube API detected live stream
+  "announcing",   // cross-platform "going live" blasts
+  "live",         // stream in progress, periodic updates
+  "analyzing",    // stream ended, AI finding highlights in chat
+  "clipping",     // clip metadata generated per highlight
+  "distributing", // Shorts/clips queued to TikTok, Instagram, etc.
+  "promoting",    // cross-platform promo posts queued
+  "done",
+  "failed",
+] as const;
+
+export const CONTENT_STAGES = [
+  "queued",       // video landed (uploaded/downloaded)
+  "metadata",     // AI generating title, description, tags, thumbnail
+  "publishing",   // uploading to YouTube
+  "shorts",       // extracting Short teaser from video
+  "distributing", // Short going to TikTok, Instagram Reels
+  "promoting",    // cross-platform promo posts queued
+  "done",
+  "failed",
+] as const;
+
+export type LivestreamStage = (typeof LIVESTREAM_STAGES)[number];
+export type ContentStage = (typeof CONTENT_STAGES)[number];
+export type PipelineStage = LivestreamStage | ContentStage;
+
+// ─── Social Platform Roster ────────────────────────────────────────────────────
+
+export const SOCIAL_PLATFORMS = [
+  "youtube",
+  "youtube_shorts",
+  "tiktok",
+  "discord",
+  "twitter",
+  "instagram",
+  "reddit",
+  "facebook",
+  "twitch",
+  "kick",
+] as const;
+export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
+
+// ─── Tables ───────────────────────────────────────────────────────────────────
+
+/**
+ * One full pipeline run.
+ * - type="livestream": stream → clips → Shorts → distribute everywhere
+ * - type="content": video → metadata → YouTube → distribute everywhere
+ */
 export const pipelineRuns = pgTable("v2_pipeline_runs", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
-  streamId: integer("stream_id"),
+  type: varchar("type").$type<PipelineType>().notNull().default("content"),
+  currentStage: varchar("current_stage").notNull().default("queued"),
+  streamId: integer("stream_id"),          // set for livestream runs
+  videoId: integer("video_id"),            // set for content runs
   vodDownloadId: integer("vod_download_id"),
-  status: varchar("status").$type<PipelineStatus>().notNull().default("queued"),
-  platform: varchar("platform").notNull().default("youtube"),
-  vodUrl: text("vod_url"),
-  streamTitle: varchar("stream_title"),
-  streamGame: varchar("stream_game"),
+  contentTitle: varchar("content_title"),
+  contentGame: varchar("content_game"),
   durationSeconds: integer("duration_seconds"),
   clipCount: integer("clip_count").default(0),
-  publishedCount: integer("published_count").default(0),
+  postCount: integer("post_count").default(0),       // social posts queued
+  publishedCount: integer("published_count").default(0), // actually published
   errorMessage: text("error_message"),
+  stageLog: jsonb("stage_log").$type<Record<string, string>>().default({}), // stage → ISO timestamp
   aiInsights: jsonb("ai_insights").$type<Record<string, unknown>>().default({}),
   startedAt: timestamp("started_at").defaultNow(),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
   index("v2_pipeline_user_idx").on(t.userId),
-  index("v2_pipeline_status_idx").on(t.status),
+  index("v2_pipeline_type_idx").on(t.type),
+  index("v2_pipeline_stage_idx").on(t.currentStage),
   index("v2_pipeline_stream_idx").on(t.streamId),
 ]);
 
-/** An AI-identified highlight clip from a stream. */
+/** AI-identified highlight clip from a stream or content video. */
 export const pipelineClips = pgTable("v2_pipeline_clips", {
   id: serial("id").primaryKey(),
   runId: integer("run_id").notNull(),
@@ -44,47 +95,88 @@ export const pipelineClips = pgTable("v2_pipeline_clips", {
   description: text("description"),
   tags: text("tags").array().default([]),
   thumbnailConcept: text("thumbnail_concept"),
-  platform: varchar("platform").notNull().default("youtube"),
-  status: varchar("status").$type<ClipStatus>().notNull().default("pending"),
   aiScore: real("ai_score"),
-  publishedUrl: text("published_url"),
-  publishedAt: timestamp("published_at"),
+  clipFilePath: text("clip_file_path"),    // local file after ffmpeg extraction
+  youtubeShortUrl: text("youtube_short_url"),
+  tiktokUrl: text("tiktok_url"),
+  instagramUrl: text("instagram_url"),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
   index("v2_clips_run_idx").on(t.runId),
   index("v2_clips_user_idx").on(t.userId),
-  index("v2_clips_status_idx").on(t.status),
 ]);
 
-/** Cross-platform promotion posts generated from clips. */
-export const pipelinePromotions = pgTable("v2_pipeline_promotions", {
+/**
+ * Individual social post generated by the pipeline.
+ * One row per platform per pipeline run (or per clip for multi-clip runs).
+ */
+export const socialPosts = pgTable("v2_social_posts", {
   id: serial("id").primaryKey(),
   runId: integer("run_id").notNull(),
-  clipId: integer("clip_id"),
+  clipId: integer("clip_id"),              // null if promoting the full video
   userId: varchar("user_id").notNull(),
-  platform: varchar("platform").notNull(),
+  platform: varchar("platform").$type<SocialPlatform>().notNull(),
+  postType: varchar("post_type").notNull().default("promotion"), // promotion | clip | short | live-announce
   content: text("content").notNull(),
   mediaUrl: text("media_url"),
+  hashtagBlock: text("hashtag_block"),
+  crossPromoLinks: text("cross_promo_links"), // "▸ YouTube | ▸ TikTok | ▸ Discord"
+  status: varchar("status").notNull().default("pending"), // pending | queued | published | failed | skipped
+  platformPostId: varchar("platform_post_id"),
   scheduledAt: timestamp("scheduled_at"),
   publishedAt: timestamp("published_at"),
   autopilotQueueId: integer("autopilot_queue_id"),
+  errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("v2_promos_run_idx").on(t.runId),
-  index("v2_promos_user_idx").on(t.userId),
+  index("v2_sp_run_idx").on(t.runId),
+  index("v2_sp_user_idx").on(t.userId),
+  index("v2_sp_platform_idx").on(t.platform),
+  index("v2_sp_status_idx").on(t.status),
 ]);
+
+/** Performance analytics snapshot — pulled after 24h and 7d to feed back into AI. */
+export const contentAnalytics = pgTable("v2_content_analytics", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  runId: integer("run_id"),
+  platform: varchar("platform").$type<SocialPlatform>().notNull(),
+  platformPostId: varchar("platform_post_id"),
+  snapshotAt: timestamp("snapshot_at").defaultNow(),
+  views: integer("views").default(0),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  shares: integer("shares").default(0),
+  watchTimeSeconds: integer("watch_time_seconds").default(0),
+  ctr: real("ctr"),
+  retentionRate: real("retention_rate"),
+  followerDelta: integer("follower_delta").default(0),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (t) => [
+  index("v2_analytics_user_idx").on(t.userId),
+  index("v2_analytics_run_idx").on(t.runId),
+  index("v2_analytics_platform_idx").on(t.platform),
+]);
+
+// ─── Insert schemas + Types ────────────────────────────────────────────────────
 
 export const insertPipelineRunSchema = createInsertSchema(pipelineRuns)
   .omit({ id: true, createdAt: true })
-  .extend({ status: z.enum(PIPELINE_STATUS).optional() });
+  .extend({
+    type: z.enum(PIPELINE_TYPES).optional(),
+  });
 
-export const insertPipelineClipSchema = createInsertSchema(pipelineClips)
+export const insertSocialPostSchema = createInsertSchema(socialPosts)
   .omit({ id: true, createdAt: true })
-  .extend({ status: z.enum(CLIP_STATUS).optional() });
+  .extend({ platform: z.enum(SOCIAL_PLATFORMS) });
 
 export type PipelineRun = typeof pipelineRuns.$inferSelect;
 export type PipelineClip = typeof pipelineClips.$inferSelect;
-export type PipelinePromotion = typeof pipelinePromotions.$inferSelect;
+export type SocialPost = typeof socialPosts.$inferSelect;
+export type ContentAnalytics = typeof contentAnalytics.$inferSelect;
 export type InsertPipelineRun = z.infer<typeof insertPipelineRunSchema>;
-export type InsertPipelineClip = z.infer<typeof insertPipelineClipSchema>;
+export type InsertSocialPost = z.infer<typeof insertSocialPostSchema>;
+
+// Legacy alias (kept so existing code doesn't break)
+export type PipelinePromotion = SocialPost;

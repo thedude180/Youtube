@@ -1,12 +1,12 @@
 /**
- * Stream Service — manages stream lifecycle including YouTube live detection.
+ * Stream Service — YouTube live detection + lifecycle management.
  *
- * The stream watcher calls detectAndSync() on a periodic interval.
- * When a stream ends, it automatically triggers the post-stream pipeline.
+ * The stream watcher calls detectAndSync() every 2 minutes.
+ * On stream start → triggers LivestreamPipeline.onStreamLive (announce everywhere)
+ * On stream end  → triggers LivestreamPipeline.onStreamEnded (post-stream processing)
  */
 import { streamRepo } from "./repository.js";
 import { channelRepo } from "../channels/repository.js";
-import { pipelineService } from "../pipeline/service.js";
 import { sseEmit } from "../../core/sse.js";
 import { enqueue } from "../../core/job-queue.js";
 import { createLogger } from "../../core/logger.js";
@@ -25,13 +25,12 @@ interface YouTubeLiveStream {
 
 export class StreamService {
   /**
-   * Detect live status from YouTube for a user and sync to DB.
-   * Called by the stream-watcher service every 2 minutes.
+   * Check YouTube for live status and sync to DB.
+   * Called by stream-watcher service every 2 minutes for each user.
    */
   async detectAndSync(userId: string): Promise<void> {
     const channels = await channelRepo.findByUserId(userId);
     const ytChannel = channels.find((c) => c.platform === "youtube" && c.isActive && c.accessToken);
-
     if (!ytChannel) return;
 
     try {
@@ -39,7 +38,7 @@ export class StreamService {
       const activeStream = await streamRepo.findActiveStream(userId);
 
       if (live && !activeStream) {
-        // Stream just went live — create record and announce
+        // Stream just went live
         const stream = await streamRepo.createStream({
           userId,
           title: live.title,
@@ -52,16 +51,16 @@ export class StreamService {
         log.info("Live stream detected", { userId, streamId: stream.id, title: live.title });
         sseEmit(userId, "stream:live", { streamId: stream.id, title: live.title });
 
-        // Queue cross-platform "going live" announcements
-        await enqueue("stream.announce-live", {
-          userId,
+        // Trigger livestream pipeline: announce on all platforms
+        await enqueue("pipeline.livestream.going-live", {
           streamId: stream.id,
+          userId,
           title: live.title,
           game: live.game ?? "PS5",
         });
 
       } else if (!live && activeStream) {
-        // Stream just ended — update record and trigger pipeline
+        // Stream just ended
         const durationSeconds = activeStream.startedAt
           ? Math.floor((Date.now() - new Date(activeStream.startedAt).getTime()) / 1000)
           : 0;
@@ -73,18 +72,22 @@ export class StreamService {
           metadata: { ...((activeStream.metadata as any) ?? {}), endedByWatcher: true },
         });
 
-        log.info("Stream ended, triggering pipeline", { userId, streamId: activeStream.id });
+        log.info("Stream ended, triggering post-stream pipeline", { userId, streamId: activeStream.id });
         sseEmit(userId, "stream:ended", { streamId: activeStream.id });
 
-        // Trigger post-stream pipeline
-        const run = await pipelineService.startPipeline(activeStream.id, userId);
-        await enqueue("pipeline.execute", { runId: run.id });
+        // Trigger post-stream pipeline via queue
+        await enqueue("pipeline.livestream.post-stream-init", {
+          streamId: activeStream.id,
+          userId,
+          title: activeStream.title ?? "Gaming Stream",
+          game: (activeStream.metadata as any)?.game ?? "PS5",
+          durationSeconds,
+        });
       }
 
     } catch (err: any) {
-      // YouTube API errors are non-fatal — watcher continues for other users
       if (err.status === 401 || err.status === 403) {
-        log.warn("YouTube token expired for user", { userId });
+        log.warn("YouTube token expired", { userId });
       } else {
         log.error("YouTube live check failed", { userId, error: err.message });
       }
@@ -104,7 +107,7 @@ export class StreamService {
     });
 
     if (!resp.ok) {
-      const err: any = new Error(`YouTube API error: ${resp.status}`);
+      const err: any = new Error(`YouTube API ${resp.status}`);
       err.status = resp.status;
       throw err;
     }
@@ -117,40 +120,9 @@ export class StreamService {
       id: item.id,
       title: item.snippet?.title ?? "Live Stream",
       game: item.snippet?.categoryId ?? null,
-      viewerCount: item.liveStreamingDetails?.concurrentViewers ?? 0,
+      viewerCount: Number(item.liveStreamingDetails?.concurrentViewers ?? 0),
       startedAt: new Date(item.liveStreamingDetails?.actualStartTime ?? Date.now()),
     };
-  }
-
-  /**
-   * Generate a cross-platform "going live" announcement.
-   * Called by the stream.announce-live worker.
-   */
-  async announceLive(streamId: number, userId: string, title: string, game: string): Promise<void> {
-    const channels = await channelRepo.findByUserId(userId);
-    const discord = channels.find((c) => c.platform === "discord" && c.isActive);
-
-    if (discord) {
-      const announcement = `🔴 **${title}** is now LIVE!\n\nWatching some ${game} gameplay right now. Come hang!\n\nYouTube → https://youtube.com/@etgaming247`;
-
-      await enqueue("autopilot.execute-post", {
-        userId,
-        queueItemId: -1, // will be replaced after enqueue
-      });
-
-      // Directly enqueue via autopilot
-      const { autopilotRepo } = await import("../autopilot/repository.js");
-      const item = await autopilotRepo.enqueue({
-        userId,
-        platform: "discord",
-        contentType: "post",
-        payload: { text: announcement },
-        status: "pending",
-      });
-
-      await enqueue("autopilot.execute-post", { queueItemId: item.id, userId });
-      log.info("Live announcement queued", { userId, streamId, platform: "discord" });
-    }
   }
 }
 

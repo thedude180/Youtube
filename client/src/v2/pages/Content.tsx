@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Sparkles, Plus, Search } from "lucide-react";
+import { Loader2, Sparkles, Plus, Scissors } from "lucide-react";
 import { apiRequest } from "../lib/queryClient";
 import { useSSE } from "../hooks/use-sse";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-zinc-500",
@@ -21,8 +22,10 @@ const STATUS_COLORS: Record<string, string> = {
 export default function Content() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("videos");
   const [generatingId, setGeneratingId] = useState<number | null>(null);
+  const [pipeliningId, setPipeliningId] = useState<number | null>(null);
 
   const { data: videosData, isLoading: videosLoading } = useQuery<{ items: any[]; total: number }>({
     queryKey: ["/api/content/videos"],
@@ -36,8 +39,18 @@ export default function Content() {
     mutationFn: (videoId: number) => apiRequest("POST", `/api/content/videos/${videoId}/generate-metadata`),
     onSuccess: (_data, videoId) => {
       setGeneratingId(videoId);
-      toast({ title: "Generating metadata…", description: "You'll be notified when it's ready." });
+      toast({ title: "Generating metadata…", description: "You'll be notified when ready." });
     },
+  });
+
+  const runPipelineMutation = useMutation({
+    mutationFn: (videoId: number) => apiRequest("POST", `/api/pipeline/content/trigger/${videoId}`),
+    onSuccess: (_data, videoId) => {
+      setPipeliningId(videoId);
+      toast({ title: "Content pipeline started!", description: "AI is generating metadata and scheduling cross-platform posts." });
+      setTimeout(() => navigate("/pipeline"), 1500);
+    },
+    onError: () => setPipeliningId(null),
   });
 
   const generateIdeasMutation = useMutation({
@@ -50,13 +63,14 @@ export default function Content() {
     "content:metadata-ready": (data: any) => {
       setGeneratingId(null);
       qc.invalidateQueries({ queryKey: ["/api/content/videos"] });
-      qc.invalidateQueries({ queryKey: [`/api/content/videos/${data.videoId}/drafts`] });
-      toast({ title: "Metadata ready", description: `${data.titles?.[0] ?? "Titles generated"}` });
+      toast({ title: "Metadata ready", description: data.titles?.[0] ?? "Done" });
     },
     "content:ideas-ready": () => {
       qc.invalidateQueries({ queryKey: ["/api/content/ideas"] });
       toast({ title: "Content ideas ready!" });
     },
+    "pipeline:done": () => setPipeliningId(null),
+    "pipeline:failed": () => setPipeliningId(null),
   });
 
   return (
@@ -91,7 +105,9 @@ export default function Content() {
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{v.title}</p>
-                      <p className="text-xs text-muted-foreground">{v.game ?? "Unknown game"} · {v.viewCount?.toLocaleString() ?? 0} views</p>
+                      <p className="text-xs text-muted-foreground">
+                        {v.game ?? "Unknown game"} · {v.viewCount?.toLocaleString() ?? 0} views
+                      </p>
                     </div>
                     <Badge
                       className={`${STATUS_COLORS[v.status] ?? ""} text-white border-0 capitalize text-xs`}
@@ -99,18 +115,33 @@ export default function Content() {
                     >
                       {v.status}
                     </Badge>
+                    {/* AI Metadata */}
                     <Button
                       size="sm"
                       variant="outline"
+                      title="Generate AI metadata"
                       disabled={generatingId === v.id || generateMetaMutation.isPending}
                       onClick={() => generateMetaMutation.mutate(v.id)}
                       data-testid={`btn-generate-meta-${v.id}`}
                     >
-                      {generatingId === v.id ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-3 h-3" />
-                      )}
+                      {generatingId === v.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Sparkles className="w-3 h-3" />
+                      }
+                    </Button>
+                    {/* Run full pipeline */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title="Run full content pipeline — metadata + YouTube + cross-platform"
+                      disabled={pipeliningId === v.id || runPipelineMutation.isPending}
+                      onClick={() => runPipelineMutation.mutate(v.id)}
+                      data-testid={`btn-pipeline-${v.id}`}
+                    >
+                      {pipeliningId === v.id
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Scissors className="w-3 h-3" />
+                      }
                     </Button>
                   </div>
                 </CardContent>
@@ -136,7 +167,10 @@ export default function Content() {
               disabled={generateIdeasMutation.isPending}
               data-testid="btn-generate-ideas"
             >
-              {generateIdeasMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {generateIdeasMutation.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Sparkles className="w-4 h-4" />
+              }
               Generate
             </Button>
           </div>

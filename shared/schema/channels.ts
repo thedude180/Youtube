@@ -2,7 +2,7 @@ import { pgTable, serial, varchar, text, boolean, timestamp, jsonb, index, uniqu
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const PLATFORMS = ["youtube", "tiktok", "discord", "twitch", "kick"] as const;
+export const PLATFORMS = ["youtube", "tiktok", "discord", "twitch", "kick", "twitter", "instagram", "reddit", "facebook"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export const channels = pgTable("v2_channels", {
