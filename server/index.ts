@@ -146,6 +146,102 @@ async function clearVault(): Promise<void> {
   }
 }
 
+// ── PRODUCTION DISK WATCHDOG ──────────────────────────────────────────────────
+// When vault/ fills the container disk Replit can no longer write its identity
+// token to /tmp → all connector-proxied connections (Google OAuth, AI keys, etc.)
+// fail with 401.  This watchdog evicts the LARGEST non-protected downloaded
+// files whenever free space drops below PROD_DISK_MIN_GB, keeping at least
+// PROD_DISK_TARGET_GB free.  It runs on startup and every 30 minutes.
+//
+// Only runs in production — dev uses clearVault() above.
+
+const PROD_DISK_MIN_GB = 4;      // start evicting below this
+const PROD_DISK_TARGET_GB = 6;   // evict until this much is free
+
+async function getProdFreeSpaceGB(): Promise<number> {
+  try {
+    const { execFile } = await import("child_process");
+    const { promisify } = await import("util");
+    const execFileAsync = promisify(execFile);
+    const { stdout } = await execFileAsync("df", ["--output=avail", "-B1", "/"], { timeout: 5000 });
+    const lines = stdout.trim().split("\n");
+    return parseInt(lines[lines.length - 1].trim(), 10) / (1024 * 1024 * 1024);
+  } catch { return 999; }
+}
+
+async function prodDiskWatchdog(): Promise<void> {
+  if (process.env.NODE_ENV !== "production") return;
+  try {
+    const freeGB = await getProdFreeSpaceGB();
+    if (freeGB >= PROD_DISK_MIN_GB) return; // nothing to do
+
+    process.stdout.write(`[disk-watchdog] ⚠ Only ${freeGB.toFixed(1)} GB free — evicting vault files\n`);
+
+    // Build protected set (permanent retention rows in DB)
+    const protectedPaths = new Set<string>();
+    try {
+      const { contentVaultBackups: cvb } = await import("@shared/schema");
+      const { eq, and, isNotNull } = await import("drizzle-orm");
+      const rows = await db.select({ filePath: cvb.filePath })
+        .from(cvb)
+        .where(and(eq(cvb.permanentRetention, true), isNotNull(cvb.filePath)));
+      for (const r of rows) if (r.filePath) protectedPaths.add(path.resolve(r.filePath));
+    } catch { /* schema may differ — skip protection check */ }
+
+    // Collect all video files across vault/ and working dirs, sorted largest first
+    const videoDirs = [
+      path.resolve(process.cwd(), "vault"),
+      path.resolve(process.cwd(), "clips"),
+      path.resolve(process.cwd(), "reels"),
+      path.resolve(process.cwd(), "recordings"),
+      path.resolve(process.cwd(), "streams"),
+      path.resolve(process.cwd(), "downloads"),
+      path.resolve(process.cwd(), "data", "stream-editor"),
+      path.resolve(process.cwd(), "data", "studio"),
+    ];
+
+    const candidates: { p: string; size: number }[] = [];
+    for (const dir of videoDirs) {
+      if (!fs.existsSync(dir)) continue;
+      for (const entry of fs.readdirSync(dir, { recursive: true } as any)) {
+        const full = path.join(dir, String(entry));
+        if (protectedPaths.has(path.resolve(full))) continue;
+        try {
+          const st = fs.statSync(full);
+          if (st.isFile()) candidates.push({ p: full, size: st.size });
+        } catch { /* skip */ }
+      }
+    }
+    candidates.sort((a, b) => b.size - a.size); // largest first
+
+    let evicted = 0;
+    let evictedBytes = 0;
+    for (const { p, size } of candidates) {
+      const nowFree = await getProdFreeSpaceGB();
+      if (nowFree >= PROD_DISK_TARGET_GB) break;
+      try {
+        fs.unlinkSync(p);
+        evicted++;
+        evictedBytes += size;
+        // Mark as "indexed" in DB so it will re-download when needed
+        try {
+          const { contentVaultBackups: cvb } = await import("@shared/schema");
+          const { eq } = await import("drizzle-orm");
+          await db.update(cvb)
+            .set({ status: "indexed", filePath: null, downloadedAt: null })
+            .where(eq(cvb.filePath, p));
+        } catch { /* best-effort */ }
+      } catch { /* locked or already gone */ }
+    }
+
+    const freed = (evictedBytes / (1024 * 1024 * 1024)).toFixed(2);
+    const nowFree = await getProdFreeSpaceGB();
+    process.stdout.write(`[disk-watchdog] Evicted ${evicted} file(s), freed ~${freed} GB → ${nowFree.toFixed(1)} GB free\n`);
+  } catch (err: any) {
+    process.stdout.write(`[disk-watchdog] Error: ${err?.message}\n`);
+  }
+}
+
 // ── DEV FULL PIPELINE RESET ───────────────────────────────────────────────────
 // In DEVELOPMENT: on every startup, wipe all pipeline DB rows so the dev
 // environment always begins from a clean slate. Channel tokens, user accounts,
@@ -1015,6 +1111,7 @@ async function healProductionPipeline(): Promise<void> {
 }
 
 clearVault(); // wipe vault files (dev only)
+prodDiskWatchdog(); // evict large files if disk is critically low (prod only)
 resetDevPipelineData().then(() => {
   // Seed fake data immediately after the pipeline wipe so the UI always
   // boots into a fully-populated, testable state in dev. No-op in production.
@@ -1042,6 +1139,7 @@ import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {}
 // don't permanently block publishing via the pre-flight gate.
 import("./services/compliance-drift-detector").then(m => m.autoResolveStaleDetectedDrifts()).catch(() => {});
 setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
+setInterval(prodDiskWatchdog, jitter(30 * 60 * 1000)); // evict files when disk low every 30 min (prod only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { healthBrain } from "./services/health-brain";
