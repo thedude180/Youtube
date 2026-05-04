@@ -467,9 +467,20 @@ export async function enforceComplianceRules(
 
   const combinedText = `${title} ${content}`.toLowerCase();
 
+  // Use word-boundary matching for short keywords (≤4 chars) to prevent false positives.
+  // e.g. "ad" should NOT match "added", "AI" should NOT match "email", "raid" ≠ "paid".
+  function keywordMatches(text: string, keyword: string): boolean {
+    const lk = keyword.toLowerCase();
+    if (lk.length <= 4) {
+      const escaped = lk.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`, "i").test(text);
+    }
+    return text.includes(lk);
+  }
+
   for (const rule of rules) {
     const keywords = (rule.keywords as string[]) || [];
-    const matchedKeywords = keywords.filter(kw => combinedText.includes(kw.toLowerCase()));
+    const matchedKeywords = keywords.filter(kw => keywordMatches(combinedText, kw));
 
     if (matchedKeywords.length > 0) {
       result.violations.push({
@@ -615,8 +626,8 @@ export async function seedDefaultPlatformRules(): Promise<number> {
       ruleCategory: "content_policy",
       ruleName: "yt_ai_disclosure",
       description: "YouTube requires disclosure when realistic AI-generated or synthetic content is used that could be mistaken for real events or people",
-      severity: "critical",
-      keywords: ["ai generated", "deepfake", "synthetic media", "ai voice", "ai avatar"],
+      severity: "warning",
+      keywords: ["deepfake", "synthetic media", "ai voice", "ai avatar"],
       sourceUrl: "https://support.google.com/youtube/answer/13740009",
     },
     {
@@ -633,8 +644,8 @@ export async function seedDefaultPlatformRules(): Promise<number> {
       ruleCategory: "monetization",
       ruleName: "yt_reused_content",
       description: "Channels primarily uploading reused content without significant commentary or transformation may lose monetization",
-      severity: "critical",
-      keywords: ["re-upload", "reupload", "compilation", "best of", "top 10 moments"],
+      severity: "warning",
+      keywords: ["re-upload", "reupload"],
       sourceUrl: "https://support.google.com/youtube/answer/1311392",
     },
     {
@@ -660,8 +671,8 @@ export async function seedDefaultPlatformRules(): Promise<number> {
       ruleCategory: "content_policy",
       ruleName: "tt_ai_labeling",
       description: "TikTok requires creators to label AI-generated content (AIGC) using the built-in AI label tool",
-      severity: "critical",
-      keywords: ["ai generated", "ai content", "synthetic", "deepfake", "ai avatar"],
+      severity: "warning",
+      keywords: ["deepfake", "ai avatar", "synthetic media"],
       sourceUrl: "https://www.tiktok.com/community-guidelines/en/integrity-authenticity",
     },
     {

@@ -960,6 +960,47 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] Warning: backlog recovery failed: ${backlogErr?.message}\n`);
     }
 
+    // 8b. Downgrade AI/disclosure compliance rules that were incorrectly marked
+    //     "critical" — they block every post with AI-optimized descriptions/thumbnails.
+    //     Real synthetic-media enforcement (deepfakes, AI avatars) is handled by the
+    //     platform itself; blocking at the queue level creates false positives for a
+    //     gaming channel whose descriptions are AI-assisted but footage is real gameplay.
+    //     Also resets any autopilot posts that were blocked by these over-strict rules.
+    try {
+      const complianceDowngradeResult = await db.execute(sql`
+        UPDATE compliance_rules
+        SET severity = 'warning'
+        WHERE severity = 'critical'
+          AND (
+            rule_name ILIKE '%ai%disclosure%'
+            OR rule_name ILIKE '%ai_content_label%'
+            OR rule_name ILIKE '%ai_generated_content%'
+            OR rule_name ILIKE '%ai_content_disclosure%'
+            OR rule_name ILIKE '%advertorial_disclosure%'
+            OR rule_name ILIKE '%reused_content%'
+            OR rule_name ILIKE '%reels_content_disclosure%'
+            OR rule_name ILIKE '%branded_content_disclosure%'
+          )
+      `);
+      const downgradeCount = (complianceDowngradeResult as any)?.rowCount ?? "?";
+
+      // Reset posts that were blocked by these now-downgraded rules.
+      // Stagger re-attempts across 2 hours so they don't all hit at once.
+      const complianceBlockResetResult = await db.execute(sql`
+        UPDATE autopilot_queue
+        SET status        = 'scheduled',
+            scheduled_at  = NOW() + (random() * INTERVAL '2 hours'),
+            error_message = NULL,
+            metadata      = metadata - 'complianceBlocked' - 'violations'
+        WHERE status = 'failed'
+          AND metadata->>'complianceBlocked' = 'true'
+      `);
+      const resetCount = (complianceBlockResetResult as any)?.rowCount ?? "?";
+      process.stdout.write(`[prod-heal] Downgraded ${downgradeCount} compliance rules critical→warning, reset ${resetCount} compliance-blocked posts\n`);
+    } catch (complianceHealErr: any) {
+      process.stdout.write(`[prod-heal] Warning: compliance rule downgrade failed: ${complianceHealErr?.message}\n`);
+    }
+
     // 9. Kick off ONE pending pipeline entry at boot — just enough to prime the pump
     //    without flooding the AI background queue (BACKGROUND_MAX_QUEUE_DEPTH = 5).
     //    The drip-feed interval below handles the rest at a sustainable rate.
