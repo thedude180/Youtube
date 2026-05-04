@@ -40,6 +40,13 @@ export class AutopilotRepository {
     );
   }
 
+  async findById(id: number): Promise<AutopilotQueueItem | null> {
+    return withRetry(async () => {
+      const rows = await db.select().from(autopilotQueue).where(eq(autopilotQueue.id, id)).limit(1);
+      return rows[0] ?? null;
+    }, "autopilot.findById");
+  }
+
   async cancelItem(id: number, userId: string): Promise<void> {
     await withRetry(
       () => db.update(autopilotQueue).set({ status: "cancelled", updatedAt: new Date() }).where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId))),

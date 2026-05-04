@@ -13,9 +13,62 @@ const OAUTH_CONFIGS: Record<string, {
   clientIdEnv: string;
   clientSecretEnv: string;
   requiresPKCE?: boolean;
+  tokenAuthMethod?: "body" | "basic";
   userInfoUrl?: string;
   parseUserId?: (data: any) => { id: string; username: string; displayName?: string };
 }> = {
+  youtube: {
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    scopes: [
+      "https://www.googleapis.com/auth/youtube",
+      "https://www.googleapis.com/auth/youtube.upload",
+      "https://www.googleapis.com/auth/youtube.force-ssl",
+    ],
+    clientIdEnv: "GOOGLE_CLIENT_ID",
+    clientSecretEnv: "GOOGLE_CLIENT_SECRET",
+    userInfoUrl: "https://www.googleapis.com/oauth2/v3/userinfo",
+    parseUserId: (d) => ({ id: d.sub, username: d.email ?? d.sub, displayName: d.name }),
+  },
+  twitter: {
+    authUrl: "https://twitter.com/i/oauth2/authorize",
+    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+    clientIdEnv: "TWITTER_CLIENT_ID",
+    clientSecretEnv: "TWITTER_CLIENT_SECRET",
+    requiresPKCE: true,
+    tokenAuthMethod: "basic",
+    userInfoUrl: "https://api.twitter.com/2/users/me",
+    parseUserId: (d) => ({ id: d.data.id, username: d.data.username, displayName: d.data.name }),
+  },
+  instagram: {
+    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
+    scopes: ["instagram_basic", "instagram_content_publish", "pages_read_engagement", "pages_show_list"],
+    clientIdEnv: "INSTAGRAM_CLIENT_ID",
+    clientSecretEnv: "INSTAGRAM_CLIENT_SECRET",
+    userInfoUrl: "https://graph.facebook.com/v19.0/me?fields=id,name",
+    parseUserId: (d) => ({ id: d.id, username: d.name, displayName: d.name }),
+  },
+  reddit: {
+    authUrl: "https://www.reddit.com/api/v1/authorize",
+    tokenUrl: "https://www.reddit.com/api/v1/access_token",
+    scopes: ["identity", "submit", "read"],
+    clientIdEnv: "REDDIT_CLIENT_ID",
+    clientSecretEnv: "REDDIT_CLIENT_SECRET",
+    tokenAuthMethod: "basic",
+    userInfoUrl: "https://oauth.reddit.com/api/v1/me",
+    parseUserId: (d) => ({ id: d.id, username: d.name, displayName: d.name }),
+  },
+  facebook: {
+    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
+    scopes: ["pages_manage_posts", "pages_read_engagement", "pages_show_list"],
+    clientIdEnv: "FACEBOOK_CLIENT_ID",
+    clientSecretEnv: "FACEBOOK_CLIENT_SECRET",
+    userInfoUrl: "https://graph.facebook.com/v19.0/me?fields=id,name",
+    parseUserId: (d) => ({ id: d.id, username: d.name, displayName: d.name }),
+  },
   twitch: {
     authUrl: "https://id.twitch.tv/oauth2/authorize",
     tokenUrl: "https://id.twitch.tv/oauth2/token",
@@ -78,13 +131,18 @@ export class ChannelsService {
       codeChallenge = crypto.createHash("sha256").update(codeVerifier).digest("base64url");
     }
 
+    const extraParams: Record<string, string> = {};
+    if (platform === "youtube") { extraParams.access_type = "offline"; extraParams.prompt = "consent"; }
+    if (platform === "reddit") { extraParams.duration = "permanent"; }
+
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: getRedirectUri(platform),
       response_type: "code",
-      scope: config.scopes.join(" "),
+      scope: config.scopes.join(platform === "reddit" ? " " : " "),
       state,
       ...(codeChallenge ? { code_challenge: codeChallenge, code_challenge_method: "S256" } : {}),
+      ...extraParams,
     });
 
     return { url: `${config.authUrl}?${params}`, state, codeVerifier };
@@ -103,17 +161,23 @@ export class ChannelsService {
     const clientSecret = process.env[config.clientSecretEnv];
     if (!clientId || !clientSecret) throw badRequest(`${platform} OAuth credentials not configured`);
 
+    const tokenBody = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: getRedirectUri(platform),
+      ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
+      ...(config.tokenAuthMethod === "basic" ? { client_id: clientId } : { client_id: clientId, client_secret: clientSecret }),
+    });
+
+    const tokenHeaders: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+    if (config.tokenAuthMethod === "basic") {
+      tokenHeaders["Authorization"] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`;
+    }
+
     const tokenRes = await fetch(config.tokenUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        redirect_uri: getRedirectUri(platform),
-        ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
-      }),
+      headers: tokenHeaders,
+      body: tokenBody,
     });
 
     if (!tokenRes.ok) throw badRequest(`Token exchange failed for ${platform}`);

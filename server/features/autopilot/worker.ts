@@ -15,16 +15,14 @@ export function registerAutopilotWorkers(): void {
         const { queueItemId, userId } = job.data;
         log.info("Executing autopilot post", { queueItemId });
 
-        await autopilotRepo.updateStatus(queueItemId, "processing");
-        await autopilotRepo.incrementAttempts(queueItemId);
-
-        const items = await autopilotRepo.listQueue(userId);
-        const item = items.find((i) => i.id === queueItemId);
-
-        if (!item) {
-          log.warn("Queue item not found or no longer pending", { queueItemId });
+        const item = await autopilotRepo.findById(queueItemId);
+        if (!item || item.status === "published" || item.status === "cancelled") {
+          log.warn("Queue item not found or already processed", { queueItemId });
           continue;
         }
+
+        await autopilotRepo.updateStatus(queueItemId, "processing");
+        await autopilotRepo.incrementAttempts(queueItemId);
 
         try {
           const platformPostId = await autopilotService.executePost(item);

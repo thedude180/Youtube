@@ -45,6 +45,7 @@ import { registerPipelineWorkers } from "./features/pipeline/worker.js";
 import { registerStreamWorkers } from "./features/stream/worker.js";
 
 import { startStreamWatcher, stopStreamWatcher } from "./services/stream-watcher.js";
+import { startAutopilotScheduler, stopAutopilotScheduler } from "./services/v2-autopilot-scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -102,6 +103,7 @@ async function main() {
 
   // Start autonomous background services
   startStreamWatcher();
+  startAutopilotScheduler();
 
   // 8. Static / SPA serving
   if (isProd) {
@@ -134,6 +136,7 @@ async function main() {
   async function shutdown(signal: string) {
     log.info(`Shutting down (${signal})`);
     stopStreamWatcher();
+    stopAutopilotScheduler();
     server.close();
     await stopJobQueue();
     await pool.end();
