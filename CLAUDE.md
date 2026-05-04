@@ -155,6 +155,61 @@ attached_assets/                  User uploads, importable via @assets/...
 
 ---
 
+## 4b. Running Outside Replit (Claude Code / Local Dev)
+
+This project was built on Replit but is fully portable. Here is what you need to run it locally or in any other environment.
+
+### Prerequisites
+- Node.js 20+
+- PostgreSQL 15+ (local or remote)
+- `yt-dlp` binary on your PATH (used by the video vault for downloads)
+  - Install: `pip install yt-dlp` or download from https://github.com/yt-dlp/yt-dlp/releases
+
+### Setup
+
+```bash
+git clone https://github.com/thedude180/Youtube.git creatoros
+cd creatoros
+npm install
+cp .env.example .env
+# Fill in .env — see comments in that file for each variable
+npm run db:push      # Creates all tables in your Postgres DB
+npm run dev          # Starts on http://localhost:5000
+```
+
+### Environment variables to set in .env
+
+Every variable is documented in `.env.example`. The critical ones for local dev:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string |
+| `OPENAI_API_KEY` | Required — used by all AI engines |
+| `ANTHROPIC_API_KEY` | Required — secondary AI client |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | YouTube OAuth |
+| `GOOGLE_REDIRECT_URI` | Set to `http://localhost:5000/api/youtube/callback` for local dev |
+| `SESSION_SECRET` | Any long random string |
+
+### Replit-specific services
+
+Two integrations use Replit's connector proxy and behave differently outside Replit:
+
+| Service | Replit behaviour | Outside Replit |
+|---|---|---|
+| **Gmail** (digest emails) | Auto-proxied via `REPLIT_CONNECTORS_HOSTNAME` | Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` in `.env` |
+| **Stripe** | Auto-proxied via `REPLIT_CONNECTORS_HOSTNAME` | Set `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` in `.env` |
+
+Both services degrade gracefully — the app runs fine without them, you just won't get digest emails or Stripe billing.
+
+### What `REPLIT_DEPLOYMENT` / `REPLIT_DEV_DOMAIN` do
+
+Several redirect URIs and "is production?" checks reference these. Outside Replit:
+- Set `NODE_ENV=production` to enable production behaviour
+- Set `GOOGLE_REDIRECT_URI` explicitly to override all OAuth redirect construction
+- The app falls back to `localhost:5000` automatically for local dev
+
+---
+
 ## 5. The Most Important Rules
 
 ### 5a. Data Model
