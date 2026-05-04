@@ -314,14 +314,17 @@ export async function registerPlatformRoutes(app: Express) {
           .limit(1);
       }
 
-      const ch = rows[0];
-      if (!ch) return res.status(404).json({ error: "No real YouTube channel found in the database" });
+      // Use the found channel's userId, or fall back to the known ET Gaming userId directly.
+      // The OAuth callback will create a new channel row if none exists — so we can always
+      // proceed with OAuth even when all channel rows have been deleted.
+      const targetUserId = rows[0]?.userId ?? ET_GAMING_USER_ID;
+      const channelLabel = rows[0] ? `channel ${rows[0].id} (${rows[0].channelName})` : "new channel (no existing row — will be created)";
 
-      (req.session as any).youtubeOAuthUserId = ch.userId;
+      (req.session as any).youtubeOAuthUserId = targetUserId;
 
       const { getAuthUrl } = await import("../youtube");
-      const authUrl = getAuthUrl(ch.userId);
-      logger.warn(`[AdminReconnect] Auto-reconnecting YouTube channel ${ch.id} (${ch.channelName}) on behalf of user ${ch.userId}`);
+      const authUrl = getAuthUrl(targetUserId);
+      logger.warn(`[AdminReconnect] Auto-reconnecting YouTube ${channelLabel} on behalf of user ${targetUserId}`);
       logger.info(`[AdminReconnect] Redirect URI in use: ${process.env.GOOGLE_REDIRECT_URI || "(fallback)"}`);
 
       await new Promise<void>((resolve) => req.session.save(() => resolve()));
