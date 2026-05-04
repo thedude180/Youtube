@@ -60,7 +60,9 @@ export const chatTopics = pgTable("v2_chat_topics", {
   startedAt: timestamp("started_at").defaultNow(),
 });
 
-export const insertStreamSchema = createInsertSchema(streams).omit({ id: true, createdAt: true });
+export const insertStreamSchema = createInsertSchema(streams)
+  .omit({ id: true, createdAt: true })
+  .extend({ status: z.enum(STREAM_STATUS).optional() });
 export const insertChatMessageSchema = createInsertSchema(streamChatMessages).omit({ id: true });
 export type Stream = typeof streams.$inferSelect;
 export type StreamChatMessage = typeof streamChatMessages.$inferSelect;

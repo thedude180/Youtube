@@ -7,10 +7,13 @@ const log = createLogger("video-worker");
 export function registerVideoWorkers(): void {
   queue.work<{ downloadId: number; userId: string }>(
     "video.download",
-    { teamSize: 1, teamConcurrency: 1 }, // serial — don't saturate bandwidth
-    async ({ data }) => {
-      log.info("Processing download", { downloadId: data.downloadId });
-      await videoService.processDownload(data.downloadId, data.userId);
+    { localConcurrency: 1, batchSize: 1 },
+    async (jobs) => {
+      for (const job of jobs) {
+        const { downloadId, userId } = job.data;
+        log.info("Processing download", { downloadId });
+        await videoService.processDownload(downloadId, userId);
+      }
     },
   );
 

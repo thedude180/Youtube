@@ -76,7 +76,7 @@ contentRouter.post("/videos/:id/generate-metadata", async (req, res, next) => {
 contentRouter.get("/videos/:id/drafts", async (req, res, next) => {
   try {
     const id = z.coerce.number().int().positive().parse(req.params.id);
-    const drafts = await contentRepo.listDrafts(id);
+    const drafts = await contentRepo.listDrafts(id, (req.user as any).id);
     res.json(drafts);
   } catch (err) { next(err); }
 });

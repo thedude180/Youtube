@@ -63,7 +63,9 @@ export const contentIdeas = pgTable("v2_content_ideas", {
   index("v2_ideas_user_idx").on(t.userId),
 ]);
 
-export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertVideoSchema = createInsertSchema(videos)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ status: z.enum(CONTENT_STATUS).optional() });
 export const insertDraftSchema = createInsertSchema(contentDrafts).omit({ id: true, createdAt: true });
 export const insertIdeaSchema = createInsertSchema(contentIdeas).omit({ id: true, createdAt: true });
 

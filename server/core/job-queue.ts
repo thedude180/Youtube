@@ -7,7 +7,8 @@
  *   await queue.send("content.generate", { videoId: 42 });
  *   await queue.work("content.generate", async ({ data }) => { ... });
  */
-import PgBoss from "pg-boss";
+import { PgBoss } from "pg-boss";
+import type { SendOptions } from "pg-boss";
 import { createLogger } from "./logger.js";
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required for job queue");
@@ -19,15 +20,10 @@ export const queue = new PgBoss({
   ssl: process.env.DATABASE_URL.includes("sslmode=require")
     ? { rejectUnauthorized: false }
     : undefined,
-  // Retain completed/failed jobs for 7 days for inspection
-  archiveCompletedAfterSeconds: 60 * 60 * 24 * 7,
-  deleteAfterSeconds: 60 * 60 * 24 * 14,
-  monitorStateIntervalSeconds: 30,
-  // Keep schema changes non-destructive
-  onComplete: false,
+  monitorIntervalSeconds: 30,
 });
 
-queue.on("error", (err) => log.error("pg-boss error", err));
+queue.on("error", (err: Error) => log.error("pg-boss error", err));
 
 let started = false;
 
@@ -49,7 +45,7 @@ export async function stopJobQueue(): Promise<void> {
 export async function enqueue<T extends object>(
   name: string,
   data: T,
-  opts?: PgBoss.SendOptions,
+  opts?: SendOptions,
 ): Promise<string | null> {
   return queue.send(name, data, opts ?? {});
 }

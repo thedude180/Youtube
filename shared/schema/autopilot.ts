@@ -49,7 +49,9 @@ export const publishBacklog = pgTable("v2_publish_backlog", {
   index("v2_backlog_user_idx").on(t.userId),
 ]);
 
-export const insertQueueItemSchema = createInsertSchema(autopilotQueue).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertQueueItemSchema = createInsertSchema(autopilotQueue)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ status: z.enum(QUEUE_STATUS).optional() });
 export type AutopilotQueueItem = typeof autopilotQueue.$inferSelect;
 export type AutopilotConfig = typeof autopilotConfig.$inferSelect;
 export type InsertQueueItem = z.infer<typeof insertQueueItemSchema>;

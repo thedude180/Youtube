@@ -37,6 +37,8 @@ export const oauthStates = pgTable("v2_oauth_states", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertChannelSchema = createInsertSchema(channels).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertChannelSchema = createInsertSchema(channels)
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({ platform: z.enum(PLATFORMS) });
 export type Channel = typeof channels.$inferSelect;
 export type InsertChannel = z.infer<typeof insertChannelSchema>;

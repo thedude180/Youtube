@@ -8,21 +8,27 @@ const log = createLogger("growth-worker");
 export function registerGrowthWorkers(): void {
   queue.work<{ userId: string }>(
     "growth.generate-plan",
-    { teamSize: 1 },
-    async ({ data }) => {
-      log.info("Generating growth plan", { userId: data.userId });
-      const plan = await growthService.generateGrowthPlan(data.userId);
-      sseEmit(data.userId, "growth:plan-ready", { plan });
+    { localConcurrency: 1 },
+    async (jobs) => {
+      for (const job of jobs) {
+        const { userId } = job.data;
+        log.info("Generating growth plan", { userId });
+        const plan = await growthService.generateGrowthPlan(userId);
+        sseEmit(userId, "growth:plan-ready", { plan });
+      }
     },
   );
 
   queue.work<{ userId: string; game: string }>(
     "growth.detect-trends",
-    { teamSize: 2 },
-    async ({ data }) => {
-      log.info("Detecting trends", { userId: data.userId, game: data.game });
-      await growthService.detectTrends(data.userId, data.game);
-      sseEmit(data.userId, "growth:trends-updated", { game: data.game });
+    { localConcurrency: 2 },
+    async (jobs) => {
+      for (const job of jobs) {
+        const { userId, game } = job.data;
+        log.info("Detecting trends", { userId, game });
+        await growthService.detectTrends(userId, game);
+        sseEmit(userId, "growth:trends-updated", { game });
+      }
     },
   );
 

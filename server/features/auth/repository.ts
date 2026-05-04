@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { db, withRetry } from "../../core/db.js";
 import { users, passwordResetTokens, type User, type InsertUser } from "../../../shared/schema/index.js";
 
@@ -68,7 +68,7 @@ export class AuthRepository {
       const rows = await db
         .select()
         .from(passwordResetTokens)
-        .where(and(eq(passwordResetTokens.token, token), eq(passwordResetTokens.usedAt, null as any)))
+        .where(and(eq(passwordResetTokens.token, token), isNull(passwordResetTokens.usedAt)))
         .limit(1);
       if (!rows[0] || rows[0].expiresAt < new Date()) return null;
       await db

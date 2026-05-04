@@ -1,4 +1,4 @@
-import { eq, and, desc, lte } from "drizzle-orm";
+import { eq, and, desc, lte, sql } from "drizzle-orm";
 import { db, withRetry } from "../../core/db.js";
 import { autopilotQueue, autopilotConfig, type AutopilotQueueItem, type InsertQueueItem, type AutopilotConfig } from "../../../shared/schema/index.js";
 
@@ -19,7 +19,9 @@ export class AutopilotRepository {
 
   async incrementAttempts(id: number): Promise<void> {
     await withRetry(
-      () => db.update(autopilotQueue).set({ attempts: db.$count(autopilotQueue) as any, updatedAt: new Date() }).where(eq(autopilotQueue.id, id)),
+      () => db.update(autopilotQueue)
+        .set({ attempts: sql`${autopilotQueue.attempts} + 1`, updatedAt: new Date() })
+        .where(eq(autopilotQueue.id, id)),
       "autopilot.incrementAttempts",
     );
   }

@@ -41,7 +41,9 @@ export const vaultItems = pgTable("v2_vault_items", {
   index("v2_vault_user_idx").on(t.userId),
 ]);
 
-export const insertDownloadSchema = createInsertSchema(videoDownloads).omit({ id: true, createdAt: true });
+export const insertDownloadSchema = createInsertSchema(videoDownloads)
+  .omit({ id: true, createdAt: true })
+  .extend({ status: z.enum(DOWNLOAD_STATUS).optional() });
 export const insertVaultItemSchema = createInsertSchema(vaultItems).omit({ id: true, createdAt: true });
 
 export type VideoDownload = typeof videoDownloads.$inferSelect;

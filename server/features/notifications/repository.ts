@@ -1,4 +1,4 @@
-import { eq, and, gt, desc } from "drizzle-orm";
+import { eq, and, gt, desc, sql, isNull } from "drizzle-orm";
 import { db, withRetry } from "../../core/db.js";
 import { notifications, notificationDedupeLog, notificationPreferences, type Notification, type InsertNotification } from "../../../shared/schema/index.js";
 
@@ -52,7 +52,7 @@ export class NotificationsRepository {
       () => db
         .insert(notificationDedupeLog)
         .values({ userId, dedupeKey, lastSentAt: new Date(), expiresAt })
-        .onConflictDoUpdate({ target: [notificationDedupeLog.userId, notificationDedupeLog.dedupeKey], set: { lastSentAt: new Date(), expiresAt, sendCount: db.$count(notificationDedupeLog) as any } }),
+        .onConflictDoUpdate({ target: [notificationDedupeLog.userId, notificationDedupeLog.dedupeKey], set: { lastSentAt: new Date(), expiresAt, sendCount: sql`${notificationDedupeLog.sendCount} + 1` } }),
       "notif.recordSend",
     );
   }

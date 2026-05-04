@@ -47,6 +47,8 @@ export const notificationPreferences = pgTable("v2_notification_preferences", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notifications)
+  .omit({ id: true, createdAt: true })
+  .extend({ channel: z.enum(NOTIFICATION_CHANNELS).optional() });
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;

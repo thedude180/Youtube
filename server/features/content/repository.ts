@@ -70,9 +70,9 @@ export class ContentRepository {
     }, "content.saveDraft");
   }
 
-  async listDrafts(videoId: number): Promise<ContentDraft[]> {
+  async listDrafts(videoId: number, userId: string): Promise<ContentDraft[]> {
     return withRetry(
-      () => db.select().from(contentDrafts).where(eq(contentDrafts.videoId, videoId)).orderBy(desc(contentDrafts.createdAt)),
+      () => db.select().from(contentDrafts).where(and(eq(contentDrafts.videoId, videoId), eq(contentDrafts.userId, userId))).orderBy(desc(contentDrafts.createdAt)),
       "content.listDrafts",
     );
   }

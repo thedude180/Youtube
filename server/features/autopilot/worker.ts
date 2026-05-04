@@ -1,5 +1,6 @@
 import { queue } from "../../core/job-queue.js";
 import { autopilotRepo } from "./repository.js";
+import { autopilotService } from "./service.js";
 import { sseEmit } from "../../core/sse.js";
 import { createLogger } from "../../core/logger.js";
 
@@ -8,24 +9,37 @@ const log = createLogger("autopilot-worker");
 export function registerAutopilotWorkers(): void {
   queue.work<{ queueItemId: number; userId: string }>(
     "autopilot.execute-post",
-    { teamSize: 3, teamConcurrency: 3 },
-    async ({ data }) => {
-      log.info("Executing autopilot post", { queueItemId: data.queueItemId });
+    { localConcurrency: 3, batchSize: 3 },
+    async (jobs) => {
+      for (const job of jobs) {
+        const { queueItemId, userId } = job.data;
+        log.info("Executing autopilot post", { queueItemId });
 
-      await autopilotRepo.updateStatus(data.queueItemId, "processing");
+        await autopilotRepo.updateStatus(queueItemId, "processing");
+        await autopilotRepo.incrementAttempts(queueItemId);
 
-      try {
-        // Platform-specific publishing logic lives in the service
-        // For now we update to published and emit success event
-        // Real implementation would call YouTube/Discord/TikTok APIs
-        await autopilotRepo.updateStatus(data.queueItemId, "published", {
-          publishedAt: new Date(),
-        });
-        sseEmit(data.userId, "autopilot:post-success", { queueItemId: data.queueItemId });
-      } catch (err: any) {
-        await autopilotRepo.updateStatus(data.queueItemId, "failed", { lastError: err.message });
-        sseEmit(data.userId, "autopilot:post-failed", { queueItemId: data.queueItemId, error: err.message });
-        throw err;
+        const items = await autopilotRepo.listQueue(userId);
+        const item = items.find((i) => i.id === queueItemId);
+
+        if (!item) {
+          log.warn("Queue item not found or no longer pending", { queueItemId });
+          continue;
+        }
+
+        try {
+          const platformPostId = await autopilotService.executePost(item);
+          await autopilotRepo.updateStatus(queueItemId, "published", {
+            platformPostId: platformPostId ?? undefined,
+            publishedAt: new Date(),
+          });
+          sseEmit(userId, "autopilot:post-success", { queueItemId });
+          log.info("Post published", { queueItemId, platform: item.platform });
+        } catch (err: any) {
+          await autopilotRepo.updateStatus(queueItemId, "failed", { lastError: err.message });
+          sseEmit(userId, "autopilot:post-failed", { queueItemId, error: err.message });
+          log.error("Post failed", { queueItemId, error: err.message });
+          throw err;
+        }
       }
     },
   );

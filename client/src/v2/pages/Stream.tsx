@@ -18,7 +18,7 @@ export default function Stream() {
   });
 
   const { data: chatMessages = [] } = useQuery<any[]>({
-    queryKey: active?.id ? [`/api/stream/${active.id}/chat`] : null,
+    queryKey: ["/api/stream/chat", active?.id ?? 0],
     enabled: !!active?.id,
     refetchInterval: active?.status === "live" ? 5_000 : false,
   });
