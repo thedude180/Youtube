@@ -8,7 +8,57 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
       - name: Trigger Render deploy
         run: |
-          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Triggering Render deploy hook..."
+          HTTP=$(curl -s -o /tmp/render_resp.txt -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "Response HTTP $HTTP"
+          cat /tmp/render_resp.txt
+          if [ "$HTTP" != "200" ] && [ "$HTTP" != "201" ]; then
+            echo "::error::Render deploy hook returned HTTP $HTTP"
+            exit 1
+          fi
+          echo "Deploy hook accepted."
+
+      - name: Wait for Render health
+        run: |
+          URL="${{ secrets.RENDER_HEALTH_URL }}"
+          if [ -z "$URL" ]; then
+            echo "::warning::RENDER_HEALTH_URL secret not set — skipping health wait"
+            exit 0
+          fi
+          echo "Polling $URL/healthz for up to 10 minutes..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL/healthz" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Render healthy after ~$((i * 10))s (HTTP 200)"
+              exit 0
+            fi
+            echo "  [$i/60] HTTP $STATUS — retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Render did not become healthy within 10 minutes"
+          exit 1
+
+      - name: Notify Discord — success
+        if: success() && env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\":\"✅ **CreatorOS hot-standby** deployed to Render — commit \`$COMMIT_SHORT\` is live on backup.\"}"
+
+      - name: Notify Discord — failure
+        if: failure() && env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"content\":\"🚨 **CreatorOS Render backup deploy FAILED** — commit \`$COMMIT_SHORT\`. Check https://dashboard.render.com for logs.\"}"
