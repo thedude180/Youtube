@@ -2,7 +2,7 @@ import { pgTable, serial, varchar, text, boolean, timestamp, jsonb, integer, rea
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const revenueSnapshots = pgTable("revenue_snapshots", {
+export const revenueSnapshots = pgTable("v2_revenue_snapshots", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   periodStart: timestamp("period_start").notNull(),
@@ -17,11 +17,11 @@ export const revenueSnapshots = pgTable("revenue_snapshots", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("revenue_user_idx").on(t.userId),
-  index("revenue_period_idx").on(t.periodStart, t.periodEnd),
+  index("v2_revenue_user_idx").on(t.userId),
+  index("v2_revenue_period_idx").on(t.periodStart, t.periodEnd),
 ]);
 
-export const stripeEvents = pgTable("stripe_events", {
+export const stripeEvents = pgTable("v2_stripe_events", {
   id: serial("id").primaryKey(),
   stripeEventId: varchar("stripe_event_id").unique().notNull(),
   type: varchar("type").notNull(),
@@ -31,7 +31,7 @@ export const stripeEvents = pgTable("stripe_events", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const sponsorships = pgTable("sponsorships", {
+export const sponsorships = pgTable("v2_sponsorships", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   sponsorName: varchar("sponsor_name").notNull(),
@@ -42,7 +42,7 @@ export const sponsorships = pgTable("sponsorships", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("sponsors_user_idx").on(t.userId),
+  index("v2_sponsors_user_idx").on(t.userId),
 ]);
 
 export const insertRevenueSnapshotSchema = createInsertSchema(revenueSnapshots).omit({ id: true, createdAt: true });

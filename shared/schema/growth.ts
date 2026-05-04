@@ -2,7 +2,7 @@ import { pgTable, serial, varchar, text, timestamp, jsonb, integer, real, index 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const analyticsSnapshots = pgTable("analytics_snapshots", {
+export const analyticsSnapshots = pgTable("v2_analytics_snapshots", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   snapshotDate: timestamp("snapshot_date").notNull(),
@@ -17,11 +17,11 @@ export const analyticsSnapshots = pgTable("analytics_snapshots", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("analytics_user_idx").on(t.userId),
-  index("analytics_date_idx").on(t.snapshotDate),
+  index("v2_analytics_user_idx").on(t.userId),
+  index("v2_analytics_date_idx").on(t.snapshotDate),
 ]);
 
-export const competitorChannels = pgTable("competitor_channels", {
+export const competitorChannels = pgTable("v2_competitor_channels", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   platform: varchar("platform").notNull().default("youtube"),
@@ -34,10 +34,10 @@ export const competitorChannels = pgTable("competitor_channels", {
   insights: jsonb("insights").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("competitors_user_idx").on(t.userId),
+  index("v2_competitors_user_idx").on(t.userId),
 ]);
 
-export const trendSignals = pgTable("trend_signals", {
+export const trendSignals = pgTable("v2_trend_signals", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   signal: varchar("signal").notNull(),
@@ -47,8 +47,8 @@ export const trendSignals = pgTable("trend_signals", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("trends_user_idx").on(t.userId),
-  index("trends_score_idx").on(t.score),
+  index("v2_trends_user_idx").on(t.userId),
+  index("v2_trends_score_idx").on(t.score),
 ]);
 
 export const insertSnapshotSchema = createInsertSchema(analyticsSnapshots).omit({ id: true, createdAt: true });

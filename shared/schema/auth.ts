@@ -2,7 +2,7 @@ import { pgTable, text, serial, boolean, timestamp, varchar, jsonb, index } from
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
+export const users = pgTable("v2_users", {
   id: varchar("id").primaryKey(),
   email: varchar("email").unique(),
   username: varchar("username"),
@@ -18,18 +18,18 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
-  index("users_email_idx").on(t.email),
+  index("v2_users_email_idx").on(t.email),
 ]);
 
-export const sessions = pgTable("sessions", {
+export const sessions = pgTable("v2_sessions", {
   sid: varchar("sid").primaryKey(),
   sess: jsonb("sess").notNull(),
   expire: timestamp("expire").notNull(),
 }, (t) => [
-  index("sessions_expire_idx").on(t.expire),
+  index("v2_sessions_expire_idx").on(t.expire),
 ]);
 
-export const passwordResetTokens = pgTable("password_reset_tokens", {
+export const passwordResetTokens = pgTable("v2_password_reset_tokens", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   token: varchar("token").notNull().unique(),

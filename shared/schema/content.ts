@@ -5,7 +5,7 @@ import { z } from "zod";
 export const CONTENT_STATUS = ["draft", "ready", "scheduled", "published", "failed", "archived"] as const;
 export type ContentStatus = (typeof CONTENT_STATUS)[number];
 
-export const videos = pgTable("videos", {
+export const videos = pgTable("v2_videos", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   youtubeId: varchar("youtube_id"),
@@ -27,16 +27,16 @@ export const videos = pgTable("videos", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
-  index("videos_user_idx").on(t.userId),
-  index("videos_status_idx").on(t.status),
-  index("videos_youtube_id_idx").on(t.youtubeId),
+  index("v2_videos_user_idx").on(t.userId),
+  index("v2_videos_status_idx").on(t.status),
+  index("v2_videos_youtube_id_idx").on(t.youtubeId),
 ]);
 
-export const contentDrafts = pgTable("content_drafts", {
+export const contentDrafts = pgTable("v2_content_drafts", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   videoId: integer("video_id"),
-  type: varchar("type").notNull(), // title | description | tags | thumbnail_concept | script
+  type: varchar("type").notNull(),
   content: text("content").notNull(),
   model: varchar("model"),
   promptHash: varchar("prompt_hash"),
@@ -44,11 +44,11 @@ export const contentDrafts = pgTable("content_drafts", {
   approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("drafts_user_idx").on(t.userId),
-  index("drafts_video_idx").on(t.videoId),
+  index("v2_drafts_user_idx").on(t.userId),
+  index("v2_drafts_video_idx").on(t.videoId),
 ]);
 
-export const contentIdeas = pgTable("content_ideas", {
+export const contentIdeas = pgTable("v2_content_ideas", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   title: varchar("title").notNull(),
@@ -60,7 +60,7 @@ export const contentIdeas = pgTable("content_ideas", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("ideas_user_idx").on(t.userId),
+  index("v2_ideas_user_idx").on(t.userId),
 ]);
 
 export const insertVideoSchema = createInsertSchema(videos).omit({ id: true, createdAt: true, updatedAt: true });

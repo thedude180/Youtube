@@ -6,7 +6,7 @@ export const NOTIFICATION_CHANNELS = ["email", "sms", "push", "in_app"] as const
 export const NOTIFICATION_STATUS = ["pending", "sent", "failed", "deduplicated"] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
-export const notifications = pgTable("notifications", {
+export const notifications = pgTable("v2_notifications", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   type: varchar("type").notNull(),
@@ -19,11 +19,11 @@ export const notifications = pgTable("notifications", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("notif_user_idx").on(t.userId),
-  index("notif_status_idx").on(t.status),
+  index("v2_notif_user_idx").on(t.userId),
+  index("v2_notif_status_idx").on(t.status),
 ]);
 
-export const notificationDedupeLog = pgTable("notification_dedupe_log", {
+export const notificationDedupeLog = pgTable("v2_notification_dedupe_log", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   dedupeKey: varchar("dedupe_key").notNull(),
@@ -31,10 +31,10 @@ export const notificationDedupeLog = pgTable("notification_dedupe_log", {
   sendCount: integer("send_count").default(1),
   expiresAt: timestamp("expires_at").notNull(),
 }, (t) => [
-  uniqueIndex("dedupe_user_key_idx").on(t.userId, t.dedupeKey),
+  uniqueIndex("v2_dedupe_user_key_idx").on(t.userId, t.dedupeKey),
 ]);
 
-export const notificationPreferences = pgTable("notification_preferences", {
+export const notificationPreferences = pgTable("v2_notification_preferences", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique(),
   emailEnabled: boolean("email_enabled").default(true),

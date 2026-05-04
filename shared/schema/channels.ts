@@ -5,7 +5,7 @@ import { z } from "zod";
 export const PLATFORMS = ["youtube", "tiktok", "discord", "twitch", "kick"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
-export const channels = pgTable("channels", {
+export const channels = pgTable("v2_channels", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   platform: varchar("platform").$type<Platform>().notNull(),
@@ -23,11 +23,11 @@ export const channels = pgTable("channels", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
-  index("channels_user_idx").on(t.userId),
-  uniqueIndex("channels_user_platform_idx").on(t.userId, t.platform),
+  index("v2_channels_user_idx").on(t.userId),
+  uniqueIndex("v2_channels_user_platform_idx").on(t.userId, t.platform),
 ]);
 
-export const oauthStates = pgTable("oauth_states", {
+export const oauthStates = pgTable("v2_oauth_states", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   platform: varchar("platform").notNull(),

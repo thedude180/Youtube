@@ -104,7 +104,7 @@ export default function Login() {
             )}
           </div>
 
-          {process.env.GOOGLE_CLIENT_ID && (
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
             <div className="mt-4">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">

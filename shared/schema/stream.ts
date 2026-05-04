@@ -5,7 +5,7 @@ import { z } from "zod";
 export const STREAM_STATUS = ["idle", "live", "ended"] as const;
 export type StreamStatus = (typeof STREAM_STATUS)[number];
 
-export const streams = pgTable("streams", {
+export const streams = pgTable("v2_streams", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   title: varchar("title"),
@@ -19,11 +19,11 @@ export const streams = pgTable("streams", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("streams_user_idx").on(t.userId),
-  index("streams_status_idx").on(t.status),
+  index("v2_streams_user_idx").on(t.userId),
+  index("v2_streams_status_idx").on(t.status),
 ]);
 
-export const streamDestinations = pgTable("stream_destinations", {
+export const streamDestinations = pgTable("v2_stream_destinations", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   channelId: integer("channel_id"),
@@ -33,10 +33,10 @@ export const streamDestinations = pgTable("stream_destinations", {
   enabled: boolean("enabled").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("stream_dest_user_idx").on(t.userId),
+  index("v2_stream_dest_user_idx").on(t.userId),
 ]);
 
-export const streamChatMessages = pgTable("stream_chat_messages", {
+export const streamChatMessages = pgTable("v2_stream_chat_messages", {
   id: serial("id").primaryKey(),
   streamId: integer("stream_id").notNull(),
   username: varchar("username").notNull(),
@@ -47,11 +47,11 @@ export const streamChatMessages = pgTable("stream_chat_messages", {
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
   timestamp: timestamp("timestamp").defaultNow(),
 }, (t) => [
-  index("chat_stream_idx").on(t.streamId),
-  index("chat_ts_idx").on(t.timestamp),
+  index("v2_chat_stream_idx").on(t.streamId),
+  index("v2_chat_ts_idx").on(t.timestamp),
 ]);
 
-export const chatTopics = pgTable("chat_topics", {
+export const chatTopics = pgTable("v2_chat_topics", {
   id: serial("id").primaryKey(),
   streamId: integer("stream_id").notNull(),
   topic: varchar("topic").notNull(),

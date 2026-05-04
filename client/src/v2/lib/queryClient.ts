@@ -1,17 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
 
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      retry: (count, err: any) => {
-        if (err?.status === 401 || err?.status === 403 || err?.status === 404) return false;
-        return count < 2;
-      },
-    },
-  },
-});
-
 export async function apiRequest<T = unknown>(
   method: string,
   url: string,
@@ -37,10 +25,18 @@ export async function apiRequest<T = unknown>(
   return res.json() as Promise<T>;
 }
 
-// Default query function — all queries use /api prefix
-queryClient.setQueryDefaults([], {
-  queryFn: async ({ queryKey }) => {
-    const url = Array.isArray(queryKey) ? queryKey[0] as string : String(queryKey);
-    return apiRequest("GET", url);
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      queryFn: async ({ queryKey }) => {
+        const url = Array.isArray(queryKey) ? queryKey[0] as string : String(queryKey);
+        return apiRequest("GET", url);
+      },
+      retry: (count, err: any) => {
+        if (err?.status === 401 || err?.status === 403 || err?.status === 404) return false;
+        return count < 2;
+      },
+    },
   },
 });

@@ -5,12 +5,12 @@ import { z } from "zod";
 export const QUEUE_STATUS = ["pending", "processing", "published", "failed", "cancelled"] as const;
 export type QueueStatus = (typeof QUEUE_STATUS)[number];
 
-export const autopilotQueue = pgTable("autopilot_queue", {
+export const autopilotQueue = pgTable("v2_autopilot_queue", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   videoId: integer("video_id"),
   platform: varchar("platform").notNull(),
-  contentType: varchar("content_type").notNull().default("post"), // post | short | story
+  contentType: varchar("content_type").notNull().default("post"),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
   status: varchar("status").$type<QueueStatus>().notNull().default("pending"),
   scheduledAt: timestamp("scheduled_at"),
@@ -21,12 +21,12 @@ export const autopilotQueue = pgTable("autopilot_queue", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
-  index("aq_user_idx").on(t.userId),
-  index("aq_status_idx").on(t.status),
-  index("aq_scheduled_idx").on(t.scheduledAt),
+  index("v2_aq_user_idx").on(t.userId),
+  index("v2_aq_status_idx").on(t.status),
+  index("v2_aq_scheduled_idx").on(t.scheduledAt),
 ]);
 
-export const autopilotConfig = pgTable("autopilot_config", {
+export const autopilotConfig = pgTable("v2_autopilot_config", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique(),
   enabled: boolean("enabled").default(false),
@@ -37,16 +37,16 @@ export const autopilotConfig = pgTable("autopilot_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const publishBacklog = pgTable("publish_backlog", {
+export const publishBacklog = pgTable("v2_publish_backlog", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
   videoId: integer("video_id").notNull(),
   platform: varchar("platform").notNull(),
-  updateType: varchar("update_type").notNull(), // title | description | tags | thumbnail
+  updateType: varchar("update_type").notNull(),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
-  index("backlog_user_idx").on(t.userId),
+  index("v2_backlog_user_idx").on(t.userId),
 ]);
 
 export const insertQueueItemSchema = createInsertSchema(autopilotQueue).omit({ id: true, createdAt: true, updatedAt: true });
