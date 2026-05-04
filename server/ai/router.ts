@@ -18,7 +18,11 @@ export type TaskType =
   | "chat-reply"           // medium: conversational
   | "summarize"            // cheap: extractive
   | "seo-optimize"         // cheap: keyword matching
-  | "script-draft";        // medium: creative long-form
+  | "script-draft"         // medium: creative long-form
+  | "highlight-detect"     // medium: analyze stream for best moments
+  | "clip-title"           // cheap: viral Shorts titles
+  | "stream-promote"       // cheap: cross-platform promo copy
+  | "performance-analyze"; // strong: analytics → strategy feedback
 
 type Provider = "openai-mini" | "openai-4o" | "claude-haiku" | "claude-sonnet" | "claude-opus";
 
@@ -34,6 +38,10 @@ const TASK_MODEL: Record<TaskType, Provider> = {
   "summarize":            "openai-mini",
   "seo-optimize":         "openai-mini",
   "script-draft":         "openai-mini",
+  "highlight-detect":     "claude-sonnet",
+  "clip-title":           "openai-mini",
+  "stream-promote":       "openai-mini",
+  "performance-analyze":  "claude-sonnet",
 };
 
 export interface RouteParams {

@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/use-auth";
 import {
   LayoutDashboard, Film, Download, DollarSign, Bot, Radio,
-  TrendingUp, Settings, LogOut, Zap,
+  TrendingUp, Settings, LogOut, Zap, Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,10 +12,11 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/content", label: "Content", icon: Film },
   { to: "/video", label: "Vault", icon: Download },
-  { to: "/money", label: "Revenue", icon: DollarSign },
-  { to: "/autopilot", label: "Autopilot", icon: Bot },
   { to: "/stream", label: "Stream", icon: Radio },
+  { to: "/pipeline", label: "Pipeline", icon: Scissors },
+  { to: "/autopilot", label: "Autopilot", icon: Bot },
   { to: "/growth", label: "Growth", icon: TrendingUp },
+  { to: "/money", label: "Revenue", icon: DollarSign },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

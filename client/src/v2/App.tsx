@@ -15,6 +15,7 @@ const Autopilot = lazy(() => import("./pages/Autopilot"));
 const Stream    = lazy(() => import("./pages/Stream"));
 const Growth    = lazy(() => import("./pages/Growth"));
 const Settings  = lazy(() => import("./pages/Settings"));
+const Pipeline  = lazy(() => import("./pages/Pipeline"));
 
 function PageLoader() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/money" element={<Money />} />
               <Route path="/autopilot" element={<Autopilot />} />
               <Route path="/stream" element={<Stream />} />
+              <Route path="/pipeline" element={<Pipeline />} />
               <Route path="/growth" element={<Growth />} />
               <Route path="/settings" element={<Settings />} />
             </Route>

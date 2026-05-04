@@ -35,11 +35,16 @@ import { moneyRouter } from "./features/money/routes.js";
 import { growthRouter } from "./features/growth/routes.js";
 import { notificationsRouter } from "./features/notifications/routes.js";
 import { streamRouter } from "./features/stream/routes.js";
+import { pipelineRouter } from "./features/pipeline/routes.js";
 
 import { registerContentWorkers } from "./features/content/worker.js";
 import { registerVideoWorkers } from "./features/video/worker.js";
 import { registerAutopilotWorkers } from "./features/autopilot/worker.js";
 import { registerGrowthWorkers } from "./features/growth/worker.js";
+import { registerPipelineWorkers } from "./features/pipeline/worker.js";
+import { registerStreamWorkers } from "./features/stream/worker.js";
+
+import { startStreamWatcher, stopStreamWatcher } from "./services/stream-watcher.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProd = process.env.NODE_ENV === "production";
@@ -73,6 +78,7 @@ async function main() {
   app.use("/api/growth", growthRouter);
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/stream", streamRouter);
+  app.use("/api/pipeline", pipelineRouter);
 
   // 5. SSE endpoint — real-time push to connected clients
   app.get("/api/events", (req, res) => {
@@ -91,6 +97,11 @@ async function main() {
   registerVideoWorkers();
   registerAutopilotWorkers();
   registerGrowthWorkers();
+  registerPipelineWorkers();
+  registerStreamWorkers();
+
+  // Start autonomous background services
+  startStreamWatcher();
 
   // 8. Static / SPA serving
   if (isProd) {
@@ -122,6 +133,7 @@ async function main() {
   // Graceful shutdown
   async function shutdown(signal: string) {
     log.info(`Shutting down (${signal})`);
+    stopStreamWatcher();
     server.close();
     await stopJobQueue();
     await pool.end();
