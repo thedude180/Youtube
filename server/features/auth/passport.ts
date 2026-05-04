@@ -11,13 +11,13 @@ import crypto from "crypto";
 
 const PgStore = connectPg(session);
 
-function getCallbackUrl(path: string): string {
-  if (process.env.REPLIT_DEPLOYMENT) return `https://etgaming247.com${path}`;
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}${path}`;
-  return `http://localhost:5000${path}`;
+function getAppUrl(): string {
+  return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 5000}`;
 }
 
 export function configureAuth(app: Express): void {
+  const isProd = process.env.NODE_ENV === "production";
+
   app.use(
     session({
       store: new PgStore({ pool, tableName: "sessions", createTableIfMissing: true }),
@@ -26,7 +26,7 @@ export function configureAuth(app: Express): void {
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: !!process.env.REPLIT_DEPLOYMENT,
+        secure: isProd,
         maxAge: 30 * 24 * 60 * 60 * 1000,
         sameSite: "lax",
       },
@@ -46,7 +46,6 @@ export function configureAuth(app: Express): void {
     }
   });
 
-  // Local strategy
   passport.use(
     new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
       try {
@@ -58,14 +57,13 @@ export function configureAuth(app: Express): void {
     }),
   );
 
-  // Google OAuth
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.use(
       new GoogleStrategy(
         {
           clientID: process.env.GOOGLE_CLIENT_ID,
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          callbackURL: getCallbackUrl("/api/auth/google/callback"),
+          callbackURL: `${getAppUrl()}/api/auth/google/callback`,
           scope: ["profile", "email"],
         },
         async (_accessToken, _refreshToken, profile, done) => {

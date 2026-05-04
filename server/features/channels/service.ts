@@ -57,9 +57,8 @@ const OAUTH_CONFIGS: Record<string, {
 };
 
 function getRedirectUri(platform: string): string {
-  if (process.env.REPLIT_DEPLOYMENT) return `https://etgaming247.com/api/channels/oauth/${platform}/callback`;
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}/api/channels/oauth/${platform}/callback`;
-  return `http://localhost:5000/api/channels/oauth/${platform}/callback`;
+  const base = process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 5000}`;
+  return `${base}/api/channels/oauth/${platform}/callback`;
 }
 
 export class ChannelsService {
