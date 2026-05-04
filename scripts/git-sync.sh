@@ -25,11 +25,25 @@ fi
 git add -A
 git commit -m "$MSG" --no-verify 2>/dev/null || true
 
-echo "Pushing to GitHub..."
-if git push origin main --force 2>&1; then
-  HASH=$(git rev-parse --short HEAD)
-  echo "PASS: Pushed $HASH to origin/main"
+# If GITHUB_PAT is set, push directly with it (required for workflow scope).
+# Otherwise fall back to the configured origin remote (OAuth app, no workflow scope).
+if [ -n "${GITHUB_PAT:-}" ]; then
+  REPO_URL="https://x-access-token:${GITHUB_PAT}@github.com/thedude180/Youtube.git"
+  echo "Pushing to GitHub (PAT)..."
+  if git push "$REPO_URL" main 2>&1; then
+    HASH=$(git rev-parse --short HEAD)
+    echo "PASS: Pushed $HASH to origin/main (PAT)"
+  else
+    echo "WARN: Push failed — will retry next build"
+    exit 0
+  fi
 else
-  echo "WARN: Push failed — will retry next build"
-  exit 0
+  echo "Pushing to GitHub (OAuth — workflow files may be blocked)..."
+  if git push origin main --force 2>&1; then
+    HASH=$(git rev-parse --short HEAD)
+    echo "PASS: Pushed $HASH to origin/main"
+  else
+    echo "WARN: Push failed (hint: set GITHUB_PAT secret with repo+workflow scopes)"
+    exit 0
+  fi
 fi
