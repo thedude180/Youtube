@@ -1,23 +1,26 @@
+node_modules
+dist
+
+# Secrets
+.env
+.env.local
+.env.production
+
+# Large media — never ship these in the image
 vault/
-data/
 clips/
 reels/
 recordings/
 streams/
 downloads/
-.cache/
-.local/
-.git/
-.git.backup*
-.upm/
-.config/
-.vscode/
-.replit.nix/
-*.log
-**/*.log
+tmp/
+/tmp/
+attached_assets/
+screenshots/
 
-# Video — all formats, anywhere in the tree
+# Video / audio files anywhere in the tree
 **/*.mp4
+**/*.mp4.part
 **/*.mkv
 **/*.webm
 **/*.avi
@@ -29,14 +32,6 @@ downloads/
 **/*.ogv
 **/*.m2ts
 **/*.mts
-
-# HLS / DASH segments that ffmpeg writes out
-**/*.ts
-**/*.m3u8
-**/*.mpd
-**/*.fmp4
-
-# Audio
 **/*.mp3
 **/*.wav
 **/*.flac
@@ -45,85 +40,39 @@ downloads/
 **/*.m4a
 **/*.opus
 **/*.wma
-tmp/
-/tmp/
-attached_assets/
-screenshots/
-references/
 
-# Source dirs (only dist/ needed at runtime)
-server/
-client/
-shared/
-script/
-scripts/
+# HLS / DASH segments
+**/*.m3u8
+**/*.mpd
+**/*.fmp4
 
-# Documentation / old prompts
-*.md
+# Replit-specific
+.replit
+.cache
+.config
+.upm
+.local
+replit.md
+replit_zip_error_log.txt
+.git.backup.*
+
+# Git — let Docker build from source, not history
+.git
+
+# Logs / IDE
+*.log
+**/*.log
+npm-debug.log*
+.vscode
+.idea
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# Large reference files not needed at runtime
+CODEBASE_EXPORT.txt
 CREATOROS_MASTER_PROMPT_v*
-codebase-context.md
-audit-report.md
-NATIVE_APP_GUIDE.md
 
-# Config files not needed at runtime
-tsconfig.json
-tailwind.config.ts
-vite.config.ts
-capacitor.config.ts
-drizzle.config.ts
-components.json
-postcss.config.js
-theme.json
-
-# Dev-only native bindings (sharp only needs linux-x64)
-node_modules/@img/sharp-darwin-*
-node_modules/@img/sharp-win32-*
-node_modules/@img/sharp-linuxmusl-*
-node_modules/@img/sharp-libvips-linuxmusl-*
-
-# Dev-only packages (not needed after build)
-node_modules/typescript/
-node_modules/vite/
-node_modules/@vitejs/
-node_modules/esbuild/
-node_modules/@esbuild/
-node_modules/drizzle-kit/
-node_modules/tsx/
-node_modules/@types/
-node_modules/lightningcss-*/
-node_modules/postcss/
-node_modules/autoprefixer/
-node_modules/tailwindcss/
-node_modules/@tailwindcss/
-node_modules/@babel/
-node_modules/rimraf/
-node_modules/@replit/vite-plugin-*/
-
-# Client-only packages (bundled into dist/ by Vite)
-node_modules/react-icons/
-node_modules/lucide-react/
-node_modules/recharts/
-node_modules/@radix-ui/
-node_modules/react-dom/
-node_modules/react/
-node_modules/@tanstack/
-node_modules/framer-motion/
-node_modules/react-resizable-panels/
-node_modules/react-i18next/
-node_modules/react-hook-form/
-node_modules/react-day-picker/
-node_modules/wouter/
-node_modules/vaul/
-node_modules/tailwind-merge/
-node_modules/input-otp/
-node_modules/i18next/
-node_modules/embla-carousel-react/
-node_modules/cmdk/
-node_modules/clsx/
-node_modules/class-variance-authority/
-node_modules/sonner/
-node_modules/@hookform/
-node_modules/caniuse-lite/
-node_modules/@rollup/
-node_modules/@img/colour/
-node_modules/@img/sharp-libvips-linuxmusl-*/
+# Build artifacts
+*.tsbuildinfo

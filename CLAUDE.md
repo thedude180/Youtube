@@ -210,6 +210,71 @@ Several redirect URIs and "is production?" checks reference these. Outside Repli
 
 ---
 
+## 4c. Hot-Standby / etgaming247.com Failover Runbook
+
+**Goal:** Replit is primary. A second deployment (on Render or any host) runs the identical codebase from GitHub and can take over etgaming247.com within minutes if Replit has an outage.
+
+### Step 1 — Move the database to an external host (do this once)
+
+Replit's built-in Postgres is only reachable from inside Replit. Both deployments must share one database.
+
+1. Create a free Neon database at https://neon.tech  
+   (Neon is serverless Postgres, always-on free tier, accessible from anywhere)
+2. Export Replit's current data:
+   ```bash
+   pg_dump $DATABASE_URL > creatoros-backup.sql
+   ```
+3. Import into Neon:
+   ```bash
+   psql YOUR_NEON_CONNECTION_STRING < creatoros-backup.sql
+   ```
+4. Update `DATABASE_URL` in **both** Replit's Secrets and the backup host's env vars to point at Neon
+5. Both deployments now read/write the same data — tokens, scheduled videos, quota counters, everything stays in sync
+
+### Step 2 — Deploy the backup on Render (do this once)
+
+1. Go to https://render.com → New → Web Service → Connect GitHub repo `thedude180/Youtube`
+2. Render detects `render.yaml` automatically — click **Apply**
+3. Fill in all environment variables in Render's dashboard (copy from `.env.example`)
+4. Critical variables for the backup:
+   - `DATABASE_URL` → your Neon connection string (same one as Replit)
+   - `GOOGLE_REDIRECT_URI` → `https://creatoros-backup.onrender.com/api/youtube/callback`  
+     (add this URI to your Google Cloud Console OAuth app)
+   - `NODE_ENV` → `production`
+5. After deploy, verify the backup is healthy: `https://creatoros-backup.onrender.com/api/health`
+
+### Step 3 — DNS failover (only when needed)
+
+**Normal:** etgaming247.com DNS A record → Replit's IP (current)  
+**Failover:** Change A record to Render's IP — propagates in ~60 seconds with a low TTL
+
+To prepare (do now, not during an outage):
+1. Log into your DNS provider (Cloudflare, Namecheap, etc.)
+2. Set etgaming247.com TTL to **60 seconds** — this makes DNS changes propagate fast
+3. Note Render's static IP from the dashboard
+
+**When Replit is down:**
+1. In DNS: change etgaming247.com A record → Render IP
+2. Wait 60–120 seconds
+3. etgaming247.com now serves from the backup — zero data loss because both use the same Neon DB
+
+**When Replit comes back:**
+1. Repoint DNS back to Replit
+2. Done — the DB stayed in sync the whole time
+
+### What Claude Code can and can't do on the backup
+
+| Works on backup | Needs Replit |
+|---|---|
+| All AI engines (content, scheduling, thumbnails) | Replit connector proxy (Gmail digest via Replit Auth) |
+| YouTube OAuth + uploads | Replit-specific `REPL_IDENTITY` token |
+| All platform posting (TikTok, Discord, Twitch, Kick) | — |
+| Stripe billing (with direct `STRIPE_SECRET_KEY`) | Stripe via Replit connector (use direct key instead) |
+| Live stream detection | — |
+| All DB operations (shared Neon) | — |
+
+---
+
 ## 5. The Most Important Rules
 
 ### 5a. Data Model

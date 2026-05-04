@@ -1,0 +1,72 @@
+services:
+  - type: web
+    name: creatoros-backup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: TWITCH_DEV_CLIENT_ID
+        sync: false
+      - key: TWITCH_DEV_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        sync: false
+      - key: TIKTOK_DEV_CLIENT_ID
+        sync: false
+      - key: TIKTOK_DEV_CLIENT_SECRET
+        sync: false
+      - key: TWITTER_DEV_CLIENT_ID
+        sync: false
+      - key: TWITTER_DEV_CLIENT_SECRET
+        sync: false
+      - key: TWITTER_DEV_API_KEY
+        sync: false
+      - key: TWITTER_DEV_API_KEY_SECRET
+        sync: false
+      - key: TWITTER_DEV_ACCESS_TOKEN
+        sync: false
+      - key: TWITTER_DEV_ACCESS_TOKEN_SECRET
+        sync: false
+      - key: X_DEV_ACCESS_TOKEN
+        sync: false
+      - key: X_DEV_REFRESH_TOKEN
+        sync: false
+      - key: KICK_DEV_CLIENT_ID
+        sync: false
+      - key: KICK_DEV_CLIENT_SECRET
+        sync: false
+      - key: KICK_STREAM_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_FROM_ADDRESS
+        sync: false
