@@ -36,7 +36,32 @@ const logger = createLogger("long-form-publisher");
 const MAX_PER_RUN = 5;
 const BATCH_WINDOW_DAYS = 14; // Look 14 days ahead for batch scheduling
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
+const MIN_LONG_FORM_SEC = 480; // 8 min — YouTube mid-roll monetization threshold
 const LONG_FORM_TEMP_DIR = path.join(process.cwd(), "data", "longform-tmp");
+
+// Duration experiment buckets (minutes).  Each upload is assigned one bucket
+// so we can correlate video length with audience retention / watch-time.
+const EXPERIMENT_DURATIONS_MIN = [8, 10, 15, 20, 30, 45, 60] as const;
+
+/**
+ * Pick (or honour) an experiment duration for a long-form upload.
+ *
+ * If the queue item already has `experimentDurationMin` set (assigned at
+ * queue time) we always use that so retries stay on the same bucket.
+ * Otherwise we draw uniformly at random from the buckets that fit inside
+ * the available footage.
+ *
+ * Returns the chosen duration in **seconds**.
+ */
+function pickExperimentDurationSec(maxAvailableSec: number, existingMin?: number): number {
+  if (existingMin && existingMin >= 8 && existingMin <= 60) {
+    return existingMin * 60;
+  }
+  const available = EXPERIMENT_DURATIONS_MIN.filter(m => m * 60 <= maxAvailableSec);
+  if (available.length === 0) return MIN_LONG_FORM_SEC; // nothing fits — use minimum
+  const chosen = available[Math.floor(Math.random() * available.length)];
+  return chosen * 60;
+}
 
 if (!fs.existsSync(LONG_FORM_TEMP_DIR)) {
   fs.mkdirSync(LONG_FORM_TEMP_DIR, { recursive: true });
@@ -163,15 +188,15 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const startSec = Number(itemMeta.segmentStartSec ?? 0);
       const endSec = Number(itemMeta.segmentEndSec ?? 0);
-      const durationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
+      const rawDurationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
 
-      if (durationSec < 480 || !item.sourceVideoId) {
-        const tooShort = item.sourceVideoId && durationSec < 480;
+      if (rawDurationSec < MIN_LONG_FORM_SEC || !item.sourceVideoId) {
+        const tooShort = item.sourceVideoId && rawDurationSec < MIN_LONG_FORM_SEC;
         await db.update(autopilotQueue)
           .set({
             status: "failed",
             errorMessage: tooShort
-              ? `Segment too short for monetization (${Math.round(durationSec / 60)}m) — long-form must be at least 8 minutes`
+              ? `Segment too short for monetization (${Math.round(rawDurationSec / 60)}m) — long-form must be at least 8 minutes`
               : "Invalid segment bounds or missing sourceVideoId",
           })
           .where(eq(autopilotQueue.id, item.id));
@@ -179,7 +204,16 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         continue;
       }
 
-      const targetMin = Math.round(durationSec / 60);
+      // Apply duration experiment — cap the actual cut to the assigned bucket
+      // so each upload tests a specific length (8/10/15/20/30/45/60 min).
+      const experimentDurationSec = pickExperimentDurationSec(
+        rawDurationSec,
+        itemMeta.experimentDurationMin as number | undefined,
+      );
+      const experimentDurationMin = Math.round(experimentDurationSec / 60);
+      // Actual cut uses the experiment duration, not the full raw segment
+      const durationSec = Math.min(rawDurationSec, experimentDurationSec);
+      const targetMin = experimentDurationMin;
       const sourceYoutubeId = typeof itemMeta.sourceYoutubeId === "string" ? itemMeta.sourceYoutubeId : undefined;
 
       // Mark as processing immediately to prevent double pick-up
@@ -231,7 +265,10 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
             await extractSegment(vaultEntry.filePath, startSec, durationSec, tmpEncoded);
           } else {
-            await downloadSegmentFromYouTube(resolvedYoutubeId, startSec, endSec, tmpRaw);
+            // Cap the download end to startSec + experimentDurationSec so yt-dlp
+            // doesn't fetch footage beyond the bucket we're testing.
+            const downloadEndSec = startSec + durationSec;
+            await downloadSegmentFromYouTube(resolvedYoutubeId, startSec, downloadEndSec, tmpRaw);
             if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
             await extractSegment(tmpRaw, 0, durationSec, tmpEncoded);
           }
@@ -269,6 +306,11 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
               ...itemMeta,
               youtubeVideoId: uploadResult.youtubeId,
               publishedAt: new Date().toISOString(),
+              // Experiment tracking — use these fields to correlate video
+              // length with watch-time / retention in YouTube Analytics.
+              experimentDurationMin,
+              experimentDurationSec,
+              experimentRawAvailableMin: Math.round(rawDurationSec / 60),
             } as any,
           })
           .where(eq(autopilotQueue.id, item.id));
@@ -276,7 +318,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         logger.info("Long-form clip published", {
           queueId: item.id,
           youtubeId: uploadResult.youtubeId,
-          durationMin: targetMin,
+          experimentDurationMin,
+          rawAvailableMin: Math.round(rawDurationSec / 60),
           gameName: gameName.substring(0, 50),
           userId: item.userId.substring(0, 8),
         });

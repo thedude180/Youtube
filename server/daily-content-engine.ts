@@ -456,7 +456,7 @@ Return ONLY valid JSON:
     "title": "string - compelling title under 60 chars with curiosity gap and strong hook",
     "description": "string - SEO-optimized description: keyword-rich first 2 lines, timestamps at chapter breaks, hashtags, and call-to-action",
     "segments": [{"startMinute": number, "endMinute": number, "hook": "string - why this moment is compelling"}],
-    "totalDurationEstimate": "string like 52:30 — target 45-60 minutes for long-form",
+    "totalDurationEstimate": "string like 14:30 — vary between 8 and 60 minutes; each upload tests a different length to find what audiences respond to",
     "tags": ["array of 15-25 SEO-optimized tags mixing broad and long-tail keywords"],
     "thumbnailConcept": "detailed thumbnail concept: emotion, composition, colors, focal point, contrast technique",
     "retentionBrief": {
@@ -562,23 +562,34 @@ async function queueBatchContent(
         caption: plan.longForm.title,
         status: "scheduled",
         scheduledAt: longFormTime,
-        metadata: {
-          contentType: "long-form-compilation",
-          contentCategory: "video",
-          style: "highlight-reel",
-          aiModel: "gpt-4o-mini",
-          sourceStreamId: stream.stream.id,
-          segmentStartMin: stream.nextSegmentStart,
-          segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
-          batchNumber,
-          crossPlatformGroupId: groupId,
-          crossLinkedPlatforms: allPlatforms,
-          tags: plan.longForm.tags || [],
-          retentionBeatsApplied: true,
-          retentionBrief: plan.longForm.retentionBrief || null,
-          titleVariants: plan.longForm.titleVariants || [],
-          thumbnailConcept: plan.longForm.thumbnailConcept,
-        },
+        metadata: (() => {
+          // Assign experiment duration at queue time so retries always use
+          // the same bucket. Buckets: 8, 10, 15, 20, 30, 45, 60 min.
+          const EXPERIMENT_BUCKETS = [8, 10, 15, 20, 30, 45, 60];
+          const availableMin = Math.min(stream.remainingMinutes, LONG_FORM_MAX_MINUTES);
+          const eligibleBuckets = EXPERIMENT_BUCKETS.filter(m => m <= availableMin);
+          const experimentDurationMin = eligibleBuckets.length > 0
+            ? eligibleBuckets[Math.floor(Math.random() * eligibleBuckets.length)]
+            : 8; // fallback to minimum if footage is very short
+          return {
+            contentType: "long-form-compilation",
+            contentCategory: "video",
+            style: "highlight-reel",
+            aiModel: "gpt-4o-mini",
+            sourceStreamId: stream.stream.id,
+            segmentStartMin: stream.nextSegmentStart,
+            segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
+            experimentDurationMin,
+            batchNumber,
+            crossPlatformGroupId: groupId,
+            crossLinkedPlatforms: allPlatforms,
+            tags: plan.longForm.tags || [],
+            retentionBeatsApplied: true,
+            retentionBrief: plan.longForm.retentionBrief || null,
+            titleVariants: plan.longForm.titleVariants || [],
+            thumbnailConcept: plan.longForm.thumbnailConcept,
+          };
+        })(),
       });
       longFormQueued = true;
     } catch (err: any) {
