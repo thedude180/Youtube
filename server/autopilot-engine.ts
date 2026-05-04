@@ -1767,7 +1767,7 @@ export async function processScheduledPosts() {
         result = await handleStreamClipPublish(post, meta);
       } else if (post.type === "vod-long-form" && post.targetPlatform === "youtube") {
         result = await handleVodLongFormPublish(post, meta);
-      } else if (post.type === "vod-short" && post.targetPlatform === "youtube") {
+      } else if (post.type === "vod-short" && (post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts")) {
         result = await handleVodShortPublish(post, meta);
       } else if (post.type === "vod-optimization" && post.targetPlatform === "youtube") {
         result = await handleVodOptimizationPublish(post, meta);

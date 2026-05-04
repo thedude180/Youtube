@@ -165,9 +165,15 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       const endSec = Number(itemMeta.segmentEndSec ?? 0);
       const durationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
 
-      if (durationSec < 180 || !item.sourceVideoId) {
+      if (durationSec < 480 || !item.sourceVideoId) {
+        const tooShort = item.sourceVideoId && durationSec < 480;
         await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: "Invalid segment bounds or missing sourceVideoId" })
+          .set({
+            status: "failed",
+            errorMessage: tooShort
+              ? `Segment too short for monetization (${Math.round(durationSec / 60)}m) — long-form must be at least 8 minutes`
+              : "Invalid segment bounds or missing sourceVideoId",
+          })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
         continue;

@@ -229,7 +229,14 @@ async function runCycle(userId: string) {
           const targetPlatforms = (cfg.targetPlatforms || ["youtube"]).filter(p =>
             userChannels.some(c => c.platform === p)
           );
-          const platforms = targetPlatforms.length > 0 ? targetPlatforms : ["youtube"];
+          // Shorts only ever need ONE YouTube destination. If both "youtube" and
+          // "youtubeshorts" are in the list they both upload to the same channel,
+          // causing the same video to be posted twice. Prefer "youtubeshorts" when
+          // that channel is connected; fall back to "youtube" otherwise.
+          const hasYoutubeShorts = targetPlatforms.includes("youtubeshorts");
+          const deduped = (targetPlatforms.length > 0 ? targetPlatforms : ["youtube"])
+            .filter(p => !(hasYoutubeShorts && p === "youtube"));
+          const platforms = deduped.length > 0 ? deduped : ["youtube"];
 
           for (const platform of platforms) {
             const scheduledAt = peakHourSlot(slotIndex, shortsBudget);
