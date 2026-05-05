@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { channelRepo } from "./repository.js";
 import { notFound, badRequest } from "../../core/errors.js";
 import { createLogger } from "../../core/logger.js";
+import { getOAuthCallbackUrl } from "../../lib/app-url.js";
 import type { Channel, Platform } from "../../../shared/schema/index.js";
 
 const log = createLogger("channels");
@@ -110,8 +111,7 @@ const OAUTH_CONFIGS: Record<string, {
 };
 
 function getRedirectUri(platform: string): string {
-  const base = process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 5000}`;
-  return `${base}/api/channels/oauth/${platform}/callback`;
+  return getOAuthCallbackUrl(platform);
 }
 
 export class ChannelsService {

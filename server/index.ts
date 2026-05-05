@@ -58,6 +58,9 @@ async function main() {
   // 2. Express app
   const app = express();
 
+  // Liveness probe — before all middleware, always responds
+  app.get("/healthz", (_req, res) => res.status(200).send("ok"));
+
   app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,

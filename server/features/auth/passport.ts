@@ -7,20 +7,17 @@ import connectPg from "connect-pg-simple";
 import { pool } from "../../core/db.js";
 import { authRepo } from "./repository.js";
 import { authService } from "./service.js";
+import { getAppUrl } from "../../lib/app-url.js";
 import crypto from "crypto";
 
 const PgStore = connectPg(session);
-
-function getAppUrl(): string {
-  return process.env.APP_URL ?? `http://localhost:${process.env.PORT ?? 5000}`;
-}
 
 export function configureAuth(app: Express): void {
   const isProd = process.env.NODE_ENV === "production";
 
   app.use(
     session({
-      store: new PgStore({ pool, tableName: "sessions", createTableIfMissing: true }),
+      store: new PgStore({ pool, tableName: "v2_sessions", createTableIfMissing: true }),
       secret: process.env.SESSION_SECRET ?? crypto.randomBytes(32).toString("hex"),
       resave: false,
       saveUninitialized: false,
