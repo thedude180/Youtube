@@ -6,6 +6,7 @@ import { eq, and, desc, inArray } from "drizzle-orm";
 import { linkedChannels, streamDestinations, subscriptions, channels, videos } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import { requireAuth, getUserId, parseNumericId } from "./helpers";
 import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
@@ -842,7 +843,7 @@ export async function registerPlatformRoutes(app: Express) {
     try {
       const { streamEditJobs } = await import("@shared/schema");
       const jobId = parseInt(req.params.jobId, 10);
-      const platform = req.params.platform;
+      const platform = requireYouTubeOnly(req.params.platform);
       const clipIndex = parseInt(req.params.clipIndex, 10);
       if (isNaN(jobId) || isNaN(clipIndex)) return res.status(400).json({ error: "Invalid job or clip index" });
 
@@ -1553,9 +1554,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/optimization/algorithm-cheatsheet/:platform", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = String(req.params.platform).toLowerCase().trim();
-    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
-    try { const result = await getAlgorithmCheatSheet(userId, platform); res.json(result); }
+    try { const platform = requireYouTubeOnly(req.params.platform); const result = await getAlgorithmCheatSheet(userId, platform); res.json(result); }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -1783,16 +1782,14 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/scheduler/optimal-times/:platform", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = String(req.params.platform).toLowerCase().trim();
-    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
-    try { const result = await getOptimalPostingTimes(userId, platform); res.json(result); }
+    try { const platform = requireYouTubeOnly(req.params.platform); const result = await getOptimalPostingTimes(userId, platform); res.json(result); }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
   app.post("/api/scheduler/activity-patterns", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await updateActivityPatterns(userId, req.body.platform, req.body.data); res.json(result); }
+    try { const result = await updateActivityPatterns(userId, requireYouTubeOnly(req.body.platform), req.body.data); res.json(result); }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -2375,9 +2372,10 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
+      const platform = requireYouTubeOnly(req.body.platform);
       const [result] = await db.insert(linkedChannels).values({
         userId,
-        platform: req.body.platform,
+        platform,
         username: req.body.username || null,
         profileUrl: req.body.profileUrl || null,
         isConnected: req.body.isConnected ?? true,
@@ -2388,15 +2386,14 @@ export async function registerPlatformRoutes(app: Express) {
 
       const creds = req.body.credentials || {};
       const tokenValue = creds.streamKey || creds.apiKey || req.body.username || "";
-      const platformName = req.body.platform;
       const existingChannels = await storage.getChannelsByUser(userId);
-      const existingForPlatform = existingChannels.find(c => c.platform === platformName);
+      const existingForPlatform = existingChannels.find(c => c.platform === platform);
       if (!existingForPlatform && tokenValue) {
-        const platformInfo = PLATFORM_INFO[platformName as Platform];
+        const platformInfo = PLATFORM_INFO[platform as Platform];
         await storage.createChannel({
           userId,
-          platform: platformName,
-          channelName: req.body.username || `${platformInfo?.label || platformName} Account`,
+          platform,
+          channelName: req.body.username || `${platformInfo?.label || platform} Account`,
           channelId: tokenValue,
           accessToken: tokenValue,
           refreshToken: null,
@@ -2450,8 +2447,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.delete("/api/oauth/:platform/disconnect", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = String(req.params.platform).toLowerCase().trim();
-    if (!platform || platform.length > 50) return res.status(400).json({ error: "Invalid platform" });
+    const platform = requireYouTubeOnly(req.params.platform);
     try {
       const userChannels = await storage.getChannelsByUser(userId);
       const platformChannels = userChannels.filter(c => c.platform === platform);
@@ -2549,7 +2545,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/connections/refresh/:platform", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = req.params.platform;
+    const platform = requireYouTubeOnly(req.params.platform);
     try {
       const { forceRefreshPlatform } = await import("../services/connection-guardian");
       const result = await forceRefreshPlatform(userId, platform);

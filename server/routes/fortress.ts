@@ -13,6 +13,7 @@ import {
   runDataRetention, seedRetentionPolicies,
   exportUserData, deleteUserData, anonymizeUserData
 } from "../services/security-fortress";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 
 import {
   getCacheStats, clearUserCache,
@@ -321,9 +322,7 @@ export function registerFortressRoutes(app: Express) {
   app.get("/api/automation-ops/rate-limits/:platform", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const allowedPlatforms = ["youtube", "twitch", "tiktok", "discord", "kick", "rumble"];
-    const platform = String(req.params.platform).toLowerCase().trim();
-    if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform", allowed: allowedPlatforms });
+    const platform = requireYouTubeOnly(req.params.platform as string);
     const status = getRateLimitStatus(platform);
     const canCall = canMakeApiCall(platform);
     res.json({ ...status, canMakeCall: canCall });

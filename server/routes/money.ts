@@ -10,6 +10,7 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { cached } from "../lib/cache";
 import { getUncachableStripeClient, getStripePublishableKey } from "../stripeClient";
 import { generateTaxStrategy, generateExpenseAnalysis } from "../ai-engine";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import {
   suggestAdBreaks, generateRevenueForecast, trackFanFunnel,
   getFanFunnelData, calculateSponsorRates, getSponsorRates,
@@ -1054,9 +1055,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
     try {
-      const allowedPlatforms = ["youtube", "twitch", "tiktok", "discord", "kick", "rumble", "patreon"];
-      const platform = String(req.params.platform as string).toLowerCase().trim();
-      if (!platform || !allowedPlatforms.includes(platform)) return res.status(400).json({ error: "Invalid platform" });
+      const platform = requireYouTubeOnly(req.params.platform as string);
       const result = await syncPlatformRevenue(userId, platform);
       res.json(result);
     } catch (error: any) {
