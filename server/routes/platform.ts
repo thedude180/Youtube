@@ -219,7 +219,7 @@ export async function registerPlatformRoutes(app: Express) {
       });
 
       const channelTitle = result?.ytChannel?.title || "YouTube";
-      const msg = result?.ytChannel ? `/?yt_connected=true&channel=${encodeURIComponent(channelTitle)}` : `/?yt_connected=true&channel=YouTube&quota_retry=1`;
+      const msg = result?.ytChannel ? `/content?yt_connected=true&channel=${encodeURIComponent(channelTitle)}` : `/content?yt_connected=true&channel=YouTube&quota_retry=1`;
       res.redirect(msg);
     } catch (error: any) {
       const errMsg = error?.message || String(error);
@@ -231,15 +231,15 @@ export async function registerPlatformRoutes(app: Express) {
       if (isNoChannel) {
         res.redirect("/?yt_no_channel=true");
       } else if (isNoToken) {
-        res.redirect("/?yt_error=" + encodeURIComponent("Google did not return a token. Please try connecting again."));
+        res.redirect("/content?yt_error=" + encodeURIComponent("Google did not return a token. Please try connecting again."));
       } else if (isRedirectMismatch) {
         logger.error(`[YouTube Callback] REDIRECT URI MISMATCH — GOOGLE_REDIRECT_URI=${process.env.GOOGLE_REDIRECT_URI || "(not set)"}. Register this URI in Google Cloud Console.`);
-        res.redirect("/?yt_error=" + encodeURIComponent("OAuth configuration error (redirect_uri_mismatch). The callback URL is not registered in Google Cloud Console."));
+        res.redirect("/content?yt_error=" + encodeURIComponent("OAuth configuration error (redirect_uri_mismatch). The callback URL is not registered in Google Cloud Console."));
       } else if (isInvalidGrant) {
         logger.error(`[YouTube Callback] INVALID GRANT — code may have expired or been reused. User should retry OAuth.`);
-        res.redirect("/?yt_error=" + encodeURIComponent("Authorization code expired. Please try connecting again."));
+        res.redirect("/content?yt_error=" + encodeURIComponent("Authorization code expired. Please try connecting again."));
       } else {
-        res.redirect("/?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
+        res.redirect("/content?yt_error=" + encodeURIComponent("Failed to connect YouTube. Please try again."));
       }
     }
   });
