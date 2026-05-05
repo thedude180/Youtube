@@ -166,13 +166,9 @@ function PlatformConnectionsCard({
 
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
+  // YouTube-only mode: only show YouTube OAuth connection
   const FOCUSED_PLATFORMS = [
     { key: "youtube", label: "YouTube", color: "#FF0000", Icon: SiYoutube, isYouTube: true, streamKeyOnly: false },
-    { key: "twitch", label: "Twitch", color: "#9146FF", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
-    { key: "kick", label: "Kick", color: "#53FC18", Icon: SiTwitch, isYouTube: false, streamKeyOnly: false },
-    { key: "tiktok", label: "TikTok", color: "#EE1D52", Icon: SiTiktok, isYouTube: false, streamKeyOnly: false },
-    { key: "discord", label: "Discord", color: "#5865F2", Icon: SiDiscord, isYouTube: false, streamKeyOnly: false },
-    { key: "rumble", label: "Rumble", color: "#85C742", Icon: SiRumble, isYouTube: false, streamKeyOnly: true },
   ];
 
   const connectedSet = new Set((channels || []).map((c: any) => c.platform));
@@ -792,15 +788,9 @@ function GeneralTab() {
   }, [presetMutation]);
 
   // ── Social Profile Links ─────────────────────────────────────────────────────
+  // YouTube-only mode: only YouTube profile link
   const SOCIAL_PLATFORMS = [
-    { key: "youtube",   label: "YouTube",   icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
-    { key: "twitch",    label: "Twitch",    icon: "🎮", placeholder: "https://twitch.tv/yourname" },
-    { key: "kick",      label: "Kick",      icon: "🟢", placeholder: "https://kick.com/yourname" },
-    { key: "tiktok",    label: "TikTok",    icon: "🎵", placeholder: "https://tiktok.com/@yourname" },
-    { key: "x",         label: "X",         icon: "𝕏",  placeholder: "https://x.com/yourname" },
-    { key: "discord",   label: "Discord",   icon: "💬", placeholder: "https://discord.gg/yourserver" },
-    { key: "rumble",    label: "Rumble",    icon: "🔴", placeholder: "https://rumble.com/c/yourname" },
-    { key: "instagram", label: "Instagram", icon: "📸", placeholder: "https://instagram.com/yourname" },
+    { key: "youtube", label: "YouTube", icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
   ];
 
   const { data: savedSocialLinks } = useQuery<Array<{ platform: string; profileUrl?: string }>>({

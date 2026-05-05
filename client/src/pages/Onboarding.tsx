@@ -73,128 +73,29 @@ const LOGIN_GROUPS: { id: string; label: string; color: string; provider: string
 
 const GROUPED_PLATFORMS = new Set(LOGIN_GROUPS.flatMap(g => g.platforms));
 
+// YouTube-only mode: only show YouTube in onboarding platform selection
 const CATEGORIES: { key: string; label: string; platforms: Platform[] }[] = [
   {
     key: "priority",
-    label: "Priority",
+    label: "YouTube",
     platforms: ["youtube"],
-  },
-  {
-    key: "live-streaming",
-    label: "Live Streaming",
-    platforms: ["twitch", "kick", "tiktok"],
-  },
-  {
-    key: "social-media",
-    label: "Social & Community",
-    platforms: ["discord"],
   },
 ];
 
+// YouTube-only mode: each niche only recommends YouTube
 const NICHE_PLATFORMS: Record<string, { platforms: Platform[]; reasons: Record<string, string> }> = {
-  gaming: {
-    platforms: ["youtube", "twitch", "kick", "discord", "tiktok"],
-    reasons: {
-      youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights",
-      twitch: "Live stream your gameplay to a gaming audience",
-      kick: "Alternative streaming platform growing fast in gaming",
-      discord: "Build a community server for your fans",
-      tiktok: "Short gaming clips go viral fast here",
-      x: "Share updates and engage with the gaming community",
-    },
-  },
-  tech: {
-    platforms: ["youtube", "discord", "tiktok"],
-    reasons: {
-      youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips",
-      x: "Share tech news and engage with the tech community",
-      discord: "Build a tech community for discussions",
-      tiktok: "Short tech tips and quick reviews",
-    },
-  },
-  cooking: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Full recipe videos, cooking shows + Shorts for quick hacks",
-      tiktok: "Short recipe videos are hugely popular here",
-      discord: "Build a food community",
-    },
-  },
-  vlogging: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Long-form vlogs, day-in-the-life + Shorts for quick updates",
-      tiktok: "Short lifestyle clips and trends",
-      x: "Daily updates and engage with your community",
-      discord: "Build a community of loyal followers",
-    },
-  },
-  education: {
-    platforms: ["youtube", "tiktok"],
-    reasons: {
-      youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips",
-      tiktok: "EduTok is a massive category — short lessons",
-      x: "Share quick insights and engage learners",
-    },
-  },
-  fitness: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Full workout videos, fitness programs + Shorts for exercise demos",
-      tiktok: "Short workout clips and fitness trends",
-      discord: "Build a fitness accountability community",
-    },
-  },
-  music: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Music videos, covers, performances + Shorts for song previews",
-      tiktok: "Short song clips can go viral and drive streams",
-      x: "Announce releases and engage with fans",
-      discord: "Build a fan community",
-    },
-  },
-  business: {
-    platforms: ["youtube", "tiktok"],
-    reasons: {
-      youtube: "Business advice, case studies, interviews + Shorts for quick tips",
-      x: "Business commentary and networking",
-      tiktok: "FinTok and BizTok are growing fast",
-    },
-  },
-  beauty: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Tutorials, hauls, product reviews + Shorts for quick tips",
-      tiktok: "GRWM and beauty trends go viral here",
-      discord: "Build a beauty community",
-    },
-  },
-  comedy: {
-    platforms: ["youtube", "tiktok"],
-    reasons: {
-      youtube: "Sketches, commentary, long-form comedy + Shorts for skits",
-      tiktok: "Comedy clips and trends are the core of TikTok",
-      x: "Comedic commentary and engaging with fans",
-    },
-  },
-  art: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Time-lapses, tutorials, process videos + Shorts for quick clips",
-      tiktok: "Art process videos get huge engagement",
-      discord: "Build an art community and share work",
-    },
-  },
-  other: {
-    platforms: ["youtube", "tiktok", "discord"],
-    reasons: {
-      youtube: "Long-form content + Shorts for fast audience growth",
-      tiktok: "Short-form content for maximum reach",
-      x: "Engage with your audience and share updates",
-      discord: "Build a dedicated community",
-    },
-  },
+  gaming:    { platforms: ["youtube"], reasons: { youtube: "Upload gameplay, reviews, walkthroughs + Shorts for highlights" } },
+  tech:      { platforms: ["youtube"], reasons: { youtube: "In-depth reviews, tutorials, unboxings + Shorts for quick tips" } },
+  cooking:   { platforms: ["youtube"], reasons: { youtube: "Full recipe videos, cooking shows + Shorts for quick hacks" } },
+  vlogging:  { platforms: ["youtube"], reasons: { youtube: "Long-form vlogs, day-in-the-life + Shorts for quick updates" } },
+  education: { platforms: ["youtube"], reasons: { youtube: "In-depth tutorials, courses, explainers + Shorts for quick tips" } },
+  fitness:   { platforms: ["youtube"], reasons: { youtube: "Full workout videos, fitness programs + Shorts for exercise demos" } },
+  music:     { platforms: ["youtube"], reasons: { youtube: "Music videos, covers, performances + Shorts for song previews" } },
+  business:  { platforms: ["youtube"], reasons: { youtube: "Business advice, case studies, interviews + Shorts for quick tips" } },
+  beauty:    { platforms: ["youtube"], reasons: { youtube: "Tutorials, hauls, product reviews + Shorts for quick tips" } },
+  comedy:    { platforms: ["youtube"], reasons: { youtube: "Sketches, commentary, long-form comedy + Shorts for skits" } },
+  art:       { platforms: ["youtube"], reasons: { youtube: "Time-lapses, tutorials, process videos + Shorts for quick clips" } },
+  other:     { platforms: ["youtube"], reasons: { youtube: "Long-form content + Shorts for fast audience growth" } },
 };
 
 function PlatformCard({

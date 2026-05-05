@@ -361,10 +361,8 @@ function ChannelsTab() {
   }, [channels]);
 
   const connectedCount = channels?.length || 0;
-  const allPlatforms = useMemo(() => {
-    if (activeCategory === "all") return [...PLATFORMS];
-    return PLATFORMS.filter((p: Platform) => PLATFORM_INFO[p].category === activeCategory);
-  }, [activeCategory]);
+  // YouTube-only mode: only show YouTube channel card
+  const allPlatforms = useMemo(() => ["youtube" as Platform], []);
 
   if (isLoading) {
     return (
@@ -380,22 +378,6 @@ function ChannelsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-muted-foreground">{connectedCount} connected</p>
-        {isAdvanced && (
-          <div className="flex gap-2 flex-wrap">
-            {CATEGORIES.map((cat) => (
-              <Button
-                key={cat.key}
-                size="sm"
-                variant={activeCategory === cat.key ? "default" : "outline"}
-                onClick={() => setActiveCategory(cat.key)}
-                className="toggle-elevate"
-                data-testid={`filter-category-${cat.key}`}
-              >
-                {cat.label}
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

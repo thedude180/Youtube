@@ -2374,8 +2374,8 @@ httpServer.listen(
         { label: "content-consistency-agent", fn: () => import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import")) },
         { label: "stream-agent",              fn: () => import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import")) },
         { label: "copyright-guardian",        fn: () => import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import")) },
-        { label: "tiktok-autopublisher",      fn: () => import("./services/tiktok-clip-autopublisher").then(m => m.bootstrapTikTokAutopublishers().catch(slog("bootstrapTikTokAutopublishers"))).catch(slog("tiktok-autopublisher import")) },
-        { label: "multistream-engine",        fn: () => import("./services/multistream-engine").then(m => m.wireMultistreamEvents()).catch(slog("wireMultistreamEvents")) },
+        // tiktok-autopublisher: disabled — YouTube-only mode
+        // multistream-engine: disabled — YouTube-only mode (no Twitch/Kick/TikTok streaming)
         { label: "connection-guardian",       fn: () => { startConnectionGuardian(); } },
         { label: "stripe-init",               fn: () => initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) })) },
       ], 2_000);
