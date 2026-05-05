@@ -24,3 +24,9 @@ id = "6h8fFd-6X_z-240X82bpI"
 uri = "file://codebase-export.md"
 type = "text"
 title = "Full Codebase Export"
+
+[[outputs]]
+id = "znJHDn2_hLJz8IFCvBDmn"
+uri = "file://.local/creatorOS-code-breakdown.md"
+type = "text"
+title = "CreatorOS Full Code Breakdown"
