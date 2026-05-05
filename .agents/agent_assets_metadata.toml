@@ -12,3 +12,9 @@ id = "_IXF3MoiPN_2Wd9hLlFNT"
 uri = "file://CLAUDE.md"
 type = "text"
 title = "CreatorOS — Claude AI Context File"
+
+[[outputs]]
+id = "0zlOZ857MP4nV82uB2PLB"
+uri = "file://youtube-only-codebase.md"
+type = "text"
+title = "YouTube-Only Codebase — All Changed Files"
