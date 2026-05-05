@@ -628,8 +628,8 @@ async function runGuardianCycle(): Promise<void> {
 
     const tokenResult = await withRetry(() => ensureAllTokensFresh(), "guardian-tokens");
     const autopilotReactivated = await withRetry(() => ensureAutopilotAlwaysOn(), "guardian-autopilot");
-    const streamingConnected = await autoConnectStreamingPlatforms();
-    const totalStreamingConnected = streamingConnected.rumble + streamingConnected.twitch + streamingConnected.kick;
+    // YouTube-only mode: legacy auto-connect for Rumble/Twitch/Kick is disabled.
+    // await autoConnectStreamingPlatforms();
     const baselines = await withRetry(() => captureBaselineSnapshots(), "guardian-baselines");
     const periodic = await withRetry(() => capturePeriodicSnapshots(), "guardian-snapshots");
 
