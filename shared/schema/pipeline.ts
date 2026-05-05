@@ -154,9 +154,9 @@ export const contentAnalytics = pgTable("v2_content_analytics", {
   followerDelta: integer("follower_delta").default(0),
   metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
 }, (t) => [
-  index("v2_analytics_user_idx").on(t.userId),
-  index("v2_analytics_run_idx").on(t.runId),
-  index("v2_analytics_platform_idx").on(t.platform),
+  index("v2_content_analytics_user_idx").on(t.userId),
+  index("v2_content_analytics_run_idx").on(t.runId),
+  index("v2_content_analytics_platform_idx").on(t.platform),
 ]);
 
 // ─── Insert schemas + Types ────────────────────────────────────────────────────
