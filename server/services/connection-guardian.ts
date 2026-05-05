@@ -333,7 +333,7 @@ async function captureBaselineSnapshots(): Promise<number> {
     const { channelBaselineSnapshots } = await import("@shared/schema");
 
     const allChannels = await db.select().from(channels)
-      .where(isNotNull(channels.userId));
+      .where(and(isNotNull(channels.userId), eq(channels.platform, "youtube")));
 
     for (const ch of allChannels) {
       if (!ch.userId) continue;
@@ -379,7 +379,7 @@ async function capturePeriodicSnapshots(): Promise<number> {
     const { sql: sqlFn } = await import("drizzle-orm");
 
     const allChannels = await db.select().from(channels)
-      .where(isNotNull(channels.userId));
+      .where(and(isNotNull(channels.userId), eq(channels.platform, "youtube")));
 
     const now = new Date();
     const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
@@ -655,7 +655,7 @@ async function fastRecoverBrokenConnections(): Promise<number> {
   let recovered = 0;
   try {
     const brokenChannels = await db.select().from(channels)
-      .where(isNotNull(channels.refreshToken));
+      .where(and(isNotNull(channels.refreshToken), eq(channels.platform, "youtube")));
 
     const now = Date.now();
     for (const ch of brokenChannels) {
