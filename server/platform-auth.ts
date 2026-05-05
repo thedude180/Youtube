@@ -8,24 +8,15 @@ import { eq, and } from "drizzle-orm";
 import { channels } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { createLogger } from "./lib/logger";
+import { getAppUrl } from "./lib/app-url";
 
 const authLogger = createLogger("platform-auth");
 
 const STATE_MAX_AGE = 10 * 60 * 1000;
 const AUTH_PLATFORMS: Platform[] = ["discord", "twitch", "tiktok", "kick"];
 
-function getAuthRedirectUri(platform: string, req?: any): string {
-  let uri: string;
-  if (process.env.REPLIT_DEPLOYMENT) {
-    uri = `https://etgaming247.com/api/auth/${platform}/callback`;
-  } else if (process.env.REPLIT_DEV_DOMAIN) {
-    uri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/${platform}/callback`;
-  } else if (req?.hostname) {
-    const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? "https" : req.protocol;
-    uri = `${proto}://${req.hostname}/api/auth/${platform}/callback`;
-  } else {
-    uri = `http://localhost:5000/api/auth/${platform}/callback`;
-  }
+function getAuthRedirectUri(platform: string, _req?: any): string {
+  const uri = `${getAppUrl()}/api/auth/${platform}/callback`;
   authLogger.info(`[${platform}] Redirect URI: ${uri}`);
   return uri;
 }

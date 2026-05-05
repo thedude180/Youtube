@@ -45,8 +45,8 @@ export async function sendReconnectEmail(userId: string, platform: string): Prom
     }
 
     const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
-    const devDomain = process.env.REPLIT_DEV_DOMAIN;
-    const appDomain = devDomain ? `https://${devDomain}` : "https://etgaming247.com";
+    const { getAppUrl } = await import("../lib/app-url");
+    const appDomain = getAppUrl();
     const settingsUrl = `${appDomain}/settings?tab=channels`;
     const subject = `Action Required: ${platformName} Disconnected from CreatorOS`;
     const body = `Hi ${user.firstName || "there"},

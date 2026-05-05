@@ -1,0 +1,47 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://creatoros:creatoros@db:5432/creatoros
+    volumes:
+      - vault_data:/app/vault
+      - clips_data:/app/clips
+      - reels_data:/app/reels
+      - app_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: creatoros
+      POSTGRES_PASSWORD: creatoros
+      POSTGRES_DB: creatoros
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U creatoros"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  vault_data:
+  clips_data:
+  reels_data:
+  app_data:

@@ -10,6 +10,7 @@ import { users } from "@shared/models/auth";
 import { eq, and } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
+import { getAppUrl } from "./lib/app-url";
 
 const logger = createLogger("google-auth");
 export function setupGoogleAuth(app: Express) {
@@ -21,22 +22,8 @@ export function setupGoogleAuth(app: Express) {
     return;
   }
 
-  function getCallbackUrl(req?: any): string {
-    // In a production deployment always use the canonical custom domain so the
-    // callback URI matches exactly what is registered in Google Cloud Console.
-    if (process.env.REPLIT_DEPLOYMENT) {
-      return "https://etgaming247.com/api/auth/google/callback";
-    }
-    if (req?.hostname) {
-      // Behind Replit's reverse proxy req.secure may be false even for HTTPS
-      // requests, so always use https when running in a Replit dev tunnel.
-      const proto = process.env.REPLIT_DEV_DOMAIN ? "https" : (req.secure ? "https" : req.protocol);
-      return `${proto}://${req.hostname}/api/auth/google/callback`;
-    }
-    if (process.env.REPLIT_DEV_DOMAIN) {
-      return `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/google/callback`;
-    }
-    return "http://localhost:5000/api/auth/google/callback";
+  function getCallbackUrl(_req?: any): string {
+    return `${getAppUrl()}/api/auth/google/callback`;
   }
 
   const defaultCallbackUrl = getCallbackUrl();

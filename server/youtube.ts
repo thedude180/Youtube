@@ -2,6 +2,7 @@ import { google, youtube_v3 } from "googleapis";
 import { storage } from "./storage";
 import { isQuotaBreakerTripped, markQuotaErrorFromResponse, trackQuotaUsage, canAffordOperation, persistQuotaExhaustion } from "./services/youtube-quota-tracker";
 import { createLogger } from "./lib/logger";
+import { getAppUrl } from "./lib/app-url";
 import { db } from "./db";
 import { users as usersTable, oauthNonces, channels as channelsTable } from "@shared/schema";
 import { eq, lt } from "drizzle-orm";
@@ -87,13 +88,7 @@ function getOAuth2Client() {
 
   let redirectUri = process.env.GOOGLE_REDIRECT_URI;
   if (!redirectUri) {
-    if (process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT) {
-      redirectUri = "https://etgaming247.com/api/youtube/callback";
-    } else if (process.env.REPLIT_DEV_DOMAIN) {
-      redirectUri = `https://${process.env.REPLIT_DEV_DOMAIN}/api/youtube/callback`;
-    } else {
-      redirectUri = "http://localhost:5000/api/youtube/callback";
-    }
+    redirectUri = `${getAppUrl()}/api/youtube/callback`;
   }
 
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);

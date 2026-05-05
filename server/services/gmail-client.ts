@@ -1,55 +1,77 @@
-// Gmail integration via Replit Connectors
+/**
+ * gmail-client.ts
+ *
+ * Dual-mode Gmail sender:
+ *
+ *   On Replit   — credentials come from the Replit connector proxy (no env vars needed).
+ *   Outside Replit — credentials come from:
+ *       GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM_ADDRESS
+ *     (standard Google OAuth2 refresh-token flow)
+ */
 import { google } from 'googleapis';
 import { SUPPORT_EMAIL } from "@shared/models/auth";
-
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("gmail-client");
 let connectionSettings: any;
 
-async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
+async function getAccessToken(): Promise<string> {
+  // ── Outside Replit: use refresh-token OAuth flow ──────────────────────────────
+  const isOnReplit = !!(
+    process.env.REPLIT_CONNECTORS_HOSTNAME &&
+    (process.env.REPL_IDENTITY || process.env.WEB_REPL_RENEWAL)
+  );
+
+  if (!isOnReplit) {
+    const clientId     = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error(
+        "Gmail not configured outside Replit. " +
+        "Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN."
+      );
+    }
+    const oauthClient = new google.auth.OAuth2(clientId, clientSecret);
+    oauthClient.setCredentials({ refresh_token: refreshToken });
+    const { credentials } = await oauthClient.refreshAccessToken();
+    if (!credentials.access_token) throw new Error("Gmail token refresh failed");
+    return credentials.access_token;
+  }
+
+  // ── On Replit: use connector proxy ───────────────────────────────────────────
+  if (connectionSettings && connectionSettings.settings.expires_at &&
+      new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
     return connectionSettings.settings.access_token;
   }
-  
+
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? 'repl ' + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? 'depl ' + process.env.WEB_REPL_RENEWAL
     : null;
 
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
-
-  if (!hostname) {
-    throw new Error('REPLIT_CONNECTORS_HOSTNAME is not set');
-  }
+  if (!xReplitToken) throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+  if (!hostname) throw new Error('REPLIT_CONNECTORS_HOSTNAME is not set');
 
   const url = new URL(`https://${hostname}/api/v2/connection`);
   url.searchParams.set('include_secrets', 'true');
   url.searchParams.set('connector_names', 'google-mail');
 
   const response = await fetch(url.toString(), {
-    headers: {
-      'Accept': 'application/json',
-      'X_REPLIT_TOKEN': xReplitToken
-    }
+    headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken }
   });
 
-  if (!response.ok) {
-    throw new Error(`Gmail credentials fetch failed: HTTP ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Gmail credentials fetch failed: HTTP ${response.status}`);
 
   const data = await response.json();
   connectionSettings = data.items?.[0];
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+  const accessToken = connectionSettings?.settings?.access_token ||
+    connectionSettings?.settings?.oauth?.credentials?.access_token;
 
-  if (!connectionSettings || !accessToken) {
-    throw new Error('Gmail not connected');
-  }
+  if (!connectionSettings || !accessToken) throw new Error('Gmail not connected');
   return accessToken;
 }
 

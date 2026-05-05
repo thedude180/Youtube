@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
+import { getAppUrl } from "../lib/app-url";
 import { trackQuotaUsage, getQuotaStatus, canAffordOperation, persistQuotaExhaustion } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
 
@@ -39,11 +40,7 @@ function getOAuth2Client() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error("Google OAuth credentials not configured");
-  const redirectUri = process.env.REPLIT_DEPLOYMENT
-    ? "https://etgaming247.com/api/youtube/callback"
-    : process.env.REPLIT_DEV_DOMAIN
-      ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/youtube/callback`
-      : "http://localhost:5000/api/youtube/callback";
+  const redirectUri = `${getAppUrl()}/api/youtube/callback`;
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 

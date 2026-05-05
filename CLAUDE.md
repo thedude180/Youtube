@@ -468,4 +468,49 @@ This clears stale IPC socket files that tsx accumulates. Happens after many rapi
 
 ---
 
+---
+
+## Portability — Running Outside Replit
+
+The app runs on any host (Docker, Render, bare VM) without code changes.
+
+### How URL resolution works
+
+All OAuth redirect URIs and email links use `server/lib/app-url.ts → getAppUrl()`:
+
+1. `APP_URL` env var — explicit override, works everywhere
+2. `REPLIT_DEPLOYMENT` → `https://etgaming247.com`
+3. `REPLIT_DEV_DOMAIN` → `https://<domain>`
+4. Fallback → `http://localhost:<PORT|5000>`
+
+**Always set `APP_URL` outside Replit.**  Add it to redirect URIs in every OAuth app console.
+
+### Credentials outside Replit
+
+| Service | On Replit | Outside Replit |
+|---|---|---|
+| Stripe | Replit connector proxy (auto) | `STRIPE_SECRET_KEY` + `STRIPE_PUBLISHABLE_KEY` |
+| Gmail | Replit connector proxy (auto) | `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` + `GMAIL_REFRESH_TOKEN` |
+| Replit Auth | Injected by platform | Not available — users log in via Google OAuth |
+
+### Storage adapter
+
+`server/lib/storage-adapter.ts` picks the backend at startup:
+- S3 when `S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET` are set
+- Local disk (`vault/` dir) otherwise
+
+### SSL / database
+
+SSL is enabled when `NODE_ENV=production` OR `REPLIT_DEPLOYMENT` is set OR `sslmode=require` / `ssl=true` appears in `DATABASE_URL`.
+
+### Health check
+
+`GET /healthz` → `200 OK` — registered before all middleware, always responds.
+
+### Never commit secrets
+
+`.env` is in `.gitignore`. Copy `.env.example` to `.env` and fill values locally.
+
+---
+
 *When in doubt: read `replit.md` for project memory, `CREATOROS_MASTER_PROMPT_v15.md` for current strategic direction.*

@@ -1,6 +1,5 @@
 import type { Platform } from "@shared/schema";
-
-const isDevEnv = !process.env.REPLIT_DEPLOYMENT;
+import { getAppUrl } from "./lib/app-url";
 
 /**
  * Picks the best available env-var name for a platform credential.
@@ -107,12 +106,7 @@ export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
 };
 
 export function getOAuthRedirectUri(platform: string): string {
-  if (process.env.REPLIT_DEPLOYMENT) {
-    return `https://etgaming247.com/api/oauth/${platform}/callback`;
-  } else if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}/api/oauth/${platform}/callback`;
-  }
-  return `http://localhost:5000/api/oauth/${platform}/callback`;
+  return `${getAppUrl()}/api/oauth/${platform}/callback`;
 }
 
 export function isPlatformOAuthConfigured(platform: Platform): boolean {

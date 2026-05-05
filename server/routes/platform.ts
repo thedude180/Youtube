@@ -1886,7 +1886,7 @@ export async function registerPlatformRoutes(app: Express) {
   });
 
   app.post("/api/oauth/x/manual-token", async (req, res) => {
-    if (process.env.REPLIT_DEPLOYMENT) {
+    if (process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production") {
       return res.status(403).json({ error: "Manual token entry is only available in development mode" });
     }
     const userId = requireAuth(req, res);

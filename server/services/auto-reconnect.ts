@@ -108,14 +108,8 @@ async function sendConsolidatedReconnectEmail(userId: string, platforms: string[
       return false;
     }
 
-    const replitDomain = process.env.REPLIT_DOMAINS?.split(",")[0];
-    const domain = process.env.REPLIT_DEPLOYMENT
-      ? replitDomain
-        ? "https://" + replitDomain
-        : (() => { logger.warn("[AutoReconnect] REPLIT_DOMAINS not set in deployment — email link will be empty"); return ""; })()
-      : process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : "";
+    const { getAppUrl } = await import("../lib/app-url");
+    const domain = getAppUrl();
 
     const platformNames = platforms.map(p => p.charAt(0).toUpperCase() + p.slice(1));
     const platformList = platformNames.length === 1

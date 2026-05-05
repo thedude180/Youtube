@@ -46,7 +46,7 @@ export function getSession() {
     });
   };
 
-  const isDeployed = !!process.env.REPLIT_DEPLOYMENT;
+  const isDeployed = !!(process.env.REPLIT_DEPLOYMENT || process.env.NODE_ENV === "production");
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET environment variable must be set");
   }

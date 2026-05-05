@@ -1,39 +1,63 @@
 services:
   - type: web
-    name: creatoros-backup
+    name: creatoros
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
-    healthCheckPath: /health
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
+      # ── Required ──────────────────────────────────────────────────────────
       - key: DATABASE_URL
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # ── App URL (set to your custom domain or Render public URL) ──────────
+      - key: APP_URL
+        sync: false
+      # ── AI ────────────────────────────────────────────────────────────────
       - key: OPENAI_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      # ── Google / YouTube ──────────────────────────────────────────────────
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
-      - key: GOOGLE_REDIRECT_URI
+      # ── Gmail ─────────────────────────────────────────────────────────────
+      - key: GMAIL_CLIENT_ID
         sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_FROM_ADDRESS
+        sync: false
+      # ── Stripe ────────────────────────────────────────────────────────────
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # ── Twitch ────────────────────────────────────────────────────────────
       - key: TWITCH_DEV_CLIENT_ID
         sync: false
       - key: TWITCH_DEV_CLIENT_SECRET
         sync: false
+      # ── Discord ───────────────────────────────────────────────────────────
       - key: DISCORD_BOT_TOKEN
         sync: false
       - key: DISCORD_CHANNEL_ID
         sync: false
+      # ── TikTok ────────────────────────────────────────────────────────────
       - key: TIKTOK_DEV_CLIENT_ID
         sync: false
       - key: TIKTOK_DEV_CLIENT_SECRET
         sync: false
+      # ── X / Twitter ───────────────────────────────────────────────────────
       - key: TWITTER_DEV_CLIENT_ID
         sync: false
       - key: TWITTER_DEV_CLIENT_SECRET
@@ -50,23 +74,23 @@ services:
         sync: false
       - key: X_DEV_REFRESH_TOKEN
         sync: false
+      # ── Kick ──────────────────────────────────────────────────────────────
       - key: KICK_DEV_CLIENT_ID
         sync: false
       - key: KICK_DEV_CLIENT_SECRET
         sync: false
       - key: KICK_STREAM_URL
         sync: false
-      - key: STRIPE_SECRET_KEY
+      # ── S3-compatible object storage (optional) ────────────────────────────
+      - key: S3_ENDPOINT
         sync: false
-      - key: STRIPE_PUBLISHABLE_KEY
+      - key: S3_ACCESS_KEY_ID
         sync: false
-      - key: STRIPE_WEBHOOK_SECRET
+      - key: S3_SECRET_ACCESS_KEY
         sync: false
-      - key: GMAIL_CLIENT_ID
+      - key: S3_BUCKET
         sync: false
-      - key: GMAIL_CLIENT_SECRET
+      - key: S3_REGION
         sync: false
-      - key: GMAIL_REFRESH_TOKEN
-        sync: false
-      - key: GMAIL_FROM_ADDRESS
+      - key: S3_PUBLIC_URL
         sync: false
