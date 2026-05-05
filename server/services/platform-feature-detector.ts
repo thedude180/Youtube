@@ -401,7 +401,7 @@ export async function runPlatformFeatureDetection(): Promise<void> {
       channelName: channels.channelName,
       subscriberCount: channels.subscriberCount,
       viewCount: channels.viewCount,
-    }).from(channels);
+    }).from(channels).where(eq(channels.platform, "youtube"));
 
     if (allChannels.length === 0) return;
 

@@ -47,7 +47,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
         .limit(1000);
 
       const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, userId));
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
       const totalOptimizations = await db.select({
         count: sql<number>`count(*)::int`,
@@ -82,7 +82,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, userId));
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
       const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
       const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
@@ -149,7 +149,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
     if (!userId) return;
 
     const userChannels = await db.select().from(channels)
-      .where(eq(channels.userId, userId));
+      .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
     const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
     const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
@@ -191,7 +191,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
 
     const result = await cached(`growth-channels:${userId}`, 60, async () => {
       const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, userId));
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
       if (userChannels.length === 0) {
         return { channels: [] };
@@ -285,7 +285,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
       const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, userId));
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
       const snapshots = await db.select().from(channelGrowthTracking)
         .where(and(
@@ -409,7 +409,7 @@ export function registerGrowthTrackingRoutes(app: Express) {
 
     const result = await cached(`growth-journey:${userId}`, 120, async () => {
       const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, userId));
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
       const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
       const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
@@ -574,7 +574,7 @@ Return ONLY valid JSON: {"actions":[{"action":"specific action","priority":"high
     if (!userId) return;
 
     const result = await cached(`beast-coach:${userId}`, 300, async () => {
-      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
+      const userChannels = await db.select().from(channels).where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
       const totalSubs = userChannels.reduce((s, c) => s + (c.subscriberCount || 0), 0);
       const totalViews = userChannels.reduce((s, c) => s + (c.viewCount || 0), 0);
       const totalVideos = userChannels.reduce((s, c) => s + (c.videoCount || 0), 0);
