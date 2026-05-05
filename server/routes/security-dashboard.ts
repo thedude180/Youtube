@@ -282,7 +282,7 @@ export function registerSecurityDashboardRoutes(app: Express) {
         }
 
         const platformStats: Record<string, { videos: number; streams: number; totalViews: number; totalRevenue: number }> = {};
-        const platforms = ["youtube", "twitch", "kick", "tiktok", "discord"];
+        const platforms = ["youtube"];
 
         for (const p of platforms) {
           platformStats[p] = { videos: 0, streams: 0, totalViews: 0, totalRevenue: 0 };

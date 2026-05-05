@@ -114,7 +114,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
         humanScore: moment.viralScore,
         isRecycled: false,
         originalPostDate: timestamp,
-      },
+      } as any,
     });
   } catch (err: any) {
     logger.warn(`[${session.userId}] Clip blast queue failed: ${err.message}`);

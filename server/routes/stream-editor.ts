@@ -27,7 +27,7 @@ const enhancementsSchema = z.object({
 
 const queueJobSchema = z.object({
   vaultEntryId: z.number().int().positive(),
-  platforms: z.array(z.enum(["youtube", "rumble", "tiktok", "shorts"])).min(1),
+  platforms: z.array(z.enum(["youtube", "shorts"])).min(1),
   clipDurationMins: z.number().int().min(1).max(180).default(60),
   enhancements: enhancementsSchema,
   autoPublish: z.boolean().default(false),
@@ -35,7 +35,7 @@ const queueJobSchema = z.object({
 
 const batchQueueSchema = z.object({
   vaultEntryIds: z.array(z.number().int().positive()).min(1).max(500),
-  platforms: z.array(z.enum(["youtube", "rumble", "tiktok", "shorts"])).min(1),
+  platforms: z.array(z.enum(["youtube", "shorts"])).min(1),
   clipDurationMins: z.number().int().min(1).max(180).default(60),
   enhancements: enhancementsSchema,
   autoPublish: z.boolean().default(false),

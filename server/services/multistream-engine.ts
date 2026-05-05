@@ -8,21 +8,12 @@ import { isFfmpegAvailable, getFfmpegBin } from "../lib/dependency-check";
 
 const logger = createLogger("multistream");
 
-const PLATFORM_RTMP: Record<string, string> = {
-  kick:    "rtmps://fa723fc1b171.global-contribute.live-video.net/app",
-  twitch:  "rtmp://live.twitch.tv/app",
-  rumble:  "rtmp://live.rumble.com/live",
-};
+// YouTube-only: Kick/Twitch/Rumble RTMP destinations removed.
+const PLATFORM_RTMP: Record<string, string> = {};
 
-const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {
-  kick:   { urlKey: "KICK_STREAM_URL",   keyKey: "KICK_STREAM_KEY" },
-  rumble: { urlKey: "RUMBLE_STREAM_URL", keyKey: "RUMBLE_STREAM_KEY" },
-  twitch: { keyKey: "TWITCH_STREAM_KEY" },
-};
+const ENV_KEYS: Record<string, { urlKey?: string; keyKey: string }> = {};
 
-const PLATFORM_REQUIRED_PATH: Record<string, string> = {
-  kick: "/app",
-};
+const PLATFORM_REQUIRED_PATH: Record<string, string> = {};
 
 function normalizeRtmpUrl(platform: string, url: string): string {
   const requiredPath = PLATFORM_REQUIRED_PATH[platform];

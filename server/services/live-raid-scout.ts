@@ -127,53 +127,8 @@ async function deliverFinalRaidList(session: RaidSession): Promise<void> {
     });
   } catch {}
 
-  // Twitch Raid Execution
-  try {
-    const userChannels = await db.select().from(channels).where(and(eq(channels.userId, session.userId), eq(channels.platform, "twitch")));
-    const twitchChannel = userChannels[0];
-
-    const twitchClientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
-    if (twitchChannel?.accessToken && twitchClientId) {
-      logger.info(`[${session.userId}] Attempting to execute Twitch raid for ${sanitizeForPrompt(top.channelName)}`);
-      
-      // 1. Get target broadcaster ID
-      const searchRes = await fetch(`https://api.twitch.tv/helix/users?login=${sanitizeForPrompt(top.channelName)}`, {
-        headers: {
-          "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
-          "Client-Id": twitchClientId
-        }
-      });
-      
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const targetId = searchData.data?.[0]?.id;
-        
-        if (targetId) {
-          // 2. Start Raid
-          const raidRes = await fetch(`https://api.twitch.tv/helix/raids?from_broadcaster_id=${twitchChannel.channelId}&to_broadcaster_id=${targetId}`, {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${sanitizeForPrompt(twitchChannel.accessToken)}`,
-              "Client-Id": twitchClientId
-            }
-          });
-          
-          if (raidRes.ok) {
-            logger.info(`[${session.userId}] Twitch raid started successfully for ${sanitizeForPrompt(top.channelName)}`);
-          } else {
-            const raidErr = await raidRes.text();
-            logger.warn(`[${session.userId}] Twitch raid start failed: ${sanitizeForPrompt(raidRes.status)} ${raidErr}`);
-          }
-        } else {
-          logger.warn(`[${session.userId}] Could not find Twitch ID for channel: ${sanitizeForPrompt(top.channelName)}`);
-        }
-      } else {
-        logger.warn(`[${session.userId}] Twitch user search failed: ${sanitizeForPrompt(searchRes.status)}`);
-      }
-    }
-  } catch (err: any) {
-    logger.warn(`[${session.userId}] Twitch raid execution error: ${sanitizeForPrompt(err.message)}`);
-  }
+  // DISABLED: Twitch raid execution — YouTube-only mode.
+  logger.info(`[${session.userId}] Twitch raid execution skipped — YouTube-only mode`);
 
   await storage.createAgentActivity({
     userId: session.userId,

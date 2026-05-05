@@ -16,74 +16,9 @@ export interface PlatformFetchedData {
 
 type PlatformFetcher = (accessToken: string, channelId: string) => Promise<PlatformFetchedData>;
 
-async function fetchTwitchData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const clientId = process.env.TWITCH_CLIENT_ID || process.env.TWITCH_DEV_CLIENT_ID || "";
-  const headers = { "Authorization": `Bearer ${accessToken}`, "Client-Id": clientId };
-
-  const result: PlatformFetchedData = { platformData: {} };
-
-  // Single-attempt, short timeout — these are best-effort enrichment calls, not critical
-  const OPTS = { maxAttempts: 1, timeoutMs: 5000 };
-
-  const fetchJson = async (url: string, label: string): Promise<any | null> => {
-    try {
-      const res = await withRetry(() => fetch(url, { headers }), { ...OPTS, label });
-      if (res.ok) return await res.json();
-    } catch (e) {
-      logger.warn(`[PlatformFetcher:twitch] ${label} failed:`, e instanceof Error ? e.message : String(e));
-    }
-    return null;
-  };
-
-  // Fire all calls in parallel — total time capped at ~5s instead of 6×15s
-  const [streamKeyData, channelData, userData, followData, subsData, videosData] = await Promise.all([
-    fetchJson(`https://api.twitch.tv/helix/streams/key?broadcaster_id=${channelId}`, "stream key"),
-    fetchJson(`https://api.twitch.tv/helix/channels?broadcaster_id=${channelId}`, "channel info"),
-    fetchJson(`https://api.twitch.tv/helix/users?id=${channelId}`, "user info"),
-    fetchJson(`https://api.twitch.tv/helix/channels/followers?broadcaster_id=${channelId}&first=1`, "followers"),
-    fetchJson(`https://api.twitch.tv/helix/subscriptions?broadcaster_id=${channelId}&first=1`, "subscriptions"),
-    fetchJson(`https://api.twitch.tv/helix/videos?user_id=${channelId}&type=archive&first=100`, "videos"),
-  ]);
-
-  if (streamKeyData?.data?.[0]?.stream_key) {
-    result.streamKey = streamKeyData.data[0].stream_key;
-    result.rtmpUrl = "rtmp://live.twitch.tv/app";
-  }
-
-  const ch = channelData?.data?.[0];
-  if (ch) {
-    result.platformData!.broadcasterId = ch.broadcaster_id;
-    result.platformData!.broadcasterLanguage = ch.broadcaster_language;
-    result.platformData!.gameId = ch.game_id;
-    result.platformData!.gameName = ch.game_name;
-    result.platformData!.title = ch.title;
-    result.platformData!.tags = ch.tags;
-  }
-
-  const user = userData?.data?.[0];
-  if (user) {
-    result.channelName = user.display_name;
-    result.profileUrl = `https://twitch.tv/${user.login}`;
-    result.platformData!.profileImageUrl = user.profile_image_url;
-    result.platformData!.broadcasterType = user.broadcaster_type;
-    result.platformData!.description = user.description;
-  }
-
-  if (followData?.total !== undefined) {
-    result.followerCount = followData.total;
-  }
-
-  if (subsData?.total !== undefined) {
-    result.platformData!.subscriberCount = subsData.total;
-  }
-
-  if (videosData?.data) {
-    const videos = videosData.data as any[];
-    result.platformData!.videoCount = videos.length;
-    result.platformData!.totalViewCount = videos.reduce((sum: number, v: any) => sum + (v.view_count || 0), 0);
-  }
-
-  return result;
+// DISABLED: Twitch data fetch — YouTube-only mode.
+async function fetchTwitchData(_accessToken: string, _channelId: string): Promise<PlatformFetchedData> {
+  return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
 }
 
 async function fetchFacebookData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
@@ -134,52 +69,9 @@ async function fetchFacebookData(accessToken: string, channelId: string): Promis
   return result;
 }
 
-async function fetchTikTokData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const result: PlatformFetchedData = { platformData: {} };
-
-  try {
-    const userRes = await withRetry(() => fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url,follower_count,following_count,likes_count,video_count", {
-      headers: { "Authorization": `Bearer ${accessToken}` },
-    }), { label: "TikTok user API" });
-    if (userRes.ok) {
-      const data = await userRes.json() as any;
-      const user = data.data?.user;
-      if (user) {
-        result.channelName = user.display_name;
-        result.followerCount = user.follower_count;
-        result.platformData!.avatarUrl = user.avatar_url;
-        result.platformData!.followingCount = user.following_count;
-        result.platformData!.likesCount = user.likes_count;
-        result.platformData!.videoCount = user.video_count;
-        result.platformData!.openId = user.open_id;
-        result.platformData!.unionId = user.union_id;
-      }
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:tiktok] User info fetch failed:", e);
-  }
-
-  try {
-    const videosRes = await withRetry(() => fetch("https://open.tiktokapis.com/v2/video/list/?fields=id,title,view_count,like_count,comment_count,share_count,create_time", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ max_count: 20 }),
-    }), { label: "TikTok videos API" });
-    if (videosRes.ok) {
-      const data = await videosRes.json() as any;
-      const videos = data.data?.videos || [];
-      let totalViews = 0;
-      for (const v of videos) {
-        totalViews += v.view_count || 0;
-      }
-      result.platformData!.recentVideoViews = totalViews;
-      result.platformData!.recentVideoCount = videos.length;
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:tiktok] Video list fetch failed:", e);
-  }
-
-  return result;
+// DISABLED: TikTok data fetch — YouTube-only mode.
+async function fetchTikTokData(_accessToken: string, _channelId: string): Promise<PlatformFetchedData> {
+  return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
 }
 
 async function fetchInstagramData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
@@ -225,44 +117,9 @@ async function fetchLinkedInData(accessToken: string, channelId: string): Promis
   return result;
 }
 
-async function fetchDiscordData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const result: PlatformFetchedData = { platformData: {} };
-  const headers = { "Authorization": `Bearer ${accessToken}` };
-
-  try {
-    const userRes = await withRetry(() => fetch("https://discord.com/api/users/@me", { headers }), { label: "Discord user API" });
-    if (userRes.ok) {
-      const data = await userRes.json() as any;
-      result.channelName = data.global_name || data.username;
-      result.channelId = data.id;
-      result.profileUrl = `https://discord.com/users/${data.id}`;
-      result.platformData!.username = data.username;
-      result.platformData!.discriminator = data.discriminator;
-      result.platformData!.avatar = data.avatar;
-      result.platformData!.premiumType = data.premium_type;
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:discord] User info fetch failed:", e);
-  }
-
-  try {
-    const guildsRes = await withRetry(() => fetch("https://discord.com/api/users/@me/guilds", { headers }), { label: "Discord guilds API" });
-    if (guildsRes.ok) {
-      const guilds = await guildsRes.json() as any;
-      result.platformData!.guilds = guilds.map((g: any) => ({
-        id: g.id,
-        name: g.name,
-        icon: g.icon,
-        owner: g.owner,
-        permissions: g.permissions,
-      }));
-      result.platformData!.guildCount = guilds.length;
-    }
-  } catch (e) {
-    logger.error("[PlatformFetcher:discord] Guilds fetch failed:", e);
-  }
-
-  return result;
+// DISABLED: Discord data fetch — YouTube-only mode.
+async function fetchDiscordData(_accessToken: string, _channelId: string): Promise<PlatformFetchedData> {
+  return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
 }
 
 async function fetchRedditData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
@@ -489,28 +346,13 @@ async function fetchTrovoData(accessToken: string, channelId: string): Promise<P
   return result;
 }
 
-async function fetchKickData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const result: PlatformFetchedData = { platformData: {} };
-
-  try {
-    result.platformData!.note = "Kick OAuth connected. Stream key available in Kick dashboard.";
-    result.rtmpUrl = "rtmp://fa723fc1b171.global-contribute.live-video.net/app";
-    result.platformData!.connectionStatus = "connected";
-  } catch (e) {
-    logger.error("[PlatformFetcher:kick] Fetch failed:", e);
-  }
-
-  return result;
+// DISABLED: Kick/Rumble data fetch — YouTube-only mode.
+async function fetchKickData(_accessToken: string, _channelId: string): Promise<PlatformFetchedData> {
+  return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
 }
 
-async function fetchRumbleData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {
-  const result: PlatformFetchedData = { platformData: {} };
-
-  result.rtmpUrl = "rtmp://live.rumble.com/live";
-  result.platformData!.note = "Rumble connected. Stream key available in Rumble Studio.";
-  result.platformData!.connectionStatus = "connected";
-
-  return result;
+async function fetchRumbleData(_accessToken: string, _channelId: string): Promise<PlatformFetchedData> {
+  return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
 }
 
 async function fetchDLiveData(accessToken: string, channelId: string): Promise<PlatformFetchedData> {

@@ -1355,7 +1355,7 @@ export async function createVideoAndSpawnPipeline(userId: string, contentIdea: {
   const finalTitle = videoPackage.seoPackage?.finalTitle || videoPackage.videoScript?.title || contentIdea.title;
 
   const crossPlatformSchedule = generateStaggeredSchedule(
-    ["youtube", "tiktok", "discord"].filter(p => p !== platform),
+    ["youtube"].filter(p => p !== platform),
     "new-video",
     userId,
   );

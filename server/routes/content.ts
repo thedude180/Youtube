@@ -525,7 +525,7 @@ export function registerContentRoutes(app: Express) {
       const tokenExpired = ch.tokenExpiresAt && ch.tokenExpiresAt < now;
       // Platforms that authenticate via env-based tokens (not OAuth) are considered connected if
       // they have an access_token sentinel OR a stream_key, or the platformData marks them healthy
-      const envBasedPlatforms = ["discord", "kick", "twitch", "tiktok", "rumble"];
+      const envBasedPlatforms: string[] = [];
       const isEnvBased = envBasedPlatforms.includes(ch.platform || "");
       const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
       const hasNoToken = !ch.accessToken && !ch.refreshToken && !hasEnvAuth;
@@ -1843,8 +1843,8 @@ export function registerContentRoutes(app: Express) {
 
       const VIDEO_CONTENT_TYPES = new Set(["video", "short", "stream", "auto-clip", "clip"]);
       const TEXT_CONTENT_TYPES = new Set(["post", "cross-post", "campaign", "community"]);
-      const VIDEO_PLATFORMS = new Set(["youtube", "tiktok"]);
-      const TEXT_ONLY_PLATFORMS = new Set(["discord"]);
+      const VIDEO_PLATFORMS = new Set(["youtube"]);
+      const TEXT_ONLY_PLATFORMS = new Set<string>();
 
       function resolveContentCategory(contentType: string, platform: string, metadata?: any): "video" | "text" {
         if (metadata?.contentCategory) return metadata.contentCategory;
@@ -2161,7 +2161,7 @@ export function registerContentRoutes(app: Express) {
         .where(sql`${videos.title} IN (${sql.join(pipelines.map(p => sql`${p.sourceTitle}`), sql`, `)})`);
       const existingTitles = new Set(existingVideos.map(v => v.title));
 
-      const platforms = ["youtube", "tiktok", "discord"];
+      const platforms = ["youtube"];
       const peakHours = [9, 11, 13, 15, 17, 19];
       const created: any[] = [];
       let slotIndex = 0;

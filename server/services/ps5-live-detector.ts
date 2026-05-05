@@ -49,36 +49,8 @@ async function detectKick(userId: string, channel: any): Promise<LiveDetectionRe
     return { isLive: false, platform: "kick", confidence: 0, signals: { error: "missing_channel_id" } };
   }
 
-  try {
-    // Kick public API v2 — no auth required
-    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelName)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-      },
-    });
-    
-    if (!res.ok) {
-      signals.api_error = `HTTP ${res.status}`;
-      return { isLive: false, platform: "kick", confidence: 0, signals };
-    }
-
-    const data = await res.json();
-    const isLive = data.is_live === true;
-    
-    signals.api = isLive;
-    
-    return {
-      isLive,
-      platform: "kick",
-      videoId: data.livestream?.id?.toString(),
-      title: data.livestream?.session_title,
-      confidence: 1.0,
-      signals
-    };
-  } catch (err) {
-    return { isLive: false, platform: "kick", confidence: 0, signals: { error: String(err) } };
-  }
+  // DISABLED: Kick detection — YouTube-only mode.
+  return { isLive: false, platform: "kick", confidence: 0, signals: { disabled: "youtube-only-mode" } };
 }
 
 async function detectYouTube(userId: string, channel: any): Promise<LiveDetectionResult> {
@@ -127,88 +99,14 @@ async function detectYouTube(userId: string, channel: any): Promise<LiveDetectio
   };
 }
 
-async function detectTwitch(userId: string, channel: any): Promise<LiveDetectionResult> {
-  const token = channel.accessToken;
-  const clientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
-  const signals: Record<string, any> = {};
-
-  if (!token || !clientId) {
-    return { isLive: false, platform: "twitch", confidence: 0, signals: { error: "missing_creds" } };
-  }
-
-  try {
-    const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?user_id=${channel.channelId}`, {
-      headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
-    });
-    
-    if (!streamsRes.ok) {
-      signals.api_error = `HTTP ${streamsRes.status}`;
-      return { isLive: false, platform: "twitch", confidence: 0, signals };
-    }
-
-    const data = await streamsRes.json();
-    const live = data.data?.[0];
-    
-    signals.api = !!live;
-    
-    return {
-      isLive: !!live,
-      platform: "twitch",
-      videoId: live?.id,
-      title: live?.title,
-      confidence: 1.0,
-      signals
-    };
-  } catch (err) {
-    return { isLive: false, platform: "twitch", confidence: 0, signals: { error: String(err) } };
-  }
+// DISABLED: Twitch live detection — YouTube-only mode.
+async function detectTwitch(_userId: string, _channel: any): Promise<LiveDetectionResult> {
+  return { isLive: false, platform: "twitch", confidence: 0, signals: { disabled: "youtube-only-mode" } };
 }
 
-async function detectTikTok(userId: string, channel: any): Promise<LiveDetectionResult> {
-  const username = channel.channelId;
-  const signals: Record<string, any> = {};
-
-  if (!username) {
-    return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: "missing_channel_id" } };
-  }
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch(`https://www.tiktok.com/@${username}/live`, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Cache-Control": "no-cache",
-      },
-    });
-    clearTimeout(timeout);
-
-    const html = await res.text();
-    const isLive =
-      html.includes('"is_live":true') ||
-      html.includes('"isLive":true') ||
-      html.includes('"status":4') ||
-      (html.includes('/live') && html.includes('"liveRoom"'));
-
-    signals.statusCode = res.status;
-    signals.isLive = isLive;
-
-    return {
-      isLive,
-      platform: "tiktok",
-      confidence: isLive ? 0.8 : 0.7,
-      signals,
-    };
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: "tiktok_timeout" } };
-    }
-    return { isLive: false, platform: "tiktok", confidence: 0, signals: { error: String(err) } };
-  }
+// DISABLED: TikTok live detection — YouTube-only mode.
+async function detectTikTok(_userId: string, _channel: any): Promise<LiveDetectionResult> {
+  return { isLive: false, platform: "tiktok", confidence: 0, signals: { disabled: "youtube-only-mode" } };
 }
 
 export const ps5Detector = {

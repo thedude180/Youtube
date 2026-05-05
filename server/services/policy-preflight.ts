@@ -97,7 +97,7 @@ export async function runPolicyPreFlight(
       recommendations.push(`Media trust score is low (${trustResult.overallTrustScore}/100) — review asset provenance`);
     }
   } else {
-    const highRiskPlatforms = ["youtube", "tiktok", "instagram"];
+    const highRiskPlatforms = ["youtube"];
     if (highRiskPlatforms.includes(platform)) {
       recommendations.push("No content provenance records found — register asset origins for trust verification on this platform");
     }

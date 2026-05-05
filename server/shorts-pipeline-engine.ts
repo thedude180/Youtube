@@ -303,7 +303,7 @@ Identify the best clip-worthy moments. For each clip provide:
 - A brief description
 - Estimated start time (seconds from beginning)
 - Estimated end time (seconds from beginning, clips should be 15-60 seconds)
-- Best target platform (tiktok, youtube_shorts, or reels)
+- Best target platform (youtube or youtube_shorts)
 - A powerful hook (the first 1-3 seconds hook text that grabs attention)
 - A viral score prediction (1-100)
 - Relevant tags
@@ -316,7 +316,7 @@ Return as JSON:
       "description": "brief description of the moment",
       "startTime": 0,
       "endTime": 30,
-      "targetPlatform": "tiktok",
+      "targetPlatform": "youtube",
       "hook": "attention grabbing hook text",
       "viralScore": 75,
       "tags": ["tag1", "tag2"],
@@ -336,14 +336,13 @@ Focus on:
 - Relatable or funny moments
 - Key takeaways or tips
 
-TikTok-specific optimization (for clips targeting tiktok):
-- Keep clips 15-60 seconds (sweet spot: 21-34 seconds for algorithm boost)
+YouTube Shorts optimization:
+- Keep clips 15-60 seconds (sweet spot: 30-50 seconds for algorithm)
 - Front-load the hook in the first 1-3 seconds
-- Title should use TikTok trending formats: "POV:", "Wait for it...", "This is why...", "No one talks about..."
-- Use 3-5 hashtags mixing trending (#fyp #viral) with niche-specific tags
-- Description should be ultra-casual, lowercase aesthetic when it fits
+- Title should be clear and searchable
+- Use 3-5 relevant hashtags
 - Optimize for vertical 9:16 format
-- Prioritize moments with strong visual movement or reactions`;
+- Prioritize moments with strong visual energy`;
 
   if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
     logger.debug(`[ShortsPipeline] Daily token budget exhausted — skipping clip extraction for video ${videoId}`);
@@ -379,7 +378,7 @@ TikTok-specific optimization (for clips targeting tiktok):
         description: clip.description || "",
         startTime,
         endTime,
-        targetPlatform: clip.targetPlatform || "tiktok",
+        targetPlatform: clip.targetPlatform || "youtube",
         status: "ai_ready",
         optimizationScore: Math.min(100, Math.max(0, clip.viralScore ?? 50)),
         metadata: {
@@ -397,7 +396,7 @@ TikTok-specific optimization (for clips targeting tiktok):
           userId,
           clipId: created.id,
           predictedScore: clip.viralScore,
-          platform: clip.targetPlatform || "tiktok",
+          platform: clip.targetPlatform || "youtube",
           factors: {
             hookStrength: Math.min(100, Math.round(clip.viralScore * 0.9 + Math.random() * 10)),
             trendAlignment: Math.min(100, Math.round(clip.viralScore * 0.8 + Math.random() * 15)),
@@ -436,7 +435,7 @@ export async function generateClipHook(
 Clip Title: "${sanitizeForPrompt(clip.title)}"
 Clip Description: "${sanitizeForPrompt(clip.description || "")}"
 Source Video: "${sanitizeForPrompt(videoTitle)}"
-Target Platform: ${clip.targetPlatform || "tiktok"}
+Target Platform: ${clip.targetPlatform || "youtube"}
 
 Create hooks that:
 - Stop the scroll in the first 1-2 seconds
@@ -502,7 +501,7 @@ export async function predictClipVirality(
 Clip Title: "${sanitizeForPrompt(clip.title)}"
 Clip Description: "${sanitizeForPrompt(clip.description || "")}"
 Source Video: "${sanitizeForPrompt(videoTitle)}"
-Target Platform: ${clip.targetPlatform || "tiktok"}
+Target Platform: ${clip.targetPlatform || "youtube"}
 Duration: ${clip.endTime && clip.startTime ? Math.round((clip.endTime - clip.startTime)) : "unknown"} seconds
 
 Score each factor from 1-100:
@@ -555,7 +554,7 @@ Return as JSON:
       userId,
       clipId,
       predictedScore: score,
-      platform: clip.targetPlatform || "tiktok",
+      platform: clip.targetPlatform || "youtube",
       factors,
     });
 
@@ -625,7 +624,7 @@ Create a compilation plan as JSON:
   "selectedClipIndices": [0, 1, 2],
   "orderRationale": "why this order works",
   "transitionNotes": "how to transition between clips",
-  "platforms": ["tiktok", "youtube_shorts", "reels"],
+  "platforms": ["youtube"],
   "estimatedPerformance": "expected engagement level",
   "compilationPlan": "detailed plan for assembling the reel"
 }`;
@@ -637,7 +636,7 @@ Create a compilation plan as JSON:
       reelTitle: "Best Moments Compilation",
       clips: fallback,
       totalDuration: Math.round(fallback.reduce((s, c) => s + ((c.endTime || 0) - (c.startTime || 0)), 0)),
-      platforms: ["tiktok", "youtube_shorts", "reels"],
+      platforms: ["youtube"],
       compilationPlan: "Top clips selected by viral score.",
     };
   }
@@ -668,7 +667,7 @@ Create a compilation plan as JSON:
       reelTitle: parsed.reelTitle || "Best Moments Compilation",
       clips: selectedClips,
       totalDuration: Math.round(totalDuration),
-      platforms: parsed.platforms || ["tiktok", "youtube_shorts", "reels"],
+      platforms: parsed.platforms || ["youtube"],
       compilationPlan: parsed.compilationPlan || parsed.orderRationale || "Compile selected clips in order.",
     };
   } catch (err: any) {
@@ -679,7 +678,7 @@ Create a compilation plan as JSON:
       reelTitle: "Best Moments Compilation",
       clips: selectedClips,
       totalDuration: Math.round(totalDuration),
-      platforms: ["tiktok", "youtube_shorts", "reels"],
+      platforms: ["youtube"],
       compilationPlan: "Top clips selected by viral score. Arrange in descending engagement order.",
     };
   }
@@ -1007,7 +1006,7 @@ export async function trackClipPerformance(
         userId,
         clipId,
         actualScore,
-        platform: actualMetrics.platform || "tiktok",
+        platform: actualMetrics.platform || "youtube",
         factors: {
           hookStrength: 50,
           trendAlignment: 50,

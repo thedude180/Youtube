@@ -1204,7 +1204,7 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     try {
       const { getOptimalPostingTimes } = await import("../smart-scheduler");
-      const platforms = ["youtube", "tiktok", "discord"];
+      const platforms = ["youtube"];
       const audienceData: Record<string, any> = {};
       let hasAnyData = false;
 
@@ -2636,7 +2636,7 @@ export async function registerPlatformRoutes(app: Express) {
             title: "[Dev] ET Gaming 274 – Live Now",
             description: "Dev test livestream — all platform integrations active",
             status: "live",
-            platforms: ["youtube", "twitch", "kick"],
+            platforms: ["youtube"],
             category: "Gaming",
             startedAt: new Date(),
           });

@@ -35,11 +35,9 @@ export interface RelayStatus {
 const activeSessions = new Map<number, PublishSession>();
 let relayActive = false;
 
+// YouTube-only: Twitch/Kick/TikTok ingest endpoints removed.
 const PLATFORM_INGEST_DEFAULTS: Record<string, { ingestUrl: string; format: string; maxBitrateKbps: number }> = {
   youtube: { ingestUrl: "rtmp://a.rtmp.youtube.com/live2", format: "rtmp", maxBitrateKbps: 9000 },
-  twitch: { ingestUrl: "rtmp://live.twitch.tv/app", format: "rtmp", maxBitrateKbps: 6000 },
-  kick: { ingestUrl: "rtmp://fa723fc1b171.global-contribute.live-video.net/app", format: "rtmp", maxBitrateKbps: 8000 },
-  tiktok: { ingestUrl: "rtmp://push.tiktokcdn.com/live", format: "rtmp", maxBitrateKbps: 4000 },
 };
 
 export async function publishToDestination(

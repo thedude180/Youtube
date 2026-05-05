@@ -66,16 +66,12 @@ function _getCachedBudget(key: string): PlatformBudgetStatus | null {
 const PLATFORM_DAILY_LIMITS: Record<string, number> = {
   youtube: 2,
   youtubeshorts: 4,
-  tiktok: 5,
-  discord: 12,
 };
 
 // Minimum gap between consecutive posts on the same platform.
 const PLATFORM_MIN_GAP_MS: Record<string, number> = {
   youtube: 6 * 60 * 60_000,         // 6 h between long-form uploads
-  youtubeshorts: 90 * 60_000,        // 90 min between Shorts (down from 2 h)
-  tiktok: 90 * 60_000,              // 90 min between TikTok posts
-  discord: 20 * 60_000,             // 20 min between announcements (down from 30 min)
+  youtubeshorts: 90 * 60_000,        // 90 min between Shorts
 };
 
 export interface PlatformBudgetStatus {

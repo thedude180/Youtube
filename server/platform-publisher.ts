@@ -147,242 +147,17 @@ async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
 }
 
 
-async function postToDiscord(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
-  try {
-    const discordWebhookUrl = (channelData?.platformData as any)?.webhookUrl
-      || (channelData?.settings as any)?.webhookUrl;
-
-    // Bot-API fallback: if no webhook is configured but the operator has set
-    // DISCORD_BOT_TOKEN + DISCORD_CHANNEL_ID env vars (the same secrets the
-    // chat-bridge already uses), post via the Discord REST API instead of
-    // failing. This is what unblocks autopilot Discord posting for the admin
-    // account on day one without requiring a webhook to be created.
-    const botToken = process.env.DISCORD_BOT_TOKEN || null;
-    const botChannelId =
-      (channelData?.platformData as any)?.channelId
-      || (channelData?.settings as any)?.channelId
-      || process.env.DISCORD_CHANNEL_ID
-      || null;
-
-    if (!discordWebhookUrl && (!botToken || !botChannelId)) {
-      return {
-        success: false,
-        platform: "discord",
-        skipped: true,
-        error: "Discord requires a webhook URL OR a bot token + channel ID. Either add a webhook in Settings > Channels > Discord, or set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID in Secrets.",
-      };
-    }
-
-    const discordLimit = PLATFORM_CONTENT_SPECS.discord.limits.postMaxLength || 2000;
-    const discordContent = content.substring(0, discordLimit);
-    const hasTitle = discordContent.startsWith("**") && discordContent.includes("**\n");
-
-    let discordPayload: any;
-    if (hasTitle) {
-      const titleMatch = discordContent.match(/^\*\*(.+?)\*\*/);
-      const title = titleMatch ? titleMatch[1] : undefined;
-      const description = title ? discordContent.replace(`**${title}**`, "").trim() : discordContent;
-      discordPayload = {
-        embeds: [{
-          title: title?.substring(0, 256),
-          description: (description || "").substring(0, 4096),
-          color: 0x9146FF,
-        }],
-      };
-    } else {
-      discordPayload = { content: discordContent };
-    }
-
-    const useWebhook = Boolean(discordWebhookUrl);
-    const targetUrl = useWebhook
-      ? discordWebhookUrl
-      : `https://discord.com/api/v10/channels/${botChannelId}/messages`;
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (!useWebhook) headers["Authorization"] = `Bot ${botToken}`;
-
-    await withRetry(async () => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 15000);
-      const res = await fetch(targetUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(discordPayload),
-        signal: ctrl.signal,
-      });
-      clearTimeout(t);
-
-      if (!res.ok) {
-        const errText = await res.text();
-
-        if (res.status === 404) {
-          const msg = useWebhook
-            ? "Discord webhook not found. The webhook may have been deleted. Please create a new webhook in your Discord server and update it in Settings > Channels > Discord."
-            : `Discord channel ${botChannelId} not found. Verify DISCORD_CHANNEL_ID is correct and the bot has been invited to that server with View Channel + Send Messages permission.`;
-          const nonRetryable: any = new Error(msg);
-          nonRetryable.status = res.status;
-          nonRetryable.nonRetryable = true;
-          throw nonRetryable;
-        }
-
-        if (res.status === 401 || res.status === 403) {
-          const msg = useWebhook
-            ? `Discord webhook auth failed (${res.status}): ${errText.substring(0, 200)}`
-            : `Discord bot auth/permission failed (${res.status}). Verify DISCORD_BOT_TOKEN is valid and the bot has Send Messages permission in channel ${botChannelId}.`;
-          const nonRetryable: any = new Error(msg);
-          nonRetryable.status = res.status;
-          nonRetryable.nonRetryable = true;
-          throw nonRetryable;
-        }
-
-        const err: any = new Error(`Discord ${useWebhook ? "webhook" : "bot post"} failed (${res.status}): ${errText.substring(0, 200)}`);
-        err.status = res.status;
-        throw err;
-      }
-    }, useWebhook ? "Discord webhook post" : "Discord bot post", {
-      maxRetries: 3,
-      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
-    });
-
-    return {
-      success: true,
-      platform: "discord",
-      postId: `${useWebhook ? "webhook" : "bot"}_${Date.now()}`,
-    };
-  } catch (err: any) {
-    return { success: false, platform: "discord", error: err.message };
-  }
+// DISABLED: Discord publisher — YouTube-only mode.
+async function postToDiscord(_accessToken: string, _content: string, _channelData: any): Promise<PublishResult> {
+  return { success: false, platform: "discord", error: "YouTube-only mode — Discord publishing disabled" };
 }
-
-async function postToTwitch(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
-  try {
-    const broadcasterId = channelData?.channelId || (channelData?.platformData as any)?.broadcasterId;
-    if (!broadcasterId) {
-      return { success: false, platform: "twitch", error: "No broadcaster ID found. Please reconnect your Twitch account." };
-    }
-
-    const clientId = process.env.TWITCH_CLIENT_ID || "";
-    const headers = {
-      "Authorization": `Bearer ${accessToken}`,
-      "Client-Id": clientId,
-      "Content-Type": "application/json",
-    };
-
-    const twitchContent = content.replace(/\*\*/g, "").replace(/\n{3,}/g, "\n\n");
-    const chatMessage = twitchContent.length > 500 ? twitchContent.substring(0, 497) + "..." : twitchContent;
-
-    const chatResult = await withRetry(async () => {
-      const chatRes = await fetch(`https://api.twitch.tv/helix/chat/announcements?broadcaster_id=${broadcasterId}&moderator_id=${broadcasterId}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          message: chatMessage,
-          color: "primary",
-        }),
-      });
-
-      if (chatRes.ok || chatRes.status === 204) {
-        return { ok: true } as const;
-      }
-
-      const errText = await chatRes.text();
-      const err: any = new Error(`Chat announcement failed (${chatRes.status}): ${errText.substring(0, 200)}`);
-      err.status = chatRes.status;
-      if (chatRes.status === 401 || chatRes.status === 403 || chatRes.status === 404) {
-        err.nonRetryable = true;
-      }
-      throw err;
-    }, "Twitch announcement", {
-      maxRetries: 2,
-      retryOn: (error) => !error.nonRetryable && (error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT'),
-    }).catch((e) => ({ ok: false, error: e } as const));
-
-    if (chatResult.ok) {
-      return {
-        success: true,
-        platform: "twitch",
-        postId: `twitch_announce_${Date.now()}`,
-        postUrl: `https://twitch.tv/${channelData?.channelName || broadcasterId}`,
-      };
-    }
-
-    logger.error(`[Publisher:Twitch] Chat announcement failed:`, chatResult.error.message);
-
-    const titleContent = twitchContent.replace(/\n/g, " ").substring(0, 140);
-    const titleResult = await withRetry(async () => {
-      const titleRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${broadcasterId}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ title: titleContent }),
-      });
-
-      if (titleRes.ok || titleRes.status === 204) {
-        return { ok: true } as const;
-      }
-
-      const titleErr = await titleRes.text();
-      const err: any = new Error(`Title update failed (${titleRes.status}): ${titleErr.substring(0, 200)}`);
-      err.status = titleRes.status;
-      throw err;
-    }, "Twitch title update", {
-      maxRetries: 2,
-      retryOn: (error) => error.status === 429 || error.status === 503 || error.status === 502 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT',
-    }).catch((e) => ({ ok: false, error: e } as const));
-
-    if (titleResult.ok) {
-      return {
-        success: true,
-        platform: "twitch",
-        postId: `twitch_title_${Date.now()}`,
-        postUrl: `https://twitch.tv/${channelData?.channelName || broadcasterId}`,
-      };
-    }
-
-    return { success: false, platform: "twitch", error: `Twitch posting failed: ${chatResult.error.message}, ${titleResult.error.message}` };
-  } catch (err: any) {
-    return { success: false, platform: "twitch", error: err.message };
-  }
+// DISABLED: Twitch publisher — YouTube-only mode.
+async function postToTwitch(_accessToken: string, _content: string, _channelData: any): Promise<PublishResult> {
+  return { success: false, platform: "twitch", error: "YouTube-only mode — Twitch publishing disabled" };
 }
-
-async function postToKick(accessToken: string, content: string, channelData: any): Promise<PublishResult> {
-  try {
-    const channelName = channelData?.channelName || channelData?.username || channelData?.displayName;
-    if (!channelName) {
-      return { success: false, platform: "kick", error: "No Kick channel name available — reconnect your Kick account." };
-    }
-
-    const truncated = content.slice(0, 500);
-
-    const chatRes = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(channelName)}/messages`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: JSON.stringify({ content: truncated }),
-    });
-
-    if (chatRes.ok) {
-      return {
-        success: true,
-        platform: "kick",
-        postId: `kick_chat_${Date.now()}`,
-        postUrl: `https://kick.com/${channelName}`,
-      };
-    }
-
-    const errText = await chatRes.text().catch(() => "");
-    logger.warn(`[Publisher] Kick chat post failed ${chatRes.status}: ${errText.slice(0, 200)}`);
-
-    return {
-      success: false,
-      platform: "kick",
-      skipped: true,
-      error: `Kick announcement posted to chat (note: Kick does not support video upload API — live streaming only).`,
-    };
-  } catch (err: any) {
-    return { success: false, platform: "kick", error: `Kick publish error: ${err.message}` };
-  }
+// DISABLED: Kick publisher — YouTube-only mode.
+async function postToKick(_accessToken: string, _content: string, _channelData: any): Promise<PublishResult> {
+  return { success: false, platform: "kick", error: "YouTube-only mode — Kick publishing disabled" };
 }
 
 export function sanitizePlaceholders(text: string, meta?: any): string {
@@ -410,6 +185,16 @@ export async function publishToplatform(
   metadata?: any,
 ): Promise<PublishResult> {
   content = sanitizePlaceholders(content, metadata);
+
+  // YouTube-only enforcement: block any non-YouTube publish at the entry point.
+  const ALLOWED = new Set(["youtube", "youtubeshorts", "youtube_shorts", "youtube-shorts"]);
+  if (!ALLOWED.has(platform)) {
+    return {
+      success: false,
+      platform,
+      error: `Publishing to ${platform} is disabled — CreatorOS operates in YouTube-only mode. (410)`,
+    };
+  }
 
   try {
     const { checkPublishingGates } = await import("./distribution/publishing-gates");

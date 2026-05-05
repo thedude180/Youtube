@@ -130,7 +130,7 @@ export function registerWorldBestRoutes(app: Express) {
     const userId = await requireTier(req, res, "starter", "Smart Scheduling");
     if (!userId) return;
     const { contentType, platform } = req.body;
-    const validPlatforms = ["youtube", "tiktok", "instagram", "twitch", "kick"];
+    const validPlatforms = ["youtube"];
     const p = (platform || "youtube").toLowerCase();
     if (!validPlatforms.includes(p)) return res.status(400).json({ error: `Invalid platform. Valid: ${validPlatforms.join(", ")}` });
     const schedule = await smartSchedule(userId, contentType || "video", p);

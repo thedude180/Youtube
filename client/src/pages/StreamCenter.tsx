@@ -1088,8 +1088,8 @@ export default function StreamCenter() {
         </div>
       </div>}
 
-      {/* ─── Multi-Stream Relay Engine (live mode only) ─── */}
-      {streamMode === "live" && <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="multistream-relay-card">
+      {/* ─── YouTube Live Relay (live mode only) ─── */}
+      {streamMode === "live" && <div className="card-empire rounded-2xl p-5 relative overflow-hidden" data-testid="youtube-relay-card">
         <div className="data-grid-bg absolute inset-0 opacity-5 pointer-events-none" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -1099,8 +1099,8 @@ export default function StreamCenter() {
                 <span className={`relative inline-flex rounded-full h-3 w-3 ${multistreamStatus?.relaying ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
               </span>
               <div>
-                <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">YouTube Relay</h3>
-                <p className="text-[11px] text-muted-foreground">FFmpeg fans your YouTube stream to additional destinations simultaneously</p>
+                <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">YouTube Live Relay</h3>
+                <p className="text-[11px] text-muted-foreground">FFmpeg relay for your active YouTube Live stream</p>
               </div>
             </div>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded-full border" style={{
@@ -1111,40 +1111,6 @@ export default function StreamCenter() {
               {multistreamStatus?.relaying ? 'RELAYING' : 'STANDBY'}
             </span>
           </div>
-
-          {/* Destination grid — shows configured platforms always, live status when relaying */}
-          {(() => {
-            const activeDests: any[] = multistreamStatus?.relaying ? (multistreamStatus.destinations ?? []) : [];
-            const displayDests = activeDests.length > 0 ? activeDests : relayDests;
-            const isLiveState = multistreamStatus?.relaying;
-            if (displayDests.length === 0) {
-              return (
-                <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 mb-4 text-xs text-amber-400 font-mono" data-testid="text-relay-no-dests">
-                  No relay destinations configured — add stream keys in the destinations panel below
-                </div>
-              );
-            }
-            return (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4" data-testid="section-relay-destinations">
-                {displayDests.map((dest: any, i: number) => {
-                  const isActive = isLiveState && dest.active;
-                  const hasError = isLiveState && dest.error;
-                  const isConfigured = dest.configured !== false;
-                  return (
-                    <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/20 border border-border/20 px-3 py-2" data-testid={`dest-relay-${dest.platform}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-emerald-400 animate-pulse' : hasError ? 'bg-red-400' : isConfigured ? 'bg-primary/60' : 'bg-muted-foreground/30'}`} />
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-mono font-bold text-foreground truncate">{dest.label}</p>
-                        {hasError && <p className="text-[9px] text-red-400 truncate">{dest.error}</p>}
-                        {!hasError && isLiveState && <p className="text-[9px] text-emerald-400">{isActive ? 'Streaming' : 'Connecting...'}</p>}
-                        {!isLiveState && <p className="text-[9px] text-muted-foreground">{isConfigured ? 'Ready' : 'Not configured'}</p>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
 
           {multistreamStatus?.error && (
             <p className="text-[11px] text-red-400 font-mono mb-3 truncate" data-testid="text-relay-error">Error: {multistreamStatus.error}</p>
@@ -1182,7 +1148,7 @@ export default function StreamCenter() {
               </span>
             )}
             <span className="text-[10px] text-muted-foreground/60 font-mono ml-auto" data-testid="text-relay-auto-note">
-              {streamAgent?.videoId ? `Detected: ${streamAgent.videoId}` : 'Watching for live stream...'}
+              {streamAgent?.videoId ? `Detected: ${streamAgent.videoId}` : 'Watching for YouTube Live...'}
             </span>
           </div>
         </div>
@@ -1197,7 +1163,7 @@ export default function StreamCenter() {
               <Wifi className="h-4 w-4 text-primary" style={{ filter: "drop-shadow(0 0 6px hsl(265 80% 60% / 0.6))" }} />
               <div>
                 <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">Streaming Channels</h3>
-                <p className="text-[11px] text-muted-foreground">Connect all your platforms to enable simultaneous multistream relay</p>
+                <p className="text-[11px] text-muted-foreground">Connect your YouTube account to enable stream detection and live operations</p>
               </div>
             </div>
             {(() => {

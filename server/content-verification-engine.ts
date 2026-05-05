@@ -199,126 +199,19 @@ async function verifyYouTubeLiveStream(userId: string, broadcastId: string): Pro
   }
 }
 
-async function verifyTwitchLiveStream(userId: string, channelRow: any): Promise<LiveStreamHealth> {
-  const base: LiveStreamHealth = {
-    streamId: 0,
-    platform: "twitch",
-    title: "",
-    status: "unknown",
-    isActuallyBroadcasting: false,
-    lastHealthCheck: new Date().toISOString(),
-    healthHistory: [],
-  };
-
-  const token = channelRow?.accessToken;
-  const clientId = process.env.TWITCH_CLIENT_ID;
-  if (!token || !clientId) return base;
-
-  try {
-    let twitchUserId = channelRow.channelId;
-    if (!twitchUserId) {
-      const userRes = await fetch("https://api.twitch.tv/helix/users", {
-        headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
-      });
-      if (!userRes.ok) return base;
-      const userData = await userRes.json() as any;
-      twitchUserId = userData.data?.[0]?.id;
-      if (!twitchUserId) return base;
-    }
-
-    const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?user_id=${twitchUserId}`, {
-      headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
-    });
-    if (!streamsRes.ok) return base;
-    const streamsData = await streamsRes.json() as any;
-    const stream = streamsData.data?.find((s: any) => s.type === "live");
-
-    if (!stream) return { ...base, status: "offline", isActuallyBroadcasting: false };
-
-    const startedAt = stream.started_at ? new Date(stream.started_at) : null;
-    const uptime = startedAt ? formatUptime(Date.now() - startedAt.getTime()) : undefined;
-
-    return {
-      ...base,
-      title: stream.title || "",
-      status: "healthy",
-      isActuallyBroadcasting: true,
-      viewerCount: stream.viewer_count,
-      uptime,
-    };
-  } catch {
-    return base;
-  }
+// DISABLED: Twitch verification — YouTube-only mode.
+async function verifyTwitchLiveStream(_userId: string, _channelRow: any): Promise<LiveStreamHealth> {
+  return { streamId: 0, platform: "twitch", title: "", status: "unknown", isActuallyBroadcasting: false, lastHealthCheck: new Date().toISOString(), healthHistory: [] };
 }
 
-async function verifyKickLiveStream(userId: string, channelRow: any): Promise<LiveStreamHealth> {
-  const base: LiveStreamHealth = {
-    streamId: 0,
-    platform: "kick",
-    title: "",
-    status: "unknown",
-    isActuallyBroadcasting: false,
-    lastHealthCheck: new Date().toISOString(),
-    healthHistory: [],
-  };
-
-  const token = channelRow?.accessToken;
-  const slug = channelRow?.channelName || channelRow?.channelId;
-  if (!token || !slug) return base;
-
-  try {
-    const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return base;
-    const data = await res.json() as any;
-    const ch = Array.isArray(data.data) ? data.data[0] : data.data;
-    if (!ch) return base;
-
-    const isLive = ch.is_live || !!ch.livestream;
-    const ls = ch.livestream || {};
-
-    return {
-      ...base,
-      title: ls.session_title || ls.title || slug,
-      status: isLive ? "healthy" : "offline",
-      isActuallyBroadcasting: isLive,
-      viewerCount: ls.viewer_count || ch.viewer_count,
-    };
-  } catch {
-    return base;
-  }
+// DISABLED: Kick verification — YouTube-only mode.
+async function verifyKickLiveStream(_userId: string, _channelRow: any): Promise<LiveStreamHealth> {
+  return { streamId: 0, platform: "kick", title: "", status: "unknown", isActuallyBroadcasting: false, lastHealthCheck: new Date().toISOString(), healthHistory: [] };
 }
 
-async function verifyTikTokContent(userId: string, publishId: string): Promise<ContentVerification["details"]> {
-  const token = await getValidToken(userId, "tiktok");
-  if (!token) return { isAccessible: false, isPublic: false, hasDuration: false, error: "No TikTok credentials" };
-
-  try {
-    const res = await fetch("https://open.tiktokapis.com/v2/post/publish/status/fetch/", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ publish_id: publishId }),
-    });
-
-    if (!res.ok) {
-      return { isAccessible: false, isPublic: false, hasDuration: false, error: `TikTok API ${res.status}` };
-    }
-
-    const data = await res.json() as any;
-    const status = data.data?.status;
-    const isComplete = status === "PUBLISH_COMPLETE";
-
-    return {
-      isAccessible: isComplete,
-      isPublic: isComplete,
-      hasDuration: isComplete,
-      uploadStatus: status,
-      processingStatus: status,
-    };
-  } catch (err: any) {
-    return { isAccessible: false, isPublic: false, hasDuration: false, error: err.message };
-  }
+// DISABLED: TikTok content verification — YouTube-only mode.
+async function verifyTikTokContent(_userId: string, _publishId: string): Promise<ContentVerification["details"]> {
+  return { isAccessible: false, isPublic: false, hasDuration: false, error: "YouTube-only mode — TikTok verification disabled" };
 }
 
 

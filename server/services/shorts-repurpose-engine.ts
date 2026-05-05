@@ -13,8 +13,10 @@ const logger = createLogger("shorts-repurpose-engine");
 // wired (downloads + publishes). Instagram Reels + X video publishing paths
 // are prepared here — they enqueue into autopilot_queue with a viral caption,
 // ready to be picked up when those publishers are connected.
-const TARGET_PLATFORMS = ["tiktok", "instagram", "x"] as const;
-type TargetPlatform = typeof TARGET_PLATFORMS[number];
+// YouTube-only: TikTok/Instagram/X repurpose disabled. Target list is empty —
+// runShortsRepurposeForUser returns early without iterating over these.
+const TARGET_PLATFORMS: readonly string[] = [];
+type TargetPlatform = string;
 
 const MAX_SHORTS_PER_RUN = 3;
 const MIN_DURATION_SEC = 5;
@@ -195,7 +197,7 @@ async function ensureContentClip(video: Candidate): Promise<number> {
       description: (video.description || "").slice(0, 500),
       startTime: 0,
       endTime: video.durationSec,
-      targetPlatform: "tiktok",
+      targetPlatform: "youtube",
       status: "pending",
       metadata: { tags: video.tags.slice(0, 15), aspectRatio: "9:16", format: "short" },
     })
@@ -245,28 +247,9 @@ async function markCrossPosted(videoId: number, platform: string, postId: string
   await db.update(videos).set({ metadata: { ...meta, crossPostIds } }).where(eq(videos.id, videoId));
 }
 
-async function repurposeToTikTok(video: Candidate): Promise<void> {
-  const budget = await canPostToPlatformToday(video.userId, "tiktok");
-  if (!budget.allowed) {
-    logger.info("tiktok budget blocked", { userId: video.userId, reason: budget.reason, remaining: budget.remaining });
-    return;
-  }
-  const cap = await generatePlatformCaption(video, "tiktok");
-  if (!cap) return;
-  const caption = assembleFinalCaption(cap, "tiktok");
-
-  const clipId = await ensureContentClip(video);
-  const { publishClipToTikTok } = await import("../tiktok-publisher");
-  const res = await publishClipToTikTok(clipId, video.userId, caption);
-
-  if (res.success) {
-    logger.info("tiktok repurpose published", { videoId: video.videoId, publishId: res.publishId });
-    if (res.publishId) await markCrossPosted(video.videoId, "tiktok", res.publishId);
-    await recordAutopilotRow(video, "tiktok", caption, { success: true, postId: res.publishId });
-  } else {
-    logger.warn("tiktok repurpose failed", { videoId: video.videoId, error: res.error });
-    await recordAutopilotRow(video, "tiktok", caption, { success: false, error: res.error });
-  }
+// repurposeToTikTok disabled — YouTube-only mode.
+async function repurposeToTikTok(_video: Candidate): Promise<void> {
+  return;
 }
 
 async function queuePendingTarget(video: Candidate, platform: TargetPlatform): Promise<void> {
@@ -306,36 +289,10 @@ async function queuePendingTarget(video: Candidate, platform: TargetPlatform): P
 }
 
 export async function runShortsRepurposeForUser(userId: string): Promise<{ processed: number; tiktokAttempts: number; queuedPending: number }> {
+  // YouTube-only: all non-YouTube repurpose targets disabled.
   const candidates = await findCandidatesForUser(userId, MAX_SHORTS_PER_RUN);
-  logger.info("repurpose run start", { userId, candidates: candidates.length });
-
-  let tiktokAttempts = 0;
-  let queuedPending = 0;
-
-  for (const c of candidates) {
-    if (!c.crossPostIds["tiktok"]) {
-      try {
-        await repurposeToTikTok(c);
-        tiktokAttempts++;
-      } catch (err: any) {
-        logger.error("tiktok repurpose threw", { videoId: c.videoId, error: err?.message });
-      }
-    }
-    for (const p of TARGET_PLATFORMS) {
-      if (p === "tiktok") continue;
-      try {
-        const before = c.crossPostIds[p];
-        if (!before) {
-          await queuePendingTarget(c, p);
-          queuedPending++;
-        }
-      } catch (err: any) {
-        logger.warn("queue pending threw", { videoId: c.videoId, platform: p, error: err?.message });
-      }
-    }
-  }
-
-  return { processed: candidates.length, tiktokAttempts, queuedPending };
+  logger.info("repurpose run start (YouTube-only)", { userId, candidates: candidates.length });
+  return { processed: candidates.length, tiktokAttempts: 0, queuedPending: 0 };
 }
 
 export async function runShortsRepurposeAllUsers(): Promise<void> {

@@ -63,7 +63,6 @@ const ONBOARDING_STEPS = [
 const DEMO_SEED_DATA = {
   channels: [
     { platform: "youtube", channelName: "[DEMO] CreatorOS Test Channel", subscribers: 12500 },
-    { platform: "tiktok", channelName: "[DEMO] CreatorOS TikTok", followers: 8200 },
   ],
   videos: [
     { title: "[DEMO] How to Grow on YouTube in 2026", views: 45000, status: "published", demoLabel: "SIMULATED" },

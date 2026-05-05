@@ -59,7 +59,7 @@ export function registerOmniIntelligenceRoutes(app: Express): void {
       res.json({
         signalsLast48h: total[0]?.count ?? 0,
         trendsIdentified: trends[0]?.count ?? 0,
-        sources: ["youtube_trending", "reddit", "twitch", "rss", "web_search"],
+        sources: ["youtube_trending", "reddit", "rss", "web_search"],
       });
     } catch {
       res.status(500).json({ error: "Failed to load stats" });

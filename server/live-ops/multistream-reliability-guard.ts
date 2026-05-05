@@ -33,11 +33,9 @@ export interface GuardReport {
   reportedAt: Date;
 }
 
+// YouTube-only: only YouTube retry policy is active.
 const RETRY_POLICIES: Record<string, RetryPolicy> = {
   youtube: { platform: "youtube", maxRetries: 3, initialDelayMs: 5000, backoffMultiplier: 2, maxDelayMs: 60000, circuitBreakerThreshold: 5 },
-  twitch: { platform: "twitch", maxRetries: 3, initialDelayMs: 3000, backoffMultiplier: 2, maxDelayMs: 30000, circuitBreakerThreshold: 4 },
-  kick: { platform: "kick", maxRetries: 2, initialDelayMs: 5000, backoffMultiplier: 2.5, maxDelayMs: 45000, circuitBreakerThreshold: 3 },
-  tiktok: { platform: "tiktok", maxRetries: 2, initialDelayMs: 10000, backoffMultiplier: 2, maxDelayMs: 60000, circuitBreakerThreshold: 3 },
 };
 
 const circuitBreakers = new Map<string, { failures: number; openedAt: Date | null; cooldownMs: number }>();

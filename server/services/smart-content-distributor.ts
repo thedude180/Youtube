@@ -16,14 +16,9 @@ const PLATFORM_MIN_GAP_MINUTES: Record<string, number> = Object.fromEntries(
   Object.entries(PLATFORM_MIN_GAP_MS).map(([k, v]) => [k, Math.round(v / 60_000)])
 );
 
+// YouTube-only: non-YouTube platform peak hours removed.
 const PLATFORM_PEAK_HOURS: Record<string, number[]> = {
   youtube: [10, 11, 12, 14, 15, 16, 17, 18, 19, 20],
-  tiktok: [11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22],
-  x: [9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21],
-  discord: [15, 16, 17, 18, 19, 20, 21, 22, 23],
-  instagram: [10, 11, 12, 14, 15, 17, 18, 19, 20, 21],
-  kick: [16, 17, 18, 19, 20, 21, 22, 23],
-  rumble: [10, 11, 14, 15, 16, 17, 18, 19, 20],
 };
 
 function gaussianRandom(mean: number, std: number): number {

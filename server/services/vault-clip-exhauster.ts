@@ -2,14 +2,14 @@
  * Vault Clip Exhauster
  *
  * Fully autonomous pipeline piece: once a vault video is downloaded,
- * this service automatically queues stream editor jobs for every platform
- * that hasn't been processed yet (YouTube, Shorts, TikTok, Rumble).
+ * this service automatically queues stream editor jobs for every YouTube
+ * content type that hasn't been processed yet (YouTube long-form and Shorts).
  *
  * It runs in two modes:
  *  1. Immediate — called right after a vault download succeeds
  *  2. Periodic sweep — runs every 10 minutes to catch anything missed
  *
- * No human interaction required after tokens are verified.
+ * YouTube-only: TikTok and Rumble targets have been removed.
  */
 
 import { db } from "../db";
@@ -20,7 +20,8 @@ import { queueStreamEditJob } from "./stream-editor";
 
 const logger = createLogger("vault-clip-exhauster");
 
-const ALL_PLATFORMS = ["youtube", "shorts", "tiktok", "rumble"] as const;
+// YouTube-only: only YouTube long-form and YouTube Shorts are supported.
+const ALL_PLATFORMS = ["youtube", "shorts"] as const;
 type Platform = (typeof ALL_PLATFORMS)[number];
 
 // Default clip duration: 60 minutes (processor will auto-split if needed)

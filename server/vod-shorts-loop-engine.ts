@@ -279,7 +279,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are a viral Shorts/TikTok AI expert. Identify the top 3 most viral-worthy moments from this video for YouTube Shorts. Each should be 15-60 seconds, start with a strong hook, and end with a cliffhanger or punchline. Return JSON: {shorts: [{title, hookLine, startTimeSec, endTimeSec, viralScore, platform: "youtube-shorts"|"tiktok"|"reels"}]}.`
+          content: `You are a YouTube Shorts AI expert. Identify the top 3 most viral-worthy moments from this video for YouTube Shorts. Each should be 15-60 seconds, start with a strong hook, and end with a cliffhanger or punchline. Return JSON: {shorts: [{title, hookLine, startTimeSec, endTimeSec, viralScore, platform: "youtube-shorts"}]}.`
         }, {
           role: "user",
           content: `Video: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${sanitizeForPrompt((video.description || "").slice(0, 200))}. Extract the most viral Short clips.`
@@ -319,9 +319,10 @@ async function runShortsExtraction(userId: string): Promise<any> {
 // ≤60s clip must only go to "youtubeshorts", not also post as a regular
 // YouTube video.  Including both caused the same clip to be uploaded twice
 // to the same channel (once as a Short, once as a regular video).
-const SHORT_VIDEO_PLATFORMS = ["youtubeshorts", "tiktok"] as const;
-// Platforms that receive a tailored text post with a link to the original video
-const SHORT_TEXT_PLATFORMS = ["twitter", "x", "discord", "kick", "instagram"] as const;
+// YouTube-only: only YouTube Shorts receives short-video clips.
+const SHORT_VIDEO_PLATFORMS = ["youtubeshorts"] as const;
+// Non-YouTube text distribution is disabled in YouTube-only mode.
+const SHORT_TEXT_PLATFORMS: readonly string[] = [];
 
 async function runCrossPlatformDistribution(userId: string): Promise<any> {
   const pendingClips = await db.select().from(contentClips)

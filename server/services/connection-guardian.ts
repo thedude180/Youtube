@@ -721,7 +721,7 @@ export async function getConnectionHealth(userId: string): Promise<{
   };
 }
 
-const VALID_PLATFORMS = ["youtube", "twitch", "kick", "tiktok", "discord", "rumble", "x", "instagram", "facebook"];
+const VALID_PLATFORMS = ["youtube"];
 
 export async function forceRefreshPlatform(userId: string, platform: string): Promise<{ success: boolean; error?: string }> {
   const normalizedPlatform = platform.trim().toLowerCase();

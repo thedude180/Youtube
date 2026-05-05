@@ -102,8 +102,9 @@ const AUTOPILOT_FEATURES = [
 
 type AutopilotFeature = typeof AUTOPILOT_FEATURES[number];
 
-const ALL_DISTRIBUTION_PLATFORMS = ["youtube", "discord", "tiktok"];
-const ALL_ANNOUNCE_PLATFORMS = ["discord"];
+// YouTube-only: all non-YouTube distribution platforms removed.
+const ALL_DISTRIBUTION_PLATFORMS = ["youtube"];
+const ALL_ANNOUNCE_PLATFORMS: string[] = [];
 
 function getContentTypeForPlatform(platform: string, sourceContentType: string): "video" | "text" | "short_video" {
   const caps = PLATFORM_CAPABILITIES[platform as keyof typeof PLATFORM_CAPABILITIES];
@@ -244,10 +245,7 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
     await generateFullThrottleDistribution(userId, video, creatorTone, platforms, "new-video");
   }
 
-  const discordConfig = await getAutopilotConfig(userId, "discord-announce");
-  if (!discordConfig || discordConfig.enabled !== false) {
-    await generateDiscordAnnouncement(userId, video, creatorTone);
-  }
+  // Discord announcements disabled — YouTube-only mode.
 
   const meta = video.metadata as any;
   const youtubeVideoId = meta?.youtubeVideoId;
@@ -513,55 +511,9 @@ async function generateFullThrottleDistribution(
   }
 }
 
-async function generateDiscordAnnouncement(userId: string, video: any, creatorTone: string) {
-  const connectedPlatforms = await getUserConnectedPlatforms(userId);
-  if (!connectedPlatforms.has("discord")) {
-    logger.info("Discord not connected, skipping announcement", { userId });
-    return;
-  }
-
-  const videoUrl = buildVideoUrl(video);
-  const channelLinks = await getUserChannelLinks(userId);
-
-  const result = await generateUniqueContent({
-    videoTitle: video.title,
-    videoDescription: video.description || "",
-    videoType: video.type || "video",
-    platform: "discord",
-    contentType: "new-video",
-    creatorTone,
-    userId,
-    videoUrl,
-    channelLinks,
-  });
-
-  if (!result.content) return;
-
-  const scheduledAt = await getAudienceDrivenTime({
-    platform: "discord",
-    userId,
-    contentType: "new-video",
-    urgency: "immediate",
-  });
-
-  await db.insert(autopilotQueue).values({
-    userId,
-    sourceVideoId: video.id,
-    type: "discord-announce",
-    targetPlatform: "discord",
-    content: result.content,
-    caption: `Discord announcement for: ${sanitizeForPrompt(video.title)}`,
-    status: "scheduled",
-    scheduledAt,
-    metadata: {
-      style: "human",
-      aiModel: "gpt-4o-mini",
-      humanScore: result.stealthScore,
-      uniquenessScore: result.uniquenessScore,
-      fingerprint: result.fingerprint,
-      schedulingMethod: "audience-driven",
-    },
-  });
+// generateDiscordAnnouncement disabled — YouTube-only mode.
+async function generateDiscordAnnouncement(_userId: string, _video: any, _creatorTone: string) {
+  return;
 }
 
 export async function processGoLiveAnnouncements(userId: string, streamId: number, streamTitle: string, streamDescription: string, streamPlatforms: string[]) {
@@ -588,52 +540,9 @@ export async function processGoLiveAnnouncements(userId: string, streamId: numbe
     await generateFullThrottleDistribution(userId, streamAsVideo, creatorTone, connectedAnnouncePlatforms, "go-live");
   }
 
-  const discordConfig = await getAutopilotConfig(userId, "discord-announce");
-  if (goLiveConnected.has("discord") && (!discordConfig || discordConfig.enabled !== false)) {
-    const goLiveChannelLinks = await getUserChannelLinks(userId);
-    const result = await generateUniqueContent({
-      videoTitle: streamTitle,
-      videoDescription: streamDescription || "",
-      videoType: "live-stream",
-      platform: "discord",
-      contentType: "go-live",
-      creatorTone,
-      userId,
-      channelLinks: goLiveChannelLinks,
-    });
+  // Discord go-live announcements disabled — YouTube-only mode.
 
-    if (result.content) {
-      const scheduledAt = await getAudienceDrivenTime({
-        platform: "discord",
-        userId,
-        contentType: "new-video",
-        urgency: "immediate",
-      });
-
-      await db.insert(autopilotQueue).values({
-        userId,
-        sourceVideoId: streamId,
-        type: "go-live",
-        targetPlatform: "discord",
-        content: result.content,
-        caption: `LIVE NOW: ${streamTitle}`,
-        status: "scheduled",
-        scheduledAt,
-        metadata: {
-          streamId,
-          isLiveAnnouncement: true,
-          style: "human",
-          aiModel: "gpt-4o-mini",
-          humanScore: result.stealthScore,
-          uniquenessScore: result.uniquenessScore,
-          fingerprint: result.fingerprint,
-          schedulingMethod: "audience-driven",
-        },
-      });
-    }
-  }
-
-  const totalLivePlatforms = connectedAnnouncePlatforms.length + (goLiveConnected.has("discord") ? 1 : 0);
+  const totalLivePlatforms = connectedAnnouncePlatforms.length;
   if (totalLivePlatforms > 0) {
     await createNotification(userId, "autopilot", "Live announcements sent",
       `Going live across ${totalLivePlatforms} connected platform${totalLivePlatforms !== 1 ? "s" : ""} for "${streamTitle}"`,

@@ -311,85 +311,14 @@ export const streamOperator = {
     }
   },
 
-  // AUTONOMOUS: Cross-post live stream status to X (via job queue) — every 10min
-  async crossPostLiveAnnouncements(state: StreamState) {
-    const { userId, liveChatId, startedAt } = state;
-    const durationMin = Math.floor((Date.now() - startedAt) / 60_000);
-
-    // Only cross-post after first 10 minutes to confirm stream stability
-    if (durationMin < 10) return;
-
-    // Enqueue X/Twitter post job (actual posting handled by platform publisher)
-    await jobQueue.enqueue({
-      type: "discord_live_announce",
-      userId,
-      priority: 4,
-      payload: {
-        message: `🎮 Still live! ${durationMin} minutes in. Come hang with the chat!`,
-        liveChatId,
-        durationMin,
-      },
-      dedupeKey: `crosspost:${userId}:${Math.floor(durationMin / 10)}`, // dedupe per 10-min window
-    });
-
-    await logAutonomousAction({
-      userId,
-      engine: 'stream-operator',
-      action: 'cross_post_live',
-      reasoning: `${durationMin} minutes elapsed — cross-posted live update.`,
-    });
+  // DISABLED: Cross-post live announcements to non-YouTube platforms — YouTube-only mode.
+  async crossPostLiveAnnouncements(_state: StreamState) {
+    return;
   },
 
-  // AUTONOMOUS: Send mid-stream update to Discord — every 30min
-  async updateDiscordServer(state: StreamState) {
-    const { userId, startedAt } = state;
-    const channels = await storage.getChannelsByUser(userId);
-    const ytChannel = channels.find(c => c.platform === "youtube");
-    if (!ytChannel) return;
-
-    const durationMin = Math.floor((Date.now() - startedAt) / 60_000);
-
-    // Post to Discord webhook if configured on the channel
-    const webhookUrl = (ytChannel as any).discordWebhookUrl;
-    if (!webhookUrl) {
-      await logAutonomousAction({
-        userId,
-        engine: 'stream-operator',
-        action: 'discord_update_skipped',
-        reasoning: 'No Discord webhook configured for this channel.',
-      });
-      return;
-    }
-
-    const openai = getOpenAIClient();
-    const promptWithVoice = await withCreatorVoice(
-      userId,
-      `Write a short mid-stream Discord update for a gaming channel. Stream has been live for ${durationMin} minutes. Keep it hype, max 150 chars, include stream link if you have it.`
-    );
-    const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: promptWithVoice }],
-      max_completion_tokens: 80,
-    });
-
-    const message = aiRes.choices[0].message.content?.slice(0, 150) || `🎮 Still live after ${durationMin} minutes! Come join the stream!`;
-
-    try {
-      await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: message }),
-      });
-      await logAutonomousAction({
-        userId,
-        engine: 'stream-operator',
-        action: 'discord_update_sent',
-        reasoning: `${durationMin}-minute Discord update posted.`,
-        publishedContent: message,
-      });
-    } catch (err: any) {
-      logger.warn(`[StreamOperator] Discord webhook post failed: ${sanitizeForPrompt(err.message)}`);
-    }
+  // DISABLED: Discord mid-stream updates — YouTube-only mode.
+  async updateDiscordServer(_state: StreamState) {
+    return;
   },
 };
 

@@ -2746,7 +2746,7 @@ httpServer.listen(
           logger.info("[Autonomous] content_idea_generation job received", { userId: job.userId, payload: job.payload });
         });
         jobQueue.registerHandler("tiktok_publish", async (job) => {
-          logger.info("[Autonomous] tiktok_publish job received", { userId: job.userId, payload: job.payload });
+          logger.info("[Autonomous] tiktok_publish job received but ignored — YouTube-only mode", { userId: job.userId });
         });
 
         // Post-stream pipeline job types
@@ -2784,7 +2784,7 @@ httpServer.listen(
             await multiPlatformDistributor.distribute(
               job.userId,
               { videoId, gameTitle, title: `${gameTitle} Stream Highlights` },
-              platforms || ["tiktok", "discord"]
+              (platforms || []).filter((p: string) => p === "youtube" || p === "shorts")
             ).catch(err => logger.warn("[Autonomous] multi_platform_clips job failed", { error: String(err) }));
           }
         });
@@ -2826,61 +2826,19 @@ httpServer.listen(
           );
         });
         jobQueue.registerHandler("discord_live_announce", async (job) => {
-          const userId = job.userId;
-          const payload = (job.payload || {}) as Record<string, any>;
-          if (!userId) return;
-          const { storage: st } = await import("./storage");
-          const channels = await st.getChannelsByUser(userId);
-          const ytChannel = channels.find((c: any) => c.platform === "youtube");
-          const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
-          if (webhookUrl) {
-            const gameTitle = payload?.gameTitle;
-            const title = payload?.title || "Live Stream";
-            let message = payload?.message;
-            if (!message) {
-              const gameTag = gameTitle && gameTitle !== "PS5 Gameplay" && gameTitle !== "Unknown" ? ` **${gameTitle}**` : "";
-              message = `🔴 **LIVE NOW!** ${title}${gameTag ? ` — Playing${gameTag}` : ""}\nCome hang out! 🎮`;
-            }
-            await fetch(webhookUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content: message }),
-            }).catch(err => logger.warn("[Autonomous] Discord announce webhook failed", { error: String(err) }));
-          }
+          // DISABLED: Discord live announcements — YouTube-only mode.
+          logger.info("[Autonomous] discord_live_announce job ignored — YouTube-only mode", { userId: job.userId });
         });
 
         jobQueue.registerHandler("publish_to_tiktok", async (job) => {
-          logger.info("[Autonomous] TikTok publish job received", { userId: job.userId, payload: job.payload });
+          logger.info("[Autonomous] publish_to_tiktok job ignored — YouTube-only mode", { userId: job.userId });
         });
         jobQueue.registerHandler("publish_to_x", async (job) => {
           logger.info("[Autonomous] X publish job received", { userId: job.userId, payload: job.payload });
         });
         jobQueue.registerHandler("publish_to_discord", async (job) => {
-          const userId = job.userId;
-          const payload = (job.payload || {}) as Record<string, any>;
-          if (!userId || !payload?.caption) return;
-          const { storage: st } = await import("./storage");
-          const chs = await st.getChannelsByUser(userId);
-          const ytChannel = chs.find((c: any) => c.platform === "youtube");
-          const webhookUrl = (ytChannel as any)?.discordWebhookUrl;
-          if (webhookUrl) {
-            let message = payload.caption;
-            const gameTitle = payload.gameTitle || payload.gameName;
-            if (gameTitle && gameTitle !== "Unknown" && gameTitle !== "PS5 Gameplay") {
-              if (!message.includes(gameTitle)) {
-                message = `🎮 **${gameTitle}** | ${message}`;
-              }
-            }
-            const videoUrl = payload.videoUrl || payload.postUrl;
-            if (videoUrl && !message.includes(videoUrl)) {
-              message = `${message}\n${videoUrl}`;
-            }
-            await fetch(webhookUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ content: message }),
-            }).catch(err => logger.warn("[Autonomous] publish_to_discord webhook failed", { error: String(err) }));
-          }
+          // DISABLED: Discord publishing — YouTube-only mode.
+          logger.info("[Autonomous] publish_to_discord job ignored — YouTube-only mode", { userId: job.userId });
         });
         jobQueue.registerHandler("queue_for_approval", async (job) => {
           logger.info("[Autonomous] Content queued for manual approval", { userId: job.userId, payload: job.payload });

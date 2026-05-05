@@ -277,207 +277,29 @@ async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedB
   };
 }
 
-async function checkTwitchLive(channelRow: any): Promise<DetectedBroadcast | null> {
-  const token = channelRow.accessToken;
-  const clientId = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID;
-  if (!token || !clientId) return null;
-
-  try {
-    let twitchUserId = channelRow.channelId;
-
-    if (!twitchUserId) {
-      const userInfoRes = await fetch("https://api.twitch.tv/helix/users", {
-        headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!userInfoRes.ok) return null;
-      const userInfo = await userInfoRes.json();
-      twitchUserId = userInfo.data?.[0]?.id;
-      if (!twitchUserId) return null;
-    }
-
-    const streamsRes = await fetch(`https://api.twitch.tv/helix/streams?user_id=${twitchUserId}`, {
-      headers: { Authorization: `Bearer ${token}`, "Client-Id": clientId },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!streamsRes.ok) return null;
-    const streamsData = await streamsRes.json();
-
-    const live = (streamsData.data || []).find((s: any) => s.type === "live");
-    if (!live) return null;
-
-    return {
-      platform: "twitch",
-      broadcastId: live.id,
-      title: live.title || "Twitch Stream",
-      description: `${live.game_name || "Streaming"} on Twitch`,
-      startedAt: live.started_at,
-      viewerCount: live.viewer_count,
-    };
-  } catch (err: any) {
-    logger.warn(`[LiveDetection] Twitch check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return null;
-  }
+// DISABLED: Twitch live detection — YouTube-only mode.
+async function checkTwitchLive(_channelRow: any): Promise<DetectedBroadcast | null> {
+  return null;
 }
 
-/**
- * Try Kick's public v2 API (no auth required) for a given slug.
- * Returns a broadcast object if the channel is live, null otherwise.
- * This is used as both the primary path (when no OAuth token is available) and
- * as a fallback when the authenticated v1 API returns a non-200 response.
- */
-async function checkKickPublicApi(slug: string, channelDbId: number): Promise<DetectedBroadcast | null> {
-  try {
-    const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(slug)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return null;
-    const data = await res.json();
-
-    if (!data.is_live) return null;
-
-    const ls = data.livestream || {};
-    return {
-      platform: "kick",
-      broadcastId: String(ls.id || data.id || Date.now()),
-      title: ls.session_title || ls.title || data.slug || "Kick Stream",
-      description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
-      startedAt: ls.created_at || ls.start_time,
-      viewerCount: ls.viewer_count || data.viewer_count,
-    };
-  } catch (err: any) {
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
-    logger.warn(`[LiveDetection] Kick public API check ${isTimeout ? "timed out" : "failed"} for channel ${channelDbId}:`, err?.message ?? err);
-    return null;
-  }
+// DISABLED: Kick public API check — YouTube-only mode.
+async function checkKickPublicApi(_slug: string, _channelDbId: number): Promise<DetectedBroadcast | null> {
+  return null;
 }
 
-async function checkKickLive(channelRow: any): Promise<DetectedBroadcast | null> {
-  const token = channelRow.accessToken;
-  const slug = channelRow.channelName || channelRow.channelId;
-  if (!slug) return null;
-
-  // When no token is available, go straight to the public API.
-  if (!token) {
-    logger.debug(`[LiveDetection] Kick channel ${channelRow.id} has no token — using public API`);
-    return checkKickPublicApi(slug, channelRow.id);
-  }
-
-  try {
-    const res = await fetch(`https://api.kick.com/public/v1/channels?slug=${encodeURIComponent(slug)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    // 401 / 403 means the OAuth token has expired.  Fall back to the public
-    // v2 API which doesn't require authentication.
-    if (res.status === 401 || res.status === 403) {
-      logger.info(`[LiveDetection] Kick OAuth token expired for channel ${channelRow.id} (HTTP ${res.status}) — falling back to public API`);
-      return checkKickPublicApi(slug, channelRow.id);
-    }
-
-    if (!res.ok) return null;
-    const kickCt = res.headers.get("content-type") || "";
-    if (!kickCt.includes("application/json")) return null;
-    const data = await res.json();
-
-    const channelList = Array.isArray(data.data) ? data.data : data.data ? [data.data] : [];
-    const live = channelList.find((ch: any) => ch.is_live || ch.livestream);
-    if (!live) return null;
-
-    const ls = live.livestream || {};
-    return {
-      platform: "kick",
-      broadcastId: String(ls.id || live.id || Date.now()),
-      title: ls.session_title || ls.title || live.slug || "Kick Stream",
-      description: `${ls.categories?.[0]?.name || "Streaming"} on Kick`,
-      startedAt: ls.created_at || ls.start_time,
-      viewerCount: ls.viewer_count || live.viewer_count,
-    };
-  } catch (err: any) {
-    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
-    logger.warn(`[LiveDetection] Kick check ${isTimeout ? "timed out" : "failed"} for channel ${channelRow.id}:`, err?.message ?? err);
-    // On network error, still try the public API as a last resort
-    return checkKickPublicApi(slug, channelRow.id);
-  }
+// DISABLED: Kick live detection — YouTube-only mode.
+async function checkKickLive(_channelRow: any): Promise<DetectedBroadcast | null> {
+  return null;
 }
 
-async function checkTikTokLive(channelRow: any): Promise<DetectedBroadcast | null> {
-  const token = channelRow.accessToken;
-  if (!token) return null;
-
-  try {
-    const res = await fetch(
-      "https://open.tiktokapis.com/v2/video/list/?fields=id,title,duration,create_time",
-      {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ max_count: 5 }),
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return null;
-
-    const data = await res.json();
-    const videoList: any[] = data?.data?.videos || [];
-    const now = Date.now() / 1000;
-    const liveVideo = videoList.find((v: any) => v.duration === 0 && (now - (v.create_time || 0)) < 3600);
-    if (!liveVideo) return null;
-
-    return {
-      platform: "tiktok",
-      broadcastId: liveVideo.id || `tiktok_live_${channelRow.channelId || Date.now()}`,
-      title: liveVideo.title || `${channelRow.channelName || "Creator"} is LIVE on TikTok`,
-      description: "Live on TikTok",
-      startedAt: new Date(liveVideo.create_time * 1000).toISOString(),
-    };
-  } catch (err: any) {
-    logger.warn(`[LiveDetection] TikTok live check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return null;
-  }
+// DISABLED: TikTok live detection — YouTube-only mode.
+async function checkTikTokLive(_channelRow: any): Promise<DetectedBroadcast | null> {
+  return null;
 }
 
-async function checkRumbleLive(channelRow: any): Promise<DetectedBroadcast | null> {
-  const apiKey = process.env.RUMBLE_API_KEY;
-  const channelName = channelRow.channelName || channelRow.channelId;
-  if (!apiKey || !channelName) return null;
-
-  try {
-    const res = await fetch(`https://rumble.com/api/v0/channel/${encodeURIComponent(channelName)}/livestreams`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) return null;
-    const data = await res.json();
-
-    const livestreams = Array.isArray(data.livestreams) ? data.livestreams
-      : Array.isArray(data.data) ? data.data
-      : data.items ? data.items : [];
-    const live = livestreams.find((ls: any) => ls.is_live || ls.status === "live" || ls.state === "live");
-    if (!live) return null;
-
-    return {
-      platform: "rumble",
-      broadcastId: String(live.id || live.video_id || Date.now()),
-      title: live.title || "Rumble Stream",
-      description: live.description || "Live on Rumble",
-      startedAt: live.started_at || live.created_at,
-      viewerCount: live.viewer_count || live.watching_now || 0,
-    };
-  } catch (err: any) {
-    logger.warn(`[LiveDetection] Rumble check failed for channel ${channelRow.id}:`, err?.message ?? err);
-    return null;
-  }
+// DISABLED: Rumble live detection — YouTube-only mode.
+async function checkRumbleLive(_channelRow: any): Promise<DetectedBroadcast | null> {
+  return null;
 }
 
 // ─── Broadcast lifecycle ──────────────────────────────────────────────────────

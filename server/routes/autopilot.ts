@@ -811,7 +811,7 @@ export function registerAutopilotRoutes(app: Express) {
             .limit(5)
         : [];
 
-      const platforms = ["discord"];
+      const platforms = ["youtube"];
       const contentTypes = ["auto-clip", "content-recycle", "cross-promo"];
       let seeded = 0;
       const now = new Date();

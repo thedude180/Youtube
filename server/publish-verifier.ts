@@ -226,41 +226,9 @@ async function verifyYouTubePost(userId: string, postId: string): Promise<Verifi
   }
 }
 
-async function verifyTikTokPost(userId: string, postId: string): Promise<VerificationResult> {
-  try {
-    const token = await getValidToken(userId, "tiktok");
-    if (!token) return { confirmed: false, error: "No TikTok credentials for verification" };
-
-    const res = await fetch("https://open.tiktokapis.com/v2/post/publish/status/fetch/", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ publish_id: postId }),
-    });
-
-    if (res.ok) {
-      const data = await res.json() as any;
-      const status = data.data?.status;
-      if (status === "PUBLISH_COMPLETE") {
-        const videoIds = data.data?.publicly_available_post_id || [];
-        return {
-          confirmed: true,
-          platformStatus: "published",
-          platformUrl: videoIds.length > 0 ? `https://www.tiktok.com/video/${videoIds[0]}` : undefined,
-        };
-      }
-      if (status === "PROCESSING_UPLOAD" || status === "PROCESSING_DOWNLOAD" || status === "SENDING_TO_USER_INBOX") {
-        return { confirmed: false, platformStatus: `processing: ${status}`, error: "TikTok still processing — will check again" };
-      }
-      return { confirmed: false, platformStatus: status, error: `TikTok publish status: ${status}` };
-    }
-
-    return { confirmed: false, error: `TikTok API returned ${res.status}` };
-  } catch (err: any) {
-    return { confirmed: false, error: `TikTok verification error: ${err.message}` };
-  }
+// DISABLED: TikTok post verification — YouTube-only mode.
+async function verifyTikTokPost(_userId: string, _postId: string): Promise<VerificationResult> {
+  return { confirmed: false, error: "YouTube-only mode — TikTok verification disabled" };
 }
 
 async function verifyDiscordPost(userId: string, postId: string): Promise<VerificationResult> {

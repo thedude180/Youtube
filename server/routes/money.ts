@@ -1410,7 +1410,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
         : 0;
 
       const connectedPlatforms = new Set(channels.map(c => c.platform));
-      const allPlatforms = ["youtube", "twitch", "kick", "tiktok", "discord"];
+      const allPlatforms = ["youtube"];
       const notConnected = allPlatforms.filter(p => !connectedPlatforms.has(p));
 
       // Build a truthful "have" map from ALL data sources
@@ -1683,7 +1683,7 @@ Return JSON: { "subject": "...", "body": "...", "followUpNote": "suggested follo
       }
 
       // Tips — not yet active
-      if (!hasTips && (connectedPlatforms.has("youtube") || connectedPlatforms.has("twitch"))) {
+      if (!hasTips && connectedPlatforms.has("youtube")) {
         opportunities.push({
           type: "tips", priority: "low",
           title: "Enable Direct Tips & Donations",

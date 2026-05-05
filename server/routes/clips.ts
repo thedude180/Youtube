@@ -325,7 +325,7 @@ export function registerClipRoutes(app: Express) {
         (a, b) => (b.optimizationScore || 0) - (a.optimizationScore || 0),
       );
 
-      const platforms = ["youtube", "discord", "tiktok"];
+      const platforms = ["youtube"];
       const platformBudgets: Record<string, number> = {};
       for (const p of platforms) {
         platformBudgets[p] = calculateDailyPostBudget(p) * 14;
@@ -466,7 +466,7 @@ export function registerClipRoutes(app: Express) {
       if (!parsedBody.success) {
         return res.status(400).json({ error: "Invalid input", details: parsedBody.error.flatten() });
       }
-      const VIDEO_ONLY = ["tiktok"];
+      const VIDEO_ONLY: string[] = [];
       let platform = parsedBody.data.platform || clip.targetPlatform || "youtube";
       if (VIDEO_ONLY.includes(platform)) platform = "youtube";
 
@@ -609,37 +609,10 @@ export function registerClipRoutes(app: Express) {
     const clipId = parseNumericId(req.params.clipId as string, res, "clip ID");
     if (clipId === null) return;
 
-    try {
-      const clips = await storage.getContentClips(userId);
-      const clip = clips.find(c => c.id === clipId);
-      if (!clip) return res.status(404).json({ error: "Clip not found" });
-
-      const { publishClipToTikTok } = await import("../tiktok-publisher");
-      const { canPostToPlatformToday, enforceCaptionLimit } = await import("../services/platform-budget-tracker");
-
-      const budget = await canPostToPlatformToday(userId, "tiktok");
-      if (!budget.allowed) {
-        return res.status(429).json({
-          success: false,
-          error: `TikTok daily budget reached (${budget.reason}). Will resume when window opens.`,
-          reason: budget.reason,
-          remaining: budget.remaining,
-        });
-      }
-
-      const caption = enforceCaptionLimit(clip.description || clip.title || "", "tiktok");
-      const result = await publishClipToTikTok(clipId, userId, caption);
-
-      if (result.success) {
-        await db.update(contentClips)
-          .set({ status: "published", publishedAt: new Date() })
-          .where(and(eq(contentClips.id, clipId), eq(contentClips.userId, userId)));
-      }
-
-      res.json(result);
-    } catch (err: any) {
-      logger.error("[Clips] TikTok publish error:", err);
-      res.status(500).json({ error: "Failed to publish clip to TikTok" });
-    }
+    // TikTok publishing disabled — CreatorOS is YouTube-only.
+    res.status(410).json({
+      success: false,
+      error: "TikTok publishing is disabled. CreatorOS operates in YouTube-only mode.",
+    });
   }));
 }

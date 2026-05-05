@@ -697,7 +697,7 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
   const { getOptimalPostingTimes } = await import("./smart-scheduler");
 
   const PLATFORM_MIN_GAP: Record<string, number> = {
-    youtube: 120, tiktok: 90, discord: 180,
+    youtube: 120,
   };
 
   const allVideos = await storage.getVideosByUser(userId);
@@ -726,7 +726,7 @@ export async function autoScheduleOptimizedContent(userId: string): Promise<numb
     }
   }
 
-  const platforms = ["youtube", "tiktok", "discord"];
+  const platforms = ["youtube"];
 
   const audienceSourceByPlatform = new Map<string, string>();
   for (const platform of platforms) {

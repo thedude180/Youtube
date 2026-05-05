@@ -8,7 +8,7 @@ import { computeCreatorCredibility, getCredibilityScore } from "../services/crea
 import { runPolicyPreFlight } from "../services/policy-preflight";
 import { requireYouTubeOnly } from "@shared/youtube-only";
 
-const SUPPORTED_PLATFORMS = ["youtube", "twitch", "tiktok", "x", "instagram", "kick", "rumble"] as const;
+const SUPPORTED_PLATFORMS = ["youtube"] as const;
 const platformEnum = z.enum(SUPPORTED_PLATFORMS);
 
 export function registerComplianceHardeningRoutes(app: Express) {
