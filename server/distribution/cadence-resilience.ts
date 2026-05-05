@@ -126,7 +126,7 @@ export async function assessBufferHealth(userId: string): Promise<ResiliencePlan
     ...Object.keys(platformLatest),
     ...Object.keys(platformEventCounts),
     ...Object.keys(platformScheduledCounts),
-  ]);
+  ].filter(p => p === "youtube"));
   if (platforms.size === 0) platforms.add("youtube");
 
   for (const platform of platforms) {
@@ -205,7 +205,7 @@ export async function enforceMinimumCadence(userId: string, platforms?: string[]
     return { enforced: false, scheduled: [], trustBlocked: true };
   }
 
-  const targetPlatforms = platforms || Object.keys(MIN_WEEKLY_CADENCE);
+  const targetPlatforms = ["youtube"];
   const scheduled: ScheduleAction[] = [];
   const sevenDaysFromNow = daysFromNow(7);
 
@@ -294,7 +294,7 @@ export async function scheduleBreakCoverage(userId: string, breakStartDate: Date
 
   const breakDurationMs = breakEndDate.getTime() - breakStartDate.getTime();
   const coverageDays = Math.ceil(breakDurationMs / 86400000);
-  const targetPlatforms = platforms || Object.keys(MIN_WEEKLY_CADENCE);
+  const targetPlatforms = ["youtube"];
   const scheduled: ScheduleAction[] = [];
 
   for (const platform of targetPlatforms) {

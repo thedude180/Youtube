@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { isAuthenticated } from "../replit_integrations/auth/replitAuth";
 import { getUserId } from "./helpers";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import { startMultistream, stopMultistream, getMultistreamStatus, getConfiguredDestinations } from "../services/multistream-engine";
 import { detectLiveOrigin, detectLiveEnd, getRecentOriginEvents } from "../live-ops/live-origin-detector";
 import { buildBroadcastGraph, addDestination, orchestrateLaunch, orchestrateStop, getActiveSessions, updateDestinationState, getDestinationHistory } from "../live-ops/broadcast-graph-orchestrator";
@@ -84,8 +85,10 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const { platform, streamId, channelId, title, metadata } = req.body;
-      if (!platform || !streamId) return res.status(400).json({ error: "platform and streamId required" });
+      const { streamId, channelId, title, metadata } = req.body;
+      const rawPlatform = req.body.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      if (!streamId) return res.status(400).json({ error: "streamId required" });
       const result = await detectLiveOrigin({ userId, platform, streamId, channelId, title, metadata });
       res.json(result);
     } catch (err: any) {
@@ -97,8 +100,10 @@ export function registerMultistreamRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const { platform, streamId } = req.body;
-      if (!platform || !streamId) return res.status(400).json({ error: "platform and streamId required" });
+      const { streamId } = req.body;
+      const rawPlatform = req.body.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      if (!streamId) return res.status(400).json({ error: "streamId required" });
       const result = await detectLiveEnd(userId, platform, streamId);
       res.json(result);
     } catch (err: any) {
@@ -136,8 +141,9 @@ export function registerMultistreamRoutes(app: Express): void {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
-      const { platform, channelId, streamKey, ingestUrl, launchOrder } = req.body;
-      if (!platform) return res.status(400).json({ error: "platform required" });
+      const { channelId, streamKey, ingestUrl, launchOrder } = req.body;
+      const rawPlatform = req.body.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
       const dest = await addDestination(sessionId, platform, channelId, streamKey, ingestUrl, launchOrder || 0);
       res.json({ destination: dest });
     } catch (err: any) {
@@ -177,8 +183,10 @@ export function registerMultistreamRoutes(app: Express): void {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const destinationId = parseInt(req.params.destId as string);
       if (!(await verifyDestinationOwnership(destinationId, userId))) return res.status(403).json({ error: "Access denied" });
-      const { platform, sessionId, ingestUrl, streamKey } = req.body;
-      if (!platform || !sessionId) return res.status(400).json({ error: "platform and sessionId required" });
+      const { sessionId, ingestUrl, streamKey } = req.body;
+      const rawPlatform = req.body.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      if (!sessionId) return res.status(400).json({ error: "sessionId required" });
 
       const reliability = await assessLaunchReliability(destinationId, platform, sessionId);
       if (!reliability.launchAllowed) {
@@ -257,8 +265,9 @@ export function registerMultistreamRoutes(app: Express): void {
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const sessionId = parseInt(req.params.sessionId as string);
       if (!(await verifySessionOwnership(sessionId, userId))) return res.status(403).json({ error: "Access denied" });
-      const { title, description, category, tags, platforms, thumbnailUrl } = req.body;
-      if (!title || !platforms?.length) return res.status(400).json({ error: "title and platforms required" });
+      const { title, description, category, tags, thumbnailUrl } = req.body;
+      if (!title) return res.status(400).json({ error: "title required" });
+      const platforms = ["youtube"];
 
       const metadata = await generateAndStoreMetadataVariants(sessionId, title, description || "", category || "gaming", tags || [], platforms);
       let thumbnails: any[] = [];

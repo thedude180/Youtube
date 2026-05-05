@@ -78,7 +78,7 @@ export async function analyzeFormatInnovations(userId: string, platforms?: strin
   }));
 
   const existingFormatKeys = new Set(existingFormats.map(f => `${f.platform}:${f.formatName.toLowerCase()}`));
-  const targetPlatforms = platforms || Object.keys(KNOWN_EMERGING_FORMATS);
+  const targetPlatforms = ["youtube"];
   const emergingFormats: FormatOpportunity[] = [];
 
   for (const plat of targetPlatforms) {

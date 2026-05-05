@@ -102,6 +102,7 @@ export async function generateAndStoreMetadataVariants(
   sourceTags: string[],
   platforms: string[]
 ): Promise<PackagedMetadata[]> {
+  platforms = platforms.filter(p => p === "youtube");
   const variants: PackagedMetadata[] = [];
 
   for (const platform of platforms) {
@@ -143,6 +144,7 @@ export async function generateAndStoreThumbnailVariants(
   sourceThumbnailUrl: string,
   platforms: string[]
 ): Promise<PackagedThumbnail[]> {
+  platforms = platforms.filter(p => p === "youtube");
   const variants: PackagedThumbnail[] = [];
 
   for (const platform of platforms) {

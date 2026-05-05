@@ -303,5 +303,5 @@ export async function getDistributionStats(userId: string): Promise<{
 }
 
 export function getSupportedPlatforms(): Platform[] {
-  return [...PLATFORMS];
+  return ["youtube"];
 }
