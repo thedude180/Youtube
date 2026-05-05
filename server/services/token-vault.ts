@@ -19,6 +19,7 @@
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { normalizePlatform } from "@shared/youtube-only";
 
 /**
  * Create the token_vault table if it doesn't exist.
@@ -73,6 +74,11 @@ export interface VaultEntry {
  * Never throws — always fire-and-forget.
  */
 export async function saveToVault(entry: VaultEntry): Promise<void> {
+  const normalized = normalizePlatform(entry.platform);
+  if (normalized !== "youtube") {
+    logger.info(`[TokenVault] Skipping disabled platform ${entry.platform}`);
+    return;
+  }
   try {
     await db.execute(sql`
       INSERT INTO token_vault
