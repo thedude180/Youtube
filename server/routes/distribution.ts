@@ -315,12 +315,14 @@ export function registerDistributionRoutes(app: Express) {
         description: z.string().default(""),
         tags: z.array(z.string()).default([]),
         game: z.string().optional(),
-        platforms: z.array(z.string()).min(1),
+        platforms: z.array(z.enum(["youtube"])).min(1).default(["youtube"]),
       });
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      // YouTube-only: override any submitted platforms list to prevent non-YouTube packaging.
+      const youtubePlatforms: ["youtube"] = ["youtube"];
       const { packageForAllPlatforms } = await import("../distribution/cross-platform-packaging");
-      const result = await packageForAllPlatforms(userId, parsed.data, parsed.data.platforms);
+      const result = await packageForAllPlatforms(userId, parsed.data, youtubePlatforms);
       res.json(result);
     } catch (err: unknown) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Failed" });

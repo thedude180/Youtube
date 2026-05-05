@@ -56,7 +56,7 @@ export function registerStreamRoutes(app: Express) {
     const userId = await requireTier(req, res, "youtube", "Stream Center");
     if (!userId) return;
     const schema = z.object({
-      platform: z.string().min(1),
+      platform: z.enum(["youtube"]),
       label: z.string().min(1),
       rtmpUrl: z.string().default(""),
       streamKey: z.string().optional(),
@@ -96,7 +96,7 @@ export function registerStreamRoutes(app: Express) {
       return res.status(404).json({ message: "Destination not found" });
     }
     const schema = z.object({
-      platform: z.string().min(1).optional(),
+      platform: z.enum(["youtube"]).optional(),
       label: z.string().min(1).optional(),
       rtmpUrl: z.string().optional(),
       streamKey: z.string().optional(),

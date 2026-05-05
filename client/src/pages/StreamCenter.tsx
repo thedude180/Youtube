@@ -706,7 +706,7 @@ export default function StreamCenter() {
 
   const startRelayMutation = useMutation({
     mutationFn: async (videoId: string) => { const res = await apiRequest("POST", "/api/multistream/start", { videoId }); return res.json(); },
-    onSuccess: () => { refetchMultistream(); toast({ title: "Multi-stream relay started", description: "FFmpeg is relaying your stream to all configured platforms" }); },
+    onSuccess: () => { refetchMultistream(); toast({ title: "YouTube Live relay started", description: "FFmpeg relay is active for your YouTube Live stream" }); },
     onError: () => toast({ title: "Relay failed", description: "Check that your stream is live and public on YouTube", variant: "destructive" }),
   });
 

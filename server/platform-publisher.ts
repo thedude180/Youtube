@@ -395,20 +395,9 @@ export async function executePublish(
     };
   }
 
+  // DISABLED: TikTok publisher — YouTube-only mode.
   if (platform === "tiktok") {
-    const { publishVideoToTikTok } = await import("./tiktok-publisher");
-    const tiktokContent = formatted.content;
-    const enrichedMetadata = {
-      ...metadata,
-      tiktokCaption: tiktokContent,
-    };
-    const result = await publishVideoToTikTok(userId, tiktokContent, enrichedMetadata);
-    return {
-      success: result.success,
-      platform: "tiktok",
-      postId: result.publishId,
-      error: result.error,
-    };
+    return { success: false, platform: "tiktok", error: "YouTube-only mode — TikTok publishing disabled" };
   }
 
   if (platform === "rumble") {

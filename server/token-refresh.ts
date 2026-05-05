@@ -312,8 +312,10 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
   let failed = 0;
 
   try {
+    // YouTube-only: filter at DB level — never fetch non-YouTube channel rows for token refresh.
     const allExpiring = await db.select().from(channels).where(
       and(
+        eq(channels.platform, "youtube"),
         isNotNull(channels.refreshToken),
         isNotNull(channels.tokenExpiresAt),
         lt(channels.tokenExpiresAt, threshold)
@@ -324,12 +326,6 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
 
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
-
-      // Skip non-YouTube platforms — this app is YouTube-only; their OAuth configs are intentionally absent.
-      if (ch.platform !== "youtube" && ch.platform !== "youtubeshorts") {
-        logger.debug(`[TokenRefresh] Skipping disabled platform channel ${ch.id} (${ch.platform})`);
-        continue;
-      }
 
       const pd = (ch.platformData || {}) as any;
 

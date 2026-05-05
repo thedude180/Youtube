@@ -121,8 +121,11 @@ export async function packageForAllPlatforms(
   content: { title: string; description: string; tags: string[]; durationSeconds?: number; game?: string },
   platforms: (Platform | string)[]
 ): Promise<PackagedContent[]> {
+  // YouTube-only enforcement: silently ignore any non-YouTube platform in the list.
+  const youtubePlatforms = platforms.filter(p => p === "youtube" || p === "youtubeshorts");
+  if (youtubePlatforms.length === 0) youtubePlatforms.push("youtube");
   const results: PackagedContent[] = [];
-  for (const platform of platforms) {
+  for (const platform of youtubePlatforms) {
     results.push(await packageForPlatform(userId, platform, content));
   }
   return results;

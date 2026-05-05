@@ -649,20 +649,18 @@ export async function getConnectionHealth(userId: string): Promise<{
     statsRefreshIntervalMin: number;
   };
 }> {
+  // YouTube-only: only surface YouTube channel health — non-YouTube channels are not managed by this app.
   const userChannels = await db.select().from(channels)
-    .where(eq(channels.userId, userId));
+    .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
   const userLinked = await db.select().from(linkedChannels)
-    .where(eq(linkedChannels.userId, userId));
+    .where(and(eq(linkedChannels.userId, userId), eq(linkedChannels.platform, "youtube")));
 
-  const ENV_BASED_PLATFORMS = ["discord", "kick", "twitch", "tiktok", "rumble"];
   const platformMap = new Map<string, any>();
   for (const ch of userChannels) {
     const pd = (ch.platformData || {}) as any;
-    const isEnvBased = ENV_BASED_PLATFORMS.includes(ch.platform || "");
-    const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
     const isDevSentinel = ch.accessToken === "dev_api_key_mode";
-    const hasToken = !!(ch.accessToken || ch.refreshToken) || hasEnvAuth || isDevSentinel;
+    const hasToken = !!(ch.accessToken || ch.refreshToken) || isDevSentinel;
     const guardianStatus = pd._connectionStatus as string | undefined;
     let status: "healthy" | "degraded" | "expired" | "disconnected";
     if (!hasToken) {
