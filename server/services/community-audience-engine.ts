@@ -637,7 +637,8 @@ export async function executeAutoCommunityActions(userId: string): Promise<void>
 export async function runCommunityAudienceScan(): Promise<void> {
   const startTime = Date.now();
   try {
-    const allChannels = await db.select({ userId: channels.userId }).from(channels);
+    const allChannels = await db.select({ userId: channels.userId }).from(channels)
+      .where(eq(channels.platform, "youtube"));
     const userIds = [...new Set(allChannels.map(ch => ch.userId).filter((id): id is string => id !== null))];
 
     if (userIds.length === 0) {

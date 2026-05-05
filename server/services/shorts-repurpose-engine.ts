@@ -339,7 +339,8 @@ export async function runShortsRepurposeForUser(userId: string): Promise<{ proce
 }
 
 export async function runShortsRepurposeAllUsers(): Promise<void> {
-  const rows = await db.select({ userId: channels.userId }).from(channels);
+  const rows = await db.select({ userId: channels.userId }).from(channels)
+    .where(eq(channels.platform, "youtube"));
   const userIds = Array.from(new Set(rows.map(r => r.userId).filter(Boolean))) as string[];
   for (const uid of userIds) {
     try {

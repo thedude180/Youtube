@@ -168,6 +168,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
       .where(and(
         isNotNull(channels.refreshToken),
         isNull(channels.accessToken),
+        eq(channels.platform, "youtube"),
       )).limit(20);
 
     if (missingAccessTokenChannels.length > 0) {
@@ -196,6 +197,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
         isNotNull(channels.refreshToken),
         isNotNull(channels.tokenExpiresAt),
         lt(channels.tokenExpiresAt, expiringThreshold),
+        eq(channels.platform, "youtube"),
       )).limit(100);
 
     checked = expiringChannels.length + missingAccessTokenChannels.length;
@@ -211,6 +213,7 @@ export async function proactiveTokenHealthCheck(): Promise<{ checked: number; re
             isNotNull(channels.accessToken),
             isNotNull(channels.tokenExpiresAt),
             lt(channels.tokenExpiresAt, new Date()),
+            eq(channels.platform, "youtube"),
           )).limit(50);
 
         const trulyBroken: Map<string, string[]> = new Map();

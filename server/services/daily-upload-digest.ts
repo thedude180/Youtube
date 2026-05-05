@@ -282,7 +282,8 @@ export function initDailyUploadDigestEngine() {
   // 08:00 UTC daily
   cron.schedule("0 8 * * *", async () => {
     const acquired = await withCronLock(DIGEST_LOCK_NAME, DIGEST_LOCK_TTL_MS, async () => {
-      const allChannels = await db.select({ userId: channels.userId }).from(channels);
+      const allChannels = await db.select({ userId: channels.userId }).from(channels)
+        .where(eq(channels.platform, "youtube"));
       const userIds = Array.from(new Set(allChannels.map(c => c.userId).filter(Boolean))) as string[];
       logger.info("Cron firing", { userCount: userIds.length });
       for (const uid of userIds) {
