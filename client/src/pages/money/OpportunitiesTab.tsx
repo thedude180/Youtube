@@ -36,8 +36,6 @@ const activeStreamIcons: Record<string, any> = {
   sponsorship: Sparkles,
   affiliate: Lightbulb,
   tips: DollarSign,
-  twitch: Star,
-  tiktok: Star,
   coaching: Briefcase,
   ventures: Briefcase,
 };

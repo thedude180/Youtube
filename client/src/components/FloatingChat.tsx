@@ -16,7 +16,7 @@ const suggestions = [
   "Revenue tips?",
 ];
 
-const ONBOARDING_NUDGE = "Welcome! I'm your AI co-pilot — I manage everything automatically once you connect a platform. Head to Settings → Channels to link YouTube, Twitch, or any platform, and I'll start optimizing your content, growing your audience, and handling your entire workflow 24/7. What would you like to start with?";
+const ONBOARDING_NUDGE = "Welcome! I'm your AI co-pilot — I manage everything automatically once you connect YouTube. Head to Settings → Channels to link your YouTube channel, and I'll start optimizing your content, growing your audience, and handling your entire workflow 24/7. What would you like to start with?";
 
 let persistedMessages: Message[] = [];
 

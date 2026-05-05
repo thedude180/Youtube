@@ -174,7 +174,7 @@ export default function StreamIdleView({
                 <p className="text-sm font-semibold text-foreground">Auto-detection active</p>
               </div>
               <p className="text-xs text-muted-foreground">
-                Just start streaming on YouTube, Twitch, or Kick — CreatorOS detects your stream within 30 seconds and activates the full live dashboard automatically.
+                Just start streaming on YouTube — CreatorOS detects your stream within 30 seconds and activates the full live dashboard automatically.
               </p>
             </div>
           </div>

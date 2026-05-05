@@ -322,8 +322,8 @@ export default function TeamDashboard() {
 
 
   const brokenPlatforms = (channels || [])
-    .filter((ch: any) => ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded")
-    .map((ch: any) => ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1));
+    .filter((ch: any) => (ch.platform === "youtube" || ch.platform === "youtubeshorts") && (ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded"))
+    .map((ch: any) => ch.platform === "youtube" ? "YouTube" : "YouTube Shorts");
 
   const activeCount = agentStatus?.filter((a: any) => a.status === "active").length ?? 0;
 

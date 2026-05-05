@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import {
-  Zap, TrendingUp, Youtube, MessageSquare, Gamepad2, Newspaper,
+  Zap, TrendingUp, Youtube, MessageSquare, Newspaper,
   Globe, ExternalLink, ArrowUpRight, Flame,
 } from "lucide-react";
 
@@ -47,7 +47,6 @@ interface IntelFeed {
 const SOURCE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   youtube_trending: { label: "YouTube", icon: Youtube,       color: "text-red-400"    },
   reddit:           { label: "Reddit",  icon: MessageSquare,  color: "text-orange-400" },
-  twitch:           { label: "Twitch",  icon: Gamepad2,       color: "text-purple-400" },
   rss:              { label: "News",    icon: Newspaper,       color: "text-blue-400"   },
   web_search:       { label: "Web",     icon: Globe,           color: "text-emerald-400"},
 };
@@ -205,7 +204,7 @@ export default function OmniIntelligenceFeed() {
                             ↑{s.metadata.upvotes.toLocaleString()}
                           </span>
                         )}
-                        {s.source === "twitch" && s.metadata?.rank && (
+                        {false && s.source === "twitch" && s.metadata?.rank && (
                           <span className="text-[10px] text-muted-foreground/60">#{s.metadata.rank}</span>
                         )}
                       </div>

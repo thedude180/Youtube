@@ -255,9 +255,6 @@ function CollabsTab() {
                     <SelectTrigger data-testid="select-collab-platform"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="YouTube">YouTube</SelectItem>
-                      <SelectItem value="TikTok">TikTok</SelectItem>
-                      <SelectItem value="Instagram">Instagram</SelectItem>
-                      <SelectItem value="Twitch">Twitch</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

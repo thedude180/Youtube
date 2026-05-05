@@ -499,7 +499,7 @@ function CalendarTab() {
                         required
                         maxLength={titleLimit}
                         data-testid="input-schedule-title"
-                        placeholder={formPlatform === "discord" ? "Announcement title" : "Video title"}
+                        placeholder="Video title"
                       />
                     </div>
                     <div>
@@ -531,11 +531,6 @@ function CalendarTab() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="youtube">YouTube</SelectItem>
-                            <SelectItem value="tiktok">TikTok</SelectItem>
-                            <SelectItem value="discord">Discord</SelectItem>
-                            <SelectItem value="twitch">Twitch</SelectItem>
-                            <SelectItem value="kick">Kick</SelectItem>
-                            <SelectItem value="rumble">Rumble</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

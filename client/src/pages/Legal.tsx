@@ -21,7 +21,7 @@ export function PrivacyPolicy() {
           <h2 className="text-lg font-semibold mt-6 mb-2">1. Information We Collect</h2>
           <p>When you use CreatorOS, we collect the following information:</p>
           <ul className="list-disc pl-6 space-y-1">
-            <li><strong>Account Information:</strong> Your name, email address, and profile picture provided through your login provider (Google, Discord, TikTok, etc.).</li>
+            <li><strong>Account Information:</strong> Your name, email address, and profile picture provided through your login provider (Google, etc.).</li>
             <li><strong>Platform Data:</strong> When you connect social media platforms, we access your public profile information, content metadata, and analytics as authorized by you.</li>
             <li><strong>Usage Data:</strong> How you interact with CreatorOS, including pages visited, features used, and preferences set.</li>
           </ul>
@@ -36,7 +36,7 @@ export function PrivacyPolicy() {
           </ul>
 
           <h2 className="text-lg font-semibold mt-6 mb-2">3. Third-Party Services</h2>
-          <p>CreatorOS integrates with third-party platforms including but not limited to YouTube, Twitch, Discord, TikTok, X (Twitter), Facebook, Instagram, Threads, LinkedIn, Spotify, and others. When you connect these platforms, their respective privacy policies also apply. We only access data that you explicitly authorize.</p>
+          <p>CreatorOS integrates with YouTube and other third-party platforms. When you connect these platforms, their respective privacy policies also apply. We only access data that you explicitly authorize.</p>
 
           <h2 className="text-lg font-semibold mt-6 mb-2">4. Data Storage & Security</h2>
           <p>Your data is stored securely using industry-standard encryption. We use PostgreSQL databases with encrypted connections. OAuth tokens are stored securely and refreshed automatically. We never store your passwords for connected platforms.</p>
@@ -105,7 +105,7 @@ export function TermsOfService() {
           </ul>
 
           <h2 className="text-lg font-semibold mt-6 mb-2">4. Platform Connections</h2>
-          <p>When you connect third-party platforms (YouTube, Twitch, Discord, TikTok, etc.) to CreatorOS:</p>
+          <p>When you connect third-party platforms (YouTube, etc.) to CreatorOS:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>You authorize us to access your account data as permitted by each platform's API</li>
             <li>You remain bound by each platform's own terms of service</li>
@@ -186,11 +186,6 @@ export function DataDisclosure() {
           <p>When you connect third-party platforms, we may access:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li><strong>YouTube:</strong> Channel info, video metadata, analytics (views, watch time, revenue), comments, subscriber count</li>
-            <li><strong>Twitch:</strong> Stream metadata, follower/subscriber counts, chat activity, VOD data</li>
-            <li><strong>Discord:</strong> Server info, member counts, channel metadata (we do not read private messages)</li>
-            <li><strong>TikTok:</strong> Profile info, video metadata, engagement metrics</li>
-            <li><strong>X (Twitter):</strong> Profile info, tweet metadata, engagement metrics</li>
-            <li><strong>Kick:</strong> Channel info, stream metadata, follower data</li>
           </ul>
 
           <h3 className="text-base font-semibold mt-4 mb-2">C. Information Collected Automatically</h3>

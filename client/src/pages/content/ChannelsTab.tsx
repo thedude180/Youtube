@@ -37,28 +37,7 @@ const CATEGORIES = [
 ] as const;
 type CategoryFilter = typeof CATEGORIES[number]["key"];
 
-const CONTENT_CRED_LABELS: Record<string, { label: string; placeholder: string; secondaryLabel?: string; secondaryPlaceholder?: string }> = {
-  twitch: { label: "Stream Key", placeholder: "live_xxxxxxxxxxxx" },
-  kick: { label: "Stream Key", placeholder: "sk_live_xxxxxxxxxxxx" },
-  tiktok: { label: "Stream Key", placeholder: "Your TikTok stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://push.tiktok.com/live" },
-  rumble: { label: "Stream Key", placeholder: "Your Rumble stream key" },
-  linkedin: { label: "Stream Key", placeholder: "Your LinkedIn stream key", secondaryLabel: "Server URL", secondaryPlaceholder: "rtmp://live.linkedin.com/live" },
-  discord: { label: "Server Invite Link", placeholder: "https://discord.gg/xxxxxxx" },
-  snapchat: { label: "Snapchat Username", placeholder: "@yourusername" },
-  pinterest: { label: "Pinterest Profile URL", placeholder: "https://pinterest.com/yourbrand" },
-  reddit: { label: "Reddit Username", placeholder: "u/yourusername" },
-  threads: { label: "Threads Username", placeholder: "@yourusername" },
-  bluesky: { label: "Bluesky Handle", placeholder: "@you.bsky.social" },
-  mastodon: { label: "Mastodon Handle", placeholder: "@user@mastodon.social" },
-  patreon: { label: "Patreon Page URL", placeholder: "https://patreon.com/yourchannel" },
-  kofi: { label: "Ko-fi Page URL", placeholder: "https://ko-fi.com/yourpage" },
-  substack: { label: "Substack URL", placeholder: "https://yourname.substack.com" },
-  spotify: { label: "Spotify Podcast URL", placeholder: "https://podcasters.spotify.com/..." },
-  applepodcasts: { label: "Apple Podcasts URL", placeholder: "https://podcasts.apple.com/..." },
-  dlive: { label: "Stream Key", placeholder: "Your DLive stream key" },
-  trovo: { label: "Stream Key", placeholder: "Your Trovo stream key" },
-  whatsapp: { label: "WhatsApp Channel Link", placeholder: "https://whatsapp.com/channel/..." },
-};
+const CONTENT_CRED_LABELS: Record<string, { label: string; placeholder: string; secondaryLabel?: string; secondaryPlaceholder?: string }> = {};
 
 function ChannelActions({ channels, onReconnect }: { channels: Channel[]; onReconnect?: () => void }) {
   const { toast } = useToast();
@@ -172,13 +151,11 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
   const isOAuthConfigured = platformOAuth?.configured || false;
   const isYouTube = platform === "youtube" || (platform as string) === "youtubeshorts";
 
-  const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
-
   const handleOAuthLogin = async () => {
     setOauthLoading(true);
     try {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const usesBounce = isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform);
+      const usesBounce = isMobile && !isYouTube;
 
       if (usesBounce) {
         window.location.href = `/api/oauth/${platform}/bounce`;

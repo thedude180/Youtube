@@ -18,17 +18,6 @@ type AIResponse = any;
 
 const PLATFORMS = [
   { id: "youtube", label: "YouTube" },
-  { id: "tiktok", label: "TikTok" },
-  { id: "instagram", label: "Instagram" },
-  { id: "threads", label: "Threads" },
-  { id: "twitch", label: "Twitch" },
-  { id: "kick", label: "Kick" },
-  { id: "rumble", label: "Rumble" },
-  { id: "reddit", label: "Reddit" },
-  { id: "discord", label: "Discord" },
-  { id: "gmail", label: "Gmail" },
-  { id: "stripe", label: "Stripe" },
-  { id: "cross", label: "Cross-Platform" },
 ];
 
 function AIToolCard({
@@ -857,70 +846,10 @@ const PLATFORM_TOOLS: Record<string, React.ReactNode[]> = {
     <GeoCPMOptimizer key="geo" />,
     <CTAEnforcer key="cta" />,
   ],
-  tiktok: [
-    <TikTokWatermarkChecker key="ttWatermark" />,
-    <TikTokCompletionAdvisor key="ttCompletion" />,
-    <TikTokSEOOptimizer key="ttSEO" />,
-  ],
-  instagram: [
-    <InstagramReelsReadiness key="igReels" />,
-    <InstagramDMShareOptimizer key="igDM" />,
-    <InstagramTrialReelAdvisor key="igTrial" />,
-  ],
-  threads: [
-    <ThreadsVelocityPlanner key="thVelocity" />,
-    <ThreadsCommunityAdvisor key="thCommunity" />,
-  ],
-  twitch: [
-    <TwitchCategoryOptimizer key="twCategory" />,
-    <TwitchStreamHealthDiagnostic key="twHealth" />,
-    <TwitchRaidNetworkAdvisor key="twRaid" />,
-  ],
-  kick: [
-    <KickPartnerTracker key="kickPartner" />,
-    <KickMultistreamStrategy key="kickMulti" />,
-  ],
-  rumble: [
-    <RumbleLicenseAdvisor key="rumbleLicense" />,
-    <RumbleAudienceFitAnalyzer key="rumbleAudience" />,
-  ],
-  reddit: [
-    <RedditDemandSensor key="redditDemand" />,
-    <RedditSubredditTargeter key="redditTarget" />,
-  ],
-  discord: [
-    <DiscordCommunityHealth key="discordHealth" />,
-    <DiscordAlertStrategy key="discordAlerts" />,
-  ],
-  gmail: [
-    <GmailSponsorshipTriager key="gmailTriage" />,
-    <GmailDeliverabilityAdvisor key="gmailDeliver" />,
-  ],
-  stripe: [
-    <StripeRevenueHealth key="stripeRevenue" />,
-    <StripeRecoveryAdvisor key="stripeRecovery" />,
-  ],
-  cross: [
-    <WatermarkIntegrityChecker key="watermark" />,
-    <ConnectionHealthScorer key="connHealth" />,
-    <ContentSyndicationPlanner key="syndication" />,
-    <PlatformComplianceAuditor key="compliance" />,
-  ],
 };
 
 const PLATFORM_DESCRIPTIONS: Record<string, string> = {
   youtube: "Algorithm, monetization & content intelligence",
-  tiktok: "FYP completion threshold, SEO & watermark safety",
-  instagram: "Reels eligibility, DM share signals & Trial Reels",
-  threads: "Engagement velocity, community topics & bait detection",
-  twitch: "Category optimization, stream health & raid network",
-  kick: "KPP qualification tracker & multistream income modeling",
-  rumble: "License selection & audience fit for gaming content",
-  reddit: "Demand sensing, content ideas & subreddit targeting",
-  discord: "Community health, server subscriptions & alert strategy",
-  gmail: "Sponsorship triage & deliverability compliance",
-  stripe: "Revenue health, churn & payment recovery",
-  cross: "Watermark integrity, syndication planning & compliance",
 };
 
 export default function AIToolsTab() {

@@ -72,8 +72,6 @@ export default function AIToolSuites() {
   const [aiCommentRespLoading, setAiCommentRespLoading] = useState(false);
   const [aiSuperfan, setAiSuperfan] = useState<AIResponse>(null);
   const [aiSuperfanLoading, setAiSuperfanLoading] = useState(false);
-  const [aiDiscord, setAiDiscord] = useState<AIResponse>(null);
-  const [aiDiscordLoading, setAiDiscordLoading] = useState(false);
   const [aiCommEvents, setAiCommEvents] = useState<AIResponse>(null);
   const [aiCommEventsLoading, setAiCommEventsLoading] = useState(false);
   const [aiPolls, setAiPolls] = useState<AIResponse>(null);
@@ -182,8 +180,6 @@ export default function AIToolSuites() {
   const [aiFBAdsLoading, setAiFBAdsLoading] = useState(false);
   const [aiGoogleAds, setAiGoogleAds] = useState<AIResponse>(null);
   const [aiGoogleAdsLoading, setAiGoogleAdsLoading] = useState(false);
-  const [aiTTAds, setAiTTAds] = useState<AIResponse>(null);
-  const [aiTTAdsLoading, setAiTTAdsLoading] = useState(false);
   const [aiInflAds, setAiInflAds] = useState<AIResponse>(null);
   const [aiInflAdsLoading, setAiInflAdsLoading] = useState(false);
   const [aiRetarget, setAiRetarget] = useState<AIResponse>(null);
@@ -472,12 +468,6 @@ export default function AIToolSuites() {
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiSuperfan(e.data); return; } else { sessionStorage.removeItem("ai_superfan"); } } catch {} }
     setAiSuperfanLoading(true);
     apiRequest("POST", "/api/ai/superfan-id", {}).then(r => r.json()).then(d => { setAiSuperfan(d); sessionStorage.setItem("ai_superfan", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiSuperfanLoading(false));
-  }, []);
-  useEffect(() => {
-    const cached = sessionStorage.getItem("ai_discord");
-    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiDiscord(e.data); return; } else { sessionStorage.removeItem("ai_discord"); } } catch {} }
-    setAiDiscordLoading(true);
-    apiRequest("POST", "/api/ai/discord-planner", {}).then(r => r.json()).then(d => { setAiDiscord(d); sessionStorage.setItem("ai_discord", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiDiscordLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_comm_events");
@@ -784,12 +774,6 @@ export default function AIToolSuites() {
     if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiGoogleAds(e.data); return; } else { sessionStorage.removeItem("ai_google_ads"); } } catch {} }
     setAiGoogleAdsLoading(true);
     apiRequest("POST", "/api/ai/google-ads", {}).then(r => r.json()).then(d => { setAiGoogleAds(d); sessionStorage.setItem("ai_google_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiGoogleAdsLoading(false));
-  }, []);
-  useEffect(() => {
-    const cached = sessionStorage.getItem("ai_tt_ads");
-    if (cached) { try { const e = JSON.parse(cached); if (e.ts && Date.now() - e.ts < 1800000) { setAiTTAds(e.data); return; } else { sessionStorage.removeItem("ai_tt_ads"); } } catch {} }
-    setAiTTAdsLoading(true);
-    apiRequest("POST", "/api/ai/tiktok-ads", {}).then(r => r.json()).then(d => { setAiTTAds(d); sessionStorage.setItem("ai_tt_ads", JSON.stringify({ data: d, ts: Date.now() })); }).catch(() => {}).finally(() => setAiTTAdsLoading(false));
   }, []);
   useEffect(() => {
     const cached = sessionStorage.getItem("ai_infl_ads");
@@ -1599,22 +1583,6 @@ export default function AIToolSuites() {
                   {aiSuperfanLoading ? <Skeleton className="h-24 w-full" /> : aiSuperfan && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiSuperfan.fans || aiSuperfan.superfans || aiSuperfan.recommendations)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-            {(aiDiscordLoading || aiDiscord) && (
-              <Card data-testid="card-ai-discord">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3 flex-wrap">
-                    <Sparkles className="h-4 w-4 text-purple-400" />
-                    <h3 className="font-semibold text-sm">AI Discord Planner</h3>
-                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
-                  </div>
-                  {aiDiscordLoading ? <Skeleton className="h-24 w-full" /> : aiDiscord && (
-                    <div className="space-y-2 text-xs text-muted-foreground">
-                      {renderAIList(aiDiscord.channels || aiDiscord.plan || aiDiscord.recommendations)}
                     </div>
                   )}
                 </CardContent>
@@ -2483,22 +2451,6 @@ export default function AIToolSuites() {
                   {aiGoogleAdsLoading ? <Skeleton className="h-24 w-full" /> : aiGoogleAds && (
                     <div className="space-y-2 text-xs text-muted-foreground">
                       {renderAIList(aiGoogleAds.ads || aiGoogleAds.campaigns || aiGoogleAds.recommendations)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-            {(aiTTAdsLoading || aiTTAds) && (
-              <Card data-testid="card-ai-tt-ads">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3 flex-wrap">
-                    <Sparkles className="h-4 w-4 text-purple-400" />
-                    <h3 className="font-semibold text-sm">AI TikTok Ads</h3>
-                    <Badge variant="outline" className="text-[10px] ml-auto">Auto-generated</Badge>
-                  </div>
-                  {aiTTAdsLoading ? <Skeleton className="h-24 w-full" /> : aiTTAds && (
-                    <div className="space-y-2 text-xs text-muted-foreground">
-                      {renderAIList(aiTTAds.ads || aiTTAds.campaigns || aiTTAds.recommendations)}
                     </div>
                   )}
                 </CardContent>

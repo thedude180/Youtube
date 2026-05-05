@@ -41,18 +41,12 @@ interface PlatformFeature {
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube: "YouTube",
-  tiktok: "TikTok",
-  twitch: "Twitch",
-  kick: "Kick",
-  discord: "Discord",
+  youtubeshorts: "YouTube Shorts",
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
   youtube: "bg-red-500/10 text-red-400 border-red-500/20",
-  tiktok: "bg-black/40 text-white border-white/10",
-  twitch: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  kick: "bg-green-500/10 text-green-400 border-green-500/20",
-  discord: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  youtubeshorts: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 function FeatureIcon({ icon, size = 20 }: { icon: PlatformFeature["icon"]; size?: number }) {
@@ -81,13 +75,6 @@ function PipelineEffectTag({ effect }: { effect: string }) {
     membership_cta: "Membership CTA",
     shopping_tags: "Shopping Tags",
     super_chat_cta: "Super Chat Prompts",
-    tiktok_live_schedule: "TikTok Live Schedule",
-    tiktok_monetization_cta: "Monetization CTAs",
-    tiktok_shop_tags: "Shop Tags",
-    twitch_sub_prompts: "Subscription Prompts",
-    twitch_partner_badge: "Partner Badge",
-    kick_monetization: "Kick Monetization",
-    discord_membership_cta: "Membership CTAs",
   };
   return (
     <span className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full">

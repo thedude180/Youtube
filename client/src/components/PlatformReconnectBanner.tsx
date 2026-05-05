@@ -13,12 +13,7 @@ interface NeedsReconnectResponse {
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube: "YouTube",
-  twitch: "Twitch",
-  kick: "Kick",
-  tiktok: "TikTok",
-  discord: "Discord",
-  rumble: "Rumble",
-  instagram: "Instagram",
+  youtubeshorts: "YouTube Shorts",
 };
 
 // Platforms that use OAuth tokens — a disconnect kills AI posting entirely
@@ -95,15 +90,17 @@ export function PlatformReconnectBanner() {
     return () => clearTimeout(t);
   }, [dismissed]);
 
-  const cacheKey = data?.platforms?.sort().join(",") ?? "";
-  const hasCritical = data?.platforms?.some(p => CRITICAL_PLATFORMS.has(p)) ?? false;
+  // Only show YouTube-related platforms in the UI (non-YouTube are legacy / disabled)
+  const ytPlatforms = (data?.platforms ?? []).filter(p => p === "youtube" || p === "youtubeshorts");
+  const cacheKey = ytPlatforms.sort().join(",");
+  const hasCritical = ytPlatforms.some(p => CRITICAL_PLATFORMS.has(p));
 
   if (!isAuthenticated) return null;
-  if (!data?.needsReconnect) return null;
+  if (ytPlatforms.length === 0) return null;
   // Critical platforms (YouTube) are NEVER dismissable — they block all AI operations
   if (!hasCritical && dismissed === cacheKey && cacheKey !== "") return null;
 
-  const labels = data.platforms
+  const labels = ytPlatforms
     .map(p => PLATFORM_LABELS[p] ?? p)
     .join(", ");
 
@@ -151,7 +148,7 @@ export function PlatformReconnectBanner() {
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
         <span className="font-medium">{labels}</span>
-        {data.count === 1 ? " needs reconnection" : " need reconnection"} — your AI team can't post or sync until you re-authorize.
+        {ytPlatforms.length === 1 ? " needs reconnection" : " need reconnection"} — your AI team can't post or sync until you re-authorize.
       </span>
       <button
         onClick={handleReconnect}

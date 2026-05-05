@@ -22,7 +22,7 @@ import {
   Activity,
   BarChart3,
 } from "lucide-react";
-import { SiYoutube, SiTiktok, SiDiscord } from "react-icons/si";
+import { SiYoutube } from "react-icons/si";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -99,18 +99,11 @@ interface LiveHealth {
 const platformIcons: Record<string, any> = {
   youtube: SiYoutube,
   youtubeshorts: SiYoutube,
-  tiktok: SiTiktok,
-  discord: SiDiscord,
 };
 
 const platformColors: Record<string, string> = {
   youtube: "text-red-500",
   youtubeshorts: "text-red-400",
-  tiktok: "text-pink-400",
-  x: "text-white",
-  discord: "text-indigo-400",
-  twitch: "text-purple-400",
-  kick: "text-green-400",
 };
 
 function StatusBadge({ status }: { status: string }) {

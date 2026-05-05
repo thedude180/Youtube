@@ -252,7 +252,6 @@ function TrackKeywordSection() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="youtube">YouTube</SelectItem>
-                <SelectItem value="tiktok">TikTok</SelectItem>
                 <SelectItem value="google">Google</SelectItem>
               </SelectContent>
             </Select>

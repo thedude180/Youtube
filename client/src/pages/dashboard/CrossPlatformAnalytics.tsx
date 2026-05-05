@@ -6,11 +6,7 @@ import { BarChart3, Youtube, Tv2, Gamepad2, Music2, MessageCircle, Globe } from 
 
 const platformConfig: Record<string, { label: string; icon: typeof Youtube }> = {
   youtube: { label: "YouTube", icon: Youtube },
-  twitch: { label: "Twitch", icon: Tv2 },
-  kick: { label: "Kick", icon: Gamepad2 },
-  tiktok: { label: "Music2", icon: Music2 },
-  x: { label: "X", icon: MessageCircle },
-  discord: { label: "Discord", icon: Globe },
+  youtubeshorts: { label: "YouTube Shorts", icon: Youtube },
 };
 
 function formatNumber(n: number | undefined): string {

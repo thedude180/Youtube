@@ -9,8 +9,7 @@ import {
   Scissors, UploadCloud, Quote,
 } from "lucide-react";
 import {
-  SiYoutube, SiTwitch, SiTiktok, SiDiscord,
-  SiInstagram, SiKick, SiRumble,
+  SiYoutube,
 } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -131,12 +130,6 @@ function ParticleCanvas() {
 
 const PLATFORMS = [
   { icon: SiYoutube, name: "YouTube", color: "#FF0000" },
-  { icon: SiTwitch, name: "Twitch", color: "#9146FF" },
-  { icon: SiTiktok, name: "TikTok", color: "#00F2EA" },
-  { icon: SiDiscord, name: "Discord", color: "#5865F2" },
-  { icon: SiInstagram, name: "Instagram", color: "#E1306C" },
-  { icon: SiKick, name: "Kick", color: "#53FC18" },
-  { icon: SiRumble, name: "Rumble", color: "#85C742" },
 ];
 
 function PlatformStrip() {
@@ -324,12 +317,12 @@ export default function Landing() {
     { icon: Upload, title: "Smart Scheduling", description: "AI picks the best time to upload based on your audience analytics and YouTube's algorithm windows.", metric: "Optimal timing", gradient: "from-blue-500/10 to-cyan-500/5" },
     { icon: Brain, title: "SEO Optimizer", description: "Generates titles, descriptions, tags, and chapters for every upload — tuned to rank on YouTube search.", metric: "3× more discovery", gradient: "from-emerald-500/10 to-green-500/5" },
     { icon: Eye, title: "Thumbnail Intelligence", description: "Researches top-performing thumbnails in your niche and generates A/B variants with click-worthy compositions.", metric: "CTR boost", gradient: "from-amber-500/10 to-orange-500/5" },
-    { icon: DollarSign, title: "Revenue Dashboard", description: "Tracks AdSense, sponsorships, Twitch subs, and Kick earnings in one P&L view with expense tracking.", metric: "Full P&L", gradient: "from-rose-500/10 to-pink-500/5" },
+    { icon: DollarSign, title: "Revenue Dashboard", description: "Tracks AdSense, sponsorships, Super Chats, and memberships in one P&L view with expense tracking.", metric: "Full P&L", gradient: "from-rose-500/10 to-pink-500/5" },
     { icon: Radio, title: "Live Stream Hub", description: "Detects when you go live, monitors your stream, and fires up the post-stream Shorts pipeline automatically.", metric: "Auto-detect", gradient: "from-indigo-500/10 to-blue-500/5" },
   ], []);
 
   const HOW_IT_WORKS = useMemo(() => [
-    { step: 1, icon: Link2, title: "Connect Your Channel", description: "Link your YouTube account and any other platforms in under 60 seconds.", time: "60 sec" },
+    { step: 1, icon: Link2, title: "Connect Your Channel", description: "Link your YouTube account in under 60 seconds.", time: "60 sec" },
     { step: 2, icon: Cpu, title: "AI Takes Over", description: "Your AI team indexes your content, learns your style, and sets up the automation stack.", time: "5 min" },
     { step: 3, icon: RefreshCw, title: "Watch It Run", description: "Uploads go out, analytics update, revenue is tracked — all while you focus on playing.", time: "24/7" },
   ], []);
@@ -711,7 +704,7 @@ export default function Landing() {
                 highlight: "40% better CTR",
               },
               {
-                quote: "Set it up on a Saturday afternoon. By Monday morning my backlog of 80 videos was already clipped and queued across YouTube and TikTok.",
+                quote: "Set it up on a Saturday afternoon. By Monday morning my backlog of 80 videos was already clipped and queued on YouTube.",
                 name: "Sam T.",
                 handle: "RPG content creator · 31K subs",
                 highlight: "80 videos processed overnight",

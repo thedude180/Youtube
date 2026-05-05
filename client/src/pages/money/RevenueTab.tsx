@@ -249,10 +249,6 @@ export default function RevenueTab() {
                       <SelectTrigger data-testid="select-revenue-platform"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="youtube">YouTube</SelectItem>
-                        <SelectItem value="twitch">Twitch</SelectItem>
-                        <SelectItem value="tiktok">TikTok</SelectItem>
-                        <SelectItem value="kick">Kick</SelectItem>
-                        <SelectItem value="discord">Discord</SelectItem>
                         <SelectItem value="stripe">Stripe</SelectItem>
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
@@ -739,7 +735,7 @@ export default function RevenueTab() {
               description="Connect your platforms and click 'Sync All Platforms' to automatically pull revenue, or add records manually."
               tips={[
                 "Revenue syncs automatically every 6 hours from connected platforms",
-                "YouTube ad revenue, Twitch subs & bits, TikTok creator fund, and more",
+                "YouTube AdSense revenue, channel memberships, Super Chats, and more",
                 "Stripe payments are also tracked automatically",
                 "You can still add manual records for sponsorships and other income",
               ]}
@@ -796,7 +792,7 @@ export default function RevenueTab() {
             </p>
             <Textarea
               data-testid="input-csv-import"
-              placeholder={"date,source,platform,amount\n2024-01-15,YouTube Ads,youtube,142.50\n2024-01-16,Twitch Subs,twitch,89.00"}
+              placeholder={"date,source,platform,amount\n2024-01-15,YouTube Ads,youtube,142.50\n2024-01-16,Sponsorship,other,89.00"}
               className="resize-none font-mono text-xs min-h-[160px]"
               value={csvText}
               onChange={e => setCsvText(e.target.value)}

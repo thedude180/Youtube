@@ -1100,7 +1100,7 @@ export default function StreamCenter() {
               </span>
               <div>
                 <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">Multi-Stream Relay</h3>
-                <p className="text-[11px] text-muted-foreground">FFmpeg fans your YouTube stream to Kick, Rumble, Twitch simultaneously</p>
+                <p className="text-[11px] text-muted-foreground">FFmpeg fans your YouTube stream to additional destinations simultaneously</p>
               </div>
             </div>
             <span className="text-[9px] font-mono px-2 py-0.5 rounded-full border" style={{
@@ -1120,7 +1120,7 @@ export default function StreamCenter() {
             if (displayDests.length === 0) {
               return (
                 <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 mb-4 text-xs text-amber-400 font-mono" data-testid="text-relay-no-dests">
-                  No relay destinations configured — add Kick, Rumble, or Twitch stream keys in the destinations panel below
+                  No relay destinations configured — add stream keys in the destinations panel below
                 </div>
               );
             }
@@ -1201,10 +1201,9 @@ export default function StreamCenter() {
               </div>
             </div>
             {(() => {
-              const liveStreamPlatforms = ["youtube", "twitch", "kick", "rumble"] as const;
+              const liveStreamPlatforms = ["youtube"] as const;
               const connectedCount = liveStreamPlatforms.filter(p => {
-                if (p === "youtube") return connectedChannels.some((c: Channel) => c.platform === "youtube");
-                return destinations.some((d: any) => d.platform === p && d.streamKey);
+                return connectedChannels.some((c: Channel) => c.platform === p);
               }).length;
               return (
                 <span className="text-[9px] font-mono px-2 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary" data-testid="badge-hub-status">
@@ -1215,7 +1214,7 @@ export default function StreamCenter() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" data-testid="section-platform-hub-grid">
-            {(["youtube", "twitch", "kick", "rumble"] as const).map(platform => {
+            {(["youtube"] as const).map(platform => {
               const info = PLATFORM_INFO[platform];
               const isYoutube = platform === "youtube";
               const isConnectedYT = isYoutube && connectedChannels.some((c: Channel) => c.platform === "youtube");
@@ -2450,7 +2449,7 @@ export default function StreamCenter() {
         )}
       </div>
 
-      <div className="border rounded-md overflow-visible">
+      <div className="border rounded-md overflow-visible" style={{ display: "none" }}>
         <button
           className="flex items-center gap-2 w-full p-4 text-left"
           onClick={() => setShowTwitchKickAI(!showTwitchKickAI)}

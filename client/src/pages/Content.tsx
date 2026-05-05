@@ -20,7 +20,6 @@ import {
   Sparkles, Shield, Monitor, RefreshCw, Download, Globe, Layers,
   MessageCircle, Pin, Kanban,
 } from "lucide-react";
-import { SiTwitch, SiKick } from "react-icons/si";
 import { format } from "date-fns";
 import { CopyButton } from "@/components/CopyButton";
 import { LiveTimestamp } from "@/components/LiveTimestamp";
@@ -465,21 +464,12 @@ function YouTubeImportSection() {
 
 const PLATFORM_ICONS: Record<string, any> = {
   youtube: SiYoutube,
-  twitch: SiTwitch,
-  kick: SiKick,
-  rumble: Globe,
 };
 const PLATFORM_COLORS: Record<string, string> = {
   youtube: "text-red-500",
-  twitch: "text-purple-500",
-  kick: "text-green-500",
-  rumble: "text-emerald-400",
 };
 const PLATFORM_NAMES: Record<string, string> = {
   youtube: "YouTube",
-  twitch: "Twitch",
-  kick: "Kick",
-  rumble: "Rumble",
 };
 
 function PlatformCatalogsTab() {
@@ -592,7 +582,7 @@ function PlatformCatalogsTab() {
               </div>
             </CardContent>
           </Card>
-          {(["youtube", "twitch", "kick", "rumble"] as const).map(p => {
+          {(["youtube"] as const).map(p => {
             const pData = platforms.find((pl: any) => pl.platform === p);
             const Icon = PLATFORM_ICONS[p] || Globe;
             const color = PLATFORM_COLORS[p] || "text-muted-foreground";

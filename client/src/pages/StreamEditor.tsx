@@ -32,7 +32,7 @@ import {
   RefreshCw, Activity, Info, Search, Download, ChevronDown,
   ListChecks, Radio, Video, LayoutGrid, ExternalLink, Zap,
 } from "lucide-react";
-import { SiTiktok, SiRumble, SiYoutube } from "react-icons/si";
+import { SiYoutube } from "react-icons/si";
 import { Link } from "wouter";
 
 interface VaultEntry {
@@ -76,10 +76,6 @@ const PLATFORM_INFO: Record<string, {
 }> = {
   youtube: { label: "YouTube 4K", icon: SiYoutube, color: "text-red-500",   resolution: "3840×2160", codec: "HEVC",
     detail: "CRF 20 · AQ-3 · B4 · PSY-RD · hvc1 tag · Lanczos upscale" },
-  rumble:  { label: "Rumble 4K",  icon: SiRumble,  color: "text-green-500", resolution: "3840×2160", codec: "AVC H.264",
-    detail: "CRF 21 · High L5.1 · AQ-2 · B3 · Lanczos upscale" },
-  tiktok:  { label: "TikTok",     icon: SiTiktok,  color: "text-pink-500",  resolution: "1080×1920", codec: "AVC H.264",
-    detail: "CRF 22 · centre 9:16 crop · High L4.1 · max 10 min" },
   shorts:  { label: "Shorts",     icon: SiYoutube,  color: "text-red-400",  resolution: "1080×1920", codec: "AVC H.264",
     detail: "CRF 21 · centre 9:16 crop · High L4.1 · max 60 s" },
 };
@@ -429,7 +425,7 @@ export default function StreamEditor() {
             Stream Editor
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Process your entire channel backlog — 4K HEVC for YouTube, 4K AVC for Rumble, smart-cropped vertical for TikTok &amp; Shorts
+            Process your entire channel backlog — 4K HEVC for YouTube and smart-cropped vertical for Shorts
           </p>
         </div>
         <Button variant="ghost" size="sm" className="shrink-0"

@@ -10,7 +10,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { QualitySettingsPanel } from "@/components/resolution-intelligence";
-import { SiYoutube, SiTwitch, SiTiktok, SiDiscord, SiRumble } from "react-icons/si";
+import { SiYoutube } from "react-icons/si";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -175,13 +175,11 @@ function PlatformConnectionsCard({
   const unconnected = FOCUSED_PLATFORMS.filter(p => !connectedSet.has(p.key));
   const connected = FOCUSED_PLATFORMS.filter(p => connectedSet.has(p.key));
 
-  const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
-
   const handleOAuthLogin = async (platform: string, isYouTube: boolean) => {
     setOauthLoading(platform);
     try {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+      if (isMobile && !isYouTube) {
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
@@ -222,7 +220,7 @@ function PlatformConnectionsCard({
     setOauthLoading(platform);
     try {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+      if (isMobile && !isYouTube) {
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
@@ -728,14 +726,13 @@ function GeneralTab() {
     const YOUTUBE_PLATFORMS = ["youtube"];
     const isYouTube = YOUTUBE_PLATFORMS.includes(reconnectPlatform);
 
-    const DEEP_LINK_PLATFORMS_MOBILE = ["kick", "twitch", "tiktok", "discord"];
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     setOauthLoading(reconnectPlatform);
 
     const doReconnect = async () => {
       try {
-        if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS_MOBILE.includes(reconnectPlatform)) {
+        if (isMobile && !isYouTube) {
           window.location.href = `/api/oauth/${reconnectPlatform}/bounce`;
           return;
         }

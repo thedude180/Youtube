@@ -197,9 +197,6 @@ function AddItemDialog({ onClose }: { onClose: () => void }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="youtube">YouTube</SelectItem>
-              <SelectItem value="tiktok">TikTok</SelectItem>
-              <SelectItem value="twitch">Twitch</SelectItem>
-              <SelectItem value="instagram">Instagram</SelectItem>
             </SelectContent>
           </Select>
         </div>

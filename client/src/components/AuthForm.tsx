@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { SiGoogle, SiDiscord, SiTwitch, SiTiktok, SiKick } from "react-icons/si";
+import { SiGoogle } from "react-icons/si";
 import {
   Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2, ArrowLeft,
   CheckCircle2, Zap, Bot, Shield, Sparkles,
@@ -13,11 +13,7 @@ import {
 type AuthMode = "login" | "register" | "forgot-password";
 
 const OAUTH_PROVIDERS = [
-  { id: "google", label: "Google", icon: SiGoogle, path: "/api/auth/google", color: "#4285F4" },
-  { id: "discord", label: "Discord", icon: SiDiscord, path: "/api/auth/discord", color: "#5865F2" },
-  { id: "twitch", label: "Twitch", icon: SiTwitch, path: "/api/auth/twitch", color: "#9146FF" },
-  { id: "tiktok", label: "TikTok", icon: SiTiktok, path: "/api/auth/tiktok", color: "#000000" },
-  { id: "kick", label: "Kick", icon: SiKick, path: "/api/auth/kick", color: "#53FC18" },
+  { id: "google", label: "Continue with Google", icon: SiGoogle, path: "/api/auth/google", color: "#4285F4" },
 ];
 
 async function authRequest(mode: AuthMode, data: Record<string, string>) {
@@ -254,32 +250,17 @@ export function AuthForm({ onSuccess, initialMode }: { onSuccess?: () => void; i
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          {OAUTH_PROVIDERS.slice(0, 3).map((provider) => (
+        <div className="flex flex-col gap-2 mb-5">
+          {OAUTH_PROVIDERS.map((provider) => (
             <button
               key={provider.id}
               type="button"
               data-testid={`button-auth-${provider.id}`}
               onClick={() => { window.location.href = provider.path; }}
-              title={`Continue with ${provider.label}`}
-              className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all text-xs font-medium text-foreground/80 hover:text-foreground"
+              title={provider.label}
+              className="flex items-center justify-center gap-2 h-10 rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all text-sm font-medium text-foreground/80 hover:text-foreground w-full"
             >
-              <provider.icon className="h-3.5 w-3.5 shrink-0" />
-              <span>{provider.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          {OAUTH_PROVIDERS.slice(3).map((provider) => (
-            <button
-              key={provider.id}
-              type="button"
-              data-testid={`button-auth-${provider.id}`}
-              onClick={() => { window.location.href = provider.path; }}
-              title={`Continue with ${provider.label}`}
-              className="flex items-center justify-center gap-1.5 h-9 rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all text-xs font-medium text-foreground/80 hover:text-foreground"
-            >
-              <provider.icon className="h-3.5 w-3.5 shrink-0" />
+              <provider.icon className="h-4 w-4 shrink-0" />
               <span>{provider.label}</span>
             </button>
           ))}

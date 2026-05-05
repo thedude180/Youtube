@@ -421,7 +421,7 @@ function AutomationTab() {
           <div className="p-4 pt-0 space-y-3">
             <p className="text-xs text-muted-foreground">Real-time event listeners from YouTube, Stripe, and other platforms. Events automatically trigger AI chains and rules.</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {["youtube", "stripe", "twitch", "tiktok", "instagram", "system"].map((src) => (
+              {["youtube", "stripe", "system"].map((src) => (
                 <Card key={src} data-testid={`card-webhook-source-${src}`}>
                   <CardContent className="p-3 text-center">
                     <p className="text-xs font-semibold capitalize">{src}</p>

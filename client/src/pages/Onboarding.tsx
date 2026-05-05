@@ -39,9 +39,6 @@ import {
 } from "lucide-react";
 import {
   SiYoutube,
-  SiTwitch,
-  SiTiktok,
-  SiDiscord,
   SiGoogle,
   SiMeta,
 } from "react-icons/si";
@@ -49,10 +46,6 @@ import type { IconType } from "react-icons";
 
 const PLATFORM_ICONS: Record<string, IconType> = {
   youtube: SiYoutube,
-  twitch: SiTwitch,
-  kick: SiTwitch,
-  tiktok: SiTiktok,
-  discord: SiDiscord,
 };
 
 const GROUP_ICONS: Record<string, IconType> = {
@@ -131,13 +124,11 @@ function PlatformCard({
     return "Profile URL or Username";
   })();
 
-  const DEEP_LINK_PLATFORMS = ["kick", "twitch", "tiktok", "discord"];
-
   const handleOAuthLogin = async () => {
     setOauthLoading(true);
     try {
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile && !isYouTube && DEEP_LINK_PLATFORMS.includes(platform)) {
+      if (isMobile && !isYouTube) {
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
@@ -1043,7 +1034,7 @@ type OnboardingStep = "contact-info" | "choice" | "new-creator" | "existing-crea
 const ACTIVATION_STAGES = [
   { icon: RefreshCw, label: "Syncing your channel", detail: "Connecting to your YouTube account" },
   { icon: Bot, label: "Initializing AI team", detail: "14 specialized agents assigned to your channel" },
-  { icon: Scissors, label: "Building clip pipeline", detail: "YouTube, Shorts, TikTok & Rumble queues ready" },
+  { icon: Scissors, label: "Building clip pipeline", detail: "YouTube & Shorts queues ready" },
   { icon: Sparkles, label: "AI SEO + Thumbnail engine", detail: "Learning your content style for optimization" },
   { icon: UploadCloud, label: "Auto-publisher is armed", detail: "Optimal schedule mapped — zero clicks needed" },
 ];

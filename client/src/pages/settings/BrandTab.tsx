@@ -56,14 +56,7 @@ function BrandTab() {
 
   // ── Social Profile Links ─────────────────────────────────────────────────────
   const SOCIAL_PLATFORMS = [
-    { key: "youtube",  label: "YouTube",  icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
-    { key: "twitch",   label: "Twitch",   icon: "🎮", placeholder: "https://twitch.tv/yourname" },
-    { key: "kick",     label: "Kick",     icon: "🟢", placeholder: "https://kick.com/yourname" },
-    { key: "tiktok",   label: "TikTok",   icon: "🎵", placeholder: "https://tiktok.com/@yourname" },
-    { key: "x",        label: "X",        icon: "𝕏",  placeholder: "https://x.com/yourname" },
-    { key: "discord",  label: "Discord",  icon: "💬", placeholder: "https://discord.gg/yourserver" },
-    { key: "rumble",   label: "Rumble",   icon: "🔴", placeholder: "https://rumble.com/c/yourname" },
-    { key: "instagram",label: "Instagram",icon: "📸", placeholder: "https://instagram.com/yourname" },
+    { key: "youtube", label: "YouTube", icon: "📺", placeholder: "https://youtube.com/@YourHandle" },
   ];
 
   // undefined until the query resolves — lets us distinguish "not loaded yet" from "empty array"

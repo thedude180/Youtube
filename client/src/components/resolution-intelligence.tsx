@@ -258,7 +258,7 @@ export function QualitySettingsPanel() {
 
   if (isLoading) return <Skeleton className="h-48 w-full" />;
 
-  const platforms = ["youtube", "kick", "twitch", "tiktok", "rumble"];
+  const platforms = ["youtube"];
   const prefData = (prefs || {}) as Record<string, any>;
 
   return (

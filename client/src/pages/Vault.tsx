@@ -20,7 +20,7 @@ import {
   Scissors, Zap, DollarSign, Trophy, Tag, FileText, Sparkles,
   Play, UploadCloud, BookOpen, Wand2, Eye, X,
 } from "lucide-react";
-import { SiYoutube, SiTiktok, SiRumble } from "react-icons/si";
+import { SiYoutube } from "react-icons/si";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -101,13 +101,11 @@ interface VaultDocDetail extends VaultDoc {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const ALL_PLATFORMS = ["youtube", "shorts", "tiktok", "rumble"];
+const ALL_PLATFORMS = ["youtube", "shorts"];
 
 const PLATFORM_META: Record<string, { label: string; Icon: any; color: string; bg: string }> = {
-  youtube: { label: "YouTube",      Icon: SiYoutube,   color: "text-red-500",   bg: "bg-red-500/10" },
-  shorts:  { label: "Shorts",       Icon: SiYoutube,   color: "text-red-400",   bg: "bg-red-400/10" },
-  tiktok:  { label: "TikTok",       Icon: SiTiktok,    color: "text-pink-500",  bg: "bg-pink-500/10" },
-  rumble:  { label: "Rumble",       Icon: SiRumble,    color: "text-green-500", bg: "bg-green-500/10" },
+  youtube: { label: "YouTube", Icon: SiYoutube, color: "text-red-500", bg: "bg-red-500/10" },
+  shorts:  { label: "Shorts",  Icon: SiYoutube, color: "text-red-400", bg: "bg-red-400/10" },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -388,7 +386,7 @@ function VideoDetailView({
                 : "All platforms covered"}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {coveredPlatforms.length}/{ALL_PLATFORMS.length} platforms · YouTube, Shorts, TikTok, Rumble
+            {coveredPlatforms.length}/{ALL_PLATFORMS.length} targets · YouTube, Shorts
           </p>
         </div>
         <Button

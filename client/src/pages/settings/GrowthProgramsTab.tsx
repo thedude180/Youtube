@@ -95,7 +95,7 @@ interface AiRecommendations {
   longTermGoals: string[];
 }
 
-const PLATFORM_ORDER = ["youtube", "twitch", "kick", "tiktok", "discord"];
+const PLATFORM_ORDER = ["youtube"];
 
 const PROGRAM_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   monetization: { label: "Monetization", color: "text-green-500" },
