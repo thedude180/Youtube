@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { getUserId, requireAuth } from "./helpers";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("distribution-routes");
@@ -36,7 +37,9 @@ export function registerDistributionRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const { getDistributionHistory } = await import("../distribution/platform-adapter");
-      const history = await getDistributionHistory(userId, req.query.platform as string | undefined);
+      const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      const history = await getDistributionHistory(userId, platform);
       res.json(history);
     } catch (err: unknown) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Failed to get history" });
@@ -71,8 +74,8 @@ export function registerDistributionRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const { getConnectionHealth } = await import("../distribution/connection-health");
-      const platform = req.query.platform as string;
-      if (!platform) return res.status(400).json({ error: "platform query param required" });
+      const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
       const health = getConnectionHealth(platform);
       res.json(health);
     } catch (err: unknown) {
@@ -120,7 +123,8 @@ export function registerDistributionRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
-      const platform = req.query.platform as string || "youtube";
+      const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
       const { analyzeContentTiming } = await import("../distribution/content-timing");
       const result = await analyzeContentTiming(userId, platform);
       res.json(result);
@@ -260,7 +264,7 @@ export function registerDistributionRoutes(app: Express) {
     if (!userId) return res.status(401).json({ error: "Authentication required" });
     try {
       const { scanRegulatoryHorizon } = await import("../distribution/regulatory-horizon");
-      const platforms = req.query.platforms ? (req.query.platforms as string).split(",") : undefined;
+      const platforms = ["youtube"];
       const result = await scanRegulatoryHorizon(userId, platforms);
       res.json(result);
     } catch (err: unknown) {

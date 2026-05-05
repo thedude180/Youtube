@@ -6,6 +6,7 @@ import { getAllPolicyPacks, getPolicyPack, checkContentAgainstPack, getSupported
 import { checkAiDisclosure, scanUserContentForAiDisclosure, recordProvenance, getProvenance, verifyMediaTrust } from "../services/ai-disclosure-intelligence";
 import { computeCreatorCredibility, getCredibilityScore } from "../services/creator-credibility";
 import { runPolicyPreFlight } from "../services/policy-preflight";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 
 const SUPPORTED_PLATFORMS = ["youtube", "twitch", "tiktok", "x", "instagram", "kick", "rumble"] as const;
 const platformEnum = z.enum(SUPPORTED_PLATFORMS);
@@ -22,7 +23,8 @@ export function registerComplianceHardeningRoutes(app: Express) {
   app.get("/api/compliance-hardening/drift/events", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = req.query.platform as string | undefined;
+    const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
     const status = req.query.status as string | undefined;
     const events = await getDriftEvents({ platform, status, limit: 50 });
     res.json(events);
@@ -48,14 +50,11 @@ export function registerComplianceHardeningRoutes(app: Express) {
   app.get("/api/compliance-hardening/policy-packs", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = req.query.platform as string | undefined;
-    if (platform) {
-      const pack = getPolicyPack(platform);
-      if (!pack) return res.status(404).json({ error: `No policy pack for platform: ${platform}` });
-      res.json(pack);
-    } else {
-      res.json({ platforms: getSupportedPlatforms(), packs: getAllPolicyPacks() });
-    }
+    const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
+    const pack = getPolicyPack(platform);
+    if (!pack) return res.status(404).json({ error: `No policy pack for platform: ${platform}` });
+    res.json(pack);
   }));
 
   app.post("/api/compliance-hardening/policy-check", asyncHandler(async (req, res) => {

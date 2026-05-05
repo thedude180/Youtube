@@ -1,5 +1,6 @@
 import { Express, Request, Response } from "express";
 import { asyncHandler, requireAuth, requireAdmin, requireTier, parseNumericId } from "./helpers";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 
 import {
   startCommunityAudienceEngine, runCommunityAudienceScan, getCommunityEngineStatus,
@@ -415,10 +416,12 @@ export function registerPillarRoutes(app: Express): void {
   app.get("/api/compliance/platform-rules/:platform", asyncHandler(async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
+    const rawPlatform = req.body.platform ?? req.params.platform ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
     const { complianceRules } = await import("@shared/schema");
     const { eq, and, desc } = await import("drizzle-orm");
     const rules = await db.select().from(complianceRules)
-      .where(and(eq(complianceRules.platform, req.params.platform as string), eq(complianceRules.isActive, true)))
+      .where(and(eq(complianceRules.platform, platform), eq(complianceRules.isActive, true)))
       .orderBy(desc(complianceRules.lastUpdated));
     res.json(rules);
   }));

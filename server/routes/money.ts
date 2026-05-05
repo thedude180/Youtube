@@ -292,7 +292,8 @@ export function registerMoneyRoutes(app: Express) {
   app.get(api.revenue.list.path, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
-    const platform = req.query.platform as string | undefined;
+    const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
     const records = await storage.getRevenueRecords(userId, platform);
     res.json(records);
   }));

@@ -63,7 +63,8 @@ export async function registerPlatformRoutes(app: Express) {
   app.get(api.community.list.path, async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const platform = req.query.platform as string | undefined;
+    const rawPlatform = req.body.platform ?? (req.query.platform as string) ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
     const posts = await storage.getCommunityPosts(userId, platform);
     res.json(posts);
   });
@@ -1533,7 +1534,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.get("/api/optimization/trending-topics", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await getTrendingTopics(userId, req.query.platform as string | undefined); res.json(result); }
+    try { const rawPlatform = req.body.platform ?? (req.query.platform as string) ?? "youtube"; const platform = requireYouTubeOnly(rawPlatform); const result = await getTrendingTopics(userId, platform); res.json(result); }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -1803,7 +1804,7 @@ export async function registerPlatformRoutes(app: Express) {
   app.post("/api/scheduler/auto-schedule", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    try { const result = await autoScheduleContent(userId, req.body.videoId, req.body.platforms); res.json(result); }
+    try { const result = await autoScheduleContent(userId, req.body.videoId, ["youtube"]); res.json(result); }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 

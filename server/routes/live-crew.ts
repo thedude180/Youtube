@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import {
   startCrewSession, endCrewSession, getCrewState,
   computeCrewScores, getCrewActions, verifySessionOwnership
@@ -107,7 +108,7 @@ router.post("/community/greeting", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await executeGreeting(sessionId, userId, req.body.platform, req.body.targetUser);
+    const action = await executeGreeting(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.targetUser);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -118,7 +119,7 @@ router.post("/community/faq", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await executeFaqReply(sessionId, userId, req.body.platform, req.body.question, req.body.answer);
+    const action = await executeFaqReply(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.question, req.body.answer);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -129,7 +130,7 @@ router.post("/community/poll", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await launchPoll(sessionId, userId, req.body.platform, req.body.question, req.body.options);
+    const action = await launchPoll(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.question, req.body.options);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -140,7 +141,7 @@ router.post("/community/milestone", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await acknowledgeMilestone(sessionId, userId, req.body.platform, req.body.milestoneType, req.body.details);
+    const action = await acknowledgeMilestone(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.milestoneType, req.body.details);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -152,7 +153,7 @@ router.post("/community/prompt", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const prompt = await createEngagementPrompt(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.promptType, req.body.content, req.body.autoDeployable
     );
     res.json(prompt);
@@ -166,7 +167,7 @@ router.post("/community/escalate", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const action = await escalateHighRiskInteraction(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.topic, req.body.content, req.body.targetUser
     );
     res.json(action);
@@ -179,7 +180,7 @@ router.post("/community/intents", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const clusters = await detectIntentClusters(sessionId, userId, req.body.platform, req.body.messages);
+    const clusters = await detectIntentClusters(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.messages);
     res.json(clusters);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -190,7 +191,7 @@ router.post("/moderation/detect-spam", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const event = await detectSpam(sessionId, userId, req.body.platform, req.body.message, req.body.author);
+    const event = await detectSpam(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.message, req.body.author);
     res.json(event || { detected: false });
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -201,7 +202,7 @@ router.post("/moderation/detect-harassment", async (req: Request, res: Response)
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const event = await detectHarassment(sessionId, userId, req.body.platform, req.body.message, req.body.author);
+    const event = await detectHarassment(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.message, req.body.author);
     res.json(event || { detected: false });
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -213,7 +214,7 @@ router.post("/moderation/detect-bad-actor", async (req: Request, res: Response) 
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const event = await detectBadActor(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.author, req.body.messageCount, req.body.flagCount
     );
     res.json(event || { detected: false });
@@ -226,7 +227,7 @@ router.post("/moderation/suggest-slow-mode", async (req: Request, res: Response)
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const event = await suggestSlowMode(sessionId, userId, req.body.platform, req.body.messageRate, req.body.threshold);
+    const event = await suggestSlowMode(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.messageRate, req.body.threshold);
     res.json(event || { suggested: false });
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -260,7 +261,7 @@ router.post("/seo/title", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const action = await proposeTitle(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.currentTitle, req.body.proposedTitle,
       req.body.triggerSignal, req.body.signalSource
     );
@@ -275,7 +276,7 @@ router.post("/seo/tags", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const action = await proposeTags(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.currentTags, req.body.proposedTags, req.body.triggerSignal
     );
     res.json(action);
@@ -289,7 +290,7 @@ router.post("/seo/category", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const action = await proposeCategory(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.currentCategory, req.body.proposedCategory, req.body.triggerSignal
     );
     res.json(action);
@@ -303,7 +304,7 @@ router.post("/seo/description", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const action = await proposeDescription(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.currentDesc, req.body.proposedDesc, req.body.triggerSignal
     );
     res.json(action);
@@ -347,7 +348,7 @@ router.post("/thumbnail/pre-live", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await proposePreLiveThumbnail(sessionId, userId, req.body.platform, req.body.thumbnailUrl, req.body.triggerSignal);
+    const action = await proposePreLiveThumbnail(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.thumbnailUrl, req.body.triggerSignal);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -358,7 +359,7 @@ router.post("/thumbnail/mid-stream", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await proposeMidStreamSwap(sessionId, userId, req.body.platform, req.body.newUrl, req.body.previousUrl, req.body.triggerSignal);
+    const action = await proposeMidStreamSwap(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.newUrl, req.body.previousUrl, req.body.triggerSignal);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -369,7 +370,7 @@ router.post("/thumbnail/crop", async (req: Request, res: Response) => {
   try {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
-    const action = await proposePlatformCrop(sessionId, userId, req.body.platform, req.body.thumbnailUrl, req.body.aspectRatio);
+    const action = await proposePlatformCrop(sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"), req.body.thumbnailUrl, req.body.aspectRatio);
     res.json(action);
   } catch (e: any) { res.status(500).json({ error: "Internal server error" }); }
 });
@@ -452,7 +453,7 @@ router.post("/cta/recommend", async (req: Request, res: Response) => {
     const sessionId = await verifyBodySession(req, res, userId);
     if (sessionId === null) return;
     const rec = await recommendCta(
-      sessionId, userId, req.body.platform,
+      sessionId, userId, requireYouTubeOnly(req.body.platform ?? "youtube"),
       req.body.ctaType, req.body.content,
       req.body.triggerSignal, req.body.audienceTolerance
     );

@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { eq, and, desc, inArray, isNotNull, gte, sql, lt } from "drizzle-orm";
 import { api } from "@shared/routes";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import {
   contentPipeline, contentIdeas, videos, scheduleItems,
   autopilotQueue, communityPosts, uploadQueue, streams,
@@ -1758,7 +1759,8 @@ export function registerContentRoutes(app: Express) {
   app.get("/api/compliance-rules", asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "free", "Compliance Checks");
     if (!userId) return;
-    const platform = req.query.platform as string | undefined;
+    const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+    const platform = requireYouTubeOnly(rawPlatform);
     const rules = await storage.getComplianceRules(platform);
     res.json(rules);
   }));

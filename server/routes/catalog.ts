@@ -5,6 +5,7 @@ import {
   getCatalogByPlatform, getPlatformCatalogSummary,
 } from "../services/channel-catalog-sync";
 import { createLogger } from "../lib/logger";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 
 
 const logger = createLogger("catalog");
@@ -38,7 +39,8 @@ export function registerCatalogRoutes(app: Express): void {
       const userId = (req as any).user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const platform = req.query.platform as string | undefined;
+      const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
       const videos = await getCatalogByPlatform(userId, platform);
       res.json(videos);
     } catch (err: any) {

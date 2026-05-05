@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { getUserId } from "./helpers";
+import { requireYouTubeOnly } from "@shared/youtube-only";
 import {
   profileSourceQuality,
   getPlatformCapability,
@@ -62,7 +63,9 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const cap = getPlatformCapability(req.params.platform as string, req.query.region as string);
+      const rawPlatform = req.body.platform ?? req.params.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      const cap = getPlatformCapability(platform, req.query.region as string);
       res.json(cap);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -219,7 +222,9 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const profile = await getDestinationOutputProfile(userId, req.params.platform as string);
+      const rawPlatform = req.body.platform ?? req.params.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      const profile = await getDestinationOutputProfile(userId, platform);
       res.json({ profile });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -230,7 +235,9 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const profile = await upsertDestinationOutputProfile(userId, req.params.platform as string, req.body);
+      const rawPlatform = req.body.platform ?? req.params.platform ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      const profile = await upsertDestinationOutputProfile(userId, platform, req.body);
       res.json(profile);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
