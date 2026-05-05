@@ -35,8 +35,125 @@ export interface OAuthPlatformConfig {
   parseUserId?: (data: any) => { id: string; username: string; displayName?: string; profileUrl?: string };
 }
 
-// Only YouTube/Google OAuth is active. All other platform OAuth configs are disabled.
-export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {};
+// ─── Active OAuth configs (YouTube-only mode) ────────────────────────────────
+
+export const OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
+  youtube: {
+    platform: "youtube",
+    label: "YouTube",
+    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    scopes: [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/youtube.readonly",
+      "https://www.googleapis.com/auth/youtube",
+      "https://www.googleapis.com/auth/youtube.upload",
+    ],
+    clientIdEnv: "GOOGLE_CLIENT_ID",
+    clientSecretEnv: "GOOGLE_CLIENT_SECRET",
+    additionalAuthParams: { access_type: "offline", prompt: "consent" },
+    userInfoUrl: "https://www.googleapis.com/oauth2/v3/userinfo",
+    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
+    parseUserId: (data) => ({
+      id: data.sub,
+      username: data.email || data.name || data.sub,
+      displayName: data.name,
+      profileUrl: data.picture,
+    }),
+  },
+} as const;
+
+// ─── Legacy disabled configs (non-YouTube platforms) ─────────────────────────
+// These are preserved for reference and future re-enablement but are NOT used
+// by any active OAuth flow in YouTube-only mode.
+
+export const LEGACY_DISABLED_OAUTH_CONFIGS: Partial<Record<Platform, OAuthPlatformConfig>> = {
+  twitch: {
+    platform: "twitch",
+    label: "Twitch",
+    authUrl: "https://id.twitch.tv/oauth2/authorize",
+    tokenUrl: "https://id.twitch.tv/oauth2/token",
+    scopes: ["user:read:email", "channel:read:stream_key", "channel:manage:broadcast", "channel:manage:schedule"],
+    clientIdEnv: resolveEnvKey("TWITCH_DEV_CLIENT_ID", "TWITCH_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("TWITCH_DEV_CLIENT_SECRET", "TWITCH_CLIENT_SECRET"),
+    tokenAuthMethod: "body",
+    additionalAuthParams: { force_verify: "true" },
+    userInfoUrl: "https://api.twitch.tv/helix/users",
+    userInfoHeaders: (token) => ({
+      "Authorization": `Bearer ${token}`,
+      "Client-Id": process.env[resolveEnvKey("TWITCH_DEV_CLIENT_ID", "TWITCH_CLIENT_ID")] || "",
+    }),
+    parseUserId: (data) => ({
+      id: data.data[0].id,
+      username: data.data[0].login,
+      displayName: data.data[0].display_name,
+      profileUrl: `https://twitch.tv/${data.data[0].login}`,
+    }),
+  },
+  discord: {
+    platform: "discord",
+    label: "Discord",
+    authUrl: "https://discord.com/api/oauth2/authorize",
+    tokenUrl: "https://discord.com/api/oauth2/token",
+    scopes: ["identify", "email", "guilds"],
+    clientIdEnv: "DISCORD_CLIENT_ID",
+    clientSecretEnv: "DISCORD_CLIENT_SECRET",
+    tokenAuthMethod: "body",
+    userInfoUrl: "https://discord.com/api/users/@me",
+    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
+    parseUserId: (data) => ({
+      id: data.id,
+      username: data.username,
+      displayName: data.global_name || data.username,
+      profileUrl: `https://discord.com/users/${data.id}`,
+    }),
+  },
+  tiktok: {
+    platform: "tiktok",
+    label: "TikTok",
+    authUrl: "https://www.tiktok.com/v2/auth/authorize/",
+    tokenUrl: "https://open.tiktokapis.com/v2/oauth/token/",
+    scopes: ["user.info.basic", "video.list", "video.publish", "video.upload"],
+    clientIdEnv: resolveEnvKey("TIKTOK_DEV_CLIENT_ID", "TIKTOK_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("TIKTOK_DEV_CLIENT_SECRET", "TIKTOK_CLIENT_SECRET"),
+    usesClientKey: true,
+    requiresPKCE: true,
+    pkceChallengeMethod: "S256",
+    tokenAuthMethod: "body",
+    userInfoUrl: "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,display_name,avatar_url",
+    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
+    parseUserId: (data) => ({
+      id: data.data.user.open_id,
+      username: data.data.user.display_name,
+      displayName: data.data.user.display_name,
+    }),
+  },
+  kick: {
+    platform: "kick",
+    label: "Kick",
+    authUrl: "https://id.kick.com/oauth/authorize",
+    tokenUrl: "https://id.kick.com/oauth/token",
+    scopes: ["user:read", "channel:read", "chat:write", "streamkey:read"],
+    clientIdEnv: resolveEnvKey("KICK_DEV_CLIENT_ID", "KICK_CLIENT_ID"),
+    clientSecretEnv: resolveEnvKey("KICK_DEV_CLIENT_SECRET", "KICK_CLIENT_SECRET"),
+    requiresPKCE: true,
+    pkceChallengeMethod: "S256",
+    tokenAuthMethod: "body",
+    additionalAuthParams: { prompt: "consent" },
+    userInfoUrl: "https://api.kick.com/public/v1/users",
+    userInfoHeaders: (token) => ({ "Authorization": `Bearer ${token}` }),
+    parseUserId: (data) => ({
+      id: String(data.data?.[0]?.user_id || data.data?.user_id || data.user_id || ""),
+      username: data.data?.[0]?.name || data.data?.name || data.name || "",
+      displayName: data.data?.[0]?.name || data.data?.name || data.name || "",
+      profileUrl: `https://kick.com/${data.data?.[0]?.slug || data.data?.slug || data.slug || ""}`,
+    }),
+  },
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 export function getOAuthRedirectUri(platform: string): string {
   return `${getAppUrl()}/api/oauth/${platform}/callback`;
