@@ -155,6 +155,126 @@ attached_assets/                  User uploads, importable via @assets/...
 
 ---
 
+## 4b. Running Outside Replit (Claude Code / Local Dev)
+
+This project was built on Replit but is fully portable. Here is what you need to run it locally or in any other environment.
+
+### Prerequisites
+- Node.js 20+
+- PostgreSQL 15+ (local or remote)
+- `yt-dlp` binary on your PATH (used by the video vault for downloads)
+  - Install: `pip install yt-dlp` or download from https://github.com/yt-dlp/yt-dlp/releases
+
+### Setup
+
+```bash
+git clone https://github.com/thedude180/Youtube.git creatoros
+cd creatoros
+npm install
+cp .env.example .env
+# Fill in .env — see comments in that file for each variable
+npm run db:push      # Creates all tables in your Postgres DB
+npm run dev          # Starts on http://localhost:5000
+```
+
+### Environment variables to set in .env
+
+Every variable is documented in `.env.example`. The critical ones for local dev:
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string |
+| `OPENAI_API_KEY` | Required — used by all AI engines |
+| `ANTHROPIC_API_KEY` | Required — secondary AI client |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | YouTube OAuth |
+| `GOOGLE_REDIRECT_URI` | Set to `http://localhost:5000/api/youtube/callback` for local dev |
+| `SESSION_SECRET` | Any long random string |
+
+### Replit-specific services
+
+Two integrations use Replit's connector proxy and behave differently outside Replit:
+
+| Service | Replit behaviour | Outside Replit |
+|---|---|---|
+| **Gmail** (digest emails) | Auto-proxied via `REPLIT_CONNECTORS_HOSTNAME` | Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` in `.env` |
+| **Stripe** | Auto-proxied via `REPLIT_CONNECTORS_HOSTNAME` | Set `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` in `.env` |
+
+Both services degrade gracefully — the app runs fine without them, you just won't get digest emails or Stripe billing.
+
+### What `REPLIT_DEPLOYMENT` / `REPLIT_DEV_DOMAIN` do
+
+Several redirect URIs and "is production?" checks reference these. Outside Replit:
+- Set `NODE_ENV=production` to enable production behaviour
+- Set `GOOGLE_REDIRECT_URI` explicitly to override all OAuth redirect construction
+- The app falls back to `localhost:5000` automatically for local dev
+
+---
+
+## 4c. Hot-Standby / etgaming247.com Failover Runbook
+
+**Goal:** Replit is primary. A second deployment (on Render or any host) runs the identical codebase from GitHub and can take over etgaming247.com within minutes if Replit has an outage.
+
+### Step 1 — Move the database to an external host (do this once)
+
+Replit's built-in Postgres is only reachable from inside Replit. Both deployments must share one database.
+
+1. Create a free Neon database at https://neon.tech  
+   (Neon is serverless Postgres, always-on free tier, accessible from anywhere)
+2. Export Replit's current data:
+   ```bash
+   pg_dump $DATABASE_URL > creatoros-backup.sql
+   ```
+3. Import into Neon:
+   ```bash
+   psql YOUR_NEON_CONNECTION_STRING < creatoros-backup.sql
+   ```
+4. Update `DATABASE_URL` in **both** Replit's Secrets and the backup host's env vars to point at Neon
+5. Both deployments now read/write the same data — tokens, scheduled videos, quota counters, everything stays in sync
+
+### Step 2 — Deploy the backup on Render (do this once)
+
+1. Go to https://render.com → New → Web Service → Connect GitHub repo `thedude180/Youtube`
+2. Render detects `render.yaml` automatically — click **Apply**
+3. Fill in all environment variables in Render's dashboard (copy from `.env.example`)
+4. Critical variables for the backup:
+   - `DATABASE_URL` → your Neon connection string (same one as Replit)
+   - `GOOGLE_REDIRECT_URI` → `https://creatoros-backup.onrender.com/api/youtube/callback`  
+     (add this URI to your Google Cloud Console OAuth app)
+   - `NODE_ENV` → `production`
+5. After deploy, verify the backup is healthy: `https://creatoros-backup.onrender.com/api/health`
+
+### Step 3 — DNS failover (only when needed)
+
+**Normal:** etgaming247.com DNS A record → Replit's IP (current)  
+**Failover:** Change A record to Render's IP — propagates in ~60 seconds with a low TTL
+
+To prepare (do now, not during an outage):
+1. Log into your DNS provider (Cloudflare, Namecheap, etc.)
+2. Set etgaming247.com TTL to **60 seconds** — this makes DNS changes propagate fast
+3. Note Render's static IP from the dashboard
+
+**When Replit is down:**
+1. In DNS: change etgaming247.com A record → Render IP
+2. Wait 60–120 seconds
+3. etgaming247.com now serves from the backup — zero data loss because both use the same Neon DB
+
+**When Replit comes back:**
+1. Repoint DNS back to Replit
+2. Done — the DB stayed in sync the whole time
+
+### What Claude Code can and can't do on the backup
+
+| Works on backup | Needs Replit |
+|---|---|
+| All AI engines (content, scheduling, thumbnails) | Replit connector proxy (Gmail digest via Replit Auth) |
+| YouTube OAuth + uploads | Replit-specific `REPL_IDENTITY` token |
+| All platform posting (TikTok, Discord, Twitch, Kick) | — |
+| Stripe billing (with direct `STRIPE_SECRET_KEY`) | Stripe via Replit connector (use direct key instead) |
+| Live stream detection | — |
+| All DB operations (shared Neon) | — |
+
+---
+
 ## 5. The Most Important Rules
 
 ### 5a. Data Model
@@ -345,6 +465,51 @@ If the server fails to start with `Error: listen UNKNOWN: unknown error /tmp/tsx
 rm -rf /tmp/tsx-1000/
 ```
 This clears stale IPC socket files that tsx accumulates. Happens after many rapid restarts.
+
+---
+
+---
+
+## Portability — Running Outside Replit
+
+The app runs on any host (Docker, Render, bare VM) without code changes.
+
+### How URL resolution works
+
+All OAuth redirect URIs and email links use `server/lib/app-url.ts → getAppUrl()`:
+
+1. `APP_URL` env var — explicit override, works everywhere
+2. `REPLIT_DEPLOYMENT` → `https://etgaming247.com`
+3. `REPLIT_DEV_DOMAIN` → `https://<domain>`
+4. Fallback → `http://localhost:<PORT|5000>`
+
+**Always set `APP_URL` outside Replit.**  Add it to redirect URIs in every OAuth app console.
+
+### Credentials outside Replit
+
+| Service | On Replit | Outside Replit |
+|---|---|---|
+| Stripe | Replit connector proxy (auto) | `STRIPE_SECRET_KEY` + `STRIPE_PUBLISHABLE_KEY` |
+| Gmail | Replit connector proxy (auto) | `GMAIL_CLIENT_ID` + `GMAIL_CLIENT_SECRET` + `GMAIL_REFRESH_TOKEN` |
+| Replit Auth | Injected by platform | Not available — users log in via Google OAuth |
+
+### Storage adapter
+
+`server/lib/storage-adapter.ts` picks the backend at startup:
+- S3 when `S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET` are set
+- Local disk (`vault/` dir) otherwise
+
+### SSL / database
+
+SSL is enabled when `NODE_ENV=production` OR `REPLIT_DEPLOYMENT` is set OR `sslmode=require` / `ssl=true` appears in `DATABASE_URL`.
+
+### Health check
+
+`GET /healthz` → `200 OK` — registered before all middleware, always responds.
+
+### Never commit secrets
+
+`.env` is in `.gitignore`. Copy `.env.example` to `.env` and fill values locally.
 
 ---
 
