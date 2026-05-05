@@ -264,8 +264,9 @@ function PlatformConnectionsCard({
   };
 
   const guardian = health?.guardianStatus;
-  const healthyCount = health?.platforms?.filter(p => p.status === "healthy").length || 0;
-  const totalCount = health?.platforms?.length || 0;
+  const ytPlatforms = (health?.platforms || []).filter(p => p.platform === "youtube" || p.platform === "youtubeshorts");
+  const healthyCount = ytPlatforms.filter(p => p.status === "healthy").length;
+  const totalCount = ytPlatforms.length;
 
   const KNOWN_STATUSES = ["healthy", "degraded", "expired", "disconnected"] as const;
   type KnownStatus = typeof KNOWN_STATUSES[number];
@@ -283,7 +284,8 @@ function PlatformConnectionsCard({
   };
 
   const brokenChannels = (channels || []).filter((ch: any) =>
-    ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded"
+    (ch.platform === "youtube" || ch.platform === "youtubeshorts") &&
+    (ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded")
   );
 
   return (
@@ -523,7 +525,7 @@ function PlatformConnectionsCard({
             })}
           </div>
         ) : (
-          <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">All platforms connected</p>
+          <p className="text-sm text-emerald-500 font-medium" data-testid="text-all-connected">YouTube connected</p>
         )}
       </CardContent>
     </Card>
@@ -849,7 +851,7 @@ function GeneralTab() {
     { type: "aggressive" as const, icon: AlertTriangle, title: "Aggressive", desc: "Maximum growth." },
   ];
 
-  const connectedCount = channels?.length ?? 0;
+  const connectedCount = (channels || []).filter((c: any) => c.platform === "youtube" || c.platform === "youtubeshorts").length;
   const userName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
 
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);

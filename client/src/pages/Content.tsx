@@ -73,7 +73,7 @@ function ContentStatsStrip() {
   }, [videos]);
 
   if (isLoading) return <Skeleton className="h-12 w-full rounded-xl mb-4" />;
-  if (!stats) return null;
+  if (!stats || stats.total === 0) return null;
   const items = [
     { icon: Film, label: "Total Videos", value: stats.total.toLocaleString(), color: "text-primary" },
     { icon: Video, label: "VODs", value: stats.vods.toLocaleString(), color: "text-blue-400" },
