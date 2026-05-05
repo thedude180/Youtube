@@ -7,7 +7,7 @@ import { pipeline } from "stream/promises";
 import { storage } from "./storage";
 import { db } from "./db";
 import { videos, channels, contentVaultBackups } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, ne } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { isFfmpegAvailable, isYtdlpAvailable, getYtdlpBin } from "./lib/dependency-check";
 
@@ -44,6 +44,15 @@ export function markPermanentlyFailed(youtubeId: string, reason: string): void {
       if (v.failedAt < cutoff) permanentlyFailedIds.delete(k);
     }
   }
+  // Persist to DB so server restarts don't retry this video
+  db.update(contentVaultBackups)
+    .set({ status: "failed", downloadError: reason.substring(0, 500) })
+    .where(and(
+      eq(contentVaultBackups.youtubeId, youtubeId),
+      ne(contentVaultBackups.status, "downloaded"),
+    ))
+    .execute()
+    .catch((err: any) => logger.warn("Failed to persist permanent fail to DB", { youtubeId, err: err?.message }));
 }
 
 export function isPermanentlyFailed(youtubeId: string): string | null {
@@ -364,19 +373,31 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
   // means zero yt-dlp calls and no dependency on Replit's server IPs.
   try {
     const [vaultEntry] = await db
-      .select({ filePath: contentVaultBackups.filePath, status: contentVaultBackups.status })
+      .select({ filePath: contentVaultBackups.filePath, status: contentVaultBackups.status, downloadError: contentVaultBackups.downloadError })
       .from(contentVaultBackups)
       .where(and(
         eq(contentVaultBackups.youtubeId, youtubeId),
-        eq(contentVaultBackups.status, "downloaded"),
+        or(
+          eq(contentVaultBackups.status, "downloaded"),
+          eq(contentVaultBackups.status, "failed"),
+        ),
       ))
       .limit(1);
+
+    if (vaultEntry?.status === "failed" && vaultEntry.downloadError) {
+      // Restore persisted permanent failure into in-memory map so this session skips it too
+      if (!isPermanentlyFailed(youtubeId)) {
+        permanentlyFailedIds.set(youtubeId, { reason: vaultEntry.downloadError, failedAt: Date.now() });
+      }
+      throw new Error(`Video permanently failed (DB): ${vaultEntry.downloadError} (${youtubeId})`);
+    }
 
     if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
       logger.info("Using vault file as source (skipping yt-dlp)", { youtubeId, path: vaultEntry.filePath });
       return vaultEntry.filePath;
     }
   } catch (vaultErr: any) {
+    if ((vaultErr.message as string).includes("permanently failed")) throw vaultErr;
     logger.warn("Vault lookup failed, falling through to yt-dlp", { youtubeId, error: vaultErr.message });
   }
   // ─────────────────────────────────────────────────────────────────────────────
