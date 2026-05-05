@@ -18,3 +18,9 @@ id = "0zlOZ857MP4nV82uB2PLB"
 uri = "file://youtube-only-codebase.md"
 type = "text"
 title = "YouTube-Only Codebase — All Changed Files"
+
+[[outputs]]
+id = "6h8fFd-6X_z-240X82bpI"
+uri = "file://codebase-export.md"
+type = "text"
+title = "Full Codebase Export"
