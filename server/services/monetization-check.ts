@@ -33,7 +33,7 @@ export async function isMonetizationUnlocked(userId: string, platform: string): 
 }
 
 export async function getMonetizationStatus(userId: string): Promise<Record<string, boolean>> {
-  const platforms = ["youtube", "tiktok", "twitch", "kick"];
+  const platforms = ["youtube"];
   const result: Record<string, boolean> = {};
 
   for (const platform of platforms) {

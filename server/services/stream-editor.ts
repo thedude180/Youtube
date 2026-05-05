@@ -17,7 +17,7 @@ if (!fs.existsSync(EDITOR_OUTPUT_DIR)) {
   fs.mkdirSync(EDITOR_OUTPUT_DIR, { recursive: true });
 }
 
-export type StreamEditPlatform = "youtube" | "rumble" | "tiktok" | "shorts";
+export type StreamEditPlatform = "youtube" | "shorts";
 
 interface PlatformProfile {
   label: string;
@@ -37,7 +37,7 @@ interface PlatformProfile {
 /**
  * Platform profiles with AI-upscale to the highest resolution that makes sense
  * per platform. Landscape content targets 4K (3840×2160); vertical content
- * targets 1080p portrait (1080×1920) which is the platform maximum for Shorts/TikTok.
+ * targets 1080p portrait (1080×1920) which is the platform maximum for YouTube Shorts.
  *
  * CODEC CHOICE — libx264 ultrafast vs libx265:
  *  libx265 "fast"     → 0.01x speed → 100+ h per clip → NEVER use on CPU host
@@ -69,44 +69,6 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
     maxClipSecs: null,
     audioBitrate: "192k",
     audioSampleRate: 48000,
-    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
-  },
-  rumble: {
-    label: "Rumble 4K",
-    width: 3840,
-    height: 2160,
-    orientation: "landscape",
-    codec: "libx264",
-    codecArgs: [
-      "-profile:v", "high",
-      "-level:v", "5.1",
-      "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
-      "-movflags", "+faststart",
-    ],
-    crf: 20,
-    preset: "ultrafast",
-    maxClipSecs: null,
-    audioBitrate: "192k",
-    audioSampleRate: 48000,
-    targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
-  },
-  tiktok: {
-    label: "TikTok 1080p Vertical",
-    width: 1080,
-    height: 1920,
-    orientation: "portrait",
-    codec: "libx264",
-    codecArgs: [
-      "-profile:v", "high",
-      "-level:v", "4.1",
-      "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
-      "-movflags", "+faststart",
-    ],
-    crf: 21,
-    preset: "ultrafast",
-    maxClipSecs: 600,
-    audioBitrate: "128k",
-    audioSampleRate: 44100,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
   shorts: {

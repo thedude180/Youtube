@@ -37,7 +37,6 @@ import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/s
 import { eq, and, lte, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
-import { canPostToPlatformToday } from "./platform-budget-tracker";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
@@ -143,12 +142,6 @@ async function downloadSegmentFromYouTube(
 const PLATFORM_CAPTION_GUIDE: Record<string, string> = {
   youtube: "YouTube Shorts: write a punchy, curiosity-driven title that hooks viewers in the first 3 words. Include #Shorts + 2-3 gaming hashtags. Keep under 100 chars.",
   youtubeshorts: "YouTube Shorts: write a punchy, curiosity-driven title that hooks viewers in the first 3 words. Include #Shorts + 2-3 gaming hashtags. Keep under 100 chars.",
-  tiktok: "TikTok FYP: open with a 3-word visual/emotional hook, use native TikTok slang (no 'subscribe', no 'notification bell'), under 150 chars. Include #fyp, #gaming, and the game name. Add 'Full video → link in bio' at the end.",
-  twitter: "X (Twitter): one punchy hook line that stops the scroll, optional second line with context, end with the YouTube link. Total under 250 chars. Use 1-2 hashtags max.",
-  x: "X (Twitter): one punchy hook line that stops the scroll, optional second line with context, end with the YouTube link. Total under 250 chars. Use 1-2 hashtags max.",
-  discord: "Discord: community-focused gaming announcement, conversational tone, include the full YouTube link. Under 500 chars. No hashtags — this is a server chat, not social media.",
-  kick: "Kick: streaming-community style, hype energy, mention it's a clip from a PS5 session, include the full YouTube link for the full video. Under 300 chars.",
-  instagram: "Instagram Reels: visually-driven storytelling hook line, then 1-2 sentences of context. Use 5-8 hashtags mixing niche + broad gaming reach. Add 'Full video link in bio' at the end.",
 };
 
 async function generateShortCaption(opts: {
@@ -175,12 +168,11 @@ ${gameName ? `- Game: ${gameName}` : ""}
 ${hookLine ? `- Hook/moment: "${hookLine.slice(0, 120)}"` : ""}
 ${fullVideoUrl ? `- Full video URL: ${fullVideoUrl}` : ""}
 
-Target platform: ${platform.toUpperCase()}
+Target platform: YouTube Shorts
 Platform rules: ${guide}
 
-Write a SINGLE platform-native caption for this clip. Make it distinctly different from just copying the YouTube title — rewrite for the ${platform} voice and audience.
-${fullVideoUrl && !["youtube", "youtubeshorts"].includes(platform) ? `IMPORTANT: Always include the full video URL (${fullVideoUrl}) somewhere in your caption so viewers can watch the whole video.` : ""}
-${["youtube", "youtubeshorts"].includes(platform) ? `For the description section, include: "Watch more at youtube.com/ETGaming247"` : ""}
+Write a punchy YouTube Shorts title for this clip. Make it hook viewers in the first 3 words.
+For the description section, include: "Watch more at youtube.com/ETGaming247"
 
 Respond with ONLY the caption text, no JSON, no quotes, no explanation.`;
 
@@ -193,11 +185,6 @@ Respond with ONLY the caption text, no JSON, no quotes, no explanation.`;
     const text = (res.choices[0].message.content || "").trim();
     if (text.length < 10) return fallback;
 
-    // Safety: ensure the URL is in the caption for non-YouTube platforms
-    if (fullVideoUrl && !["youtube", "youtubeshorts"].includes(platform) && !text.includes(fullVideoUrl)) {
-      return `${text}\n${fullVideoUrl}`.slice(0, 2000);
-    }
-
     return text.slice(0, 2000);
   } catch {
     return fallback;
@@ -205,32 +192,13 @@ Respond with ONLY the caption text, no JSON, no quotes, no explanation.`;
 }
 
 function buildFallbackCaption(
-  platform: string,
+  _platform: string,
   title: string,
   hookLine: string | undefined,
-  fullVideoUrl: string | null,
+  _fullVideoUrl: string | null,
 ): string {
   const base = hookLine || title;
-  const link = fullVideoUrl ? `\n${fullVideoUrl}` : "";
-
-  switch (platform) {
-    case "youtube":
-    case "youtubeshorts":
-      return `${base.slice(0, 90)} #Shorts #Gaming #PS5`;
-    case "tiktok":
-      return `${base.slice(0, 120)} #fyp #gaming #ps5${link}`.slice(0, 2200);
-    case "twitter":
-    case "x":
-      return `${base.slice(0, 200)}${link}`.slice(0, 280);
-    case "discord":
-      return `🎮 New clip just dropped!\n${base.slice(0, 200)}${link}`.slice(0, 2000);
-    case "kick":
-      return `Clip from our PS5 stream! ${base.slice(0, 150)}${link}`.slice(0, 500);
-    case "instagram":
-      return `${base.slice(0, 200)}\n\n#gaming #ps5 #clips #fyp #gamer${link}`.slice(0, 2200);
-    default:
-      return `${base.slice(0, 300)}${link}`.slice(0, 2000);
-  }
+  return `${base.slice(0, 90)} #Shorts #Gaming #PS5`;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,43 +288,6 @@ async function uploadToYouTube(opts: {
   }
 }
 
-async function uploadToTikTok(opts: {
-  userId: string;
-  clipId: number;
-  caption: string;
-}): Promise<{ success: boolean; publishId?: string; error?: string }> {
-  try {
-    const { publishVideoToTikTok } = await import("../tiktok-publisher");
-    const result = await publishVideoToTikTok(opts.userId, opts.caption, { clipId: opts.clipId });
-    return {
-      success: result.success,
-      publishId: result.publishId,
-      error: result.error,
-    };
-  } catch (err: any) {
-    return { success: false, error: err?.message?.slice(0, 300) ?? "unknown error" };
-  }
-}
-
-async function postTextToPlatform(opts: {
-  userId: string;
-  platform: string;
-  caption: string;
-  metadata: Record<string, unknown>;
-}): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string }> {
-  try {
-    const { publishToplatform } = await import("../platform-publisher");
-    const result = await publishToplatform(opts.userId, opts.platform, opts.caption, opts.metadata);
-    return {
-      success: result.success,
-      postId: result.postId,
-      postUrl: result.postUrl,
-      error: result.error,
-    };
-  } catch (err: any) {
-    return { success: false, error: err?.message?.slice(0, 300) ?? "unknown error" };
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Main processing loop
@@ -404,15 +335,14 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const userId = item.userId;
       const platform = item.targetPlatform;
 
-      // For non-YouTube platforms still respect the daily budget so we don't
-      // spam TikTok / Discord / etc.
+      // YouTube-only: skip any non-YouTube items that may exist in the queue
       if (platform !== "youtube" && platform !== "youtubeshorts") {
-        const budget = await canPostToPlatformToday(userId, platform);
-        if (!budget.allowed) {
-          logger.info("Daily budget exhausted — skipping", { userId, platform });
-          skipped++;
-          continue;
-        }
+        logger.warn("[ShortsPublisher] Skipping non-YouTube queue item", { platform, itemId: item.id });
+        await db.update(autopilotQueue)
+          .set({ status: "skipped", errorMessage: "YouTube-only mode: non-YouTube platform" })
+          .where(eq(autopilotQueue.id, item.id));
+        skipped++;
+        continue;
       }
 
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
@@ -446,60 +376,13 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const tags = Array.isArray(srcMeta.tags) ? (srcMeta.tags as string[]) : [];
       const sourceTitle = srcVideo?.title ?? (item.caption ?? "Gaming Clip");
 
-      const isTextPost = item.type === "platform_text_short";
       let result: { success: boolean; error?: string; postId?: string };
 
-      if (isTextPost) {
-        // ---- Text + link post ----
-        const caption = await generateShortCaption({
-          platform,
-          sourceTitle,
-          hookLine,
-          sourceYoutubeId: resolvedYoutubeId,
-          gameName,
-        });
-
-        result = await postTextToPlatform({
-          userId,
-          platform,
-          caption,
-          metadata: {
-            ...itemMeta,
-            sourceYoutubeId: resolvedYoutubeId,
-            tags: tags.slice(0, 10),
-          },
-        }).catch((err: unknown) => ({
-          success: false,
-          error: (err as Error)?.message?.slice(0, 300) ?? "unknown",
-        }));
-
-        logger.info("Text short post", { platform, success: result.success, userId });
-      } else {
-        // ---- Video clip upload ----
+      {
+        // ---- YouTube Shorts video clip upload ----
         const isYouTube = platform === "youtube" || platform === "youtubeshorts";
-        const isTikTok = platform === "tiktok";
 
-        if (isTikTok) {
-          // TikTok: delegate to publishVideoToTikTok which handles its own extraction
-          if (!clipId) {
-            result = { success: false, error: "TikTok requires a clipId in metadata" };
-          } else {
-            const caption = await generateShortCaption({
-              platform,
-              sourceTitle,
-              hookLine,
-              sourceYoutubeId: resolvedYoutubeId,
-              gameName,
-            });
-
-            result = await uploadToTikTok({ userId, clipId, caption }).catch((err: unknown) => ({
-              success: false,
-              error: (err as Error)?.message?.slice(0, 300) ?? "unknown",
-            }));
-
-            logger.info("TikTok short upload", { clipId, success: result.success, userId });
-          }
-        } else if (isYouTube) {
+        if (isYouTube) {
           // YouTube Shorts: extract segment ourselves, upload via YouTube Data API
           const userChannels = await db.select().from(channels)
             .where(and(
@@ -555,7 +438,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             }
           }
         } else {
-          result = { success: false, error: `Unsupported video platform: ${platform}` };
+          result = { success: false, error: `Unsupported platform: ${platform}` };
         }
       }
 
@@ -609,5 +492,5 @@ export function initShortsClipPublisher(): void {
     );
   }, 12 * 60_000);
 
-  logger.info("Shorts Clip Publisher initialised — platforms: YouTube Shorts, TikTok, Twitter/X, Discord, Kick, Instagram");
+  logger.info("Shorts Clip Publisher initialised — platform: YouTube Shorts");
 }

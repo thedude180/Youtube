@@ -438,6 +438,7 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
   try {
     const activeChannels = await db.select().from(channels).where(
       and(
+        eq(channels.platform, "youtube"),
         isNotNull(channels.refreshToken),
         isNotNull(channels.accessToken),
       )
@@ -581,7 +582,7 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
       and(
         or(isNull(channels.accessToken), eq(channels.accessToken, "")),
         or(isNull(channels.refreshToken), eq(channels.refreshToken, "")),
-        or(eq(channels.platform, "youtube"), eq(channels.platform, "youtube_studio")),
+        eq(channels.platform, "youtube"),
       )
     );
 

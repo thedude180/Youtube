@@ -49,8 +49,6 @@ interface ClipSeoPackage {
 
 const PLATFORM_LABELS: Record<string, string> = {
   youtube: "YouTube",
-  rumble: "Rumble",
-  tiktok: "TikTok",
   shorts: "YouTube Shorts",
 };
 
@@ -170,7 +168,7 @@ async function generateThumbnailImage(
     if (!imageBuffer || imageBuffer.length < 1000) return null;
 
     const sharp = (await import("sharp")).default;
-    const isVertical = platform === "tiktok" || platform === "shorts";
+    const isVertical = platform === "shorts";
     const [thumbW, thumbH] = isVertical ? [1080, 1920] : [1280, 720];
     const jpegBuffer = await sharp(imageBuffer)
       .resize(thumbW, thumbH, { fit: "cover", position: "center" })

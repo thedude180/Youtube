@@ -1,7 +1,7 @@
 /**
  * Mila Reyes — Moment Hunter
  * Detects viral moments during live streams by monitoring chat spike patterns.
- * Immediately queues TikTok/Shorts posts for any hot moment while still live.
+ * Immediately queues YouTube Shorts posts for any hot moment while still live.
  * Saves timestamped markers for post-stream VOD clipping.
  */
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
@@ -38,19 +38,18 @@ let eventsRegistered = false;
 
 async function generateMomentBlast(session: ClipSession): Promise<{
   momentDescription: string;
-  tiktokPost: string;
-  discordPost: string;
+  shortsTitle: string;
   viralScore: number;
 } | null> {
   try {
     const streamMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_completion_tokens: 500,
+      max_completion_tokens: 400,
       messages: [{
         role: "system",
-        content: `You are Mila Reyes — a live moment hunter for a PS5 gaming streamer. 
-Your job: identify what is likely the most exciting moment happening right now in the stream and create content around it.
+        content: `You are Mila Reyes — a live moment hunter for a PS5 gaming YouTube channel. 
+Your job: identify what is likely the most exciting moment happening right now in the stream and create a YouTube Shorts title for it.
 
 Stream: "${sanitizeForPrompt(session.streamTitle)}"
 Running for: ${streamMinutes} minutes
@@ -59,13 +58,12 @@ Previous clips this stream: ${session.clipMarkers.length}
 Generate a moment capture. Return JSON:
 {
   "momentDescription": "What's likely happening right now (e.g., 'Boss fight final phase, tense moment')",
-  "tiktokPost": "Under 150 chars — 'LIVE RIGHT NOW 🎮 [hook] — link in bio' format, PS5 gaming energy",
-  "discordPost": "@here 🎬 CLIP THIS! [exciting moment description] at the [${streamMinutes} min mark] — STREAM_LINK",
+  "shortsTitle": "Under 100 chars — punchy YouTube Shorts title, include #Shorts + 1-2 gaming hashtags",
   "viralScore": 75
 }`,
       }, {
         role: "user",
-        content: `Generate a moment capture for stream cycle #${session.cycleCount + 1}. Make the TikTok post feel URGENT — stream is live RIGHT NOW.`,
+        content: `Generate a moment capture for stream cycle #${session.cycleCount + 1}. Make the Shorts title feel URGENT — this clip is from a live stream RIGHT NOW.`,
       }],
       response_format: { type: "json_object" },
     });
@@ -97,21 +95,17 @@ async function runClipCycle(session: ClipSession): Promise<void> {
     viralScore: moment.viralScore,
   });
 
-  const tiktokContent = moment.tiktokPost;
-  // Replace STREAM_LINK token with the real URL; strip any unreplaced STREAM_LINK
-  // leftovers in case the AI omitted the token.
-  const discordContent = moment.discordPost
-    .replace("STREAM_LINK", streamUrl)
-    .replace(/STREAM_LINK/g, "")
+  const shortsTitle = (moment.shortsTitle || moment.momentDescription || "Live stream clip")
+    .replace(/STREAM_LINK/g, streamUrl)
     .trim();
 
   try {
     await db.insert(autopilotQueue).values({
       userId: session.userId,
       type: "live-clip-moment",
-      targetPlatform: "tiktok",
-      content: tiktokContent,
-      caption: tiktokContent,
+      targetPlatform: "youtube",
+      content: shortsTitle,
+      caption: shortsTitle,
       status: "pending",
       scheduledAt: new Date(),
       metadata: {
@@ -120,22 +114,6 @@ async function runClipCycle(session: ClipSession): Promise<void> {
         humanScore: moment.viralScore,
         isRecycled: false,
         originalPostDate: timestamp,
-      },
-    });
-
-    await db.insert(autopilotQueue).values({
-      userId: session.userId,
-      type: "live-clip-moment",
-      targetPlatform: "discord",
-      content: discordContent,
-      caption: discordContent,
-      status: "pending",
-      scheduledAt: new Date(),
-      metadata: {
-        contentType: "live_clip_blast",
-        aiModel: "gpt-4o-mini",
-        humanScore: moment.viralScore,
-        isRecycled: false,
       },
     });
   } catch (err: any) {
@@ -153,7 +131,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
       status: "completed",
       details: {
         description: `High-viral moment captured: "${sanitizeForPrompt(moment.momentDescription)}" | Viral score: ${moment.viralScore}`,
-        impact: "TikTok + Discord blast queued immediately",
+        impact: "YouTube Shorts clip queued immediately",
         metrics: {
           totalClipsThisStream: session.clipMarkers.length,
           viralScore: moment.viralScore,

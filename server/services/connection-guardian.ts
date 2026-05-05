@@ -47,24 +47,6 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
         testUrl = "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true";
         headers["Authorization"] = `Bearer ${resolvedToken}`;
         break;
-      case "twitch":
-        testUrl = "https://api.twitch.tv/helix/users";
-        headers["Authorization"] = `Bearer ${resolvedToken}`;
-        headers["Client-Id"] = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID || "";
-        break;
-      case "kick":
-        testUrl = "https://api.kick.com/public/v1/users";
-        headers["Authorization"] = `Bearer ${resolvedToken}`;
-        break;
-      case "tiktok":
-        testUrl = "https://open.tiktokapis.com/v2/user/info/?fields=open_id";
-        headers["Authorization"] = `Bearer ${resolvedToken}`;
-        break;
-      case "discord":
-        // Discord bot tokens use the "Bot" scheme, not "Bearer"
-        testUrl = "https://discord.com/api/v10/users/@me";
-        headers["Authorization"] = `Bot ${resolvedToken}`;
-        break;
       default:
         return true;
     }
@@ -445,84 +427,6 @@ async function capturePeriodicSnapshots(): Promise<number> {
   return captured;
 }
 
-async function autoConnectStreamingPlatform(
-  platformName: string,
-  envKeys: { apiKey?: string; clientId?: string; clientSecret?: string; streamKey?: string; streamUrl?: string },
-  defaultStreamUrl: string,
-): Promise<number> {
-  let connected = 0;
-  // streamUrl is an RTMP destination, not an auth credential — require at least one real auth key
-  const { streamUrl: _ignored, ...authKeys } = envKeys;
-  const hasCredentials = Object.values(authKeys).some(v => !!v);
-  if (!hasCredentials) return 0;
-
-  try {
-    const allUsers = await db.select().from(users).limit(200);
-
-    for (const user of allUsers) {
-      const userChannels = await db.select().from(channels)
-        .where(eq(channels.userId, user.id));
-
-      const hasPlatformChannel = userChannels.some(c => c.platform === platformName);
-      if (hasPlatformChannel) continue;
-
-      const hasAnyChannel = userChannels.length > 0;
-      if (!hasAnyChannel) continue;
-
-      const existingLinked = await db.select().from(linkedChannels)
-        .where(and(
-          eq(linkedChannels.userId, user.id),
-          eq(linkedChannels.platform, platformName),
-        ));
-
-      if (existingLinked.length > 0) continue;
-
-      const displayName = platformName.charAt(0).toUpperCase() + platformName.slice(1);
-
-      await db.insert(linkedChannels).values({
-        userId: user.id,
-        platform: platformName,
-        username: `${displayName} Channel`,
-        isConnected: true,
-        connectionType: "auto",
-        credentials: {
-          apiKey: envKeys.apiKey ? "configured" : undefined,
-          streamKey: envKeys.streamKey ? "configured" : undefined,
-        },
-      });
-
-      await storage.createChannel({
-        userId: user.id,
-        platform: platformName,
-        channelName: `${displayName} Channel`,
-        channelId: `${platformName}-auto-${user.id}`,
-        accessToken: envKeys.apiKey || envKeys.clientId || envKeys.streamKey || "",
-        refreshToken: null,
-        tokenExpiresAt: null,
-        settings: { preset: "normal", autoUpload: false, minShortsPerDay: 0, maxEditsPerDay: 0, cooldownMinutes: 60 },
-      });
-
-      connected++;
-    }
-  } catch (err) {
-    logger.error(`[ConnectionGuardian] ${platformName} auto-connect error:`, err);
-  }
-
-  return connected;
-}
-
-async function autoConnectStreamingPlatforms(): Promise<{ rumble: number; twitch: number; kick: number }> {
-  const rumble = await autoConnectStreamingPlatform("rumble", {
-    apiKey: process.env.RUMBLE_API_KEY,
-    streamKey: process.env.RUMBLE_STREAM_KEY,
-    streamUrl: process.env.RUMBLE_STREAM_URL,
-  }, "rtmp://live.rumble.com/live");
-
-  // Twitch and Kick both have full OAuth flows — they must be connected via OAuth, not
-  // auto-created with stream keys. A stream key is an RTMP-only credential and will
-  // always fail the OAuth API liveness check, causing permanent "expired" notifications.
-  return { rumble, twitch: 0, kick: 0 };
-}
 
 let statsRefreshInFlight = false;
 

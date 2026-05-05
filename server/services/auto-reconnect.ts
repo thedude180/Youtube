@@ -60,23 +60,6 @@ async function verifyConnectionAlive(platform: string, accessToken: string): Pro
         testUrl = "https://www.googleapis.com/youtube/v3/channels?part=id&mine=true";
         headers["Authorization"] = `Bearer ${accessToken}`;
         break;
-      case "twitch":
-        testUrl = "https://api.twitch.tv/helix/users";
-        headers["Authorization"] = `Bearer ${accessToken}`;
-        headers["Client-Id"] = process.env.TWITCH_DEV_CLIENT_ID || process.env.TWITCH_CLIENT_ID || "";
-        break;
-      case "kick":
-        testUrl = "https://kick.com/api/v1/user";
-        headers["Authorization"] = `Bearer ${accessToken}`;
-        break;
-      case "tiktok":
-        testUrl = "https://open.tiktokapis.com/v2/user/info/?fields=open_id";
-        headers["Authorization"] = `Bearer ${accessToken}`;
-        break;
-      case "discord":
-        testUrl = "https://discord.com/api/v10/users/@me";
-        headers["Authorization"] = `Bearer ${accessToken}`;
-        break;
       default:
         return true;
     }

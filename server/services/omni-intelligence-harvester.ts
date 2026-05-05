@@ -152,62 +152,7 @@ async function harvestReddit(userId: string): Promise<number> {
   return saved;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 3: Twitch top games (app client-credentials token)
-// ─────────────────────────────────────────────────────────────────────────────
-let _twitchToken: { token: string; expiresAt: number } | null = null;
-
-async function getTwitchAppToken(): Promise<string | null> {
-  const clientId     = process.env.TWITCH_DEV_CLIENT_ID     ?? process.env.TWITCH_CLIENT_ID;
-  const clientSecret = process.env.TWITCH_DEV_CLIENT_SECRET ?? process.env.TWITCH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  if (_twitchToken && _twitchToken.expiresAt > Date.now()) return _twitchToken.token;
-  try {
-    const res = await fetch(
-      `https://id.twitch.tv/oauth2/token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`,
-      { method: "POST", signal: AbortSignal.timeout(10_000) }
-    );
-    if (!res.ok) return null;
-    const { access_token, expires_in } = await res.json() as any;
-    _twitchToken = { token: access_token, expiresAt: Date.now() + (expires_in - 60) * 1000 };
-    return access_token;
-  } catch { return null; }
-}
-
-async function harvestTwitchTopGames(userId: string): Promise<number> {
-  const clientId = process.env.TWITCH_DEV_CLIENT_ID ?? process.env.TWITCH_CLIENT_ID;
-  const token    = await getTwitchAppToken();
-  if (!token || !clientId) return 0;
-
-  let saved = 0;
-  const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
-  try {
-    const res = await fetch("https://api.twitch.tv/helix/games/top?first=20", {
-      headers: { "Authorization": `Bearer ${token}`, "Client-Id": clientId },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return 0;
-    const { data: games } = await res.json() as { data: Array<{ id: string; name: string; box_art_url: string }> };
-    for (let i = 0; i < games.length; i++) {
-      const g = games[i];
-      const score = Math.max(10, 100 - i * 4);
-      await db.insert(intelligenceSignals).values({
-        userId,
-        source: "twitch",
-        category: "trending_game",
-        title: g.name,
-        url: `https://www.twitch.tv/directory/game/${encodeURIComponent(g.name)}`,
-        score,
-        metadata: { twitchGameId: g.id, rank: i + 1, boxArt: g.box_art_url },
-        expiresAt: expiry,
-      }).onConflictDoNothing();
-      saved++;
-    }
-  } catch (err: any) {
-    logger.warn(`Twitch harvest failed: ${err.message?.slice(0, 80)}`);
-  }
-  return saved;
-}
+// SOURCE 3: Twitch top-games harvest removed — YouTube-only mode.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SOURCE 4: Gaming RSS news feeds
@@ -525,10 +470,9 @@ export async function runIntelligenceCycle(): Promise<void> {
       try {
         logger.info("Running intelligence harvest", { userId: userId.slice(0, 8) });
 
-        const [yt, reddit, twitch, rss, web] = await Promise.allSettled([
+        const [yt, reddit, rss, web] = await Promise.allSettled([
           harvestYouTubeTrending(userId),
           harvestReddit(userId),
-          harvestTwitchTopGames(userId),
           harvestRSSFeeds(userId),
           harvestWebSearch(userId),
         ]);
@@ -536,7 +480,6 @@ export async function runIntelligenceCycle(): Promise<void> {
         const counts = {
           youtube : yt.status      === "fulfilled" ? yt.value      : 0,
           reddit  : reddit.status  === "fulfilled" ? reddit.value  : 0,
-          twitch  : twitch.status  === "fulfilled" ? twitch.value  : 0,
           rss     : rss.status     === "fulfilled" ? rss.value     : 0,
           web     : web.status     === "fulfilled" ? web.value     : 0,
         };
