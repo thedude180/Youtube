@@ -131,8 +131,14 @@ async function ensureAllTokensFresh(): Promise<{ refreshed: number; verified: nu
     if (shouldFullVerify) {
       lastFullVerify = now;
 
+      // YouTube-only mode: only verify YouTube/YouTubeShorts OAuth tokens.
+      // All other platforms have been disabled and their token checks produce
+      // noise (Kick/Twitch/Discord attempts 1–15) without providing value.
       const allConnected = await db.select().from(channels)
-        .where(isNotNull(channels.accessToken));
+        .where(and(
+          isNotNull(channels.accessToken),
+          eq(channels.platform, "youtube"),
+        ));
 
       for (const ch of allConnected) {
         if (!ch.accessToken) { verified++; continue; }

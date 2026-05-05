@@ -20,6 +20,38 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
+/**
+ * Create the token_vault table if it doesn't exist.
+ * Called once on server boot — safe to call multiple times (idempotent).
+ * The table is not in the Drizzle schema so it won't be auto-migrated by publish;
+ * this ensures it exists in production without requiring a manual migration.
+ */
+export async function ensureTokenVaultTable(): Promise<void> {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS token_vault (
+        id            SERIAL PRIMARY KEY,
+        user_id       TEXT NOT NULL,
+        channel_id    INTEGER,
+        platform      TEXT NOT NULL,
+        channel_external_id TEXT,
+        refresh_token TEXT NOT NULL,
+        access_token  TEXT,
+        token_expires_at TIMESTAMPTZ,
+        source        TEXT NOT NULL DEFAULT 'unknown',
+        saved_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS token_vault_user_platform_idx
+        ON token_vault (user_id, platform, saved_at DESC)
+    `);
+  } catch (e) {
+    const logger = createLogger("token-vault");
+    logger.warn("[TokenVault] Could not ensure token_vault table:", e);
+  }
+}
+
 const logger = createLogger("token-vault");
 
 const MAX_VAULT_ENTRIES = 5;

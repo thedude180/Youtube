@@ -422,6 +422,10 @@ async function healProductionPipeline(): Promise<void> {
     // breaker so every service sees "tripped" from the very first millisecond.
     const { restoreQuotaBreakerOnStartup } = await import("./services/youtube-quota-tracker");
     await restoreQuotaBreakerOnStartup();
+
+    // Ensure the token_vault table exists (not in Drizzle schema, so not auto-migrated).
+    const { ensureTokenVaultTable } = await import("./services/token-vault");
+    await ensureTokenVaultTable();
     // ─────────────────────────────────────────────────────────────────────────
 
     const { contentVaultBackups, streamEditJobs, contentPipeline } = await import("@shared/schema");
