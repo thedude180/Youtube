@@ -163,11 +163,7 @@ function PlatformDialog({ platform, onClose, existingChannels }: { platform: Pla
       }
 
       if (isYouTube) {
-        // Use admin reconnect route — bypasses dev-bypass session identity issue.
-        const ytCh = (existingChannels || []).find((c) => c.platform === "youtube");
-        window.location.href = ytCh?.id
-          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-          : "/api/admin/yt-reconnect";
+        window.location.href = "/api/youtube/reconnect";
         return;
       }
       const endpoint = `/api/oauth/${platform}/auth`;
@@ -320,12 +316,7 @@ function ChannelsTab() {
 
   const handleConnect = () => {
     setConnecting(true);
-    // Use admin reconnect route with specific channel ID to bypass dev-bypass identity issue.
-    // Fall back to auto-detect route if channels haven't loaded yet.
-    const ytChannel = channels?.find((c) => c.platform === "youtube");
-    window.location.href = ytChannel?.id
-      ? `/api/admin/channels/${ytChannel.id}/reconnect-youtube`
-      : "/api/admin/yt-reconnect";
+    window.location.href = "/api/youtube/reconnect";
   };
 
   const channelsByPlatform = useMemo(() => {

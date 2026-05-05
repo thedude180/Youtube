@@ -1068,7 +1068,7 @@ export default function StreamCenter() {
                   <Badge className="bg-muted/50 text-muted-foreground border-border/50 text-[10px]" data-testid="badge-stream-mode">● STANDBY</Badge>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground">AI managing {destinations?.length || 0} destinations · Multi-platform autopilot active</p>
+              <p className="text-[11px] text-muted-foreground">YouTube Live autopilot active</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -1099,7 +1099,7 @@ export default function StreamCenter() {
                 <span className={`relative inline-flex rounded-full h-3 w-3 ${multistreamStatus?.relaying ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
               </span>
               <div>
-                <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">Multi-Stream Relay</h3>
+                <h3 className="text-sm font-bold font-mono text-foreground uppercase tracking-wide">YouTube Relay</h3>
                 <p className="text-[11px] text-muted-foreground">FFmpeg fans your YouTube stream to additional destinations simultaneously</p>
               </div>
             </div>
@@ -1266,15 +1266,9 @@ export default function StreamCenter() {
                       onClick={async () => {
                         setPlatformConnecting(platform);
                         try {
-                          // Use admin reconnect route — bypasses dev-bypass session identity issue.
-                          const chRes = await fetch("/api/channels", { credentials: "include" });
-                          const chList = chRes.ok ? await chRes.json() : [];
-                          const ytCh = chList.find((c: any) => c.platform === "youtube");
-                          window.location.href = ytCh?.id
-                            ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-                            : "/api/admin/yt-reconnect";
+                          window.location.href = "/api/youtube/reconnect";
                         } catch {
-                          window.location.href = "/api/admin/yt-reconnect";
+                          window.location.href = "/api/youtube/reconnect";
                         }
                       }}
                       data-testid={`button-hub-connect-${platform}`}

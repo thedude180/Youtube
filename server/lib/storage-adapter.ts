@@ -69,7 +69,23 @@ export class LocalDiskAdapter implements StorageAdapter {
   }
 
   private fullPath(key: string): string {
-    return path.join(this.root, key);
+    const normalized = key
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter(Boolean)
+      .join("/");
+
+    if (!normalized || normalized.includes("..") || normalized.includes("\x00") || path.isAbsolute(key)) {
+      throw new Error(`Unsafe storage key: ${key}`);
+    }
+
+    const resolved = path.resolve(this.root, normalized);
+    if (resolved !== this.root && !resolved.startsWith(this.root + path.sep)) {
+      throw new Error(`Storage path escape rejected: ${key}`);
+    }
+
+    return resolved;
   }
 
   async upload(localPath: string, objectKey: string): Promise<string> {

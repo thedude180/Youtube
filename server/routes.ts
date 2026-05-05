@@ -34,7 +34,7 @@ import { registerLegalTaxRoutes } from "./routes/legal-tax";
 import { registerContentAutomationRoutes } from "./routes/content-automation";
 import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
-import { registerMultistreamRoutes } from "./routes/multistream";
+// import { registerMultistreamRoutes } from "./routes/multistream"; // disabled — multistream is YouTube-only now; 410 catch handles all /api/multistream/* requests
 import { registerCommandCenterRoutes } from "./routes/command-center";
 import liveCrewRoutes from "./routes/live-crew";
 import { registerKernelRoutes } from "./routes/kernel";
@@ -414,7 +414,7 @@ export async function registerRoutes(
   registerContentAutomationRoutes(app);
   registerStreamAgentRoutes(app);
   registerCopyrightGuardianRoutes(app);
-  registerMultistreamRoutes(app);
+  // registerMultistreamRoutes(app); // disabled — multistream routes return 410 via catch-all below
   registerCommandCenterRoutes(app);
   app.use("/api/live-crew", liveCrewRoutes);
   registerKernelOpsRoutes(app);
@@ -593,6 +593,22 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to get knowledge mesh stats" });
     }
   });
+
+  // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
+  // These catch routes return 410 Gone instead of crashing, so old bookmarks
+  // and cached frontend calls get a clean JSON response rather than a 404 or 500.
+  // They must be registered AFTER all active YouTube routes so they don't shadow them.
+  const { disabledPlatformResponse } = await import("./lib/youtube-only-routes");
+  app.all(/^\/api\/twitch(\/.*)?$/, disabledPlatformResponse("twitch"));
+  app.all(/^\/api\/kick(\/.*)?$/, disabledPlatformResponse("kick"));
+  app.all(/^\/api\/tiktok(\/.*)?$/, disabledPlatformResponse("tiktok"));
+  app.all(/^\/api\/discord(\/.*)?$/, disabledPlatformResponse("discord"));
+  app.all(/^\/api\/rumble(\/.*)?$/, disabledPlatformResponse("rumble"));
+  app.all(/^\/api\/twitter(\/.*)?$/, disabledPlatformResponse("twitter"));
+  app.all(/^\/api\/x(\/.*)?$/, disabledPlatformResponse("x"));
+  app.all(/^\/api\/facebook(\/.*)?$/, disabledPlatformResponse("facebook"));
+  app.all(/^\/api\/instagram(\/.*)?$/, disabledPlatformResponse("instagram"));
+  app.all(/^\/api\/multistream(\/.*)?$/, disabledPlatformResponse("multistream"));
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Endpoint not found" });

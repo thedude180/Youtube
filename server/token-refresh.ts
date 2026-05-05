@@ -324,6 +324,13 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
 
     for (const ch of allExpiring) {
       if (!ch.refreshToken || !ch.platform) continue;
+
+      // Skip non-YouTube platforms — this app is YouTube-only; their OAuth configs are intentionally absent.
+      if (ch.platform !== "youtube" && ch.platform !== "youtubeshorts") {
+        logger.debug(`[TokenRefresh] Skipping disabled platform channel ${ch.id} (${ch.platform})`);
+        continue;
+      }
+
       const pd = (ch.platformData || {}) as any;
 
       // In dev, skip expiry-based refresh for non-dev users — production manages its own tokens.

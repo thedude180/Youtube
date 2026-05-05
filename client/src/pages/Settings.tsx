@@ -184,10 +184,7 @@ function PlatformConnectionsCard({
         return;
       }
       if (isYouTube) {
-        const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
-        window.location.href = ytCh?.id
-          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-          : "/api/admin/yt-reconnect";
+        window.location.href = "/api/youtube/reconnect";
         return;
       }
       const endpoint = `/api/oauth/${platform}/auth`;
@@ -224,13 +221,8 @@ function PlatformConnectionsCard({
         window.location.href = `/api/oauth/${platform}/bounce`;
         return;
       }
-      // YouTube: use admin reconnect route which correctly identifies the real channel owner
-      // even when the session doesn't have a Passport-authenticated user.
       if (isYouTube) {
-        const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
-        window.location.href = ytCh?.id
-          ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-          : "/api/admin/yt-reconnect";
+        window.location.href = "/api/youtube/reconnect";
         return;
       }
       const endpoint = `/api/oauth/${platform}/auth`;
@@ -737,10 +729,7 @@ function GeneralTab() {
           return;
         }
         if (isYouTube) {
-          const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
-          window.location.href = ytCh?.id
-            ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-            : "/api/admin/yt-reconnect";
+          window.location.href = "/api/youtube/reconnect";
           return;
         }
         const endpoint = `/api/oauth/${reconnectPlatform}/auth`;

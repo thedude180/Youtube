@@ -1539,7 +1539,7 @@ app.use((req, res, next) => {
     if (origin) {
       try {
         const allowedHosts = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
-        allowedHosts.push("etgaming247.com", "localhost");
+        allowedHosts.push("localhost");
         const originHost = new URL(origin as string).hostname;
         if (!allowedHosts.some(h => originHost === h || originHost.endsWith("." + h))) {
           return res.status(403).json({ error: "Cross-origin request blocked" });

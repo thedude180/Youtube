@@ -9,6 +9,31 @@ import { eq, lt } from "drizzle-orm";
 
 const ytLogger = createLogger("youtube");
 
+export class YouTubeReconnectRequiredError extends Error {
+  constructor(message = "YouTube reconnect required") {
+    super(message);
+    this.name = "YouTubeReconnectRequiredError";
+  }
+}
+
+export function isRefreshHardFailure(error: any): boolean {
+  const status = error?.response?.status || error?.status || error?.code;
+  const message = String(
+    error?.response?.data?.error ||
+    error?.message ||
+    error ||
+    ""
+  ).toLowerCase();
+
+  return (
+    status === 400 ||
+    status === 401 ||
+    message.includes("invalid_grant") ||
+    message.includes("unauthorized_client") ||
+    message.includes("token has been expired or revoked")
+  );
+}
+
 // Throttle: only log broadcast check failures once every 10 minutes to avoid spam
 let _lastBroadcastWarnAt = 0;
 const BROADCAST_WARN_INTERVAL_MS = 30 * 60 * 1000;
@@ -413,14 +438,27 @@ export async function getAuthenticatedClient(channelId: number) {
         ytLogger.info(`[Auth] Proactive token refresh succeeded for channel ${channelId}`);
       } else {
         ytLogger.warn(`[Auth] Proactive token refresh failed for channel ${channelId}: ${result.error}`);
+        if (isRefreshHardFailure({ message: result.error })) {
+          throw new YouTubeReconnectRequiredError(
+            `YouTube token is revoked for channel ${channelId} — user must reconnect`
+          );
+        }
       }
     } catch (refreshErr) {
+      if (refreshErr instanceof YouTubeReconnectRequiredError) throw refreshErr;
+      if (isRefreshHardFailure(refreshErr)) {
+        throw new YouTubeReconnectRequiredError(
+          `YouTube token refresh threw a hard failure for channel ${channelId}`
+        );
+      }
       ytLogger.warn(`[Auth] Proactive token refresh threw for channel ${channelId}:`, refreshErr);
     }
   }
 
   if (!resolvedAccessToken) {
-    throw new Error("Channel not connected or missing access token");
+    throw new YouTubeReconnectRequiredError(
+      `Channel ${channelId} has no valid access token — YouTube reconnect required`
+    );
   }
 
   const oauth2Client = getOAuth2Client();

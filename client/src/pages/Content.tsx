@@ -402,11 +402,7 @@ function YouTubeImportSection() {
   });
 
   const connectYouTube = () => {
-    // Use admin reconnect route — bypasses dev-bypass session identity issue.
-    const ytCh = (channels || []).find((c: any) => c.platform === "youtube");
-    window.location.href = ytCh?.id
-      ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-      : "/api/admin/yt-reconnect";
+    window.location.href = "/api/youtube/reconnect";
   };
 
   if (ytChannels.length === 0) {
@@ -734,11 +730,7 @@ function LibraryTab() {
   };
 
   const handleYtBannerConnect = () => {
-    // Use admin reconnect route — bypasses dev-bypass session identity issue.
-    const ytCh = (linkedChannels || []).find((c: any) => c.platform === "youtube");
-    window.location.href = ytCh?.id
-      ? `/api/admin/channels/${ytCh.id}/reconnect-youtube`
-      : "/api/admin/yt-reconnect";
+    window.location.href = "/api/youtube/reconnect";
   };
 
   const filtered = useMemo(() => {

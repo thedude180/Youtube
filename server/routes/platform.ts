@@ -1839,32 +1839,37 @@ export async function registerPlatformRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const userChannels = await db.select({
+      // YouTube-only mode: only check the YouTube channel row
+      const ytChannels = await db.select({
         platform: channels.platform,
         platformData: channels.platformData,
         tokenExpiresAt: channels.tokenExpiresAt,
         refreshToken: channels.refreshToken,
         accessToken: channels.accessToken,
-        streamKey: channels.streamKey,
-      }).from(channels).where(eq(channels.userId, userId));
+      }).from(channels).where(
+        and(eq(channels.userId, userId), eq(channels.platform, "youtube"))
+      );
 
-      const envBasedPlatforms = ["discord", "kick", "twitch", "tiktok", "rumble"];
-      const broken = userChannels.filter(ch => {
-        const pd = (ch.platformData || {}) as any;
-        const isEnvBased = envBasedPlatforms.includes(ch.platform || "");
-        // Env-based platforms authenticate via stream key or platformData — not OAuth tokens
-        const hasEnvAuth = isEnvBased && (ch.streamKey || pd.authMethod || pd._connectionStatus === "healthy");
-        // Dev-mode sentinel tokens are always considered connected
-        const isDevSentinel = ch.accessToken === "dev_api_key_mode";
-        if (hasEnvAuth || isDevSentinel) return false;
-        if (!ch.accessToken && !ch.refreshToken) return true;
-        if (pd._connectionStatus === "expired" || pd._connectionStatus === "disconnected") return true;
-        if (ch.tokenExpiresAt && new Date(ch.tokenExpiresAt) < new Date() && !ch.refreshToken) return true;
-        return false;
+      const ytChannel = ytChannels[0];
+      let needsReconnect = false;
+
+      if (!ytChannel) {
+        needsReconnect = true;
+      } else {
+        const pd = (ytChannel.platformData || {}) as any;
+        const isDevSentinel = ytChannel.accessToken === "dev_api_key_mode";
+        if (!isDevSentinel) {
+          if (!ytChannel.accessToken && !ytChannel.refreshToken) needsReconnect = true;
+          else if (pd._connectionStatus === "expired" || pd._connectionStatus === "disconnected") needsReconnect = true;
+          else if (ytChannel.tokenExpiresAt && new Date(ytChannel.tokenExpiresAt) < new Date() && !ytChannel.refreshToken) needsReconnect = true;
+        }
+      }
+
+      res.json({
+        needsReconnect,
+        platforms: needsReconnect ? ["youtube"] : [],
+        count: needsReconnect ? 1 : 0,
       });
-
-      const platforms = [...new Set(broken.map(ch => ch.platform))];
-      res.json({ needsReconnect: platforms.length > 0, platforms, count: platforms.length });
     } catch (err) {
       logger.error("[NeedsReconnect] Error:", err);
       res.json({ needsReconnect: false, platforms: [], count: 0 });
@@ -1872,17 +1877,13 @@ export async function registerPlatformRoutes(app: Express) {
   });
 
   app.get("/api/oauth/status", async (_req, res) => {
-    const status = await cached(`oauth-status`, 30, async () => {
-      const allOAuth = getAllOAuthPlatforms();
-      const result: Record<string, { hasOAuth: boolean; configured: boolean }> = {};
-      for (const p of allOAuth) {
-        result[p] = { hasOAuth: true, configured: isPlatformOAuthConfigured(p) };
-      }
-      result["youtube"] = { hasOAuth: true, configured: true };
-      result["youtubeshorts"] = { hasOAuth: true, configured: true };
-      return result;
+    // YouTube-only mode: only report YouTube OAuth status
+    res.json({
+      youtube: {
+        configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+        hasOAuth: true,
+      },
     });
-    res.json(status);
   });
 
   app.post("/api/oauth/x/manual-token", async (req, res) => {
@@ -2573,6 +2574,48 @@ export async function registerPlatformRoutes(app: Express) {
       res.status(500).json({ success: false, error: "Failed to refresh all connections" });
     }
   });
+
+  // Normal authenticated user route to start YouTube OAuth reconnect flow.
+  // This is the standard reconnect path — not an admin route.
+  app.get("/api/youtube/reconnect", async (req: any, res) => {
+    const userId =
+      req.user?.claims?.sub ||
+      req.user?.id ||
+      (req.session as any)?.youtubeOAuthUserId;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Login required to reconnect YouTube" });
+    }
+
+    try {
+      (req.session as any).youtubeOAuthUserId = userId;
+
+      const authUrl = getAuthUrl(userId);
+
+      req.session.save((err: any) => {
+        if (err) {
+          logger.error("[YouTubeReconnect] Session save failed:", err);
+          return res.status(500).json({ message: "Could not start YouTube reconnect" });
+        }
+        return res.redirect(authUrl);
+      });
+    } catch (error) {
+      logger.error("[YouTubeReconnect] Failed:", error);
+      return res.status(500).json({ message: "Could not start YouTube reconnect" });
+    }
+  });
+
+  // Dev-only: YouTube upload health check
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/dev/youtube-upload-health", async (req: any, res) => {
+      res.json({
+        ok: true,
+        youtubeOnly: true,
+        googleClientConfigured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+        sessionUserPresent: Boolean(req.user || (req.session as any)?.userId),
+      });
+    });
+  }
 
   // DEV-ONLY: Directly toggle the in-memory live gate + seed a live stream row.
   // Used by the testing harness to simulate an active livestream without going
