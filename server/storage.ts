@@ -442,6 +442,7 @@ export class DatabaseStorage implements IStorage {
         'creator_credibility_scores', 'channel_immune_events',
         'source_quality_profiles', 'archive_master_records',
         'channel_maturity_scores', 'live_capability_snapshots', 'multistream_destinations',
+        'back_catalog_videos', 'youtube_output_metrics',
       ];
       for (const table of channelTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
@@ -478,6 +479,7 @@ export class DatabaseStorage implements IStorage {
       const srcTables = [
         'autopilot_queue', 'content_clips', 'repurposed_content', 'vod_cuts',
         'content_atoms', 'clip_queue_items', 'moment_genome_classifications', 'content_experiments',
+        'longform_extraction_segments',
       ];
       for (const table of srcTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE source_video_id IN ${videoSubquery}`);
