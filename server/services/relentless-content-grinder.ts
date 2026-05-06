@@ -6,6 +6,7 @@ import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { getNextShortPublishTime, getNextLongFormPublishTime } from "./youtube-output-schedule";
 
 const logger = createLogger("content-grinder");
 
@@ -29,27 +30,6 @@ function extractJsonFromResponse(raw: string): any {
 // to avoid hammering the budget check on every video in the loop.
 const thumbnailBudgetExhaustedAt: Map<string, number> = new Map();
 
-async function getOptimalClipScheduleTime(userId: string, queuePosition: number): Promise<Date> {
-  try {
-    const { getAudienceDrivenTime } = await import("../human-behavior-engine");
-    const baseTime = await getAudienceDrivenTime({
-      platform: "youtube",
-      userId,
-      contentType: "recycle",
-      urgency: "low",
-    });
-    // 6-hour slots — each Short gets a real window to breathe before the next goes live
-    const offsetMs = queuePosition * (6 * 3600_000 + Math.random() * 3600_000);
-    const scheduled = new Date(baseTime.getTime() + offsetMs);
-    if (scheduled.getTime() < Date.now() + 60_000) {
-      scheduled.setTime(Date.now() + (queuePosition + 1) * 6 * 3600_000 + Math.random() * 3600_000);
-    }
-    return scheduled;
-  } catch (err: any) {
-    logger.warn(`Audience-driven scheduling failed, using fallback: ${err.message}`);
-    return new Date(Date.now() + (queuePosition + 1) * 6 * 3600_000 + Math.random() * 3600_000);
-  }
-}
 let grindInterval: ReturnType<typeof setInterval> | null = null;
 
 interface GrindState {
@@ -313,7 +293,7 @@ Return raw JSON only (no markdown code blocks):
       if (moment.endSec <= moment.startSec || moment.endSec - moment.startSec > 59) continue;
       if (moment.endSec - moment.startSec < 8) continue;
 
-      const scheduleTime = await getOptimalClipScheduleTime(userId, queued);
+      const scheduleTime = await getNextShortPublishTime(userId);
       const title = String(moment.title || `${gameName} Moment`).substring(0, 90) + " #Shorts";
       const description = `${moment.hookDescription || ""}\n\n${moment.retentionStrategy || ""}\n\nPure PS5 gameplay — no commentary.\n\n#Shorts #PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`;
 
@@ -361,29 +341,8 @@ Return raw JSON only (no markdown code blocks):
 const LONG_FORM_DURATION_TARGETS_SEC = [480, 600, 900, 1800, 2700, 3600];
 // Minimum gap between long-form clip extractions for the same video (30 days).
 const LONG_FORM_REEXTRACT_GAP_MS = 30 * 86400_000;
-// Minimum gap between consecutive long-form uploads for a user (48 hours — 2 full days to breathe).
-const LONG_FORM_UPLOAD_GAP_MS = 48 * 3600_000;
-
-async function getOptimalLongFormScheduleTime(userId: string): Promise<Date> {
-  // Find the furthest-future long-form clip already in the queue for this user.
-  const latest = await db.select({ scheduledAt: autopilotQueue.scheduledAt })
-    .from(autopilotQueue)
-    .where(and(
-      eq(autopilotQueue.userId, userId),
-      eq(autopilotQueue.status, "scheduled"),
-      sql`${autopilotQueue.metadata}->>'contentType' = 'long-form-clip'`,
-    ))
-    .orderBy(desc(autopilotQueue.scheduledAt))
-    .limit(1);
-
-  const baseMs = latest.length > 0 && latest[0].scheduledAt
-    ? Math.max(new Date(latest[0].scheduledAt).getTime(), Date.now())
-    : Date.now();
-
-  // Add 48 h base + up to 24 h jitter so the schedule looks organic
-  const gapMs = LONG_FORM_UPLOAD_GAP_MS + Math.random() * 24 * 3600_000;
-  return new Date(baseMs + gapMs);
-}
+// Long-form scheduling is handled by getNextLongFormPublishTime() in youtube-output-schedule.ts.
+// Cadence: 1 per local calendar day, 17:30–19:30 window, ≥ 20 h gap, 7–28 min jitter.
 
 /**
  * Identifies 1 compelling long-form clip (8-60 min) from the video and queues
@@ -476,7 +435,7 @@ Return raw JSON only (no markdown):
       return 0;
     }
 
-    const scheduledAt = await getOptimalLongFormScheduleTime(userId);
+    const scheduledAt = await getNextLongFormPublishTime(userId);
     const title = String(parsed.title).substring(0, 90);
     const description = String(parsed.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`).substring(0, 5000);
 

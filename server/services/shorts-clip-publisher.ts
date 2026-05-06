@@ -40,6 +40,7 @@ import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
+import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate } from "./youtube-output-schedule";
 
 const logger = createLogger("shorts-publisher");
 
@@ -274,9 +275,11 @@ async function uploadToYouTube(opts: {
       description: opts.description.slice(0, 5000),
       tags: [...opts.tags.slice(0, 15), "Shorts", "Gaming"],
       categoryId: "20",
-      // If publishing in the future use YouTube's built-in scheduler (publishAt)
-      // so all items can be batch-uploaded now and go live at their spaced times.
-      privacyStatus: "public",
+      // YouTube requires privacyStatus=private for scheduled future uploads.
+      // Immediate uploads (no scheduledStartTime or time is past) use public.
+      privacyStatus: (opts.scheduledStartTime && new Date(opts.scheduledStartTime).getTime() > Date.now() + 60_000)
+        ? "private"
+        : "public",
       scheduledStartTime: opts.scheduledStartTime,
       videoFilePath: opts.videoFilePath,
       enableMonetization: true,
@@ -341,6 +344,18 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         await db.update(autopilotQueue)
           .set({ status: "skipped", errorMessage: "YouTube-only mode: non-YouTube platform" })
           .where(eq(autopilotQueue.id, item.id));
+        skipped++;
+        continue;
+      }
+
+      // Daily cap safety net — max MAX_SHORTS_PER_DAY Shorts per local calendar day.
+      // Counts items already uploaded (processing/published) for the item's scheduled date.
+      const shortsAlreadyDone = await countUploadedShortsForDate(
+        userId,
+        new Date(item.scheduledAt ?? Date.now()),
+      );
+      if (shortsAlreadyDone >= MAX_SHORTS_PER_DAY) {
+        logger.info(`[YouTubeSchedule] Shorts daily cap (${MAX_SHORTS_PER_DAY}/day) reached for scheduled date — deferring item ${item.id}`);
         skipped++;
         continue;
       }
@@ -420,6 +435,13 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   ? `${sourceTitle}\n\n${resolvedYoutubeId ? `Full video → https://youtu.be/${resolvedYoutubeId}` : ""}\n\n#Shorts #Gaming #PS5 #ETGaming247`
                   : `${sourceTitle}\n\n#Shorts #Gaming #PS5`;
 
+                const shortScheduledAt = item.scheduledAt ? new Date(item.scheduledAt) : null;
+                const shortIsScheduled = shortScheduledAt && shortScheduledAt.getTime() > Date.now() + 60_000;
+
+                if (shortScheduledAt) {
+                  logger.info(`[YouTubeSchedule] Short scheduled for ${shortScheduledAt.toISOString()}`, { itemId: item.id });
+                }
+
                 result = await uploadToYouTube({
                   channelId: ytChannel.id,
                   title: titleCaption.slice(0, 100),
@@ -428,9 +450,16 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   videoFilePath: encodedPath,
                   // Pass the item's original scheduledAt so YouTube publishes it
                   // at the right spaced time rather than immediately.
-                  scheduledStartTime: item.scheduledAt ? item.scheduledAt.toISOString() : undefined,
+                  scheduledStartTime: shortScheduledAt ? shortScheduledAt.toISOString() : undefined,
                 });
 
+                if (result.success) {
+                  if (shortIsScheduled) {
+                    logger.info(`[YouTubeSchedule] Short uploaded as private scheduled publish — publishAt ${shortScheduledAt!.toISOString()}`);
+                  } else {
+                    logger.info("[YouTubeSchedule] Short published immediately as public");
+                  }
+                }
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });
               } finally {
                 if (fs.existsSync(encodedPath)) fs.unlinkSync(encodedPath);

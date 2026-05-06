@@ -30,6 +30,7 @@ import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
+import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate } from "./youtube-output-schedule";
 
 const logger = createLogger("long-form-publisher");
 
@@ -204,6 +205,18 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         continue;
       }
 
+      // Daily cap safety net — max MAX_LONGFORM_PER_DAY long-form uploads per local calendar day.
+      // Counts items already uploaded (processing/published) for the item's scheduled date.
+      const lfAlreadyDone = await countUploadedLongFormForDate(
+        item.userId,
+        new Date(item.scheduledAt ?? Date.now()),
+      );
+      if (lfAlreadyDone >= MAX_LONGFORM_PER_DAY) {
+        logger.info(`[YouTubeSchedule] Long-form daily cap (${MAX_LONGFORM_PER_DAY}/day) reached for scheduled date — deferring item ${item.id}`);
+        skipped++;
+        continue;
+      }
+
       // Apply duration experiment — cap the actual cut to the assigned bucket
       // so each upload tests a specific length (8/10/15/20/30/45/60 min).
       const experimentDurationSec = pickExperimentDurationSec(
@@ -283,18 +296,31 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         const fullVideoUrl = resolvedYoutubeId ? `\n\nFull recording → https://youtu.be/${resolvedYoutubeId}` : "";
         const description = `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`.substring(0, 5000);
 
+        const lfScheduledAt  = item.scheduledAt ? new Date(item.scheduledAt) : null;
+        const lfIsScheduled  = lfScheduledAt && lfScheduledAt.getTime() > Date.now() + 60_000;
+
+        if (lfScheduledAt) {
+          logger.info(`[YouTubeSchedule] Long-form scheduled for ${lfScheduledAt.toISOString()}`, { itemId: item.id });
+        }
+
         const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
           title,
           description,
           tags: [...tags.slice(0, 12), "Gaming", "PS5", "NoCommentary", gameName],
           categoryId: "20",
-          // Pass scheduledAt as YouTube's publishAt — YouTube releases the video
-          // at the right time automatically; we can batch-upload everything now.
-          privacyStatus: "public",
-          scheduledStartTime: item.scheduledAt ? item.scheduledAt.toISOString() : undefined,
+          // YouTube requires privacyStatus=private for scheduled future uploads.
+          // If scheduledAt is past/now, upload immediately as public.
+          privacyStatus: lfIsScheduled ? "private" : "public",
+          scheduledStartTime: lfScheduledAt ? lfScheduledAt.toISOString() : undefined,
           videoFilePath: encodedPath,
           enableMonetization: true,
         });
+
+        if (lfIsScheduled) {
+          logger.info(`[YouTubeSchedule] Long-form uploaded as private scheduled publish — publishAt ${lfScheduledAt!.toISOString()}`);
+        } else {
+          logger.info("[YouTubeSchedule] Long-form published immediately as public");
+        }
 
         if (!uploadResult?.youtubeId) throw new Error("Upload returned no YouTube ID");
 

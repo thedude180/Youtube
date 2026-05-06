@@ -925,11 +925,21 @@ export async function uploadVideoToYouTube(
     statusBody.publicStatsViewable = true;
   }
 
-  if (options.scheduledStartTime && privacyStatus === "public") {
+  if (options.scheduledStartTime) {
     const scheduledDate = new Date(options.scheduledStartTime);
-    if (scheduledDate.getTime() > Date.now() + 60_000) {
+    if (isNaN(scheduledDate.getTime())) {
+      console.warn(`[YouTubeSchedule] Invalid scheduledStartTime "${options.scheduledStartTime}" — ignored`);
+    } else if (scheduledDate.getTime() > Date.now() + 60_000) {
+      // YouTube rejects publishAt on public videos — must be private.
+      if (statusBody.privacyStatus === "public") {
+        console.info(`[YouTubeSchedule] Overriding public→private for scheduled upload: publishAt ${scheduledDate.toISOString()}`);
+      }
       statusBody.privacyStatus = "private";
       statusBody.publishAt = scheduledDate.toISOString();
+      console.info(`[YouTubeSchedule] Upload scheduled private until ${scheduledDate.toISOString()}`);
+    } else {
+      // scheduledStartTime is in the past — publish immediately at requested privacy level
+      console.debug(`[YouTubeSchedule] scheduledStartTime is past/now — publishing immediately as ${statusBody.privacyStatus}`);
     }
   }
 

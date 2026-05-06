@@ -8,7 +8,8 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "schedule:audit": "bash scripts/audit-youtube-output-schedule.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
