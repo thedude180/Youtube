@@ -66,11 +66,11 @@ function isValidTz(tz: string): boolean {
 async function getUserTz(userId: string): Promise<string> {
   try {
     const [row] = await db
-      .select({ metadata: channels.metadata })
+      .select({ platformData: channels.platformData })
       .from(channels)
       .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
       .limit(1);
-    const raw = row?.metadata as any;
+    const raw = row?.platformData as any;
     const tz: string | undefined = raw?.timezone ?? raw?.userTimezone;
     if (tz && isValidTz(tz)) return tz;
   } catch { /* fallthrough */ }
