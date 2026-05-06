@@ -9977,3 +9977,114 @@ export const oauthNonces = pgTable("oauth_nonces", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ── YouTube Longform Extraction Segments ──────────────────────────────────────
+// Tracks which time-ranges of a source video have already been extracted as
+// long-form clips, so the same footage is never queued twice.
+export const longformExtractionSegments = pgTable("longform_extraction_segments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sourceVideoId: integer("source_video_id").notNull().references(() => videos.id),
+  startSec: integer("start_sec").notNull(),
+  endSec: integer("end_sec").notNull(),
+  durationSec: integer("duration_sec").notNull(),
+  title: text("title"),
+  description: text("description"),
+  tags: text("tags").array().default([]),
+  gameName: text("game_name"),
+  qualityScore: integer("quality_score").default(5),
+  retentionScore: integer("retention_score").default(5),
+  hookDescription: text("hook_description"),
+  endingType: text("ending_type"),
+  contentCategory: text("content_category"),
+  status: text("status").notNull().default("pending"),
+  queueItemId: integer("queue_item_id"),
+  youtubeVideoId: text("youtube_video_id"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("lfe_user_idx").on(t.userId),
+  index("lfe_source_idx").on(t.sourceVideoId),
+  index("lfe_status_idx").on(t.status),
+]);
+export type LongformExtractionSegment = typeof longformExtractionSegments.$inferSelect;
+
+// ── YouTube Output Metrics ────────────────────────────────────────────────────
+// Performance data collected from YouTube Analytics after each upload.
+// Powers the duration-preference learner and posting-window optimizer.
+export const youtubeOutputMetrics = pgTable("youtube_output_metrics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  sourceVideoId: integer("source_video_id"),
+  contentType: text("content_type").notNull(),
+  durationSec: integer("duration_sec"),
+  durationBucket: text("duration_bucket"),
+  gameName: text("game_name"),
+  postingWindow: text("posting_window"),
+  impressions: integer("impressions").default(0),
+  ctr: real("ctr").default(0),
+  views: integer("views").default(0),
+  averageViewDurationSec: integer("average_view_duration_sec").default(0),
+  averageViewPercent: real("average_view_percent").default(0),
+  watchTimeMinutes: real("watch_time_minutes").default(0),
+  likes: integer("likes").default(0),
+  comments: integer("comments").default(0),
+  subscribersGained: integer("subscribers_gained").default(0),
+  retentionDropOffSec: integer("retention_drop_off_sec"),
+  first24hViews: integer("first_24h_views").default(0),
+  first72hViews: integer("first_72h_views").default(0),
+  sevenDayViews: integer("seven_day_views").default(0),
+  performanceScore: real("performance_score").default(0),
+  measuredAt: timestamp("measured_at"),
+  publishedAt: timestamp("published_at"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("yom_user_idx").on(t.userId),
+  index("yom_type_idx").on(t.contentType),
+  index("yom_bucket_idx").on(t.durationBucket),
+  index("yom_game_idx").on(t.gameName),
+  index("yom_ytid_idx").on(t.youtubeVideoId),
+]);
+export type YoutubeOutputMetric = typeof youtubeOutputMetrics.$inferSelect;
+
+// ── Learning Events ───────────────────────────────────────────────────────────
+// General event bus for the learning brain — every subsystem emits events here.
+export const learningEvents = pgTable("learning_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  sourceAgent: text("source_agent"),
+  data: jsonb("data").$type<Record<string, any>>().default({}),
+  outcome: text("outcome"),
+  performanceDelta: real("performance_delta"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("le_user_idx").on(t.userId),
+  index("le_type_idx").on(t.eventType),
+  index("le_created_idx").on(t.createdAt),
+]);
+export type LearningEvent = typeof learningEvents.$inferSelect;
+
+// ── Livestream Learning Events ────────────────────────────────────────────────
+// Records what happened during a livestream so the copilot can improve.
+export const livestreamLearningEvents = pgTable("livestream_learning_events", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  streamId: integer("stream_id"),
+  eventType: text("event_type").notNull(),
+  messageId: integer("message_id"),
+  outcome: text("outcome"),
+  chatStyle: text("chat_style"),
+  responsePattern: text("response_pattern"),
+  viewerRetained: boolean("viewer_retained"),
+  data: jsonb("data").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("lle_user_idx").on(t.userId),
+  index("lle_stream_idx").on(t.streamId),
+  index("lle_type_idx").on(t.eventType),
+]);
+export type LivestreamLearningEvent = typeof livestreamLearningEvents.$inferSelect;

@@ -93,6 +93,7 @@ function _devFallbackReply(message: string): string {
   return generic[Math.floor(Math.random() * generic.length)];
 }
 
+// YouTube-only platform style — non-YouTube entries removed per YouTube-only enforcement.
 const PLATFORM_CHAT_STYLE: Record<string, string> = {
   youtube: `YouTube Live Chat style:
 - Casual energy, sometimes use emote-like words
@@ -100,32 +101,6 @@ const PLATFORM_CHAT_STYLE: Record<string, string> = {
 - Reference the stream context naturally
 - Use viewer's name sometimes
 - React to stream moments when relevant`,
-
-  twitch: `Twitch Chat style:
-- Very casual, meme-aware, emote-heavy culture
-- Keep it short - Twitch chat moves FAST
-- Use Twitch slang naturally (W, L, Pog, etc)
-- Reference subs/bits if mentioned
-- Sound like you're glancing at chat between content`,
-
-  kick: `Kick Chat style:
-- Similar energy to Twitch but slightly more raw
-- Very casual, real talk vibes
-- Keep responses punchy and quick
-- Community-first feel`,
-
-  discord: `Discord style:
-- More conversational than live chat
-- Can be slightly longer (2-3 sentences ok)
-- Insider community vibe
-- Sound like you're chatting with friends`,
-
-  tiktok: `TikTok LIVE style:
-- Ultra casual, Gen Z energy
-- Very short responses
-- React to the moment
-- Keep it fun and light`,
-
 };
 
 interface LiveChatResponse {

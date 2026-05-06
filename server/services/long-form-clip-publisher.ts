@@ -217,12 +217,26 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         continue;
       }
 
-      // Apply duration experiment — cap the actual cut to the assigned bucket
-      // so each upload tests a specific length (8/10/15/20/30/45/60 min).
-      const experimentDurationSec = pickExperimentDurationSec(
-        rawDurationSec,
-        itemMeta.experimentDurationMin as number | undefined,
-      );
+      // Apply duration — prefer the learner's recommendation once enough data
+      // exists; fall back to the random experiment picker otherwise.
+      // If the queue item already carries an explicit experimentDurationMin (set
+      // at queue time) that value is always honoured so retries stay consistent.
+      let experimentDurationSec: number;
+      if (itemMeta.experimentDurationMin && Number(itemMeta.experimentDurationMin) >= 8) {
+        experimentDurationSec = Number(itemMeta.experimentDurationMin) * 60;
+      } else {
+        try {
+          const { chooseBestLongFormDuration } = await import("./youtube-performance-learner");
+          const gameName = (itemMeta.gameName as string) || "Gaming";
+          experimentDurationSec = await chooseBestLongFormDuration(
+            item.userId,
+            gameName,
+            rawDurationSec,
+          );
+        } catch {
+          experimentDurationSec = pickExperimentDurationSec(rawDurationSec, undefined);
+        }
+      }
       const experimentDurationMin = Math.round(experimentDurationSec / 60);
       // Actual cut uses the experiment duration, not the full raw segment
       const durationSec = Math.min(rawDurationSec, experimentDurationSec);

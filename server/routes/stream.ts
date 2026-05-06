@@ -1203,4 +1203,148 @@ export function registerStreamRoutes(app: Express) {
       res.json([]);
     }
   });
+
+  // ── YouTube Autopilot Output Status ─────────────────────────────────────────
+  app.get("/api/youtube/output-status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const [
+        { getDailyYouTubeOutputCounts, getNextShortPublishTime, getNextLongFormPublishTime },
+        { getBucketRankings, getWindowRankings },
+        { getLearningSummary },
+        { getCopilotStatus },
+      ] = await Promise.all([
+        import("../services/youtube-output-schedule"),
+        import("../services/youtube-performance-learner"),
+        import("../services/youtube-learning-brain"),
+        import("../services/youtube-live-copilot"),
+      ]);
+
+      const [counts, nextShort, nextLongForm, buckets, windows, learningSummary, copilotStatus] =
+        await Promise.all([
+          getDailyYouTubeOutputCounts(userId),
+          getNextShortPublishTime(userId),
+          getNextLongFormPublishTime(userId),
+          getBucketRankings(userId),
+          getWindowRankings(userId),
+          getLearningSummary(userId),
+          getCopilotStatus(userId),
+        ]);
+
+      // Queue backlog
+      const { autopilotQueue } = await import("@shared/schema");
+      const { eq, and, inArray } = await import("drizzle-orm");
+      const { db } = await import("../db");
+      const { sql: sqlExpr } = await import("drizzle-orm");
+
+      const [queueStats] = await db.select({
+        scheduled: sqlExpr<number>`count(*) filter (where status = 'scheduled')::int`,
+        failed: sqlExpr<number>`count(*) filter (where status = 'failed')::int`,
+      }).from(autopilotQueue).where(eq(autopilotQueue.userId, userId));
+
+      // Quota status
+      let quotaStatus = "ok";
+      try {
+        const { isQuotaBreakerTripped } = await import("../services/youtube-quota-tracker");
+        if (isQuotaBreakerTripped()) quotaStatus = "exhausted";
+      } catch { /* ok */ }
+
+      // Active livestream
+      const { streams } = await import("@shared/schema");
+      const { desc: descOp } = await import("drizzle-orm");
+      const [activeStream] = await db.select({ id: streams.id, status: streams.status, title: streams.title })
+        .from(streams)
+        .where(and(eq(streams.userId, userId), eq(streams.status, "live")))
+        .orderBy(descOp(streams.startedAt))
+        .limit(1);
+
+      const longFormBuckets = buckets.filter(b => b.contentType === "long_form");
+      const shortBuckets = buckets.filter(b => b.contentType === "short");
+
+      res.json({
+        today: {
+          shortsScheduled: counts.shorts,
+          shortsMax: 3,
+          longFormScheduled: counts.longForm,
+          longFormMax: 1,
+          total: counts.total,
+        },
+        nextPublish: {
+          shortAt: nextShort.toISOString(),
+          longFormAt: nextLongForm.toISOString(),
+        },
+        queue: {
+          backlog: queueStats?.scheduled ?? 0,
+          failed: queueStats?.failed ?? 0,
+        },
+        quota: { status: quotaStatus },
+        learning: {
+          summary: learningSummary.summary,
+          lastCycleAt: learningSummary.lastCycleAt,
+          totalEvents: learningSummary.totalEvents,
+          topInsight: learningSummary.topInsight,
+          bestDurationBucket: longFormBuckets[0]?.bucket ?? null,
+          worstDurationBucket: longFormBuckets.at(-1)?.bucket ?? null,
+          bestShortBucket: shortBuckets[0]?.bucket ?? null,
+          bestPostingWindow: windows[0]?.window ?? null,
+          buckets: longFormBuckets.slice(0, 5),
+          windows: windows.slice(0, 3),
+        },
+        livestream: {
+          active: !!activeStream,
+          streamId: activeStream?.id ?? null,
+          title: activeStream?.title ?? null,
+        },
+        copilot: copilotStatus,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to fetch output status" });
+    }
+  }));
+
+  // ── Copilot mode management ──────────────────────────────────────────────────
+  app.post("/api/youtube/copilot/mode", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { mode } = req.body;
+    if (!["off", "suggest", "auto-safe", "manual-approval"].includes(mode)) {
+      return res.status(400).json({ error: "Invalid mode" });
+    }
+    const { setCopilotMode } = await import("../services/youtube-live-copilot");
+    await setCopilotMode(userId, mode);
+    res.json({ success: true, mode });
+  }));
+
+  // ── Pre-live stream preparation ──────────────────────────────────────────────
+  app.post("/api/youtube/copilot/prepare/:streamId", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const streamId = parseInt(req.params.streamId, 10);
+    if (isNaN(streamId)) return res.status(400).json({ error: "Invalid streamId" });
+    const { prepareLiveStream } = await import("../services/youtube-live-copilot");
+    const prep = await prepareLiveStream(userId, streamId);
+    res.json(prep);
+  }));
+
+  // ── After-stream copilot processing ─────────────────────────────────────────
+  app.post("/api/youtube/copilot/after-stream/:streamId", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const streamId = parseInt(req.params.streamId, 10);
+    if (isNaN(streamId)) return res.status(400).json({ error: "Invalid streamId" });
+    const { afterStreamCopilot } = await import("../services/youtube-live-copilot");
+    const result = await afterStreamCopilot(userId, streamId);
+    res.json(result);
+  }));
+
+  // ── Trigger daily learning cycle ─────────────────────────────────────────────
+  app.post("/api/youtube/learning/run-cycle", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { runDailyLearningCycle } = await import("../services/youtube-learning-brain");
+    const report = await runDailyLearningCycle(userId);
+    res.json(report ?? { message: "Cycle already ran recently — no action needed" });
+  }));
 }

@@ -114,9 +114,25 @@ async function grindUserContent(userId: string): Promise<GrindState> {
         state.clipsQueued += newClips;
       }
 
-      // Also extract long-form clips (5-60 min) for length experimentation.
-      // Capped at 1 long-form clip per video per grind cycle to control cost.
-      const lfClips = await extractLongFormMoments(userId, video);
+      // Extract long-form clips. For source videos > 60 min, the multi-segmenter
+      // identifies multiple non-overlapping 8-60 min segments and tracks coverage
+      // so the same footage is never queued twice.  For shorter videos the single-
+      // segment extractor runs as before.
+      const vMeta = (video.metadata as any) || {};
+      const vDurSec = vMeta.durationSec || parseDurationToSeconds(vMeta.duration) || 0;
+      let lfClips = 0;
+      if (vDurSec > 3600) {
+        try {
+          const { queueLongFormSegments, hasUnminedFootage } = await import("./youtube-longform-segmenter");
+          const canMine = await hasUnminedFootage(userId, video.id, vDurSec);
+          if (canMine) lfClips = await queueLongFormSegments(userId, video.id);
+        } catch (segErr: any) {
+          logger.warn(`[ContentGrinder] Segmenter failed for video ${video.id}: ${segErr.message?.slice(0, 200)}`);
+          lfClips = await extractLongFormMoments(userId, video); // fallback to single-segment
+        }
+      } else {
+        lfClips = await extractLongFormMoments(userId, video);
+      }
       state.longFormClipsQueued += lfClips;
 
       const seoResult = await viralSEORefresh(userId, video);

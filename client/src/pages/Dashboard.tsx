@@ -22,6 +22,7 @@ import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
 import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
+import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 
@@ -438,6 +439,8 @@ export default function TeamDashboard() {
         ) : (
           <DailyBriefingSection briefing={operatorBrief} />
         )}
+
+        <YouTubeAutopilotStatus />
 
         {operatorBrief?.topActions?.length > 0 && (
           <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-top-actions">
