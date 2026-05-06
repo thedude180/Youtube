@@ -780,6 +780,33 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] ⚠️  youtube-channel-clone heal failed: ${healErr.message}\n`);
     }
 
+    // 4e-purge. Delete every non-YouTube channel for the real user.
+    //
+    // Strategy: ETGaming247 is YouTube-only.  Rumble, Twitch, Kick, Discord,
+    // TikTok, and the separate 'youtubeshorts' rows are all dead weight — they
+    // can't publish, they confuse the publisher routing, and they generate
+    // spurious "token expired" alerts.  Keep ONLY platform='youtube'.
+    //
+    // The Shorts publisher already queries platform IN ('youtube','youtubeshorts')
+    // so after this purge it will route all Shorts through the single youtube row.
+    try {
+      const nonYtResult = await db.execute(
+        sql`
+          DELETE FROM channels
+          WHERE user_id = ${REAL_USER_ID}
+            AND platform != 'youtube'
+        `
+      );
+      const nonYtCount = (nonYtResult as any)?.rowCount ?? 0;
+      if (Number(nonYtCount) > 0) {
+        process.stdout.write(`[prod-heal] ✓  Deleted ${nonYtCount} non-YouTube channel row(s) — YouTube-only mode enforced\n`);
+      } else {
+        process.stdout.write(`[prod-heal] ✓  Channel table already YouTube-only — nothing to purge\n`);
+      }
+    } catch (nonYtErr: any) {
+      process.stdout.write(`[prod-heal] ⚠️  Non-YouTube channel purge failed: ${nonYtErr.message}\n`);
+    }
+
     // 4e. YouTube OAuth token check — emit a clear startup warning if the real
     //     ET Gaming YouTube channel has no valid OAuth tokens.  Without tokens the
     //     entire upload pipeline is blocked; this message makes the root cause
