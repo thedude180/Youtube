@@ -23,6 +23,8 @@ const GOOGLE_PLATFORMS = new Set(["youtube", "youtubeshorts"]);
 
 async function refreshTokenIfNeeded(channel: any): Promise<string | null> {
   if (!channel.accessToken) return null;
+  // YouTube-only: skip token refresh entirely for disabled platforms.
+  if (!GOOGLE_PLATFORMS.has(channel.platform)) return channel.accessToken;
 
   if (channel.tokenExpiresAt && new Date(channel.tokenExpiresAt) > new Date(Date.now() + 5 * 60 * 1000)) {
     return channel.accessToken;
@@ -380,71 +382,24 @@ export async function executePublish(
   content: string,
   metadata?: any,
 ): Promise<PublishResult> {
+  // YouTube-only: block any non-YouTube platform that somehow bypassed publishToplatform().
+  // This is a second line of defence — publishToplatform() already enforces the allowlist.
+  const EXECUTE_ALLOWED = new Set(["youtube", "youtubeshorts", "youtube_shorts", "youtube-shorts"]);
+  if (!EXECUTE_ALLOWED.has(platform)) {
+    return { success: false, platform, error: `Platform ${platform} is disabled — YouTube-only mode. (410)` };
+  }
+
   const formatted = formatContentForPlatform(platform, content, metadata);
-  const formattedContent = formatted.content;
   if (formatted.warnings.length > 0) {
     logger.info(`Format warnings for ${platform}`, { warnings: formatted.warnings });
   }
 
-  if (platform === "youtube" || platform === "youtubeshorts") {
-    return {
-      success: false,
-      platform,
-      skipped: true,
-      error: "YouTube publishing uses the dedicated YouTube Data API pipeline. Content is pushed via SEO optimization and metadata updates automatically.",
-    };
-  }
-
-  // DISABLED: TikTok publisher — YouTube-only mode.
-  if (platform === "tiktok") {
-    return { success: false, platform: "tiktok", error: "YouTube-only mode — TikTok publishing disabled" };
-  }
-
-  if (platform === "rumble") {
-    return {
-      success: false,
-      platform: "rumble",
-      skipped: true,
-      error: "Rumble is configured for AI-driven streaming only. Content distribution is handled through other platforms.",
-    };
-  }
-
-  let userChannels: Array<typeof channels.$inferSelect>;
-  try {
-    userChannels = await db.select().from(channels)
-      .where(and(eq(channels.userId, userId), eq(channels.platform, platform)));
-  } catch (dbErr: any) {
-    logger.warn(`[Publisher] Channel lookup DB error for ${platform} (fail-open → retry):`, dbErr?.message);
-    return { success: false, platform, error: `Channel lookup failed (transient DB error): ${dbErr?.message}` };
-  }
-
-  const channel = userChannels.find(c => c.accessToken);
-  if (!channel) {
-    return {
-      success: false,
-      platform,
-      error: `No connected ${platform} account with valid credentials. Connect your account in Settings > Channels.`,
-    };
-  }
-
-  const accessToken = await refreshTokenIfNeeded(channel);
-  if (!accessToken) {
-    return {
-      success: false,
-      platform,
-      error: `${platform} authentication has expired or been revoked. Please reconnect your ${platform} account in Settings > Channels.`,
-    };
-  }
-
-  switch (platform) {
-    case "discord":
-      return postToDiscord(accessToken, formattedContent, channel);
-    case "kick":
-      return postToKick(accessToken, formattedContent, channel);
-    case "twitch":
-      return { success: false, platform: "twitch", error: "Twitch is configured for AI-driven streaming only. Content distribution is handled through other platforms." };
-    default:
-      return { success: false, platform, error: `Publishing not yet supported for ${platform}` };
-  }
+  // YouTube publishing uses the dedicated YouTube Data API pipeline, not this path.
+  return {
+    success: false,
+    platform,
+    skipped: true,
+    error: "YouTube publishing uses the dedicated YouTube Data API pipeline. Content is pushed via SEO optimization and metadata updates automatically.",
+  };
 }
 

@@ -160,7 +160,7 @@ export function registerStreamRoutes(app: Express) {
       title: z.string().min(1),
       description: z.string().optional(),
       category: z.string().optional(),
-      platforms: z.array(z.string()).optional(),
+      platforms: z.array(z.enum(["youtube"])).default(["youtube"]),
       scheduledFor: z.string().optional().nullable(),
       status: z.string().optional(),
     }).passthrough();
@@ -201,7 +201,7 @@ export function registerStreamRoutes(app: Express) {
       title: z.string().min(1).optional(),
       description: z.string().optional(),
       category: z.string().optional(),
-      platforms: z.array(z.string()).optional(),
+      platforms: z.array(z.enum(["youtube"])).optional(),
       status: z.string().optional(),
       scheduledFor: z.string().optional().nullable(),
     }).passthrough();
@@ -295,7 +295,7 @@ export function registerStreamRoutes(app: Express) {
         userId,
         type: "stream_live",
         title: "Stream is LIVE",
-        message: `"${stream.title}" — all platform automations triggered`,
+        message: `"${stream.title}" — YouTube automation triggered`,
         severity: "info",
       });
 
@@ -309,8 +309,8 @@ export function registerStreamRoutes(app: Express) {
         { name: "compliance_check", status: "pending" },
       ];
 
-      // AUDIT FIX: Normalize platforms before job creation so DB payload never stores undefined
-      const platforms = (stream.platforms as string[]) || ["youtube"];
+      // YouTube-only: always force platforms to ["youtube"] regardless of what is stored on the stream.
+      const platforms: ["youtube"] = ["youtube"];
 
       const job = await storage.createJob({
         type: "stream_automation",
@@ -487,8 +487,8 @@ export function registerStreamRoutes(app: Express) {
         { name: "vod_thumbnail", status: "pending" },
       ];
 
-      // AUDIT FIX: Normalize platforms before job creation so DB payload never stores undefined
-      const platforms = (stream.platforms as string[]) || ["youtube"];
+      // YouTube-only: always force platforms to ["youtube"] regardless of what is stored on the stream.
+      const platforms: ["youtube"] = ["youtube"];
 
       const job = await storage.createJob({
         type: "post_stream_automation",

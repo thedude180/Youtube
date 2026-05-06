@@ -214,6 +214,10 @@ async function refreshToken(platform: Platform, currentRefreshToken: string): Pr
 
 export async function refreshSingleChannel(ch: { platform: string; refreshToken: string | null }): Promise<RefreshResult> {
   if (!ch.refreshToken) return { success: false, error: "No refresh token" };
+  // YouTube-only: never attempt token refresh for disabled platforms.
+  if (!GOOGLE_PLATFORMS.has(ch.platform)) {
+    return { success: false, error: `YouTube-only mode: token refresh disabled for ${ch.platform}` };
+  }
   return refreshToken(ch.platform as Platform, ch.refreshToken);
 }
 

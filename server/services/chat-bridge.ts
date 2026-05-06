@@ -57,19 +57,9 @@ function getDiscordConfig(): { token: string | null; channelId: string | null } 
   };
 }
 
-async function fetchKickChannelId(slug: string): Promise<number | null> {
-  try {
-    const res = await fetch(`https://kick.com/api/v2/channels/${slug}`, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": "CreatorOS/1.0" },
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as any;
-    return data?.chatroom?.id || data?.id || null;
-  } catch (err: any) {
-    log.warn(`Failed to fetch Kick channel ID for ${slug}: ${err.message}`);
-    return null;
-  }
+// DISABLED: Kick channel ID fetch — YouTube-only mode. No live kick.com HTTP calls in production.
+async function fetchKickChannelId(_slug: string): Promise<number | null> {
+  return null;
 }
 
 function scheduleReconnect(session: BridgeSession, fn: () => void, attempt: number): void {
@@ -83,266 +73,19 @@ function scheduleReconnect(session: BridgeSession, fn: () => void, attempt: numb
   }, delay);
 }
 
-function connectTwitchIRC(session: BridgeSession, attempt = 0): void {
-  if (session.stopped) return;
-  const { channel, oauth } = getTwitchCredentials();
-  if (!channel) {
-    log.warn("No TWITCH_CHANNEL set — skipping Twitch chat bridge");
-    return;
-  }
-
-  session.twitchChannel = channel;
-  const ws = new WebSocket(TWITCH_IRC_URL);
-  session.twitchWs = ws;
-
-  ws.on("open", () => {
-    log.info(`Twitch IRC connecting to #${channel}...`);
-    if (oauth) {
-      ws.send(`PASS oauth:${oauth.replace(/^oauth:/i, "")}`);
-      ws.send(`NICK ${channel}`);
-    } else {
-      const anonNick = `justinfan${Math.floor(10000 + Math.random() * 90000)}`;
-      ws.send(`PASS SCHMOOPIIE`);
-      ws.send(`NICK ${anonNick}`);
-    }
-    ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands");
-    ws.send(`JOIN #${channel}`);
-  });
-
-  ws.on("message", (raw) => {
-    const lines = raw.toString().split("\r\n").filter(Boolean);
-    for (const line of lines) {
-      if (line.startsWith("PING")) {
-        ws.send(line.replace("PING", "PONG"));
-        continue;
-      }
-
-      const privmsgMatch = line.match(/^(@\S+ )?:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.+)$/);
-      if (!privmsgMatch) continue;
-
-      const tags = privmsgMatch[1] || "";
-      const author = privmsgMatch[2];
-      const message = privmsgMatch[3].trim();
-
-      if (author.toLowerCase() === channel.toLowerCase()) continue;
-
-      const isSub = tags.includes("subscriber=1");
-      const isMod = tags.includes("mod=1");
-      const bitsMatch = tags.match(/bits=(\d+)/);
-      const bits = bitsMatch ? parseInt(bitsMatch[1]) : 0;
-
-      handleIncomingMessage(session, "twitch", author, message, {
-        isSubscriber: isSub,
-        isModerator: isMod,
-        isDonation: bits > 0,
-        donationAmount: bits > 0 ? bits / 100 : undefined,
-        badges: [isSub ? "subscriber" : "", isMod ? "moderator" : ""].filter(Boolean),
-      });
-    }
-  });
-
-  ws.on("close", () => {
-    log.info("Twitch IRC disconnected");
-    session.twitchWs = null;
-    scheduleReconnect(session, () => connectTwitchIRC(session, attempt + 1), attempt);
-  });
-
-  ws.on("error", (err) => {
-    log.warn(`Twitch IRC error: ${err.message}`);
-  });
+// YouTube-only mode: Twitch IRC chat bridge explicitly disabled at code level.
+function connectTwitchIRC(_session: BridgeSession, _attempt = 0): void {
+  log.info("Twitch IRC bridge skipped — YouTube-only mode");
 }
 
-async function connectKickChat(session: BridgeSession, attempt = 0): Promise<void> {
-  if (session.stopped) return;
-
-  const kickPusherKey = process.env.KICK_PUSHER_KEY;
-  if (!kickPusherKey) {
-    log.warn("KICK_PUSHER_KEY env var not set — Kick chat bridge disabled");
-    return;
-  }
-
-  const slug = getKickChannel();
-  if (!slug) {
-    log.warn("No KICK_CHANNEL set — skipping Kick chat bridge");
-    return;
-  }
-
-  session.kickChannel = slug;
-
-  const chatroomId = await fetchKickChannelId(slug);
-  if (!chatroomId) {
-    log.warn(`Could not resolve Kick chatroom ID for ${slug} — will retry`);
-    scheduleReconnect(session, () => connectKickChat(session, attempt + 1), attempt);
-    return;
-  }
-
-  log.info(`Kick chatroom ID for ${slug}: ${chatroomId}`);
-
-  const kickPusherUrl = KICK_PUSHER_URL_BASE.replace("%KEY%", kickPusherKey);
-  const ws = new WebSocket(kickPusherUrl);
-  session.kickWs = ws;
-
-  ws.on("open", () => {
-    log.info(`Kick Pusher connected — subscribing to chatroom.${chatroomId}`);
-  });
-
-  ws.on("message", (raw) => {
-    try {
-      const data = JSON.parse(raw.toString());
-
-      if (data.event === "pusher:connection_established") {
-        const subMsg = JSON.stringify({
-          event: "pusher:subscribe",
-          data: { channel: `chatrooms.${chatroomId}.v2` },
-        });
-        ws.send(subMsg);
-        log.info(`Subscribed to Kick chatroom ${chatroomId}`);
-        return;
-      }
-
-      if (data.event === "App\\Events\\ChatMessageEvent") {
-        const payload = typeof data.data === "string" ? JSON.parse(data.data) : data.data;
-        const author = payload?.sender?.username || payload?.sender?.slug || "viewer";
-        const message = payload?.content || "";
-        if (!message) return;
-
-        const isSub = payload?.sender?.is_subscriber || false;
-        const isMod = payload?.sender?.is_moderator || payload?.sender?.is_broadcaster || false;
-
-        if (isMod && author.toLowerCase() === slug.toLowerCase()) return;
-
-        handleIncomingMessage(session, "kick", author, message, {
-          isSubscriber: isSub,
-          isModerator: isMod,
-          authorId: String(payload?.sender?.id || ""),
-          badges: payload?.sender?.badges?.map((b: any) => b.type || b) || [],
-        });
-      }
-    } catch (err: any) {
-      log.warn(`Kick message parse error: ${err.message}`);
-    }
-  });
-
-  ws.on("close", () => {
-    log.info("Kick Pusher disconnected");
-    session.kickWs = null;
-    scheduleReconnect(session, () => connectKickChat(session, attempt + 1), attempt);
-  });
-
-  ws.on("error", (err) => {
-    log.warn(`Kick Pusher error: ${err.message}`);
-  });
+// YouTube-only mode: Kick chat bridge explicitly disabled at code level.
+async function connectKickChat(_session: BridgeSession, _attempt = 0): Promise<void> {
+  log.info("Kick chat bridge skipped — YouTube-only mode");
 }
 
-function connectDiscordGateway(session: BridgeSession, attempt = 0): void {
-  if (session.stopped) return;
-  const { token, channelId } = getDiscordConfig();
-  if (!token || !channelId) {
-    log.warn("No DISCORD_BOT_TOKEN or DISCORD_CHANNEL_ID set — skipping Discord chat bridge");
-    return;
-  }
-
-  const ws = new WebSocket(DISCORD_GATEWAY_URL);
-  session.discordWs = ws;
-
-  ws.on("open", () => {
-    log.info("Discord Gateway connected");
-  });
-
-  ws.on("message", (raw) => {
-    try {
-      const payload = JSON.parse(raw.toString());
-      const { op, d, s, t } = payload;
-
-      if (s !== null) session.discordSeq = s;
-
-      if (op === 10) {
-        const heartbeatInterval = d.heartbeat_interval;
-        if (session.discordHeartbeat) clearInterval(session.discordHeartbeat);
-        session.discordHeartbeat = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ op: 1, d: session.discordSeq }));
-          }
-        }, heartbeatInterval);
-
-        ws.send(JSON.stringify({
-          op: 2,
-          d: {
-            token,
-            intents: (1 << 9) | (1 << 15),
-            properties: {
-              os: "linux",
-              browser: "CreatorOS",
-              device: "CreatorOS",
-            },
-          },
-        }));
-        return;
-      }
-
-      if (op === 11) return;
-
-      if (op === 7) {
-        log.info("Discord Gateway requested reconnect");
-        ws.close();
-        return;
-      }
-
-      if (op === 9) {
-        log.warn("Discord Gateway session invalidated — reconnecting fresh");
-        session.discordSessionId = null;
-        session.discordSeq = null;
-        ws.close();
-        return;
-      }
-
-      if (t === "READY") {
-        session.discordSessionId = d.session_id;
-        log.info(`Discord Gateway ready — session ${d.session_id}, watching channel ${channelId}`);
-        return;
-      }
-
-      if (t === "MESSAGE_CREATE") {
-        if (d.channel_id !== channelId) return;
-        if (d.author?.bot) return;
-
-        const author = d.author?.username || d.author?.global_name || "user";
-        const message = d.content || "";
-        if (!message) return;
-
-        const roles = d.member?.roles || [];
-
-        handleIncomingMessage(session, "discord", author, message, {
-          authorId: d.author?.id,
-          isModerator: roles.length > 0,
-          badges: roles,
-        });
-      }
-    } catch (err: any) {
-      log.warn(`Discord Gateway parse error: ${err.message}`);
-    }
-  });
-
-  ws.on("close", (code) => {
-    log.info(`Discord Gateway disconnected (code ${code})`);
-    if (session.discordHeartbeat) {
-      clearInterval(session.discordHeartbeat);
-      session.discordHeartbeat = null;
-    }
-    session.discordWs = null;
-
-    const nonRecoverable = [4004, 4010, 4011, 4012, 4013, 4014];
-    if (nonRecoverable.includes(code)) {
-      log.error(`Discord Gateway fatal close code ${code} — not reconnecting`);
-      return;
-    }
-
-    scheduleReconnect(session, () => connectDiscordGateway(session, attempt + 1), attempt);
-  });
-
-  ws.on("error", (err) => {
-    log.warn(`Discord Gateway error: ${err.message}`);
-  });
+// YouTube-only mode: Discord Gateway chat bridge explicitly disabled at code level.
+function connectDiscordGateway(_session: BridgeSession, _attempt = 0): void {
+  log.info("Discord Gateway bridge skipped — YouTube-only mode");
 }
 
 async function sendDiscordMessage(channelId: string, content: string): Promise<boolean> {

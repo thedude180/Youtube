@@ -2412,7 +2412,6 @@ export async function registerPlatformRoutes(app: Express) {
       try {
         const { purgeVault } = await import("../services/token-vault");
         await purgeVault(userId, platform);
-        if (platform === "youtube") await purgeVault(userId, "youtube_studio");
       } catch { /* vault purge non-fatal */ }
       sendSSEEvent(userId, "content-update", { type: "channel_disconnected", platform });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_disconnected", platform });

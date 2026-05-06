@@ -437,6 +437,14 @@ const PLATFORM_FETCHERS: Partial<Record<string, PlatformFetcher>> = {
 };
 
 export async function fetchPlatformData(platform: Platform, accessToken: string, channelId: string): Promise<PlatformFetchedData> {
+  // YouTube-only: never execute a live API call for any non-YouTube platform.
+  // All non-YouTube fetchers are disabled at this entry point regardless of whether
+  // individual stub functions exist in PLATFORM_FETCHERS above.
+  // Note: "youtubeshorts" has no fetcher in PLATFORM_FETCHERS so falls through to "connected" below.
+  if (platform !== "youtube") {
+    return { platformData: { connectionStatus: "disabled", reason: "youtube-only-mode" } };
+  }
+
   const fetcher = PLATFORM_FETCHERS[platform];
   if (!fetcher) {
     return { platformData: { connectionStatus: "connected" } };

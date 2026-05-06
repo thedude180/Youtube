@@ -477,10 +477,9 @@ async function runPostQuotaResetHeal(): Promise<void> {
       for (const u of allUsers) clearUserAuthCooldown(u.id);
     } catch (_) {}
 
-    const youtubeChannels = await db.select().from(channels)
-      .where(isNotNull(channels.userId));
-
-    const ytChannels = youtubeChannels.filter(ch => ch.platform === "youtube" || ch.platform === "youtubeshorts");
+    // YouTube-only: DB-level filter so no non-YouTube channel rows are fetched.
+    const ytChannels = await db.select().from(channels)
+      .where(and(isNotNull(channels.userId), eq(channels.platform, "youtube")));
     if (ytChannels.length === 0) return;
 
     for (const ch of ytChannels) {
