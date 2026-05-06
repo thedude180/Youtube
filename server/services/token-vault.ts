@@ -84,7 +84,7 @@ export async function saveToVault(entry: VaultEntry): Promise<void> {
       INSERT INTO token_vault
         (user_id, channel_id, platform, channel_external_id, refresh_token, access_token, token_expires_at, source, saved_at)
       VALUES
-        (${entry.userId}, ${entry.channelId ?? null}, ${entry.platform},
+        (${entry.userId}, ${entry.channelId ?? null}, ${normalized},
          ${entry.channelExternalId ?? null}, ${entry.refreshToken},
          ${entry.accessToken ?? null}, ${entry.tokenExpiresAt ?? null},
          ${entry.source}, NOW())
@@ -94,7 +94,7 @@ export async function saveToVault(entry: VaultEntry): Promise<void> {
       DELETE FROM token_vault
       WHERE id IN (
         SELECT id FROM token_vault
-        WHERE user_id = ${entry.userId} AND platform = ${entry.platform}
+        WHERE user_id = ${entry.userId} AND platform = ${normalized}
         ORDER BY saved_at DESC
         OFFSET ${MAX_VAULT_ENTRIES}
       )

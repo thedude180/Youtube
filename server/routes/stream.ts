@@ -231,7 +231,7 @@ export function registerStreamRoutes(app: Express) {
           title: stream.title,
           description: stream.description,
           category: stream.category,
-          platforms: (stream.platforms as string[]) || ['youtube'],
+          platforms: ["youtube"],
         }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(Object.assign(new Error("SEO timeout"), { isTimeout: true })), 10_000)
@@ -284,7 +284,7 @@ export function registerStreamRoutes(app: Express) {
         stream.id,
         stream.title,
         stream.description || "",
-        (stream.platforms as string[]) || ["youtube"],
+        ["youtube"],
       ).catch(err => logger.error("[Autopilot] Go-live announcement error:", err));
 
       createPipelineForStream(userId, stream.title).catch(err =>
@@ -445,7 +445,7 @@ export function registerStreamRoutes(app: Express) {
       });
 
       fireAgentEvent("stream.ended", userId, {
-        platform: (stream.platforms as string[])?.[0] || "youtube",
+        platform: "youtube",
         streamTitle: stream.title,
         streamId: stream.id,
       });
@@ -459,7 +459,7 @@ export function registerStreamRoutes(app: Express) {
         stream.id,
         stream.title,
         stream.description || "",
-        (stream.platforms as string[]) || ["youtube"],
+        ["youtube"],
       ).catch(err => logger.error("[Autopilot] Post-stream highlights error:", err));
 
       createPipelineForStream(userId, stream.title, "replay").catch(err =>
@@ -690,7 +690,7 @@ export function registerStreamRoutes(app: Express) {
           title: stream.title,
           description: stream.description,
           category: stream.category,
-          platforms: (stream.platforms as string[]) || ['youtube'],
+          platforms: ["youtube"],
           duration,
           stats: stream.streamStats,
         }),
