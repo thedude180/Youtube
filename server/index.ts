@@ -36,6 +36,8 @@ import { stopPushCleanup } from "./services/push-scheduler";
 import { stopAutoFixCleanup } from "./services/autopilot-monitor";
 import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
+import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
+import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
@@ -2514,29 +2516,17 @@ httpServer.listen(
         backgroundIntervals.push(iv);
       }).catch(slog("vod-optimizer-engine import"));
 
-      // ── Back Catalog Monetization Engine — fully autonomous ─────────────────
-      // Runs for every connected YouTube channel user.  First cycle fires after
-      // a 10-12 min staggered delay (avoids startup AI storms), then every 6h.
-      // On first run it imports the catalog if empty, scores every video, and
-      // queues Shorts + long-form clips up to the daily caps — zero human touch.
-      import("./services/youtube-back-catalog-engine").then(async m => {
-        await new Promise(r => setTimeout(r, stagger(10 * 60_000)));
-        const { channels: channelsTbl } = await import("@shared/schema");
-        const { eq: eqOp, and: andOp, sql: sqlTag } = await import("drizzle-orm");
-        const rows = await db.select({ userId: channelsTbl.userId })
-          .from(channelsTbl)
-          .where(andOp(eqOp(channelsTbl.platform, "youtube"), sqlTag`${channelsTbl.accessToken} IS NOT NULL`));
-        const uids = [...new Set(rows.map(r => r.userId).filter(Boolean))] as string[];
-        for (const uid of uids) {
-          await m.runBackCatalogMonetizationCycle(uid).catch(slog(`backCatalog(${uid.slice(0, 8)})`));
-        }
-        const iv = setInterval(async () => {
-          for (const uid of uids) {
-            await m.runBackCatalogMonetizationCycle(uid).catch(slog(`backCatalog-iv(${uid.slice(0, 8)})`));
-          }
-        }, jitter(6 * 60 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("back-catalog-engine import"));
+      // ── Back Catalog Runner — dedicated autonomous runner ────────────────────
+      // Replaces the old inline back-catalog wiring.  initBackCatalogRunner()
+      // handles its own startup delay (10–20 min jittered) and 22–24 h repeat
+      // interval, quota-breaker checks, and per-user error isolation.
+      initBackCatalogRunner();
+
+      // ── YouTube AI Orchestrator — top-level AI controller ────────────────────
+      // Controls all YouTube systems: catalog, scoring, queueing, learning,
+      // monetization audits, internal linking, failure recovery, daily reports.
+      // Light cycle every ~4h, full strategic cycle every ~22–24h.
+      initYouTubeAIOrchestrator();
 
       import("./token-refresh").then(async m => {
         // Delay first token keep-alive by 5 minutes so it doesn't fire during
@@ -3070,6 +3060,8 @@ httpServer.listen(
     stopCleanupCoordinator();
     stopResilienceWatchdog();
     stopFortressCleanup();
+    stopBackCatalogRunner();
+    stopYouTubeAIOrchestrator();
     stopPushCleanup();
     stopAutoFixCleanup();
     stopSettingsCleanup();

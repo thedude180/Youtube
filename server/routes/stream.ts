@@ -1398,4 +1398,55 @@ export function registerStreamRoutes(app: Express) {
     const opportunities = await rankBackCatalogOpportunities(userId, limit);
     res.json(opportunities);
   }));
+
+  // ── YouTube AI Orchestrator ───────────────────────────────────────────────────
+
+  app.get("/api/youtube/ai-orchestrator/status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { getYouTubeAIOrchestratorStatus } = await import("../services/youtube-ai-orchestrator");
+    const status = await getYouTubeAIOrchestratorStatus(userId);
+    res.json(status);
+  }));
+
+  app.post("/api/youtube/ai-orchestrator/run", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { forceYouTubeAICycle } = await import("../services/youtube-ai-orchestrator");
+    const result = await forceYouTubeAICycle(userId);
+    res.json(result);
+  }));
+
+  app.post("/api/youtube/ai-orchestrator/pause", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { pauseYouTubeAIOrchestrator } = await import("../services/youtube-ai-orchestrator");
+    pauseYouTubeAIOrchestrator();
+    res.json({ paused: true });
+  }));
+
+  app.post("/api/youtube/ai-orchestrator/resume", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { resumeYouTubeAIOrchestrator } = await import("../services/youtube-ai-orchestrator");
+    resumeYouTubeAIOrchestrator();
+    res.json({ paused: false });
+  }));
+
+  app.get("/api/youtube/ai-orchestrator/decision-log", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const limit = Math.min(100, parseInt(String(req.query.limit ?? "50"), 10) || 50);
+    const { getDecisionLog } = await import("../services/youtube-ai-orchestrator");
+    res.json(getDecisionLog(userId, limit));
+  }));
+
+  app.get("/api/youtube/ai-orchestrator/daily-report", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { getDailyReport } = await import("../services/youtube-ai-orchestrator");
+    const report = getDailyReport(userId);
+    if (!report) return res.status(404).json({ error: "No report yet — run a full cycle first" });
+    res.json(report);
+  }));
 }

@@ -11,7 +11,9 @@
     "db:push": "drizzle-kit push",
     "schedule:audit": "bash scripts/audit-youtube-output-schedule.sh",
     "youtube:output-audit": "bash scripts/audit-youtube-output-system.sh",
-    "youtube:back-catalog-audit": "bash scripts/audit-youtube-back-catalog.sh"
+    "youtube:back-catalog-audit": "bash scripts/audit-youtube-back-catalog.sh",
+    "youtube:back-catalog-auto-audit": "bash scripts/audit-youtube-back-catalog-auto-run.sh",
+    "youtube:ai-orchestrator-audit": "bash scripts/audit-youtube-ai-orchestrator.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
