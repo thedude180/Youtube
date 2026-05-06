@@ -23,6 +23,7 @@ import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
+import BackCatalogReviver from "./dashboard/BackCatalogReviver";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 
@@ -441,6 +442,8 @@ export default function TeamDashboard() {
         )}
 
         <YouTubeAutopilotStatus />
+
+        <BackCatalogReviver />
 
         {operatorBrief?.topActions?.length > 0 && (
           <div className="rounded-xl border border-border/30 bg-card/20 p-4" data-testid="card-top-actions">

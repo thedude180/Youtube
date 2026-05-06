@@ -10088,3 +10088,91 @@ export const livestreamLearningEvents = pgTable("livestream_learning_events", {
   index("lle_type_idx").on(t.eventType),
 ]);
 export type LivestreamLearningEvent = typeof livestreamLearningEvents.$inferSelect;
+
+// ── Back Catalog Videos ───────────────────────────────────────────────────────
+// Stores every video/VOD imported from the channel's YouTube catalog.
+// One row per YouTube video ID per user. Upserted on each sync.
+export const backCatalogVideos = pgTable("back_catalog_videos", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  localVideoId: integer("local_video_id").references(() => videos.id),
+  youtubeVideoId: text("youtube_video_id").notNull(),
+  title: text("title").notNull().default(""),
+  description: text("description"),
+  tags: text("tags").array(),
+  thumbnailUrl: text("thumbnail_url"),
+  durationSec: integer("duration_sec").default(0),
+  publishedAt: timestamp("published_at"),
+  privacyStatus: text("privacy_status"),
+  viewCount: integer("view_count").default(0),
+  likeCount: integer("like_count").default(0),
+  commentCount: integer("comment_count").default(0),
+  categoryId: text("category_id"),
+  gameName: text("game_name"),
+  isVod: boolean("is_vod").default(false),
+  isShort: boolean("is_short").default(false),
+  isLongForm: boolean("is_long_form").default(false),
+  isOver60Min: boolean("is_over_60_min").default(false),
+  minedForShorts: boolean("mined_for_shorts").default(false),
+  minedForLongForm: boolean("mined_for_long_form").default(false),
+  shortsQueuedCount: integer("shorts_queued_count").default(0),
+  longFormQueuedCount: integer("long_form_queued_count").default(0),
+  metadataUpdatesQueued: integer("metadata_updates_queued").default(0),
+  metadataOpportunityScore: real("metadata_opportunity_score"),
+  thumbnailOpportunityScore: real("thumbnail_opportunity_score"),
+  shortsOpportunityScore: real("shorts_opportunity_score"),
+  longFormOpportunityScore: real("long_form_opportunity_score"),
+  monetizationOpportunityScore: real("monetization_opportunity_score"),
+  totalRevivalScore: real("total_revival_score"),
+  monetizationStatus: text("monetization_status"),
+  lastOptimizedAt: timestamp("last_optimized_at"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bcv_user_idx").on(t.userId),
+  index("bcv_yt_id_idx").on(t.youtubeVideoId),
+  index("bcv_user_yt_idx").on(t.userId, t.youtubeVideoId),
+  index("bcv_revival_score_idx").on(t.totalRevivalScore),
+  index("bcv_channel_idx").on(t.channelId),
+]);
+
+export const insertBackCatalogVideoSchema = createInsertSchema(backCatalogVideos).omit({ id: true, createdAt: true, updatedAt: true });
+export type BackCatalogVideo = typeof backCatalogVideos.$inferSelect;
+export type InsertBackCatalogVideo = z.infer<typeof insertBackCatalogVideoSchema>;
+
+// ── Back Catalog Derivatives ──────────────────────────────────────────────────
+// Tracks every piece of derivative content generated from back catalog videos
+// plus before/after performance metrics so the learning engine can measure ROI.
+export const backCatalogDerivatives = pgTable("back_catalog_derivatives", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  backCatalogVideoId: integer("back_catalog_video_id").references(() => backCatalogVideos.id),
+  sourceYoutubeId: text("source_youtube_id"),
+  // short_clip | long_form_clip | metadata_refresh | thumbnail_refresh | playlist_linking
+  derivativeType: text("derivative_type").notNull(),
+  // metadata_refresh | short_clip | long_form_clip | thumbnail_refresh | playlist_linking
+  transformationType: text("transformation_type").notNull(),
+  derivativeYoutubeId: text("derivative_youtube_id"),
+  queueItemId: integer("queue_item_id"),
+  beforeViews: integer("before_views"),
+  afterViews24h: integer("after_views_24h"),
+  afterViews7d: integer("after_views_7d"),
+  afterWatchTime7d: real("after_watch_time_7d"),
+  trafficFromShorts: integer("traffic_from_shorts"),
+  subscribersGained: integer("subscribers_gained"),
+  revenueEligibleEstimate: real("revenue_eligible_estimate"),
+  performanceScore: real("performance_score"),
+  measuredAt: timestamp("measured_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("bcd_user_idx").on(t.userId),
+  index("bcd_source_idx").on(t.backCatalogVideoId),
+  index("bcd_type_idx").on(t.derivativeType),
+  index("bcd_yt_id_idx").on(t.derivativeYoutubeId),
+]);
+
+export const insertBackCatalogDerivativeSchema = createInsertSchema(backCatalogDerivatives).omit({ id: true, createdAt: true });
+export type BackCatalogDerivative = typeof backCatalogDerivatives.$inferSelect;
+export type InsertBackCatalogDerivative = z.infer<typeof insertBackCatalogDerivativeSchema>;

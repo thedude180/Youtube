@@ -1347,4 +1347,55 @@ export function registerStreamRoutes(app: Express) {
     const report = await runDailyLearningCycle(userId);
     res.json(report ?? { message: "Cycle already ran recently — no action needed" });
   }));
+
+  // ── Back Catalog Monetization Engine ─────────────────────────────────────────
+
+  app.get("/api/youtube/back-catalog/status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { getBackCatalogStatus } = await import("../services/youtube-back-catalog-engine");
+    const status = await getBackCatalogStatus(userId);
+    res.json(status);
+  }));
+
+  app.post("/api/youtube/back-catalog/import", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { runBackCatalogImport } = await import("../services/youtube-back-catalog-engine");
+    const result = await runBackCatalogImport(userId);
+    res.json(result);
+  }));
+
+  app.post("/api/youtube/back-catalog/scan", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { scanExistingChannelVideos } = await import("../services/youtube-back-catalog-engine");
+    const result = await scanExistingChannelVideos(userId);
+    res.json(result);
+  }));
+
+  app.post("/api/youtube/back-catalog/queue", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { queueBackCatalogRevivalWork } = await import("../services/youtube-back-catalog-engine");
+    const result = await queueBackCatalogRevivalWork(userId);
+    res.json(result);
+  }));
+
+  app.post("/api/youtube/back-catalog/run-cycle", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { runBackCatalogMonetizationCycle } = await import("../services/youtube-back-catalog-engine");
+    const result = await runBackCatalogMonetizationCycle(userId);
+    res.json(result);
+  }));
+
+  app.get("/api/youtube/back-catalog/opportunities", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.id || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const limit = Math.min(100, parseInt(String(req.query.limit ?? "20"), 10) || 20);
+    const { rankBackCatalogOpportunities } = await import("../services/youtube-back-catalog-engine");
+    const opportunities = await rankBackCatalogOpportunities(userId, limit);
+    res.json(opportunities);
+  }));
 }
