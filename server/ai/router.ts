@@ -22,7 +22,8 @@ export type TaskType =
   | "highlight-detect"     // medium: analyze stream for best moments
   | "clip-title"           // cheap: viral Shorts titles
   | "stream-promote"       // cheap: cross-platform promo copy
-  | "performance-analyze"; // strong: analytics → strategy feedback
+  | "performance-analyze"  // strong: analytics → strategy feedback
+  | "shorts-metadata";     // cheap: Shorts title/desc/tags/hook
 
 type Provider = "openai-mini" | "openai-4o" | "claude-haiku" | "claude-sonnet" | "claude-opus";
 
@@ -42,6 +43,7 @@ const TASK_MODEL: Record<TaskType, Provider> = {
   "clip-title":           "openai-mini",
   "stream-promote":       "openai-mini",
   "performance-analyze":  "claude-sonnet",
+  "shorts-metadata":      "openai-mini",
 };
 
 export interface RouteParams {

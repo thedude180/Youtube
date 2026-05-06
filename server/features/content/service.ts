@@ -115,6 +115,55 @@ Return: {"score": 75, "issues": ["...", ...], "suggestions": ["...", ...]}`,
       }).parse(raw),
     );
   }
+
+  async generateShortsMetadata(videoId: number, userId: string): Promise<{
+    title: string;
+    description: string;
+    tags: string[];
+    suggestedDurationSec: number;
+    hook: string;
+  }> {
+    const video = await contentRepo.findVideo(videoId, userId);
+    if (!video) throw notFound("Video");
+
+    const result = await aiRouteJSON<{
+      title: string; description: string; tags: string[];
+      suggestedDurationSec: number; hook: string;
+    }>(
+      {
+        task: "shorts-metadata",
+        system: "You are a YouTube Shorts expert for PS5 gaming content. Return JSON only.",
+        prompt: `Create optimized YouTube Shorts metadata for a clip from this video:
+Title: ${video.title}
+Game: ${video.game ?? "Unknown"}
+
+Rules:
+- title: under 60 chars, no hashtags, hook-driven
+- description: under 150 chars, end with 2-3 hashtags like #Shorts #PS5
+- tags: 5-8 relevant tags as array
+- suggestedDurationSec: 15-60 based on content type
+- hook: one punchy sentence for the first 3 seconds of the Short
+
+Return: {"title": "...", "description": "...", "tags": ["..."], "suggestedDurationSec": 30, "hook": "..."}`,
+      },
+      (raw) => z.object({
+        title: z.string(),
+        description: z.string(),
+        tags: z.array(z.string()),
+        suggestedDurationSec: z.number().min(15).max(60),
+        hook: z.string(),
+      }).parse(raw),
+    );
+
+    await contentRepo.saveDraft({
+      userId,
+      videoId,
+      type: "shorts_metadata",
+      content: JSON.stringify(result),
+    });
+
+    return result;
+  }
 }
 
 export const contentService = new ContentService();

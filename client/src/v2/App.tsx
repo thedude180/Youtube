@@ -5,17 +5,14 @@ import { queryClient } from "./lib/queryClient";
 import { AuthLayout } from "./components/Layout";
 import { Loader2 } from "lucide-react";
 
-// Lazy-load all pages — keeps initial bundle small
 const Login     = lazy(() => import("./pages/Login"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Content   = lazy(() => import("./pages/Content"));
-const Video     = lazy(() => import("./pages/Video"));
-const Money     = lazy(() => import("./pages/Money"));
-const Autopilot = lazy(() => import("./pages/Autopilot"));
+const Videos    = lazy(() => import("./pages/Videos"));
+const Vault     = lazy(() => import("./pages/Vault"));
+const Shorts    = lazy(() => import("./pages/Shorts"));
 const Stream    = lazy(() => import("./pages/Stream"));
-const Growth    = lazy(() => import("./pages/Growth"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 const Settings  = lazy(() => import("./pages/Settings"));
-const Pipeline  = lazy(() => import("./pages/Pipeline"));
 
 function PageLoader() {
   return (
@@ -31,25 +28,18 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* Public */}
             <Route path="/login" element={<Login />} />
-
-            {/* Protected — all wrapped in AuthLayout which handles auth gate */}
             <Route element={<AuthLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/content" element={<Content />} />
-              <Route path="/video" element={<Video />} />
-              <Route path="/money" element={<Money />} />
-              <Route path="/autopilot" element={<Autopilot />} />
-              <Route path="/stream" element={<Stream />} />
-              <Route path="/pipeline" element={<Pipeline />} />
-              <Route path="/growth" element={<Growth />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/videos"    element={<Videos />} />
+              <Route path="/vault"     element={<Vault />} />
+              <Route path="/shorts"    element={<Shorts />} />
+              <Route path="/stream"    element={<Stream />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/settings"  element={<Settings />} />
             </Route>
-
-            {/* Redirects */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/"  element={<Navigate to="/dashboard" replace />} />
+            <Route path="*"  element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

@@ -104,6 +104,15 @@ contentRouter.post("/ideas/generate", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Shorts metadata
+contentRouter.post("/videos/:id/shorts", async (req, res, next) => {
+  try {
+    const id = z.coerce.number().int().positive().parse(req.params.id);
+    const result = await contentService.generateShortsMetadata(id, (req.user as any).id);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
 // SEO audit
 contentRouter.post("/videos/:id/seo-audit", async (req, res, next) => {
   try {

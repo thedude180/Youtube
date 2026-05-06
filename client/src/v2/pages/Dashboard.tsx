@@ -1,24 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Users, Eye, DollarSign, Film, Radio, TrendingUp, Loader2, Bell, Scissors, Link2, CheckCircle2, AlertCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, Eye, Clock, TrendingUp, Film, Radio, Loader2, Lightbulb, AlertCircle, Link2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSSE } from "../hooks/use-sse";
 import { useAuth } from "../hooks/use-auth";
 import { useNavigate } from "react-router-dom";
 
-interface DashboardData {
-  analytics?: { subscriberCount: number; totalViews: number; watchHoursTotal: number };
-  revenue?: { totalCents: number; adCents: number; sponsorCents: number };
-  recentVideos?: Array<{ id: number; title: string; status: string; viewCount: number }>;
-  trends?: Array<{ signal: string; score: number; category: string }>;
-}
-
-const KEY_PLATFORMS = ["youtube", "tiktok", "twitter", "instagram", "discord", "reddit"];
-
-function MetricCard({
-  icon: Icon, label, value, sub, color = "text-primary",
-}: { icon: any; label: string; value: string; sub?: string; color?: string }) {
+function MetricCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
+  icon: any; label: string; value: string; sub?: string; color?: string;
+}) {
   return (
     <Card data-testid={`card-metric-${label.toLowerCase().replace(/\s+/g, "-")}`}>
       <CardContent className="pt-6">
@@ -37,83 +28,69 @@ function MetricCard({
   );
 }
 
+const STATUS_COLOR: Record<string, string> = {
+  published: "bg-green-600 text-white border-0",
+  draft: "bg-zinc-600 text-white border-0",
+  processing: "bg-blue-600 text-white border-0 animate-pulse",
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery<DashboardData>({
-    queryKey: ["/api/growth/dashboard"],
-  });
-
-  const { data: notifications = [] } = useQuery<any[]>({
-    queryKey: ["/api/notifications"],
-  });
-
-  const { data: channels = [] } = useQuery<any[]>({
-    queryKey: ["/api/channels"],
-  });
-
-  const { data: pipelineRuns = [] } = useQuery<any[]>({
-    queryKey: ["/api/pipeline/runs"],
-  });
+  const { data: channels = [] } = useQuery<any[]>({ queryKey: ["/api/channels"] });
+  const { data: analytics } = useQuery<any>({ queryKey: ["/api/growth/analytics"] });
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/content/videos"] });
+  const { data: ideas = [] } = useQuery<any[]>({ queryKey: ["/api/content/ideas"] });
+  const { data: active } = useQuery<any>({ queryKey: ["/api/stream/active"] });
 
   useSSE({
-    "notification:new": () => qc.invalidateQueries({ queryKey: ["/api/notifications"] }),
-    "growth:trends-updated": () => qc.invalidateQueries({ queryKey: ["/api/growth/dashboard"] }),
     "stream:live": () => qc.invalidateQueries({ queryKey: ["/api/stream/active"] }),
-    "pipeline:done": () => qc.invalidateQueries({ queryKey: ["/api/pipeline/runs"] }),
-    "pipeline:failed": () => qc.invalidateQueries({ queryKey: ["/api/pipeline/runs"] }),
+    "stream:ended": () => qc.invalidateQueries({ queryKey: ["/api/stream/active"] }),
+    "content:ideas-ready": () => qc.invalidateQueries({ queryKey: ["/api/content/ideas"] }),
   });
 
-  const analytics = data?.analytics;
-  const revenue = data?.revenue;
-  const connectedPlatforms = new Set(channels.map((c: any) => c.platform));
-  const missingKeyPlatforms = KEY_PLATFORMS.filter((p) => !connectedPlatforms.has(p));
-  const activePipelines = pipelineRuns.filter((r: any) => !["done", "failed"].includes(r.currentStage));
-  const recentDone = pipelineRuns.filter((r: any) => r.currentStage === "done").slice(0, 3);
-  const unreadCount = notifications.filter((n: any) => !n.readAt).length;
+  const ytChannel = channels.find((c: any) => c.platform === "youtube");
+  const recentVideos = (videos as any[]).slice(0, 6);
+  const pendingIdeas = (ideas as any[]).filter((i: any) => i.status === "pending").slice(0, 4);
+  const isLive = active?.status === "live";
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const subs = analytics?.subscriberCount ?? ytChannel?.subscriberCount;
+  const views = analytics?.totalViews;
+  const watchHours = analytics?.watchHoursTotal;
+  const ctr = analytics?.averageCtr;
 
   return (
     <div className="space-y-6" data-testid="page-dashboard">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back{user?.displayName ? `, ${user.displayName}` : ""}.</p>
+          <p className="text-muted-foreground">
+            {ytChannel?.displayName ?? user?.displayName ?? "Your channel"} · CreatorOS
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <Button variant="outline" size="sm" data-testid="btn-notifications">
-              <Bell className="w-4 h-4 mr-2" />
-              {unreadCount} new
-            </Button>
-          )}
-        </div>
+        {isLive && (
+          <Badge className="bg-red-600 text-white border-0 animate-pulse text-sm px-3 py-1" data-testid="badge-live">
+            <Radio className="w-3.5 h-3.5 mr-1.5" />
+            LIVE NOW
+          </Badge>
+        )}
       </div>
 
-      {/* Platform connection status banner */}
-      {missingKeyPlatforms.length > 0 && (
-        <Card className="border-amber-500/50 bg-amber-500/5" data-testid="card-platform-alert">
+      {/* YouTube not connected */}
+      {!ytChannel && (
+        <Card className="border-amber-500/50 bg-amber-500/5" data-testid="card-connect-alert">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">Connect platforms to enable full cross-promotion</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Missing: {missingKeyPlatforms.join(", ")}
-                  </p>
+                  <p className="text-sm font-medium">Connect your YouTube channel to get started</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Stats, videos, and AI features require a connected channel.</p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => navigate("/settings")} data-testid="btn-go-settings">
+              <Button size="sm" variant="outline" onClick={() => navigate("/settings")} data-testid="btn-connect-yt">
                 <Link2 className="w-3 h-3 mr-1.5" />
                 Connect
               </Button>
@@ -122,171 +99,130 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          icon={Users}
-          label="Subscribers"
-          value={analytics?.subscriberCount?.toLocaleString() ?? "—"}
-          color="text-blue-500"
-        />
-        <MetricCard
-          icon={Eye}
-          label="Total Views"
-          value={analytics?.totalViews?.toLocaleString() ?? "—"}
-          color="text-green-500"
-        />
-        <MetricCard
-          icon={DollarSign}
-          label="Revenue"
-          value={revenue ? `$${(revenue.totalCents / 100).toFixed(0)}` : "—"}
-          color="text-amber-500"
-        />
-        <MetricCard
-          icon={Film}
-          label="Videos"
-          value={data?.recentVideos?.length?.toString() ?? "—"}
-          sub="recent"
-          color="text-purple-500"
-        />
-      </div>
-
-      {/* Active pipelines */}
-      {activePipelines.length > 0 && (
-        <Card data-testid="card-active-pipelines">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-blue-500" />
-              Active Pipelines
-              <Badge className="bg-blue-600 text-white border-0 text-xs animate-pulse ml-1">
-                {activePipelines.length} running
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {activePipelines.map((r: any) => (
-              <div key={r.id} className="flex items-center justify-between text-sm" data-testid={`pipeline-active-${r.id}`}>
-                <div className="flex items-center gap-2">
-                  {r.type === "livestream"
-                    ? <Radio className="w-3.5 h-3.5 text-red-500" />
-                    : <Scissors className="w-3.5 h-3.5 text-blue-500" />
-                  }
-                  <span className="truncate max-w-[200px]">{r.contentTitle ?? "Untitled"}</span>
-                </div>
-                <Badge className="bg-blue-600 text-white border-0 text-xs animate-pulse">{r.currentStage}</Badge>
-              </div>
-            ))}
-            <Button size="sm" variant="ghost" className="w-full mt-1 text-xs" onClick={() => navigate("/pipeline")}>
-              View all pipelines →
+      {/* Live stream alert */}
+      {isLive && (
+        <Card className="border-red-500/50 bg-red-500/5" data-testid="card-live-alert">
+          <CardContent className="pt-4 pb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{active.title ?? "Live stream in progress"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Started {new Date(active.startedAt).toLocaleTimeString()}
+              </p>
+            </div>
+            <Button size="sm" onClick={() => navigate("/stream")} data-testid="btn-go-stream">
+              View Stream
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Connected platforms */}
-      {channels.length > 0 && (
-        <Card data-testid="card-connected-platforms">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Connected Platforms</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {channels.map((c: any) => (
-                <div key={c.id} className="flex items-center gap-1.5 bg-muted rounded-md px-2.5 py-1.5 text-xs" data-testid={`platform-chip-${c.platform}`}>
-                  <CheckCircle2 className="w-3 h-3 text-green-500" />
-                  <span className="font-medium capitalize">{c.platform}</span>
-                  {(c.username || c.displayName) && (
-                    <span className="text-muted-foreground">· {c.displayName ?? c.username}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard icon={Users} label="Subscribers" value={subs != null ? Number(subs).toLocaleString() : "—"} color="text-red-500" />
+        <MetricCard icon={Eye} label="Total Views" value={views != null ? Number(views).toLocaleString() : "—"} color="text-blue-500" />
+        <MetricCard icon={Clock} label="Watch Hours" value={watchHours != null ? Number(watchHours).toLocaleString() : "—"} color="text-green-500" />
+        <MetricCard icon={TrendingUp} label="Avg CTR" value={ctr != null ? `${Number(ctr).toFixed(1)}%` : "—"} color="text-purple-500" />
+      </div>
 
-      {/* Trend signals */}
-      {data?.trends && data.trends.length > 0 && (
-        <Card data-testid="card-trends">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Trending Signals
-            </CardTitle>
-            <CardDescription>Current content opportunities detected by AI</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {data.trends.slice(0, 8).map((t, i) => (
-                <Badge key={i} variant="secondary" data-testid={`badge-trend-${i}`} className="gap-1">
-                  <span className="font-bold">{t.score}</span>
-                  {t.signal}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent videos */}
+        <div className="lg:col-span-2">
+          <Card data-testid="card-recent-videos">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Film className="w-4 h-4" />
+                Recent Videos
+              </CardTitle>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/videos")} data-testid="btn-all-videos">
+                View all →
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {recentVideos.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No videos yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentVideos.map((v: any) => (
+                    <div key={v.id} className="flex items-center gap-3" data-testid={`item-video-${v.id}`}>
+                      <div className="w-16 h-9 rounded bg-muted shrink-0 overflow-hidden">
+                        {v.thumbnailUrl && (
+                          <img src={v.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{v.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {v.viewCount != null ? `${Number(v.viewCount).toLocaleString()} views` : v.game ?? ""}
+                        </p>
+                      </div>
+                      <Badge className={`text-xs shrink-0 ${STATUS_COLOR[v.status] ?? ""}`}>
+                        {v.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Recent completed pipelines */}
-      {recentDone.length > 0 && (
-        <Card data-testid="card-recent-pipelines">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Recently Completed</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {recentDone.map((r: any) => (
-              <div key={r.id} className="flex items-center justify-between text-sm" data-testid={`pipeline-done-${r.id}`}>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                  <span className="truncate max-w-[200px]">{r.contentTitle ?? "Untitled"}</span>
+        {/* Content ideas */}
+        <div>
+          <Card data-testid="card-content-ideas">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                Content Ideas
+              </CardTitle>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/videos")} data-testid="btn-all-ideas">
+                More →
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {pendingIdeas.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No pending ideas.</p>
+              ) : (
+                <div className="space-y-3">
+                  {pendingIdeas.map((idea: any) => (
+                    <div key={idea.id} className="space-y-1" data-testid={`idea-${idea.id}`}>
+                      <p className="text-sm font-medium leading-tight">{idea.title}</p>
+                      {idea.concept && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{idea.concept}</p>
+                      )}
+                      {idea.priority != null && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className={`w-2 h-2 rounded-full ${i < Math.round(idea.priority / 2) ? "bg-amber-500" : "bg-muted"}`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-muted-foreground">{idea.priority}/10</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                  {r.clipCount > 0 && <span>{r.clipCount} clips</span>}
-                  {r.postCount > 0 && <span>{r.postCount} posts</span>}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent videos */}
-      {data?.recentVideos && data.recentVideos.length > 0 && (
-        <Card data-testid="card-recent-videos">
-          <CardHeader>
-            <CardTitle>Recent Videos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.recentVideos.map((v) => (
-                <div key={v.id} className="flex items-center gap-3" data-testid={`item-video-${v.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{v.title}</p>
-                    <p className="text-xs text-muted-foreground">{v.viewCount?.toLocaleString() ?? 0} views</p>
-                  </div>
-                  <Badge variant={v.status === "published" ? "default" : "secondary"} className="capitalize shrink-0">
-                    {v.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Empty state */}
-      {!analytics && !revenue && channels.length === 0 && (
-        <Card className="border-dashed" data-testid="card-empty-dashboard">
+      {!ytChannel && videos.length === 0 && (
+        <Card className="border-dashed" data-testid="card-empty-state">
           <CardContent className="pt-10 pb-10 text-center">
             <TrendingUp className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
             <h3 className="font-medium mb-1">Ready to launch</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
-              Connect your YouTube channel and social platforms in Settings to start the autonomous content machine.
+              Connect your YouTube channel in Settings to unlock analytics, AI metadata, Shorts generation, and more.
             </p>
-            <Button size="sm" onClick={() => navigate("/settings")} data-testid="btn-setup-platforms">
+            <Button size="sm" onClick={() => navigate("/settings")} data-testid="btn-setup-channel">
               <Link2 className="w-4 h-4 mr-2" />
-              Connect Platforms
+              Connect YouTube
             </Button>
           </CardContent>
         </Card>
