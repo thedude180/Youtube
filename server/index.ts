@@ -2283,7 +2283,7 @@ httpServer.listen(
       import("./services/engine-heartbeat").then(m => m.resetStaleEngineErrors(60 * 60 * 1000)).catch(slog("resetStaleEngineErrors"));
       // Heal permanent_fail queue items that only failed because a platform wasn't connected yet.
       // Now that platforms may be connected, reset them to pending so they get retried.
-      import("./db").then(({ db }) => import("@shared/schema").then(({ autopilotQueue }) => import("drizzle-orm").then(({ eq, like, or }) => {
+      import("./db").then(({ db }) => import("@shared/schema").then(({ autopilotQueue }) => import("drizzle-orm").then(({ eq, like, or, and, notInArray }) => {
         db.update(autopilotQueue)
           .set({ status: "pending", errorMessage: null })
           .where(or(
@@ -2292,6 +2292,20 @@ httpServer.listen(
           ))
           .then(res => logger.info("[Boot] Healed permanent_fail queue items", { rows: (res as any)?.rowCount ?? "?" }))
           .catch(err => logger.warn("[Boot] Queue heal skipped:", err?.message));
+
+        // ── Non-YouTube queue purge ───────────────────────────────────────────
+        // YouTube-only system: any scheduled/pending items targeting non-YouTube
+        // platforms are dead weight — they will never publish.  Permanently fail
+        // them so they stop cluttering the queue and the dashboard counts.
+        const YOUTUBE_PLATFORMS = ["youtube", "youtubeshorts"];
+        db.update(autopilotQueue)
+          .set({ status: "permanent_fail", errorMessage: "YouTube-only system: non-YouTube platform purged on startup" })
+          .where(and(
+            notInArray(autopilotQueue.status, ["published", "permanent_fail", "cancelled"]),
+            notInArray(autopilotQueue.targetPlatform as any, YOUTUBE_PLATFORMS),
+          ))
+          .then(res => logger.info("[Boot] Non-YouTube queue items purged", { rows: (res as any)?.rowCount ?? 0 }))
+          .catch(err => logger.warn("[Boot] Non-YouTube purge skipped:", err?.message));
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
@@ -2499,6 +2513,31 @@ httpServer.listen(
         const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(2 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("vod-optimizer-engine import"));
+
+      // ── Back Catalog Monetization Engine — fully autonomous ─────────────────
+      // Runs for every connected YouTube channel user.  First cycle fires after
+      // a 10-12 min staggered delay (avoids startup AI storms), then every 6h.
+      // On first run it imports the catalog if empty, scores every video, and
+      // queues Shorts + long-form clips up to the daily caps — zero human touch.
+      import("./services/youtube-back-catalog-engine").then(async m => {
+        await new Promise(r => setTimeout(r, stagger(10 * 60_000)));
+        const { channels: channelsTbl } = await import("@shared/schema");
+        const { eq: eqOp, and: andOp, sql: sqlTag } = await import("drizzle-orm");
+        const rows = await db.select({ userId: channelsTbl.userId })
+          .from(channelsTbl)
+          .where(andOp(eqOp(channelsTbl.platform, "youtube"), sqlTag`${channelsTbl.accessToken} IS NOT NULL`));
+        const uids = [...new Set(rows.map(r => r.userId).filter(Boolean))] as string[];
+        for (const uid of uids) {
+          await m.runBackCatalogMonetizationCycle(uid).catch(slog(`backCatalog(${uid.slice(0, 8)})`));
+        }
+        const iv = setInterval(async () => {
+          for (const uid of uids) {
+            await m.runBackCatalogMonetizationCycle(uid).catch(slog(`backCatalog-iv(${uid.slice(0, 8)})`));
+          }
+        }, jitter(6 * 60 * 60_000));
+        backgroundIntervals.push(iv);
+      }).catch(slog("back-catalog-engine import"));
+
       import("./token-refresh").then(async m => {
         // Delay first token keep-alive by 5 minutes so it doesn't fire during
         // the startup DB thundering herd from waves 1–8.
