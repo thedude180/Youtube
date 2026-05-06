@@ -239,6 +239,13 @@
       "when": 1777744438474,
       "tag": "0033_odd_silver_sable",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1778036947048,
+      "tag": "0034_public_roxanne_simpson",
+      "breakpoints": true
     }
   ]
 }
