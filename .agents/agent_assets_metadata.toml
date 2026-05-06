@@ -30,3 +30,9 @@ id = "znJHDn2_hLJz8IFCvBDmn"
 uri = "file://.local/creatorOS-code-breakdown.md"
 type = "text"
 title = "CreatorOS Full Code Breakdown"
+
+[[outputs]]
+id = "sTHh0oO8gB1LjjnpZXUZR"
+uri = "file://docs/youtube-only-enforcement.md"
+type = "text"
+title = "YouTube-Only Enforcement Changes"
