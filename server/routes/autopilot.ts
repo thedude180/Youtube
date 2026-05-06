@@ -1104,4 +1104,17 @@ export function registerAutopilotRoutes(app: Express) {
       res.status(500).json({ error: "Failed to redistribute content" });
     }
   });
+
+  app.get("/api/autopilot/output-scheduler/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getOutputSchedulerStatus } = await import("../services/youtube-output-scheduler");
+      const status = await getOutputSchedulerStatus(userId);
+      res.json(status[0] ?? null);
+    } catch (err) {
+      logger.error("[Autopilot] Output scheduler status error:", err);
+      res.status(500).json({ error: "Failed to fetch output scheduler status" });
+    }
+  });
 }

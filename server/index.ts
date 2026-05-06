@@ -2573,6 +2573,7 @@ httpServer.listen(
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
         { label: "shorts-clip-publisher",     fn: () => import("./services/shorts-clip-publisher").then(m => m.initShortsClipPublisher()).catch(slog("initShortsClipPublisher")) },
         { label: "long-form-clip-publisher",  fn: () => import("./services/long-form-clip-publisher").then(m => m.initLongFormClipPublisher()).catch(slog("initLongFormClipPublisher")) },
+        { label: "youtube-output-scheduler",  fn: () => import("./services/youtube-output-scheduler").then(m => { backgroundIntervals.push(m.initYouTubeOutputScheduler()); }).catch(slog("initYouTubeOutputScheduler")) },
       ], 1_500);
     });
 

@@ -534,6 +534,37 @@ Return ONLY valid JSON:
   }
 }
 
+async function resolveStreamSourceVideoId(userId: string, streamId: number): Promise<number | null> {
+  try {
+    // 1. Look for a video explicitly linked to this stream via metadata
+    const [linked] = await db.select({ id: videos.id })
+      .from(videos)
+      .innerJoin(channels, eq(videos.channelId, channels.id))
+      .where(and(
+        eq(channels.userId, userId),
+        eq(channels.platform, "youtube"),
+        sql`(${videos.metadata}->>'sourceStreamId')::text = ${String(streamId)}`,
+      ))
+      .limit(1);
+    if (linked) return linked.id;
+
+    // 2. Fallback: most recently ingested YouTube video for this user with a youtubeId
+    const [recent] = await db.select({ id: videos.id })
+      .from(videos)
+      .innerJoin(channels, eq(videos.channelId, channels.id))
+      .where(and(
+        eq(channels.userId, userId),
+        eq(channels.platform, "youtube"),
+        sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+      ))
+      .orderBy(desc(videos.createdAt))
+      .limit(1);
+    return recent?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function queueBatchContent(
   userId: string,
   plan: ContentPlan,
@@ -548,14 +579,18 @@ async function queueBatchContent(
   const groupId = `exhaust-${stream.stream.id}-batch-${batchNumber}-${Date.now()}`;
 
   const longFormTime = await getScheduledTimeForDay(dayOffset, userId);
-
   const allPlatforms = ["youtube", ...connectedPlatforms.all];
+
+  // Resolve the YouTube video record for this stream so publishers can find the source file.
+  const sourceVideoId = await resolveStreamSourceVideoId(userId, stream.stream.id);
 
   if (plan.longForm) {
     try {
+      const segStartMin = stream.nextSegmentStart;
+      const segEndMin = stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH);
       await db.insert(autopilotQueue).values({
         userId,
-        sourceVideoId: null,
+        sourceVideoId,
         type: "auto-clip",
         targetPlatform: "youtube",
         content: plan.longForm.description,
@@ -570,15 +605,17 @@ async function queueBatchContent(
           const eligibleBuckets = EXPERIMENT_BUCKETS.filter(m => m <= availableMin);
           const experimentDurationMin = eligibleBuckets.length > 0
             ? eligibleBuckets[Math.floor(Math.random() * eligibleBuckets.length)]
-            : 8; // fallback to minimum if footage is very short
+            : 8;
           return {
-            contentType: "long-form-compilation",
+            contentType: "long-form-clip",
             contentCategory: "video",
             style: "highlight-reel",
             aiModel: "gpt-4o-mini",
             sourceStreamId: stream.stream.id,
-            segmentStartMin: stream.nextSegmentStart,
-            segmentEndMin: stream.nextSegmentStart + Math.min(stream.remainingMinutes, MINUTES_PER_BATCH),
+            segmentStartSec: segStartMin * 60,
+            segmentEndSec: segEndMin * 60,
+            segmentStartMin: segStartMin,
+            segmentEndMin: segEndMin,
             experimentDurationMin,
             batchNumber,
             crossPlatformGroupId: groupId,
@@ -604,8 +641,8 @@ async function queueBatchContent(
     try {
       await db.insert(autopilotQueue).values({
         userId,
-        sourceVideoId: null,
-        type: "auto-clip",
+        sourceVideoId,
+        type: "youtube_short",
         targetPlatform: "youtube",
         content: `${sanitizeForPrompt(short.title)}\n\n${sanitizeForPrompt(short.description)}\n\n${sanitizeForPrompt(short.hashtags.join(" "))}`,
         caption: short.title,
@@ -617,6 +654,8 @@ async function queueBatchContent(
           style: "short-clip",
           aiModel: "gpt-4o-mini",
           sourceStreamId: stream.stream.id,
+          startSec: short.startMinute * 60,
+          endSec: short.endMinute * 60,
           segmentStartMin: short.startMinute,
           segmentEndMin: short.endMinute,
           tags: short.hashtags?.map((h: string) => h.replace(/^#/, "")) || [],
