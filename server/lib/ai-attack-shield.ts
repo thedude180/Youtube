@@ -859,7 +859,7 @@ const DAILY_CAPS: Record<string, number> = {
   "ai-team-engine":            600_000,  // 200k → 600k — full-day autonomous strategy sessions
   "vod-optimizer":             300_000,  // 80k  → 300k — full library SEO coverage daily
   "content-consistency-agent": 200_000,  // 60k  → 200k — consistency across full backlog
-  "shorts-pipeline":           400_000,  // 80k  → 400k — high-velocity shorts production
+  "shorts-pipeline":           150_000,  // capped at 150k — ~18 videos/day at ~8k tokens each; prevents crowding out other engines
   "thumbnail-intelligence":    250_000,  // 50k  → 250k — deep game research + A/B analysis
   "repurpose-engine":          200_000,  // 60k  → 200k — maximum repurpose variations
   "viral-optimizer":           500_000,  // 300k → 500k — full viral sweep on entire library
