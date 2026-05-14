@@ -776,7 +776,12 @@ export async function fetchYouTubeVideoDetails(
     if (markQuotaErrorFromResponse(err) && resolvedUserId) {
       await persistQuotaExhaustion(resolvedUserId).catch(() => {});
     }
-    if (!msg.includes("not connected") && !msg.includes("missing access token")) {
+    if (
+      !(err instanceof YouTubeReconnectRequiredError) &&
+      !msg.includes("not connected") &&
+      !msg.includes("missing access token") &&
+      !msg.includes("no valid access token")
+    ) {
       ytLogger.error("Failed to fetch video details", { youtubeVideoId, error: msg });
     }
     return null;

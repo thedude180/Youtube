@@ -25,9 +25,9 @@ export const MIN_INTER_CALL_DELAY_MS = 2_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 12;
 // Background callers fail-fast when this many are already queued.
-// Raised from 6 → 8: more breathing room for the autonomous agent fleet.
+// Raised from 6 → 8 → 16: 50+ autonomous agents need more queue depth.
 // Critical-path callers (publish, pipeline-analyze) bypass this limit entirely.
-const BACKGROUND_MAX_QUEUE_DEPTH = 8;
+const BACKGROUND_MAX_QUEUE_DEPTH = 16;
 const _bootTime = Date.now();
 
 let _busy = false;

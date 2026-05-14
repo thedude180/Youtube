@@ -1206,7 +1206,7 @@ export function registerStreamRoutes(app: Express) {
 
   // ── YouTube Autopilot Output Status ─────────────────────────────────────────
   app.get("/api/youtube/output-status", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
@@ -1306,7 +1306,7 @@ export function registerStreamRoutes(app: Express) {
 
   // ── Copilot mode management ──────────────────────────────────────────────────
   app.post("/api/youtube/copilot/mode", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { mode } = req.body;
     if (!["off", "suggest", "auto-safe", "manual-approval"].includes(mode)) {
@@ -1319,7 +1319,7 @@ export function registerStreamRoutes(app: Express) {
 
   // ── Pre-live stream preparation ──────────────────────────────────────────────
   app.post("/api/youtube/copilot/prepare/:streamId", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const streamId = parseInt(req.params.streamId, 10);
     if (isNaN(streamId)) return res.status(400).json({ error: "Invalid streamId" });
@@ -1330,7 +1330,7 @@ export function registerStreamRoutes(app: Express) {
 
   // ── After-stream copilot processing ─────────────────────────────────────────
   app.post("/api/youtube/copilot/after-stream/:streamId", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const streamId = parseInt(req.params.streamId, 10);
     if (isNaN(streamId)) return res.status(400).json({ error: "Invalid streamId" });
@@ -1341,7 +1341,7 @@ export function registerStreamRoutes(app: Express) {
 
   // ── Trigger daily learning cycle ─────────────────────────────────────────────
   app.post("/api/youtube/learning/run-cycle", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { runDailyLearningCycle } = await import("../services/youtube-learning-brain");
     const report = await runDailyLearningCycle(userId);
@@ -1351,7 +1351,7 @@ export function registerStreamRoutes(app: Express) {
   // ── Back Catalog Monetization Engine ─────────────────────────────────────────
 
   app.get("/api/youtube/back-catalog/status", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { getBackCatalogStatus } = await import("../services/youtube-back-catalog-engine");
     const status = await getBackCatalogStatus(userId);
@@ -1359,7 +1359,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/back-catalog/import", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { runBackCatalogImport } = await import("../services/youtube-back-catalog-engine");
     const result = await runBackCatalogImport(userId);
@@ -1367,7 +1367,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/back-catalog/scan", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { scanExistingChannelVideos } = await import("../services/youtube-back-catalog-engine");
     const result = await scanExistingChannelVideos(userId);
@@ -1375,7 +1375,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/back-catalog/queue", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { queueBackCatalogRevivalWork } = await import("../services/youtube-back-catalog-engine");
     const result = await queueBackCatalogRevivalWork(userId);
@@ -1383,7 +1383,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/back-catalog/run-cycle", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { runBackCatalogMonetizationCycle } = await import("../services/youtube-back-catalog-engine");
     const result = await runBackCatalogMonetizationCycle(userId);
@@ -1391,7 +1391,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/youtube/back-catalog/opportunities", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const limit = Math.min(100, parseInt(String(req.query.limit ?? "20"), 10) || 20);
     const { rankBackCatalogOpportunities } = await import("../services/youtube-back-catalog-engine");
@@ -1402,7 +1402,7 @@ export function registerStreamRoutes(app: Express) {
   // ── YouTube AI Orchestrator ───────────────────────────────────────────────────
 
   app.get("/api/youtube/ai-orchestrator/status", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { getYouTubeAIOrchestratorStatus } = await import("../services/youtube-ai-orchestrator");
     const status = await getYouTubeAIOrchestratorStatus(userId);
@@ -1410,7 +1410,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/ai-orchestrator/run", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { forceYouTubeAICycle } = await import("../services/youtube-ai-orchestrator");
     const result = await forceYouTubeAICycle(userId);
@@ -1418,7 +1418,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/ai-orchestrator/pause", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { pauseYouTubeAIOrchestrator } = await import("../services/youtube-ai-orchestrator");
     pauseYouTubeAIOrchestrator();
@@ -1426,7 +1426,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.post("/api/youtube/ai-orchestrator/resume", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { resumeYouTubeAIOrchestrator } = await import("../services/youtube-ai-orchestrator");
     resumeYouTubeAIOrchestrator();
@@ -1434,7 +1434,7 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/youtube/ai-orchestrator/decision-log", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const limit = Math.min(100, parseInt(String(req.query.limit ?? "50"), 10) || 50);
     const { getDecisionLog } = await import("../services/youtube-ai-orchestrator");
@@ -1442,11 +1442,24 @@ export function registerStreamRoutes(app: Express) {
   }));
 
   app.get("/api/youtube/ai-orchestrator/daily-report", asyncHandler(async (req: any, res) => {
-    const userId = req.user?.id || req.userId;
+    const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { getDailyReport } = await import("../services/youtube-ai-orchestrator");
     const report = getDailyReport(userId);
     if (!report) return res.status(404).json({ error: "No report yet — run a full cycle first" });
     res.json(report);
+  }));
+
+  // ── YouTube Quota Status (dedicated endpoint) ────────────────────────────────
+  app.get("/api/youtube/quota-status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const { getQuotaStatus } = await import("../services/youtube-quota-tracker");
+      const status = await getQuotaStatus(userId);
+      res.json(status);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch quota status", detail: String(err?.message ?? err) });
+    }
   }));
 }
