@@ -283,13 +283,13 @@ function classifyMessage(message: string, metadata: any): ClassifiedMessage {
   return { messageClass: "direct_question", riskLevel: "low", suggestedReply: null, isClipWorthy: false, requiresApproval: false };
 }
 
-// ── Rate limiter: no more than 1 reply per 2 min and max 4 per hour ──────────
+// ── Rate limiter: no more than 1 reply per 60s and max 10 per hour ───────────
 
 function canReply(state: ReturnType<typeof getStreamState>): boolean {
   const now = Date.now();
-  const minGap = 120_000; // 2 minutes minimum between replies
+  const minGap = 60_000; // 60 seconds minimum between replies
   if (now - state.lastReplyAt < minGap) return false;
-  if (state.replyCount >= 4) {
+  if (state.replyCount >= 10) {
     // Reset counter each hour
     if (now - state.lastReplyAt > 3_600_000) state.replyCount = 0;
     else return false;

@@ -27,9 +27,9 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("live-chat-agent");
 
 const openai = getOpenAIClient();
-const CHAT_INTERVAL_MS = 5 * 60 * 1000; // poll every 5 minutes
-const MAX_REPLIES_PER_HOUR = 8;
-const MIN_REPLY_GAP_MS = 2 * 60 * 1000; // minimum 2 minutes between any two replies
+const CHAT_INTERVAL_MS = 2 * 60 * 1000; // poll every 2 minutes
+const MAX_REPLIES_PER_HOUR = 20;
+const MIN_REPLY_GAP_MS = 30 * 1000; // minimum 30 seconds between any two replies
 
 interface ChatSession {
   userId: string;
@@ -262,7 +262,7 @@ Bad responses (DO NOT do this):
     const questions = newMessages.filter(m => {
       const text = m.snippet?.textMessageDetails?.messageText || "";
       return isQuestion(text) && text.length > 5 && text.length < 300;
-    }).slice(0, 1); // max 1 question reply per poll cycle
+    }).slice(0, 3); // up to 3 question replies per poll cycle
 
     const chattyMessages = newMessages.filter(m => {
       const text = m.snippet?.textMessageDetails?.messageText || "";
@@ -336,7 +336,7 @@ Bad responses (NEVER do this):
           }
         }
 
-        await new Promise(r => setTimeout(r, 15_000));
+        await new Promise(r => setTimeout(r, 5_000));
       }
     }
 
