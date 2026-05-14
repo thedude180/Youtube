@@ -292,10 +292,15 @@ export function registerMoneyRoutes(app: Express) {
   app.get(api.revenue.list.path, asyncHandler(async (req, res) => {
     const userId = await requireTier(req, res, "youtube", "Revenue Tracking");
     if (!userId) return;
-    const rawPlatform = req.body.platform ?? req.params.platform ?? (req.query.platform as string) ?? "youtube";
-    const platform = requireYouTubeOnly(rawPlatform);
-    const records = await storage.getRevenueRecords(userId, platform);
-    res.json(records);
+    try {
+      const rawPlatform = req.body?.platform ?? req.params?.platform ?? (req.query?.platform as string) ?? "youtube";
+      const platform = requireYouTubeOnly(rawPlatform);
+      const records = await storage.getRevenueRecords(userId, platform);
+      res.json(records);
+    } catch (err: any) {
+      logger.error("[Revenue] GET /api/revenue failed:", err?.message ?? String(err));
+      res.json([]);
+    }
   }));
 
   app.post(api.revenue.create.path, asyncHandler(async (req, res) => {

@@ -327,7 +327,9 @@ export async function runLegalTaxAgentCycle(userId: string, type?: "legal" | "ta
 
   for (const agent of agents) {
     await runSingleAgentTask(userId, agent);
-    await new Promise(r => setTimeout(r, 300));
+    // 5 s between agents so the background AI semaphore (max 8 slots) never
+    // saturates — prevents all other background services from being starved.
+    await new Promise(r => setTimeout(r, 5_000));
   }
 }
 

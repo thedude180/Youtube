@@ -154,6 +154,11 @@ async function processPipelineAsync(userId: string, videos: any[], runId: number
       clipsFound: current.clipsFound,
     }).where(eq(pipelineRuns.id, runId));
 
+    // Pace between videos so the shared AI semaphore stays available for other
+    // background services.  750 ms is enough for the queue to accept the next
+    // slot without noticeably slowing the overall pipeline batch.
+    await new Promise(r => setTimeout(r, 750));
+
     // If extractClipsFromVideo exhausted the budget on this video, stop the batch
     // rather than hammering through remaining videos with no-op budget checks.
     if (!tokenBudget.checkBudget("shorts-pipeline", 4000)) {
