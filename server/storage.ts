@@ -397,7 +397,11 @@ export class DatabaseStorage implements IStorage {
    *   disclosure_requirements, youtube_push_backlog,
    *   creator_credibility_scores, channel_immune_events,
    *   source_quality_profiles, archive_master_records,
-   *   channel_maturity_scores, live_capability_snapshots, multistream_destinations
+   *   channel_maturity_scores, live_capability_snapshots, multistream_destinations,
+   *   youtube_output_metrics
+   *
+   * GROUP A2 — back_catalog_derivatives (FK → back_catalog_videos.id) deleted
+   *   before back_catalog_videos (FK → channel_id) — explicit ordered deletes:
    *
    * GROUP B — video_id FK (via sub-SELECT of channel's video IDs):
    *   playlist_items, ab_tests, comment_responses, comment_sentiments,
@@ -442,11 +446,21 @@ export class DatabaseStorage implements IStorage {
         'creator_credibility_scores', 'channel_immune_events',
         'source_quality_profiles', 'archive_master_records',
         'channel_maturity_scores', 'live_capability_snapshots', 'multistream_destinations',
-        'back_catalog_videos', 'youtube_output_metrics',
+        'youtube_output_metrics',
       ];
       for (const table of channelTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
       }
+
+      // back_catalog_derivatives has a FK → back_catalog_videos.id, so it must
+      // be deleted BEFORE back_catalog_videos (which itself has channel_id FK).
+      await tx.execute(sql`
+        DELETE FROM back_catalog_derivatives
+        WHERE back_catalog_video_id IN (
+          SELECT id FROM back_catalog_videos WHERE channel_id = ${id}
+        )
+      `);
+      await tx.execute(sql`DELETE FROM back_catalog_videos WHERE channel_id = ${id}`);
 
       const videoSubquery = sql`(SELECT id FROM videos WHERE channel_id = ${id})`;
 
