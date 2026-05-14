@@ -135,9 +135,16 @@ async function checkAndEngageStream(userId: string): Promise<void> {
   try {
     state.lastCheckedAt = new Date();
 
-    // Check internal DB for streams marked live
-    const userStreams = await storage.getStreams(userId);
-    let liveStream = userStreams.find(s => s.status === "live");
+    // Check internal DB for streams marked live.
+    // Wrap in try/catch so a DB timeout (query_timeout, Connection terminated)
+    // doesn't crash the entire agent check — just treat as "no live stream".
+    let userStreams: any[] = [];
+    try {
+      userStreams = await storage.getStreams(userId);
+    } catch (dbErr: any) {
+      logger.warn(`Stream-agent DB timeout getting streams for ${userId} — skipping DB live-check`, { error: dbErr?.message?.substring(0, 120) });
+    }
+    let liveStream = userStreams.find((s: any) => s.status === "live");
     let detectedVideoId: string | null = null;
 
     // If no DB stream is live, check YouTube.

@@ -655,6 +655,11 @@ async function runJobInBackground(jobId: number): Promise<void> {
     // pipeline chain is visible without the performance cost.
     for (const platform of platforms) {
       const profile = PLATFORM_PROFILES[platform];
+      if (!profile) {
+        logger.warn(`[StreamEditor] Job ${jobId}: unknown platform "${platform}" not in PLATFORM_PROFILES — skipping`);
+        completedTasks += numClips;
+        continue;
+      }
       const platformDir = path.join(jobOutputDir, platform);
       fs.mkdirSync(platformDir, { recursive: true });
 

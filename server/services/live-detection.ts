@@ -314,8 +314,13 @@ async function handleDetectedBroadcast(userId: string, channelId: number, broadc
     return;
   }
 
-  const streamList = await storage.getStreams(userId);
-  const existingLive = streamList.find(s =>
+  let streamList: any[] = [];
+  try {
+    streamList = await storage.getStreams(userId);
+  } catch (dbErr: any) {
+    logger.warn(`[LiveDetection] DB timeout in handleDetectedBroadcast for ${userId} — treating as no existing live stream`, { error: dbErr?.message?.substring(0, 120) });
+  }
+  const existingLive = streamList.find((s: any) =>
     s.status === "live" && Array.isArray(s.platforms) && (s.platforms as string[]).includes(broadcast.platform)
   );
 
@@ -407,8 +412,14 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
   tracked.missCount++;
   if (tracked.missCount < 2) return;
 
-  const streamList = await storage.getStreams(userId);
-  const liveStream = streamList.find(s => s.id === tracked.streamId && s.status === "live");
+  let streamList: any[] = [];
+  try {
+    streamList = await storage.getStreams(userId);
+  } catch (dbErr: any) {
+    logger.warn(`[LiveDetection] DB timeout in handleBroadcastEnded for ${userId} — skipping end-stream update`, { error: dbErr?.message?.substring(0, 120) });
+    return;
+  }
+  const liveStream = streamList.find((s: any) => s.id === tracked.streamId && s.status === "live");
 
   trackedBroadcasts.delete(key);
   clearPending(key);

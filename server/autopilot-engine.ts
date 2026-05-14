@@ -1487,6 +1487,9 @@ export async function processScheduledPosts() {
 
   const connectedByUser = new Map<string, Set<string>>();
   const { publishToplatform } = await import("./platform-publisher");
+  // Track users whose YouTube budget is exhausted so we can skip the rest of their
+  // posts in this batch without running copyright/compliance/trust checks per-item.
+  const ytBudgetExhaustedUsers = new Set<string>();
 
   for (const post of duePosts) {
     try {
@@ -1504,6 +1507,27 @@ export async function processScheduledPosts() {
       }
 
       if (post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts") {
+        // Short-circuit: if this user's YouTube budget was already exhausted earlier
+        // in this batch, skip all remaining YouTube posts for them immediately.
+        if (ytBudgetExhaustedUsers.has(post.userId)) {
+          const { getNextResetTime } = await import("./services/youtube-quota-tracker");
+          const resetTime = getNextResetTime();
+          const deferTo = new Date(resetTime.getTime() + 5 * 60_000);
+          await db.update(autopilotQueue)
+            .set({
+              status: "scheduled",
+              scheduledAt: deferTo,
+              metadata: {
+                ...((post.metadata as any) || {}),
+                quotaDeferred: true,
+                deferredAt: new Date().toISOString(),
+                deferredUntil: deferTo.toISOString(),
+              },
+            })
+            .where(eq(autopilotQueue.id, post.id));
+          continue;
+        }
+
         try {
           const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
           if (isQuotaBreakerTripped()) {
@@ -1511,6 +1535,7 @@ export async function processScheduledPosts() {
             const resetTime = getNextResetTime();
             const deferTo = new Date(resetTime.getTime() + 5 * 60_000);
             logger.info("YouTube quota breaker active — deferring post until reset", { postId: post.id, deferTo: deferTo.toISOString() });
+            ytBudgetExhaustedUsers.add(post.userId);
             await db.update(autopilotQueue)
               .set({
                 status: "scheduled",
@@ -1728,6 +1753,26 @@ export async function processScheduledPosts() {
           .where(eq(autopilotQueue.id, post.id));
       } else {
         const errorMsg = result.error || "Unknown publish error";
+        // If the platform budget gate fired, reschedule to midnight reset instead of
+        // permanently failing — and flag this user so the rest of the batch skips early.
+        const isDailyBudgetHit = errorMsg.includes("daily_limit_reached") || errorMsg.includes("daily budget reached");
+        if (isDailyBudgetHit && (post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts")) {
+          ytBudgetExhaustedUsers.add(post.userId);
+          try {
+            const { getNextResetTime } = await import("./services/youtube-quota-tracker");
+            const resetTime = getNextResetTime();
+            const deferTo = new Date(resetTime.getTime() + 5 * 60_000);
+            logger.info("YouTube daily budget hit — deferring post to quota reset", { postId: post.id, deferTo: deferTo.toISOString() });
+            await db.update(autopilotQueue)
+              .set({
+                status: "scheduled",
+                scheduledAt: deferTo,
+                metadata: { ...((post.metadata as any) || {}), quotaDeferred: true, deferredAt: new Date().toISOString(), deferredUntil: deferTo.toISOString() },
+              })
+              .where(eq(autopilotQueue.id, post.id));
+            continue;
+          } catch (_deferErr) { /* fall through to normal failure path */ }
+        }
         logger.error("Publish failed", { postId: post.id, platform: post.targetPlatform, error: errorMsg });
 
         const { classifyFailure, getAutoFixSummary } = await import("./auto-fix-engine");

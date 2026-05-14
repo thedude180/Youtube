@@ -16,13 +16,24 @@ const GRIND_INTERVAL_MS = 45 * 60_000;
  * Strip markdown code fences and parse JSON from an AI response.
  * Claude sometimes wraps output in ```json\n...\n``` blocks even when
  * told not to — this makes raw JSON.parse throw a SyntaxError.
+ * Also handles the case where the AI omits the closing fence entirely.
  */
 function extractJsonFromResponse(raw: string): any {
   let content = (raw || "{}").trim();
-  // Strip ```json ... ``` or ``` ... ``` fences
-  const fenceMatch = content.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/i);
-  if (fenceMatch) content = fenceMatch[1].trim();
-  return JSON.parse(content);
+  // Strip opening ```json or ``` fence (with or without closing fence)
+  content = content.replace(/^```(?:json|JSON)?\s*\r?\n?/, "");
+  // Strip closing ``` fence if present
+  content = content.replace(/\r?\n?```\s*$/, "");
+  content = content.trim();
+  // If there's still leading non-JSON text, find the first { or [
+  const brace = content.indexOf("{");
+  const bracket = content.indexOf("[");
+  const start =
+    brace === -1 ? bracket :
+    bracket === -1 ? brace :
+    Math.min(brace, bracket);
+  if (start > 0) content = content.slice(start);
+  return JSON.parse(content.trim());
 }
 
 // Track when the thumbnail-intelligence token budget was last exhausted per user.

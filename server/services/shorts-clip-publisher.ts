@@ -117,23 +117,47 @@ async function downloadSegmentFromYouTube(
   const hasCookies = fs.existsSync(cookiesPath) && fs.statSync(cookiesPath).size > 10;
 
   const sectionStr = `*${startSec}-${endSec}`;
-  const args: string[] = [
-    "--download-sections", sectionStr,
-    "--force-keyframes-at-cuts",
-    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "--merge-output-format", "mp4",
-    "-o", outputPath,
-    "--no-playlist",
-    "--quiet",
-    "--no-warnings",
+  const baseArgs = (formatStr: string): string[] => {
+    const args: string[] = [
+      "--download-sections", sectionStr,
+      "--force-keyframes-at-cuts",
+      "-f", formatStr,
+      "--merge-output-format", "mp4",
+      "-o", outputPath,
+      "--no-playlist",
+      "--quiet",
+      "--no-warnings",
+    ];
+    if (hasCookies) args.push("--cookies", cookiesPath);
+    args.push(`https://www.youtube.com/watch?v=${youtubeId}`);
+    return args;
+  };
+
+  // Format fallback chain: preferred → standard → last-resort
+  const formats = [
+    "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "best[height<=1080]/best[height<=720]/best",
   ];
 
-  if (hasCookies) {
-    args.push("--cookies", cookiesPath);
+  let lastErr: Error | null = null;
+  for (const fmt of formats) {
+    try {
+      // Remove stale output from a failed previous attempt before retrying
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+      await runCmd(ytdlp, baseArgs(fmt));
+      return;
+    } catch (err: any) {
+      lastErr = err;
+      const msg: string = err?.message || String(err);
+      // "Requested format is not available" — try next format
+      // Other errors (network, DRM) — propagate immediately
+      if (!msg.includes("Requested format is not available") && !msg.includes("not available")) {
+        throw err;
+      }
+    }
   }
-
-  args.push(`https://www.youtube.com/watch?v=${youtubeId}`);
-  await runCmd(ytdlp, args);
+  throw lastErr ?? new Error(`All format fallbacks failed for ${youtubeId}`);
 }
 
 // ---------------------------------------------------------------------------
