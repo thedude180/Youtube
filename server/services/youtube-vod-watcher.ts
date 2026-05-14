@@ -49,6 +49,9 @@ async function getAuthenticatedYouTube(channel: any) {
     refresh_token: channel.refreshToken,
     expiry_date: channel.tokenExpiresAt ? new Date(channel.tokenExpiresAt).getTime() : undefined,
   });
+  // AUDIT: This listener can race with token-refresh.ts if Google rotates tokens while
+  // multiple services hold the same oauth2Client. Consider routing all token persistence
+  // through the per-channel lock in token-refresh.ts instead.
   oauth2Client.on("tokens", async (tokens) => {
     const updates: any = {};
     if (tokens.access_token) updates.accessToken = tokens.access_token;

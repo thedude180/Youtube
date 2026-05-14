@@ -928,7 +928,7 @@ export async function uploadVideoToYouTube(
   if (options.scheduledStartTime) {
     const scheduledDate = new Date(options.scheduledStartTime);
     if (isNaN(scheduledDate.getTime())) {
-      console.warn(`[YouTubeSchedule] Invalid scheduledStartTime "${options.scheduledStartTime}" — ignored`);
+      ytLogger.warn(`[YouTubeSchedule] Invalid scheduledStartTime "${options.scheduledStartTime}" — ignored`);
     } else if (scheduledDate.getTime() > Date.now() + 60_000) {
       // YouTube rejects publishAt on public videos — must be private.
       if (statusBody.privacyStatus === "public") {

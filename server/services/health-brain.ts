@@ -195,7 +195,7 @@ class HealthBrain {
     writeCrashMarker(reason, detail);
     await sendCriticalAlert(reason, detail);
     await new Promise(r => setTimeout(r, 3000));
-    process.exit(1);
+    throw new Error("[HealthBrain] Critical health check failure — restart required");
   }
 
   async forceRestart(name: string): Promise<void> {

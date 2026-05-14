@@ -18,8 +18,9 @@ interface HealthTrend {
   predicted: number;
 }
 
-const apiLatencyHistory: Map<string, number[]> = new Map();
-const errorRateHistory: Map<string, number[]> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const apiLatencyHistory: Map<string, number[]> = new LRUMap(5_000);
+const errorRateHistory: Map<string, number[]> = new LRUMap(5_000);
 const memoryHistory: number[] = [];
 const MAX_HISTORY = 20;
 

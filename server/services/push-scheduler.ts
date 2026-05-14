@@ -27,9 +27,10 @@ interface PushJob {
 }
 
 const pushQueue: PushJob[] = [];
-const dailyPushCounts: Map<string, { date: string; count: number }> = new Map();
-const hourlyPushCounts: Map<string, { hour: string; count: number }> = new Map();
-const lastPushTime: Map<string, number> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const dailyPushCounts: Map<string, { date: string; count: number }> = new LRUMap(5_000);
+const hourlyPushCounts: Map<string, { hour: string; count: number }> = new LRUMap(5_000);
+const lastPushTime: Map<string, number> = new LRUMap(5_000);
 let schedulerRunning = false;
 let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 

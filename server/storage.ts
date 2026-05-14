@@ -570,7 +570,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
     } catch (e: any) {
-      console.error("[storage.createVideo] vault backup failed:", e?.message ?? e);
+      logger.error("[storage.createVideo] vault backup failed:", e?.message ?? e);
     }
     return newVideo;
   }

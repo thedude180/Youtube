@@ -62,7 +62,8 @@ const SYSTEM_ENGINE_MAP: Record<string, string[]> = {
   "thumbnails": ["auto-thumbnail-engine", "brand-safety"],
 };
 
-const adaptiveRules: Map<string, any> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const adaptiveRules: Map<string, any> = new LRUMap(5_000);
 
 export function getAdaptiveRule(key: string): any {
   return adaptiveRules.get(key);

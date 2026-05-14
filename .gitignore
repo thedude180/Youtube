@@ -44,3 +44,15 @@ Desktop.ini
 npm-debug.log*
 
 .git.backup.*
+
+# ── Source code exports (full codebase in plain text) ──
+CODEBASE_EXPORT.txt
+codebase-export.md
+youtube-only-codebase.md
+
+# ── AI prompts / internal architecture docs ──
+CREATOROS_MASTER_PROMPT_v*.md
+CLAUDE (copy).md
+
+# ── Migration snapshots (large JSON, only latest needed) ──
+# migrations/meta/*.json

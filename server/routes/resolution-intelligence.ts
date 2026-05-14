@@ -43,7 +43,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       }
       res.json({ analysis });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -55,7 +55,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       if (profile && profile.userId !== userId) return res.sendStatus(403);
       res.json({ profile });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -68,7 +68,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const cap = getPlatformCapability(platform, req.query.region as string);
       res.json(cap);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -109,7 +109,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
 
       res.json({ ladder, explanations, mezzanine, source: analysis });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -120,7 +120,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const decision = evaluateUpscale(analysis, destination, latencyMode || "normal", headroom || { gpu: 0.8, cpu: 0.8, bandwidth: 0.8 });
       res.json(decision);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -144,7 +144,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       }
       res.json(assessment);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -152,10 +152,11 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
     const userId = getUserId(req);
     if (!userId) return res.sendStatus(401);
     try {
-      const snapshot = await saveLiveQualitySnapshot({ ...req.body, userId });
+      const { videoId, channelId: snapChannelId, timestamp, ...rest } = req.body;
+      const snapshot = await saveLiveQualitySnapshot({ ...rest, videoId: String(videoId ?? ""), channelId: String(snapChannelId ?? ""), timestamp: timestamp ? new Date(timestamp) : new Date(), userId });
       res.json(snapshot);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -166,7 +167,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const state = await getLatestQualityState(userId, req.params.sessionId as string);
       res.json(state);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -178,7 +179,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const filtered = ladders.filter(l => l.userId === userId);
       res.json({ ladders: filtered });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -189,7 +190,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const record = await saveArchiveMaster({ ...req.body, userId });
       res.json(record);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -201,7 +202,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       if (record && record.userId !== userId) return res.sendStatus(403);
       res.json({ record });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -214,7 +215,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const recommendation = getExportQualityRecommendation(analysis, assetType || "vod");
       res.json(recommendation);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -227,7 +228,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const profile = await getDestinationOutputProfile(userId, platform);
       res.json({ profile });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -240,7 +241,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const profile = await upsertDestinationOutputProfile(userId, platform, req.body);
       res.json(profile);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -251,7 +252,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const prefs = await getUserQualityPreferences(userId);
       res.json(prefs);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -262,7 +263,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const record = await saveQualityReconciliation({ ...req.body, userId });
       res.json(record);
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -274,7 +275,7 @@ export function registerResolutionIntelligenceRoutes(app: Express) {
       const filtered = events.filter(e => e.userId === userId);
       res.json({ events: filtered });
     } catch (e: any) {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 }

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { asyncHandler, requireAuth, requireAdmin, parseNumericId } from "./helpers";
+import { asyncHandler, requireAuth, requireAuthMw, requireAdmin, parseNumericId } from "./helpers";
 import {
   getTrustBudgetStatus, deductTrustBudget, resetTrustBudget, getTrustBudgetHistory,
   evaluateApproval, getApprovalMatrixRules, updateApprovalRule, seedApprovalMatrix,
@@ -18,6 +18,9 @@ import { createLogger } from "../lib/logger";
 
 const logger = createLogger("trust-governance");
 const router = Router();
+
+// Defense-in-depth: require auth at router level (individual handlers still call requireAuth for userId)
+router.use(requireAuthMw);
 
 router.use(tenantIsolationMiddleware(
   extractTargetUserId,

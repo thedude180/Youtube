@@ -40,7 +40,8 @@ const TIER_LIMITS: Record<string, { platforms: number; price: number; features: 
   },
 };
 
-const lastRecommended: Map<string, { tier: string; timestamp: number }> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const lastRecommended: Map<string, { tier: string; timestamp: number }> = new LRUMap(5_000);
 const RECOMMENDATION_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const LAST_RECOMMENDED_MAX_SIZE = 500;
 

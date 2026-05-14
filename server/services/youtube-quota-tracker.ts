@@ -501,3 +501,38 @@ export async function canAffordCatalogListing(userId: string, estimatedUnits: nu
 }
 
 export { QUOTA_COSTS, type QuotaOperation, getPacificDate, getNextResetTime };
+
+
+/**
+ * Hourly budget limiter — prevents front-loading all quota in the first few hours.
+ * YouTube resets quota at midnight Pacific (UTC-7 / UTC-8 depending on DST).
+ * We divide the day into hourly windows and limit consumption per window.
+ *
+ * Without this, a restart at any point could burn through the entire daily
+ * budget in minutes as dozens of services fire simultaneously.
+ */
+const HOURLY_BUDGET_FRACTION = 0.08; // Max 8% of daily quota per hour (allows some burst)
+
+export function getHourlyBudget(dailyLimit: number = DEFAULT_DAILY_LIMIT): number {
+  return Math.floor(dailyLimit * HOURLY_BUDGET_FRACTION);
+}
+
+/**
+ * Check if we've exceeded the hourly budget pace.
+ * Returns true if we should throttle (slow down API calls).
+ */
+export async function isHourlyBudgetExceeded(userId: string): Promise<boolean> {
+  const record = await getOrCreateDailyRecord(userId);
+  const hourlyBudget = getHourlyBudget(record.quotaLimit);
+
+  // Calculate hours elapsed since midnight Pacific
+  const now = new Date();
+  const pacific = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+  const hoursElapsed = pacific.getHours() + (pacific.getMinutes() / 60);
+
+  // Expected budget at this point in the day
+  const expectedBudget = Math.floor(hoursElapsed * hourlyBudget);
+
+  // If we've used more than expected, we're front-loading
+  return record.unitsUsed > expectedBudget + hourlyBudget; // allow 1 hour burst
+}

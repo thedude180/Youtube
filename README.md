@@ -1,5 +1,29 @@
 # CreatorOS - YouTube Team In A Box
 
+
+## Quick Start (Lite Mode)
+
+Running into memory issues or quota limits? Use **Lite Mode** to start only essential services:
+
+```bash
+# In your .env file:
+LITE_MODE=true
+
+# Or pass as env var:
+LITE_MODE=true npm run dev
+```
+
+**Lite Mode** starts the web server, database, auth, and all API routes — but skips the 50+ background engines (autopilot, AI intelligence, live streaming, content grinder, etc.). This reduces RAM usage by ~80% and eliminates YouTube API quota drain from background services.
+
+**When to use Lite Mode:**
+- Replit free tier (RAM limit ~512MB)
+- Local development / debugging
+- First-time setup / testing
+
+**When to use Full Mode (LITE_MODE=false):**
+- Production deployment with adequate resources (2GB+ RAM)
+- Running the full autonomous content pipeline
+
 An AI-powered multi-platform content management and live streaming OS for gaming creators.
 
 ## Tech Stack

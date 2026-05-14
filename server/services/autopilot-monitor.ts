@@ -19,7 +19,8 @@ interface SystemCheck {
   check: (userId: string) => Promise<HealthCheckResult>;
 }
 
-const autoFixLog: Map<string, { count: number; lastFixed: Date }> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const autoFixLog: Map<string, { count: number; lastFixed: Date }> = new LRUMap(5_000);
 const AUTO_FIX_LOG_MAX_SIZE = 1000;
 
 function enforceAutoFixLogCap(): void {

@@ -28,7 +28,8 @@ function extractJsonFromResponse(raw: string): any {
 // Track when the thumbnail-intelligence token budget was last exhausted per user.
 // If exhausted, skip all thumbnail research for that user for the rest of the day
 // to avoid hammering the budget check on every video in the loop.
-const thumbnailBudgetExhaustedAt: Map<string, number> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const thumbnailBudgetExhaustedAt: Map<string, number> = new LRUMap(5_000);
 
 let grindInterval: ReturnType<typeof setInterval> | null = null;
 

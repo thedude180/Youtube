@@ -4,7 +4,7 @@ import { eq, and, inArray, desc, count, sql } from "drizzle-orm";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
 import { getAppUrl } from "../lib/app-url";
-import { trackQuotaUsage, getQuotaStatus, isQuotaBreakerTripped } from "./youtube-quota-tracker";
+import { trackQuotaUsage, getQuotaStatus, isQuotaBreakerTripped, canAffordOperation } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
 
 const logger = createLogger("catalog-sync");
@@ -291,6 +291,11 @@ export async function syncFullCatalog(userId: string): Promise<{
 
   const yt = await getAuthenticatedYouTube(ytChannel);
 
+  // Quota gate: check before making API calls
+  if (!(await canAffordOperation(userId, "read"))) {
+    logger.warn("[CatalogSync] Quota too low — skipping sync cycle");
+    return { total: 0, newLinks: 0, updated: 0, errors: 0 };
+  }
   const channelResp = await yt.channels.list({ part: ["contentDetails"], mine: true });
   await trackQuotaUsage(userId, "list", 1);
 

@@ -7,7 +7,7 @@ import { getOpenAIClient } from "../lib/openai";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { jobQueue } from "./intelligent-job-queue";
 import { createLogger } from "../lib/logger";
-import { isQuotaBreakerTripped, trackQuotaUsage, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
+import { isQuotaBreakerTripped, trackQuotaUsage, markQuotaErrorFromResponse, canAffordOperation } from "./youtube-quota-tracker";
 
 const logger = createLogger("stream-operator");
 
@@ -138,6 +138,11 @@ export const streamOperator = {
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
     // Fetch messages
+    // Quota gate: liveChatMessages.list costs ~5 units
+    if (!(await canAffordOperation(userId, "read"))) {
+      logger.warn("[StreamOperator] Quota exhausted — skipping live chat poll");
+      return { messages: [], nextPageToken: undefined };
+    }
     const response = await youtube.liveChatMessages.list({
       liveChatId,
       part: ["snippet", "authorDetails"],

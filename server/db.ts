@@ -16,7 +16,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 30,                      // 30 slots — headroom for 146 background services competing during memory recovery
+  max: 50,                      // 50 slots — headroom for 146 background services competing during memory recovery
   idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
   connectionTimeoutMillis: 5_000, // 5s wait for a pool slot — fail fast so services don't pile up
   allowExitOnIdle: false,
@@ -27,7 +27,9 @@ export const pool = new Pool({
     process.env.REPLIT_DEPLOYMENT ||
     process.env.DATABASE_URL?.includes("sslmode=require") ||
     process.env.DATABASE_URL?.includes("ssl=true")
-  ) ? { rejectUnauthorized: false } : undefined,
+  ) ? {
+    rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',  // default: verify certs; set DB_SSL_REJECT_UNAUTHORIZED=false only for self-signed certs
+  } : undefined,
 });
 
 let poolErrorCount = 0;
@@ -109,4 +111,22 @@ export async function withRetry<T>(
   const wrapped = new Error(`[DB Retry] ${label} failed after ${maxRetries} attempts: ${lastErr?.message}`);
   (wrapped as any).cause = lastErr;
   throw wrapped;
+}
+
+
+/**
+ * For known-slow queries (analytics aggregation, back catalog sync),
+ * wrap in this to temporarily raise the statement timeout.
+ * Usage: await withLongQueryTimeout(async () => db.select()...);
+ */
+export async function withLongQueryTimeout<T>(fn: () => Promise<T>, timeoutMs = 60_000): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query(`SET statement_timeout = ${timeoutMs}`);
+    const result = await fn();
+    return result;
+  } finally {
+    await client.query("SET statement_timeout = 10000").catch(() => {});
+    client.release();
+  }
 }

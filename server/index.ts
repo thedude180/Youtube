@@ -60,6 +60,28 @@ const _binariesReady = ensureRuntimeBinaries().then(() => {
   schedulePeriodicYtDlpRefresh();
 });
 
+// ── LITE MODE ──────────────────────────────────────────────────────────────────
+// Set LITE_MODE=true to start only essential services (web server, DB, auth,
+// YouTube quota tracker). Skips all background engines, intelligence services,
+// live streaming, and AI-intensive features. Perfect for:
+//   - Replit free tier (limited RAM)
+//   - Local development
+//   - Debugging specific features without noise from 50+ background services
+//
+// Essential services that ALWAYS run regardless of LITE_MODE:
+//   - Express web server + all API routes
+//   - Database connection + migrations
+//   - YouTube OAuth + token management
+//   - Quota tracker + circuit breaker
+//   - Security middleware
+//   - Stripe webhooks
+const LITE_MODE = process.env.LITE_MODE === "true" || process.env.LITE_MODE === "1";
+if (LITE_MODE) {
+  process.stdout.write("\n🔧 LITE MODE ACTIVE — only essential services will start\n");
+  process.stdout.write("   Set LITE_MODE=false to enable all background engines\n\n");
+}
+
+
 // ── VAULT AUTO-CLEAR (DEV ONLY) ───────────────────────────────────────────────
 // In DEVELOPMENT: vault/ is wiped on startup + hourly to prevent the Replit dev
 // environment from hitting disk quota (50 GB+ of MP4s accumulate fast).
@@ -2338,8 +2360,8 @@ httpServer.listen(
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
-      try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); }
-      try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); }
+      if (!LITE_MODE) { try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); } }
+      if (!LITE_MODE) { try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); } }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
       import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(slog("AgentExplanationContract"))).catch(slog("seed-schema-registry import"));
       import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(slog("seedSignalRegistry"));
@@ -2383,7 +2405,7 @@ httpServer.listen(
         }))).catch(slog("notifCleanup"));
       }, jitter(6 * 60 * 60_000));
       backgroundIntervals.push(dlqInterval, digestInterval, notifCleanup);
-      import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
+      if (!LITE_MODE) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
     // ── WAVE 3 (T+10s): Live detection, agents, watchers ─────────────────────
@@ -2394,6 +2416,7 @@ httpServer.listen(
       // checked too recently, so actual API calls happen far less often.
       // Live services only fire after BOTH detection pipelines confirm (dual-gate).
       // Tick is 15 s so the tighter per-platform windows are honored quickly.
+      if (LITE_MODE) { logger.info("LITE MODE — skipping live detection + watchers"); return; }
       const LIVE_POLL_MS = parseInt(process.env.LIVE_POLL_INTERVAL_MS || "15000");
       const pollLive = () => { import("./services/live-detection").then(m => m.runMultiPlatformLiveDetection()).catch(slog("liveDetectionPoll")); };
       pollLive();
@@ -2416,7 +2439,7 @@ httpServer.listen(
     // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──
     // Staggered 2 000ms apart — prevents simultaneous DB reads + platform API
     // calls from all services firing in the same event loop tick.
-    delay(13_000, () => {
+    if (!LITE_MODE) delay(13_000, () => {
       staggeredBoot([
         { label: "content-consistency-agent", fn: () => import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import")) },
         { label: "stream-agent",              fn: () => import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import")) },
@@ -2431,7 +2454,7 @@ httpServer.listen(
     // ── WAVE 5 (T+16s): Intelligence engines batch 1 ─────────────────────────
     // Awaiting tokenBudget.ready ensures rehydration from DB is complete before
     // any budget-consuming AI engines can run their first budget check.
-    delay(16_000, () => {
+    if (!LITE_MODE) delay(16_000, () => {
       tokenBudget.ready.then(() => {
         startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
         import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
@@ -2445,7 +2468,7 @@ httpServer.listen(
     // ── WAVE 6 (T+19s): Intelligence engines batch 2 + live agents ──────────
     // Staggered 1 500ms apart — keeps AI engine initializations from flooding
     // the OpenAI rate limiter (15 req/min) and DB connection pool simultaneously.
-    delay(19_000, () => {
+    if (!LITE_MODE) delay(19_000, () => {
       staggeredBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
         { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
@@ -2462,7 +2485,7 @@ httpServer.listen(
     });
 
     // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
-    delay(22_000, () => {
+    if (!LITE_MODE) delay(22_000, () => {
       import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine"));
       import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention"));
       import("./services/universal-learning-observer").then(m => m.initUniversalObserver()).catch(slog("initUniversalObserver"));
@@ -2474,7 +2497,7 @@ httpServer.listen(
     });
 
     // ── WAVE 8 (T+25s): Content engines — thumbnails, marketing, daily ──────
-    delay(25_000, () => {
+    if (!LITE_MODE) delay(25_000, () => {
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
       import("./services/pipeline-self-heal").then(m => m.initPipelineSelfHeal()).catch(slog("initPipelineSelfHeal"));
@@ -2596,7 +2619,7 @@ httpServer.listen(
     });
 
     // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───
-    delay(60_000, () => {
+    if (!LITE_MODE) delay(60_000, () => {
       import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
       import("./smart-edit-engine").then(async m => {
         await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
@@ -2616,7 +2639,7 @@ httpServer.listen(
     // ── WAVE 10 (T+80s): Autonomous command engines ─────────────────────────
     // Staggered 1 500ms apart — each engine may make YouTube/TikTok/Discord API
     // calls on its first cycle; spreading start times avoids quota bursts.
-    delay(80_000, () => {
+    if (!LITE_MODE) delay(80_000, () => {
       staggeredBoot([
         { label: "tos-compliance-monitor",    fn: () => import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor")) },
         { label: "media-command-center",      fn: () => import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter")) },
@@ -2637,7 +2660,7 @@ httpServer.listen(
     // 12 engines — staggered 1 000ms apart (total spread: ~11s).
     // These engines periodically call OpenAI (15 req/min limit) and read
     // analytics data — spacing their starts keeps the AI rate limiter safe.
-    delay(100_000, () => {
+    if (!LITE_MODE) delay(100_000, () => {
       staggeredBoot([
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
         { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
@@ -2656,7 +2679,7 @@ httpServer.listen(
     });
 
     // ── WAVE 11 (T+120s): Self-healing, webhook pipeline, health brain ───────
-    delay(120_000, () => {
+    if (!LITE_MODE) delay(120_000, () => {
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
@@ -2688,7 +2711,7 @@ httpServer.listen(
     });
 
     // ── WAVE 12 (T+37s): Autonomous Social Media Company ──────────────────
-    delay(37_000, async () => {
+    if (!LITE_MODE) delay(37_000, async () => {
       try {
         // Register job handlers for all autonomous job types
         jobQueue.registerHandler("extract_and_publish_clip", async (job) => {

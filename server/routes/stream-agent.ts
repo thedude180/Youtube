@@ -16,7 +16,7 @@ export function registerStreamAgentRoutes(app: Express): void {
       const idleEngagement = getIdleSessionStatus(userId);
       res.json({ ...agentStatus, idleEngagement });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -26,7 +26,7 @@ export function registerStreamAgentRoutes(app: Express): void {
       const result = await startStreamAgent(userId);
       res.json(result);
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
@@ -37,7 +37,7 @@ export function registerStreamAgentRoutes(app: Express): void {
       stopIdleSession(userId);
       res.json({ stopped: true });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 }

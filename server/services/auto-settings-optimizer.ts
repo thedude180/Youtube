@@ -6,7 +6,8 @@ interface OptimizationResult {
   changes: string[];
 }
 
-const lastOptimized: Map<string, number> = new Map();
+import { LRUMap } from "../lib/lru-map";
+const lastOptimized: Map<string, number> = new LRUMap(5_000);
 const OPTIMIZE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const LAST_OPTIMIZED_MAX_SIZE = 500;
 

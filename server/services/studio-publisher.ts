@@ -13,7 +13,7 @@
 import * as fs from "fs";
 import { storage } from "../storage";
 import { createLogger } from "../lib/logger";
-import { trackQuotaUsage, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
+import { trackQuotaUsage, canAffordOperation, markQuotaErrorFromResponse } from "./youtube-quota-tracker";
 
 const logger = createLogger("studio-publisher");
 
@@ -100,6 +100,13 @@ export async function publishStudioVideo(
     let publishedVideoId = studioVideo.youtubeId;
 
     if (hasLocalFile) {
+      // Quota gate: videos.insert costs 1600 units — check before attempting
+      if (!(await canAffordOperation(userId, "upload"))) {
+        throw Object.assign(
+          new Error("YouTube API quota too low to upload — will retry when quota resets"),
+          { code: "QUOTA_EXCEEDED" }
+        );
+      }
       await setMeta(studioVideoId, { publishProgress: 20, publishStatus: "Uploading video to YouTube…" });
 
       const videoStatus: Record<string, string> = {
@@ -131,6 +138,12 @@ export async function publishStudioVideo(
       await storage.updateStudioVideo(studioVideoId, { youtubeId: publishedVideoId });
       await setMeta(studioVideoId, { publishProgress: 50, publishStatus: publishAt ? "Uploaded — scheduled" : "Video uploaded, updating metadata…" });
     } else if (studioVideo.youtubeId) {
+      if (!(await canAffordOperation(userId, "write"))) {
+        throw Object.assign(
+          new Error("YouTube API quota too low to update metadata — will retry when quota resets"),
+          { code: "QUOTA_EXCEEDED" }
+        );
+      }
       await setMeta(studioVideoId, { publishProgress: 30, publishStatus: "Updating metadata…" });
       await youtube.videos.update({
         part: ["snippet"],

@@ -69,11 +69,11 @@ export async function disableNonYoutubeChannels(): Promise<{
 if (process.argv[1] && process.argv[1].includes("disable-non-youtube-channels")) {
   disableNonYoutubeChannels()
     .then(result => {
-      console.log("[Migration complete]", result);
+      logger.info("[Migration complete]", result);
       process.exit(0);
     })
     .catch(err => {
-      console.error("[Migration failed]", err);
+      logger.error("[Migration failed]", err);
       process.exit(1);
     });
 }
