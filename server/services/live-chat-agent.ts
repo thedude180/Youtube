@@ -27,7 +27,9 @@ import { createLogger } from "../lib/logger";
 const logger = createLogger("live-chat-agent");
 
 const openai = getOpenAIClient();
-const CHAT_INTERVAL_MS = 2 * 60 * 1000;
+const CHAT_INTERVAL_MS = 5 * 60 * 1000; // poll every 5 minutes
+const MAX_REPLIES_PER_HOUR = 8;
+const MIN_REPLY_GAP_MS = 2 * 60 * 1000; // minimum 2 minutes between any two replies
 
 interface ChatSession {
   userId: string;
@@ -40,6 +42,9 @@ interface ChatSession {
   timer: ReturnType<typeof setInterval> | null;
   lastPageToken: string | undefined;
   recentContext: string[];
+  lastReplyAt: number;
+  replyCount: number;
+  replyWindowStart: number;
 }
 
 const activeSessions = new Map<string, ChatSession>();
@@ -162,6 +167,23 @@ function isQuestion(text: string): boolean {
     lower.startsWith("anyone know") || lower.includes("does anyone");
 }
 
+function canReply(session: ChatSession): boolean {
+  const now = Date.now();
+  // Reset hourly window
+  if (now - session.replyWindowStart >= 3_600_000) {
+    session.replyWindowStart = now;
+    session.replyCount = 0;
+  }
+  if (now - session.lastReplyAt < MIN_REPLY_GAP_MS) return false;
+  if (session.replyCount >= MAX_REPLIES_PER_HOUR) return false;
+  return true;
+}
+
+function recordReply(session: ChatSession): void {
+  session.lastReplyAt = Date.now();
+  session.replyCount++;
+}
+
 async function processChatCycle(session: ChatSession): Promise<void> {
   const { userId, liveChatId, channelDbId, streamTitle, gameName, respondedMessageIds } = session;
 
@@ -227,9 +249,10 @@ Bad responses (DO NOT do this):
       });
 
       const shoutout = aiRes.choices[0]?.message?.content?.trim();
-      if (shoutout && await canAffordOperation(userId, "livechat").catch(() => false)) {
+      if (shoutout && canReply(session) && await canAffordOperation(userId, "livechat").catch(() => false)) {
         const posted = await postChatMessage(yt, liveChatId, shoutout);
         if (posted) {
+          recordReply(session);
           await trackQuotaUsage(userId, "livechat");
           session.messagesHandled++;
         }
@@ -239,7 +262,7 @@ Bad responses (DO NOT do this):
     const questions = newMessages.filter(m => {
       const text = m.snippet?.textMessageDetails?.messageText || "";
       return isQuestion(text) && text.length > 5 && text.length < 300;
-    }).slice(0, 3);
+    }).slice(0, 1); // max 1 question reply per poll cycle
 
     const chattyMessages = newMessages.filter(m => {
       const text = m.snippet?.textMessageDetails?.messageText || "";
@@ -304,15 +327,16 @@ Bad responses (NEVER do this):
         });
 
         const reply = aiRes.choices[0]?.message?.content?.trim();
-        if (reply && reply.length > 0 && await canAffordOperation(userId, "livechat").catch(() => false)) {
+        if (reply && reply.length > 0 && canReply(session) && await canAffordOperation(userId, "livechat").catch(() => false)) {
           const posted = await postChatMessage(yt, liveChatId, reply);
           if (posted) {
+            recordReply(session);
             await trackQuotaUsage(userId, "livechat");
             session.messagesHandled++;
           }
         }
 
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 15_000));
       }
     }
 
@@ -372,6 +396,9 @@ async function startChatSession(userId: string, channelDbId: number, streamTitle
     timer: null,
     lastPageToken: undefined,
     recentContext: [],
+    lastReplyAt: 0,
+    replyCount: 0,
+    replyWindowStart: Date.now(),
   };
 
   activeSessions.set(userId, session);

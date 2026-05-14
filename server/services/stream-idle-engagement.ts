@@ -42,9 +42,9 @@ interface IdleConfig {
 
 const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
   no_commentary: {
-    idleThresholdMs: 3 * 60_000,
-    cooldownMs: 5 * 60_000,
-    maxPerStream: 20,
+    idleThresholdMs: 6 * 60_000,  // was 3 min
+    cooldownMs: 12 * 60_000,       // was 5 min
+    maxPerStream: 10,               // was 20
     engagementStyles: [
       "game_question",
       "poll",
@@ -57,9 +57,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   walkthrough: {
-    idleThresholdMs: 4 * 60_000,
-    cooldownMs: 6 * 60_000,
-    maxPerStream: 15,
+    idleThresholdMs: 8 * 60_000,  // was 4 min
+    cooldownMs: 12 * 60_000,       // was 6 min
+    maxPerStream: 8,                // was 15
     engagementStyles: [
       "tip_share",
       "did_you_know",
@@ -71,9 +71,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   competitive: {
-    idleThresholdMs: 2 * 60_000,
-    cooldownMs: 4 * 60_000,
-    maxPerStream: 25,
+    idleThresholdMs: 5 * 60_000,  // was 2 min
+    cooldownMs: 10 * 60_000,       // was 4 min
+    maxPerStream: 12,               // was 25
     engagementStyles: [
       "prediction",
       "hype_check",
@@ -85,9 +85,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   horror: {
-    idleThresholdMs: 5 * 60_000,
-    cooldownMs: 7 * 60_000,
-    maxPerStream: 12,
+    idleThresholdMs: 10 * 60_000, // was 5 min
+    cooldownMs: 15 * 60_000,       // was 7 min
+    maxPerStream: 6,                // was 12
     engagementStyles: [
       "scare_prediction",
       "rate_the_tension",
@@ -99,9 +99,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   chill: {
-    idleThresholdMs: 5 * 60_000,
-    cooldownMs: 8 * 60_000,
-    maxPerStream: 10,
+    idleThresholdMs: 10 * 60_000, // was 5 min
+    cooldownMs: 15 * 60_000,       // was 8 min
+    maxPerStream: 5,                // was 10
     engagementStyles: [
       "vibe_check",
       "game_question",
@@ -113,9 +113,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   exploration: {
-    idleThresholdMs: 4 * 60_000,
-    cooldownMs: 6 * 60_000,
-    maxPerStream: 15,
+    idleThresholdMs: 8 * 60_000,  // was 4 min
+    cooldownMs: 12 * 60_000,       // was 6 min
+    maxPerStream: 8,                // was 15
     engagementStyles: [
       "discovery_prompt",
       "rate_the_view",
@@ -127,9 +127,9 @@ const CATEGORY_CONFIGS: Record<StreamCategory, IdleConfig> = {
     ],
   },
   default: {
-    idleThresholdMs: 4 * 60_000,
-    cooldownMs: 6 * 60_000,
-    maxPerStream: 15,
+    idleThresholdMs: 8 * 60_000,  // was 4 min
+    cooldownMs: 12 * 60_000,       // was 6 min
+    maxPerStream: 8,                // was 15
     engagementStyles: [
       "game_question",
       "poll",
