@@ -1,9 +1,14 @@
 vault/
+data/
 clips/
 reels/
 recordings/
 streams/
 downloads/
+longform-tmp/
+shorts-tmp/
+stream-editor/
+studio/
 .cache/
 .local/
 .git/
