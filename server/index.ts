@@ -1415,17 +1415,20 @@ async function initStripe() {
     const stripeSync = await getStripeSync();
 
     const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0];
-    if (replitDomain) {
-      const webhookBaseUrl = `https://${replitDomain}`;
+    // Fall back to APP_URL when not running on Replit (e.g. Render)
+    const webhookHost = replitDomain
+      ? `https://${replitDomain}`
+      : process.env.APP_URL || null;
+    if (webhookHost) {
       try {
         await stripeSync.findOrCreateManagedWebhook(
-          `${webhookBaseUrl}/api/stripe/webhook`
+          `${webhookHost}/api/stripe/webhook`
         );
       } catch (webhookError) {
         logger.warn('Webhook setup skipped (non-critical)', { error: String(webhookError) });
       }
     } else {
-      logger.warn('REPLIT_DOMAINS not set, skipping webhook setup');
+      logger.warn('REPLIT_DOMAINS and APP_URL not set, skipping webhook setup');
     }
 
     stripeSync.syncBackfill()
@@ -1594,6 +1597,10 @@ app.use((req, res, next) => {
     if (origin) {
       try {
         const allowedHosts = (process.env.REPLIT_DOMAINS || "").split(",").filter(Boolean);
+        // Also allow the explicit APP_URL host so Render / custom domains work
+        if (process.env.APP_URL) {
+          try { allowedHosts.push(new URL(process.env.APP_URL).hostname); } catch {}
+        }
         allowedHosts.push("localhost");
         const originHost = new URL(origin as string).hostname;
         if (!allowedHosts.some(h => originHost === h || originHost.endsWith("." + h))) {
