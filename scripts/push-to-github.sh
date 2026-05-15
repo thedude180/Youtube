@@ -4,7 +4,7 @@
 #
 # Remotes:
 #   origin  → github.com/thedude180/Youtube
-#   polsia  → github.com/Polsia-Inc/creatoros
+#   Polsia-Inc-creatoros  → github.com/Polsia-Inc/creatoros
 
 set -e
 
@@ -22,12 +22,12 @@ fi
 
 POLSIA_URL="https://x-access-token:${PAT}@github.com/Polsia-Inc/creatoros.git"
 
-# ── Ensure polsia remote exists ───────────────────────────────────────────────
-if git remote get-url polsia &>/dev/null; then
-  git remote set-url polsia "$POLSIA_URL"
+# ── Ensure Polsia-Inc-creatoros remote exists ─────────────────────────────────
+if git remote get-url Polsia-Inc-creatoros &>/dev/null; then
+  git remote set-url Polsia-Inc-creatoros "$POLSIA_URL"
 else
-  git remote add polsia "$POLSIA_URL"
-  echo "Added remote: polsia → github.com/Polsia-Inc/oakstoneos"
+  git remote add Polsia-Inc-creatoros "$POLSIA_URL"
+  echo "Added remote: Polsia-Inc-creatoros → github.com/Polsia-Inc/creatoros"
 fi
 
 # ── Push to a single remote, handling diverged history ───────────────────────
@@ -77,8 +77,8 @@ push_remote() {
 }
 
 # ── Run both ──────────────────────────────────────────────────────────────────
-push_remote "origin"  "$ORIGIN_URL"
-push_remote "polsia"  "$POLSIA_URL"
+push_remote "origin"              "$ORIGIN_URL"
+push_remote "Polsia-Inc-creatoros" "$POLSIA_URL"
 
 echo ""
 echo "All remotes synced."
