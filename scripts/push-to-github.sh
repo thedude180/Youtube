@@ -4,7 +4,7 @@
 #
 # Remotes:
 #   origin  → github.com/thedude180/Youtube
-#   Polsia-Inc-creatoros  → github.com/Polsia-Inc/creatoros
+#   Polsia-Inc-creatoros  → github.com/thedude180/Polsia-Inc-creatoros
 
 set -e
 
@@ -20,14 +20,14 @@ if [ -z "$PAT" ]; then
   exit 1
 fi
 
-POLSIA_URL="https://x-access-token:${PAT}@github.com/Polsia-Inc/creatoros.git"
+POLSIA_URL="https://x-access-token:${PAT}@github.com/thedude180/Polsia-Inc-creatoros.git"
 
 # ── Ensure Polsia-Inc-creatoros remote exists ─────────────────────────────────
 if git remote get-url Polsia-Inc-creatoros &>/dev/null; then
   git remote set-url Polsia-Inc-creatoros "$POLSIA_URL"
 else
   git remote add Polsia-Inc-creatoros "$POLSIA_URL"
-  echo "Added remote: Polsia-Inc-creatoros → github.com/Polsia-Inc/creatoros"
+  echo "Added remote: Polsia-Inc-creatoros → github.com/thedude180/Polsia-Inc-creatoros"
 fi
 
 # ── Push to a single remote, handling diverged history ───────────────────────
