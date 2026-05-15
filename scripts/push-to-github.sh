@@ -4,7 +4,7 @@
 #
 # Remotes:
 #   origin  → github.com/thedude180/Youtube
-#   polsia  → github.com/Polsia-Inc/oakstoneos
+#   polsia  → github.com/Polsia-Inc/creatoros
 
 set -e
 
@@ -20,7 +20,7 @@ if [ -z "$PAT" ]; then
   exit 1
 fi
 
-POLSIA_URL="https://x-access-token:${PAT}@github.com/Polsia-Inc/oakstoneos.git"
+POLSIA_URL="https://x-access-token:${PAT}@github.com/Polsia-Inc/creatoros.git"
 
 # ── Ensure polsia remote exists ───────────────────────────────────────────────
 if git remote get-url polsia &>/dev/null; then
