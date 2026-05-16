@@ -6,7 +6,14 @@ import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
-import { getNextShortPublishTime, getNextLongFormPublishTime } from "./youtube-output-schedule";
+import {
+  getNextShortPublishTime,
+  getNextLongFormPublishTime,
+  canQueueShortToday,
+  canQueueLongFormToday,
+  MAX_SHORTS_PER_DAY,
+  MAX_LONGFORM_PER_DAY,
+} from "./youtube-output-schedule";
 
 const logger = createLogger("content-grinder");
 
@@ -164,7 +171,109 @@ async function grindUserContent(userId: string): Promise<GrindState> {
 
   await scanForUnderperformers(userId);
 
+  // Always run gap filler last — ensures upcoming days are never empty
+  await fillScheduleGaps(userId, allVideos.filter((v: any) => {
+    const m = (v.metadata as any) || {};
+    return !m.isShort && v.type !== "short" && v.type !== "clip";
+  }));
+
   return state;
+}
+
+/**
+ * Looks ahead 7 days and proactively fills any day that is missing its target
+ * Shorts (3/day) or long-form (1/day).  Uses direct DB queries to count what is
+ * already queued/scheduled, then picks the least-exhausted source videos and runs
+ * extraction for each gap.  This ensures the publish schedule is ALWAYS fully
+ * loaded regardless of how frequently the grinder runs or per-video cooldowns.
+ */
+async function fillScheduleGaps(userId: string, sourceVideos: any[]): Promise<void> {
+  if (sourceVideos.length === 0) return;
+
+  try {
+    const now = Date.now();
+    const DAY_MS = 86_400_000;
+
+    // Count scheduled Shorts and long-form per calendar day for the next 7 days.
+    // "Calendar day" = UTC midnight boundaries (close enough for gap detection).
+    let shortGaps = 0;
+    let longFormGaps = 0;
+
+    for (let d = 0; d < 7; d++) {
+      const dayStart = new Date(now + d * DAY_MS);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+
+      const rows = await db
+        .select({ type: autopilotQueue.type })
+        .from(autopilotQueue)
+        .where(
+          and(
+            eq(autopilotQueue.userId, userId),
+            eq(autopilotQueue.targetPlatform, "youtube"),
+            or(
+              eq(autopilotQueue.status, "scheduled"),
+              eq(autopilotQueue.status, "pending"),
+            ),
+            gte(autopilotQueue.scheduledAt, dayStart),
+            sql`${autopilotQueue.scheduledAt} < ${dayEnd}`,
+          ),
+        );
+
+      const shortsCount = rows.filter(r =>
+        r.type === "platform_short" || r.type === "vod-short",
+      ).length;
+      const lfCount = rows.filter(r =>
+        r.type === "auto-clip" || r.type === "vod-long-form",
+      ).length;
+
+      shortGaps += Math.max(0, MAX_SHORTS_PER_DAY - shortsCount);
+      longFormGaps += Math.max(0, MAX_LONGFORM_PER_DAY - lfCount);
+    }
+
+    if (shortGaps === 0 && longFormGaps === 0) return;
+
+    logger.info(
+      `[ContentGrinder][GapFiller] ${shortGaps} Short + ${longFormGaps} long-form slots empty in next 7 days — filling`,
+    );
+
+    // Sort source videos: longer videos first (more content to extract from)
+    const scored = sourceVideos
+      .map((v: any) => {
+        const m = (v.metadata as any) || {};
+        return { video: v, durSec: m.durationSec || parseDurationToSeconds(m.duration) || 0 };
+      })
+      .filter(x => x.durSec >= 60)
+      .sort((a, b) => b.durSec - a.durSec);
+
+    // Fill Short gaps
+    let shortsToFill = shortGaps;
+    for (const { video } of scored) {
+      if (shortsToFill <= 0) break;
+      if (!tokenBudget.checkBudget("content-grinder", 3000)) break;
+      const added = await extractUntappedMoments(userId, video);
+      if (added > 0) {
+        logger.info(`[ContentGrinder][GapFiller] +${added} Shorts from video ${video.id}`);
+        shortsToFill -= added;
+      }
+    }
+
+    // Fill long-form gaps — each video's next untested duration bucket
+    let lfToFill = longFormGaps;
+    for (const { video } of scored) {
+      if (lfToFill <= 0) break;
+      if (!tokenBudget.checkBudget("content-grinder", 2000)) break;
+      const added = await extractLongFormMoments(userId, video);
+      if (added > 0) {
+        logger.info(`[ContentGrinder][GapFiller] +1 long-form from video ${video.id}`);
+        lfToFill -= added;
+      }
+    }
+  } catch (err: any) {
+    logger.warn(
+      `[ContentGrinder][GapFiller] Gap fill error for ${userId.slice(0, 8)}: ${err.message?.slice(0, 200)}`,
+    );
+  }
 }
 
 async function checkVideoExhaustion(userId: string, video: any): Promise<number> {
@@ -293,6 +402,12 @@ VIRAL RULES:
 - End on a HIGH NOTE or a cliffhanger (never fade out)
 - Titles must create curiosity gap: "This Boss Had Me SHAKING" not "Boss Fight Gameplay"
 
+LENGTH VARIETY (critical for audience testing — spread durations across the range):
+- At least 2 clips must be SHORT: 8–20 seconds (pure shock/reaction moment)
+- At least 2 clips must be MEDIUM: 21–40 seconds (action sequence with payoff)
+- At least 2 clips must be LONG: 41–59 seconds (mini-story arc, setup + climax + reaction)
+- Do NOT cluster all clips at the same duration — variety is required.
+
 Return raw JSON only (no markdown code blocks):
 {
   "moments": [
@@ -380,42 +495,43 @@ Return raw JSON only (no markdown code blocks):
   }
 }
 
-// Long-form clip duration targets in seconds (8 min → 60 min).
-// 8 min is the AdSense mid-roll threshold — clips shorter than that earn no
-// ad revenue.  Each cycle randomly picks one target to experiment with lengths.
-const LONG_FORM_DURATION_TARGETS_SEC = [480, 600, 900, 1800, 2700, 3600];
-// Minimum gap between long-form clip extractions for the same video (30 days).
-const LONG_FORM_REEXTRACT_GAP_MS = 30 * 86400_000;
-// Long-form scheduling is handled by getNextLongFormPublishTime() in youtube-output-schedule.ts.
-// Cadence: 1 per local calendar day, 17:30–19:30 window, ≥ 20 h gap, 7–28 min jitter.
+// Long-form duration experiment buckets in seconds: 8 / 10 / 15 / 20 / 30 / 45 / 60 min.
+// 8 min = AdSense mid-roll threshold. Each bucket is tested independently so the
+// channel discovers which length maximises watch-time for this audience.
+const LONG_FORM_DURATION_TARGETS_SEC = [480, 600, 900, 1200, 1800, 2700, 3600];
+// Per-bucket cooldown: 7 days before the same duration is tried again on a video.
+const BUCKET_COOLDOWN_MS = 7 * 86400_000;
 
 /**
- * Identifies 1 compelling long-form clip (8-60 min) from the video and queues
- * it for upload. Picks a random duration to experiment with which lengths work
- * best for the channel.  Returns 1 if queued, 0 otherwise.
- *
- * Minimum 8 min ensures every clip qualifies for YouTube AdSense mid-roll ads.
+ * Identifies a compelling long-form clip from the video for the NEXT untested
+ * duration bucket and queues it. Each bucket (8/10/15/20/30/45/60 min) is
+ * treated independently with a 7-day cooldown so every video can yield up to
+ * 7 different-length experiments over time.  Returns 1 if queued, 0 otherwise.
  */
 async function extractLongFormMoments(userId: string, video: any): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 0;
 
-  // Only process videos long enough to yield at least an 8-min clip (AdSense threshold)
   if (durSec < 480) return 0;
 
-  // Skip if we already extracted long-form clips from this video recently
-  const lastExtracted = meta.longFormClipExtractedAt
-    ? new Date(meta.longFormClipExtractedAt).getTime() : 0;
-  if (Date.now() - lastExtracted < LONG_FORM_REEXTRACT_GAP_MS) return 0;
+  // Per-bucket cooldown tracking stored in video metadata as { bucketSec: lastTriedTimestamp }
+  const triedBuckets: Record<string, number> = (meta.longFormBucketsTriedAt as any) || {};
+  const now = Date.now();
+
+  // Find the next untested (or cooldown-expired) bucket that fits in the video
+  const validTargets = LONG_FORM_DURATION_TARGETS_SEC.filter(t => {
+    if (t >= durSec * 0.9) return false; // bucket must fit in the video
+    const lastTried = triedBuckets[String(t)] || 0;
+    return now - lastTried >= BUCKET_COOLDOWN_MS;
+  });
+  if (validTargets.length === 0) return 0;
+
+  // Pick the smallest untested bucket first so shorter experiments run earliest
+  const targetSec = validTargets[0];
+  const targetMin = Math.round(targetSec / 60);
 
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
-
-  // Pick a random target duration that fits in the video
-  const validTargets = LONG_FORM_DURATION_TARGETS_SEC.filter(t => t < durSec * 0.9);
-  if (validTargets.length === 0) return 0;
-  const targetSec = validTargets[Math.floor(Math.random() * validTargets.length)];
-  const targetMin = Math.round(targetSec / 60);
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) return 0;
   tokenBudget.consumeBudget("content-grinder", 2000);
@@ -510,12 +626,16 @@ Return raw JSON only (no markdown):
       } as any,
     });
 
-    // Mark this video as having had a long-form clip extracted
+    // Record the bucket as tried so it won't be re-queued for 7 days
     await storage.updateVideo(video.id, {
-      metadata: { ...meta, longFormClipExtractedAt: new Date().toISOString() },
+      metadata: {
+        ...meta,
+        longFormClipExtractedAt: new Date().toISOString(),
+        longFormBucketsTriedAt: { ...triedBuckets, [String(targetSec)]: now },
+      },
     });
 
-    logger.info(`[ContentGrinder] Long-form clip queued: video ${video.id} → ${targetMin}min clip [${startSec}s–${endSec}s] for "${sanitizeForPrompt(gameName, 50)}"`, { userId: userId.substring(0, 8), scheduledAt });
+    logger.info(`[ContentGrinder] Long-form clip queued: video ${video.id} → ${targetMin}min bucket [${startSec}s–${endSec}s] for "${sanitizeForPrompt(gameName, 50)}"`, { userId: userId.substring(0, 8), scheduledAt });
     return 1;
   } catch (err: any) {
     logger.warn(`[${userId.substring(0, 8)}] Long-form clip extraction failed for video ${video.id}: ${err.message?.substring(0, 200)}`);
