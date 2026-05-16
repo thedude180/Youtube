@@ -12,7 +12,7 @@ echo "\n== TypeScript =="
 npm run check
 
 echo "\n== Unit tests =="
-npm test -- --runInBand 2>/dev/null || npm test
+npm test
 
 echo "\n== Import paths =="
 bash scripts/check-import-paths.sh
