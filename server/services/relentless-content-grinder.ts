@@ -244,7 +244,10 @@ async function extractUntappedMoments(userId: string, video: any): Promise<numbe
 
   const coveredRanges = existingClips.map((c: any) => {
     const m = (c.metadata as any) || {};
-    return { start: m.segmentStartSec || 0, end: m.segmentEndSec || 0 };
+    // Accept both key variants: grinder uses startSec/endSec; segmenter uses segmentStartSec/segmentEndSec
+    const start = m.segmentStartSec ?? m.startSec ?? 0;
+    const end = m.segmentEndSec ?? m.endSec ?? 0;
+    return { start, end };
   }).filter(r => r.end > r.start);
 
   const retentionContext = await getRetentionIntelligence(userId, gameName);
@@ -320,6 +323,20 @@ Return raw JSON only (no markdown code blocks):
       if (typeof moment.startSec !== "number" || typeof moment.endSec !== "number") continue;
       if (moment.endSec <= moment.startSec || moment.endSec - moment.startSec > 59) continue;
       if (moment.endSec - moment.startSec < 8) continue;
+
+      // Server-side overlap guard — reject if this timestamp range overlaps any
+      // already-queued clip for this video (60-second tolerance).
+      const OVERLAP_TOLERANCE = 60;
+      const overlaps = coveredRanges.some(
+        r => moment.startSec < r.end - OVERLAP_TOLERANCE && moment.endSec > r.start + OVERLAP_TOLERANCE,
+      );
+      if (overlaps) {
+        logger.debug(`[ContentGrinder] Skipping duplicate moment ${moment.startSec}–${moment.endSec}s for video ${video.id}`);
+        continue;
+      }
+      // Add to covered ranges immediately so later moments in this same batch
+      // don't collide with each other.
+      coveredRanges.push({ start: moment.startSec, end: moment.endSec });
 
       const scheduleTime = await getNextShortPublishTime(userId);
       const title = String(moment.title || `${gameName} Moment`).substring(0, 90) + " #Shorts";

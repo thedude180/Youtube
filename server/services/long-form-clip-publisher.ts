@@ -130,7 +130,9 @@ async function downloadSegmentFromYouTube(
   const args: string[] = [
     "--download-sections", `*${startSec}-${endSec}`,
     "--force-keyframes-at-cuts",
-    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    // Permissive format chain: prefer 1080p, fall back through lower resolutions
+    // to whatever is available so the download never fails on format availability.
+    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best",
     "--merge-output-format", "mp4",
     "-o", outputPath,
     "--no-playlist",
@@ -166,10 +168,11 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
-        eq(autopilotQueue.type, "auto-clip"),
+        // auto-clip = grinder/segmenter long-form; vod-long-form = full-VOD upload path
+        sql`${autopilotQueue.type} IN ('auto-clip','vod-long-form')`,
         eq(autopilotQueue.status, "scheduled"),
         lte(autopilotQueue.scheduledAt, batchWindow),
-        sql`${autopilotQueue.metadata}->>'contentType' = 'long-form-clip'`,
+        sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form')`,
       ))
       .orderBy(autopilotQueue.scheduledAt)
       .limit(MAX_PER_RUN * 4);
