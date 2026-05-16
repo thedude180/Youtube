@@ -1,4 +1,3 @@
-
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
@@ -14,9 +13,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+const parsedPoolMax = Number.parseInt(process.env.DB_POOL_MAX || "10", 10);
+const DB_POOL_MAX = Number.isFinite(parsedPoolMax) && parsedPoolMax > 0
+  ? Math.min(parsedPoolMax, 50)
+  : 10;
+
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 50,                      // 50 slots — headroom for 146 background services competing during memory recovery
+  max: DB_POOL_MAX,
   idleTimeoutMillis: 10_000,    // release idle connections quickly to keep headroom
   connectionTimeoutMillis: 5_000, // 5s wait for a pool slot — fail fast so services don't pile up
   allowExitOnIdle: false,
@@ -31,6 +35,8 @@ export const pool = new Pool({
     rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',  // default: verify certs; set DB_SSL_REJECT_UNAUTHORIZED=false only for self-signed certs
   } : undefined,
 });
+
+dbLogger.info("Database pool configured", { max: DB_POOL_MAX });
 
 let poolErrorCount = 0;
 pool.on("error", (err) => {
@@ -98,7 +104,7 @@ export async function withRetry<T>(
       lastErr = err;
       const msg = String(err?.message || err);
       if (!isTransientDbError(msg) || attempt === maxRetries) break;
-      // Add ±30% jitter to prevent thundering herd when all 146 background services retry simultaneously
+      // Add ±30% jitter to prevent thundering herd when all background services retry simultaneously
       const baseDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
       const jitter = Math.floor(baseDelay * 0.3 * (Math.random() * 2 - 1));
       const delay = Math.max(200, baseDelay + jitter);
@@ -117,7 +123,7 @@ export async function withRetry<T>(
 /**
  * For known-slow queries (analytics aggregation, back catalog sync),
  * wrap in this to temporarily raise the statement timeout.
- * Usage: await withLongQueryTimeout(async () => db.select()...);
+ * Usage: await withLongQueryTimeout(async () => db.select()...).
  */
 export async function withLongQueryTimeout<T>(fn: () => Promise<T>, timeoutMs = 60_000): Promise<T> {
   const client = await pool.connect();
