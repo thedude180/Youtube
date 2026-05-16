@@ -1306,17 +1306,6 @@ app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).send("OK");
 });
 
-// ── Root-domain → www redirect ────────────────────────────────────────────────
-// Redirects bare etgaming247.com to https://www.etgaming247.com so that the
-// CNAME on www is the single canonical entry point.
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const host = (req.headers.host || "").split(":")[0].toLowerCase();
-  if (host === "etgaming247.com") {
-    return res.redirect(301, `https://www.etgaming247.com${req.originalUrl}`);
-  }
-  next();
-});
-
 app.get("/HXIOEgyve1eGFRZt65Eci7YOioELKqif.txt", (req: Request, res: Response) => {
   const ua = req.headers["user-agent"] || "(none)";
   const ip = req.ip || req.socket?.remoteAddress || "unknown";
