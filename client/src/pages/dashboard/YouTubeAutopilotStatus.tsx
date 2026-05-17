@@ -117,7 +117,7 @@ function QueueCalendar() {
         7-Day Schedule
       </span>
 
-      <div className="space-y-1" data-testid="list-calendar-days">
+      <div className="space-y-1.5" data-testid="list-calendar-days">
         {days.map((day, i) => {
           const shortsFull = day.shorts.length >= MAX_SHORTS;
           const lfFull = day.longForms.length >= MAX_LONGFORM;
@@ -130,7 +130,7 @@ function QueueCalendar() {
             <div
               key={i}
               data-testid={`row-calendar-day-${i}`}
-              className={`rounded-md px-2.5 py-1.5 flex items-center gap-2 text-[10px] transition-colors ${
+              className={`rounded-md px-2.5 py-2 space-y-1.5 text-[10px] transition-colors ${
                 today
                   ? "bg-blue-500/10 border border-blue-500/20"
                   : hasGap
@@ -138,60 +138,86 @@ function QueueCalendar() {
                   : "bg-background/30 border border-transparent"
               }`}
             >
-              {/* Day label */}
-              <div className="w-16 shrink-0">
-                <span className={`font-semibold ${today ? "text-blue-400" : "text-foreground"}`}>
+              {/* Day header row */}
+              <div className="flex items-center justify-between">
+                <span className={`font-semibold text-[11px] ${today ? "text-blue-400" : "text-foreground"}`}>
                   {dayLabel}
+                  <span className="font-normal text-muted-foreground ml-1.5">{dateLabel}</span>
                 </span>
-                <span className="text-muted-foreground ml-1">{dateLabel}</span>
+                <span className={`text-[9px] font-medium ${shortsFull && lfFull ? "text-emerald-400" : "text-amber-400"}`}>
+                  {shortsFull && lfFull ? "✓ full" : "⚠ gaps"}
+                </span>
               </div>
 
-              {/* Shorts slots */}
-              <div className="flex items-center gap-0.5 shrink-0" data-testid={`shorts-slots-${i}`}>
+              {/* Shorts row — each slot is a visible chip showing time + length */}
+              <div className="flex items-center gap-1 flex-wrap" data-testid={`shorts-slots-${i}`}>
+                <span className="text-muted-foreground/50 w-10 shrink-0">Shorts</span>
                 {Array.from({ length: MAX_SHORTS }).map((_, si) => {
                   const item = day.shorts[si];
-                  return item ? (
+                  if (!item) {
+                    return (
+                      <span
+                        key={si}
+                        data-testid={`short-gap-${i}-${si}`}
+                        className="px-1.5 py-0.5 rounded border border-amber-500/25 bg-amber-500/10 text-amber-400/70 italic"
+                      >
+                        gap
+                      </span>
+                    );
+                  }
+                  const meta = (item.metadata as any) || {};
+                  const durSec =
+                    (meta.segmentEndSec != null && meta.segmentStartSec != null
+                      ? meta.segmentEndSec - meta.segmentStartSec
+                      : null) ??
+                    (meta.endSec != null && meta.startSec != null
+                      ? meta.endSec - meta.startSec
+                      : null);
+                  return (
                     <span
                       key={si}
-                      title={`Short at ${fmtTime(item.scheduledAt)}`}
-                      className="w-4 h-4 rounded-sm bg-emerald-500/30 border border-emerald-500/40 flex items-center justify-center cursor-default"
                       data-testid={`short-slot-${i}-${si}`}
+                      className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center gap-1"
                     >
-                      <span className="text-emerald-400 leading-none" style={{ fontSize: "7px" }}>▶</span>
+                      <span>▶</span>
+                      <span data-testid={`short-time-${i}-${si}`}>{fmtTime(item.scheduledAt)}</span>
+                      {durSec != null && durSec > 0 && (
+                        <span className="text-emerald-400/60" data-testid={`short-dur-${i}-${si}`}>
+                          · {durSec}s
+                        </span>
+                      )}
                     </span>
-                  ) : (
-                    <span
-                      key={si}
-                      title="Empty Short slot"
-                      className="w-4 h-4 rounded-sm bg-amber-500/20 border border-amber-500/30"
-                      data-testid={`short-gap-${i}-${si}`}
-                    />
                   );
                 })}
-                <span className={`ml-1 ${shortsFull ? "text-emerald-400" : "text-amber-400"}`}>
-                  {day.shorts.length}/{MAX_SHORTS}
-                </span>
               </div>
 
-              {/* Divider */}
-              <span className="text-border/40">|</span>
-
-              {/* Long-form slot */}
-              <div className="flex items-center gap-1 min-w-0" data-testid={`longform-slot-${i}`}>
+              {/* Long-form row */}
+              <div className="flex items-center gap-1" data-testid={`longform-slot-${i}`}>
+                <span className="text-muted-foreground/50 w-10 shrink-0">LF</span>
                 {day.longForms.length > 0 ? (
-                  <>
-                    <span className="w-4 h-4 rounded-sm bg-violet-500/30 border border-violet-500/40 flex items-center justify-center shrink-0">
-                      <span className="text-violet-400 leading-none" style={{ fontSize: "7px" }}>▶</span>
+                  <span
+                    className="px-1.5 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-violet-300 flex items-center gap-1"
+                    data-testid={`longform-chip-${i}`}
+                  >
+                    <span>▶</span>
+                    <span className="font-medium" data-testid={`longform-duration-${i}`}>
+                      {fmtDurSec(
+                        day.longForms[0]?.metadata?.targetDurationSec ||
+                        day.longForms[0]?.metadata?.actualDurationSec ||
+                        0
+                      )}
                     </span>
-                    <span className="text-violet-400 font-medium truncate" data-testid={`longform-duration-${i}`}>
-                      {fmtDurSec(day.longForms[0]?.metadata?.targetDurationSec || day.longForms[0]?.metadata?.actualDurationSec || 0)}
+                    <span className="text-violet-400/60" data-testid={`longform-time-${i}`}>
+                      · {fmtTime(day.longForms[0].scheduledAt)}
                     </span>
-                    <span className="text-muted-foreground/60 truncate">
-                      {fmtTime(day.longForms[0].scheduledAt)}
-                    </span>
-                  </>
+                  </span>
                 ) : (
-                  <span className="text-amber-400/80 italic" data-testid={`longform-gap-${i}`}>no long-form</span>
+                  <span
+                    className="px-1.5 py-0.5 rounded border border-amber-500/25 bg-amber-500/10 text-amber-400/70 italic"
+                    data-testid={`longform-gap-${i}`}
+                  >
+                    no long-form
+                  </span>
                 )}
               </div>
             </div>
