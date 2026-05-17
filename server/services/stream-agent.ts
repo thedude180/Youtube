@@ -247,7 +247,16 @@ async function checkAndEngageStream(userId: string): Promise<void> {
       if (detectedVideoId) state.videoId = detectedVideoId;
 
       if (wasOffline) {
-        const hasRealConfirmation = !!detectedVideoId || (liveStream.startedAt && (Date.now() - new Date(liveStream.startedAt).getTime()) < 30 * 60_000);
+        // Require actual detection confirmation (detectedVideoId set by the RSS/watch-page
+        // or API check above) before firing stream.started.
+        // The old "startedAt < 30 min" shortcut caused a self-perpetuating boot loop:
+        //   boot → stream.started fires → "live" stream row written to DB → server restarts
+        //   → DB row found (status="live") → startedAt is < 30 min old → stream.started
+        //   fires again → setBackgroundAIConcurrency(1) → all background tasks blocked.
+        // Genuine restart-during-live recovery is handled by recoverActiveLiveStreams()
+        // (T+20 s after boot), which scrapes YouTube and re-fires stream.started only when
+        // the channel is still genuinely live.
+        const hasRealConfirmation = !!detectedVideoId;
         if (hasRealConfirmation) {
           logAction(state, "You went live!", `Detected on ${sanitizeForPrompt(state.platform)}`);
           logAction(state, "AI chat responder active", "Responding to viewers in your voice");
@@ -259,7 +268,7 @@ async function checkAndEngageStream(userId: string): Promise<void> {
             videoId: state.videoId,
           });
         } else {
-          logger.info(`[${userId}] DB stream #${liveStream.id} marked live but no real confirmation — skipping event fire, marking ended`);
+          logger.info(`[${userId}] DB stream #${liveStream.id} marked live but no detection confirmation — skipping event fire, marking ended`);
           storage.updateStream(liveStream.id, { status: "ended", endedAt: new Date() }).catch(() => {});
           state.isLive = false;
         }

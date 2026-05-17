@@ -1,12 +1,25 @@
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
-const LIVE_SIGNALS = [
-  '"isLive":true',
-  '"isLiveNow":true',
+// ── Live-detection signal rules ───────────────────────────────────────────────
+//
+// Problem: "isLive":true and "isLiveNow":true both appear in YouTube's page JSON
+// for VODs that were originally live streams (the metadata is preserved after the
+// stream ends). Using them as standalone signals causes false positives every time
+// the detector scrapes a channel whose most-recent content is a past broadcast.
+//
+// Solution: require at least one STRONG signal that is ONLY present while a stream
+// is actively serving live segments:
+//
+//  • hlsManifestUrl   — YouTube embeds the HLS playlist URL in the page only when
+//                       the stream is actively ingesting. It disappears as soon as
+//                       the stream ends and YouTube transcodes to a VOD.
+//  • isLowLatencyLiveStream — set for active low-latency streams; not retained in VODs.
+//
+// "isLive":true / "isLiveNow":true alone are NOT sufficient — they are also
+// present in archived broadcast metadata.
+const STRONG_LIVE_SIGNALS = [
   '"hlsManifestUrl":"https://manifest.googlevideo.com',
   '"hlsManifestUrl":"https://manifest',
-  '"isLiveDvrEnabled":true',
-  '"latencyClass":"NORMAL"',
   '"isLowLatencyLiveStream":true',
 ];
 
@@ -16,8 +29,10 @@ const NOT_LIVE_SIGNALS = [
 ];
 
 function containsLiveSignal(html: string): boolean {
-  const hasLive = LIVE_SIGNALS.some(s => html.includes(s));
-  if (!hasLive) return false;
+  // Must have at least one STRONG signal — a soft "isLive":true alone is insufficient
+  // because it appears in VOD/ended-stream metadata and causes false positives.
+  const hasStrong = STRONG_LIVE_SIGNALS.some(s => html.includes(s));
+  if (!hasStrong) return false;
   const isOffline = NOT_LIVE_SIGNALS.some(s => html.includes(s));
   return !isOffline;
 }

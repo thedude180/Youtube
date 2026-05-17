@@ -1237,6 +1237,9 @@ import("./routes/settings").then(m => m.restoreYtCookiesFromDb()).catch(() => {}
 // Auto-resolve compliance drift events older than 7 days so stale baseline deltas
 // don't permanently block publishing via the pre-flight gate.
 import("./services/compliance-drift-detector").then(m => m.autoResolveStaleDetectedDrifts()).catch(() => {});
+// Seed all policy pack rules into compliance_rules on startup so the drift
+// detector never reports them as "not_present" (which logs 6 critical warnings).
+import("./services/compliance-drift-detector").then(m => m.ensurePolicyPackRulesSeeded()).catch(() => {});
 setInterval(clearVault, jitter(60 * 60 * 1000)); // re-wipe vault files hourly (dev only)
 setInterval(prodDiskWatchdog, jitter(30 * 60 * 1000)); // evict files when disk low every 30 min (prod only)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2437,8 +2440,30 @@ httpServer.listen(
 
       // Startup live-stream recovery: if a stream was live when the server went down,
       // re-hydrate in-memory state and restart all live services without waiting for the
-      // dual-pipeline gate. Runs 30s after boot so all event listeners are registered first.
-      delay(20_000, () => {
+      // dual-pipeline gate. Runs 20s after boot so all event listeners are registered first.
+      //
+      // Before recovery: reset any stream stuck in "live" for >8 h — these are stale records
+      // from a previous run where the stream ended without a clean shutdown.  If left as-is,
+      // recoverActiveLiveStreams() would scrape YouTube, get a false-positive from page JS,
+      // fire stream.started, and lock the AI semaphore to 1 slot for the entire session.
+      delay(20_000, async () => {
+        try {
+          const { streams: streamsTable } = await import("@shared/schema");
+          const { db: _db } = await import("./db");
+          const { lt, and: _and, eq: _eq } = await import("drizzle-orm");
+          const staleAfterMs = 8 * 60 * 60 * 1000; // 8 hours
+          const staleCutoff = new Date(Date.now() - staleAfterMs);
+          const staleResult = await _db
+            .update(streamsTable)
+            .set({ status: "ended", endedAt: new Date() })
+            .where(_and(_eq(streamsTable.status, "live"), lt(streamsTable.startedAt, staleCutoff)))
+            .returning({ id: streamsTable.id });
+          if (staleResult.length > 0) {
+            logger.warn(`[Startup] Reset ${staleResult.length} stale live stream(s) to ended (stuck >8h)`);
+          }
+        } catch (e: any) {
+          logger.warn("[Startup] Stale-live cleanup failed:", e?.message);
+        }
         import("./services/live-detection").then(m => m.recoverActiveLiveStreams().catch(slog("recoverActiveLiveStreams"))).catch(slog("live-detection recovery import"));
       });
     });

@@ -254,6 +254,65 @@ export async function autoResolveStaleDetectedDrifts(maxAgeDays = 7): Promise<nu
   return totalCount;
 }
 
+/**
+ * Ensures all policy pack rules exist in the complianceRules DB table.
+ * Runs once on server startup so the drift detector never reports pack rules
+ * as "not_present" — which would permanently log 6 critical drift warnings
+ * on every 12-hour compliance scan.
+ *
+ * Uses INSERT ... ON CONFLICT DO NOTHING so it is safe to call multiple times
+ * and never overwrites manually-edited DB rules.
+ */
+export async function ensurePolicyPackRulesSeeded(): Promise<void> {
+  const platforms = getSupportedPlatforms();
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const platform of platforms) {
+    const pack = getPolicyPack(platform);
+    if (!pack) continue;
+
+    for (const rule of pack.rules) {
+      try {
+        const existing = await db
+          .select({ id: complianceRules.id })
+          .from(complianceRules)
+          .where(
+            and(
+              eq(complianceRules.platform, platform),
+              eq(complianceRules.ruleName, rule.id),
+            ),
+          )
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(complianceRules).values({
+            platform,
+            ruleCategory: rule.category,
+            ruleName: rule.id,
+            description: rule.description,
+            severity: rule.severity,
+            keywords: rule.keywords ?? [],
+            isActive: true,
+          });
+          inserted++;
+        } else {
+          skipped++;
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn(`[PolicySeed] Failed to seed rule ${rule.id} for ${platform}: ${msg.slice(0, 120)}`);
+      }
+    }
+  }
+
+  if (inserted > 0) {
+    logger.info(`[PolicySeed] Seeded ${inserted} policy pack rule(s) into compliance_rules (${skipped} already present)`);
+  } else {
+    logger.debug(`[PolicySeed] All ${skipped} policy pack rule(s) already seeded`);
+  }
+}
+
 export async function resolveDriftEvent(eventId: number): Promise<boolean> {
   const existing = await db.select().from(complianceDriftEvents)
     .where(eq(complianceDriftEvents.id, eventId))

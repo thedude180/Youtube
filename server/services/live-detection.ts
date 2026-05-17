@@ -261,6 +261,17 @@ async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedB
       logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
     }
   } else {
+    // Distinguish: quota cap (has token) vs no token at all.
+    // When there is NO valid access token we can NEVER get API confirmation, so
+    // scraping alone is not trustworthy enough to fire live services — VOD pages
+    // retain "isLive":true / hlsManifestUrl metadata long after the stream ends,
+    // causing a permanent false-positive that locks the AI semaphore to 1 slot.
+    // Return null so the dual-confirmation gate is never cleared without a token.
+    const hasToken = channelRow.accessToken && channelRow.accessToken !== "dev_api_key_mode";
+    if (!hasToken) {
+      logger.debug(`[LiveDetection] Channel ${channelDbId}: no valid token — scraping-only detection suppressed (API confirmation required)`);
+      return { broadcast: null, pipeline: "scraping" };
+    }
     logger.info(`[LiveDetection] Broadcast cap reached or quota low — scraping-only detection for ${userId.slice(0, 8)}`);
   }
 
