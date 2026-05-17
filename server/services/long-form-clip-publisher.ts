@@ -180,22 +180,21 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
 
     // Check YouTube API quota once — stop the whole batch if tripped
-    const { isQuotaBreakerTripped, isHourlyBudgetExceeded } = await import("./youtube-quota-tracker");
+    const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping long-form batch");
       return { published: 0, failed: 0, skipped: dueItems.length };
     }
 
-    // Hourly budget gate — prevents burning all quota in a single window after reset.
-    // Each long-form upload costs ~1,650 units; gate ensures uploads spread across the day.
-    const firstUserId = dueItems[0]?.userId;
-    if (firstUserId && await isHourlyBudgetExceeded(firstUserId)) {
-      logger.info("Long-form publisher: hourly quota budget paced — deferring batch to next window");
-      return { published: 0, failed: 0, skipped: 0 };
-    }
-
     for (const item of dueItems) {
       if (published >= MAX_PER_RUN) break;
+
+      // Per-upload budget check — stops the batch when remaining quota can no
+      // longer cover another upload (1,600 units + 200 safety buffer).
+      if (!await canAffordOperation(item.userId, "upload")) {
+        logger.info(`[LongFormPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
+        break;
+      }
 
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const startSec = Number(itemMeta.segmentStartSec ?? 0);

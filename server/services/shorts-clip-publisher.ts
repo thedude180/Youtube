@@ -44,7 +44,7 @@ import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate } from "./youtube-output
 
 const logger = createLogger("shorts-publisher");
 
-const MAX_PER_RUN = 3; // Matches daily cadence target (3 Shorts/day). Prevents quota burst on reset.
+const MAX_PER_RUN = 5; // Up to 5 Shorts per run — covers today + tomorrow. canAffordOperation stops the loop at quota ceiling.
 // How far ahead to look when picking up scheduled items for batch-upload
 const BATCH_WINDOW_DAYS = 14;
 const MAX_DURATION_SEC = 60;
@@ -372,23 +372,23 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
 
     // Check YouTube API quota once before the loop — stop the entire batch if tripped
-    const { isQuotaBreakerTripped, isHourlyBudgetExceeded } = await import("./youtube-quota-tracker");
+    const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping shorts batch");
       return { published: 0, failed: 0, skipped: dueItems.length };
     }
 
-    // Hourly budget gate — prevents burning all quota in a single window after reset.
-    // Max 8% of daily quota (800 units) per hour. Each Short upload costs ~1,650 units
-    // so this naturally caps to ~1 upload per 2 hours, spreading across the day.
-    const firstUserId = dueItems[0]?.userId;
-    if (firstUserId && await isHourlyBudgetExceeded(firstUserId)) {
-      logger.info("Shorts publisher: hourly quota budget paced — deferring batch to next window");
-      return { published: 0, failed: 0, skipped: 0 };
-    }
-
     for (const item of dueItems) {
       if (published >= MAX_PER_RUN) break;
+
+      // Per-upload budget check — stops the batch the moment remaining quota
+      // can no longer cover another upload (1,600 units + 200 safety buffer).
+      // This lets each batch run use as much of the daily 10k as possible
+      // without tipping the breaker, building one more day ahead each cycle.
+      if (!await canAffordOperation(item.userId, "upload")) {
+        logger.info(`[ShortsPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
+        break;
+      }
 
       const userId = item.userId;
       const platform = item.targetPlatform;

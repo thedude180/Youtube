@@ -90,7 +90,7 @@ const UPLOAD_RESERVE = 4000;
  * (per Pacific date) so the check adds zero DB round-trips to the hot path.
  *
  * Budget breakdown at these caps:
- *   upload       4 × 1600 =  6,400  (hard ceiling; studio uploads rarely reach 4)
+ *   upload       6 × 1600 =  9,600  (quota-maximising ceiling — builds 2 days ahead per cycle)
  *   write       20 ×   50 =  1,000  (NEW content only: new uploads, autopilot, user-triggered)
  *   backlogWrite 20 ×   50 =  1,000  (retroactive backlog optimisation of existing videos)
  *   thumbnail   20 ×   50 =  1,000  (AI thumbnail uploads spread across 24 h)
@@ -113,7 +113,7 @@ const UPLOAD_RESERVE = 4000;
  * The unit-budget gate in canAffordOperation() is still the ultimate backstop.
  */
 const DAILY_OP_CAPS: Record<string, number> = {
-  upload:       4,    //  4 × 1600 = 6,400 units — hard ceiling; always reserved for real uploads
+  upload:       6,    //  6 × 1600 = 9,600 units — maximises daily quota usage (~96% of 10k)
   write:        8,    //  8 ×   50 =   400 units — new content pushes
   backlogWrite: 8,    //  8 ×   50 =   400 units — backlog optimisation
   thumbnail:    6,    //  6 ×   50 =   300 units — AI thumbnails
@@ -124,7 +124,7 @@ const DAILY_OP_CAPS: Record<string, number> = {
   list:         Infinity,
   // ──────────────────────────────────────────────────────────────────────────
   // Budget summary (worst case, all caps hit simultaneously):
-  //   uploads   4 × 1600 = 6,400
+  //   uploads   6 × 1600 = 9,600
   //   50-unit  (8+8+6+12+24) × 50 = 2,900
   //   reads     ~1,000  (scanners at 90-min intervals)
   //   search    3 × 100 =   300
