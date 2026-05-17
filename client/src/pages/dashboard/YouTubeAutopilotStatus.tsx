@@ -8,7 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Video, Zap, Clock, AlertCircle, CheckCircle2, Brain,
-  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays,
+  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays, FlaskConical,
 } from "lucide-react";
 import { formatDistanceToNow, addDays, startOfDay, endOfDay, isToday, format } from "date-fns";
 
@@ -35,6 +35,16 @@ function formatBucketLabel(bucket: string): string {
     .replace("short_", "")
     .replace(/_/g, "–")
     .replace(/(\d+)/g, "$1") + " min";
+}
+
+function formatShortBucketLabel(bucket: string): string {
+  if (!bucket) return "—";
+  const map: Record<string, string> = {
+    short_15_30: "8–20 s",
+    short_31_45: "21–40 s",
+    short_46_60: "41–59 s",
+  };
+  return map[bucket] ?? bucket;
 }
 
 function formatWindowLabel(w: string): string {
@@ -493,6 +503,75 @@ export default function YouTubeAutopilotStatus() {
           </p>
         )}
       </div>
+
+      {/* Length Experiment Results */}
+      {((learning.buckets && learning.buckets.length > 0) || (learning.shortBuckets && learning.shortBuckets.length > 0)) && (
+        <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2" data-testid="card-length-experiments">
+          <span className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+            <FlaskConical className="h-3.5 w-3.5 text-amber-400" />
+            Length Experiment Results
+          </span>
+
+          {learning.buckets && learning.buckets.length > 0 && (
+            <div>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide mb-1">Long-Form (ranked by performance)</p>
+              <div className="space-y-1">
+                {learning.buckets.map((b: any, i: number) => (
+                  <div key={b.bucket} className="flex items-center gap-2" data-testid={`row-lf-bucket-${i}`}>
+                    <span className={`text-[10px] font-medium w-14 shrink-0 ${i === 0 ? "text-emerald-400" : i === learning.buckets.length - 1 ? "text-red-400/70" : "text-muted-foreground"}`}>
+                      {formatBucketLabel(b.bucket)}
+                    </span>
+                    <div className="flex-1 h-1.5 bg-border/20 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${i === 0 ? "bg-emerald-400" : i === learning.buckets.length - 1 ? "bg-red-400/50" : "bg-blue-400/60"}`}
+                        style={{ width: `${Math.min(100, (b.avgScore / (learning.buckets[0]?.avgScore || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground/60 w-12 text-right shrink-0">
+                      {b.avgScore.toFixed(1)} · {b.sampleCount}x
+                    </span>
+                    {b.avgViewPct > 0 && (
+                      <span className="text-[9px] text-muted-foreground/50 w-10 text-right shrink-0">
+                        {b.avgViewPct.toFixed(0)}% view
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {learning.shortBuckets && learning.shortBuckets.length > 0 && (
+            <div>
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide mb-1 mt-2">Shorts (ranked by performance)</p>
+              <div className="space-y-1">
+                {learning.shortBuckets.map((b: any, i: number) => (
+                  <div key={b.bucket} className="flex items-center gap-2" data-testid={`row-short-bucket-${i}`}>
+                    <span className={`text-[10px] font-medium w-14 shrink-0 ${i === 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {formatShortBucketLabel(b.bucket)}
+                    </span>
+                    <div className="flex-1 h-1.5 bg-border/20 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${i === 0 ? "bg-emerald-400" : "bg-blue-400/40"}`}
+                        style={{ width: `${Math.min(100, (b.avgScore / (learning.shortBuckets[0]?.avgScore || 1)) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground/60 w-12 text-right shrink-0">
+                      {b.avgScore.toFixed(1)} · {b.sampleCount}x
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(learning.buckets?.length === 0 && learning.shortBuckets?.length === 0) && (
+            <p className="text-[10px] text-muted-foreground/60 italic">
+              No experiment data yet — results appear after videos are published and analytics return.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Live copilot mode */}
       <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2" data-testid="card-copilot-mode">

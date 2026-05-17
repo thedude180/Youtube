@@ -1289,7 +1289,8 @@ export function registerStreamRoutes(app: Express) {
           worstDurationBucket: longFormBuckets.at(-1)?.bucket ?? null,
           bestShortBucket: shortBuckets[0]?.bucket ?? null,
           bestPostingWindow: windows[0]?.window ?? null,
-          buckets: longFormBuckets.slice(0, 5),
+          buckets: longFormBuckets.slice(0, 7),
+          shortBuckets: shortBuckets.slice(0, 3),
           windows: windows.slice(0, 3),
         },
         livestream: {

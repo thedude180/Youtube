@@ -14,6 +14,7 @@ import {
   MAX_SHORTS_PER_DAY,
   MAX_LONGFORM_PER_DAY,
 } from "./youtube-output-schedule";
+import { chooseBestLongFormDuration, getBucketRankings } from "./youtube-performance-learner";
 
 const logger = createLogger("content-grinder");
 
@@ -364,6 +365,59 @@ async function getSEOKnowledgeForClips(userId: string, gameName: string): Promis
   }
 }
 
+/**
+ * Returns a dynamic LENGTH VARIETY instruction block for the Shorts extraction
+ * prompt. When performance data exists the best-performing bucket gets boosted
+ * (more clips requested). Falls back to equal distribution when there is not
+ * yet enough data to form a preference.
+ */
+async function getShortLengthDistributionHint(userId: string): Promise<string> {
+  try {
+    const buckets = await getBucketRankings(userId);
+    const shortBuckets = buckets
+      .filter(b => b.contentType === "short" && b.sampleCount >= 3)
+      .sort((a, b) => b.avgScore - a.avgScore);
+
+    if (shortBuckets.length === 0) {
+      // No data yet — equal distribution
+      return `LENGTH VARIETY (critical for audience testing — spread durations across the range):
+- At least 2 clips must be SHORT: 8–20 seconds (pure shock/reaction moment)
+- At least 2 clips must be MEDIUM: 21–40 seconds (action sequence with payoff)
+- At least 2 clips must be LONG: 41–59 seconds (mini-story arc, setup + climax + reaction)
+- Do NOT cluster all clips at the same duration — variety is required.`;
+    }
+
+    // Map bucket labels to grinder range names
+    const labelToRange: Record<string, string> = {
+      short_15_30: "SHORT: 8–20 seconds",
+      short_31_45: "MEDIUM: 21–40 seconds",
+      short_46_60: "LONG: 41–59 seconds",
+    };
+
+    const best = shortBuckets[0];
+    const worst = shortBuckets.at(-1);
+    const bestRange = labelToRange[best.bucket] ?? "MEDIUM: 21–40 seconds";
+    const worstRange = worst && worst.bucket !== best.bucket ? labelToRange[worst.bucket] : null;
+
+    let hint = `LENGTH DISTRIBUTION (data-driven — bias toward your best-performing Short length):
+- At least 4 clips must target ${bestRange} — this is your current top-performing Short length (avg score ${best.avgScore.toFixed(1)}, ${best.sampleCount} samples, ${best.avgViewPct.toFixed(0)}% avg view)
+- At least 2 clips must target each of the other two length ranges for ongoing A/B testing`;
+    if (worstRange) {
+      hint += `\n- ${worstRange} is currently underperforming — still include 1–2 clips to continue the experiment`;
+    }
+    hint += `\n- Do NOT cluster all clips at the same duration — retain some variety.`;
+
+    logger.debug(`[ContentGrinder] Short length hint: best=${best.bucket} score=${best.avgScore.toFixed(1)}`);
+    return hint;
+  } catch {
+    return `LENGTH VARIETY (critical for audience testing — spread durations across the range):
+- At least 2 clips must be SHORT: 8–20 seconds (pure shock/reaction moment)
+- At least 2 clips must be MEDIUM: 21–40 seconds (action sequence with payoff)
+- At least 2 clips must be LONG: 41–59 seconds (mini-story arc, setup + climax + reaction)
+- Do NOT cluster all clips at the same duration — variety is required.`;
+  }
+}
+
 async function extractUntappedMoments(userId: string, video: any, maxClips = 10): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 600;
@@ -384,8 +438,11 @@ async function extractUntappedMoments(userId: string, video: any, maxClips = 10)
     return { start, end };
   }).filter(r => r.end > r.start);
 
-  const retentionContext = await getRetentionIntelligence(userId, gameName);
-  const seoContext = await getSEOKnowledgeForClips(userId, gameName);
+  const [retentionContext, seoContext, lengthDistributionHint] = await Promise.all([
+    getRetentionIntelligence(userId, gameName),
+    getSEOKnowledgeForClips(userId, gameName),
+    getShortLengthDistributionHint(userId),
+  ]);
 
   if (!tokenBudget.checkBudget("content-grinder", 3000)) {
     logger.warn(`[ContentGrinder] extractUntappedMoments: daily budget exhausted, skipping video ${video.id}`);
@@ -427,11 +484,7 @@ VIRAL RULES:
 - End on a HIGH NOTE or a cliffhanger (never fade out)
 - Titles must create curiosity gap: "This Boss Had Me SHAKING" not "Boss Fight Gameplay"
 
-LENGTH VARIETY (critical for audience testing — spread durations across the range):
-- At least 2 clips must be SHORT: 8–20 seconds (pure shock/reaction moment)
-- At least 2 clips must be MEDIUM: 21–40 seconds (action sequence with payoff)
-- At least 2 clips must be LONG: 41–59 seconds (mini-story arc, setup + climax + reaction)
-- Do NOT cluster all clips at the same duration — variety is required.
+${lengthDistributionHint}
 
 Return raw JSON only (no markdown code blocks):
 {
@@ -551,12 +604,24 @@ async function extractLongFormMoments(userId: string, video: any): Promise<numbe
   });
   if (validTargets.length === 0) return 0;
 
-  // Pick the smallest untested bucket first so shorter experiments run earliest
-  const targetSec = validTargets[0];
-  const targetMin = Math.round(targetSec / 60);
-
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
+
+  // Use the performance learner to bias toward high-performing buckets.
+  // chooseBestLongFormDuration uses 85% exploitation / 15% exploration and
+  // returns the best-scoring bucket (in seconds) for this user+game.
+  // We then snap to the nearest cooldown-expired bucket so we never re-run
+  // a bucket that was just tried on this video.
+  let targetSec: number;
+  try {
+    const learnedSec = await chooseBestLongFormDuration(userId, gameName, durSec);
+    targetSec = validTargets.reduce((prev, curr) =>
+      Math.abs(curr - learnedSec) < Math.abs(prev - learnedSec) ? curr : prev,
+    );
+  } catch {
+    targetSec = validTargets[0];
+  }
+  const targetMin = Math.round(targetSec / 60);
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) return 0;
   tokenBudget.consumeBudget("content-grinder", 2000);
