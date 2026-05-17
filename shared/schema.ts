@@ -10176,3 +10176,19 @@ export const backCatalogDerivatives = pgTable("back_catalog_derivatives", {
 export const insertBackCatalogDerivativeSchema = createInsertSchema(backCatalogDerivatives).omit({ id: true, createdAt: true });
 export type BackCatalogDerivative = typeof backCatalogDerivatives.$inferSelect;
 export type InsertBackCatalogDerivative = z.infer<typeof insertBackCatalogDerivativeSchema>;
+
+// ── ETGaming247 Upload Packages ───────────────────────────────────────────────
+export const etgaming247Packages = pgTable("etgaming247_packages", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  input: jsonb("input").$type<Record<string, any>>().notNull(),
+  output: jsonb("output").$type<Record<string, any>>().notNull(),
+  analytics: jsonb("analytics").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("etg247_user_idx").on(t.userId),
+]);
+
+export const insertEtgaming247PackageSchema = createInsertSchema(etgaming247Packages).omit({ id: true, createdAt: true });
+export type Etgaming247Package = typeof etgaming247Packages.$inferSelect;
+export type InsertEtgaming247Package = z.infer<typeof insertEtgaming247PackageSchema>;

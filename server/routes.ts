@@ -61,6 +61,7 @@ import { registerGrinderRoutes } from "./routes/grinder";
 import { registerEvolutionRoutes } from "./routes/evolution";
 import { registerVaultDocsRoutes } from "./routes/vault-docs";
 import { registerOmniIntelligenceRoutes } from "./routes/omni-intelligence";
+import { registerEtgaming247Routes } from "./routes/etgaming247";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -441,6 +442,7 @@ export async function registerRoutes(
   registerEvolutionRoutes(app);
   registerVaultDocsRoutes(app);
   registerOmniIntelligenceRoutes(app);
+  registerEtgaming247Routes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => logger.error("Failed to restore safe mode state", { error: err?.message }));

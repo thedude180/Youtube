@@ -133,7 +133,11 @@ Return raw JSON only (no markdown, no code blocks):
       "contentCategory": "boss_fight|exploration|combat|story|speed_run|challenge",
       "qualityScore": number,
       "retentionScore": number,
-      "reasonThisWorks": "string — 1 sentence why this keeps viewers watching"
+      "reasonThisWorks": "string — 1 sentence why this keeps viewers watching",
+      "cadenceHook": "optional — the exact opening moment that forces viewers to keep watching (92 BPM HOOK)",
+      "cadencePressure": "optional — what builds tension in the middle section (PRESSURE phase)",
+      "cadencePayoff": "optional — the climax or satisfying resolution (PAYOFF moment)",
+      "cadenceReset": "optional — how dead air is cut before the next beat (RESET)"
     }
   ]
 }`;

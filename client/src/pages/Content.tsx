@@ -31,7 +31,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useChannels } from "@/hooks/use-channels";
 import { SiYoutube } from "react-icons/si";
 
-type ContentTab = "library" | "catalogs" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta" | "pipeline";
+type ContentTab = "library" | "catalogs" | "updated" | "channels" | "calendar" | "intelligence" | "revenue" | "cta" | "pipeline" | "etgaming247";
 
 const UpdatedVideosTab = lazyRetry(() => import("./content/UpdatedVideosTab"));
 const ChannelsTab = lazyRetry(() => import("./content/ChannelsTab"));
@@ -40,6 +40,7 @@ const ContentIntelligenceTab = lazyRetry(() => import("./content/ContentIntellig
 const ContentRevenueTab = lazyRetry(() => import("./content/ContentRevenueTab"));
 const CTAPlannerTab = lazyRetry(() => import("./content/CTAPlannerTab"));
 const ProductionPipelineTab = lazyRetry(() => import("./content/PipelineTab"));
+const ETGaming247Tab = lazyRetry(() => import("./content/ETGaming247Tab"));
 
 function VideoThumbnail({ url, className }: { url: string | null | undefined; className: string }) {
   const [broken, setBroken] = useState(false);
@@ -112,7 +113,7 @@ export default function Content() {
   usePageTitle("Content");
   const params = useParams<{ tab?: string }>();
   const tabParam = params?.tab;
-  const validTabs: ContentTab[] = ["library", "catalogs", "updated", "channels", "calendar", "intelligence", "revenue", "cta", "pipeline"];
+  const validTabs: ContentTab[] = ["library", "catalogs", "updated", "channels", "calendar", "intelligence", "revenue", "cta", "pipeline", "etgaming247"];
   const initialTab = validTabs.includes(tabParam as ContentTab) ? (tabParam as ContentTab) : "library";
   const [activeTab, setActiveTab] = useTabMemory("content", initialTab, validTabs);
   const { t } = useTranslation();
@@ -156,6 +157,9 @@ export default function Content() {
             <TabsTrigger value="pipeline" data-testid="tab-pipeline" aria-label="Production pipeline tab">
               <Kanban className="h-3.5 w-3.5 mr-1.5" />Pipeline
             </TabsTrigger>
+            <TabsTrigger value="etgaming247" data-testid="tab-etgaming247" aria-label="ETGaming247 package generator tab">
+              <Zap className="h-3.5 w-3.5 mr-1.5 text-amber-400" />ETGaming247
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -198,6 +202,11 @@ export default function Content() {
         <TabsContent value="pipeline" className="mt-2">
           <Suspense fallback={<Skeleton className="h-64 w-full" />}>
             <ProductionPipelineTab />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="etgaming247" className="mt-2">
+          <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <ETGaming247Tab />
           </Suspense>
         </TabsContent>
       </Tabs>

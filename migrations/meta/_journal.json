@@ -253,6 +253,13 @@
       "when": 1778040185497,
       "tag": "0035_furry_rhino",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1779016438612,
+      "tag": "0036_condemned_onslaught",
+      "breakpoints": true
     }
   ]
 }

@@ -133,7 +133,8 @@ async function generateOptimizedMetadata(video: {
     const durMin    = Math.round((video.durationSec ?? 0) / 60);
     const existing  = (video.tags ?? []).slice(0, 10).join(", ");
 
-    const prompt = `You are optimizing an existing YouTube gaming video's metadata to improve CTR and discoverability.
+    const prompt = `You are optimizing an existing YouTube gaming video's metadata for the ETGaming247 channel.
+Channel identity: No commentary. No facecam. No fake hype. Raw gameplay cut with 92 BPM cadence — steady pressure, clean action, controlled chaos.
 
 Video: "${safeTitle}"
 Game: ${game}
@@ -144,16 +145,16 @@ Current description (first 300 chars): ${safeDesc}
 Current tags: ${existing}
 
 Write:
-1. A new TITLE (40-70 chars, no clickbait, no misleading claims, accurately describes content with a strong hook)
-2. A new DESCRIPTION INTRO (2 lines, 100-200 chars total, describes content and value without keyword stuffing)
-3. Up to 15 TAGS (game name, genre, specific moments, channel brand — no misleading tags)
-4. If the video is a VOD or long-form clip, a short "no-commentary framing" sentence (e.g., "Chaptered gameplay — no commentary")
+1. A new TITLE (40-70 chars) — sell the SITUATION, not just the game. No fake hype ("INSANE", "EPIC", "BEST EVER" unless clearly earned). No all-caps spam. Keep "No Commentary" visible when useful. Good pattern: "Final Objective Defense Got Brutal — ${game} No Commentary"
+2. A new DESCRIPTION INTRO (2 lines, 100-200 chars total) — follow the brand default: "Raw ${game} no-commentary gameplay cut with a 92 BPM cadence — steady pressure, clean action, objective fights, and no talking over the game."
+3. Up to 15 TAGS — CRITICAL: the full comma-separated tags string MUST be under 500 characters. Prioritize: game name, no commentary, gameplay, mode/type, platform, ETGaming247. No keyword stuffing.
+4. If VOD or long-form, add a short no-commentary framing sentence.
 
 Rules:
-- Keep the title accurate — do not add claims that aren't true
-- Do not use all-caps spam
-- Do not keyword-stuff
-- Write like a professional YouTube creator, not a bot
+- No fake hype, no misleading claims, no all-caps spam, no keyword stuffing
+- Keep title accurate — sell the situation, not just the game name
+- Tags must stay under 500 total characters (count carefully)
+- Thumbnail text should be 2-3 words max if suggested
 
 Respond in JSON only:
 {
