@@ -10192,3 +10192,26 @@ export const etgaming247Packages = pgTable("etgaming247_packages", {
 export const insertEtgaming247PackageSchema = createInsertSchema(etgaming247Packages).omit({ id: true, createdAt: true });
 export type Etgaming247Package = typeof etgaming247Packages.$inferSelect;
 export type InsertEtgaming247Package = z.infer<typeof insertEtgaming247PackageSchema>;
+
+// ── Short slot claims (duplicate-schedule prevention) ─────────────────────────
+// Atomically records which (userId, windowKey) pairs have been claimed so that
+// concurrent callers — even across separate processes — cannot schedule two
+// Shorts in the same publishing window.
+//
+// windowKey format: "{userId}:{YYYY-MM-DD}:W{0|1|2}"
+//   e.g. "abc123:2026-05-17:W0" = first morning window on 2026-05-17 for user abc123
+//
+// The UNIQUE index on (userId, windowKey) is the DB-level safety net.
+// INSERT ... ON CONFLICT DO NOTHING RETURNING id is the atomic claim operation.
+// Rows expire after claimTtlMs (10 min default) and are purged on startup.
+export const shortSlotClaims = pgTable("short_slot_claims", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  windowKey: text("window_key").notNull(),
+  claimedSlot: timestamp("claimed_slot").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (t) => [
+  uniqueIndex("ssc_user_window_uniq").on(t.userId, t.windowKey),
+  index("ssc_user_idx").on(t.userId),
+  index("ssc_expires_idx").on(t.expiresAt),
+]);

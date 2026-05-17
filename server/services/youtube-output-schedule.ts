@@ -24,12 +24,206 @@
  * All returned Dates are UTC — pass directly to YouTube API publishAt.
  */
 
-import { db } from "../db";
-import { autopilotQueue, channels } from "@shared/schema";
-import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
+import { db, pool } from "../db";
+import { autopilotQueue, channels, shortSlotClaims } from "@shared/schema";
+import { eq, and, gte, lte, sql, desc, inArray, lt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("yt-schedule");
+
+// ── Concurrent Short-slot serialization ──────────────────────────────────────
+//
+// Three independent engines (relentless-content-grinder,
+// youtube-back-catalog-engine, youtube-output-scheduler) can call
+// getNextShortPublishTime() simultaneously.  Without serialization both
+// callers would read the same "empty" DB state and return the same window.
+//
+// Protection is four-layered (outermost → innermost):
+//
+// 1. Per-user in-process async mutex (Promise queue)
+//    Fast-path: serializes concurrent calls within this Node process without
+//    any DB round-trips.  Call 2 waits until Call 1 has fully returned so it
+//    always reads a fresh reservation map.
+//
+// 2. PostgreSQL advisory lock — pg_advisory_lock(CLASS, userKey)
+//    Session-level DB lock: acquired on a dedicated pool client.  Serializes
+//    across multiple Node processes or external writers that share the DB.
+//    Held for the duration of the slot-search and released after the DB claim
+//    INSERT succeeds.
+//
+// 3. DB claim table — short_slot_claims (THE durable guarantee)
+//    Attempting to claim a window performs:
+//      INSERT INTO short_slot_claims (userId, windowKey, claimedSlot, expiresAt)
+//      VALUES (...) ON CONFLICT DO NOTHING RETURNING id
+//    The UNIQUE index on (userId, windowKey) is the atomic DB-level safety net.
+//    If two processes race past the advisory lock, the unique constraint ensures
+//    exactly one INSERT wins.  The loser gets 0 rows back and tries the next
+//    window.  Claim rows expire after 10 min and are purged on startup.
+//
+// 4. In-process slot reservation map (secondary / defense-in-depth)
+//    Records chosen slots with a 5-min TTL.  Merged (deduplicated) into DB row
+//    sets so collision checks treat in-flight slots as already taken.  Provides
+//    an extra safety net for callers that bypass the advisory lock.
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Arbitrary namespace so advisory locks don't collide with other table names. */
+const ADVISORY_LOCK_CLASS = 20260517;
+
+/**
+ * Hash a userId string to a signed int32 for pg_advisory_lock's 2nd param.
+ * Uses FNV-1a.  Collisions are harmless (just extra serialization, no bugs).
+ */
+function userIdToLockKey(userId: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) | 0;
+  }
+  return h;
+}
+
+/** Build the DB claim key for a (userId, day, windowIndex) triple. */
+function makeWindowKey(userId: string, day: LocalDay, winIdx: number): string {
+  const mo = String(day.mo).padStart(2, "0");
+  const dy = String(day.dy).padStart(2, "0");
+  return `${userId}:${day.y}-${mo}-${dy}:W${winIdx}`;
+}
+
+/** Deduplicate an array of Dates by epoch millisecond value. */
+function dedupDates(dates: Date[]): Date[] {
+  const seen = new Set<number>();
+  return dates.filter(d => {
+    const ms = d.getTime();
+    if (seen.has(ms)) return false;
+    seen.add(ms);
+    return true;
+  });
+}
+
+// ── 1. Per-user in-process async mutex ───────────────────────────────────────
+
+const _shortMutexTails = new Map<string, Promise<void>>();
+
+async function withShortScheduleMutex<T>(
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prevTail = _shortMutexTails.get(userId) ?? Promise.resolve();
+  let myRelease!: () => void;
+  const myCompletion = new Promise<void>(r => { myRelease = r; });
+  _shortMutexTails.set(userId, myCompletion);
+  await prevTail;
+  try {
+    return await fn();
+  } finally {
+    myRelease();
+    if (_shortMutexTails.get(userId) === myCompletion) _shortMutexTails.delete(userId);
+  }
+}
+
+// ── 2. PostgreSQL advisory lock ───────────────────────────────────────────────
+
+async function withShortAdvisoryLock<T>(
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key = userIdToLockKey(userId);
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock($1, $2)", [ADVISORY_LOCK_CLASS, key]);
+    try {
+      return await fn();
+    } finally {
+      await client.query("SELECT pg_advisory_unlock($1, $2)", [ADVISORY_LOCK_CLASS, key])
+        .catch(() => { /* auto-releases on disconnect */ });
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// ── 3. DB claim table helpers ─────────────────────────────────────────────────
+
+const CLAIM_TTL_MS = 10 * 60_000; // 10 minutes
+
+/**
+ * Attempt to atomically claim a scheduling window in the DB.
+ * Returns the inserted id if the claim succeeded, null if the window was
+ * already claimed by another caller (unique conflict → 0 rows back).
+ */
+async function claimShortWindow(
+  userId: string,
+  windowKey: string,
+  claimedSlot: Date,
+): Promise<number | null> {
+  const expiresAt = new Date(Date.now() + CLAIM_TTL_MS);
+  const result = await db.execute(
+    sql`INSERT INTO short_slot_claims (user_id, window_key, claimed_slot, expires_at)
+        VALUES (${userId}, ${windowKey}, ${claimedSlot}, ${expiresAt})
+        ON CONFLICT DO NOTHING
+        RETURNING id`,
+  );
+  return result.rows.length > 0 ? (result.rows[0].id as number) : null;
+}
+
+/**
+ * Fetch the set of windowKeys that are already claimed (non-expired) for a
+ * given user and local day.  Used to skip windows before even computing a
+ * candidate, reducing unnecessary INSERT attempts.
+ */
+async function getClaimedWindowsForDay(
+  userId: string,
+  day: LocalDay,
+): Promise<Set<string>> {
+  const prefix = `${userId}:${day.y}-${String(day.mo).padStart(2, "0")}-${String(day.dy).padStart(2, "0")}:`;
+  const now = new Date();
+  const rows = await db
+    .select({ windowKey: shortSlotClaims.windowKey })
+    .from(shortSlotClaims)
+    .where(and(
+      eq(shortSlotClaims.userId, userId),
+      sql`${shortSlotClaims.windowKey} LIKE ${prefix + "%"}`,
+      gte(shortSlotClaims.expiresAt, now),
+    ));
+  return new Set(rows.map(r => r.windowKey));
+}
+
+/**
+ * Delete expired claim rows.  Call once on startup to keep the table lean.
+ * Errors are swallowed — a full table is safe (claims are checked by expiresAt).
+ */
+export async function purgeExpiredShortSlotClaims(): Promise<void> {
+  try {
+    await db.delete(shortSlotClaims).where(lt(shortSlotClaims.expiresAt, new Date()));
+    logger.debug("[YouTubeSchedule] Purged expired short_slot_claims");
+  } catch (e) {
+    logger.warn("[YouTubeSchedule] purgeExpiredShortSlotClaims failed (non-fatal)", { error: String(e) });
+  }
+}
+
+// ── 4. In-process slot reservation map ───────────────────────────────────────
+
+interface SlotReservation {
+  slot: Date;
+  expires: number;
+}
+
+const _shortSlotReservations = new Map<string, SlotReservation[]>();
+
+function getActiveShortReservations(userId: string): Date[] {
+  const now = Date.now();
+  const list = (_shortSlotReservations.get(userId) ?? []).filter(r => r.expires > now);
+  if (list.length === 0) _shortSlotReservations.delete(userId);
+  else _shortSlotReservations.set(userId, list);
+  return list.map(r => r.slot);
+}
+
+function reserveShortSlot(userId: string, slot: Date): void {
+  const list = _shortSlotReservations.get(userId) ?? [];
+  list.push({ slot, expires: Date.now() + 5 * 60_000 });
+  _shortSlotReservations.set(userId, list);
+}
 
 // ── Public constants (re-exported for publisher enforcement) ─────────────────
 export const MAX_SHORTS_PER_DAY = 3;
@@ -225,55 +419,99 @@ async function getLastScheduledLongFormTime(userId: string): Promise<Date | null
  *
  * Walks forward day by day (up to 14 days) and picks the earliest window
  * slot that satisfies all cadence constraints.  Returns a UTC Date.
+ *
+ * Concurrent-call safety (four layers — see block comment near top of file):
+ *   1. In-process async mutex — fast-path serialization within this process
+ *   2. pg_advisory_lock — DB-session lock, blocks cross-process duplicates
+ *   3. DB claim table (short_slot_claims) — THE durable atomic guarantee;
+ *      INSERT ... ON CONFLICT DO NOTHING RETURNING id wins the slot or loses it
+ *   4. Reservation map — defense-in-depth for the autopilotQueue insert gap
  */
 export async function getNextShortPublishTime(userId: string): Promise<Date> {
-  const tz     = await getUserTz(userId);
-  const now    = new Date();
-  const today  = getLocalDay(tz, now);
-  const lastSt = await getLastScheduledShortTime(userId);
+  return withShortScheduleMutex(userId, () =>
+    withShortAdvisoryLock(userId, async () => {
+      const tz     = await getUserTz(userId);
+      const now    = new Date();
+      const today  = getLocalDay(tz, now);
+      const lastSt = await getLastScheduledShortTime(userId);
+      const inFlightSlots = getActiveShortReservations(userId);
 
-  for (let d = 0; d < MAX_DAYS_AHEAD; d++) {
-    const day = d === 0 ? today : offsetDay(tz, today, d);
-    const [allUploads, shortsToday] = await Promise.all([
-      getUploadsOnDay(userId, tz, day),
-      getShortsOnDay(userId, tz, day),
-    ]);
+      for (let d = 0; d < MAX_DAYS_AHEAD; d++) {
+        const day = d === 0 ? today : offsetDay(tz, today, d);
 
-    if (shortsToday.length >= MAX_SHORTS_PER_DAY) continue;
-    if (allUploads.length >= MAX_TOTAL_PER_DAY) continue;
+        // Fetch DB rows, in-progress claimed windows, and the reservation map
+        // in one round-trip batch.  claimedWindowsForDay lets us skip windows
+        // that are already durably claimed before even computing a candidate.
+        const [allUploadsRaw, shortsTodayRaw, claimedWindows] = await Promise.all([
+          getUploadsOnDay(userId, tz, day),
+          getShortsOnDay(userId, tz, day),
+          getClaimedWindowsForDay(userId, day),
+        ]);
 
-    for (const win of SHORTS_WINDOWS) {
-      const winStart  = localHmToUtc(tz, day.y, day.mo, day.dy, win.startH,  win.startM);
-      const winEnd    = localHmToUtc(tz, day.y, day.mo, day.dy, win.endH,    win.endM);
-      const winTarget = localHmToUtc(tz, day.y, day.mo, day.dy, win.targetH, win.targetM);
-      const candidate = withJitter(winTarget, winStart, winEnd);
+        // Merge reservation map entries (deduplicated to avoid double-counting
+        // slots that are already committed to the DB).
+        const { start: dayStart, end: dayEnd } = dayBounds(tz, day);
+        const reservedOnDay = inFlightSlots.filter(
+          t => t.getTime() >= dayStart.getTime() && t.getTime() <= dayEnd.getTime(),
+        );
+        const allUploads  = dedupDates([...allUploadsRaw,  ...reservedOnDay].sort((a, b) => a.getTime() - b.getTime()));
+        const shortsToday = dedupDates([...shortsTodayRaw, ...reservedOnDay].sort((a, b) => a.getTime() - b.getTime()));
 
-      // Must be meaningfully in the future
-      if (candidate.getTime() <= now.getTime() + 60_000) continue;
+        if (shortsToday.length >= MAX_SHORTS_PER_DAY) continue;
+        if (allUploads.length >= MAX_TOTAL_PER_DAY) continue;
 
-      // 5.5 h minimum gap from last Short
-      if (lastSt && candidate.getTime() - lastSt.getTime() < MIN_SHORT_GAP_MS) continue;
+        for (let winIdx = 0; winIdx < SHORTS_WINDOWS.length; winIdx++) {
+          const win = SHORTS_WINDOWS[winIdx];
+          const windowKey = makeWindowKey(userId, day, winIdx);
 
-      // 90 min minimum gap from any upload already on this day
-      const tooClose = allUploads.some(
-        t => Math.abs(t.getTime() - candidate.getTime()) < MIN_ANY_GAP_MS,
-      );
-      if (tooClose) continue;
+          // Fast-skip windows already durably claimed in the DB.
+          if (claimedWindows.has(windowKey)) continue;
 
-      // Window not already occupied by a Short today
-      const winOccupied = shortsToday.some(
-        t => t.getTime() >= winStart.getTime() && t.getTime() <= winEnd.getTime(),
-      );
-      if (winOccupied) continue;
+          const winStart  = localHmToUtc(tz, day.y, day.mo, day.dy, win.startH,  win.startM);
+          const winEnd    = localHmToUtc(tz, day.y, day.mo, day.dy, win.endH,    win.endM);
+          const winTarget = localHmToUtc(tz, day.y, day.mo, day.dy, win.targetH, win.targetM);
+          const candidate = withJitter(winTarget, winStart, winEnd);
 
-      logger.debug(`[YouTubeSchedule] Short slot → window ${win.targetH}:${String(win.targetM).padStart(2, "0")} local (${candidate.toISOString()})`);
-      return candidate;
-    }
-  }
+          if (candidate.getTime() <= now.getTime() + 60_000) continue;
+          if (lastSt && candidate.getTime() - lastSt.getTime() < MIN_SHORT_GAP_MS) continue;
 
-  // Hard fallback — should not happen in normal operation
-  logger.warn(`[YouTubeSchedule] No Short window found for ${userId.slice(0, 8)} in ${MAX_DAYS_AHEAD} days — using +6h`);
-  return new Date(now.getTime() + 6 * 3_600_000);
+          const tooClose = allUploads.some(
+            t => Math.abs(t.getTime() - candidate.getTime()) < MIN_ANY_GAP_MS,
+          );
+          if (tooClose) continue;
+
+          const winOccupied = shortsToday.some(
+            t => t.getTime() >= winStart.getTime() && t.getTime() <= winEnd.getTime(),
+          );
+          if (winOccupied) continue;
+
+          // Attempt atomic DB claim.  The UNIQUE index on (userId, windowKey)
+          // is the definitive arbiter — only one INSERT wins even if two
+          // processes race past the advisory lock above.
+          const claimId = await claimShortWindow(userId, windowKey, candidate);
+          if (claimId === null) {
+            // Another caller claimed this window first; skip and try next.
+            logger.debug(`[YouTubeSchedule] window ${windowKey} race-lost, trying next`);
+            continue;
+          }
+
+          // Claim succeeded.  Also record in the in-process reservation map
+          // so callers that bypass the advisory lock still see it as taken.
+          reserveShortSlot(userId, candidate);
+          logger.debug(`[YouTubeSchedule] Short slot claimed → ${windowKey} (${candidate.toISOString()})`);
+          return candidate;
+        }
+      }
+
+      // Hard fallback — should not happen in normal operation.
+      // Protected by advisory lock + mutex so concurrent fallback callers
+      // won't collide (only one runs at a time per user).
+      logger.warn(`[YouTubeSchedule] No Short window found for ${userId.slice(0, 8)} in ${MAX_DAYS_AHEAD} days — using +6h`);
+      const fallback = new Date(now.getTime() + 6 * 3_600_000);
+      reserveShortSlot(userId, fallback);
+      return fallback;
+    }),
+  );
 }
 
 /**
