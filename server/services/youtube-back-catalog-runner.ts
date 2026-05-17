@@ -24,6 +24,7 @@ import { eq, and, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { runBackCatalogMonetizationCycle } from "./youtube-back-catalog-engine";
+import { runClipSeoSync } from "./youtube-clip-seo-sync";
 
 const logger = createLogger("back-catalog-runner");
 
@@ -112,6 +113,19 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
         rankedCount: result.rankedCount,
         skippedReason: result.skippedReason ?? null,
       });
+
+      // Audit + fix SEO and thumbnails on all published derivative clips
+      try {
+        const seoResult = await runClipSeoSync(userId);
+        if (seoResult.seoUpdated > 0 || seoResult.thumbUpdated > 0) {
+          logger.info(`[BackCatalogRunner] Clip SEO sync for ${userId.slice(0, 8)}: scanned ${seoResult.scanned}, SEO ${seoResult.seoUpdated}, thumbs ${seoResult.thumbUpdated}`);
+        } else {
+          logger.debug(`[BackCatalogRunner] Clip SEO sync: nothing to update for ${userId.slice(0, 8)}`);
+        }
+      } catch (seoErr: any) {
+        logger.warn(`[BackCatalogRunner] Clip SEO sync failed for ${userId.slice(0, 8)}: ${seoErr?.message?.slice(0, 150)}`);
+      }
+
       usersRun++;
     } catch (err: any) {
       errors++;

@@ -734,6 +734,100 @@ function extractGameName(title: string, description: string): string {
   return meaningful.slice(0, 3).join(" ") || "PS5 Gameplay";
 }
 
+// ── Public: generate + upload thumbnail for a clip (no DB video row required) ─
+
+export async function generateAndUploadThumbnailForClip(
+  userId: string,
+  channelId: number,
+  clipYoutubeId: string,
+  clipTitle: string,
+  clipDescription: string,
+  clipType: "short" | "long_form",
+  gameName?: string,
+): Promise<boolean> {
+  if (isChannelDisconnected(channelId)) return false;
+  if (isQuotaBreakerTripped()) return false;
+
+  const canUpload = await canAffordOperation(userId, "thumbnail").catch(() => false);
+  if (!canUpload) {
+    logger.warn("Clip thumbnail upload skipped — quota insufficient", { clipYoutubeId });
+    return false;
+  }
+
+  try {
+    const resolvedGame = gameName && gameName !== "Unknown" && gameName !== "Gaming"
+      ? gameName
+      : extractGameName(clipTitle, clipDescription);
+
+    let researchContext = "";
+    try {
+      const { getThumbnailContext } = await import("./services/thumbnail-intelligence");
+      researchContext = await getThumbnailContext(userId, resolvedGame);
+    } catch { /* non-fatal */ }
+
+    const prompt = await generateThumbnailPrompt(
+      clipTitle, clipDescription, clipType === "short" ? "short" : "video",
+      researchContext, resolvedGame,
+    );
+    if (!prompt) {
+      logger.warn("Clip thumbnail prompt empty — skipping", { clipYoutubeId });
+      return false;
+    }
+
+    let imageBuffer: Buffer;
+    try {
+      const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
+      imageBuffer = await genImg(prompt, "1536x1024", "high");
+    } catch (imgErr) {
+      logger.error("Clip thumbnail image generation failed", { clipYoutubeId, error: String(imgErr) });
+      return false;
+    }
+
+    if (!imageBuffer || imageBuffer.length < 1000) {
+      logger.warn("Clip thumbnail image too small — skipping", { clipYoutubeId, size: imageBuffer?.length });
+      return false;
+    }
+
+    const { setYouTubeThumbnail } = await import("./youtube");
+
+    let finalBuffer = imageBuffer;
+    let finalMimeType = "image/jpeg";
+    try {
+      const sharp = (await import("sharp")).default;
+      let quality = 85;
+      const doResize = (q: number) =>
+        sharp(imageBuffer)
+          .resize(THUMB_W, THUMB_H, { fit: "cover", position: "center", kernel: "lanczos3" })
+          .jpeg({ quality: q, progressive: true })
+          .toBuffer();
+      finalBuffer = await doResize(quality);
+      while (finalBuffer.length > YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES * 0.97 && quality > 30) {
+        quality -= 8;
+        finalBuffer = await doResize(quality);
+      }
+    } catch {
+      finalMimeType = "image/png";
+    }
+
+    if (finalBuffer.length > YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES) {
+      logger.warn("Clip thumbnail exceeds upload limit after compression — skipping", { clipYoutubeId });
+      return false;
+    }
+
+    await setYouTubeThumbnail(channelId, clipYoutubeId, finalBuffer, finalMimeType);
+    await trackQuotaUsage(userId, "thumbnail").catch(() => {});
+
+    logger.info("Clip thumbnail uploaded to YouTube", { clipYoutubeId, clipTitle });
+    return true;
+  } catch (err: any) {
+    const errMsg = String(err);
+    const isNotConnected = errMsg.includes("not connected") || errMsg.includes("missing access token");
+    if (isNotConnected) markChannelDisconnected(channelId);
+    logger.error("Clip thumbnail generation/upload failed", { clipYoutubeId, error: errMsg.slice(0, 200) });
+    return false;
+  }
+}
+
 async function getChannelAvgViews(channelId: number): Promise<number> {
   try {
     const channelVids = await db.select().from(videos)

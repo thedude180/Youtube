@@ -1400,6 +1400,24 @@ export function registerStreamRoutes(app: Express) {
     res.json(opportunities);
   }));
 
+  // ── Clip SEO + Thumbnail Sync ─────────────────────────────────────────────────
+
+  app.get("/api/youtube/clips/seo-sync/status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { getClipSeoSyncStatus } = await import("../services/youtube-clip-seo-sync");
+    const status = await getClipSeoSyncStatus(userId);
+    res.json(status);
+  }));
+
+  app.post("/api/youtube/clips/seo-sync", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { runClipSeoSync } = await import("../services/youtube-clip-seo-sync");
+    const result = await runClipSeoSync(userId);
+    res.json(result);
+  }));
+
   // ── YouTube AI Orchestrator ───────────────────────────────────────────────────
 
   app.get("/api/youtube/ai-orchestrator/status", asyncHandler(async (req: any, res) => {
