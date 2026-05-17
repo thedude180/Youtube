@@ -445,7 +445,7 @@ async function extractUntappedMoments(userId: string, video: any, maxClips = 10)
   ]);
 
   if (!tokenBudget.checkBudget("content-grinder", 3000)) {
-    logger.warn(`[ContentGrinder] extractUntappedMoments: daily budget exhausted, skipping video ${video.id}`);
+    logger.debug(`[ContentGrinder] extractUntappedMoments: daily budget exhausted, skipping video ${video.id}`);
     return 0;
   }
   tokenBudget.consumeBudget("content-grinder", 3000);
@@ -742,7 +742,7 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
   const viewCount = meta.viewCount || meta.views || 0;
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) {
-    logger.warn(`[ContentGrinder] viralSEORefresh: daily budget exhausted, skipping video ${video.id}`);
+    logger.debug(`[ContentGrinder] viralSEORefresh: daily budget exhausted, skipping video ${video.id}`);
     return false;
   }
   tokenBudget.consumeBudget("content-grinder", 2000);
@@ -898,7 +898,7 @@ async function enhanceRetentionPacing(userId: string, video: any): Promise<boole
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) {
-    logger.warn(`[ContentGrinder] enhanceRetentionPacing: daily budget exhausted, skipping video ${video.id}`);
+    logger.debug(`[ContentGrinder] enhanceRetentionPacing: daily budget exhausted, skipping video ${video.id}`);
     return false;
   }
   tokenBudget.consumeBudget("content-grinder", 2000);

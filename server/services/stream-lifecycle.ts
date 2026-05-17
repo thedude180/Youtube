@@ -60,7 +60,11 @@ export class StreamLifecycleManager {
       const primaryResult = results.find(r => r.isLive);
 
       if (currentState === "idle") {
-        if (primaryResult) {
+        // Require high-confidence signal (API-confirmed, confidence >= 0.8) to start
+        // the confirmation window.  RSS-only signals (confidence = 0.6) are too noisy
+        // in dev/no-credential environments and would incorrectly activate the live gate,
+        // throttling all background AI to 1 concurrent slot.
+        if (primaryResult && primaryResult.confidence >= 0.8) {
           await this.handleInitialDetection(primaryResult);
         }
       } else if (currentState === "live") {
