@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -74,12 +75,19 @@ function fmtTime(iso: string | null | undefined): string {
   try { return format(new Date(iso), "h:mma").toLowerCase(); } catch { return "—"; }
 }
 
+function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  try { return format(new Date(iso), "MMM d · h:mma").toLowerCase(); } catch { return "—"; }
+}
+
 interface QueueItem {
   id: number;
   type: string;
   targetPlatform: string;
   status: string;
   scheduledAt: string | null;
+  caption: string | null;
+  sourceVideoTitle: string | null;
   metadata: {
     segmentStartSec?: number;
     segmentEndSec?: number;
@@ -214,20 +222,62 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
                     (meta.endSec != null && meta.startSec != null
                       ? meta.endSec - meta.startSec
                       : null);
+                  const clipTitle = item.caption?.trim() || null;
+                  const srcTitle = item.sourceVideoTitle?.trim() || null;
                   return (
-                    <span
-                      key={si}
-                      data-testid={`short-slot-${i}-${si}`}
-                      className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center gap-1"
-                    >
-                      <span>▶</span>
-                      <span data-testid={`short-time-${i}-${si}`}>{fmtTime(item.scheduledAt)}</span>
-                      {durSec != null && durSec > 0 && (
-                        <span className="text-emerald-400/60" data-testid={`short-dur-${i}-${si}`}>
-                          · {durSec}s
-                        </span>
-                      )}
-                    </span>
+                    <Popover key={si}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          data-testid={`short-slot-${i}-${si}`}
+                          className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/30 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400"
+                        >
+                          <span>▶</span>
+                          <span data-testid={`short-time-${i}-${si}`}>{fmtTime(item.scheduledAt)}</span>
+                          {durSec != null && durSec > 0 && (
+                            <span className="text-emerald-400/60" data-testid={`short-dur-${i}-${si}`}>
+                              · {durSec}s
+                            </span>
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        side="top"
+                        align="start"
+                        className="w-56 p-2.5 space-y-1.5 text-[11px]"
+                        data-testid={`short-slot-popover-${i}-${si}`}
+                      >
+                        <p className="font-semibold text-foreground text-[11px] flex items-center gap-1">
+                          <span className="text-emerald-400">▶</span> YouTube Short
+                        </p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-muted-foreground/60 shrink-0 w-14">Publishes</span>
+                            <span className="text-foreground font-medium" data-testid={`short-popover-time-${i}-${si}`}>
+                              {fmtDateTime(item.scheduledAt)}
+                            </span>
+                          </div>
+                          {durSec != null && durSec > 0 && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Duration</span>
+                              <span className="text-foreground" data-testid={`short-popover-dur-${i}-${si}`}>{durSec}s</span>
+                            </div>
+                          )}
+                          {clipTitle && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Title</span>
+                              <span className="text-foreground leading-tight line-clamp-2" data-testid={`short-popover-title-${i}-${si}`}>{clipTitle}</span>
+                            </div>
+                          )}
+                          {srcTitle && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Source</span>
+                              <span className="text-muted-foreground leading-tight line-clamp-2" data-testid={`short-popover-source-${i}-${si}`}>{srcTitle}</span>
+                            </div>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   );
                 })}
               </div>
