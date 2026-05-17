@@ -174,7 +174,15 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
 
               {/* Shorts row — each slot is a visible chip showing time + length */}
               <div className="flex items-center gap-1 flex-wrap" data-testid={`shorts-slots-${i}`}>
-                <span className="text-muted-foreground/50 w-10 shrink-0">Shorts</span>
+                <span className="text-muted-foreground/50 shrink-0">
+                  Shorts
+                  <span
+                    className={`ml-1 font-medium ${shortsFull ? "text-emerald-400" : "text-amber-400"}`}
+                    data-testid={`shorts-count-${i}`}
+                  >
+                    {day.shorts.length}/{maxShorts}
+                  </span>
+                </span>
                 {Array.from({ length: maxShorts }).map((_, si) => {
                   const item = day.shorts[si];
                   if (!item) {
@@ -214,34 +222,46 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
                 })}
               </div>
 
-              {/* Long-form row */}
-              <div className="flex items-center gap-1" data-testid={`longform-slot-${i}`}>
-                <span className="text-muted-foreground/50 w-10 shrink-0">LF</span>
-                {day.longForms.length > 0 ? (
+              {/* Long-form row — show all scheduled LF slots up to maxLongForm */}
+              <div className="flex items-center gap-1 flex-wrap" data-testid={`longform-slot-${i}`}>
+                <span className="text-muted-foreground/50 shrink-0">
+                  LF
                   <span
-                    className="px-1.5 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-violet-300 flex items-center gap-1"
-                    data-testid={`longform-chip-${i}`}
+                    className={`ml-1 font-medium ${lfFull ? "text-emerald-400" : "text-amber-400"}`}
+                    data-testid={`longform-count-${i}`}
                   >
-                    <span>▶</span>
-                    <span className="font-medium" data-testid={`longform-duration-${i}`}>
-                      {fmtDurSec(
-                        day.longForms[0]?.metadata?.targetDurationSec ||
-                        day.longForms[0]?.metadata?.actualDurationSec ||
-                        0
-                      )}
-                    </span>
-                    <span className="text-violet-400/60" data-testid={`longform-time-${i}`}>
-                      · {fmtTime(day.longForms[0].scheduledAt)}
-                    </span>
+                    {day.longForms.length}/{maxLongForm}
                   </span>
-                ) : (
-                  <span
-                    className="px-1.5 py-0.5 rounded border border-amber-500/25 bg-amber-500/10 text-amber-400/70 italic"
-                    data-testid={`longform-gap-${i}`}
-                  >
-                    no long-form
-                  </span>
-                )}
+                </span>
+                {Array.from({ length: maxLongForm }).map((_, li) => {
+                  const lf = day.longForms[li];
+                  if (!lf) {
+                    return (
+                      <span
+                        key={li}
+                        className="px-1.5 py-0.5 rounded border border-amber-500/25 bg-amber-500/10 text-amber-400/70 italic"
+                        data-testid={`longform-gap-${i}-${li}`}
+                      >
+                        no long-form
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      key={li}
+                      className="px-1.5 py-0.5 rounded bg-violet-500/20 border border-violet-500/30 text-violet-300 flex items-center gap-1"
+                      data-testid={`longform-chip-${i}-${li}`}
+                    >
+                      <span>▶</span>
+                      <span className="font-medium" data-testid={`longform-duration-${i}-${li}`}>
+                        {fmtDurSec(lf.metadata?.targetDurationSec || lf.metadata?.actualDurationSec || 0)}
+                      </span>
+                      <span className="text-violet-400/60" data-testid={`longform-time-${i}-${li}`}>
+                        · {fmtTime(lf.scheduledAt)}
+                      </span>
+                    </span>
+                  );
+                })}
               </div>
             </div>
           );
