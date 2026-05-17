@@ -48,6 +48,11 @@ function formatWindowLabel(w: string): string {
   return map[w] ?? w;
 }
 
+// All autopilot queue types that count as YouTube Shorts (mirrors server-side definitions)
+const SHORT_TYPES = new Set(["youtube_short", "platform_short", "platform_text_short", "vod-short"]);
+// All autopilot queue types that count as long-form clips
+const LONGFORM_TYPES = new Set(["auto-clip", "vod-long-form"]);
+
 function fmtDurSec(sec: number): string {
   if (!sec || sec < 60) return `${sec}s`;
   const m = Math.round(sec / 60);
@@ -110,13 +115,8 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
         (a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0) -
         (b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0);
 
-      const shorts = ytItems
-        .filter(i => i.type === "platform_short" || i.type === "vod-short")
-        .sort(sortByTime);
-
-      const longForms = ytItems
-        .filter(i => i.type === "auto-clip" || i.type === "vod-long-form")
-        .sort(sortByTime);
+      const shorts = ytItems.filter(i => SHORT_TYPES.has(i.type)).sort(sortByTime);
+      const longForms = ytItems.filter(i => LONGFORM_TYPES.has(i.type)).sort(sortByTime);
 
       return { date, shorts, longForms };
     });
