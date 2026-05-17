@@ -5,6 +5,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import cron from "node-cron";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { canPostToPlatformToday, enforceCaptionLimit, getPlatformHashtagMax, humanJitterDelayMs } from "./platform-budget-tracker";
+import { getNextShortPublishTime } from "./youtube-output-schedule";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("shorts-repurpose-engine");
@@ -271,9 +272,9 @@ async function queuePendingTarget(video: Candidate, platform: TargetPlatform): P
       content: caption.slice(0, 1500),
       caption: caption.slice(0, 1500),
       status: "scheduled",
-      // Human-jittered offset (gaussian ~7min ±3) so consecutive cross-posts
-      // never land on round-numbered timestamps that look automated.
-      scheduledAt: new Date(Date.now() + humanJitterDelayMs(7, 3)),
+      // Use window-aware scheduler so Shorts land in the correct
+      // 08:00 / 14:30 / 21:30 slots rather than a near-immediate offset.
+      scheduledAt: await getNextShortPublishTime(video.userId),
       verificationStatus: "unverified",
       metadata: {
         contentType: "short_repurpose",

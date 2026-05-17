@@ -466,11 +466,14 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   logger.info(`[YouTubeSchedule] Short scheduled for ${shortScheduledAt.toISOString()}`, { itemId: item.id });
                 }
 
-                // Guarantee #Shorts in the title regardless of AI output.
+                // Guarantee #Shorts in the final 100-char title regardless of AI output.
                 // YouTube uses the title as its primary Short classification signal.
+                // Check the TRUNCATED title — #Shorts may exist past position 93 in the
+                // original and be silently dropped by the slice.
                 const shortsTag = " #Shorts";
-                const safeTitle = /\#shorts/i.test(titleCaption)
-                  ? titleCaption.slice(0, 100)
+                const truncated = titleCaption.slice(0, 100);
+                const safeTitle = /\#shorts/i.test(truncated)
+                  ? truncated
                   : (titleCaption.slice(0, 100 - shortsTag.length) + shortsTag);
 
                 result = await uploadToYouTube({
