@@ -23,6 +23,7 @@ import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
+import ChannelBrandSyncStatus from "./dashboard/ChannelBrandSyncStatus";
 import BackCatalogReviver from "./dashboard/BackCatalogReviver";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
@@ -442,6 +443,8 @@ export default function TeamDashboard() {
         )}
 
         <YouTubeAutopilotStatus />
+
+        <ChannelBrandSyncStatus />
 
         <BackCatalogReviver />
 

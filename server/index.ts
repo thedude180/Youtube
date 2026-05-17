@@ -38,6 +38,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { initChannelBrandSync } from "./services/youtube-channel-brand-sync";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
@@ -2609,6 +2610,12 @@ httpServer.listen(
       // monetization audits, internal linking, failure recovery, daily reports.
       // Light cycle every ~4h, full strategic cycle every ~22–24h.
       initYouTubeAIOrchestrator();
+
+      // ── Channel Brand Sync — SEO + thumbnail consistency sweep ───────────────
+      // Ensures all Shorts have game-matched SEO+thumbnails, livestream archives
+      // get replay-optimised metadata, and every video passes brand alignment.
+      // First run: 25-30 min after boot. Repeats daily at 3:30 AM.
+      initChannelBrandSync();
 
       import("./token-refresh").then(async m => {
         // Delay first token keep-alive by 5 minutes so it doesn't fire during

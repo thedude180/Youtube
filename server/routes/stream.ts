@@ -1451,6 +1451,22 @@ export function registerStreamRoutes(app: Express) {
     res.json(report);
   }));
 
+  // ── YouTube Channel Brand Sync ───────────────────────────────────────────────
+  app.get("/api/youtube/brand-sync/status", asyncHandler(async (req: any, res) => {
+    const { getBrandSyncStatus } = await import("../services/youtube-channel-brand-sync");
+    res.json(getBrandSyncStatus());
+  }));
+
+  app.post("/api/youtube/brand-sync/run", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { runChannelBrandSync, getBrandSyncStatus } = await import("../services/youtube-channel-brand-sync");
+    const st = getBrandSyncStatus();
+    if (st.isRunning) return res.json({ queued: false, reason: "Brand sync already running" });
+    runChannelBrandSync(userId).catch(() => {});
+    res.json({ queued: true, message: "Channel brand sync started" });
+  }));
+
   // ── YouTube Quota Status (dedicated endpoint) ────────────────────────────────
   app.get("/api/youtube/quota-status", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
