@@ -188,7 +188,7 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
                       </span>
                     );
                   }
-                  const meta = (item.metadata as any) || {};
+                  const meta = item.metadata ?? {};
                   const durSec =
                     (meta.segmentEndSec != null && meta.segmentStartSec != null
                       ? meta.segmentEndSec - meta.segmentStartSec
