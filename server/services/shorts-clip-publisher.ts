@@ -466,9 +466,16 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   logger.info(`[YouTubeSchedule] Short scheduled for ${shortScheduledAt.toISOString()}`, { itemId: item.id });
                 }
 
+                // Guarantee #Shorts in the title regardless of AI output.
+                // YouTube uses the title as its primary Short classification signal.
+                const shortsTag = " #Shorts";
+                const safeTitle = /\#shorts/i.test(titleCaption)
+                  ? titleCaption.slice(0, 100)
+                  : (titleCaption.slice(0, 100 - shortsTag.length) + shortsTag);
+
                 result = await uploadToYouTube({
                   channelId: ytChannel.id,
-                  title: titleCaption.slice(0, 100),
+                  title: safeTitle,
                   description: ytDesc.slice(0, 5000),
                   tags: [...tags.slice(0, 12), "Shorts", "Gaming", "PS5"],
                   videoFilePath: encodedPath,

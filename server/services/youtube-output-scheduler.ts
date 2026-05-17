@@ -18,6 +18,7 @@ import { db } from "../db";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { getNextShortPublishTime } from "./youtube-output-schedule";
 
 const logger = createLogger("yt-output-scheduler");
 
@@ -311,7 +312,9 @@ async function runForUser(userId: string): Promise<void> {
       const clipDuration = 30 + Math.floor(Math.random() * 29); // 30–58 s
       const endSec = Math.min(startSec + clipDuration, durationSec);
 
-      const scheduledAt = new Date(Date.now() + (queued * 6 + 1) * 3_600_000);
+      // Use the window-aware scheduler so Shorts land in the correct
+      // 08:00 / 14:30 / 21:30 slots instead of a naive +N-hour offset.
+      const scheduledAt = await getNextShortPublishTime(userId);
       const gameName: string = meta.gameName || "PS5 Gaming";
       const tags: string[] = Array.isArray(meta.tags) ? meta.tags : [];
 

@@ -8,6 +8,7 @@ import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { channels, autopilotQueue } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { getNextShortPublishTime } from "./youtube-output-schedule";
 import { getOpenAIClient } from "../lib/openai";
 import { storage } from "../storage";
 import { onAgentEvent } from "./agent-events";
@@ -107,7 +108,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
       content: shortsTitle,
       caption: shortsTitle,
       status: "pending",
-      scheduledAt: new Date(),
+      scheduledAt: await getNextShortPublishTime(session.userId),
       metadata: {
         contentType: "live_clip_blast",
         aiModel: "gpt-4o-mini",
