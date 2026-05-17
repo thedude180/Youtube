@@ -561,6 +561,17 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
 // ── Queue a single long-form item from back catalog (no local file) ───────────
 
+// Duration experiment buckets (minutes) used at queue time so the publisher
+// always knows exactly what to cut — no guesswork at upload time.
+const LF_EXPERIMENT_BUCKETS_MIN = [8, 10, 15, 20, 30, 45, 60] as const;
+
+function pickExperimentMin(availableSec: number): number {
+  const capped = Math.min(availableSec, 3600);
+  const fits = LF_EXPERIMENT_BUCKETS_MIN.filter((m) => m * 60 <= capped);
+  if (fits.length === 0) return 8;
+  return fits[Math.floor(Math.random() * fits.length)];
+}
+
 async function queueLongFormFromBackCatalog(
   userId: string,
   v: {
@@ -574,6 +585,15 @@ async function queueLongFormFromBackCatalog(
   },
 ): Promise<void> {
   const dur = v.durationSec ?? 0;
+
+  // Safety: never queue a Short or a video under 8 min as long-form
+  if (dur < 480) {
+    logger.warn(`[BackCatalog] Skipping long-form queue — source too short (${dur}s): ${v.youtubeVideoId}`);
+    return;
+  }
+
+  const experimentMin = pickExperimentMin(dur);
+  const experimentSec = experimentMin * 60;
   const scheduledAt = await getNextLongFormPublishTime(userId);
 
   await db.insert(autopilotQueue).values({
@@ -582,6 +602,7 @@ async function queueLongFormFromBackCatalog(
     type: "auto-clip",
     targetPlatform: "youtube",
     content: `Back catalog long-form clip: ${v.title}`,
+    caption: `${v.gameName ?? "Gaming"} — ${experimentMin} Min Gameplay | No Commentary`,
     status: "scheduled",
     scheduledAt,
     metadata: {
@@ -590,8 +611,11 @@ async function queueLongFormFromBackCatalog(
       sourceTitle: v.title,
       gameName: v.gameName ?? undefined,
       segmentStartSec: 0,
-      segmentEndSec: Math.min(dur, 3600),
+      segmentEndSec: experimentSec,
       totalDurationSec: dur,
+      experimentDurationMin: experimentMin,
+      experimentDurationSec: experimentSec,
+      noCommentary: true,
       backCatalogGenerated: true,
       autoQueued: true,
     } as any,

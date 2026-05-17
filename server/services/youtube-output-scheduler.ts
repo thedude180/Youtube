@@ -144,6 +144,9 @@ async function getEligibleLongFormVideos(
       and(
         inArray(videos.channelId, channelIds),
         sql`${videos.metadata}->>'youtubeId' IS NOT NULL`,
+        // Hard guard: never feed Shorts or videos typed as 'short' into long-form queue
+        sql`${videos.type} != 'short'`,
+        sql`(${videos.metadata}->>'isShort')::boolean IS NOT TRUE`,
         sql`(
           ${videos.metadata}->>'longFormClipExtractedAt' IS NULL
           OR (${videos.metadata}->>'longFormClipExtractedAt')::timestamptz < ${cutoff.toISOString()}::timestamptz
@@ -225,6 +228,10 @@ async function runForUser(userId: string): Promise<void> {
       if (!youtubeId) continue;
 
       const durationSec = parseDurationToSec(meta.duration);
+      // Explicit Shorts / under-1-min guard — block anything that is a Short or
+      // has no confirmed duration. Long-form minimum is 8 min (480 s).
+      if (meta.isShort === true || video.type === "short") continue;
+      if (durationSec <= 60) continue; // definitely a Short even if misclassified
       if (durationSec < 480) continue; // need at least 8 min
 
       const capSec = Math.min(3600, durationSec);
@@ -368,6 +375,99 @@ async function runForUser(userId: string): Promise<void> {
       );
     }
   }
+}
+
+// ── Upcoming schedule query ───────────────────────────────────────────────────
+
+export interface UpcomingScheduleDay {
+  date: string; // YYYY-MM-DD in America/Chicago
+  longFormQueued: number;   // in DB as 'scheduled', not yet on YouTube
+  longFormOnYouTube: number; // already uploaded to YouTube (status=published)
+  shortsQueued: number;
+  shortsOnYouTube: number;
+}
+
+export interface UpcomingScheduleResult {
+  days: UpcomingScheduleDay[];
+  targets: { shortsPerDay: number; longFormPerDay: number };
+  timezone: string;
+}
+
+export async function getUpcomingSchedule(
+  userId: string,
+  days = 14,
+): Promise<UpcomingScheduleResult> {
+  const tz = "America/Chicago";
+  const clampedDays = Math.min(30, Math.max(7, days));
+  const windowEnd = new Date(Date.now() + clampedDays * 86400_000);
+
+  const rows = await db
+    .select({
+      scheduledAt: autopilotQueue.scheduledAt,
+      type: autopilotQueue.type,
+      status: autopilotQueue.status,
+    })
+    .from(autopilotQueue)
+    .where(
+      and(
+        eq(autopilotQueue.userId, userId),
+        eq(autopilotQueue.targetPlatform, "youtube"),
+        inArray(autopilotQueue.status, ["scheduled", "published", "processing"]),
+        gte(autopilotQueue.scheduledAt, new Date()),
+        lte(autopilotQueue.scheduledAt, windowEnd),
+      ),
+    );
+
+  const dayMap = new Map<string, UpcomingScheduleDay>();
+
+  for (const row of rows) {
+    if (!row.scheduledAt) continue;
+    const dateKey = row.scheduledAt.toLocaleDateString("en-CA", { timeZone: tz });
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, {
+        date: dateKey,
+        longFormQueued: 0,
+        longFormOnYouTube: 0,
+        shortsQueued: 0,
+        shortsOnYouTube: 0,
+      });
+    }
+    const day = dayMap.get(dateKey)!;
+    const isLongForm = ["auto-clip", "vod-long-form"].includes(row.type);
+    const isShortType = ["youtube_short", "platform_short"].includes(row.type);
+    const isOnYouTube = row.status === "published";
+
+    if (isLongForm) {
+      if (isOnYouTube) day.longFormOnYouTube++;
+      else day.longFormQueued++;
+    } else if (isShortType) {
+      if (isOnYouTube) day.shortsOnYouTube++;
+      else day.shortsQueued++;
+    }
+  }
+
+  // Build the full date range so every day appears even if empty
+  const result: UpcomingScheduleDay[] = [];
+  const now = new Date();
+  for (let i = 0; i < clampedDays; i++) {
+    const d = new Date(now.getTime() + i * 86400_000);
+    const dateKey = d.toLocaleDateString("en-CA", { timeZone: tz });
+    result.push(
+      dayMap.get(dateKey) ?? {
+        date: dateKey,
+        longFormQueued: 0,
+        longFormOnYouTube: 0,
+        shortsQueued: 0,
+        shortsOnYouTube: 0,
+      },
+    );
+  }
+
+  return {
+    days: result,
+    targets: { shortsPerDay: 3, longFormPerDay: 1 },
+    timezone: tz,
+  };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

@@ -1467,6 +1467,15 @@ export function registerStreamRoutes(app: Express) {
     res.json({ queued: true, message: "Channel brand sync started" });
   }));
 
+  // ── Upcoming schedule preview ────────────────────────────────────────────────
+  app.get("/api/youtube/schedule/upcoming", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const days = Math.min(30, Math.max(7, parseInt(String(req.query.days ?? "14"), 10) || 14));
+    const { getUpcomingSchedule } = await import("../services/youtube-output-scheduler");
+    res.json(await getUpcomingSchedule(userId, days));
+  }));
+
   // ── YouTube Quota Status (dedicated endpoint) ────────────────────────────────
   app.get("/api/youtube/quota-status", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
