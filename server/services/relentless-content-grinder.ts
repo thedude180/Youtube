@@ -246,28 +246,53 @@ async function fillScheduleGaps(userId: string, sourceVideos: any[]): Promise<vo
       .filter(x => x.durSec >= 60)
       .sort((a, b) => b.durSec - a.durSec);
 
-    // Fill Short gaps
+    // Round-robin across source streams so consecutive schedule slots never
+    // come from the same live stream.  One clip (Short or long-form) is extracted
+    // per stream per rotation step; Shorts and LF alternate picks from the same
+    // rotating index so they also don't land on the same source back-to-back.
+    let rotIdx = 0;
     let shortsToFill = shortGaps;
-    for (const { video } of scored) {
-      if (shortsToFill <= 0) break;
-      if (!tokenBudget.checkBudget("content-grinder", 3000)) break;
-      const added = await extractUntappedMoments(userId, video);
-      if (added > 0) {
-        logger.info(`[ContentGrinder][GapFiller] +${added} Shorts from video ${video.id}`);
-        shortsToFill -= added;
-      }
-    }
-
-    // Fill long-form gaps — each video's next untested duration bucket
     let lfToFill = longFormGaps;
-    for (const { video } of scored) {
-      if (lfToFill <= 0) break;
-      if (!tokenBudget.checkBudget("content-grinder", 2000)) break;
-      const added = await extractLongFormMoments(userId, video);
-      if (added > 0) {
-        logger.info(`[ContentGrinder][GapFiller] +1 long-form from video ${video.id}`);
-        lfToFill -= added;
+    let consecutiveMisses = 0;
+    const MAX_MISSES = scored.length * 2 + 1; // give up after cycling the list twice
+
+    while ((shortsToFill > 0 || lfToFill > 0) && consecutiveMisses < MAX_MISSES) {
+      const { video } = scored[rotIdx % scored.length];
+      rotIdx++;
+      let slotFilled = false;
+
+      if (shortsToFill > 0 && tokenBudget.checkBudget("content-grinder", 3000)) {
+        // maxClips:1 — extract exactly one Short from this stream, then rotate
+        const added = await extractUntappedMoments(userId, video, 1);
+        if (added > 0) {
+          logger.info(`[ContentGrinder][GapFiller] +1 Short from video ${video.id} (rotation ${rotIdx})`);
+          shortsToFill--;
+          slotFilled = true;
+        }
+      } else if (lfToFill > 0 && tokenBudget.checkBudget("content-grinder", 2000)) {
+        const added = await extractLongFormMoments(userId, video);
+        if (added > 0) {
+          logger.info(`[ContentGrinder][GapFiller] +1 long-form from video ${video.id} (rotation ${rotIdx})`);
+          lfToFill--;
+          slotFilled = true;
+        }
       }
+
+      // After a Short is filled, also try to fill a LF slot from the NEXT stream
+      // before looping back to Shorts — this interleaves stream sources for both types.
+      if (slotFilled && lfToFill > 0 && shortsToFill > 0) {
+        const { video: lfVideo } = scored[rotIdx % scored.length];
+        rotIdx++;
+        if (tokenBudget.checkBudget("content-grinder", 2000)) {
+          const added = await extractLongFormMoments(userId, lfVideo);
+          if (added > 0) {
+            logger.info(`[ContentGrinder][GapFiller] +1 long-form from video ${lfVideo.id} (rotation ${rotIdx})`);
+            lfToFill--;
+          }
+        }
+      }
+
+      consecutiveMisses = slotFilled ? 0 : consecutiveMisses + 1;
     }
   } catch (err: any) {
     logger.warn(
@@ -339,7 +364,7 @@ async function getSEOKnowledgeForClips(userId: string, gameName: string): Promis
   }
 }
 
-async function extractUntappedMoments(userId: string, video: any): Promise<number> {
+async function extractUntappedMoments(userId: string, video: any, maxClips = 10): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 600;
   const gameName = meta.gameName || meta.game || "PS5 Gameplay";
@@ -434,7 +459,7 @@ Return raw JSON only (no markdown code blocks):
     const userChannels = await db.select().from(channels)
       .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
 
-    for (const moment of moments.slice(0, 10)) {
+    for (const moment of moments.slice(0, maxClips)) {
       if (typeof moment.startSec !== "number" || typeof moment.endSec !== "number") continue;
       if (moment.endSec <= moment.startSec || moment.endSec - moment.startSec > 59) continue;
       if (moment.endSec - moment.startSec < 8) continue;
