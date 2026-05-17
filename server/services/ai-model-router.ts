@@ -40,7 +40,7 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
   title_optimization:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
   content_analysis:       { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.3, priority: "medium" },
   copilot_chat:           { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.7, priority: "medium" },
-  trend_detection:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 2048, temperature: 0.4, priority: "medium" },
+  trend_detection:        { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 4096, temperature: 0.4, priority: "medium" },
 
   // Deep strategic tasks — Claude Opus: strongest reasoning for decisions that drive real growth
   strategy_planning:      { provider: "claude", model: CLAUDE_MODELS.opus,   maxTokens: 4096, temperature: 0.7, priority: "high" },

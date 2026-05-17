@@ -67,7 +67,10 @@ function runCmd(bin: string, args: string[]): Promise<void> {
     proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
     proc.on("close", (code) => {
       if (code === 0) return resolve();
-      reject(new Error(Buffer.concat(errBufs).toString("utf8").slice(-600)));
+      const msg = Buffer.concat(errBufs).toString("utf8").slice(-600);
+      const err = new Error(msg) as Error & { exitCode?: number };
+      err.exitCode = code ?? -1;
+      reject(err);
     });
     proc.on("error", reject);
   });
@@ -247,7 +250,9 @@ async function getEncodedSegment(opts: {
 
   let rawSourcePath: string | null = null;
 
-  // Prefer downloaded vault file
+  // Prefer downloaded vault file — only use it if the file is present and non-trivial
+  // (corrupt/truncated vault files trigger ffmpeg exit code 8: invalid data in input)
+  const MIN_VAULT_FILE_BYTES = 10 * 1024; // 10 KB
   if (youtubeId) {
     const [vaultEntry] = await db.select()
       .from(contentVaultBackups)
@@ -259,19 +264,36 @@ async function getEncodedSegment(opts: {
       .limit(1);
 
     if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
-      rawSourcePath = vaultEntry.filePath;
+      const stat = fs.statSync(vaultEntry.filePath);
+      if (stat.size >= MIN_VAULT_FILE_BYTES) {
+        rawSourcePath = vaultEntry.filePath;
+      } else {
+        logger.warn(`[ShortsPublisher] Vault file too small (${stat.size}B) for ${youtubeId} — skipping vault, will download`);
+      }
     }
   }
 
   try {
     if (rawSourcePath) {
-      await extractSegmentFromFile(rawSourcePath, startSec, durationSec, tmpEncoded);
-    } else if (youtubeId) {
+      try {
+        await extractSegmentFromFile(rawSourcePath, startSec, durationSec, tmpEncoded);
+      } catch (vaultErr: any) {
+        // exit code 8 = invalid data in input — vault file is corrupt or not a valid video
+        if (vaultErr?.exitCode === 8) {
+          logger.warn(`[ShortsPublisher] Vault file corrupt for ${youtubeId} (ffmpeg exit 8) — falling back to yt-dlp download`);
+          rawSourcePath = null; // fall through to yt-dlp branch below
+        } else {
+          throw vaultErr;
+        }
+      }
+    }
+
+    if (!rawSourcePath && !fs.existsSync(tmpEncoded)) {
+      // Either no vault file was found, or vault was corrupt and we cleared rawSourcePath above
+      if (!youtubeId) return null;
       await downloadSegmentFromYouTube(youtubeId, startSec, endSec, tmpRaw);
       if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
       await extractSegmentFromFile(tmpRaw, 0, durationSec, tmpEncoded);
-    } else {
-      return null;
     }
 
     if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");

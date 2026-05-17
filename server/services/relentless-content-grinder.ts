@@ -28,12 +28,12 @@ const GRIND_INTERVAL_MS = 45 * 60_000;
  */
 function extractJsonFromResponse(raw: string): any {
   let content = (raw || "{}").trim();
-  // Strip opening ```json or ``` fence (with or without closing fence)
+  // Strip markdown fences (with or without closing fence)
   content = content.replace(/^```(?:json|JSON)?\s*\r?\n?/, "");
-  // Strip closing ``` fence if present
   content = content.replace(/\r?\n?```\s*$/, "");
   content = content.trim();
-  // If there's still leading non-JSON text, find the first { or [
+
+  // Find start of JSON object or array
   const brace = content.indexOf("{");
   const bracket = content.indexOf("[");
   const start =
@@ -41,7 +41,35 @@ function extractJsonFromResponse(raw: string): any {
     bracket === -1 ? brace :
     Math.min(brace, bracket);
   if (start > 0) content = content.slice(start);
-  return JSON.parse(content.trim());
+  if (!content) return JSON.parse("{}");
+
+  // Try direct parse first — handles clean responses where AI returned only JSON
+  try { return JSON.parse(content); } catch { /* fall through to balanced-bracket search */ }
+
+  // Balanced-bracket extractor: finds the matching close brace/bracket even
+  // when the AI appends explanatory text after the JSON object.
+  const opener = content[0];
+  const closer = opener === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let endPos = -1;
+  for (let i = 0; i < content.length; i++) {
+    const c = content[i];
+    if (escape)             { escape = false; continue; }
+    if (c === "\\" && inString) { escape = true; continue; }
+    if (c === '"')          { inString = !inString; continue; }
+    if (inString)           { continue; }
+    if (c === opener)       { depth++; }
+    else if (c === closer)  { depth--; if (depth === 0) { endPos = i; break; } }
+  }
+
+  if (endPos > 0) {
+    return JSON.parse(content.slice(0, endPos + 1));
+  }
+
+  // Final attempt — will throw if still malformed (caught by caller)
+  return JSON.parse(content);
 }
 
 // Track when the thumbnail-intelligence token budget was last exhausted per user.

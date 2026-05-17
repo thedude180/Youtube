@@ -343,7 +343,7 @@ Return 5-8 trending topics, 4-6 growth strategies, 3-4 experiment hypotheses. On
   let result;
   try {
     result = await executeRoutedAICall(
-      { taskType: "trend_detection", userId, maxTokens: 2500 },
+      { taskType: "trend_detection", userId, maxTokens: 4096 },
       "You are a world-class YouTube gaming growth strategist. You analyse real-time signal data and produce precise, immediately-actionable intelligence. Return only valid JSON.",
       prompt
     );
