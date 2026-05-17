@@ -34,7 +34,7 @@ import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate } from "./youtube-ou
 
 const logger = createLogger("long-form-publisher");
 
-const MAX_PER_RUN = 5;
+const MAX_PER_RUN = 2; // 1 long-form/day target + 1 catch-up slot. Prevents quota burst on reset.
 const BATCH_WINDOW_DAYS = 14; // Look 14 days ahead for batch scheduling
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
 const MIN_LONG_FORM_SEC = 480; // 8 min — YouTube mid-roll monetization threshold
@@ -180,10 +180,18 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
 
     // Check YouTube API quota once — stop the whole batch if tripped
-    const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+    const { isQuotaBreakerTripped, isHourlyBudgetExceeded } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping long-form batch");
       return { published: 0, failed: 0, skipped: dueItems.length };
+    }
+
+    // Hourly budget gate — prevents burning all quota in a single window after reset.
+    // Each long-form upload costs ~1,650 units; gate ensures uploads spread across the day.
+    const firstUserId = dueItems[0]?.userId;
+    if (firstUserId && await isHourlyBudgetExceeded(firstUserId)) {
+      logger.info("Long-form publisher: hourly quota budget paced — deferring batch to next window");
+      return { published: 0, failed: 0, skipped: 0 };
     }
 
     for (const item of dueItems) {

@@ -44,7 +44,7 @@ import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate } from "./youtube-output
 
 const logger = createLogger("shorts-publisher");
 
-const MAX_PER_RUN = 20;
+const MAX_PER_RUN = 3; // Matches daily cadence target (3 Shorts/day). Prevents quota burst on reset.
 // How far ahead to look when picking up scheduled items for batch-upload
 const BATCH_WINDOW_DAYS = 14;
 const MAX_DURATION_SEC = 60;
@@ -372,10 +372,19 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
 
     // Check YouTube API quota once before the loop — stop the entire batch if tripped
-    const { isQuotaBreakerTripped } = await import("./youtube-quota-tracker");
+    const { isQuotaBreakerTripped, isHourlyBudgetExceeded } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping shorts batch");
       return { published: 0, failed: 0, skipped: dueItems.length };
+    }
+
+    // Hourly budget gate — prevents burning all quota in a single window after reset.
+    // Max 8% of daily quota (800 units) per hour. Each Short upload costs ~1,650 units
+    // so this naturally caps to ~1 upload per 2 hours, spreading across the day.
+    const firstUserId = dueItems[0]?.userId;
+    if (firstUserId && await isHourlyBudgetExceeded(firstUserId)) {
+      logger.info("Shorts publisher: hourly quota budget paced — deferring batch to next window");
+      return { published: 0, failed: 0, skipped: 0 };
     }
 
     for (const item of dueItems) {
