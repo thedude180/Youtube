@@ -48,27 +48,46 @@ function formatWindowLabel(w: string): string {
   return map[w] ?? w;
 }
 
-const MAX_SHORTS = 3;
-const MAX_LONGFORM = 1;
-
 function fmtDurSec(sec: number): string {
   if (!sec || sec < 60) return `${sec}s`;
   const m = Math.round(sec / 60);
   return `${m}m`;
 }
 
-function fmtTime(iso: string): string {
+function fmtTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
   try { return format(new Date(iso), "h:mma").toLowerCase(); } catch { return "—"; }
+}
+
+interface QueueItem {
+  id: number;
+  type: string;
+  targetPlatform: string;
+  status: string;
+  scheduledAt: string | null;
+  metadata: {
+    segmentStartSec?: number;
+    segmentEndSec?: number;
+    startSec?: number;
+    endSec?: number;
+    targetDurationSec?: number;
+    actualDurationSec?: number;
+  } | null;
 }
 
 interface DayData {
   date: Date;
-  shorts: any[];
-  longForms: any[];
+  shorts: QueueItem[];
+  longForms: QueueItem[];
 }
 
-function QueueCalendar() {
-  const { data: queueRaw = [], isLoading } = useQuery<any[]>({
+interface QueueCalendarProps {
+  maxShorts: number;
+  maxLongForm: number;
+}
+
+function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
+  const { data: queueRaw = [], isLoading } = useQuery<QueueItem[]>({
     queryKey: ["/api/autopilot/queue?status=scheduled"],
     refetchInterval: 120_000,
   });
@@ -87,13 +106,17 @@ function QueueCalendar() {
         return t >= dayStart && t <= dayEnd;
       });
 
+      const sortByTime = (a: QueueItem, b: QueueItem) =>
+        (a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0) -
+        (b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0);
+
       const shorts = ytItems
         .filter(i => i.type === "platform_short" || i.type === "vod-short")
-        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        .sort(sortByTime);
 
       const longForms = ytItems
         .filter(i => i.type === "auto-clip" || i.type === "vod-long-form")
-        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        .sort(sortByTime);
 
       return { date, shorts, longForms };
     });
@@ -119,8 +142,8 @@ function QueueCalendar() {
 
       <div className="space-y-1.5" data-testid="list-calendar-days">
         {days.map((day, i) => {
-          const shortsFull = day.shorts.length >= MAX_SHORTS;
-          const lfFull = day.longForms.length >= MAX_LONGFORM;
+          const shortsFull = day.shorts.length >= maxShorts;
+          const lfFull = day.longForms.length >= maxLongForm;
           const hasGap = !shortsFull || !lfFull;
           const today = isToday(day.date);
           const dayLabel = today ? "Today" : format(day.date, "EEE");
@@ -152,7 +175,7 @@ function QueueCalendar() {
               {/* Shorts row — each slot is a visible chip showing time + length */}
               <div className="flex items-center gap-1 flex-wrap" data-testid={`shorts-slots-${i}`}>
                 <span className="text-muted-foreground/50 w-10 shrink-0">Shorts</span>
-                {Array.from({ length: MAX_SHORTS }).map((_, si) => {
+                {Array.from({ length: maxShorts }).map((_, si) => {
                   const item = day.shorts[si];
                   if (!item) {
                     return (
@@ -482,7 +505,7 @@ export default function YouTubeAutopilotStatus() {
       </div>
 
       {/* 7-day schedule calendar */}
-      <QueueCalendar />
+      <QueueCalendar maxShorts={today.shortsMax ?? 3} maxLongForm={today.longFormMax ?? 1} />
     </div>
   );
 }
