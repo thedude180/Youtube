@@ -435,3 +435,61 @@ export async function fetchTopFans(userId: string): Promise<{
 }> {
   return { topFans: [], totalSuperfans: 0, superfanGrowthRate: 0, source: "none" };
 }
+
+/**
+ * Fetch per-video analytics stats from the YouTube Analytics API.
+ * Used by the performance learner to populate and refresh youtubeOutputMetrics rows.
+ *
+ * Returns empty object if the token is unavailable, quota is exceeded, or the
+ * video has been live for less than ~48 h (YouTube takes time to process analytics).
+ */
+export async function fetchVideoAnalytics(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<Partial<{
+  views: number;
+  impressions: number;
+  ctr: number;
+  averageViewDurationSec: number;
+  averageViewPercent: number;
+  watchTimeMinutes: number;
+  likes: number;
+  comments: number;
+  subscribersGained: number;
+}>> {
+  try {
+    const ch = await getFirstChannelForUser(userId);
+    if (!ch || !ch.accessToken) return {};
+
+    // Aggregate stats for this specific video using the channel analytics filter.
+    // No `dimensions` param → one aggregate row with columns matching metric order.
+    const rows = await fetchAnalyticsReport(
+      ch.accessToken,
+      ch.channelId,
+      {
+        startDate: daysAgoStr(365),
+        endDate: daysAgoStr(0),
+        metrics: "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,likes,comments",
+        filters: `video==${youtubeVideoId}`,
+      },
+      userId,
+    );
+
+    if (!rows || rows.length === 0) return {};
+
+    const [views, minutes, avgViewDur, avgViewPct, subs, likes, comments] = rows[0];
+
+    return {
+      views: Number(views) || 0,
+      watchTimeMinutes: Number(minutes) || 0,
+      averageViewDurationSec: Math.round(Number(avgViewDur) || 0),
+      averageViewPercent: Number(avgViewPct) || 0,
+      subscribersGained: Number(subs) || 0,
+      likes: Number(likes) || 0,
+      comments: Number(comments) || 0,
+    };
+  } catch (err: any) {
+    logger.warn(`[analytics] fetchVideoAnalytics error for ${youtubeVideoId}: ${err?.message?.slice(0, 100)}`);
+    return {};
+  }
+}

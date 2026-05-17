@@ -367,6 +367,36 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           userId: item.userId.substring(0, 8),
         });
         published++;
+
+        // Seed the metrics row immediately so the learning model has a record
+        // even before YouTube processes analytics (which takes 24-48 h).
+        // Analytics numbers are refreshed automatically by refreshStaleVideoMetrics.
+        {
+          const lfYtId = uploadResult.youtubeId;
+          const h = (lfScheduledAt ?? new Date()).getUTCHours();
+          const postWin = h >= 6 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 21 ? "evening" : "late_night";
+          Promise.all([
+            import("./youtube-performance-learner").then(({ recordVideoPerformance }) =>
+              recordVideoPerformance(item.userId, lfYtId, {
+                contentType: "long_form",
+                durationSec: experimentDurationSec,
+                gameName: gameName.substring(0, 100),
+                postingWindow: postWin,
+                sourceVideoId: item.sourceVideoId ?? undefined,
+                publishedAt: lfScheduledAt ?? new Date(),
+              })
+            ),
+            import("./youtube-learning-brain").then(({ recordLearningEvent }) =>
+              recordLearningEvent(item.userId, "long_form_published", {
+                sourceAgent: "long-form-publisher",
+                youtubeVideoId: lfYtId,
+                gameName: gameName.substring(0, 100),
+                experimentDurationMin,
+                queueId: item.id,
+              })
+            ),
+          ]).catch(() => {});
+        }
       } catch (err: any) {
         const errMsg = err?.message?.slice(0, 500) ?? "unknown error";
         logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });

@@ -18,7 +18,7 @@
 
 import { db } from "../db";
 import { youtubeOutputMetrics, channels, contentExperiments } from "@shared/schema";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("yt-learner");
@@ -109,13 +109,8 @@ async function fetchYouTubeAnalytics(
   subscribersGained: number;
 }>> {
   try {
-    // Try to call getYouTubeAnalyticsData if it exists in the youtube module.
-    const ytModule = await import("../youtube") as any;
-    if (typeof ytModule.getYouTubeAnalyticsData === "function") {
-      const data = await ytModule.getYouTubeAnalyticsData(userId, youtubeVideoId);
-      return data || {};
-    }
-    return {};
+    const { fetchVideoAnalytics } = await import("./youtube-analytics");
+    return await fetchVideoAnalytics(userId, youtubeVideoId);
   } catch {
     return {};
   }
@@ -160,10 +155,18 @@ export async function recordVideoPerformance(
       durationSec,
     });
 
-    // Upsert into youtubeOutputMetrics
-    await db.insert(youtubeOutputMetrics).values({
-      userId,
-      youtubeVideoId,
+    // Upsert: update existing row if present, otherwise insert a new one.
+    // This is safe even without a UNIQUE constraint — we check first, then act.
+    const [existing] = await db
+      .select({ id: youtubeOutputMetrics.id })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.youtubeVideoId, youtubeVideoId),
+      ))
+      .limit(1);
+
+    const metricsPayload = {
       sourceVideoId: knownMeta?.sourceVideoId,
       contentType,
       durationSec,
@@ -182,11 +185,74 @@ export async function recordVideoPerformance(
       performanceScore: perf,
       measuredAt: new Date(),
       publishedAt: knownMeta?.publishedAt,
-    });
+    };
 
-    logger.info(`[Learner] Recorded performance for ${youtubeVideoId}: score=${perf.toFixed(1)} bucket=${bucketLabel}`);
+    if (existing) {
+      await db.update(youtubeOutputMetrics)
+        .set(metricsPayload)
+        .where(eq(youtubeOutputMetrics.id, existing.id));
+    } else {
+      await db.insert(youtubeOutputMetrics).values({ userId, youtubeVideoId, ...metricsPayload });
+    }
+
+    logger.info(`[Learner] ${existing ? "Updated" : "Inserted"} performance for ${youtubeVideoId}: score=${perf.toFixed(1)} bucket=${bucketLabel}`);
   } catch (err: any) {
     logger.warn(`[Learner] Failed to record performance for ${youtubeVideoId}: ${err.message?.slice(0, 200)}`);
+  }
+}
+
+/**
+ * Refresh analytics for videos published > 48 h ago whose metrics haven't
+ * been re-measured in the last 6 hours.  Runs as part of the daily learning
+ * cycle so the model improves as videos accumulate real watch-time data.
+ *
+ * Capped at 15 rows per call to stay within YouTube Analytics quota headroom.
+ */
+export async function refreshStaleVideoMetrics(userId: string): Promise<void> {
+  try {
+    const fortyEightHoursAgo = new Date(Date.now() - 2 * 86400_000);
+    const sixHoursAgo = new Date(Date.now() - 6 * 3600_000);
+
+    const stale = await db
+      .select({
+        youtubeVideoId: youtubeOutputMetrics.youtubeVideoId,
+        contentType: youtubeOutputMetrics.contentType,
+        durationSec: youtubeOutputMetrics.durationSec,
+        gameName: youtubeOutputMetrics.gameName,
+        postingWindow: youtubeOutputMetrics.postingWindow,
+        sourceVideoId: youtubeOutputMetrics.sourceVideoId,
+        publishedAt: youtubeOutputMetrics.publishedAt,
+      })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        // Only refresh after YouTube has had 48 h to process the video
+        lte(youtubeOutputMetrics.publishedAt, fortyEightHoursAgo),
+        // Re-measure if never measured or not measured in the last 6 h
+        or(
+          sql`${youtubeOutputMetrics.measuredAt} IS NULL`,
+          lte(youtubeOutputMetrics.measuredAt, sixHoursAgo),
+        ),
+      ))
+      .orderBy(youtubeOutputMetrics.measuredAt)
+      .limit(15);
+
+    for (const row of stale) {
+      await recordVideoPerformance(userId, row.youtubeVideoId, {
+        contentType: row.contentType ?? "long_form",
+        durationSec: row.durationSec ?? 0,
+        gameName: row.gameName ?? undefined,
+        postingWindow: row.postingWindow ?? undefined,
+        sourceVideoId: row.sourceVideoId ?? undefined,
+        publishedAt: row.publishedAt ?? undefined,
+      });
+    }
+
+    if (stale.length > 0) {
+      logger.info(`[Learner] Refreshed analytics for ${stale.length} stale metric row(s)`);
+    }
+  } catch (err: any) {
+    logger.warn(`[Learner] refreshStaleVideoMetrics failed: ${err.message?.slice(0, 200)}`);
   }
 }
 

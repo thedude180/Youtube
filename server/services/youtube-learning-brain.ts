@@ -36,6 +36,7 @@ import {
   updateDurationModel,
   getBucketRankings,
   getWindowRankings,
+  refreshStaleVideoMetrics,
 } from "./youtube-performance-learner";
 
 const logger = createLogger("learning-brain");
@@ -99,6 +100,11 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   try {
     // 1. Pull analytics for any published videos missing metrics
     await refreshMissingAnalytics(userId);
+
+    // 1b. Refresh analytics for videos already in the metrics table that are
+    //     stale (published > 48 h ago, not measured in the last 6 h).
+    //     This closes the feedback loop as watch-time accumulates over time.
+    await refreshStaleVideoMetrics(userId);
 
     // 2. Update the duration model
     await updateDurationModel(userId);
@@ -256,8 +262,10 @@ async function refreshMissingAnalytics(userId: string): Promise<void> {
       const youtubeVideoId = meta.youtubeVideoId || meta.youtubeId;
       if (!youtubeVideoId) continue;
 
-      // Check if already in metrics table
-      const [existing] = await db.select({ id: youtubeOutputMetrics.id })
+      // Skip if measured within the last 6 hours — analytics don't change that fast.
+      // Allow re-measurement after that so data improves as the video ages.
+      const [existing] = await db
+        .select({ id: youtubeOutputMetrics.id, measuredAt: youtubeOutputMetrics.measuredAt })
         .from(youtubeOutputMetrics)
         .where(and(
           eq(youtubeOutputMetrics.userId, userId),
@@ -265,7 +273,7 @@ async function refreshMissingAnalytics(userId: string): Promise<void> {
         ))
         .limit(1);
 
-      if (existing) continue;
+      if (existing?.measuredAt && Date.now() - existing.measuredAt.getTime() < 6 * 3600_000) continue;
 
       // Determine posting window from scheduledAt
       let postingWindow = "unknown";
@@ -278,7 +286,7 @@ async function refreshMissingAnalytics(userId: string): Promise<void> {
       }
 
       await recordVideoPerformance(userId, youtubeVideoId, {
-        contentType: item.type === "platform_short" ? "short" : "long_form",
+        contentType: ["platform_short", "youtube_short"].includes(item.type) ? "short" : "long_form",
         durationSec: meta.targetDurationSec || meta.actualDurationSec || 0,
         gameName: meta.gameName,
         postingWindow,

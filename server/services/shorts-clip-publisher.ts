@@ -541,6 +541,39 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           })
           .where(eq(autopilotQueue.id, item.id));
         published++;
+
+        // Seed the metrics row immediately so the learning model has a record
+        // even before YouTube processes analytics (which takes 24-48 h).
+        // Analytics numbers are refreshed automatically by refreshStaleVideoMetrics.
+        if ((result as any).youtubeId) {
+          const publishedYtId = (result as any).youtubeId as string;
+          const clipDurationSec = Math.max(1, endSec - startSec);
+          const schedAt = item.scheduledAt ? new Date(item.scheduledAt) : new Date();
+          const h = schedAt.getUTCHours();
+          const postingWindow = h >= 6 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 21 ? "evening" : "late_night";
+          Promise.all([
+            import("./youtube-performance-learner").then(({ recordVideoPerformance }) =>
+              recordVideoPerformance(userId, publishedYtId, {
+                contentType: "short",
+                durationSec: clipDurationSec,
+                gameName: gameName ?? undefined,
+                postingWindow,
+                sourceVideoId: item.sourceVideoId ?? undefined,
+                publishedAt: new Date(),
+              })
+            ),
+            import("./youtube-learning-brain").then(({ recordLearningEvent }) =>
+              recordLearningEvent(userId, "short_published", {
+                sourceAgent: "shorts-publisher",
+                youtubeVideoId: publishedYtId,
+                gameName: gameName ?? "Gaming",
+                durationSec: clipDurationSec,
+                postingWindow,
+                scheduledAt: item.scheduledAt?.toISOString(),
+              })
+            ),
+          ]).catch(() => {});
+        }
       } else {
         logger.warn("Short publish failed", { queueItemId: item.id, platform, error: result.error });
         await db.update(autopilotQueue)
