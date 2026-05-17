@@ -157,17 +157,23 @@ export async function prepareLiveStream(
   } catch { /* ok */ }
 
   // Generate prep content via AI
+  const isBattlefield = /battlefield/i.test(gameName);
+  const defaultPinnedMsg = isBattlefield
+    ? `Live BF6 no commentary on PS5. All-Out Warfare, vehicles, infantry fights, and raw gameplay. Stay for full matches and subscribe for more. Drop a like if you enjoy raw BF6.`
+    : `Welcome! ${gameName} no-commentary PS5 gameplay. No talking — just raw gameplay. Subscribe for more.`;
+
   let prep: LiveStreamPrep = {
     title: streamTitle,
-    description: `${gameName} gameplay — no commentary. Pure ${gameName} runs.\n\n#PS5 #${gameName.replace(/\s/g, "")} #NoCommentary`,
-    tags: ["no commentary", "PS5", gameName, "gaming", "live", "gameplay"],
-    thumbnailConcept: `High-energy ${gameName} gameplay screenshot with bold title text overlay`,
-    pinnedMessage: `Welcome! ${gameName} no-commentary PS5 gameplay. Drop a ❤️ if you're watching!`,
+    description: `Live no-commentary ${gameName} gameplay from ETGaming247. No facecam, no fake hype, no talking over the game — just raw gameplay, full matches, objective pressure, vehicles, infantry fights, and controlled chaos.\n\nStay for full matches, livestream replays, Shorts, and clean gameplay cut with 92 BPM pressure.\n\n#NoCommentary #${gameName.replace(/\s/g, "")} #PS5 #ETGaming247`,
+    tags: ["no commentary", "no facecam", "raw gameplay", "PS5", gameName, "gaming", "live", "gameplay", "ETGaming247", "92 bpm"],
+    thumbnailConcept: `Action screenshot from ${gameName} with bold 2-3 word overlay (e.g. LIVE NOW or RAW WAR). Top-left: 92 BPM marker. Bottom: NO COMMENTARY strip.`,
+    pinnedMessage: defaultPinnedMsg,
     faqResponses: {
       "what game is this": `This is ${gameName}!`,
       "what console": "PS5!",
-      "is there commentary": "No commentary — pure gameplay only.",
-      "clips": "Best moments get clipped and posted — make sure you're subscribed!",
+      "is there commentary": "No commentary — pure gameplay only. No talking over the game.",
+      "clips": "Best moments get clipped into Shorts and posted — subscribe so you don't miss them!",
+      "is there facecam": "No facecam. Just the game.",
     },
     moderationRules: [
       "Auto-timeout: spam links or repeated self-promotion",
@@ -177,13 +183,15 @@ export async function prepareLiveStream(
     checklist: [
       "YouTube connection verified",
       "Stream key confirmed",
-      "Audio levels checked (no commentary = clean capture)",
-      "Recording software running",
-      "Thumbnail ready",
-      "Title and description set",
-      "Clips plan prepared",
+      "Audio levels checked (no commentary = clean capture only)",
+      "Recording software running and saving locally",
+      "Thumbnail ready (action screenshot + 2-3 word text + NO COMMENTARY strip)",
+      "Title set using Situation + Game + No Commentary formula",
+      "Description set with 92 BPM brand framing",
+      "Pinned comment prepared and ready to post",
+      "Clips plan prepared — mark timestamps during stream for best Shorts moments",
     ],
-    replayPlan: `After stream: (1) Queue 3 Shorts from best moments. (2) If stream > 60 min, queue 1 long-form clip. (3) Optimise VOD title/description. (4) Schedule all content via normal daily windows.`,
+    replayPlan: `After stream: (1) Watch back and mark timestamps for 3-5 Short candidates (vehicle hits, clutch moments, objective turns, final tickets). (2) Identify 1-2 long-form candidates — best 10-30 min sections with sustained pressure. (3) Pull thumbnail screenshot from highest-pressure moment. (4) Apply 92 BPM cadence: HOOK→CONTEXT→PRESSURE→PAYOFF→RESET. Trim idle opening and dead air. (5) Queue Shorts in scheduled windows (08:00 / 14:30 / 21:30). (6) Package long-form with full ETGaming247 SEO metadata. (7) Update VOD title/description for replay packaging.`,
     connectionStatus,
     quotaStatus,
     liveStreamStatus: stream?.status || "idle",
@@ -197,7 +205,7 @@ export async function prepareLiveStream(
         messages: [
           {
             role: "system",
-            content: `You are preparing a YouTube live stream for a no-commentary PS5 gaming channel. Game: ${sanitizeForPrompt(gameName, 80)}. Stream title: ${sanitizeForPrompt(streamTitle, 80)}. Return only raw JSON.`,
+            content: `You are preparing a YouTube live stream for ETGaming247 — a no-commentary, no-facecam PS5 gaming channel. Brand: "No talking. Just gameplay. 92 BPM cadence." Game: ${sanitizeForPrompt(gameName, 80)}. Stream title: ${sanitizeForPrompt(streamTitle, 80)}. Return only raw JSON.`,
           },
           {
             role: "user",
