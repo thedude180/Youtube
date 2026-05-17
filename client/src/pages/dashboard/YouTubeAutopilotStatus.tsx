@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +8,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Video, Zap, Clock, AlertCircle, CheckCircle2, Brain,
-  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw,
+  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, addDays, startOfDay, endOfDay, isToday, format } from "date-fns";
 
 type CopilotMode = "off" | "suggest" | "auto-safe" | "manual-approval";
 
@@ -45,6 +46,176 @@ function formatWindowLabel(w: string): string {
     late_night: "Late Night",
   };
   return map[w] ?? w;
+}
+
+const MAX_SHORTS = 3;
+const MAX_LONGFORM = 1;
+
+function fmtDurSec(sec: number): string {
+  if (!sec || sec < 60) return `${sec}s`;
+  const m = Math.round(sec / 60);
+  return `${m}m`;
+}
+
+function fmtTime(iso: string): string {
+  try { return format(new Date(iso), "h:mma").toLowerCase(); } catch { return "—"; }
+}
+
+interface DayData {
+  date: Date;
+  shorts: any[];
+  longForms: any[];
+}
+
+function QueueCalendar() {
+  const { data: queueRaw = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/autopilot/queue?status=scheduled"],
+    refetchInterval: 120_000,
+  });
+
+  const days: DayData[] = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(now, i);
+      const dayStart = startOfDay(date).getTime();
+      const dayEnd = endOfDay(date).getTime();
+
+      const ytItems = queueRaw.filter(item => {
+        if (item.targetPlatform !== "youtube") return false;
+        if (!item.scheduledAt) return false;
+        const t = new Date(item.scheduledAt).getTime();
+        return t >= dayStart && t <= dayEnd;
+      });
+
+      const shorts = ytItems
+        .filter(i => i.type === "platform_short" || i.type === "vod-short")
+        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+
+      const longForms = ytItems
+        .filter(i => i.type === "auto-clip" || i.type === "vod-long-form")
+        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+
+      return { date, shorts, longForms };
+    });
+  }, [queueRaw]);
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2" data-testid="card-queue-calendar-loading">
+        <Skeleton className="h-4 w-36" />
+        {Array.from({ length: 7 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full rounded-md" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2" data-testid="card-queue-calendar">
+      <span className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+        <CalendarDays className="h-3.5 w-3.5 text-blue-400" />
+        7-Day Schedule
+      </span>
+
+      <div className="space-y-1" data-testid="list-calendar-days">
+        {days.map((day, i) => {
+          const shortsFull = day.shorts.length >= MAX_SHORTS;
+          const lfFull = day.longForms.length >= MAX_LONGFORM;
+          const hasGap = !shortsFull || !lfFull;
+          const today = isToday(day.date);
+          const dayLabel = today ? "Today" : format(day.date, "EEE");
+          const dateLabel = format(day.date, "MMM d");
+
+          return (
+            <div
+              key={i}
+              data-testid={`row-calendar-day-${i}`}
+              className={`rounded-md px-2.5 py-1.5 flex items-center gap-2 text-[10px] transition-colors ${
+                today
+                  ? "bg-blue-500/10 border border-blue-500/20"
+                  : hasGap
+                  ? "bg-amber-500/5 border border-amber-500/15"
+                  : "bg-background/30 border border-transparent"
+              }`}
+            >
+              {/* Day label */}
+              <div className="w-16 shrink-0">
+                <span className={`font-semibold ${today ? "text-blue-400" : "text-foreground"}`}>
+                  {dayLabel}
+                </span>
+                <span className="text-muted-foreground ml-1">{dateLabel}</span>
+              </div>
+
+              {/* Shorts slots */}
+              <div className="flex items-center gap-0.5 shrink-0" data-testid={`shorts-slots-${i}`}>
+                {Array.from({ length: MAX_SHORTS }).map((_, si) => {
+                  const item = day.shorts[si];
+                  return item ? (
+                    <span
+                      key={si}
+                      title={`Short at ${fmtTime(item.scheduledAt)}`}
+                      className="w-4 h-4 rounded-sm bg-emerald-500/30 border border-emerald-500/40 flex items-center justify-center cursor-default"
+                      data-testid={`short-slot-${i}-${si}`}
+                    >
+                      <span className="text-emerald-400 leading-none" style={{ fontSize: "7px" }}>▶</span>
+                    </span>
+                  ) : (
+                    <span
+                      key={si}
+                      title="Empty Short slot"
+                      className="w-4 h-4 rounded-sm bg-amber-500/20 border border-amber-500/30"
+                      data-testid={`short-gap-${i}-${si}`}
+                    />
+                  );
+                })}
+                <span className={`ml-1 ${shortsFull ? "text-emerald-400" : "text-amber-400"}`}>
+                  {day.shorts.length}/{MAX_SHORTS}
+                </span>
+              </div>
+
+              {/* Divider */}
+              <span className="text-border/40">|</span>
+
+              {/* Long-form slot */}
+              <div className="flex items-center gap-1 min-w-0" data-testid={`longform-slot-${i}`}>
+                {day.longForms.length > 0 ? (
+                  <>
+                    <span className="w-4 h-4 rounded-sm bg-violet-500/30 border border-violet-500/40 flex items-center justify-center shrink-0">
+                      <span className="text-violet-400 leading-none" style={{ fontSize: "7px" }}>▶</span>
+                    </span>
+                    <span className="text-violet-400 font-medium truncate" data-testid={`longform-duration-${i}`}>
+                      {fmtDurSec(day.longForms[0]?.metadata?.targetDurationSec || day.longForms[0]?.metadata?.actualDurationSec || 0)}
+                    </span>
+                    <span className="text-muted-foreground/60 truncate">
+                      {fmtTime(day.longForms[0].scheduledAt)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-amber-400/80 italic" data-testid={`longform-gap-${i}`}>no long-form</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-3 pt-1 border-t border-border/15">
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/30 border border-emerald-500/40 inline-block" />
+          Scheduled
+        </span>
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+          <span className="w-2.5 h-2.5 rounded-sm bg-amber-500/20 border border-amber-500/30 inline-block" />
+          Gap
+        </span>
+        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+          <span className="w-2.5 h-2.5 rounded-sm bg-violet-500/30 border border-violet-500/40 inline-block" />
+          Long-form
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function YouTubeAutopilotStatus() {
@@ -283,6 +454,9 @@ export default function YouTubeAutopilotStatus() {
           </p>
         )}
       </div>
+
+      {/* 7-day schedule calendar */}
+      <QueueCalendar />
     </div>
   );
 }
