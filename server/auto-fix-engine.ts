@@ -281,9 +281,10 @@ export async function autoFixFailedPosts(): Promise<{
           notifSeverity = "warning";
           notifActionUrl = "/content";
         } else if (category === "config_missing") {
-          notifTitle = `${post.targetPlatform} needs reconnection`;
-          friendlyMsg = `Posting to ${post.targetPlatform} requires reconnecting your account. Tap to reconnect in one step.`;
-          notifActionUrl = `/settings?reconnect=${post.targetPlatform}`;
+          const reconnectPlatform = post.targetPlatform === "youtubeshorts" ? "youtube" : post.targetPlatform;
+          notifTitle = `${reconnectPlatform} needs reconnection`;
+          friendlyMsg = `Posting to ${reconnectPlatform} requires reconnecting your account. Tap to reconnect in one step.`;
+          notifActionUrl = `/settings?reconnect=${reconnectPlatform}`;
         }
 
         if (!metadata.permanentFailNotified) {
@@ -322,11 +323,12 @@ export async function autoFixFailedPosts(): Promise<{
             logger.warn("Token refresh failed, marking permanent", { postId: post.id, error: String(refreshErr) });
             stats.permanent++;
             if (!metadata.permanentFailNotified) {
+              const expiredPlatform = post.targetPlatform === "youtubeshorts" ? "youtube" : post.targetPlatform;
               await createNotification(post.userId,
-                `${post.targetPlatform} needs reconnection`,
-                `Your ${post.targetPlatform} connection expired. Tap to reconnect in one step — automation will resume immediately.`,
+                `${expiredPlatform} needs reconnection`,
+                `Your ${expiredPlatform} connection expired. Tap to reconnect in one step — automation will resume immediately.`,
                 "warning",
-                `/settings?reconnect=${post.targetPlatform}`
+                `/settings?reconnect=${expiredPlatform}`
               );
               await db.update(autopilotQueue)
                 .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: "auth_expired" } })

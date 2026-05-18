@@ -337,6 +337,35 @@ export async function registerPlatformRoutes(app: Express) {
     }
   });
 
+  // Admin: Immediately copy youtube channel tokens to the paired youtubeshorts channel.
+  // Call this once after deploy to fix any stale/missing shorts tokens in production.
+  // Usage: navigate to /api/admin/sync-shorts-tokens in the browser.
+  app.get("/api/admin/sync-shorts-tokens", async (req: any, res) => {
+    try {
+      const { db } = await import("../db");
+      const { channels } = await import("@shared/schema");
+      const { eq, and, isNotNull } = await import("drizzle-orm");
+
+      const youtubeChannels = await db.select().from(channels)
+        .where(and(eq(channels.platform, "youtube"), isNotNull(channels.accessToken)));
+
+      let synced = 0;
+      for (const yt of youtubeChannels) {
+        if (!yt.userId || !yt.accessToken) continue;
+        await db.update(channels).set({
+          accessToken: yt.accessToken,
+          refreshToken: yt.refreshToken,
+          tokenExpiresAt: yt.tokenExpiresAt,
+          platformData: { _connectionStatus: "active", _lastRefresh: new Date().toISOString(), _permanentFailures: 0, _syncedFromYoutube: new Date().toISOString() },
+        }).where(and(eq(channels.userId, yt.userId), eq(channels.platform, "youtubeshorts")));
+        synced++;
+      }
+      res.json({ ok: true, synced, message: `Mirrored tokens from ${synced} youtube channel(s) to their youtubeshorts partners.` });
+    } catch (err: any) {
+      res.status(500).json({ error: String(err.message) });
+    }
+  });
+
   // DEV-ONLY: Connect a YouTube channel by URL/handle without going through OAuth.
   // Uses GOOGLE_API_KEY to fetch public channel info and registers it in the database.
   // Blocked in production deployments.

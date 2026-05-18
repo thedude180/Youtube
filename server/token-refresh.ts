@@ -59,6 +59,26 @@ interface RefreshResult {
 
 const GOOGLE_PLATFORMS = new Set<string>(["youtube", "youtubeshorts"]);
 
+// Mirror a freshly-refreshed youtube token to the paired youtubeshorts channel row.
+// Both rows represent the same Google OAuth account — they must always share the same token.
+async function mirrorTokensToShortsChannel(
+  userId: string,
+  accessToken: string,
+  refreshToken: string,
+  tokenExpiresAt: Date,
+): Promise<void> {
+  try {
+    await db.update(channels).set({
+      accessToken,
+      refreshToken,
+      tokenExpiresAt,
+      platformData: { _connectionStatus: "active", _lastRefresh: new Date().toISOString(), _permanentFailures: 0 },
+    }).where(and(eq(channels.userId, userId), eq(channels.platform, "youtubeshorts")));
+  } catch (e) {
+    logger.warn("[TokenRefresh] Failed to mirror tokens to youtubeshorts channel:", e);
+  }
+}
+
 async function refreshGoogleToken(currentRefreshToken: string): Promise<RefreshResult> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -366,6 +386,8 @@ export async function refreshExpiringTokens(): Promise<{ refreshed: number; fail
           // If this is skipped, the backup diverges and can't be used to restore after a wipe.
           if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
             await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
+            // Keep the youtubeshorts mirror in sync — same OAuth account, must share tokens.
+            await mirrorTokensToShortsChannel(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
           }
           return { ok: true };
         } else {
@@ -493,6 +515,8 @@ export async function keepAliveAllTokens(): Promise<{ kept: number; failed: numb
             // never goes stale. This is the key fix for the recurring token-loss bug.
             if (GOOGLE_PLATFORMS.has(ch.platform) && ch.userId) {
               await syncGoogleUserToken(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
+              // Keep the youtubeshorts mirror in sync — same OAuth account, must share tokens.
+              await mirrorTokensToShortsChannel(ch.userId, result.accessToken, rotatedRefresh, newExpiry);
             }
             return { ok: true };
           } else {
@@ -596,10 +620,11 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
         const rescued = await refreshGoogleToken(refreshTokenToTry);
         if (rescued.success && rescued.accessToken) {
           const newRefresh = rescued.refreshToken || refreshTokenToTry;
+          const repairedExpiry = rescued.expiresAt ?? new Date(Date.now() + 3600 * 1000);
           await db.update(channels).set({
             accessToken: rescued.accessToken,
             refreshToken: newRefresh,
-            tokenExpiresAt: rescued.expiresAt ?? new Date(Date.now() + 3600 * 1000),
+            tokenExpiresAt: repairedExpiry,
             platformData: {
               ...pd,
               _connectionStatus: "active",
@@ -609,6 +634,8 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
             },
           }).where(eq(channels.id, ch.id));
           await syncGoogleUserToken(ch.userId, rescued.accessToken, newRefresh, rescued.expiresAt ?? null);
+          // Mirror to youtubeshorts so it recovers alongside youtube.
+          await mirrorTokensToShortsChannel(ch.userId, rescued.accessToken, newRefresh, repairedExpiry);
           logger.info(`[TokenGuardian] ✓ Repaired channel ${ch.id} (${ch.channelName}) from backup`);
           repaired++;
         } else {
