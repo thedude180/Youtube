@@ -353,6 +353,79 @@ export async function getQuotaForAllUsers(): Promise<Array<{ userId: string; rem
 
 let _globalQuotaTripDate: string | null = null;
 
+/**
+ * Explicitly clear the in-memory quota circuit breaker.
+ * Only call this when you know a new quota day has started (i.e. from initQuotaResetCron).
+ * Normal callers should rely on the auto-clear inside isQuotaBreakerTripped().
+ */
+export function clearQuotaBreaker(): void {
+  const prev = _globalQuotaTripDate;
+  _globalQuotaTripDate = null;
+  if (prev) {
+    logger.info("[QuotaBreaker] Circuit breaker explicitly cleared — new quota day started");
+  }
+}
+
+/**
+ * Schedule a recurring midnight-Pacific reset that:
+ *  1. Clears the in-memory quota circuit breaker
+ *  2. Immediately triggers the back catalog runner
+ *  3. Immediately triggers the Shorts + long-form clip publishers
+ *
+ * Uses getNextResetTime() to schedule precisely to midnight Pacific (handles
+ * PST/PDT automatically) and re-schedules itself each night so the server
+ * never needs a restart to pick up the new quota day.
+ */
+export function initQuotaResetCron(): void {
+  function scheduleNextReset(): void {
+    const now = new Date();
+    const nextReset = getNextResetTime();
+    const msUntilReset = Math.max(nextReset.getTime() - now.getTime(), 1000);
+    const hUntil = Math.round(msUntilReset / 3_600_000 * 10) / 10;
+    logger.info(`[QuotaReset] Next midnight-Pacific reset scheduled in ${hUntil} h (${nextReset.toISOString()})`);
+
+    setTimeout(async () => {
+      logger.info("[QuotaReset] New quota day — clearing circuit breaker and launching publish cycle");
+      clearQuotaBreaker();
+
+      // Reset the daily op counters so services don't see a full day of fake usage
+      // (the getDailyOpCounter map is keyed by userId — clearing it is safe because
+      //  restoreQuotaBreakerOnStartup already handles the restart case).
+      // We do this by simply letting the next canAffordOperation() call rebuild
+      // the counter from DB (today's record won't exist yet, so it starts at 0).
+
+      try {
+        const { runBackCatalogForAllEligibleUsers } = await import("./youtube-back-catalog-runner");
+        const { runShortsClipPublisher } = await import("./shorts-clip-publisher");
+        const { runLongFormClipPublisher } = await import("./long-form-clip-publisher");
+
+        // Small stagger so the catalog runner (which does API reads) and publishers
+        // (which do uploads) don't flood the quota in the same second.
+        const catalogResult = await runBackCatalogForAllEligibleUsers().catch(err => {
+          logger.error("[QuotaReset] Back catalog cycle failed:", { error: String(err) });
+          return { usersRun: 0, errors: 1 };
+        });
+        logger.info("[QuotaReset] Back catalog cycle complete", catalogResult);
+
+        await new Promise(r => setTimeout(r, 5_000)); // 5 s gap before publishers
+        const [shortsResult, longFormResult] = await Promise.allSettled([
+          runShortsClipPublisher(),
+          runLongFormClipPublisher(),
+        ]);
+        logger.info("[QuotaReset] Shorts publisher result", shortsResult.status === "fulfilled" ? shortsResult.value : { error: String((shortsResult as PromiseRejectedResult).reason) });
+        logger.info("[QuotaReset] Long-form publisher result", longFormResult.status === "fulfilled" ? longFormResult.value : { error: String((longFormResult as PromiseRejectedResult).reason) });
+      } catch (err: any) {
+        logger.error("[QuotaReset] Midnight publish cycle error:", { error: String(err) });
+      }
+
+      // Re-schedule for the NEXT midnight so this runs every night
+      scheduleNextReset();
+    }, msUntilReset);
+  }
+
+  scheduleNextReset();
+}
+
 export function tripGlobalQuotaBreaker(): void {
   const today = getPacificDate();
   if (_globalQuotaTripDate !== today) {

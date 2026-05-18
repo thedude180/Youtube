@@ -38,6 +38,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initChannelBrandSync } from "./services/youtube-channel-brand-sync";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
@@ -2601,9 +2602,17 @@ httpServer.listen(
 
       // ── Back Catalog Runner — dedicated autonomous runner ────────────────────
       // Replaces the old inline back-catalog wiring.  initBackCatalogRunner()
-      // handles its own startup delay (10–20 min jittered) and 22–24 h repeat
+      // handles its own startup delay (90 s–3 min jittered) and 22–24 h repeat
       // interval, quota-breaker checks, and per-user error isolation.
       initBackCatalogRunner();
+
+      // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
+      // Fires once at the precise moment the YouTube API quota resets (midnight
+      // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory
+      // circuit breaker, (2) runs the back catalog cycle, (3) fires both
+      // publishers.  Then re-schedules itself for the next midnight so the server
+      // never needs a restart to start a new quota day.
+      initQuotaResetCron();
 
       // ── YouTube AI Orchestrator — top-level AI controller ────────────────────
       // Controls all YouTube systems: catalog, scoring, queueing, learning,
