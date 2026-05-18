@@ -465,14 +465,26 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             result = { success: false, error: "No YouTube channel found" };
           } else {
             const runId = `${item.id}_${Date.now()}`;
-            const encodedPath = await getEncodedSegment({
-              userId,
-              sourceVideoId: item.sourceVideoId,
-              youtubeId: resolvedYoutubeId,
-              startSec,
-              endSec,
-              runId,
-            });
+            let encodedPath: string | null = null;
+            try {
+              encodedPath = await getEncodedSegment({
+                userId,
+                sourceVideoId: item.sourceVideoId,
+                youtubeId: resolvedYoutubeId,
+                startSec,
+                endSec,
+                runId,
+              });
+            } catch (downloadErr: any) {
+              const errMsg = String(downloadErr?.message ?? downloadErr);
+              const isPermanent = /unavailable|removed by the uploader|not available|format is not available/i.test(errMsg);
+              logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
+              await db.update(autopilotQueue)
+                .set({ status: isPermanent ? "permanent_fail" : "failed", errorMessage: errMsg.slice(0, 500) })
+                .where(eq(autopilotQueue.id, item.id));
+              failed++;
+              continue;
+            }
 
             if (!encodedPath) {
               result = { success: false, error: "Could not extract video segment" };

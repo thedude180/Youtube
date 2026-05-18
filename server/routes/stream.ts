@@ -1391,6 +1391,16 @@ export function registerStreamRoutes(app: Express) {
     res.json(result);
   }));
 
+  app.post("/api/youtube/publisher/run-now", asyncHandler(async (req: any, res) => {
+    const { runShortsClipPublisher } = await import("../services/shorts-clip-publisher");
+    const { runLongFormClipPublisher } = await import("../services/long-form-clip-publisher");
+    const [shorts, longForm] = await Promise.all([
+      runShortsClipPublisher(),
+      runLongFormClipPublisher(),
+    ]);
+    res.json({ shorts, longForm });
+  }));
+
   app.get("/api/youtube/back-catalog/opportunities", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });

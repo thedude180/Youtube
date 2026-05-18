@@ -384,7 +384,16 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     }
 
     // ── Queue Shorts from old videos ──────────────────────────────────────────
-    const canShort = await canQueueShortToday(userId);
+    // Queue-depth cap — stop adding items when the backlog is already large enough.
+    // 50 scheduled items ≈ 16 days of content at 3 Shorts/day — no need to pile on more.
+    const MAX_SCHEDULED_DEPTH = 50;
+    const [depthRow] = await db
+      .select({ cnt: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "scheduled")));
+    const scheduledDepth = depthRow?.cnt ?? 0;
+
+    const canShort = scheduledDepth < MAX_SCHEDULED_DEPTH && await canQueueShortToday(userId);
     if (canShort) {
       const shortCandidates = ranked
         .filter(v =>
