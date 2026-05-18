@@ -1401,6 +1401,29 @@ export function registerStreamRoutes(app: Express) {
     res.json({ shorts, longForm });
   }));
 
+  app.post("/api/youtube/queue/reset", asyncHandler(async (req: any, res) => {
+    const { autopilotQueue, backCatalogVideos } = await import("@shared/schema");
+
+    // Cancel all pending + scheduled queue items
+    await db
+      .update(autopilotQueue)
+      .set({ status: "cancelled", errorMessage: "Cleared by user — fresh start" })
+      .where(inArray(autopilotQueue.status, ["pending", "scheduled"]));
+
+    // Reset all mined/queued flags so the back catalog re-queues from scratch
+    await db
+      .update(backCatalogVideos)
+      .set({
+        minedForShorts: false,
+        minedForLongForm: false,
+        shortsQueuedCount: 0,
+        longFormQueuedCount: 0,
+        metadataUpdatesQueued: 0,
+      });
+
+    res.json({ ok: true, message: "Queue cleared and back catalog reset. Back catalog runner will re-queue on its next cycle." });
+  }));
+
   app.get("/api/youtube/back-catalog/opportunities", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
