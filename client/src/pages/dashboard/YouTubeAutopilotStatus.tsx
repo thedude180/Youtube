@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Video, Zap, Clock, AlertCircle, CheckCircle2, Brain,
-  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays, FlaskConical,
+  TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays, FlaskConical, Timer,
 } from "lucide-react";
 import { formatDistanceToNow, addDays, startOfDay, endOfDay, isToday, format } from "date-fns";
 
@@ -63,6 +63,46 @@ function formatWindowLabel(w: string): string {
 const SHORT_TYPES = new Set(["youtube_short", "platform_short", "platform_text_short", "vod-short"]);
 // All autopilot queue types that count as long-form clips
 const LONGFORM_TYPES = new Set(["auto-clip", "vod-long-form"]);
+
+interface QuotaStatus {
+  breakerActive: boolean;
+  unitsUsed: number;
+  quotaLimit: number;
+  resetsAt: string;
+}
+
+function useQuotaCountdown(resetsAt: string | undefined): string {
+  const [countdown, setCountdown] = useState<string>("");
+
+  useEffect(() => {
+    if (!resetsAt) return;
+
+    function update() {
+      const msLeft = new Date(resetsAt!).getTime() - Date.now();
+      if (msLeft <= 0) {
+        setCountdown("resetting…");
+        return;
+      }
+      const totalSec = Math.floor(msLeft / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      if (h > 0) {
+        setCountdown(`${h}h ${m}m`);
+      } else if (m > 0) {
+        setCountdown(`${m}m ${s}s`);
+      } else {
+        setCountdown(`${s}s`);
+      }
+    }
+
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [resetsAt]);
+
+  return countdown;
+}
 
 function fmtDurSec(sec: number): string {
   if (!sec || sec < 60) return `${sec}s`;
@@ -357,6 +397,14 @@ export default function YouTubeAutopilotStatus() {
     enabled: !!user,
   });
 
+  const { data: quotaData } = useQuery<QuotaStatus>({
+    queryKey: ["/api/youtube/quota/status"],
+    refetchInterval: 60_000,
+    enabled: !!user,
+  });
+
+  const quotaCountdown = useQuotaCountdown(quotaData?.resetsAt);
+
   const cycleMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/youtube/learning/run-cycle"),
     onSuccess: () => {
@@ -480,13 +528,43 @@ export default function YouTubeAutopilotStatus() {
         </div>
 
         <div className="rounded-lg bg-background/40 border border-border/20 p-3" data-testid="card-quota-status">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wide block mb-1">YouTube Quota</span>
-          <Badge
-            className={`text-[10px] ${data.quota?.status === "exhausted" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}
-            data-testid="badge-quota"
-          >
-            {data.quota?.status === "exhausted" ? "Exhausted" : "OK"}
-          </Badge>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">YouTube Quota</span>
+            {!quotaData
+              ? <Clock className="h-3.5 w-3.5 text-muted-foreground/40" />
+              : quotaData.breakerActive
+              ? <Timer className="h-3.5 w-3.5 text-red-400" />
+              : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+          </div>
+          {!quotaData ? (
+            <Skeleton className="h-5 w-20 mt-1" data-testid="skeleton-quota" />
+          ) : quotaData.breakerActive ? (
+            <>
+              <Badge className="text-[10px] bg-red-500/20 text-red-400 border-red-500/30 mb-1" data-testid="badge-quota">
+                Exhausted
+              </Badge>
+              {quotaCountdown && (
+                <p className="text-[10px] text-amber-400 mt-1 flex items-center gap-1" data-testid="text-quota-countdown">
+                  <Clock className="h-2.5 w-2.5" />
+                  Quota resets in {quotaCountdown}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold text-foreground" data-testid="text-quota-used">
+                  {quotaData.unitsUsed}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  / {quotaData.quotaLimit}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5" data-testid="text-quota-resets">
+                Quota resets in {quotaCountdown || "—"}
+              </p>
+            </>
+          )}
         </div>
       </div>
 

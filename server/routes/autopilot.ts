@@ -13,6 +13,7 @@ import {
   processContentRecycling,
   processCrossPromotion,
 } from "../autopilot-engine";
+import { getQuotaStatus, isQuotaBreakerTripped } from "../services/youtube-quota-tracker";
 import { getStealthReport } from "../content-variation-engine";
 import { getUserId, requireTier, parseNumericId } from "./helpers";
 import { storage } from "../storage";
@@ -1115,6 +1116,24 @@ export function registerAutopilotRoutes(app: Express) {
     } catch (err) {
       logger.error("[Autopilot] Output scheduler status error:", err);
       res.status(500).json({ error: "Failed to fetch output scheduler status" });
+    }
+  });
+
+  app.get("/api/youtube/quota/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const status = await getQuotaStatus(userId);
+      const breakerActive = isQuotaBreakerTripped();
+      res.json({
+        breakerActive,
+        unitsUsed: status.used,
+        quotaLimit: status.limit,
+        resetsAt: status.resetsAt,
+      });
+    } catch (err) {
+      logger.error("[Autopilot] Quota status error:", err);
+      res.status(500).json({ error: "Failed to fetch quota status" });
     }
   });
 }
