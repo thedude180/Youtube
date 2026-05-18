@@ -376,6 +376,17 @@ export function clearQuotaBreaker(): void {
  * PST/PDT automatically) and re-schedules itself each night so the server
  * never needs a restart to pick up the new quota day.
  */
+let _quotaResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Cancel the midnight-Pacific quota reset cron. Called during graceful shutdown. */
+export function stopQuotaResetCron(): void {
+  if (_quotaResetTimer !== null) {
+    clearTimeout(_quotaResetTimer);
+    _quotaResetTimer = null;
+    logger.info("[QuotaReset] Cron stopped");
+  }
+}
+
 export function initQuotaResetCron(): void {
   function scheduleNextReset(): void {
     const now = new Date();
@@ -384,8 +395,9 @@ export function initQuotaResetCron(): void {
     const hUntil = Math.round(msUntilReset / 3_600_000 * 10) / 10;
     logger.info(`[QuotaReset] Next midnight-Pacific reset scheduled in ${hUntil} h (${nextReset.toISOString()})`);
 
-    setTimeout(async () => {
-      logger.info("[QuotaReset] New quota day — clearing circuit breaker and launching publish cycle");
+    _quotaResetTimer = setTimeout(async () => {
+      _quotaResetTimer = null;
+      logger.info("[QuotaReset] New quota day — breaker cleared, running publish cycle");
       clearQuotaBreaker();
 
       // Reset the daily op counters so services don't see a full day of fake usage
@@ -423,6 +435,7 @@ export function initQuotaResetCron(): void {
     }, msUntilReset);
   }
 
+  stopQuotaResetCron(); // clear any previously scheduled timer before starting
   scheduleNextReset();
 }
 
