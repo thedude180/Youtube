@@ -2408,11 +2408,6 @@ export async function registerPlatformRoutes(app: Express) {
         details: { platform },
         riskLevel: "medium",
       });
-      // Purge vault so an intentional disconnect never auto-restores via Layer 3
-      try {
-        const { purgeVault } = await import("../services/token-vault");
-        await purgeVault(userId, platform);
-      } catch { /* vault purge non-fatal */ }
       sendSSEEvent(userId, "content-update", { type: "channel_disconnected", platform });
       sendSSEEvent(userId, "dashboard-update", { type: "channel_disconnected", platform });
       res.json({ success: true });

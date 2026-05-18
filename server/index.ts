@@ -360,21 +360,6 @@ async function syncChannelTokens(): Promise<void> {
       let accessTokenSource = userRow?.googleAccessToken || null;
       let expiresAtSource = userRow?.googleTokenExpiresAt || null;
 
-      // Layer 3: vault fallback if users table is also empty
-      if (!refreshTokenSource && !accessTokenSource) {
-        try {
-          const { restoreFromVault } = await import("./services/token-vault");
-          const vaultEntry = await restoreFromVault(ch.userId, "youtube");
-          if (vaultEntry?.refreshToken) {
-            refreshTokenSource = vaultEntry.refreshToken;
-            accessTokenSource = vaultEntry.accessToken;
-            expiresAtSource = vaultEntry.tokenExpiresAt;
-            process.stdout.write(
-              `[token-sync] Layer 3 vault fallback for channel ${ch.id} — entry from ${vaultEntry.savedAt.toISOString()} (${vaultEntry.source})\n`
-            );
-          }
-        } catch { /* vault read failed — non-fatal */ }
-      }
 
       if (!refreshTokenSource && !accessTokenSource) continue;
 
@@ -448,9 +433,6 @@ async function healProductionPipeline(): Promise<void> {
     const { restoreQuotaBreakerOnStartup } = await import("./services/youtube-quota-tracker");
     await restoreQuotaBreakerOnStartup();
 
-    // Ensure the token_vault table exists (not in Drizzle schema, so not auto-migrated).
-    const { ensureTokenVaultTable } = await import("./services/token-vault");
-    await ensureTokenVaultTable();
     // ─────────────────────────────────────────────────────────────────────────
 
     const { contentVaultBackups, streamEditJobs, contentPipeline } = await import("@shared/schema");
