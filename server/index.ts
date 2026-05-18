@@ -2324,6 +2324,24 @@ httpServer.listen(
 
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
+      // Mirror youtube channel tokens to the paired youtubeshorts row immediately on every boot.
+      // Both rows share the same Google OAuth account — keeping them in sync ensures the
+      // shorts publisher always has a valid token without any manual reconnect step.
+      import("./db").then(({ db: _db }) => import("@shared/schema").then(({ channels: _ch }) => import("drizzle-orm").then(({ eq: _eq, and: _and, isNotNull: _isNotNull }) => {
+        _db.select().from(_ch).where(_and(_eq(_ch.platform, "youtube"), _isNotNull(_ch.accessToken))).then(rows => {
+          const updates = rows.map(yt => {
+            if (!yt.userId || !yt.accessToken) return Promise.resolve();
+            return _db.update(_ch).set({
+              accessToken: yt.accessToken,
+              refreshToken: yt.refreshToken,
+              tokenExpiresAt: yt.tokenExpiresAt,
+              platformData: { _connectionStatus: "active", _lastRefresh: new Date().toISOString(), _permanentFailures: 0 },
+            }).where(_and(_eq(_ch.userId, yt.userId), _eq(_ch.platform, "youtubeshorts"))).catch(() => {});
+          });
+          return Promise.all(updates).then(() => logger.info(`[Boot] Synced youtubeshorts tokens from ${rows.length} youtube channel(s)`));
+        }).catch(err => logger.warn("[Boot] Shorts token sync failed (non-fatal):", err?.message));
+      }))).catch(slog("startup-shorts-token-sync"));
+
       import("./services/engine-heartbeat").then(m => m.resetStaleEngineErrors(60 * 60 * 1000)).catch(slog("resetStaleEngineErrors"));
       // Heal permanent_fail queue items that only failed because a platform wasn't connected yet.
       // Now that platforms may be connected, reset them to pending so they get retried.
