@@ -287,7 +287,10 @@ export async function autoFixFailedPosts(): Promise<{
           notifActionUrl = `/settings?reconnect=${reconnectPlatform}`;
         }
 
-        if (!metadata.permanentFailNotified) {
+        // YouTube-only system: only notify for YouTube failures.
+        // Non-YouTube platforms are disabled — silently permanent-fail their items.
+        const isYouTubePlatform = post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts";
+        if (!metadata.permanentFailNotified && isYouTubePlatform) {
           await createNotification(post.userId, notifTitle, friendlyMsg, notifSeverity, notifActionUrl);
         }
         await db.update(autopilotQueue)
@@ -324,12 +327,15 @@ export async function autoFixFailedPosts(): Promise<{
             stats.permanent++;
             if (!metadata.permanentFailNotified) {
               const expiredPlatform = post.targetPlatform === "youtubeshorts" ? "youtube" : post.targetPlatform;
-              await createNotification(post.userId,
-                `${expiredPlatform} needs reconnection`,
-                `Your ${expiredPlatform} connection expired. Tap to reconnect in one step — automation will resume immediately.`,
-                "warning",
-                `/settings?reconnect=${expiredPlatform}`
-              );
+              // YouTube-only system: only alert for YouTube token expiry.
+              if (expiredPlatform === "youtube") {
+                await createNotification(post.userId,
+                  `${expiredPlatform} needs reconnection`,
+                  `Your ${expiredPlatform} connection expired. Tap to reconnect in one step — automation will resume immediately.`,
+                  "warning",
+                  `/settings?reconnect=${expiredPlatform}`
+                );
+              }
               await db.update(autopilotQueue)
                 .set({ metadata: { ...metadata, permanentFailNotified: true, failureCategory: "auth_expired" } })
                 .where(eq(autopilotQueue.id, post.id));

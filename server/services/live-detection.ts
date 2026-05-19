@@ -572,7 +572,9 @@ export async function runMultiPlatformLiveDetection() {
  */
 export async function recoverActiveLiveStreams(): Promise<void> {
   try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24 hours
+    // Extended to 72h so streams that got stuck "live" after a server gap
+    // beyond the old 24h window are also auto-closed on the next boot.
+    const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000);
     const liveStreams = await db.select().from(streams).where(
       and(eq(streams.status, "live"), gt(streams.startedAt, cutoff))
     );

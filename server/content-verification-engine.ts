@@ -455,6 +455,15 @@ export async function runContentVerificationSweep() {
         else if (h.status === "degraded" || h.status === "offline") totalLiveDegraded++;
 
         if (h.status === "offline" && h.isActuallyBroadcasting === false) {
+          // Auto-close the stream record so this warning doesn't fire again every
+          // 4+ hours indefinitely. If YouTube's API confirms the stream is not
+          // broadcasting, the stream has ended — update the DB to reflect that.
+          if (h.streamId) {
+            await db.update(streams)
+              .set({ status: "ended", endedAt: new Date() })
+              .where(and(eq(streams.id, h.streamId), eq(streams.status, "live")))
+              .catch(() => {});
+          }
           await storage.createNotification({
             userId,
             type: "stream_health",
