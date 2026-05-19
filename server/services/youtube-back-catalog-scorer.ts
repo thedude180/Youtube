@@ -293,26 +293,30 @@ export function computeChannelAverages(videos: BackCatalogVideo[]): ChannelAvera
   };
 }
 
-// ── Game priority whitelist ────────────────────────────────────────────────────
-// Games the channel owner wants to prioritize. These receive a score multiplier
-// so they always surface above other content when the back catalog is ranked.
+// ── Dynamic game priority boost ───────────────────────────────────────────────
+// When the channel owner is actively streaming a game, content from that game
+// rises to the top of the queue. The match is fuzzy: any meaningful word (4+
+// chars) from currentGame found in the video's game name or title counts.
+// No currentGame → no boost (all content treated equally by score alone).
 
-const GAME_PRIORITY_MULTIPLIERS: Array<{ pattern: RegExp; multiplier: number }> = [
-  { pattern: /battlefield\s*6/i,    multiplier: 2.0 },
-  { pattern: /battlefield/i,        multiplier: 1.6 },
-];
+function gameMatches(currentGame: string, gameName: string | null, title: string): boolean {
+  const cur = currentGame.toLowerCase().trim();
+  const vg  = (gameName ?? "").toLowerCase().trim();
+  const vt  = title.toLowerCase().trim();
+  if (vg && (vg.includes(cur) || cur.includes(vg))) return true;
+  const words = cur.split(/\s+/).filter(w => w.length >= 4);
+  return words.some(w => vt.includes(w) || vg.includes(w));
+}
 
 function applyGamePriorityBoost(
   score: number,
   gameName: string | null | undefined,
   title: string | null | undefined,
+  currentGame?: string | null,
 ): number {
-  const haystack = `${gameName ?? ""} ${title ?? ""}`.trim();
-  if (!haystack) return score;
-  for (const { pattern, multiplier } of GAME_PRIORITY_MULTIPLIERS) {
-    if (pattern.test(haystack)) {
-      return Math.min(100, Math.round(score * multiplier));
-    }
+  if (!currentGame) return score;
+  if (gameMatches(currentGame, gameName ?? null, title ?? "")) {
+    return Math.min(100, Math.round(score * 2.0));
   }
   return score;
 }
@@ -322,12 +326,13 @@ function applyGamePriorityBoost(
 export function rankVideos(
   videos: BackCatalogVideo[],
   channelAvg?: ChannelAverages,
+  currentGame?: string | null,
 ): Array<BackCatalogVideo & BackCatalogScores> {
   const avg = channelAvg ?? computeChannelAverages(videos);
   return videos
     .map(v => {
       const scores = scoreBackCatalogVideo(v, avg);
-      const boostedTotal = applyGamePriorityBoost(scores.totalRevivalScore, v.gameName, v.title);
+      const boostedTotal = applyGamePriorityBoost(scores.totalRevivalScore, v.gameName, v.title, currentGame);
       return { ...v, ...scores, totalRevivalScore: boostedTotal };
     })
     .sort((a, b) => b.totalRevivalScore - a.totalRevivalScore);

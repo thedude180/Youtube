@@ -25,7 +25,7 @@ import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
 
 const logger = createLogger("video-optimizer");
 
-const METADATA_REFRESH_PER_DAY = 10;  // max metadata updates per user per day
+const METADATA_REFRESH_PER_DAY = 20;  // max metadata updates per user per day
 const MIN_HOURS_BETWEEN_UPDATES = 2;   // don't update the same video twice quickly
 
 // ── Count today's metadata updates ───────────────────────────────────────────

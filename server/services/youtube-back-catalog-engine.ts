@@ -28,8 +28,9 @@ import {
   backCatalogDerivatives,
   channels,
   autopilotQueue,
+  streams,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte, lt, or, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, or, isNull, not } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import {
@@ -48,7 +49,7 @@ const logger = createLogger("back-catalog-engine");
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-export const METADATA_REFRESH_PER_DAY = 10;
+export const METADATA_REFRESH_PER_DAY = 20;
 const SHORT_MIN_SOURCE_SEC            = 300;   // 5 min source needed for a Short
 const LONG_FORM_MIN_SOURCE_SEC        = 3_600; // 60 min source for multi-segment
 const SINGLE_SEG_MIN_SOURCE_SEC       = 480;   // 8 min for single long-form clip
@@ -56,6 +57,9 @@ const SHORT_TARGET_SEC                = 38;    // default Short target duration
 const SHORTS_OPPORTUNITY_THRESHOLD   = 20;    // min score to queue a Short
 const LONG_FORM_OPPORTUNITY_THRESHOLD = 20;    // min score to queue long-form
 const BACKFILL_BATCH_SIZE            = 50;    // videos per YouTube API fetch batch
+// Allow a large advance queue so the system is always "editing" — content stays
+// in the buffer for weeks ahead and the back catalog never goes idle.
+const MAX_SCHEDULED_DEPTH_GLOBAL     = 500;
 
 // ── Helper: ISO 8601 duration to seconds ─────────────────────────────────────
 
@@ -73,6 +77,28 @@ function parseDurationSec(iso: string | undefined): number {
   return (parseInt(m[1] ?? "0", 10) * 3600) +
          (parseInt(m[2] ?? "0", 10) * 60)   +
           parseInt(m[3] ?? "0", 10);
+}
+
+// ── Get current stream game ───────────────────────────────────────────────────
+// Returns the game (category) from the most recent stream. This is used to
+// boost back catalog content matching what the channel is actively streaming,
+// so Shorts and long-form output always aligns with current live content.
+
+async function getCurrentStreamGame(userId: string): Promise<string | null> {
+  try {
+    const [recent] = await db.select({ category: streams.category })
+      .from(streams)
+      .where(and(
+        eq(streams.userId, userId),
+        not(isNull(streams.category)),
+      ))
+      .orderBy(desc(streams.createdAt))
+      .limit(1);
+    const cat = recent?.category?.trim() ?? null;
+    return cat || null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Count today's metadata refreshes ─────────────────────────────────────────
@@ -361,7 +387,13 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     }
 
     const channelAvg = computeChannelAverages(allVideos);
-    const ranked = rankVideos(allVideos, channelAvg);
+
+    // Fetch the most recent stream to find the currently-played game.
+    // This makes the back catalog prioritise content that matches live stream output.
+    const currentGame = await getCurrentStreamGame(userId);
+    if (currentGame) logger.info(`[BackCatalog] Prioritising game: "${currentGame}"`);
+
+    const ranked = rankVideos(allVideos, channelAvg, currentGame);
 
     // ── Queue metadata refreshes ──────────────────────────────────────────────
     const todayMeta = await countTodayMetadataRefreshes(userId);
@@ -369,7 +401,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
     if (metaSlots > 0) {
       const metaTargets = ranked
-        .filter(v => v.metadataOpportunityScore >= 30 && !v.isShort)
+        .filter(v => v.metadataOpportunityScore >= 15 && !v.isShort)
         .slice(0, metaSlots);
 
       for (const v of metaTargets) {
@@ -384,16 +416,15 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     }
 
     // ── Queue Shorts from old videos ──────────────────────────────────────────
-    // Queue-depth cap — stop adding items when the backlog is already large enough.
-    // 50 scheduled items ≈ 16 days of content at 3 Shorts/day — no need to pile on more.
-    const MAX_SCHEDULED_DEPTH = 50;
+    // Queue-depth cap: MAX_SCHEDULED_DEPTH_GLOBAL (500) means the buffer can hold
+    // months of content. The system keeps filling it so publishing is never idle.
     const [depthRow] = await db
       .select({ cnt: sql<number>`count(*)::int` })
       .from(autopilotQueue)
       .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "scheduled")));
     const scheduledDepth = depthRow?.cnt ?? 0;
 
-    const canShort = scheduledDepth < MAX_SCHEDULED_DEPTH && await canQueueShortToday(userId);
+    const canShort = scheduledDepth < MAX_SCHEDULED_DEPTH_GLOBAL && await canQueueShortToday(userId);
     if (canShort) {
       const shortCandidates = ranked
         .filter(v =>
