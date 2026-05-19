@@ -411,6 +411,11 @@ export async function verifyLiveStreamHealth(userId: string): Promise<LiveStream
     const platformsList = (stream.platforms as string[]) || [];
 
     for (const platform of platformsList) {
+      // YouTube-only system: skip non-YouTube platform health checks entirely.
+      // Checking Twitch/Kick health and auto-closing a stream based on their
+      // offline status could incorrectly end a stream that is still live on YouTube.
+      if (platform !== "youtube") continue;
+
       const channelRow = userChannels.find(c => c.platform === platform);
 
       if (channelRow && !channelRow.accessToken && !channelRow.refreshToken) continue;
@@ -419,10 +424,6 @@ export async function verifyLiveStreamHealth(userId: string): Promise<LiveStream
 
       if (platform === "youtube") {
         health = await verifyYouTubeLiveStream(userId, stream.title);
-      } else if (platform === "twitch" && channelRow) {
-        health = await verifyTwitchLiveStream(userId, channelRow);
-      } else if (platform === "kick" && channelRow) {
-        health = await verifyKickLiveStream(userId, channelRow);
       }
 
       if (health) {

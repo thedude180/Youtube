@@ -383,13 +383,16 @@ export async function autoFixFailedPosts(): Promise<{
       const SILENT_AUTOFIX_CATEGORIES = new Set(["quota_cap", "rate_limit", "network", "platform_down"]);
       if (autoFixAttempts >= maxAutoFix) {
         stats.permanent++;
-        if (!metadata.permanentFailNotified && !SILENT_AUTOFIX_CATEGORIES.has(category)) {
+        const isYTPost = post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts";
+        if (!metadata.permanentFailNotified && !SILENT_AUTOFIX_CATEGORIES.has(category) && isYTPost) {
           await createNotification(post.userId,
             `Upload couldn't be fixed automatically`,
             `After ${autoFixAttempts} automatic fix attempts, posting to ${post.targetPlatform} was abandoned. Error: ${errorMsg.substring(0, 150)}`,
             "error",
-            post.targetPlatform === "youtube" ? "/content" : `/settings?reconnect=${post.targetPlatform}`
+            "/content"
           );
+        } else if (!isYTPost) {
+          logger.info("[AutoFix] Suppressing max-retry notification for non-YouTube platform", { postId: post.id, platform: post.targetPlatform });
         } else {
           logger.info("[AutoFix] Suppressing permanent-fail notification for transient category", { postId: post.id, category, attempts: autoFixAttempts });
         }
