@@ -88,8 +88,9 @@ async function extractSegmentFromFile(
     "-i", sourcePath,
     "-t", String(durationSec),
     "-vf", [
-      "scale=1080:1920:force_original_aspect_ratio=increase",
+      "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos",
       "crop=1080:1920",
+      "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
       "setsar=1",
     ].join(","),
     "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",

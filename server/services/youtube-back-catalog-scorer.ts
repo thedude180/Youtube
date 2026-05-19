@@ -293,6 +293,30 @@ export function computeChannelAverages(videos: BackCatalogVideo[]): ChannelAvera
   };
 }
 
+// ── Game priority whitelist ────────────────────────────────────────────────────
+// Games the channel owner wants to prioritize. These receive a score multiplier
+// so they always surface above other content when the back catalog is ranked.
+
+const GAME_PRIORITY_MULTIPLIERS: Array<{ pattern: RegExp; multiplier: number }> = [
+  { pattern: /battlefield\s*6/i,    multiplier: 2.0 },
+  { pattern: /battlefield/i,        multiplier: 1.6 },
+];
+
+function applyGamePriorityBoost(
+  score: number,
+  gameName: string | null | undefined,
+  title: string | null | undefined,
+): number {
+  const haystack = `${gameName ?? ""} ${title ?? ""}`.trim();
+  if (!haystack) return score;
+  for (const { pattern, multiplier } of GAME_PRIORITY_MULTIPLIERS) {
+    if (pattern.test(haystack)) {
+      return Math.min(100, Math.round(score * multiplier));
+    }
+  }
+  return score;
+}
+
 // ── Public: score all videos and return sorted opportunities ─────────────────
 
 export function rankVideos(
@@ -301,7 +325,11 @@ export function rankVideos(
 ): Array<BackCatalogVideo & BackCatalogScores> {
   const avg = channelAvg ?? computeChannelAverages(videos);
   return videos
-    .map(v => ({ ...v, ...scoreBackCatalogVideo(v, avg) }))
+    .map(v => {
+      const scores = scoreBackCatalogVideo(v, avg);
+      const boostedTotal = applyGamePriorityBoost(scores.totalRevivalScore, v.gameName, v.title);
+      return { ...v, ...scores, totalRevivalScore: boostedTotal };
+    })
     .sort((a, b) => b.totalRevivalScore - a.totalRevivalScore);
 }
 

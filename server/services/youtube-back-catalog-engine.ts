@@ -29,7 +29,7 @@ import {
   channels,
   autopilotQueue,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, or, isNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import {
@@ -409,6 +409,26 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         if (!canQueue) break;
 
         try {
+          // Optimistic lock — claim this video for Shorts mining atomically.
+          // Only proceeds if minedForShorts is still false/null (prevents the
+          // read-modify-write race when two back-catalog runs overlap).
+          const claimed = await db.update(backCatalogVideos)
+            .set({ minedForShorts: true, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+              or(
+                eq(backCatalogVideos.minedForShorts, false),
+                isNull(backCatalogVideos.minedForShorts),
+              ),
+            ))
+            .returning({ id: backCatalogVideos.id });
+
+          if (!claimed.length) {
+            logger.debug(`[BackCatalog] Short already claimed for ${v.youtubeVideoId} — skipping`);
+            continue;
+          }
+
           const scheduledAt = await getNextShortPublishTime(userId);
 
           // Find local video ID
@@ -435,13 +455,9 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             } as any,
           });
 
-          // Mark as mined
+          // Update queued count (minedForShorts already set by optimistic lock above)
           await db.update(backCatalogVideos)
-            .set({
-              minedForShorts: true,
-              shortsQueuedCount: (v.shortsQueuedCount ?? 0) + 1,
-              updatedAt: new Date(),
-            })
+            .set({ shortsQueuedCount: (v.shortsQueuedCount ?? 0) + 1, updatedAt: new Date() })
             .where(and(
               eq(backCatalogVideos.userId, userId),
               eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
@@ -478,6 +494,24 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         if (!canQueue) break;
 
         try {
+          // Optimistic lock — claim before any operation
+          const claimedLF60 = await db.update(backCatalogVideos)
+            .set({ minedForLongForm: true, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+              or(
+                eq(backCatalogVideos.minedForLongForm, false),
+                isNull(backCatalogVideos.minedForLongForm),
+              ),
+            ))
+            .returning({ id: backCatalogVideos.id });
+
+          if (!claimedLF60.length) {
+            logger.debug(`[BackCatalog] Long-form (60+) already claimed for ${v.youtubeVideoId} — skipping`);
+            continue;
+          }
+
           const { queueLongFormSegments, hasUnminedFootage } = await import("./youtube-longform-segmenter");
           const localVideoId = v.localVideoId;
 
@@ -488,7 +522,6 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
               if (queued > 0) {
                 await db.update(backCatalogVideos)
                   .set({
-                    minedForLongForm: true,
                     longFormQueuedCount: (v.longFormQueuedCount ?? 0) + queued,
                     updatedAt: new Date(),
                   })
@@ -500,20 +533,13 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
                 result.longFormQueued += queued;
                 logger.info(`[BackCatalog] ${queued} long-form segment(s) queued from ${v.youtubeVideoId}`);
               }
-            } else {
-              // Mark as fully mined
-              await db.update(backCatalogVideos)
-                .set({ minedForLongForm: true, updatedAt: new Date() })
-                .where(and(
-                  eq(backCatalogVideos.userId, userId),
-                  eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-                ));
             }
+            // (minedForLongForm already set by optimistic lock above, even if no footage found)
           } else {
             // No local video — queue directly from back catalog with source reference
             await queueLongFormFromBackCatalog(userId, v);
             await db.update(backCatalogVideos)
-              .set({ minedForLongForm: true, longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
+              .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
               .where(and(
                 eq(backCatalogVideos.userId, userId),
                 eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
@@ -543,9 +569,27 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           if (!canQueue) break;
 
           try {
+            // Optimistic lock — claim before inserting to prevent duplicate long-form entries
+            const claimedLF = await db.update(backCatalogVideos)
+              .set({ minedForLongForm: true, updatedAt: new Date() })
+              .where(and(
+                eq(backCatalogVideos.userId, userId),
+                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+                or(
+                  eq(backCatalogVideos.minedForLongForm, false),
+                  isNull(backCatalogVideos.minedForLongForm),
+                ),
+              ))
+              .returning({ id: backCatalogVideos.id });
+
+            if (!claimedLF.length) {
+              logger.debug(`[BackCatalog] Long-form already claimed for ${v.youtubeVideoId} — skipping`);
+              continue;
+            }
+
             await queueLongFormFromBackCatalog(userId, v);
             await db.update(backCatalogVideos)
-              .set({ minedForLongForm: true, longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
+              .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
               .where(and(
                 eq(backCatalogVideos.userId, userId),
                 eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
