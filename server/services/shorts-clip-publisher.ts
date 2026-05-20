@@ -46,7 +46,7 @@ const logger = createLogger("shorts-publisher");
 
 const MAX_PER_RUN = 20; // canAffordOperation (quota) is the real gate; 20 is the safety ceiling
 // How far ahead to look when picking up shadow-scheduled items for batch-upload to YouTube
-const BATCH_WINDOW_DAYS = 90; // 90-day window — shadow schedule is unlimited; quota limits actual uploads per day
+const BATCH_WINDOW_DAYS = 365; // 365-day window — shadow schedule is unlimited; quota + MAX_PER_RUN cap actual uploads per night
 const MAX_DURATION_SEC = 60;
 const SHORT_TEMP_DIR = path.join(process.cwd(), "data", "shorts-tmp");
 
