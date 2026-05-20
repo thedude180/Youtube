@@ -285,8 +285,9 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         .where(eq(autopilotQueue.id, item.id));
 
       // Get source video for metadata
-      const [srcVideo] = await db.select().from(videos)
-        .where(eq(videos.id, item.sourceVideoId)).limit(1);
+      const [srcVideo] = item.sourceVideoId != null
+        ? await db.select().from(videos).where(eq(videos.id, item.sourceVideoId)).limit(1)
+        : [];
       const srcMeta = (srcVideo?.metadata ?? {}) as Record<string, unknown>;
       const gameName = (itemMeta.gameName as string) || (srcMeta.gameName as string) || "PS5 Gameplay";
       const tags = Array.isArray(itemMeta.tags) ? (itemMeta.tags as string[]) : [];

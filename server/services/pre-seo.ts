@@ -263,7 +263,7 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
         const [src] = await db
           .select({ title: backCatalogVideos.title })
           .from(backCatalogVideos)
-          .where(eq(backCatalogVideos.youtubeId, sourceYoutubeId))
+          .where(eq(backCatalogVideos.youtubeVideoId, sourceYoutubeId))
           .limit(1);
         if (src?.title) sourceTitle = src.title.slice(0, 200);
       } catch { /* use fallback */ }

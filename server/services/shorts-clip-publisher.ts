@@ -40,7 +40,7 @@ import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
-import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate } from "./youtube-output-schedule";
+import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, getNextShortPublishTime } from "./youtube-output-schedule";
 
 const logger = createLogger("shorts-publisher");
 
@@ -431,7 +431,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       // cap check always targets the correct upcoming date, not a stale past date.
       const shortsAlreadyDone = await countUploadedShortsForDate(
         userId,
-        effectiveScheduledAt,
+        effectiveScheduledAt!, // guaranteed non-null: null path above always hits `continue`
       );
       if (shortsAlreadyDone >= MAX_SHORTS_PER_DAY) {
         logger.info(`[YouTubeSchedule] Shorts daily cap (${MAX_SHORTS_PER_DAY}/day) reached for scheduled date — deferring item ${item.id}`);
@@ -463,8 +463,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         .where(eq(autopilotQueue.id, item.id));
 
       // Get source video metadata for caption generation
-      const [srcVideo] = await db.select().from(videos)
-        .where(eq(videos.id, item.sourceVideoId)).limit(1);
+      const [srcVideo] = item.sourceVideoId != null
+        ? await db.select().from(videos).where(eq(videos.id, item.sourceVideoId)).limit(1)
+        : [];
       const srcMeta = (srcVideo?.metadata ?? {}) as Record<string, unknown>;
       const resolvedYoutubeId = sourceYoutubeId
         || (srcMeta.youtubeId as string | undefined)
