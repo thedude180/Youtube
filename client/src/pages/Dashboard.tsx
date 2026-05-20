@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
-  Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, Loader2, X,
-  Activity, PlayCircle,
+  Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, X,
+  Activity, PlayCircle, Scissors, HardDrive, Film, Brain, ArrowUpRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,69 +29,257 @@ import UpcomingSchedule from "./dashboard/UpcomingSchedule";
 import BackCatalogReviver from "./dashboard/BackCatalogReviver";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
-
 const AGENT_ROSTER = [
-  { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",        initials: "JB", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
-  { id: "admin",      name: "Priya Sharma",    role: "Ops Engineer",          initials: "PS", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-  { id: "research",   name: "Tomás Rivera",    role: "Research Lead",         initials: "TR", color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30" },
-  { id: "scriptwriter",name: "Nia Okafor",     role: "Scriptwriter",          initials: "NO", color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" },
-  { id: "editor",     name: "Kenji Watanabe",  role: "Video Editor",          initials: "KW", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-  { id: "thumbnail",  name: "Sofia Vasquez",   role: "Thumbnail Designer",    initials: "SV", color: "bg-pink-500/20 text-pink-400 border-pink-500/30" },
-  { id: "seo",        name: "Arjun Mehta",     role: "SEO Manager",           initials: "AM", color: "bg-orange-500/20 text-orange-400 border-orange-500/30" },
-  { id: "shorts",     name: "Zara Ibrahim",    role: "Shorts Specialist",     initials: "ZI", color: "bg-red-500/20 text-red-400 border-red-500/30" },
-  { id: "social",     name: "Marcus Wilson",   role: "Social Media Manager",  initials: "MW", color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30" },
-  { id: "community",  name: "Chloe Chen",      role: "Community Manager",     initials: "CC", color: "bg-teal-500/20 text-teal-400 border-teal-500/30" },
-  { id: "analyst",    name: "Dr. Leo Zhang",   role: "Data Analyst",          initials: "LZ", color: "bg-violet-500/20 text-violet-400 border-violet-500/30" },
-  { id: "brand",      name: "Elena Rossi",     role: "Brand & Sponsorships",  initials: "ER", color: "bg-rose-500/20 text-rose-400 border-rose-500/30" },
-  { id: "talent",     name: "Sarah Jenkins",   role: "Talent Manager",        initials: "SJ", color: "bg-lime-500/20 text-lime-400 border-lime-500/30" },
-  { id: "legal",      name: "Alex Rivera",     role: "Legal & Compliance",    initials: "AR", color: "bg-slate-500/20 text-slate-400 border-slate-500/30" },
-  { id: "catalog",    name: "Jamie Cruz",      role: "Catalog Content Director",  initials: "JC", color: "bg-amber-500/20 text-amber-400 border-amber-500/30" },
-  { id: "livestream", name: "River Osei",      role: "Live Stream Growth Agent",     initials: "RO", color: "bg-red-600/20 text-red-400 border-red-600/30" },
-  { id: "livechat",   name: "Kai Nakamura",   role: "Live Chat Commander",           initials: "KN", color: "bg-sky-500/20 text-sky-400 border-sky-500/30" },
-  { id: "clipper",    name: "Mila Reyes",     role: "Moment Hunter",                 initials: "MR", color: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30" },
-  { id: "raidscout",  name: "Devon Hall",     role: "Raid Scout & Network Builder",  initials: "DH", color: "bg-green-500/20 text-green-400 border-green-500/30" },
-  { id: "revpulse",   name: "Jade Kim",       role: "Revenue Pulse",                 initials: "JK", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
-  { id: "continuity", name: "Morgan Wells",   role: "Autonomous Operations Director", initials: "MW", color: "bg-violet-500/20 text-violet-400 border-violet-500/30" },
+  { id: "continuity", name: "Morgan Wells",    role: "Autonomous Ops Director", initials: "MW",
+    color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    dept: "command",
+    workspace: "/", workspaceLabel: "Briefing",
+    duties: ["24/7 autopilot oversight", "System health monitoring", "Error detection & recovery"] },
+  { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",          initials: "JB",
+    color: "bg-violet-500/20 text-violet-400 border-violet-500/30",
+    dept: "command",
+    workspace: "/", workspaceLabel: "Briefing",
+    duties: ["Strategic direction", "Revenue target setting", "Final approval authority"] },
+
+  { id: "editor",     name: "Kenji Watanabe",  role: "Video Editor",            initials: "KW",
+    color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    dept: "production",
+    workspace: "/stream-editor", workspaceLabel: "Stream Editor",
+    duties: ["Cuts VODs into highlights", "4K cinematic upscaling", "Genre-aware color grading"] },
+  { id: "clipper",    name: "Mila Reyes",      role: "Moment Hunter",           initials: "MR",
+    color: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30",
+    dept: "production",
+    workspace: "/stream-editor", workspaceLabel: "Stream Editor",
+    duties: ["Finds viral timestamps", "Queues Shorts from streams", "3 clips per stream, auto"] },
+  { id: "catalog",    name: "Jamie Cruz",      role: "Catalog Director",        initials: "JC",
+    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    dept: "production",
+    workspace: "/vault", workspaceLabel: "Vault",
+    duties: ["Scores archived footage", "Schedules republish cycles", "Recovers buried content"] },
+  { id: "shorts",     name: "Zara Ibrahim",    role: "Shorts Specialist",       initials: "ZI",
+    color: "bg-red-500/20 text-red-400 border-red-500/30",
+    dept: "production",
+    workspace: "/content", workspaceLabel: "Content",
+    duties: ["Packages & captions Shorts", "Hook optimization per genre", "Trend-matching cuts"] },
+  { id: "scriptwriter",name: "Nia Okafor",     role: "Scriptwriter",            initials: "NO",
+    color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    dept: "production",
+    workspace: "/content", workspaceLabel: "Content",
+    duties: ["Writes video scripts & hooks", "CTAs tuned to audience data", "Brand-voice consistency"] },
+  { id: "seo",        name: "Arjun Mehta",     role: "SEO Manager",             initials: "AM",
+    color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    dept: "production",
+    workspace: "/content", workspaceLabel: "Content",
+    duties: ["Optimizes titles, tags & desc.", "Keyword research & ranking", "YouTube search velocity"] },
+  { id: "thumbnail",  name: "Sofia Vasquez",   role: "Thumbnail Designer",      initials: "SV",
+    color: "bg-pink-500/20 text-pink-400 border-pink-500/30",
+    dept: "production",
+    workspace: "/content", workspaceLabel: "Content",
+    duties: ["AI thumbnail generation", "CTR A/B testing", "Click-psychology composition"] },
+
+  { id: "livestream", name: "River Osei",      role: "Live Stream Director",    initials: "RO",
+    color: "bg-red-600/20 text-red-400 border-red-600/30",
+    dept: "live",
+    workspace: "/stream", workspaceLabel: "Live",
+    duties: ["Pre-stream prep & scheduling", "Real-time viewer retention", "Post-stream clip queuing"] },
+  { id: "livechat",   name: "Kai Nakamura",    role: "Live Chat Commander",     initials: "KN",
+    color: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    dept: "live",
+    workspace: "/stream", workspaceLabel: "Live",
+    duties: ["AI chat moderation", "Engagement reply (max 8/hr)", "Sentiment monitoring"] },
+  { id: "community",  name: "Chloe Chen",      role: "Community Manager",       initials: "CC",
+    color: "bg-teal-500/20 text-teal-400 border-teal-500/30",
+    dept: "live",
+    workspace: "/stream", workspaceLabel: "Live",
+    duties: ["Community posts & polls", "Comment engagement", "Super-fan loyalty tracking"] },
+  { id: "raidscout",  name: "Devon Hall",      role: "Raid Scout",              initials: "DH",
+    color: "bg-green-500/20 text-green-400 border-green-500/30",
+    dept: "live",
+    workspace: "/stream", workspaceLabel: "Live",
+    duties: ["Finds optimal raid targets", "Builds creator network", "Cross-promotion deals"] },
+
+  { id: "brand",      name: "Elena Rossi",     role: "Brand & Sponsorships",    initials: "ER",
+    color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+    dept: "business",
+    workspace: "/money", workspaceLabel: "Revenue",
+    duties: ["Sponsor outreach & vetting", "Rate card management", "Deal intake & tracking"] },
+  { id: "revpulse",   name: "Jade Kim",        role: "Revenue Analyst",         initials: "JK",
+    color: "bg-yellow-600/20 text-yellow-400 border-yellow-600/30",
+    dept: "business",
+    workspace: "/money", workspaceLabel: "Revenue",
+    duties: ["Ad revenue & CPM tracking", "Monthly P&L reporting", "Monetization milestones"] },
+  { id: "social",     name: "Marcus Wilson",   role: "Distribution Manager",    initials: "MW",
+    color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+    dept: "business",
+    workspace: "/content", workspaceLabel: "Content",
+    duties: ["Cross-platform scheduling", "Viral repost timing", "Platform-specific formatting"] },
+
+  { id: "research",   name: "Tomás Rivera",    role: "Research Lead",           initials: "TR",
+    color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    dept: "intelligence",
+    workspace: "/system-growth", workspaceLabel: "Growth",
+    duties: ["Trend forecasting", "Competitor gap analysis", "Content opportunity finding"] },
+  { id: "analyst",    name: "Dr. Leo Zhang",   role: "Performance Analyst",     initials: "LZ",
+    color: "bg-violet-500/20 text-violet-400 border-violet-500/30",
+    dept: "intelligence",
+    workspace: "/system-growth", workspaceLabel: "Growth",
+    duties: ["Audience retention models", "Duration & format learning", "A/B test attribution"] },
+
+  { id: "admin",      name: "Priya Sharma",    role: "Ops Engineer",            initials: "PS",
+    color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    dept: "ops",
+    workspace: "/settings", workspaceLabel: "Settings",
+    duties: ["Platform connections", "API uptime & quota", "Token budget monitoring"] },
+  { id: "talent",     name: "Sarah Jenkins",   role: "Talent Manager",          initials: "SJ",
+    color: "bg-lime-500/20 text-lime-400 border-lime-500/30",
+    dept: "ops",
+    workspace: "/settings", workspaceLabel: "Settings",
+    duties: ["Creator wellness guardrails", "Collab vetting", "Brand ambassador mgmt"] },
+  { id: "legal",      name: "Alex Rivera",     role: "Legal & Compliance",      initials: "AR",
+    color: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    dept: "ops",
+    workspace: "/settings", workspaceLabel: "Settings",
+    duties: ["Copyright & FTC compliance", "Terms & contracts review", "Risk flagging"] },
 ];
 
-function StatusDot({ status }: { status: string }) {
-  if (status === "active") return <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 animate-pulse" data-testid="dot-active" />;
-  if (status === "error")  return <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" data-testid="dot-error" />;
-  return <span className="w-2 h-2 rounded-full bg-muted-foreground/30 flex-shrink-0" data-testid="dot-idle" />;
+type Agent = typeof AGENT_ROSTER[number];
+
+const DEPARTMENTS: {
+  id: string;
+  label: string;
+  description: string;
+  accent: string;
+  labelColor: string;
+  agents: string[];
+}[] = [
+  {
+    id: "command",
+    label: "Command",
+    description: "Orchestrates all AI agents and owns final decisions",
+    accent: "border-l-purple-500",
+    labelColor: "text-purple-400",
+    agents: ["continuity", "owner"],
+  },
+  {
+    id: "production",
+    label: "Production",
+    description: "Creates, edits, and packages all video content end-to-end",
+    accent: "border-l-blue-500",
+    labelColor: "text-blue-400",
+    agents: ["editor", "clipper", "catalog", "shorts", "scriptwriter", "seo", "thumbnail"],
+  },
+  {
+    id: "live",
+    label: "Live Ops",
+    description: "Runs every stream from pre-show prep to post-stream clips",
+    accent: "border-l-red-500",
+    labelColor: "text-red-400",
+    agents: ["livestream", "livechat", "community", "raidscout"],
+  },
+  {
+    id: "business",
+    label: "Business",
+    description: "Grows revenue, secures brand deals, and manages distribution",
+    accent: "border-l-emerald-500",
+    labelColor: "text-emerald-400",
+    agents: ["brand", "revpulse", "social"],
+  },
+  {
+    id: "intelligence",
+    label: "Intelligence",
+    description: "Researches trends and turns performance data into strategy",
+    accent: "border-l-cyan-500",
+    labelColor: "text-cyan-400",
+    agents: ["research", "analyst"],
+  },
+  {
+    id: "ops",
+    label: "Operations",
+    description: "Keeps the platform connected, compliant, and healthy",
+    accent: "border-l-slate-400",
+    labelColor: "text-slate-400",
+    agents: ["admin", "talent", "legal"],
+  },
+];
+
+function StatusChip({ status }: { status: string }) {
+  if (status === "active") return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25" data-testid="chip-active">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />WORKING
+    </span>
+  );
+  if (status === "error") return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/25" data-testid="chip-error">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />ERROR
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-muted/30 text-muted-foreground/60 border border-border/20" data-testid="chip-idle">
+      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />IDLE
+    </span>
+  );
 }
 
-function AgentCard({ agent, liveData }: { agent: typeof AGENT_ROSTER[number]; liveData?: any }) {
+function AgentCard({ agent, liveData, recentAction }: { agent: Agent; liveData?: any; recentAction?: string }) {
   const status  = liveData?.status ?? "idle";
-  const lastRun = liveData?.lastRun;
   const tasks   = liveData?.tasksToday ?? 0;
+  const lastRun = liveData?.lastRun;
+
   return (
     <Card
-      className="p-4 border border-border/40 bg-card/50 hover:bg-card/80 transition-colors"
+      className="flex flex-col border border-border/40 bg-card/50 hover:bg-card/80 hover:border-border/70 transition-all overflow-hidden"
       data-testid={`card-agent-${agent.id}`}
     >
-      <div className="flex items-start gap-3">
-        <div className={`w-9 h-9 rounded-full border flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${agent.color}`}>
-          {agent.initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <StatusDot status={status} />
-            <span className="text-sm font-semibold text-foreground truncate" data-testid={`text-agent-name-${agent.id}`}>{agent.name}</span>
+      <div className="p-3.5 flex flex-col gap-2.5 flex-1">
+        <div className="flex items-start gap-2.5">
+          <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-[11px] font-bold ${agent.color}`}>
+            {agent.initials}
           </div>
-          <div className="text-[11px] text-muted-foreground truncate">{agent.role}</div>
-          {lastRun && (
-            <div className="text-[10px] text-muted-foreground/60 mt-1 truncate" data-testid={`text-agent-lastrun-${agent.id}`}>
-              Last active {formatDistanceToNow(new Date(lastRun), { addSuffix: true })}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-sm font-semibold text-foreground leading-none" data-testid={`text-agent-name-${agent.id}`}>{agent.name}</span>
+              <StatusChip status={status} />
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{agent.role}</div>
+          </div>
+          {tasks > 0 && (
+            <div className="flex-shrink-0 text-right" data-testid={`badge-tasks-${agent.id}`}>
+              <div className="text-sm font-bold text-foreground font-mono leading-none">{tasks}</div>
+              <div className="text-[9px] text-muted-foreground">done today</div>
             </div>
           )}
         </div>
-        {tasks > 0 && (
-          <div className="flex-shrink-0 text-center" data-testid={`badge-tasks-${agent.id}`}>
-            <div className="text-xs font-bold text-foreground font-mono">{tasks}</div>
-            <div className="text-[9px] text-muted-foreground">tasks</div>
+
+        <div className="space-y-0.5">
+          {agent.duties.map((d, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[10px] text-muted-foreground/70">
+              <span className="mt-[3px] w-1 h-1 rounded-full bg-muted-foreground/30 flex-shrink-0" />
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {(recentAction || lastRun) && (
+          <div className="rounded-md bg-muted/20 border border-border/20 px-2 py-1.5">
+            {recentAction ? (
+              <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2" data-testid={`text-agent-action-${agent.id}`}>
+                <span className="text-primary/70 font-medium">Now: </span>{recentAction}
+              </p>
+            ) : lastRun ? (
+              <p className="text-[10px] text-muted-foreground/60" data-testid={`text-agent-lastrun-${agent.id}`}>
+                Last active {formatDistanceToNow(new Date(lastRun), { addSuffix: true })}
+              </p>
+            ) : null}
           </div>
         )}
       </div>
+
+      <Link href={agent.workspace}>
+        <div className="px-3.5 py-2 border-t border-border/20 bg-muted/5 hover:bg-muted/20 transition-colors flex items-center justify-between cursor-pointer" data-testid={`link-agent-workspace-${agent.id}`}>
+          <span className="text-[10px] text-muted-foreground/60 font-medium">Open {agent.workspaceLabel}</span>
+          <ArrowUpRight className="h-3 w-3 text-muted-foreground/40" />
+        </div>
+      </Link>
     </Card>
   );
 }
@@ -532,71 +721,116 @@ export default function TeamDashboard() {
           ) : null}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                The Team
-              </h2>
-              {!agentsLoading && (
-                <span className="text-xs text-muted-foreground" data-testid="text-agent-count">
-                  {activeCount} active
-                </span>
-              )}
-            </div>
-
-            {agentsError ? (
-              <QueryErrorReset error={agentsError as Error} queryKey={["/api/agents/status"]} label="Failed to load agent status" />
-            ) : agentsLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {[...Array(AGENT_ROSTER.length)].map((_, i) => <Skeleton key={i} className="h-[76px] rounded-lg" />)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {AGENT_ROSTER.map(agent => {
-                  const live = agentStatus?.find((a: any) =>
-                    a.name?.toLowerCase().includes(agent.name.split(" ")[0].toLowerCase()) ||
-                    a.role?.toLowerCase().includes(agent.role.toLowerCase().split(" ")[0])
-                  );
-                  return <AgentCard key={agent.id} agent={agent} liveData={live} />;
-                })}
-              </div>
+        {/* ── AI Staff Directory — grouped by department ─────────────────── */}
+        <div data-testid="section-staff-directory">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              AI Staff Directory
+            </h2>
+            {!agentsLoading && (
+              <span className="text-xs text-muted-foreground" data-testid="text-agent-count">
+                {activeCount} of {AGENT_ROSTER.length} working now
+              </span>
             )}
           </div>
 
-          <StreamQualityBrief />
-
-          <div className="lg:col-span-1">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-muted-foreground" />
-                Team Activity
-              </h2>
-            </div>
-
-            <div className="rounded-xl border border-border/40 bg-card/30 overflow-hidden">
-              <ScrollArea className="h-[540px]">
-                <div className="p-3 space-y-0" data-testid="activity-feed">
-                  {!activities || activities.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <Clock className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">Team activity will appear here once agents start working.</p>
-                    </div>
-                  ) : (
-                    activities.map((a: any, i: number) => (
-                      <ActivityRow 
-                        key={a.id ?? i} 
-                        activity={a} 
-                        onClick={() => setSelectedTask(a)}
-                      />
-                    ))
-                  )}
+          {agentsError ? (
+            <QueryErrorReset error={agentsError as Error} queryKey={["/api/agents/status"]} label="Failed to load agent status" />
+          ) : agentsLoading ? (
+            <div className="space-y-6">
+              {DEPARTMENTS.map(dept => (
+                <div key={dept.id}>
+                  <Skeleton className="h-5 w-32 mb-3" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {[...Array(dept.agents.length)].map((_, i) => <Skeleton key={i} className="h-40 rounded-lg" />)}
+                  </div>
                 </div>
-              </ScrollArea>
+              ))}
             </div>
+          ) : (
+            <div className="space-y-6">
+              {DEPARTMENTS.map(dept => {
+                const deptAgents = AGENT_ROSTER.filter(a => a.dept === dept.id);
+                const deptActive = deptAgents.filter(a => {
+                  const live = agentStatus?.find((s: any) =>
+                    s.name?.toLowerCase().includes(a.name.split(" ")[0].toLowerCase()) ||
+                    s.role?.toLowerCase().includes(a.role.toLowerCase().split(" ")[0])
+                  );
+                  return live?.status === "active";
+                }).length;
+
+                return (
+                  <div key={dept.id} className={`rounded-xl border border-border/30 border-l-2 ${dept.accent} bg-card/20 overflow-hidden`} data-testid={`section-dept-${dept.id}`}>
+                    <div className="px-4 py-3 border-b border-border/20 flex items-center justify-between">
+                      <div>
+                        <span className={`text-xs font-bold uppercase tracking-widest ${dept.labelColor}`}>{dept.label}</span>
+                        <p className="text-[11px] text-muted-foreground/60 mt-0.5">{dept.description}</p>
+                      </div>
+                      {deptActive > 0 && (
+                        <span className="text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full" data-testid={`badge-dept-active-${dept.id}`}>
+                          {deptActive} working
+                        </span>
+                      )}
+                    </div>
+                    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {deptAgents.map(agent => {
+                        const live = agentStatus?.find((s: any) =>
+                          s.name?.toLowerCase().includes(agent.name.split(" ")[0].toLowerCase()) ||
+                          s.role?.toLowerCase().includes(agent.role.toLowerCase().split(" ")[0])
+                        );
+                        const recentActivity = activities?.find((a: any) =>
+                          a.agentName?.toLowerCase().includes(agent.name.split(" ")[0].toLowerCase()) ||
+                          a.agentName?.toLowerCase().includes(agent.role.split(" ")[0].toLowerCase())
+                        );
+                        return (
+                          <AgentCard
+                            key={agent.id}
+                            agent={agent}
+                            liveData={live}
+                            recentAction={recentActivity?.action}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Team Activity feed ─────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              Live Team Activity
+            </h2>
+          </div>
+          <div className="rounded-xl border border-border/40 bg-card/30 overflow-hidden">
+            <ScrollArea className="h-72">
+              <div className="p-3 space-y-0" data-testid="activity-feed">
+                {!activities || activities.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <Clock className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">Team activity will appear here once agents start working.</p>
+                  </div>
+                ) : (
+                  activities.map((a: any, i: number) => (
+                    <ActivityRow
+                      key={a.id ?? i}
+                      activity={a}
+                      onClick={() => setSelectedTask(a)}
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>
           </div>
         </div>
+
+        <StreamQualityBrief />
 
         <AudienceGrowthSection />
 

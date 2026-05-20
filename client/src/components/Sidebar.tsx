@@ -15,6 +15,7 @@ import {
   Scissors,
   Sparkles,
   Brain,
+  LayoutDashboard,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,17 +29,53 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-const NAV_ITEMS = [
-  { href: "/",        label: "Team",     icon: Users },
-  { href: "/content", label: "Content",  icon: Video },
-  { href: "/studio",        label: "Studio",   icon: Film },
-  { href: "/vault",         label: "Vault",    icon: HardDrive },
-  { href: "/stream-editor", label: "Editor",   icon: Scissors },
-  { href: "/stream",  label: "Live",     icon: Radio },
-  { href: "/money",             label: "Revenue",  icon: DollarSign },
-  { href: "/platform-features", label: "Features", icon: Sparkles },
-  { href: "/system-growth",     label: "Growth",   icon: Brain },
-  { href: "/settings",          label: "Settings", icon: Settings },
+const NAV_SECTIONS = [
+  {
+    id: "command",
+    label: "COMMAND",
+    items: [
+      { href: "/", label: "Briefing", icon: LayoutDashboard },
+    ],
+  },
+  {
+    id: "production",
+    label: "PRODUCTION",
+    items: [
+      { href: "/content",       label: "Content",  icon: Video },
+      { href: "/stream-editor", label: "Editor",   icon: Scissors },
+      { href: "/vault",         label: "Vault",    icon: HardDrive },
+      { href: "/studio",        label: "Studio",   icon: Film },
+    ],
+  },
+  {
+    id: "live",
+    label: "LIVE OPS",
+    items: [
+      { href: "/stream", label: "Live", icon: Radio },
+    ],
+  },
+  {
+    id: "business",
+    label: "BUSINESS",
+    items: [
+      { href: "/money", label: "Revenue", icon: DollarSign },
+    ],
+  },
+  {
+    id: "intelligence",
+    label: "INTELLIGENCE",
+    items: [
+      { href: "/platform-features", label: "Features", icon: Sparkles },
+      { href: "/system-growth",     label: "Growth",   icon: Brain },
+    ],
+  },
+  {
+    id: "ops",
+    label: "OPERATIONS",
+    items: [
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -110,27 +147,52 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-2.5">
-        <SidebarMenu className="gap-px">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={active} data-testid={`nav-${item.label.toLowerCase()}`} className="transition-all duration-150" onMouseEnter={() => prefetchForRoute(item.href)} onClick={() => prefetchForRoute(item.href)}>
-                  <Link href={item.href}>
-                    <Icon className={`h-4 w-4 flex-shrink-0 transition-all duration-200 ${active ? "text-primary" : ""}`} strokeWidth={active ? 2.2 : 1.8} />
-                    <span className={`font-medium transition-colors duration-150 ${active ? "text-foreground" : ""}`}>{item.label}</span>
-                    {item.href === "/stream" && stats?.isLive && (
-                      <span className="ml-auto text-[9px] font-bold text-red-400 bg-red-500/15 border border-red-500/25 px-1.5 py-0.5 rounded-full animate-pulse">LIVE</span>
-                    )}
-                    {item.href === "/settings" && hasTokenWarning && (
-                      <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_hsl(0_84%_60%/0.6)] animate-pulse" data-testid="badge-settings-token-warning" />
-                    )}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
+        <SidebarMenu className="gap-0">
+          {NAV_SECTIONS.map((section, sectionIdx) => (
+            <div key={section.id}>
+              {sectionIdx > 0 && (
+                <div className="px-3 pt-3 pb-1">
+                  <span className="text-[9px] font-bold tracking-widest text-muted-foreground/40 uppercase">
+                    {section.label}
+                  </span>
+                </div>
+              )}
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      data-testid={`nav-${item.label.toLowerCase()}`}
+                      className="transition-all duration-150"
+                      onMouseEnter={() => prefetchForRoute(item.href)}
+                      onClick={() => prefetchForRoute(item.href)}
+                    >
+                      <Link href={item.href}>
+                        <Icon
+                          className={`h-4 w-4 flex-shrink-0 transition-all duration-200 ${active ? "text-primary" : ""}`}
+                          strokeWidth={active ? 2.2 : 1.8}
+                        />
+                        <span className={`font-medium transition-colors duration-150 ${active ? "text-foreground" : ""}`}>
+                          {item.label}
+                        </span>
+                        {item.href === "/stream" && stats?.isLive && (
+                          <span className="ml-auto text-[9px] font-bold text-red-400 bg-red-500/15 border border-red-500/25 px-1.5 py-0.5 rounded-full animate-pulse">
+                            LIVE
+                          </span>
+                        )}
+                        {item.href === "/settings" && hasTokenWarning && (
+                          <span className="ml-auto flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_5px_hsl(0_84%_60%/0.6)] animate-pulse" data-testid="badge-settings-token-warning" />
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </div>
+          ))}
         </SidebarMenu>
       </SidebarContent>
 
