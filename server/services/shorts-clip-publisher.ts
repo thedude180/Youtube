@@ -404,11 +404,34 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         continue;
       }
 
+      // ── Reschedule past-due items ─────────────────────────────────────────
+      // Items that accumulated while the quota breaker was tripped carry a
+      // scheduledAt in the past.  Uploading them as-is causes a burst right
+      // at midnight (all publish immediately as public).  Instead, bump each
+      // one to the next valid future slot so YouTube spaces the releases
+      // properly across the day.
+      let effectiveScheduledAt: Date | null = item.scheduledAt ? new Date(item.scheduledAt) : null;
+      if (!effectiveScheduledAt || effectiveScheduledAt.getTime() <= Date.now() + 60_000) {
+        try {
+          const newSlot = await getNextShortPublishTime(item.userId);
+          await db.update(autopilotQueue)
+            .set({ scheduledAt: newSlot })
+            .where(eq(autopilotQueue.id, item.id));
+          effectiveScheduledAt = newSlot;
+          logger.info(`[ShortsPublisher] Past-due item ${item.id} rescheduled to ${newSlot.toISOString()}`);
+        } catch (err: any) {
+          logger.warn(`[ShortsPublisher] Reschedule failed for item ${item.id}: ${err.message?.slice(0, 100)} — skipping to avoid burst`);
+          skipped++;
+          continue;
+        }
+      }
+
       // Daily cap safety net — max MAX_SHORTS_PER_DAY Shorts per local calendar day.
-      // Counts items already uploaded (processing/published) for the item's scheduled date.
+      // Uses effectiveScheduledAt (the possibly-rescheduled future slot) so the
+      // cap check always targets the correct upcoming date, not a stale past date.
       const shortsAlreadyDone = await countUploadedShortsForDate(
         userId,
-        new Date(item.scheduledAt ?? Date.now()),
+        effectiveScheduledAt,
       );
       if (shortsAlreadyDone >= MAX_SHORTS_PER_DAY) {
         logger.info(`[YouTubeSchedule] Shorts daily cap (${MAX_SHORTS_PER_DAY}/day) reached for scheduled date — deferring item ${item.id}`);
@@ -506,7 +529,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   ? `${sourceTitle}\n\n${resolvedYoutubeId ? `Full video → https://youtu.be/${resolvedYoutubeId}` : ""}\n\n#Shorts #Gaming #PS5 #ETGaming247`
                   : `${sourceTitle}\n\n#Shorts #Gaming #PS5`;
 
-                const shortScheduledAt = item.scheduledAt ? new Date(item.scheduledAt) : null;
+                const shortScheduledAt = effectiveScheduledAt;
                 const shortIsScheduled = shortScheduledAt && shortScheduledAt.getTime() > Date.now() + 60_000;
 
                 if (shortScheduledAt) {
@@ -573,7 +596,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         if ((result as any).youtubeId) {
           const publishedYtId = (result as any).youtubeId as string;
           const clipDurationSec = Math.max(1, endSec - startSec);
-          const schedAt = item.scheduledAt ? new Date(item.scheduledAt) : new Date();
+          const schedAt = effectiveScheduledAt ?? new Date();
           const h = schedAt.getUTCHours();
           const postingWindow = h >= 6 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 21 ? "evening" : "late_night";
           Promise.all([

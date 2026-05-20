@@ -30,7 +30,7 @@ import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { recordHeartbeat } from "./engine-heartbeat";
-import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate } from "./youtube-output-schedule";
+import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPublishTime } from "./youtube-output-schedule";
 
 const logger = createLogger("long-form-publisher");
 
@@ -219,11 +219,33 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         continue;
       }
 
+      // ── Reschedule past-due items ─────────────────────────────────────────
+      // Items blocked by the quota breaker carry a scheduledAt in the past.
+      // Publishing them as-is bursts all past content at midnight as immediate
+      // public uploads.  Bump each one to the next valid future slot so
+      // YouTube holds it and releases at the correct spaced time.
+      let effectiveScheduledAt: Date | null = item.scheduledAt ? new Date(item.scheduledAt) : null;
+      if (!effectiveScheduledAt || effectiveScheduledAt.getTime() <= Date.now() + 60_000) {
+        try {
+          const newSlot = await getNextLongFormPublishTime(item.userId);
+          await db.update(autopilotQueue)
+            .set({ scheduledAt: newSlot })
+            .where(eq(autopilotQueue.id, item.id));
+          effectiveScheduledAt = newSlot;
+          logger.info(`[LongFormPublisher] Past-due item ${item.id} rescheduled to ${newSlot.toISOString()}`);
+        } catch (err: any) {
+          logger.warn(`[LongFormPublisher] Reschedule failed for item ${item.id}: ${err.message?.slice(0, 100)} — skipping to avoid burst`);
+          skipped++;
+          continue;
+        }
+      }
+
       // Daily cap safety net — max MAX_LONGFORM_PER_DAY long-form uploads per local calendar day.
-      // Counts items already uploaded (processing/published) for the item's scheduled date.
+      // Uses effectiveScheduledAt (the possibly-rescheduled future slot) so the cap
+      // check always targets the correct upcoming date, not a stale past date.
       const lfAlreadyDone = await countUploadedLongFormForDate(
         item.userId,
-        new Date(item.scheduledAt ?? Date.now()),
+        effectiveScheduledAt,
       );
       if (lfAlreadyDone >= MAX_LONGFORM_PER_DAY) {
         logger.info(`[YouTubeSchedule] Long-form daily cap (${MAX_LONGFORM_PER_DAY}/day) reached for scheduled date — deferring item ${item.id}`);
@@ -324,7 +346,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         const fullVideoUrl = resolvedYoutubeId ? `\n\nFull recording → https://youtu.be/${resolvedYoutubeId}` : "";
         const description = `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`.substring(0, 5000);
 
-        const lfScheduledAt  = item.scheduledAt ? new Date(item.scheduledAt) : null;
+        const lfScheduledAt  = effectiveScheduledAt;
         const lfIsScheduled  = lfScheduledAt && lfScheduledAt.getTime() > Date.now() + 60_000;
 
         if (lfScheduledAt) {
