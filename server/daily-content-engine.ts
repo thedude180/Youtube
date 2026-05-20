@@ -11,6 +11,7 @@ import { detectGamingContext, buildGamingPromptSection, detectContentContext, bu
 import { getActiveTrendOverride, getCooldownTrendOverrides, selectStreamByTrend, onStreamDetected } from "./trend-rider-engine";
 import { storage } from "./storage";
 import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { getNextShortPublishTime } from "./services/youtube-output-schedule";
 
 const logger = createLogger("stream-exhaust");
 const openai = getOpenAIClientBackground();
@@ -636,14 +637,18 @@ async function queueBatchContent(
 
   for (let i = 0; i < plan.shorts.length; i++) {
     const short = plan.shorts[i];
-    const shortTime = new Date(longFormTime.getTime() + (i + 1) * 60 * 60 * 1000 + Math.random() * 20 * 60 * 1000);
+    // Use the output schedule slot system so each Short gets a proper window
+    // with the 5.5-hour minimum gap enforced and the 14-day capacity respected.
+    // Previous code used longFormTime+(i+1)h which bypassed all gap enforcement
+    // and caused burst publishing that exhausted the daily quota.
+    const shortTime = await getNextShortPublishTime(userId);
 
     try {
       await db.insert(autopilotQueue).values({
         userId,
         sourceVideoId,
         type: "youtube_short",
-        targetPlatform: "youtube",
+        targetPlatform: "youtubeshorts",
         content: `${sanitizeForPrompt(short.title)}\n\n${sanitizeForPrompt(short.description)}\n\n${sanitizeForPrompt(short.hashtags.join(" "))}`,
         caption: short.title,
         status: "scheduled",

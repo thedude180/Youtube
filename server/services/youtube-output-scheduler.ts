@@ -330,7 +330,7 @@ async function runForUser(userId: string): Promise<void> {
           userId,
           sourceVideoId: video.id,
           type: "youtube_short",
-          targetPlatform: "youtube",
+          targetPlatform: "youtubeshorts",
           content: video.description || "",
           caption: `${gameName} #Shorts`,
           status: "scheduled",
