@@ -7,6 +7,7 @@ import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
   Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, X,
   Activity, PlayCircle, Scissors, HardDrive, Film, Brain, ArrowUpRight,
+  ArrowRight, Layers, Zap, BarChart2, Repeat,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -34,111 +35,132 @@ const AGENT_ROSTER = [
     color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
     dept: "command",
     workspace: "/", workspaceLabel: "Briefing",
+    passesTo: ["editor", "shorts", "social"],
     duties: ["24/7 autopilot oversight", "System health monitoring", "Error detection & recovery"] },
   { id: "owner",      name: "Jordan Blake",    role: "CEO / AI Owner",          initials: "JB",
     color: "bg-violet-500/20 text-violet-400 border-violet-500/30",
     dept: "command",
     workspace: "/", workspaceLabel: "Briefing",
+    passesTo: ["brand", "revpulse"],
     duties: ["Strategic direction", "Revenue target setting", "Final approval authority"] },
 
   { id: "editor",     name: "Kenji Watanabe",  role: "Video Editor",            initials: "KW",
     color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     dept: "production",
     workspace: "/stream-editor", workspaceLabel: "Stream Editor",
+    passesTo: ["shorts", "seo", "thumbnail"],
     duties: ["Cuts VODs into highlights", "4K cinematic upscaling", "Genre-aware color grading"] },
   { id: "clipper",    name: "Mila Reyes",      role: "Moment Hunter",           initials: "MR",
     color: "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-500/30",
     dept: "production",
     workspace: "/stream-editor", workspaceLabel: "Stream Editor",
+    passesTo: ["editor", "shorts"],
     duties: ["Finds viral timestamps", "Queues Shorts from streams", "3 clips per stream, auto"] },
   { id: "catalog",    name: "Jamie Cruz",      role: "Catalog Director",        initials: "JC",
     color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
     dept: "production",
     workspace: "/vault", workspaceLabel: "Vault",
+    passesTo: ["editor", "clipper"],
     duties: ["Scores archived footage", "Schedules republish cycles", "Recovers buried content"] },
   { id: "shorts",     name: "Zara Ibrahim",    role: "Shorts Specialist",       initials: "ZI",
     color: "bg-red-500/20 text-red-400 border-red-500/30",
     dept: "production",
     workspace: "/content", workspaceLabel: "Content",
+    passesTo: ["seo", "social"],
     duties: ["Packages & captions Shorts", "Hook optimization per genre", "Trend-matching cuts"] },
   { id: "scriptwriter",name: "Nia Okafor",     role: "Scriptwriter",            initials: "NO",
     color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
     dept: "production",
     workspace: "/content", workspaceLabel: "Content",
+    passesTo: ["shorts", "seo"],
     duties: ["Writes video scripts & hooks", "CTAs tuned to audience data", "Brand-voice consistency"] },
   { id: "seo",        name: "Arjun Mehta",     role: "SEO Manager",             initials: "AM",
     color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
     dept: "production",
     workspace: "/content", workspaceLabel: "Content",
+    passesTo: ["social"],
     duties: ["Optimizes titles, tags & desc.", "Keyword research & ranking", "YouTube search velocity"] },
   { id: "thumbnail",  name: "Sofia Vasquez",   role: "Thumbnail Designer",      initials: "SV",
     color: "bg-pink-500/20 text-pink-400 border-pink-500/30",
     dept: "production",
     workspace: "/content", workspaceLabel: "Content",
+    passesTo: ["social"],
     duties: ["AI thumbnail generation", "CTR A/B testing", "Click-psychology composition"] },
 
   { id: "livestream", name: "River Osei",      role: "Live Stream Director",    initials: "RO",
     color: "bg-red-600/20 text-red-400 border-red-600/30",
     dept: "live",
     workspace: "/stream", workspaceLabel: "Live",
+    passesTo: ["clipper", "community"],
     duties: ["Pre-stream prep & scheduling", "Real-time viewer retention", "Post-stream clip queuing"] },
   { id: "livechat",   name: "Kai Nakamura",    role: "Live Chat Commander",     initials: "KN",
     color: "bg-sky-500/20 text-sky-400 border-sky-500/30",
     dept: "live",
     workspace: "/stream", workspaceLabel: "Live",
+    passesTo: ["community"],
     duties: ["AI chat moderation", "Engagement reply (max 8/hr)", "Sentiment monitoring"] },
   { id: "community",  name: "Chloe Chen",      role: "Community Manager",       initials: "CC",
     color: "bg-teal-500/20 text-teal-400 border-teal-500/30",
     dept: "live",
     workspace: "/stream", workspaceLabel: "Live",
+    passesTo: ["brand"],
     duties: ["Community posts & polls", "Comment engagement", "Super-fan loyalty tracking"] },
   { id: "raidscout",  name: "Devon Hall",      role: "Raid Scout",              initials: "DH",
     color: "bg-green-500/20 text-green-400 border-green-500/30",
     dept: "live",
     workspace: "/stream", workspaceLabel: "Live",
+    passesTo: ["community", "brand"],
     duties: ["Finds optimal raid targets", "Builds creator network", "Cross-promotion deals"] },
 
   { id: "brand",      name: "Elena Rossi",     role: "Brand & Sponsorships",    initials: "ER",
     color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
     dept: "business",
     workspace: "/money", workspaceLabel: "Revenue",
+    passesTo: ["revpulse"],
     duties: ["Sponsor outreach & vetting", "Rate card management", "Deal intake & tracking"] },
   { id: "revpulse",   name: "Jade Kim",        role: "Revenue Analyst",         initials: "JK",
     color: "bg-yellow-600/20 text-yellow-400 border-yellow-600/30",
     dept: "business",
     workspace: "/money", workspaceLabel: "Revenue",
+    passesTo: ["owner"],
     duties: ["Ad revenue & CPM tracking", "Monthly P&L reporting", "Monetization milestones"] },
   { id: "social",     name: "Marcus Wilson",   role: "Distribution Manager",    initials: "MW",
     color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
     dept: "business",
     workspace: "/content", workspaceLabel: "Content",
+    passesTo: ["revpulse"],
     duties: ["Cross-platform scheduling", "Viral repost timing", "Platform-specific formatting"] },
 
   { id: "research",   name: "Tomás Rivera",    role: "Research Lead",           initials: "TR",
     color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
     dept: "intelligence",
     workspace: "/system-growth", workspaceLabel: "Growth",
+    passesTo: ["scriptwriter", "seo", "owner"],
     duties: ["Trend forecasting", "Competitor gap analysis", "Content opportunity finding"] },
   { id: "analyst",    name: "Dr. Leo Zhang",   role: "Performance Analyst",     initials: "LZ",
     color: "bg-violet-500/20 text-violet-400 border-violet-500/30",
     dept: "intelligence",
     workspace: "/system-growth", workspaceLabel: "Growth",
+    passesTo: ["editor", "research"],
     duties: ["Audience retention models", "Duration & format learning", "A/B test attribution"] },
 
   { id: "admin",      name: "Priya Sharma",    role: "Ops Engineer",            initials: "PS",
     color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
     dept: "ops",
     workspace: "/settings", workspaceLabel: "Settings",
+    passesTo: ["continuity"],
     duties: ["Platform connections", "API uptime & quota", "Token budget monitoring"] },
   { id: "talent",     name: "Sarah Jenkins",   role: "Talent Manager",          initials: "SJ",
     color: "bg-lime-500/20 text-lime-400 border-lime-500/30",
     dept: "ops",
     workspace: "/settings", workspaceLabel: "Settings",
+    passesTo: ["brand", "community"],
     duties: ["Creator wellness guardrails", "Collab vetting", "Brand ambassador mgmt"] },
   { id: "legal",      name: "Alex Rivera",     role: "Legal & Compliance",      initials: "AR",
     color: "bg-slate-500/20 text-slate-400 border-slate-500/30",
     dept: "ops",
     workspace: "/settings", workspaceLabel: "Settings",
+    passesTo: ["owner"],
     duties: ["Copyright & FTC compliance", "Terms & contracts review", "Risk flagging"] },
 ];
 
@@ -225,6 +247,11 @@ function AgentCard({ agent, liveData, recentAction }: { agent: Agent; liveData?:
   const tasks   = liveData?.tasksToday ?? 0;
   const lastRun = liveData?.lastRun;
 
+  const downstream = (agent as any).passesTo as string[] | undefined;
+  const downstreamNames = downstream
+    ?.map(id => AGENT_ROSTER.find(a => a.id === id)?.name.split(" ")[0])
+    .filter(Boolean);
+
   return (
     <Card
       className="flex flex-col border border-border/40 bg-card/50 hover:bg-card/80 hover:border-border/70 transition-all overflow-hidden"
@@ -272,6 +299,16 @@ function AgentCard({ agent, liveData, recentAction }: { agent: Agent; liveData?:
             ) : null}
           </div>
         )}
+
+        {downstreamNames && downstreamNames.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap" data-testid={`text-agent-handoff-${agent.id}`}>
+            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/30 flex-shrink-0" />
+            <span className="text-[9px] text-muted-foreground/40">hands off to</span>
+            {downstreamNames.map((name, i) => (
+              <span key={i} className="text-[9px] font-medium text-primary/50">{name}{i < downstreamNames.length - 1 ? "," : ""}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       <Link href={agent.workspace}>
@@ -281,6 +318,197 @@ function AgentCard({ agent, liveData, recentAction }: { agent: Agent; liveData?:
         </div>
       </Link>
     </Card>
+  );
+}
+
+function ContentPipeline({ outputStatus }: { outputStatus: any }) {
+  const backlog   = outputStatus?.queue?.backlog  ?? 0;
+  const failed    = outputStatus?.queue?.failed   ?? 0;
+  const shorts    = outputStatus?.today?.shortsScheduled  ?? 0;
+  const longForm  = outputStatus?.today?.longFormScheduled ?? 0;
+  const published = shorts + longForm;
+
+  const stages = [
+    {
+      id: "source",
+      label: "Source",
+      sublabel: "Jamie discovers",
+      icon: HardDrive,
+      color: "text-amber-400",
+      bg: "bg-amber-500/10 border-amber-500/20",
+      dot: "bg-amber-400",
+      value: null,
+      unit: "catalog",
+    },
+    {
+      id: "cut",
+      label: "Edit",
+      sublabel: "Kenji + Mila cut",
+      icon: Scissors,
+      color: "text-yellow-400",
+      bg: "bg-yellow-500/10 border-yellow-500/20",
+      dot: "bg-yellow-400",
+      value: backlog + published,
+      unit: "clips",
+    },
+    {
+      id: "package",
+      label: "Package",
+      sublabel: "Zara + Nia write",
+      icon: Film,
+      color: "text-fuchsia-400",
+      bg: "bg-fuchsia-500/10 border-fuchsia-500/20",
+      dot: "bg-fuchsia-400",
+      value: backlog,
+      unit: "ready",
+    },
+    {
+      id: "optimize",
+      label: "Optimize",
+      sublabel: "Arjun + Sofia finish",
+      icon: Sparkles,
+      color: "text-orange-400",
+      bg: "bg-orange-500/10 border-orange-500/20",
+      dot: "bg-orange-400",
+      value: backlog > 0 ? Math.max(1, Math.round(backlog * 0.8)) : 0,
+      unit: "SEO'd",
+    },
+    {
+      id: "publish",
+      label: "Publish",
+      sublabel: "Marcus distributes",
+      icon: Zap,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/10 border-emerald-500/20",
+      dot: "bg-emerald-400",
+      value: published,
+      unit: "today",
+    },
+  ];
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="section-content-pipeline">
+      <div className="px-4 py-3 border-b border-border/20 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Layers className="h-4 w-4 text-muted-foreground" />
+          Content Pipeline
+        </h2>
+        <span className="text-[10px] text-muted-foreground/50">work flows left → right</span>
+      </div>
+      <div className="p-3">
+        <div className="flex items-stretch gap-0 overflow-x-auto pb-1">
+          {stages.map((stage, i) => {
+            const Icon = stage.icon;
+            return (
+              <div key={stage.id} className="flex items-stretch flex-1 min-w-[80px]">
+                <div className={`flex-1 rounded-lg border p-2.5 flex flex-col gap-1.5 ${stage.bg}`} data-testid={`pipeline-stage-${stage.id}`}>
+                  <div className="flex items-center gap-1.5">
+                    <Icon className={`h-3 w-3 flex-shrink-0 ${stage.color}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${stage.color}`}>{stage.label}</span>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    {stage.value !== null ? (
+                      <>
+                        <span className="text-lg font-bold text-foreground font-mono leading-none">{stage.value}</span>
+                        <span className="text-[9px] text-muted-foreground/60 mb-0.5">{stage.unit}</span>
+                      </>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground/50 italic">scanning…</span>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-muted-foreground/50 leading-tight">{stage.sublabel}</span>
+                  {stage.id === "cut" && failed > 0 && (
+                    <span className="text-[9px] text-red-400">{failed} failed</span>
+                  )}
+                </div>
+                {i < stages.length - 1 && (
+                  <div className="flex items-center px-1 flex-shrink-0">
+                    <ArrowRight className="h-3 w-3 text-border/50" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompanyVelocity({ stats, outputStatus, activities }: { stats: any; outputStatus: any; activities: any[] | undefined }) {
+  const published  = (outputStatus?.today?.shortsScheduled ?? 0) + (outputStatus?.today?.longFormScheduled ?? 0);
+  const backlog    = outputStatus?.queue?.backlog ?? 0;
+  const subs       = stats?.subscriberCount ?? 0;
+  const revenue    = stats?.monthlyRevenue != null ? Number(stats.monthlyRevenue) : null;
+  const tasksToday = activities?.length ?? 0;
+
+  const metrics = [
+    {
+      icon: Zap,
+      label: "Published today",
+      value: published > 0 ? String(published) : "0",
+      sub: `${backlog} queued`,
+      color: "text-emerald-400",
+      bg: "bg-emerald-500/8 border-emerald-500/15",
+    },
+    {
+      icon: Users,
+      label: "Subscribers",
+      value: subs >= 1000 ? `${(subs / 1000).toFixed(1)}K` : subs > 0 ? String(subs) : "—",
+      sub: "YouTube",
+      color: "text-purple-400",
+      bg: "bg-purple-500/8 border-purple-500/15",
+    },
+    {
+      icon: DollarSign,
+      label: "Revenue this month",
+      value: revenue != null ? `$${revenue.toFixed(0)}` : "—",
+      sub: "all sources",
+      color: "text-yellow-400",
+      bg: "bg-yellow-500/8 border-yellow-500/15",
+    },
+    {
+      icon: BarChart2,
+      label: "Team tasks today",
+      value: String(tasksToday),
+      sub: "AI actions logged",
+      color: "text-cyan-400",
+      bg: "bg-cyan-500/8 border-cyan-500/15",
+    },
+    {
+      icon: Repeat,
+      label: "Quota resets",
+      value: outputStatus?.quota?.status === "exhausted" ? "exhausted" : "OK",
+      sub: "midnight Pacific",
+      color: outputStatus?.quota?.status === "exhausted" ? "text-red-400" : "text-emerald-400",
+      bg: outputStatus?.quota?.status === "exhausted" ? "bg-red-500/8 border-red-500/15" : "bg-emerald-500/8 border-emerald-500/15",
+    },
+  ];
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="section-company-velocity">
+      <div className="px-4 py-3 border-b border-border/20">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          Company Velocity
+        </h2>
+      </div>
+      <div className="p-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
+        {metrics.map((m) => {
+          const Icon = m.icon;
+          return (
+            <div key={m.label} className={`rounded-lg border p-2.5 flex flex-col gap-1 ${m.bg}`} data-testid={`velocity-${m.label.toLowerCase().replace(/\s/g, "-")}`}>
+              <div className="flex items-center gap-1.5">
+                <Icon className={`h-3 w-3 flex-shrink-0 ${m.color}`} />
+                <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide truncate">{m.label}</span>
+              </div>
+              <span className={`text-base font-bold font-mono leading-none ${m.color}`}>{m.value}</span>
+              <span className="text-[9px] text-muted-foreground/50">{m.sub}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -513,6 +741,11 @@ export default function TeamDashboard() {
     staleTime: 10 * 60_000,
   });
 
+  const { data: outputStatus } = useQuery<any>({
+    queryKey: ["/api/youtube/output-status"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
+  });
 
   const brokenPlatforms = (channels || [])
     .filter((ch: any) => (ch.platform === "youtube" || ch.platform === "youtubeshorts") && (ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded"))
@@ -720,6 +953,10 @@ export default function TeamDashboard() {
             </div>
           ) : null}
         </div>
+
+        {/* ── Content Pipeline + Company Velocity ────────────────────────── */}
+        <ContentPipeline outputStatus={outputStatus} />
+        <CompanyVelocity stats={stats} outputStatus={outputStatus} activities={activities} />
 
         {/* ── AI Staff Directory — grouped by department ─────────────────── */}
         <div data-testid="section-staff-directory">
