@@ -13,6 +13,136 @@ const FFMPEG_BIN = "ffmpeg";
 const FFPROBE_BIN = "ffprobe";
 const EDITOR_OUTPUT_DIR = path.resolve(process.cwd(), "data", "stream-editor");
 
+// ── Genre detection ───────────────────────────────────────────────────────────
+
+type GameGenre = "action" | "horror" | "rpg" | "sports" | "default";
+
+function detectGenre(gameName: string | null | undefined): GameGenre {
+  if (!gameName) return "default";
+  const g = gameName.toLowerCase();
+  if (/call of duty|warzone|battlefield|apex|valorant|fortnite|halo|doom|destiny|overwatch|counter.?strike|\bcod\b|fps|shooter/i.test(g)) return "action";
+  if (/resident evil|silent hill|outlast|horror|alien.*isolation|dead space|evil within|amnesia/i.test(g)) return "horror";
+  if (/elden ring|dark souls|witcher|final fantasy|dragon|skyrim|monster hunter|pokemon|persona|baldur.*gate|\bzelda\b/i.test(g)) return "rpg";
+  if (/\bfifa\b|nba\b|nfl\b|mlb\b|nhl\b|madden|rocket league|\bf1\b|racing|ufc|boxing|sport/i.test(g)) return "sports";
+  return "default";
+}
+
+// ── Per-genre cinematic color presets ─────────────────────────────────────────
+// Each preset is a pair of FFmpeg curve + eq filter strings that plug directly
+// into the video filter chain.  Curves handle tonal shaping (shadows/mids/highs);
+// eq handles overall exposure, contrast, and saturation.
+//
+// Curve notation: 'X/Y' pairs map input brightness → output brightness (0–1).
+// Think of each pair as a point on a tone curve: below-the-line = darken, above = brighten.
+
+const GENRE_CURVES: Record<GameGenre, string> = {
+  // Teal-orange grade: crushed blacks, orange highs, teal lows
+  action:
+    "curves=r='0/0 0.12/0.08 0.5/0.55 0.88/0.93 1/1'" +
+    ":g='0/0 0.12/0.11 0.5/0.52 0.88/0.89 1/1'" +
+    ":b='0/0.03 0.12/0.16 0.5/0.48 0.88/0.83 1/0.96'",
+  // Cool desaturated grade: lifted shadows, muted reds, pushed blues — moody atmosphere
+  horror:
+    "curves=r='0/0.02 0.2/0.14 0.5/0.46 0.8/0.80 1/0.94'" +
+    ":g='0/0.01 0.2/0.16 0.5/0.47 0.8/0.81 1/0.96'" +
+    ":b='0/0.04 0.2/0.22 0.5/0.51 0.8/0.82 1/0.98'",
+  // Warm golden grade: rich shadows, golden midtones, creamy highlights
+  rpg:
+    "curves=r='0/0.01 0.2/0.22 0.5/0.55 0.8/0.85 1/1'" +
+    ":g='0/0 0.2/0.20 0.5/0.52 0.8/0.83 1/0.99'" +
+    ":b='0/0 0.2/0.16 0.5/0.47 0.8/0.79 1/0.93'",
+  // Vivid punchy grade: high contrast, saturated, clean whites
+  sports:
+    "curves=r='0/0 0.15/0.12 0.5/0.56 0.85/0.93 1/1'" +
+    ":g='0/0 0.15/0.14 0.5/0.54 0.85/0.91 1/1'" +
+    ":b='0/0 0.15/0.13 0.5/0.52 0.85/0.88 1/0.98'",
+  // Balanced cinematic: shadow lift, clean midtones, gentle highlight roll-off
+  default:
+    "curves=r='0/0.01 0.2/0.20 0.5/0.53 0.8/0.84 1/0.99'" +
+    ":g='0/0 0.2/0.20 0.5/0.52 0.8/0.83 1/0.99'" +
+    ":b='0/0 0.2/0.19 0.5/0.51 0.8/0.82 1/0.98'",
+};
+
+const GENRE_EQ: Record<GameGenre, string> = {
+  action:  "eq=brightness=0.01:contrast=1.12:saturation=1.25:gamma=0.97",
+  horror:  "eq=brightness=-0.02:contrast=1.08:saturation=0.75:gamma=1.02",
+  rpg:     "eq=brightness=0.02:contrast=1.05:saturation=1.10:gamma=0.99",
+  sports:  "eq=brightness=0.02:contrast=1.15:saturation=1.30:gamma=0.96",
+  default: "eq=brightness=0.02:contrast=1.06:saturation=1.12:gamma=0.98",
+};
+
+// ── Per-platform segment planner ──────────────────────────────────────────────
+// Computes which time windows to encode per platform from a single source file.
+// This is where "more content per stream" lives:
+//   Shorts  → 3 moments at the 25%, 50%, 75% marks (all different gameplay)
+//   YouTube → 1 highlight; 2 highlights for 3h+ streams (two separate sets)
+//
+// All windows skip the first 8% (max 10 min) to avoid stream intros / lobby waits.
+
+const SHORTS_TARGET_SEC = 52;         // 52 s — sweet spot for YouTube Shorts algorithm
+const LONG_STREAM_THRESHOLD_SEC = 10_800; // 3 h — add a second long-form segment above this
+
+interface PlatformSegment {
+  startSec: number;
+  durationSec: number;
+  segIndex: number;
+}
+
+function computePlatformSegments(
+  platform: StreamEditPlatform,
+  probeDurationSecs: number,
+  smartCutStartSec: number | null,
+  smartCutDurationSec: number | null,
+  clipSecs: number,
+): PlatformSegment[] {
+  if (platform === "shorts") {
+    const skipStart = Math.min(probeDurationSecs * 0.08, 600);
+    const skipEnd   = probeDurationSecs * 0.03;
+    const usable    = probeDurationSecs - skipStart - skipEnd;
+
+    if (usable < SHORTS_TARGET_SEC) {
+      return [{ startSec: 0, durationSec: Math.min(59, probeDurationSecs), segIndex: 0 }];
+    }
+
+    // 3 distinct Shorts from the 25%, 50%, and 75% marks of usable footage
+    const fractions = usable > 300 ? [0.25, 0.50, 0.75] : [0.50];
+    return fractions
+      .map((f, i) => {
+        const mid   = skipStart + usable * f;
+        const start = Math.max(0, Math.round(mid - SHORTS_TARGET_SEC / 2));
+        const dur   = Math.min(SHORTS_TARGET_SEC, probeDurationSecs - start);
+        return { startSec: start, durationSec: dur, segIndex: i };
+      })
+      .filter(s => s.durationSec >= 15);
+  }
+
+  // ── YouTube long-form ────────────────────────────────────────────────────────
+  if (smartCutStartSec !== null && smartCutDurationSec !== null) {
+    const segs: PlatformSegment[] = [
+      { startSec: smartCutStartSec, durationSec: smartCutDurationSec, segIndex: 0 },
+    ];
+    // For 3h+ streams add a second highlight from the second half of the stream
+    if (probeDurationSecs > LONG_STREAM_THRESHOLD_SEC) {
+      const secondStart = Math.max(
+        smartCutStartSec + smartCutDurationSec + 600,
+        Math.floor(probeDurationSecs * 0.52),
+      );
+      if (secondStart + smartCutDurationSec <= probeDurationSecs - 300) {
+        segs.push({ startSec: secondStart, durationSec: smartCutDurationSec, segIndex: 1 });
+      }
+    }
+    return segs;
+  }
+
+  // Source ≤ 60 min, no smart-cut — stride through in clipSecs chunks
+  const numChunks = Math.ceil(probeDurationSecs / clipSecs);
+  return Array.from({ length: numChunks }, (_, i) => ({
+    startSec:    i * clipSecs,
+    durationSec: Math.min(clipSecs, probeDurationSecs - i * clipSecs),
+    segIndex:    i,
+  }));
+}
+
 if (!fs.existsSync(EDITOR_OUTPUT_DIR)) {
   fs.mkdirSync(EDITOR_OUTPUT_DIR, { recursive: true });
 }
@@ -188,45 +318,43 @@ async function probeVideo(filePath: string): Promise<{
   };
 }
 
-function buildVideoFilter(
+function buildCinematicVideoFilter(
+  gameName: string | null | undefined,
   enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean },
   profile: PlatformProfile,
   sourceFps: number,
   sourceWidth: number,
   sourceHeight: number,
+  durationSecs: number,
 ): string {
+  const genre    = detectGenre(gameName);
   const parts: string[] = [];
-
-  // Determine whether we are genuinely upscaling or just fitting/downscaling.
-  // A source that is already >= the target in both dimensions does NOT need
-  // upscaling — applying an upscale filter chain to native 4K source only adds
-  // unnecessary re-encoding blur.  We still apply denoise + colour + sharpening;
-  // only the scale step changes.
   const needsUpscale = sourceWidth < profile.width || sourceHeight < profile.height;
 
+  // 1. Temporal denoise at source resolution — removes artefacts before scaling
   if (enhancements.upscale4k) {
-    // Denoise at source resolution before any scaling — removes compression
-    // artefacts that would otherwise be amplified by the upscale step.
     parts.push("hqdn3d=luma_spatial=2:chroma_spatial=1.5:luma_tmp=3:chroma_tmp=2.5");
   }
+
+  // 2. Cinematic colour grade: tonal curves (genre LUT) + exposure/saturation eq
+  //    Applied before scale so grading works at source resolution (most accurate).
   if (enhancements.colorEnhance) {
-    parts.push("eq=brightness=0.02:contrast=1.06:saturation=1.12:gamma=0.98");
+    parts.push(GENRE_CURVES[genre]);
+    parts.push(GENRE_EQ[genre]);
   }
+
+  // 3. Pre-upscale sharpening — crispens edges before Lanczos interpolation
   if (enhancements.sharpen && needsUpscale) {
-    // Pre-upscale sharpening: strengthens edges at source resolution so they
-    // survive the interpolation step with less blurring.
     parts.push("unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.9:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.3");
   } else if (enhancements.sharpen) {
-    // Source already at or above target — lighter sharpen, no need to compensate
-    // for upscale blur.
     parts.push("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.5:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.2");
   }
 
+  // 4. Scale & layout
   if (profile.orientation === "portrait") {
+    // Centre 9:16 crop → scale to Shorts resolution
     parts.push(
       `crop=min(iw\\,ih*9/16):min(ih\\,iw*16/9):(iw-min(iw\\,ih*9/16))/2:(ih-min(ih\\,iw*16/9))/2`,
-      // full_chroma_int + full_chroma_inp preserve chroma precision during scale.
-      // sws_dither=ed uses error-diffusion dithering to avoid banding.
       `scale=${profile.width}:${profile.height}:flags=lanczos+accurate_rnd+full_chroma_int+full_chroma_inp:sws_dither=ed`,
     );
   } else {
@@ -236,9 +364,7 @@ function buildVideoFilter(
         `pad=${profile.width}:${profile.height}:-1:-1:color=black`,
       );
       if (needsUpscale && enhancements.sharpen) {
-        // Post-upscale sharpening: Lanczos interpolation introduces slight
-        // blurring at the target resolution — a gentle unsharp mask restores
-        // perceived edge crispness without amplifying noise.
+        // Post-upscale sharpening: restores edge crispness lost to Lanczos blur
         parts.push("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.5:chroma_msize_x=3:chroma_msize_y=3:chroma_amount=0.2");
       }
     } else {
@@ -246,8 +372,20 @@ function buildVideoFilter(
     }
   }
 
+  // 5. Normalise pixel aspect + cap frame rate
   parts.push("setsar=1");
   if (sourceFps > 0) parts.push(`fps=fps=${Math.min(sourceFps, 60)}`);
+
+  // 6. Cinematic vignette — landscape only (adds depth; not appropriate for Shorts)
+  if (profile.orientation === "landscape" && enhancements.colorEnhance) {
+    parts.push("vignette=PI/4:eval=init");
+  }
+
+  // 7. Professional fade in (0.5 s) + fade out (1 s before end)
+  //    Every clip gets a clean open/close — no abrupt cuts.
+  const fadeOutAt = Math.max(0.5, durationSecs - 1.0);
+  parts.push("fade=t=in:st=0:d=0.5");
+  parts.push(`fade=t=out:st=${fadeOutAt.toFixed(2)}:d=1.0`);
 
   return parts.join(",");
 }
@@ -262,11 +400,12 @@ async function processClip(
   sourceFps: number,
   sourceWidth: number,
   sourceHeight: number,
+  gameName: string | null | undefined,
   onProgress?: (pct: number, fps: number, stage: string) => void,
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
-  const vf = buildVideoFilter(enhancements, profile, sourceFps, sourceWidth, sourceHeight);
+  const vf = buildCinematicVideoFilter(gameName, enhancements, profile, sourceFps, sourceWidth, sourceHeight, actualDuration);
   const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
 
   const args: string[] = [
@@ -630,51 +769,57 @@ async function runJobInBackground(jobId: number): Promise<void> {
       upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true,
     }) as { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean };
 
+    // ── Resolve game name (used for colour grading + smart-cut) ─────────────
+    let gameName: string | null = null;
+    if (job.vaultEntryId) {
+      const [ve] = await db
+        .select({ metadata: contentVaultBackups.metadata, title: contentVaultBackups.title, gameName: contentVaultBackups.gameName })
+        .from(contentVaultBackups)
+        .where(eq(contentVaultBackups.id, job.vaultEntryId))
+        .limit(1);
+      if (ve) {
+        const veMeta = (ve.metadata ?? {}) as Record<string, any>;
+        gameName = ve.gameName
+          || veMeta.gameName || veMeta.game
+          || ve.title?.split(/[\s\-–:|]/)?.[0]
+          || null;
+      }
+    }
+
     // ── Smart-cut: audience-optimal segment for source videos > 60 min ───────
-    // Encoding a full 2-6 hour stream at 4K takes 4+ hours and hits the hard
-    // timeout.  Instead, pick ONE audience-optimal 8–60 min segment:
-    //   1. Call chooseBestLongFormDuration() to get the learned ideal length.
-    //   2. Skip the first 8% of the video (max 10 min) to clear stream intros,
-    //      lobby waits, and "let's get started" dead air.
-    //   3. Encode only that single segment — pure quality, zero waste.
+    // Encoding a full 2-6 hour stream at 4K hits the 4-hour hard timeout.
+    // Instead, pick ONE 8-60 min segment that the audience data says performs best.
+    //   1. chooseBestLongFormDuration() returns the learned ideal length.
+    //   2. Skip first 8% (max 10 min) to clear stream intros / lobby waits.
+    //   3. computePlatformSegments() uses this window + returns 3 Shorts moments
+    //      (25% / 50% / 75% of the stream) and a second long-form for 3h+ streams.
     let smartCutStartSec: number | null = null;
     let smartCutDurationSec: number | null = null;
 
     if (probe.durationSecs > 3600) {
       try {
-        // Resolve game name for the learner from vault entry metadata
-        let gameName = "PS5 Gameplay";
-        if (job.vaultEntryId) {
-          const [ve] = await db
-            .select({ metadata: contentVaultBackups.metadata, title: contentVaultBackups.title })
-            .from(contentVaultBackups)
-            .where(eq(contentVaultBackups.id, job.vaultEntryId))
-            .limit(1);
-          const veMeta = (ve?.metadata ?? {}) as Record<string, any>;
-          gameName = veMeta.gameName || veMeta.game
-            || (ve?.title?.split(/[\s\-–:|]/)?.[0] ?? "PS5 Gameplay");
-        }
-
         const { chooseBestLongFormDuration } = await import("./youtube-performance-learner");
-        const targetSec = await chooseBestLongFormDuration(job.userId, gameName, probe.durationSecs);
+        const targetSec = await chooseBestLongFormDuration(
+          job.userId,
+          gameName ?? "PS5 Gameplay",
+          probe.durationSecs,
+        );
 
-        // Skip stream intro: 8% of video, capped at 10 minutes
-        const introSkipSec = Math.min(probe.durationSecs * 0.08, 600);
-        const rawStart = Math.floor(introSkipSec);
-        // Shift start back if segment would run past end of video
-        const adjustedStart = (rawStart + targetSec) > probe.durationSecs
+        const introSkipSec   = Math.min(probe.durationSecs * 0.08, 600);
+        const rawStart       = Math.floor(introSkipSec);
+        const adjustedStart  = (rawStart + targetSec) > probe.durationSecs
           ? Math.max(0, probe.durationSecs - targetSec)
           : rawStart;
 
-        smartCutStartSec = Math.round(adjustedStart);
+        smartCutStartSec    = Math.round(adjustedStart);
         smartCutDurationSec = Math.round(Math.min(targetSec, probe.durationSecs - adjustedStart));
 
         logger.info(
           `[StreamEditor] Job ${jobId}: smart-cut — ` +
           `source ${Math.round(probe.durationSecs / 60)}min → ` +
           `${Math.round(smartCutDurationSec / 60)}min segment ` +
-          `starting at ${Math.round(smartCutStartSec / 60)}min mark ` +
-          `(game: ${gameName}, audience pick: ${Math.round(targetSec / 60)}min)`,
+          `at ${Math.round(smartCutStartSec / 60)}min mark ` +
+          `(${gameName ?? "?"}, audience pick: ${Math.round(targetSec / 60)}min)`,
         );
 
         await db.update(streamEditJobs)
@@ -682,112 +827,138 @@ async function runJobInBackground(jobId: number): Promise<void> {
           .where(eq(streamEditJobs.id, jobId));
       } catch (scErr: any) {
         logger.warn(
-          `[StreamEditor] Job ${jobId}: smart-cut selection failed — ` +
+          `[StreamEditor] Job ${jobId}: smart-cut failed — ` +
           `falling back to first 60 min (${scErr?.message?.slice(0, 80)})`,
         );
-        // Fallback: encode just the first 60 minutes to avoid the hard timeout
-        smartCutStartSec = 0;
+        smartCutStartSec    = 0;
         smartCutDurationSec = 3600;
       }
     }
 
     const clipSecs = smartCutDurationSec ?? ((job.clipDurationMins ?? 60) * 60);
-    // When smart-cutting: always 1 clip. Otherwise: slice into clipSecs chunks.
-    const numClips = smartCutStartSec !== null ? 1 : Math.ceil(probe.durationSecs / clipSecs);
-    const totalTasks = numClips * platforms.length;
-    let completedTasks = 0;
+
+    // ── Build the per-platform segment plan ───────────────────────────────────
+    // Each platform gets its own list of time windows to encode:
+    //   youtube  → 1 highlight (2 for 3h+ streams)
+    //   shorts   → 3 distinct moments at 25% / 50% / 75% of the stream
+    // This replaces the old single-window approach and produces 4–5× more
+    // content per stream recording automatically.
+    interface JobSegment {
+      platform: StreamEditPlatform;
+      startSec: number;
+      durationSec: number;
+      label: string;
+      outputPath: string;
+      profileLabel: string;
+    }
+
+    const jobSegments: JobSegment[] = [];
+    for (const platform of platforms) {
+      const profile = PLATFORM_PROFILES[platform];
+      if (!profile) {
+        logger.warn(`[StreamEditor] Job ${jobId}: unknown platform "${platform}" — skipping`);
+        continue;
+      }
+      const platformDir = path.join(jobOutputDir, platform);
+      fs.mkdirSync(platformDir, { recursive: true });
+
+      const segs = computePlatformSegments(
+        platform, probe.durationSecs, smartCutStartSec, smartCutDurationSec, clipSecs,
+      );
+
+      segs.forEach((seg, idx) => {
+        const isShorts    = platform === "shorts";
+        const totalForPlatform = segs.length;
+        const label = totalForPlatform > 1
+          ? `${isShorts ? "Short" : "Part"} ${idx + 1}/${totalForPlatform} — ${profile.label}`
+          : (isShorts ? `Short — ${profile.label}` : `Highlight — ${profile.label}`);
+        jobSegments.push({
+          platform,
+          startSec:    seg.startSec,
+          durationSec: seg.durationSec,
+          label,
+          outputPath:  path.join(platformDir, `clip_${String(idx + 1).padStart(3, "0")}.mp4`),
+          profileLabel: profile.label,
+        });
+      });
+    }
+
+    const totalTasks     = jobSegments.length;
+    let completedTasks   = 0;
     const outputFiles: Array<{
       platform: string; clipIndex: number; label: string;
       filePath: string; fileSize: number; durationSecs: number;
       studioVideoId?: number; scheduledPublishAt?: string;
     }> = [];
 
+    const genre = detectGenre(gameName);
+    logger.info(
+      `[StreamEditor] Job ${jobId}: ${totalTasks} clip(s) planned — ` +
+      `genre: ${genre} — platforms: ${platforms.join(", ")} — ` +
+      `source: ${Math.round(probe.durationSecs / 60)}min`,
+    );
+
     await db.update(streamEditJobs).set({
       sourceDurationSecs: Math.round(probe.durationSecs),
       totalClips: totalTasks,
       outputDir: jobOutputDir,
-      currentStage: smartCutStartSec !== null
-        ? `[3/6] Editing — smart-cut ${Math.round(clipSecs / 60)}min segment`
-        : `[3/6] Editing — Clip 1/${numClips}`,
+      currentStage: `[3/6] Editing — ${totalTasks} clip(s) · ${genre} grade`,
     }).where(eq(streamEditJobs.id, jobId));
 
-    // ── Stages 3/6 + 4/6: Edit then Upscale ─────────────────────────────────
-    // Edit (color grading, denoising, cuts) and upscale (Lanczos to 4K) happen
-    // in a single FFmpeg pass for efficiency — two separate passes would double
-    // encode time for every clip.  The progress callback transitions the stage
-    // label from [3/6] Editing to [4/6] Upscaling at the ~50% mark so the
-    // pipeline chain is visible without the performance cost.
-    for (const platform of platforms) {
-      const profile = PLATFORM_PROFILES[platform];
-      if (!profile) {
-        logger.warn(`[StreamEditor] Job ${jobId}: unknown platform "${platform}" not in PLATFORM_PROFILES — skipping`);
-        completedTasks += numClips;
-        continue;
+    // ── Stages 3/6 + 4/6: Cinematic edit + upscale (single FFmpeg pass) ──────
+    // Denoise → cinematic colour grade → sharpening → Lanczos upscale → vignette
+    // → fade in/out all happen in one pass per clip to avoid double-encode cost.
+    // Progress label transitions from [3/6] Editing to [4/6] Upscaling at ~50%.
+    for (const seg of jobSegments) {
+      const profile  = PLATFORM_PROFILES[seg.platform];
+      const clipRef  = seg.label;
+      logger.info(`[StreamEditor] Job ${jobId}: [3/6→4/6] ${clipRef} · ${Math.round(seg.startSec / 60)}–${Math.round((seg.startSec + seg.durationSec) / 60)}min`);
+
+      await processClip(
+        sourceFile,
+        seg.startSec,
+        seg.durationSec,
+        seg.outputPath,
+        seg.platform,
+        enhancements,
+        probe.fps,
+        probe.width,
+        probe.height,
+        gameName,
+        (pct, fps, speedLabel) => {
+          const phase = pct < 50 ? "[3/6] Editing" : "[4/6] Upscaling";
+          const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
+          db.update(streamEditJobs).set({
+            progress: overallPct,
+            currentStage: `${phase} — ${clipRef} · ${speedLabel}`,
+          }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
+        },
+      );
+
+      if (fs.existsSync(seg.outputPath)) {
+        const stat = fs.statSync(seg.outputPath);
+        outputFiles.push({
+          platform:    seg.platform,
+          clipIndex:   completedTasks,
+          label:       seg.label,
+          filePath:    seg.outputPath,
+          fileSize:    stat.size,
+          durationSecs: Math.round(seg.durationSec),
+        });
       }
-      const platformDir = path.join(jobOutputDir, platform);
-      fs.mkdirSync(platformDir, { recursive: true });
 
-      for (let i = 0; i < numClips; i++) {
-        // Smart-cut: encode only the audience-optimal window.
-        // Normal mode: stride through the video in clipSecs chunks.
-        const startSecs = smartCutStartSec !== null ? smartCutStartSec : i * clipSecs;
-        const actualDuration = smartCutDurationSec !== null
-          ? smartCutDurationSec
-          : Math.min(clipSecs, probe.durationSecs - startSecs);
-        const clipLabel = `Part ${i + 1} of ${numClips} — ${profile.label}`;
-        const outputPath = path.join(platformDir, `clip_${String(i + 1).padStart(3, "0")}.mp4`);
-
-        const clipRef = `Clip ${i + 1}/${numClips}`;
-        logger.info(`[StreamEditor] Job ${jobId}: [3/6→4/6] ${profile.label} · ${clipRef}`);
-
-        await processClip(
-          sourceFile,
-          startSecs,
-          actualDuration,
-          outputPath,
-          platform,
-          enhancements,
-          probe.fps,
-          probe.width,
-          probe.height,
-          (pct, fps, speedLabel) => {
-            // First half of the FFmpeg filter chain = editing (denoise, colour, cuts).
-            // Second half = upscaling (Lanczos scale, post-sharpen).
-            const phase = pct < 50 ? "[3/6] Editing" : "[4/6] Upscaling";
-            const overallPct = Math.round(((completedTasks + pct / 100) / totalTasks) * 100);
-            db.update(streamEditJobs).set({
-              progress: overallPct,
-              currentStage: `${phase} — ${profile.label} · ${clipRef} · ${speedLabel}`,
-            }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
-          },
-        );
-
-        if (fs.existsSync(outputPath)) {
-          const stat = fs.statSync(outputPath);
-          outputFiles.push({
-            platform,
-            clipIndex: i,
-            label: clipLabel,
-            filePath: outputPath,
-            fileSize: stat.size,
-            durationSecs: Math.round(actualDuration),
-          });
-        }
-
-        completedTasks++;
-        await db.update(streamEditJobs).set({
-          completedClips: completedTasks,
-          progress: Math.round((completedTasks / totalTasks) * 100),
-          outputFiles,
-        }).where(eq(streamEditJobs.id, jobId));
-      }
+      completedTasks++;
+      await db.update(streamEditJobs).set({
+        completedClips: completedTasks,
+        progress: Math.round((completedTasks / totalTasks) * 100),
+        outputFiles,
+      }).where(eq(streamEditJobs.id, jobId));
     }
 
-    // Guard: if encoding produced no output files, mark as error rather than
-    // silently completing as "done" with nothing to publish.
+    // Guard: if encoding produced no output files, surface as a retryable error
     if (outputFiles.length === 0) {
       throw new Error(
-        `Encoding completed but produced 0 clips from ${numClips} expected — FFmpeg may have failed silently (check disk space or codec errors)`
+        `Encoding produced 0 clips from ${totalTasks} planned — FFmpeg may have failed silently (check disk space or codec errors)`
       );
     }
 
