@@ -80,25 +80,81 @@ function parseDurationSec(iso: string | undefined): number {
 }
 
 // ── Get current stream game ───────────────────────────────────────────────────
-// Returns the game (category) from the most recent stream. This is used to
-// boost back catalog content matching what the channel is actively streaming,
-// so Shorts and long-form output always aligns with current live content.
+// Returns the game from the most recent stream.  Checks category first; if
+// missing or a generic catch-all ("Gaming", "Games", …) falls back to title
+// keyword detection so BF6 streams that were auto-detected without a category
+// are still recognised as the priority game.
+
+// Generic/useless categories that don't identify a specific game
+const GENERIC_CATEGORIES = new Set([
+  "gaming", "games", "video games", "entertainment", "live", "livestream",
+  "streaming", "ps5", "ps4", "xbox", "playstation",
+]);
+
+function detectGameFromTitle(title: string): string | null {
+  const t = (title ?? "").toLowerCase();
+  if (/battlefield\s*6|bf\s*6\b/.test(t))          return "Battlefield 6";
+  if (/battlefield\s*2042|bf\s*2042\b/.test(t))     return "Battlefield 2042";
+  if (/battlefield/.test(t))                         return "Battlefield";
+  if (/call of duty|warzone|cod\b/.test(t))          return "Call of Duty";
+  if (/fortnite/.test(t))                            return "Fortnite";
+  if (/minecraft/.test(t))                           return "Minecraft";
+  if (/apex legends?/.test(t))                       return "Apex Legends";
+  if (/gta\b|grand theft auto/.test(t))              return "GTA";
+  if (/valorant/.test(t))                            return "Valorant";
+  if (/overwatch/.test(t))                           return "Overwatch";
+  if (/elden ring/.test(t))                          return "Elden Ring";
+  if (/god of war/.test(t))                          return "God of War";
+  return null;
+}
 
 async function getCurrentStreamGame(userId: string): Promise<string | null> {
   try {
-    const [recent] = await db.select({ category: streams.category })
+    // Pull the 10 most recent streams (regardless of category) so title
+    // fallback has enough signal when category is null or generic.
+    const recent = await db
+      .select({ category: streams.category, title: streams.title })
       .from(streams)
-      .where(and(
-        eq(streams.userId, userId),
-        not(isNull(streams.category)),
-      ))
+      .where(eq(streams.userId, userId))
       .orderBy(desc(streams.createdAt))
-      .limit(1);
-    const cat = recent?.category?.trim() ?? null;
-    return cat || null;
+      .limit(10);
+
+    for (const s of recent) {
+      const cat = s.category?.trim() ?? null;
+      // Accept category only when it's meaningful (not a catch-all)
+      if (cat && !GENERIC_CATEGORIES.has(cat.toLowerCase())) return cat;
+      // Fall back to title keyword detection
+      const fromTitle = detectGameFromTitle(s.title ?? "");
+      if (fromTitle) return fromTitle;
+    }
+    return null;
   } catch {
     return null;
   }
+}
+
+// ── Game priority filter ──────────────────────────────────────────────────────
+// Returns a predicate that matches back-catalog videos for a given game name.
+// Handles abbreviated names ("BF6", "BF2042") that wouldn't match the full
+// name returned by getCurrentStreamGame ("Battlefield 6" / "Battlefield 2042").
+
+function buildGameFilter(currentGame: string): (v: { gameName?: string | null; title?: string | null }) => boolean {
+  const words = currentGame.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+
+  // Build an extended pattern that covers common abbreviations
+  const abbrevMap: Record<string, string[]> = {
+    "battlefield 6":    ["battlefield", "bf6", "bf 6"],
+    "battlefield 2042": ["battlefield", "bf2042", "bf 2042", "battlefield 2042"],
+    "battlefield":      ["battlefield", "bf6", "bf2042", "bf 6", "bf 2042"],
+    "call of duty":     ["call of duty", "warzone", "cod"],
+    "gta":              ["gta", "grand theft"],
+    "apex legends":     ["apex"],
+  };
+
+  const patterns = abbrevMap[currentGame.toLowerCase()] ?? words;
+  const re = new RegExp(patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
+
+  return (v) => re.test(`${v.gameName ?? ""} ${v.title ?? ""}`);
 }
 
 // ── Count today's metadata refreshes ─────────────────────────────────────────
@@ -395,6 +451,32 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
     const ranked = rankVideos(allVideos, channelAvg, currentGame);
 
+    // ── Hard game-priority gate ───────────────────────────────────────────────
+    // When a current game is detected, restrict ALL candidate selection to that
+    // game's videos until every one of them is fully exhausted (minedForShorts
+    // AND minedForLongForm both true).  Only after full exhaustion does the
+    // system fall through to other games (e.g. AC Valhalla).
+    //
+    // This ensures BF6 streams are always processed before anything else while
+    // the channel is actively playing Battlefield.
+    let gameFilter: ((v: { gameName?: string | null; title?: string | null }) => boolean) | null = null;
+
+    if (currentGame) {
+      const matchesGame = buildGameFilter(currentGame);
+      const hasUnminedForGame = ranked.some(v =>
+        !v.isShort &&
+        matchesGame(v) &&
+        ((v.durationSec ?? 0) >= SHORT_MIN_SOURCE_SEC || (v.durationSec ?? 0) >= SINGLE_SEG_MIN_SOURCE_SEC) &&
+        (!v.minedForShorts || !v.minedForLongForm),
+      );
+      if (hasUnminedForGame) {
+        gameFilter = matchesGame;
+        logger.info(`[BackCatalog] Game priority gate ACTIVE — only "${currentGame}" content until fully exhausted`);
+      } else {
+        logger.info(`[BackCatalog] Game priority gate CLEAR — "${currentGame}" fully exhausted, opening all games`);
+      }
+    }
+
     // ── Queue metadata refreshes ──────────────────────────────────────────────
     const todayMeta = await countTodayMetadataRefreshes(userId);
     const metaSlots = Math.max(0, METADATA_REFRESH_PER_DAY - todayMeta);
@@ -431,7 +513,8 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           !v.isShort &&
           (v.durationSec ?? 0) >= SHORT_MIN_SOURCE_SEC &&
           v.shortsOpportunityScore >= SHORTS_OPPORTUNITY_THRESHOLD &&
-          !v.minedForShorts,
+          !v.minedForShorts &&
+          (!gameFilter || gameFilter(v)),
         )
         .slice(0, 3);
 
@@ -516,7 +599,8 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           !v.isShort &&
           (v.durationSec ?? 0) >= LONG_FORM_MIN_SOURCE_SEC &&
           v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
-          !v.minedForLongForm,
+          !v.minedForLongForm &&
+          (!gameFilter || gameFilter(v)),
         )
         .slice(0, 3);
 
@@ -591,7 +675,8 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             (v.durationSec ?? 0) >= SINGLE_SEG_MIN_SOURCE_SEC &&
             (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC &&
             v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
-            !v.minedForLongForm,
+            !v.minedForLongForm &&
+            (!gameFilter || gameFilter(v)),
           )
           .slice(0, 2);
 
