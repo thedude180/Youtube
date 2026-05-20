@@ -7,7 +7,8 @@ import {
   Users, Video, Eye, DollarSign, TrendingUp, CheckCircle2,
   Clock, AlertCircle, Sparkles, Radio, AlertTriangle, ExternalLink, RefreshCw, X,
   Activity, PlayCircle, Scissors, HardDrive, Film, Brain, ArrowUpRight,
-  ArrowRight, Layers, Zap, BarChart2, Repeat,
+  ArrowRight, Layers, Zap, BarChart2, Repeat, BookOpen, FlaskConical,
+  Timer, CalendarCheck, Lightbulb, Target,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -512,6 +513,183 @@ function CompanyVelocity({ stats, outputStatus, activities }: { stats: any; outp
   );
 }
 
+function formatBucket(b: string | null | undefined): string {
+  if (!b) return "—";
+  return b.replace(/^(long_|short_)/, "").replace(/_/g, "–") + " min";
+}
+
+function formatWindow(w: string | null | undefined): string {
+  if (!w) return "—";
+  const map: Record<string, string> = {
+    morning: "Morning  07–09:30",
+    afternoon: "Afternoon  13–16:30",
+    evening: "Evening  20:30–23",
+    late_night: "Late Night",
+  };
+  return map[w] ?? w;
+}
+
+function LearningLibrary({ outputStatus, catalogStatus }: { outputStatus: any; catalogStatus: any }) {
+  const learning = outputStatus?.learning;
+  const totalEvents    = learning?.totalEvents ?? 0;
+  const lastCycleAt    = learning?.lastCycleAt;
+  const topInsight     = learning?.topInsight;
+  const bestDuration   = learning?.bestDurationBucket;
+  const bestShort      = learning?.bestShortBucket;
+  const bestWindow     = learning?.bestPostingWindow;
+  const buckets        = learning?.buckets ?? [];
+  const windows        = learning?.windows ?? [];
+
+  const totalCatalog   = catalogStatus?.totalVideos ?? 0;
+  const alreadyMined   = catalogStatus?.alreadyMined ?? 0;
+  const shortsQueued   = catalogStatus?.shortsQueuedFromOld ?? 0;
+  const longQueued     = catalogStatus?.longFormQueuedFromOld ?? 0;
+  const backlogDays    = catalogStatus?.estimatedBacklogDays ?? 0;
+
+  const insights: {
+    icon: any; label: string; owner: string; ownerColor: string;
+    value: string; detail: string; bg: string; iconColor: string;
+  }[] = [
+    {
+      icon: Timer,
+      label: "Duration Mastery",
+      owner: "Dr. Leo",
+      ownerColor: "text-violet-400",
+      value: formatBucket(bestDuration),
+      detail: buckets.length > 0
+        ? `${buckets.length} duration buckets ranked · ${buckets[0]?.sampleCount ?? 0} samples`
+        : "Collecting performance data",
+      bg: "bg-violet-500/8 border-violet-500/15",
+      iconColor: "text-violet-400",
+    },
+    {
+      icon: CalendarCheck,
+      label: "Posting Windows",
+      owner: "Arjun",
+      ownerColor: "text-orange-400",
+      value: formatWindow(bestWindow),
+      detail: windows.length > 0
+        ? `${windows.length} windows tracked · top window identified`
+        : "Building timing dataset",
+      bg: "bg-orange-500/8 border-orange-500/15",
+      iconColor: "text-orange-400",
+    },
+    {
+      icon: HardDrive,
+      label: "Vault Intelligence",
+      owner: "Jamie",
+      ownerColor: "text-amber-400",
+      value: totalCatalog > 0 ? `${alreadyMined} / ${totalCatalog}` : "—",
+      detail: totalCatalog > 0
+        ? `${shortsQueued} Shorts + ${longQueued} long-form queued from back catalog`
+        : "Catalog import pending",
+      bg: "bg-amber-500/8 border-amber-500/15",
+      iconColor: "text-amber-400",
+    },
+    {
+      icon: Lightbulb,
+      label: "Hook Patterns",
+      owner: "Mila + Nia",
+      ownerColor: "text-fuchsia-400",
+      value: topInsight ? "Active" : "Building",
+      detail: topInsight
+        ? topInsight.length > 60 ? topInsight.slice(0, 60) + "…" : topInsight
+        : "Accumulating clip performance data",
+      bg: "bg-fuchsia-500/8 border-fuchsia-500/15",
+      iconColor: "text-fuchsia-400",
+    },
+    {
+      icon: FlaskConical,
+      label: "Short Format Lab",
+      owner: "Zara + Dr. Leo",
+      ownerColor: "text-red-400",
+      value: formatBucket(bestShort),
+      detail: bestShort
+        ? "Optimal Short duration locked in from A/B data"
+        : "Testing Short durations across uploads",
+      bg: "bg-red-500/8 border-red-500/15",
+      iconColor: "text-red-400",
+    },
+    {
+      icon: Target,
+      label: "Growth Signals",
+      owner: "Tomás",
+      ownerColor: "text-cyan-400",
+      value: totalEvents > 0 ? `${totalEvents.toLocaleString()} events` : "Active",
+      detail: backlogDays > 0
+        ? `${backlogDays}d of content in back-catalog backlog`
+        : learning?.summary
+          ? (learning.summary.length > 60 ? learning.summary.slice(0, 60) + "…" : learning.summary)
+          : "Monitoring channel growth signals",
+      bg: "bg-cyan-500/8 border-cyan-500/15",
+      iconColor: "text-cyan-400",
+    },
+  ];
+
+  const consumers = ["Kenji", "Zara", "Arjun", "Marcus", "Nia", "Sofia"];
+
+  return (
+    <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="section-learning-library">
+      <div className="px-4 py-3 border-b border-border/20 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-primary/70" />
+            Team Learning Library
+          </h2>
+          <p className="text-[11px] text-muted-foreground/50 mt-0.5">
+            Every agent contributes. Every agent pulls from it. The whole team gets smarter with every upload.
+          </p>
+        </div>
+        <div className="text-right flex-shrink-0 ml-4">
+          <div className="text-base font-bold text-foreground font-mono leading-none" data-testid="text-library-events">
+            {totalEvents > 0 ? totalEvents.toLocaleString() : "—"}
+          </div>
+          <div className="text-[9px] text-muted-foreground/50">learning events</div>
+          {lastCycleAt && (
+            <div className="text-[9px] text-muted-foreground/40 mt-0.5">
+              last cycle {formatDistanceToNow(new Date(lastCycleAt), { addSuffix: true })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {insights.map((ins) => {
+          const Icon = ins.icon;
+          return (
+            <div key={ins.label} className={`rounded-lg border p-3 flex flex-col gap-1.5 ${ins.bg}`} data-testid={`library-card-${ins.label.toLowerCase().replace(/\s/g, "-")}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${ins.iconColor}`} />
+                  <span className="text-[10px] font-bold text-foreground/80 uppercase tracking-wide">{ins.label}</span>
+                </div>
+                <span className={`text-[9px] font-medium ${ins.ownerColor} flex-shrink-0`}>{ins.owner}</span>
+              </div>
+              <div className="text-sm font-bold text-foreground font-mono leading-none" data-testid={`library-value-${ins.label.toLowerCase().replace(/\s/g, "-")}`}>
+                {ins.value}
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 leading-snug">{ins.detail}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="px-4 py-2.5 border-t border-border/15 bg-muted/5 flex items-center gap-2 flex-wrap">
+        <span className="text-[10px] text-muted-foreground/40 flex items-center gap-1.5 flex-shrink-0">
+          <ArrowRight className="h-2.5 w-2.5" />
+          Feeds into
+        </span>
+        {consumers.map((name) => (
+          <span key={name} className="text-[10px] font-medium text-primary/60 bg-primary/8 border border-primary/15 px-1.5 py-0.5 rounded-full">
+            {name}
+          </span>
+        ))}
+        <span className="text-[10px] text-muted-foreground/30 ml-1">on every cycle</span>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: any; label: string; value: string | number; sub?: string; color: string;
 }) {
@@ -747,6 +925,12 @@ export default function TeamDashboard() {
     staleTime: 2 * 60_000,
   });
 
+  const { data: catalogStatus } = useQuery<any>({
+    queryKey: ["/api/youtube/back-catalog/status"],
+    refetchInterval: 10 * 60_000,
+    staleTime: 5 * 60_000,
+  });
+
   const brokenPlatforms = (channels || [])
     .filter((ch: any) => (ch.platform === "youtube" || ch.platform === "youtubeshorts") && (ch.connectionStatus === "expired" || ch.connectionStatus === "disconnected" || ch.connectionStatus === "degraded"))
     .map((ch: any) => ch.platform === "youtube" ? "YouTube" : "YouTube Shorts");
@@ -957,6 +1141,9 @@ export default function TeamDashboard() {
         {/* ── Content Pipeline + Company Velocity ────────────────────────── */}
         <ContentPipeline outputStatus={outputStatus} />
         <CompanyVelocity stats={stats} outputStatus={outputStatus} activities={activities} />
+
+        {/* ── Team Learning Library ───────────────────────────────────────── */}
+        <LearningLibrary outputStatus={outputStatus} catalogStatus={catalogStatus} />
 
         {/* ── AI Staff Directory — grouped by department ─────────────────── */}
         <div data-testid="section-staff-directory">
