@@ -236,7 +236,7 @@ const MIN_LONGFORM_GAP_MS = 20 * 3_600_000;   // 20 hours
 const MIN_ANY_GAP_MS     = 90 * 60_000;        // 90 minutes
 const JITTER_MIN_MS      = 7  * 60_000;        // 7 minutes
 const JITTER_MAX_MS      = 28 * 60_000;        // 28 minutes
-const MAX_DAYS_AHEAD     = 14;
+const MAX_DAYS_AHEAD     = 365; // No upper limit — schedule as far out as the catalog allows
 const DEFAULT_TZ         = "America/Chicago";
 
 // ── Window definitions (local time) ─────────────────────────────────────────

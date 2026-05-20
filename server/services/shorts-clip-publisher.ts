@@ -44,9 +44,9 @@ import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate } from "./youtube-output
 
 const logger = createLogger("shorts-publisher");
 
-const MAX_PER_RUN = 5; // Up to 5 Shorts per run — covers today + tomorrow. canAffordOperation stops the loop at quota ceiling.
-// How far ahead to look when picking up scheduled items for batch-upload
-const BATCH_WINDOW_DAYS = 14;
+const MAX_PER_RUN = 20; // canAffordOperation (quota) is the real gate; 20 is the safety ceiling
+// How far ahead to look when picking up shadow-scheduled items for batch-upload to YouTube
+const BATCH_WINDOW_DAYS = 90; // 90-day window — shadow schedule is unlimited; quota limits actual uploads per day
 const MAX_DURATION_SEC = 60;
 const SHORT_TEMP_DIR = path.join(process.cwd(), "data", "shorts-tmp");
 
@@ -517,17 +517,29 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               result = { success: false, error: "Could not extract video segment" };
             } else {
               try {
-                const titleCaption = await generateShortCaption({
-                  platform,
-                  sourceTitle,
-                  hookLine,
-                  sourceYoutubeId: resolvedYoutubeId,
-                  gameName,
-                });
+                // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
+                // Fall back to on-demand AI generation if not yet available
+                const titleCaption =
+                  (typeof itemMeta.seoTitle === "string" && itemMeta.seoTitle.length > 5
+                    ? itemMeta.seoTitle
+                    : null)
+                  ?? await generateShortCaption({
+                    platform,
+                    sourceTitle,
+                    hookLine,
+                    sourceYoutubeId: resolvedYoutubeId,
+                    gameName,
+                  });
 
-                const ytDesc = resolvedYoutubeId
-                  ? `${sourceTitle}\n\n${resolvedYoutubeId ? `Full video → https://youtu.be/${resolvedYoutubeId}` : ""}\n\n#Shorts #Gaming #PS5 #ETGaming247`
-                  : `${sourceTitle}\n\n#Shorts #Gaming #PS5`;
+                const ytDesc =
+                  (typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
+                    ? itemMeta.seoDescription
+                    : null)
+                  ?? (resolvedYoutubeId
+                    ? `${sourceTitle}\n\nFull video → https://youtu.be/${resolvedYoutubeId}\n\n#Shorts #Gaming #PS5 #ETGaming247`
+                    : `${sourceTitle}\n\n#Shorts #Gaming #PS5`);
+
+                const preBuiltTags = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
 
                 const shortScheduledAt = effectiveScheduledAt;
                 const shortIsScheduled = shortScheduledAt && shortScheduledAt.getTime() > Date.now() + 60_000;
@@ -550,7 +562,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   channelId: ytChannel.id,
                   title: safeTitle,
                   description: ytDesc.slice(0, 5000),
-                  tags: [...tags.slice(0, 12), "Shorts", "Gaming", "PS5"],
+                  tags: preBuiltTags ?? [...tags.slice(0, 12), "Shorts", "Gaming", "PS5"],
                   videoFilePath: encodedPath,
                   // Pass the item's original scheduledAt so YouTube publishes it
                   // at the right spaced time rather than immediately.
@@ -562,6 +574,19 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                     logger.info(`[YouTubeSchedule] Short uploaded as private scheduled publish — publishAt ${shortScheduledAt!.toISOString()}`);
                   } else {
                     logger.info("[YouTubeSchedule] Short published immediately as public");
+                  }
+                  // Upload pre-generated thumbnail immediately — fire and forget
+                  const ytId = (result as any).youtubeId as string | undefined;
+                  const thumbPath = typeof itemMeta.thumbnailPath === "string" ? itemMeta.thumbnailPath : undefined;
+                  if (ytId && thumbPath && fs.existsSync(thumbPath)) {
+                    fs.promises.readFile(thumbPath).then(buf => {
+                      if (buf.length < 1000) return;
+                      return import("../youtube").then(({ setYouTubeThumbnail }) =>
+                        setYouTubeThumbnail(ytChannel.id, ytId, buf, "image/jpeg"),
+                      );
+                    }).catch(tErr =>
+                      logger.warn(`[ShortsPublisher] Thumbnail upload failed for ${ytId}: ${String(tErr).slice(0, 100)}`),
+                    );
                   }
                 }
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });

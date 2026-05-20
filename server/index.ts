@@ -39,6 +39,8 @@ import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
 import { initQuotaResetCron } from "./services/youtube-quota-tracker";
+import { initPreEncoder } from "./services/pre-encoder";
+import { initPreSeo } from "./services/pre-seo";
 import { initChannelBrandSync } from "./services/youtube-channel-brand-sync";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
@@ -2613,6 +2615,17 @@ httpServer.listen(
       // publishers.  Then re-schedules itself for the next midnight so the server
       // never needs a restart to start a new quota day.
       initQuotaResetCron();
+
+      // ── Pre-SEO — 8 PM Pacific nightly ───────────────────────────────────────
+      // AI-generates title, description, tags for every scheduled queue item so
+      // publishers skip AI generation at upload time (pure YouTube API call at midnight).
+      // Also extracts thumbnail frames from pre-encoded files.
+      initPreSeo();
+
+      // ── Pre-Encoder — 9 PM Pacific nightly ───────────────────────────────────
+      // Downloads and encodes every clip due in the next 36 h so the midnight
+      // batch is a pure upload-only pass (no yt-dlp or ffmpeg at reset time).
+      initPreEncoder();
 
       // ── YouTube AI Orchestrator — top-level AI controller ────────────────────
       // Controls all YouTube systems: catalog, scoring, queueing, learning,

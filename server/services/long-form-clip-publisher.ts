@@ -34,8 +34,8 @@ import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPubl
 
 const logger = createLogger("long-form-publisher");
 
-const MAX_PER_RUN = 2; // 1 long-form/day target + 1 catch-up slot. Prevents quota burst on reset.
-const BATCH_WINDOW_DAYS = 14; // Look 14 days ahead for batch scheduling
+const MAX_PER_RUN = 7; // canAffordOperation (quota) is the real gate; 7 is the safety ceiling
+const BATCH_WINDOW_DAYS = 90; // 90-day window — shadow schedule is unlimited; quota limits actual uploads per day
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
 const MIN_LONG_FORM_SEC = 480; // 8 min — YouTube mid-roll monetization threshold
 const LONG_FORM_TEMP_DIR = path.join(process.cwd(), "data", "longform-tmp");
@@ -342,9 +342,24 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
         encodedPath = tmpEncoded;
 
-        const title = String(item.caption || `${gameName} Gameplay — ${targetMin} Minutes`).substring(0, 100);
+        // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
+        // Fall back to inline templates if not yet available
+        const title = String(
+          (typeof itemMeta.seoTitle === "string" && itemMeta.seoTitle.length > 5
+            ? itemMeta.seoTitle
+            : null)
+          ?? item.caption
+          ?? `${gameName} Gameplay — ${targetMin} Minutes`,
+        ).substring(0, 100);
+
         const fullVideoUrl = resolvedYoutubeId ? `\n\nFull recording → https://youtu.be/${resolvedYoutubeId}` : "";
-        const description = `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`.substring(0, 5000);
+        const description = (
+          typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
+            ? itemMeta.seoDescription
+            : `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`
+        ).substring(0, 5000);
+
+        const preBuiltTagsLF = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
 
         const lfScheduledAt  = effectiveScheduledAt;
         const lfIsScheduled  = lfScheduledAt && lfScheduledAt.getTime() > Date.now() + 60_000;
@@ -356,7 +371,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
           title,
           description,
-          tags: [...tags.slice(0, 12), "Gaming", "PS5", "NoCommentary", gameName],
+          tags: preBuiltTagsLF ?? [...tags.slice(0, 12), "Gaming", "PS5", "NoCommentary", gameName],
           categoryId: "20",
           // YouTube requires privacyStatus=private for scheduled future uploads.
           // If scheduledAt is past/now, upload immediately as public.
@@ -373,6 +388,22 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         }
 
         if (!uploadResult?.youtubeId) throw new Error("Upload returned no YouTube ID");
+
+        // Upload pre-generated thumbnail immediately after video upload — fire and forget
+        {
+          const lfYtId = uploadResult.youtubeId;
+          const thumbPath = typeof itemMeta.thumbnailPath === "string" ? itemMeta.thumbnailPath : undefined;
+          if (thumbPath && fs.existsSync(thumbPath)) {
+            fs.promises.readFile(thumbPath).then(buf => {
+              if (buf.length < 1000) return;
+              return import("../youtube").then(({ setYouTubeThumbnail }) =>
+                setYouTubeThumbnail(ytChannel.id, lfYtId, buf, "image/jpeg"),
+              );
+            }).catch(tErr =>
+              logger.warn(`[LongFormPublisher] Thumbnail upload failed for ${lfYtId}: ${String(tErr).slice(0, 100)}`),
+            );
+          }
+        }
 
         await db.update(autopilotQueue)
           .set({
