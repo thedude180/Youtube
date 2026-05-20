@@ -226,7 +226,7 @@ const DEFAULT_RULES: Array<{
   { actionClass: "content_draft", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Create or update content drafts" },
   { actionClass: "title_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video/stream titles" },
   { actionClass: "description_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video/stream descriptions" },
-  { actionClass: "thumbnail_change", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.7, description: "Change video thumbnails" },
+  { actionClass: "thumbnail_change", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Change video thumbnails" },
   { actionClass: "tags_change", bandClass: "GREEN", defaultState: "auto-approved", approver: "system", confidenceThreshold: null, description: "Update content tags and keywords" },
   { actionClass: "bulk_action", bandClass: "YELLOW", defaultState: "confidence-gate", approver: "system", confidenceThreshold: 0.8, description: "Bulk operations across content" },
   { actionClass: "account_setting", bandClass: "RED", defaultState: "human-required", approver: "admin", confidenceThreshold: null, description: "Modify account-level settings" },
