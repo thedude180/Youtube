@@ -236,7 +236,7 @@ function buildFallbackCaption(
 
 async function getEncodedSegment(opts: {
   userId: string;
-  sourceVideoId: number;
+  sourceVideoId: number | null | undefined;
   youtubeId: string | undefined;
   startSec: number;
   endSec: number;
@@ -423,9 +423,12 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const sourceYoutubeId = typeof itemMeta.sourceYoutubeId === "string" ? itemMeta.sourceYoutubeId : undefined;
       const hookLine = typeof itemMeta.hookLine === "string" ? itemMeta.hookLine : undefined;
 
-      if (!item.sourceVideoId) {
+      // Back-catalog Shorts have sourceVideoId=null but carry sourceYoutubeId in
+      // metadata — getEncodedSegment yt-dlp downloads directly from that URL.
+      // Only hard-fail if BOTH are absent.
+      if (!item.sourceVideoId && !sourceYoutubeId) {
         await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: "No sourceVideoId" })
+          .set({ status: "failed", errorMessage: "No sourceVideoId and no sourceYoutubeId in metadata" })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
         continue;

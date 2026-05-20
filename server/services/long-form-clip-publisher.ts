@@ -201,14 +201,18 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       const endSec = Number(itemMeta.segmentEndSec ?? 0);
       const rawDurationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
 
-      if (rawDurationSec < MIN_LONG_FORM_SEC || !item.sourceVideoId) {
-        const tooShort = item.sourceVideoId && rawDurationSec < MIN_LONG_FORM_SEC;
+      // Back-catalog items have sourceVideoId=null but carry sourceYoutubeId in
+      // metadata — the publisher yt-dlp downloads directly from YouTube so a
+      // local file is not required.  Only fail if BOTH are absent.
+      const hasYtSource = typeof itemMeta.sourceYoutubeId === "string" && itemMeta.sourceYoutubeId.length > 0;
+      if (rawDurationSec < MIN_LONG_FORM_SEC || (!item.sourceVideoId && !hasYtSource)) {
+        const tooShort = (item.sourceVideoId || hasYtSource) && rawDurationSec < MIN_LONG_FORM_SEC;
         await db.update(autopilotQueue)
           .set({
             status: "failed",
             errorMessage: tooShort
               ? `Segment too short for monetization (${Math.round(rawDurationSec / 60)}m) — long-form must be at least 8 minutes`
-              : "Invalid segment bounds or missing sourceVideoId",
+              : "Invalid segment bounds: no local sourceVideoId and no sourceYoutubeId in metadata",
           })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
