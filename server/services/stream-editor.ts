@@ -625,13 +625,75 @@ async function runJobInBackground(jobId: number): Promise<void> {
     const jobOutputDir = path.join(EDITOR_OUTPUT_DIR, `job_${jobId}`);
     fs.mkdirSync(jobOutputDir, { recursive: true });
 
-    const clipSecs = (job.clipDurationMins ?? 60) * 60;
     const platforms = (job.platforms ?? []) as StreamEditPlatform[];
     const enhancements = (job.enhancements ?? {
       upscale4k: true, audioNormalize: true, colorEnhance: true, sharpen: true,
     }) as { upscale4k: boolean; audioNormalize: boolean; colorEnhance: boolean; sharpen: boolean };
 
-    const numClips = Math.ceil(probe.durationSecs / clipSecs);
+    // ── Smart-cut: audience-optimal segment for source videos > 60 min ───────
+    // Encoding a full 2-6 hour stream at 4K takes 4+ hours and hits the hard
+    // timeout.  Instead, pick ONE audience-optimal 8–60 min segment:
+    //   1. Call chooseBestLongFormDuration() to get the learned ideal length.
+    //   2. Skip the first 8% of the video (max 10 min) to clear stream intros,
+    //      lobby waits, and "let's get started" dead air.
+    //   3. Encode only that single segment — pure quality, zero waste.
+    let smartCutStartSec: number | null = null;
+    let smartCutDurationSec: number | null = null;
+
+    if (probe.durationSecs > 3600) {
+      try {
+        // Resolve game name for the learner from vault entry metadata
+        let gameName = "PS5 Gameplay";
+        if (job.vaultEntryId) {
+          const [ve] = await db
+            .select({ metadata: contentVaultBackups.metadata, title: contentVaultBackups.title })
+            .from(contentVaultBackups)
+            .where(eq(contentVaultBackups.id, job.vaultEntryId))
+            .limit(1);
+          const veMeta = (ve?.metadata ?? {}) as Record<string, any>;
+          gameName = veMeta.gameName || veMeta.game
+            || (ve?.title?.split(/[\s\-–:|]/)?.[0] ?? "PS5 Gameplay");
+        }
+
+        const { chooseBestLongFormDuration } = await import("./youtube-performance-learner");
+        const targetSec = await chooseBestLongFormDuration(job.userId, gameName, probe.durationSecs);
+
+        // Skip stream intro: 8% of video, capped at 10 minutes
+        const introSkipSec = Math.min(probe.durationSecs * 0.08, 600);
+        const rawStart = Math.floor(introSkipSec);
+        // Shift start back if segment would run past end of video
+        const adjustedStart = (rawStart + targetSec) > probe.durationSecs
+          ? Math.max(0, probe.durationSecs - targetSec)
+          : rawStart;
+
+        smartCutStartSec = Math.round(adjustedStart);
+        smartCutDurationSec = Math.round(Math.min(targetSec, probe.durationSecs - adjustedStart));
+
+        logger.info(
+          `[StreamEditor] Job ${jobId}: smart-cut — ` +
+          `source ${Math.round(probe.durationSecs / 60)}min → ` +
+          `${Math.round(smartCutDurationSec / 60)}min segment ` +
+          `starting at ${Math.round(smartCutStartSec / 60)}min mark ` +
+          `(game: ${gameName}, audience pick: ${Math.round(targetSec / 60)}min)`,
+        );
+
+        await db.update(streamEditJobs)
+          .set({ clipDurationMins: Math.round(smartCutDurationSec / 60) })
+          .where(eq(streamEditJobs.id, jobId));
+      } catch (scErr: any) {
+        logger.warn(
+          `[StreamEditor] Job ${jobId}: smart-cut selection failed — ` +
+          `falling back to first 60 min (${scErr?.message?.slice(0, 80)})`,
+        );
+        // Fallback: encode just the first 60 minutes to avoid the hard timeout
+        smartCutStartSec = 0;
+        smartCutDurationSec = 3600;
+      }
+    }
+
+    const clipSecs = smartCutDurationSec ?? ((job.clipDurationMins ?? 60) * 60);
+    // When smart-cutting: always 1 clip. Otherwise: slice into clipSecs chunks.
+    const numClips = smartCutStartSec !== null ? 1 : Math.ceil(probe.durationSecs / clipSecs);
     const totalTasks = numClips * platforms.length;
     let completedTasks = 0;
     const outputFiles: Array<{
@@ -644,7 +706,9 @@ async function runJobInBackground(jobId: number): Promise<void> {
       sourceDurationSecs: Math.round(probe.durationSecs),
       totalClips: totalTasks,
       outputDir: jobOutputDir,
-      currentStage: `[3/6] Editing — Clip 1/${numClips}`,
+      currentStage: smartCutStartSec !== null
+        ? `[3/6] Editing — smart-cut ${Math.round(clipSecs / 60)}min segment`
+        : `[3/6] Editing — Clip 1/${numClips}`,
     }).where(eq(streamEditJobs.id, jobId));
 
     // ── Stages 3/6 + 4/6: Edit then Upscale ─────────────────────────────────
@@ -664,8 +728,12 @@ async function runJobInBackground(jobId: number): Promise<void> {
       fs.mkdirSync(platformDir, { recursive: true });
 
       for (let i = 0; i < numClips; i++) {
-        const startSecs = i * clipSecs;
-        const actualDuration = Math.min(clipSecs, probe.durationSecs - startSecs);
+        // Smart-cut: encode only the audience-optimal window.
+        // Normal mode: stride through the video in clipSecs chunks.
+        const startSecs = smartCutStartSec !== null ? smartCutStartSec : i * clipSecs;
+        const actualDuration = smartCutDurationSec !== null
+          ? smartCutDurationSec
+          : Math.min(clipSecs, probe.durationSecs - startSecs);
         const clipLabel = `Part ${i + 1} of ${numClips} — ${profile.label}`;
         const outputPath = path.join(platformDir, `clip_${String(i + 1).padStart(3, "0")}.mp4`);
 
