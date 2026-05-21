@@ -41,7 +41,10 @@ const logger = createLogger("pre-seo");
 const THUMBNAIL_DIR =
   process.env.THUMBNAIL_DIR ?? path.join(process.cwd(), "data", "thumbnails");
 
-const MAX_ITEMS_PER_RUN = 50; // SEO generation is cheap — process up to 50 per cycle
+// No per-run cap — process every queued item that lacks SEO on each cycle.
+// The AI semaphore + token budget are the real rate limiters.
+// Cycle runs every 6 h so a 10,000-item queue is fully prepped within a day.
+const MAX_ITEMS_PER_RUN = 10_000;
 
 // ── Directory setup ───────────────────────────────────────────────────────────
 
@@ -352,32 +355,13 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
   return { processed, seoGenerated, thumbsExtracted, errors };
 }
 
-// ── Scheduling ────────────────────────────────────────────────────────────────
+// ── Scheduling: every 6 hours ─────────────────────────────────────────────────
+// Runs continuously so that as the back catalog fills the queue with thousands
+// of items, every one gets its SEO title/description/tags and thumbnail frame
+// well before its scheduled publish time.  The AI semaphore + token budget
+// inside runPreSeoCycle() prevent runaway Claude spend.
 
-/** Returns the next 8:00 PM Pacific time (handles PST/PDT). */
-function getNextPreSeoTime(): Date {
-  const tz  = "America/Los_Angeles";
-  const now  = new Date();
-
-  for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
-    const probe = new Date(now.getTime() + dayOffset * 86_400_000);
-    const localDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(probe);
-
-    for (const offset of ["-07:00", "-08:00"]) {
-      const candidate = new Date(`${localDate}T20:00:00${offset}`);
-      const check = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
-      }).format(candidate);
-      if (check.includes("20:00") && candidate.getTime() > now.getTime() + 60_000) {
-        return candidate;
-      }
-    }
-  }
-
-  return new Date(now.getTime() + 4 * 3_600_000); // hard fallback: 4 h from now
-}
+const CYCLE_INTERVAL_MS = 6 * 3_600_000; // 6 hours
 
 let _preSeoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -391,32 +375,30 @@ export function stopPreSeo(): void {
 
 export function initPreSeo(): void {
   function scheduleNextRun(): void {
-    const next    = getNextPreSeoTime();
-    const msUntil = Math.max(next.getTime() - Date.now(), 1_000);
-    const hUntil  = Math.round(msUntil / 3_600_000 * 10) / 10;
-    logger.info(`[PreSeo] Next SEO pre-generation run in ${hUntil} h (${next.toISOString()})`);
-
     _preSeoTimer = setTimeout(async () => {
       _preSeoTimer = null;
+      logger.info("[PreSeo] Starting 6-hour SEO + thumbnail cycle");
       await runPreSeoCycle().catch(err =>
-        logger.error("[PreSeo] Nightly cycle error", { error: String(err) }),
+        logger.error("[PreSeo] Cycle error", { error: String(err) }),
       );
       scheduleNextRun();
-    }, msUntil);
+    }, CYCLE_INTERVAL_MS);
+    logger.info(`[PreSeo] Next SEO + thumbnail cycle in 6 h`);
   }
 
   stopPreSeo();
 
-  // Startup run after 10-minute delay — catches anything due soon
+  // Startup run after 10-minute delay — preps anything queued near the top
   setTimeout(() => {
+    logger.info("[PreSeo] Startup SEO + thumbnail cycle starting");
     runPreSeoCycle().catch(err =>
-      logger.warn("[PreSeo] Startup run error", { error: String(err) }),
+      logger.warn("[PreSeo] Startup cycle error", { error: String(err) }),
     );
   }, 10 * 60_000);
 
   scheduleNextRun();
   logger.info(
-    `[PreSeo] Initialised — nightly at 8 PM Pacific, ` +
-    `pre-generates SEO + thumbnails for all ${MAX_ITEMS_PER_RUN} queued items`,
+    "[PreSeo] Initialised — runs every 6 h, pre-generates SEO + thumbnails " +
+    "for every queued item that hasn't been prepped yet",
   );
 }
