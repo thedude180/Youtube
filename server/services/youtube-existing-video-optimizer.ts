@@ -4,8 +4,10 @@
  * Phase 3: Improve existing YouTube videos through better metadata, chapters,
  * thumbnail concepts, and description refresh — without uploading new files.
  *
- * Rate: 5–15 metadata refreshes/day max (enforced by METADATA_REFRESH_PER_DAY).
- * Priority: highest totalRevivalScore videos first.
+ * Runs until every catalog video has been optimized — no per-day cap.
+ * The YouTube quota breaker and MIN_HOURS_BETWEEN_UPDATES guard prevent
+ * overloading the API or re-hitting the same video too quickly.
+ * Priority: highest totalRevivalScore videos first (via back catalog engine).
  *
  * API pushes use updateYouTubeVideo() with before/after logged to videoUpdateHistory
  * for rollback support.
@@ -25,27 +27,8 @@ import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
 
 const logger = createLogger("video-optimizer");
 
-const METADATA_REFRESH_PER_DAY = 20;  // max metadata updates per user per day
-const MIN_HOURS_BETWEEN_UPDATES = 2;   // don't update the same video twice quickly
-
-// ── Count today's metadata updates ───────────────────────────────────────────
-
-async function countTodayMetadataUpdates(userId: string): Promise<number> {
-  try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const [row] = await db.select({ cnt: sql<number>`count(*)::int` })
-      .from(videoUpdateHistory)
-      .where(and(
-        eq(videoUpdateHistory.userId, userId),
-        eq(videoUpdateHistory.source, "back_catalog_optimizer"),
-        gte(videoUpdateHistory.createdAt, todayStart),
-      ));
-    return row?.cnt ?? 0;
-  } catch {
-    return 0;
-  }
-}
+// No per-day cap — quota breaker + MIN_HOURS_BETWEEN_UPDATES are the real gates.
+const MIN_HOURS_BETWEEN_UPDATES = 2;   // don't re-update the same video within 2 h
 
 // ── Log update to history ─────────────────────────────────────────────────────
 
@@ -304,12 +287,6 @@ export async function optimizeExistingVideoMetadata(
     }
   }
 
-  // Check daily cap
-  const todayCount = await countTodayMetadataUpdates(userId);
-  if (todayCount >= METADATA_REFRESH_PER_DAY) {
-    return { success: false, changes: [], skipped: `daily metadata cap reached (${METADATA_REFRESH_PER_DAY}/day)` };
-  }
-
   const optimized = await generateOptimizedMetadata(video);
   if (!optimized) return { success: false, changes: [], skipped: "AI optimization unavailable" };
 
@@ -506,12 +483,6 @@ export async function queueMetadataUpdate(
       return { queued: false, reason: "YouTube quota breaker active — deferred until reset" };
     }
   } catch { /* ok */ }
-
-  // Check daily cap
-  const todayCount = await countTodayMetadataUpdates(userId);
-  if (todayCount >= METADATA_REFRESH_PER_DAY) {
-    return { queued: false, reason: `daily metadata cap (${METADATA_REFRESH_PER_DAY}) reached` };
-  }
 
   // Run the optimization (pushToAPI=true)
   const result = await optimizeExistingVideoMetadata(userId, youtubeVideoId, true);

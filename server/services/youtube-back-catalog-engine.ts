@@ -47,7 +47,7 @@ const logger = createLogger("back-catalog-engine");
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-export const METADATA_REFRESH_PER_DAY = 20;
+// METADATA_REFRESH_PER_DAY removed — catalog optimizer now runs to exhaustion.
 const SHORT_MIN_SOURCE_SEC            = 300;   // 5 min source needed for a Short
 const LONG_FORM_MIN_SOURCE_SEC        = 3_600; // 60 min source for multi-segment
 const SINGLE_SEG_MIN_SOURCE_SEC       = 480;   // 8 min for single long-form clip
@@ -157,25 +157,7 @@ function buildGameFilter(currentGame: string): (v: { gameName?: string | null; t
   return (v) => re.test(`${v.gameName ?? ""} ${v.title ?? ""}`);
 }
 
-// ── Count today's metadata refreshes ─────────────────────────────────────────
 
-async function countTodayMetadataRefreshes(userId: string): Promise<number> {
-  try {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const { videoUpdateHistory } = await import("@shared/schema");
-    const [row] = await db.select({ cnt: sql<number>`count(*)::int` })
-      .from(videoUpdateHistory)
-      .where(and(
-        eq(videoUpdateHistory.userId, userId),
-        eq(videoUpdateHistory.source, "back_catalog_optimizer"),
-        gte(videoUpdateHistory.createdAt, todayStart),
-      ));
-    return row?.cnt ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 // ── Check quota ───────────────────────────────────────────────────────────────
 
@@ -477,23 +459,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       }
     }
 
-    // ── Queue metadata refreshes ──────────────────────────────────────────────
-    const todayMeta = await countTodayMetadataRefreshes(userId);
-    const metaSlots = Math.max(0, METADATA_REFRESH_PER_DAY - todayMeta);
+    // ── Queue metadata refreshes (SEO + thumbnail concept) ───────────────────
+    // No per-day cap here — process ALL catalog videos that haven't been
+    // optimized yet.  queueMetadataUpdate() already checks the quota breaker
+    // and the MIN_HOURS_BETWEEN_UPDATES guard so we won't spam any one video.
+    const metaTargets = ranked
+      .filter(v => !v.isShort);
+    // No .slice() — exhaust the entire catalog over successive cycles.
 
-    if (metaSlots > 0) {
-      const metaTargets = ranked
-        .filter(v => v.metadataOpportunityScore >= 15 && !v.isShort)
-        .slice(0, metaSlots);
-
-      for (const v of metaTargets) {
-        try {
-          const { queueMetadataUpdate } = await import("./youtube-existing-video-optimizer");
-          const res = await queueMetadataUpdate(userId, v.youtubeVideoId);
-          if (res.queued) result.metadataQueued++;
-        } catch (err: any) {
-          logger.debug(`[BackCatalog] Metadata queue error ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
-        }
+    for (const v of metaTargets) {
+      try {
+        const { queueMetadataUpdate } = await import("./youtube-existing-video-optimizer");
+        const res = await queueMetadataUpdate(userId, v.youtubeVideoId);
+        if (res.queued) result.metadataQueued++;
+      } catch (err: any) {
+        logger.debug(`[BackCatalog] Metadata queue error ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
       }
     }
 
