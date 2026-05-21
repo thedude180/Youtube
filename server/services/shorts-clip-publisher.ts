@@ -363,7 +363,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
 
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
-        inArray(autopilotQueue.type, ["youtube_short", "platform_short", "platform_text_short"]),
+        // youtube_short / platform_short / platform_text_short — legacy types
+        // vod-short — created by vod-continuous-engine with clipId + startSec/endSec
+        inArray(autopilotQueue.type, ["youtube_short", "platform_short", "platform_text_short", "vod-short"]),
         eq(autopilotQueue.status, "scheduled"),
         lte(autopilotQueue.scheduledAt, batchWindow),
       ))

@@ -862,7 +862,7 @@ const DAILY_CAPS: Record<string, number> = {
   "shorts-pipeline":           150_000,  // capped at 150k — ~18 videos/day at ~8k tokens each; prevents crowding out other engines
   "thumbnail-intelligence":    250_000,  // 50k  → 250k — deep game research + A/B analysis
   "repurpose-engine":          200_000,  // 60k  → 200k — maximum repurpose variations
-  "viral-optimizer":           500_000,  // 300k → 500k — full viral sweep on entire library
+  "viral-optimizer":         3_000_000,  // 500k → 3M — full library sweep without daily exhaustion
   "autopilot":                 400_000,  // 160k → 400k — all-day autonomous scheduling
   "tos-monitor":               150_000,  // 40k  → 150k — comprehensive compliance monitoring
   "marketer-engine":           400_000,  // 160k → 400k — full marketing automation

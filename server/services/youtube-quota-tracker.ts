@@ -113,12 +113,12 @@ const UPLOAD_RESERVE = 4000;
  * The unit-budget gate in canAffordOperation() is still the ultimate backstop.
  */
 const DAILY_OP_CAPS: Record<string, number> = {
-  upload:       6,    //  6 × 1600 = 9,600 units — maximises daily quota usage (~96% of 10k)
-  write:        8,    //  8 ×   50 =   400 units — new content pushes
-  backlogWrite: 8,    //  8 ×   50 =   400 units — backlog optimisation
-  thumbnail:    6,    //  6 ×   50 =   300 units — AI thumbnails
-  broadcast:    12,   // 12 ×   50 =   600 units — live detection polling
-  search:       3,    //  3 ×  100 =   300 units — search.list (very expensive)
+  upload:       6,    //  6 × 1600 = 9,600 units — hard max given 10k daily quota
+  write:        100,  // unit budget is the real gate (50 units each); COUNT cap raised so it never fires first
+  backlogWrite: 100,  // same — unit budget gates this before count
+  thumbnail:    50,   // 50 × 50 = 2,500 units; unit budget gates this before count
+  broadcast:    40,   // raised: 40 × 50 = 2,000 units — live detection polling
+  search:       10,   // raised: 10 × 100 = 1,000 units — search.list
   livechat:     24,   // 24 ×   50 = 1,200 units — AI chat (~2/h over a 12-h stream)
   read:         Infinity,
   list:         Infinity,
