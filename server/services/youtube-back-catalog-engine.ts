@@ -39,8 +39,6 @@ import {
   rankVideos,
 } from "./youtube-back-catalog-scorer";
 import {
-  canQueueShortToday,
-  canQueueLongFormToday,
   getNextShortPublishTime,
   getNextLongFormPublishTime,
 } from "./youtube-output-schedule";
@@ -57,9 +55,11 @@ const SHORT_TARGET_SEC                = 38;    // default Short target duration
 const SHORTS_OPPORTUNITY_THRESHOLD   = 20;    // min score to queue a Short
 const LONG_FORM_OPPORTUNITY_THRESHOLD = 20;    // min score to queue long-form
 const BACKFILL_BATCH_SIZE            = 50;    // videos per YouTube API fetch batch
-// Allow a large advance queue so the system is always "editing" — content stays
-// in the buffer for weeks ahead and the back catalog never goes idle.
-const MAX_SCHEDULED_DEPTH_GLOBAL     = 500;
+// Infinite-schedule buffer: queue is a deep reservoir so the system is always
+// "editing" — content stays in the pipeline for months/years ahead and the back
+// catalog never runs dry.  Actual uploads to YouTube are still gated by quota
+// (10 k units/day) and the 3-Shorts + 1-LF-per-day cadence in the publisher.
+const MAX_SCHEDULED_DEPTH_GLOBAL     = 10_000;
 
 // ── Helper: ISO 8601 duration to seconds ─────────────────────────────────────
 
@@ -506,7 +506,11 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "scheduled")));
     const scheduledDepth = depthRow?.cnt ?? 0;
 
-    const canShort = scheduledDepth < MAX_SCHEDULED_DEPTH_GLOBAL && await canQueueShortToday(userId);
+    // Queue-filling is only gated by the depth cap — canQueueShortToday() is
+    // intentionally removed here because getNextShortPublishTime() already
+    // schedules each item to a future day that has capacity.  Checking today's
+    // slot count would block filling the queue for future weeks.
+    const canShort = scheduledDepth < MAX_SCHEDULED_DEPTH_GLOBAL;
     if (canShort) {
       const shortCandidates = ranked
         .filter(v =>
@@ -515,12 +519,11 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           v.shortsOpportunityScore >= SHORTS_OPPORTUNITY_THRESHOLD &&
           !v.minedForShorts &&
           (!gameFilter || gameFilter(v)),
-        )
-        .slice(0, 3);
+        );
+      // No .slice() — process every eligible clip so the queue fills to exhaustion.
 
       for (const v of shortCandidates) {
-        const canQueue = await canQueueShortToday(userId);
-        if (!canQueue) break;
+        if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
 
         try {
           // Optimistic lock — claim this video for Shorts mining atomically.
@@ -586,14 +589,14 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           logger.warn(`[BackCatalog] Short queue failed for ${v.youtubeVideoId}: ${err.message?.slice(0, 150)}`);
         }
       }
-    } else {
-      result.skipped.push("Shorts: daily cap reached (3/day)");
     }
+    // (no else — depth cap is the only gate; if queue is full, just skip quietly)
 
     // ── Queue long-form clips from old VODs ───────────────────────────────────
-    const canLongForm = await canQueueLongFormToday(userId);
-    if (canLongForm) {
-      // Videos over 60 min → use multi-segmenter
+    // Same pattern: depth cap only — canQueueLongFormToday() removed from here
+    // because getNextLongFormPublishTime() assigns future slots automatically.
+    if (scheduledDepth < MAX_SCHEDULED_DEPTH_GLOBAL) {
+      // Videos over 60 min → use multi-segmenter (ALL eligible, no .slice cap)
       const over60Candidates = ranked
         .filter(v =>
           !v.isShort &&
@@ -601,12 +604,10 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
           !v.minedForLongForm &&
           (!gameFilter || gameFilter(v)),
-        )
-        .slice(0, 3);
+        );
 
       for (const v of over60Candidates) {
-        const canQueue = await canQueueLongFormToday(userId);
-        if (!canQueue) break;
+        if ((depthRow?.cnt ?? 0) + result.longFormQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
 
         try {
           // Optimistic lock — claim before any operation
@@ -667,58 +668,52 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         }
       }
 
-      // Shorter videos (8–60 min) → single segment
-      if (result.longFormQueued === 0) {
-        const singleSegCandidates = ranked
-          .filter(v =>
-            !v.isShort &&
-            (v.durationSec ?? 0) >= SINGLE_SEG_MIN_SOURCE_SEC &&
-            (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC &&
-            v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
-            !v.minedForLongForm &&
-            (!gameFilter || gameFilter(v)),
-          )
-          .slice(0, 2);
+      // Shorter videos (8–60 min) → single segment (ALL eligible, runs alongside 60+ pass)
+      const singleSegCandidates = ranked
+        .filter(v =>
+          !v.isShort &&
+          (v.durationSec ?? 0) >= SINGLE_SEG_MIN_SOURCE_SEC &&
+          (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC &&
+          v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
+          !v.minedForLongForm &&
+          (!gameFilter || gameFilter(v)),
+        );
 
-        for (const v of singleSegCandidates) {
-          const canQueue = await canQueueLongFormToday(userId);
-          if (!canQueue) break;
+      for (const v of singleSegCandidates) {
+        if ((depthRow?.cnt ?? 0) + result.longFormQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
 
-          try {
-            // Optimistic lock — claim before inserting to prevent duplicate long-form entries
-            const claimedLF = await db.update(backCatalogVideos)
-              .set({ minedForLongForm: true, updatedAt: new Date() })
-              .where(and(
-                eq(backCatalogVideos.userId, userId),
-                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-                or(
-                  eq(backCatalogVideos.minedForLongForm, false),
-                  isNull(backCatalogVideos.minedForLongForm),
-                ),
-              ))
-              .returning({ id: backCatalogVideos.id });
+        try {
+          // Optimistic lock — claim before inserting to prevent duplicate long-form entries
+          const claimedLF = await db.update(backCatalogVideos)
+            .set({ minedForLongForm: true, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+              or(
+                eq(backCatalogVideos.minedForLongForm, false),
+                isNull(backCatalogVideos.minedForLongForm),
+              ),
+            ))
+            .returning({ id: backCatalogVideos.id });
 
-            if (!claimedLF.length) {
-              logger.debug(`[BackCatalog] Long-form already claimed for ${v.youtubeVideoId} — skipping`);
-              continue;
-            }
-
-            await queueLongFormFromBackCatalog(userId, v);
-            await db.update(backCatalogVideos)
-              .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
-              .where(and(
-                eq(backCatalogVideos.userId, userId),
-                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-              ));
-            await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
-            result.longFormQueued++;
-          } catch (err: any) {
-            logger.warn(`[BackCatalog] Single-seg queue failed: ${err.message?.slice(0, 150)}`);
+          if (!claimedLF.length) {
+            logger.debug(`[BackCatalog] Long-form already claimed for ${v.youtubeVideoId} — skipping`);
+            continue;
           }
+
+          await queueLongFormFromBackCatalog(userId, v);
+          await db.update(backCatalogVideos)
+            .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+            ));
+          await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
+          result.longFormQueued++;
+        } catch (err: any) {
+          logger.warn(`[BackCatalog] Single-seg queue failed: ${err.message?.slice(0, 150)}`);
         }
       }
-    } else {
-      result.skipped.push("Long-form: daily cap reached (1/day)");
     }
   } catch (err: any) {
     logger.error(`[BackCatalog] queueRevivalWork failed: ${err.message?.slice(0, 300)}`);

@@ -34,7 +34,7 @@ import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPubl
 
 const logger = createLogger("long-form-publisher");
 
-const MAX_PER_RUN = 7; // canAffordOperation (quota) is the real gate; 7 is the safety ceiling
+const MAX_PER_RUN = 50; // quota is the real gate; 50 works through a deep queue efficiently
 const BATCH_WINDOW_DAYS = 365; // 365-day window — shadow schedule is unlimited; quota + MAX_PER_RUN cap actual uploads per night
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
 const MIN_LONG_FORM_SEC = 480; // 8 min — YouTube mid-roll monetization threshold
