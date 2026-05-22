@@ -2480,12 +2480,22 @@ httpServer.listen(
         // belong on this channel.  Permanently fail them.  Also covers items
         // with a sourceYoutubeId where the queue's own gameName metadata is
         // explicitly a different game.
+        // Non-Battlefield auto-clip purge: only applies to stale/incorrect items.
+        // Items tagged backCatalogGenerated=true were intentionally created by the
+        // back-catalog engine for a non-BF6 game after BF6 was fully exhausted —
+        // those are valid multi-game content and must NOT be purged.
+        // Items tagged isStreamHighlight/isStreamReplay/pastStreamExtracted are live-stream
+        // clips and must also be preserved regardless of gameName.
         db.execute(
           sql`UPDATE autopilot_queue q
               SET status = 'permanent_fail',
-                  error_message = 'Purged: non-Battlefield auto-clip — BF6-only channel'
+                  error_message = 'Purged: non-Battlefield auto-clip — BF6-only channel (stale)'
               WHERE q.type = 'auto-clip'
                 AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND (q.metadata->>'backCatalogGenerated' IS NULL OR q.metadata->>'backCatalogGenerated' != 'true')
+                AND (q.metadata->>'isStreamHighlight'    IS NULL OR q.metadata->>'isStreamHighlight'    != 'true')
+                AND (q.metadata->>'isStreamReplay'       IS NULL OR q.metadata->>'isStreamReplay'       != 'true')
+                AND (q.metadata->>'pastStreamExtracted'  IS NULL OR q.metadata->>'pastStreamExtracted'  != 'true')
                 AND (
                   -- local source video is a different game
                   (q.source_video_id IS NOT NULL AND EXISTS (
@@ -2508,7 +2518,7 @@ httpServer.listen(
                   )
                 )`
         )
-          .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
 
         // ── Fake vod-bridge stream cleanup ────────────────────────────────────

@@ -474,12 +474,48 @@ export interface AfterStreamResult {
   vodOptimized: boolean;
 }
 
+/**
+ * Bump all non-live-stream scheduled catalog items forward by N days.
+ * Called when a new live stream ends so near-term slots open up for
+ * the incoming live stream clips.  Items tagged isStreamHighlight,
+ * copilotGenerated, or isStreamReplay are left untouched — they are
+ * already live-stream content.
+ */
+export async function bumpScheduleForNewStream(
+  userId: string,
+  daysAhead = 3,
+): Promise<number> {
+  try {
+    const result = await db.execute(
+      sql`UPDATE autopilot_queue
+          SET scheduled_at = scheduled_at + (${daysAhead} || ' days')::interval,
+              updated_at   = now()
+          WHERE user_id   = ${userId}
+            AND status    = 'scheduled'
+            AND scheduled_at > now()
+            AND (metadata->>'isStreamHighlight' IS NULL OR metadata->>'isStreamHighlight' = 'false')
+            AND (metadata->>'copilotGenerated'  IS NULL OR metadata->>'copilotGenerated'  = 'false')
+            AND (metadata->>'isStreamReplay'    IS NULL OR metadata->>'isStreamReplay'    = 'false')`,
+    );
+    const bumped = (result as any)?.rowCount ?? 0;
+    logger.info(`[Copilot] Bumped ${bumped} catalog queue items +${daysAhead} days for incoming live stream`, { userId: userId.slice(0, 8) });
+    return bumped;
+  } catch (err: any) {
+    logger.warn(`[Copilot] bumpScheduleForNewStream failed (non-fatal): ${err.message?.slice(0, 200)}`);
+    return 0;
+  }
+}
+
 export async function afterStreamCopilot(
   userId: string,
   streamId: number,
 ): Promise<AfterStreamResult> {
   const state = getStreamState(streamId);
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+
+  // Shift catalog content back so live stream clips always win near-term slots.
+  // Non-fatal — schedule bump runs in the background while we continue queuing.
+  bumpScheduleForNewStream(userId, 3).catch(() => {});
 
   // Look up the VOD YouTube ID — needed so pre-seo.ts can link back to the
   // original full stream in the description and use it as the source context.

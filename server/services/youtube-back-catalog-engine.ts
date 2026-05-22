@@ -30,7 +30,7 @@ import {
   autopilotQueue,
   streams,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte, lt, or, isNull, not } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import {
@@ -470,6 +470,9 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     // No per-day cap here — process ALL catalog videos that haven't been
     // optimized yet.  queueMetadataUpdate() already checks the quota breaker
     // and the MIN_HOURS_BETWEEN_UPDATES guard so we won't spam any one video.
+    // Metadata refresh (SEO + thumbnail) runs for ALL videos regardless of
+    // game — even non-BF6 catalog entries benefit from optimized titles and
+    // thumbnails.  The game-priority filter only gates new clip creation.
     const metaTargets = ranked
       .filter(v => !v.isShort);
     // No .slice() — exhaust the entire catalog over successive cycles.
@@ -817,6 +820,180 @@ async function trackDerivative(
   } catch { /* non-fatal */ }
 }
 
+// ── Past live-stream content queue ───────────────────────────────────────────
+// Runs BEFORE the regular back-catalog phase.  Finds every stream that has
+// ended but hasn't been fully extracted yet and queues Shorts + long-form
+// clips for it with LIVE PRIORITY (minDaysAhead = 0).  Marks
+// contentFullyExhausted = true when done so the stream is never re-processed.
+//
+// Priority tier:
+//   tier-1  streams from the last 7 days  → day 0 slots (nearest possible)
+//   tier-2  older past streams             → day 1 slots (still ahead of catalog)
+//
+// This means: recent stream → clips publish today/tomorrow; older archived
+// stream → clips start the day after tomorrow; back catalog → day 3+.
+
+export async function queuePastStreamContent(userId: string): Promise<{
+  streamsProcessed: number;
+  shortsQueued: number;
+  longFormQueued: number;
+}> {
+  const result = { streamsProcessed: 0, shortsQueued: 0, longFormQueued: 0 };
+
+  if (!(await isQuotaSafe())) {
+    logger.info("[BackCatalog/PastStreams] Quota breaker active — skipping past-stream extraction");
+    return result;
+  }
+
+  try {
+    // All ended streams that still have unextracted content, most recent first.
+    const unexhausted = await db
+      .select()
+      .from(streams)
+      .where(and(
+        eq(streams.userId, userId),
+        isNotNull(streams.endedAt),
+        or(
+          eq(streams.contentFullyExhausted, false),
+          isNull(streams.contentFullyExhausted),
+        ),
+      ))
+      .orderBy(desc(streams.endedAt))
+      .limit(20); // process up to 20 unextracted streams per cycle
+
+    if (!unexhausted.length) {
+      logger.debug("[BackCatalog/PastStreams] No unextracted past streams found");
+      return result;
+    }
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+
+    for (const stream of unexhausted) {
+      try {
+        const streamEndedAt = stream.endedAt ? new Date(stream.endedAt) : null;
+        const isRecent = streamEndedAt && streamEndedAt > sevenDaysAgo;
+
+        // Recent streams get day-0 priority; older past streams get day-1 so
+        // they still beat back catalog (day 3+) but yield to brand-new streams.
+        const minDaysAhead = isRecent ? 0 : 1;
+
+        const gameName = stream.category || "Gaming";
+        const streamDurationMs =
+          stream.endedAt && stream.startedAt
+            ? new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()
+            : 0;
+        const streamDurationSec = streamDurationMs / 1000;
+
+        // Look up the VOD YouTube ID for description back-linking
+        let vodYoutubeId: string | undefined;
+        if (stream.vodVideoId) {
+          try {
+            const { videos } = await import("@shared/schema");
+            const [vodRow] = await db
+              .select({ metadata: videos.metadata })
+              .from(videos)
+              .where(eq(videos.id, stream.vodVideoId))
+              .limit(1);
+            vodYoutubeId = (vodRow?.metadata as any)?.youtubeId ?? undefined;
+          } catch { /* non-fatal */ }
+        }
+
+        // Queue up to 3 Shorts per past stream
+        const clipsToQueue = stream.contentMinutesExtracted && stream.contentMinutesExtracted > 0
+          ? Math.max(1, 3 - Math.floor(stream.contentMinutesExtracted / 10)) // fewer clips if already partially extracted
+          : 3;
+
+        let streamShortsQueued = 0;
+        for (let i = 0; i < clipsToQueue; i++) {
+          try {
+            const scheduledAt = await getNextShortPublishTime(userId, minDaysAhead);
+            await db.insert(autopilotQueue).values({
+              userId,
+              type: "platform_short",
+              targetPlatform: "youtubeshorts",
+              content: `${gameName} live stream highlight from "${stream.title}".\n\n#Shorts #PS5 #${gameName.replace(/\s/g, "")} #Gaming #NoCommentary`,
+              caption: `${stream.title || gameName} | Live Highlight #Shorts`.substring(0, 90),
+              status: "scheduled",
+              scheduledAt,
+              metadata: {
+                contentType: "platform_short",
+                streamId: stream.id,
+                gameName,
+                streamTitle: stream.title || null,
+                sourceYoutubeId: vodYoutubeId ?? null,
+                isStreamHighlight: true,
+                pastStreamExtracted: true,
+                clipIndex: i,
+                startSec: Math.floor((streamDurationSec / clipsToQueue) * i),
+                tags: ["no commentary", "PS5", gameName, "shorts", "gaming", "live highlight"],
+              } as any,
+            });
+            streamShortsQueued++;
+          } catch (err: any) {
+            logger.debug(`[BackCatalog/PastStreams] Short queue failed for stream ${stream.id}: ${err.message?.slice(0, 100)}`);
+          }
+        }
+        result.shortsQueued += streamShortsQueued;
+
+        // Queue long-form if stream was over 30 min
+        if (streamDurationSec > 1800) {
+          try {
+            const scheduledAt = await getNextLongFormPublishTime(userId, minDaysAhead);
+            const durMin = Math.round(streamDurationSec / 60);
+            await db.insert(autopilotQueue).values({
+              userId,
+              type: "auto-clip",
+              targetPlatform: "youtube",
+              content: `${gameName} stream replay — ${durMin} min session. No commentary.\n\n#PS5 #NoCommentary #Gaming`,
+              caption: `${stream.title || gameName} Full Session | No Commentary`.substring(0, 90),
+              status: "scheduled",
+              scheduledAt,
+              metadata: {
+                contentType: "long-form-clip",
+                streamId: stream.id,
+                segmentStartSec: 0,
+                segmentEndSec: Math.round(streamDurationSec),
+                targetDurationSec: Math.min(3600, Math.round(streamDurationSec)),
+                actualDurationSec: Math.round(streamDurationSec),
+                gameName,
+                streamTitle: stream.title || null,
+                sourceYoutubeId: vodYoutubeId ?? null,
+                isStreamReplay: true,
+                pastStreamExtracted: true,
+                tags: ["no commentary", "PS5", gameName, "gaming", "full session"],
+              } as any,
+            });
+            result.longFormQueued++;
+          } catch (err: any) {
+            logger.debug(`[BackCatalog/PastStreams] Long-form queue failed for stream ${stream.id}: ${err.message?.slice(0, 100)}`);
+          }
+        }
+
+        // Mark this stream as fully exhausted so it's not re-processed next cycle
+        await db.update(streams)
+          .set({
+            contentFullyExhausted: true,
+            contentMinutesExtracted: Math.round(streamDurationSec / 60),
+          })
+          .where(eq(streams.id, stream.id));
+
+        result.streamsProcessed++;
+        logger.info(
+          `[BackCatalog/PastStreams] Processed stream ${stream.id} "${stream.title?.slice(0, 50)}" ` +
+          `(${isRecent ? "recent" : "archived"}, day+${minDaysAhead}): ` +
+          `${streamShortsQueued} Shorts${streamDurationSec > 1800 ? " + 1 long-form" : ""}`,
+        );
+      } catch (streamErr: any) {
+        logger.warn(`[BackCatalog/PastStreams] Stream ${stream.id} failed: ${streamErr.message?.slice(0, 150)}`);
+      }
+    }
+  } catch (err: any) {
+    logger.warn(`[BackCatalog/PastStreams] queuePastStreamContent failed: ${err.message?.slice(0, 200)}`);
+  }
+
+  return result;
+}
+
 // ── Master cycle ──────────────────────────────────────────────────────────────
 
 const _lastCycleAt = new Map<string, number>();
@@ -843,6 +1020,18 @@ export async function runBackCatalogMonetizationCycle(userId: string): Promise<{
   _lastCycleAt.set(userId, Date.now());
 
   logger.info(`[BackCatalog] Starting monetization cycle for ${userId.slice(0, 8)}`);
+
+  // ── Phase 0: Past live streams (highest priority) ─────────────────────────
+  // Process all ended streams that haven't been fully extracted yet.
+  // These get live-priority scheduling (day 0 for recent, day 1 for older)
+  // so they always publish before back catalog content (day 3+).
+  const pastStreamResult = await queuePastStreamContent(userId);
+  if (pastStreamResult.streamsProcessed > 0) {
+    logger.info(
+      `[BackCatalog] Past-stream phase: ${pastStreamResult.streamsProcessed} streams → ` +
+      `${pastStreamResult.shortsQueued} Shorts + ${pastStreamResult.longFormQueued} long-form queued`,
+    );
+  }
 
   const importResult = await runBackCatalogImport(userId);
   const opportunities = await rankBackCatalogOpportunities(userId, 20);
