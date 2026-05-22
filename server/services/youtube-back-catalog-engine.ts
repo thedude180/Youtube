@@ -63,6 +63,10 @@ const MAX_SCHEDULED_DEPTH_GLOBAL     = 10_000;
 // Back catalog never schedules more than this many days ahead — leaves near-term
 // slots available for live stream highlights, which always take priority.
 const MAX_BACK_CATALOG_DAYS_AHEAD    = 21;
+// Back catalog skips the first N days so live stream clips always claim those
+// near-term windows first.  Live copilot calls getNextShort/LongFormPublishTime
+// with minDaysAhead=0 (default) so it wins the nearest slots every time.
+const MIN_CATALOG_START_DAYS         = 3;
 
 // ── Helper: ISO 8601 duration to seconds ─────────────────────────────────────
 
@@ -529,7 +533,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             continue;
           }
 
-          const scheduledAt = await getNextShortPublishTime(userId);
+          const scheduledAt = await getNextShortPublishTime(userId, MIN_CATALOG_START_DAYS);
 
           // Enforce 21-day horizon: back catalog never books slots further ahead
           // than MAX_BACK_CATALOG_DAYS_AHEAD.  Slots beyond that are reserved for
@@ -756,7 +760,7 @@ async function queueLongFormFromBackCatalog(
 
   const experimentMin = pickExperimentMin(dur);
   const experimentSec = experimentMin * 60;
-  const scheduledAt = await getNextLongFormPublishTime(userId);
+  const scheduledAt = await getNextLongFormPublishTime(userId, MIN_CATALOG_START_DAYS);
 
   // Same 21-day horizon as Shorts — live stream replays take priority over
   // back-catalog long-form in the near-term schedule.

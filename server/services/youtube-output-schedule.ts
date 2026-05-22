@@ -427,7 +427,7 @@ async function getLastScheduledLongFormTime(userId: string): Promise<Date | null
  *      INSERT ... ON CONFLICT DO NOTHING RETURNING id wins the slot or loses it
  *   4. Reservation map — defense-in-depth for the autopilotQueue insert gap
  */
-export async function getNextShortPublishTime(userId: string): Promise<Date> {
+export async function getNextShortPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
   return withShortScheduleMutex(userId, () =>
     withShortAdvisoryLock(userId, async () => {
       const tz     = await getUserTz(userId);
@@ -436,7 +436,7 @@ export async function getNextShortPublishTime(userId: string): Promise<Date> {
       const lastSt = await getLastScheduledShortTime(userId);
       const inFlightSlots = getActiveShortReservations(userId);
 
-      for (let d = 0; d < MAX_DAYS_AHEAD; d++) {
+      for (let d = minDaysAhead; d < MAX_DAYS_AHEAD; d++) {
         const day = d === 0 ? today : offsetDay(tz, today, d);
 
         // Fetch DB rows, in-progress claimed windows, and the reservation map
@@ -518,13 +518,13 @@ export async function getNextShortPublishTime(userId: string): Promise<Date> {
  * Find the next valid long-form publish time for a user.
  * Prefers the 17:30–19:30 evening window with ≥ 20 h gap enforcement.
  */
-export async function getNextLongFormPublishTime(userId: string): Promise<Date> {
+export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
   const tz     = await getUserTz(userId);
   const now    = new Date();
   const today  = getLocalDay(tz, now);
   const lastLf = await getLastScheduledLongFormTime(userId);
 
-  for (let d = 0; d < MAX_DAYS_AHEAD; d++) {
+  for (let d = minDaysAhead; d < MAX_DAYS_AHEAD; d++) {
     const day = d === 0 ? today : offsetDay(tz, today, d);
     const [allUploads, lfToday] = await Promise.all([
       getUploadsOnDay(userId, tz, day),

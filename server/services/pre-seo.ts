@@ -29,7 +29,7 @@ import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
 import { db } from "../db";
-import { autopilotQueue, backCatalogVideos } from "@shared/schema";
+import { autopilotQueue, backCatalogVideos, streams } from "@shared/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
@@ -107,6 +107,8 @@ async function generateSeo(clip: {
   gameName: string;
   sourceYoutubeId?: string | null;
   durationSec: number;
+  isLiveStream?: boolean;
+  streamTitle?: string | null;
 }): Promise<PreSeoResult | null> {
   if (!tryAcquireAISlotNow()) return null;
 
@@ -119,14 +121,49 @@ async function generateSeo(clip: {
     const isShort  = clip.type.toLowerCase().includes("short");
     const durMin   = Math.round(clip.durationSec / 60);
     const game     = sanitizeForPrompt(clip.gameName, 60);
-    const srcTitle = sanitizeForPrompt(clip.sourceTitle, 150);
+    const srcTitle = sanitizeForPrompt(clip.streamTitle || clip.sourceTitle, 150);
     const hint     = sanitizeForPrompt(clip.caption ?? "", 120);
     const sourceLink = clip.sourceYoutubeId
       ? `https://youtu.be/${clip.sourceYoutubeId}`
       : null;
 
-    const prompt = isShort
-      ? `You are writing YouTube Shorts metadata for the ETGaming247 channel.
+    // Live stream clips get a prompt that signals the moment came from a real
+    // session — titles should reflect live energy, not catalog compilation tone.
+    let prompt: string;
+    if (clip.isLiveStream && isShort) {
+      prompt = `You are writing YouTube Shorts metadata for the ETGaming247 channel.
+Channel: No commentary. No facecam. Raw ${game} live stream highlights.
+
+Live session: "${srcTitle}"
+Game: ${game}
+Moment context: ${hint || "(intense gameplay moment)"}
+
+Write metadata that captures the live energy — NOT a generic "gameplay" title.
+Rules: honest description of what happened, compelling without being clickbait.
+
+1. TITLE (40-60 chars) — describe the actual moment. Pattern: "[What happened] in ${game} #Shorts"
+2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Live ${game} moment — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
+3. TAGS (up to 12, total < 400 chars) — game, live, shorts, no commentary, gameplay, ETGaming247.
+
+JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
+    } else if (clip.isLiveStream && !isShort) {
+      prompt = `You are writing YouTube long-form metadata for the ETGaming247 channel.
+Channel: No commentary. No facecam. Full live session replay of ${game}.
+
+Live session: "${srcTitle}"
+Game: ${game}
+Duration: ~${durMin} min${sourceLink ? `\nVOD: ${sourceLink}` : ""}
+
+Write metadata that positions this as a complete authentic session — not a highlights reel.
+Rules: honest description of the session, click-worthy without being clickbait.
+
+1. TITLE (50-80 chars) — pattern: "${game} Live Session — ${durMin} Min | No Commentary"
+2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Full ${game} live session, ${durMin} min. No commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
+3. TAGS (up to 15, total < 500 chars) — game, live, full session, no commentary, ETGaming247, 3-4 game-specific tags.
+
+JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
+    } else if (isShort) {
+      prompt = `You are writing YouTube Shorts metadata for the ETGaming247 channel.
 Channel: No commentary. No facecam. Raw gameplay — steady pressure, clean action.
 
 Source video: "${srcTitle}"
@@ -138,8 +175,9 @@ Write:
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Raw ${game} gameplay — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
 3. TAGS (up to 12, total < 400 chars) — game, shorts, no commentary, gameplay, ETGaming247.
 
-JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`
-      : `You are writing YouTube long-form gaming clip metadata for ETGaming247.
+JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
+    } else {
+      prompt = `You are writing YouTube long-form gaming clip metadata for ETGaming247.
 Channel: No commentary. No facecam. Raw ${game} gameplay.
 
 Source video: "${srcTitle}"
@@ -152,6 +190,7 @@ Write:
 3. TAGS (up to 15, total < 500 chars) — game, gameplay, no commentary, ETGaming247, 3-4 game-specific tags.
 
 JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
+    }
 
     const response = await callClaudeBackground({ prompt, model: CLAUDE_MODELS.haiku });
     releaseAISlot();
@@ -272,6 +311,29 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
       } catch { /* use fallback */ }
     }
 
+    // Resolve stream context for live stream clips — gives Claude the real
+    // session title and marks the item as a live clip so it gets a live prompt.
+    let isLiveStream = false;
+    let streamTitle: string | null = null;
+    const streamIdNum = meta.streamId ? Number(meta.streamId) : null;
+    if (streamIdNum) {
+      try {
+        const [streamRow] = await db
+          .select({ title: streams.title, category: streams.category })
+          .from(streams)
+          .where(eq(streams.id, streamIdNum))
+          .limit(1);
+        if (streamRow) {
+          isLiveStream = true;
+          streamTitle  = streamRow.title || null;
+          // Use stream category as game name if queue metadata is missing it
+          if ((!meta.gameName || String(meta.gameName) === "Gaming") && streamRow.category) {
+            (meta as Record<string, unknown>).gameName = streamRow.category;
+          }
+        }
+      } catch { /* use fallback — non-fatal */ }
+    }
+
     processed++;
 
     // ── 1. Generate SEO via AI ─────────────────────────────────────────────
@@ -281,9 +343,11 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
         type: item.type,
         caption: item.caption,
         sourceTitle,
-        gameName,
+        gameName: String(meta.gameName ?? "Gaming").slice(0, 80),
         sourceYoutubeId,
         durationSec,
+        isLiveStream,
+        streamTitle,
       });
       if (seo) seoGenerated++;
     } catch (err: any) {

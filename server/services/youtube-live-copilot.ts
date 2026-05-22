@@ -21,6 +21,7 @@
 import { db } from "../db";
 import {
   streams,
+  videos,
   liveChatMessages,
   autopilotQueue,
   channels,
@@ -480,6 +481,20 @@ export async function afterStreamCopilot(
   const state = getStreamState(streamId);
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
 
+  // Look up the VOD YouTube ID — needed so pre-seo.ts can link back to the
+  // original full stream in the description and use it as the source context.
+  let vodYoutubeId: string | undefined;
+  if (stream?.vodVideoId) {
+    try {
+      const [vodRow] = await db
+        .select({ metadata: videos.metadata })
+        .from(videos)
+        .where(eq(videos.id, stream.vodVideoId))
+        .limit(1);
+      vodYoutubeId = (vodRow?.metadata as any)?.youtubeId ?? undefined;
+    } catch { /* non-fatal */ }
+  }
+
   let shortsQueued = 0;
   let longFormQueued = 0;
   const clipMomentsFound = state.clipMoments.length;
@@ -491,6 +506,7 @@ export async function afterStreamCopilot(
 
   for (const moment of sortedMoments) {
     try {
+      // Live stream clips take the nearest available slot (minDaysAhead = 0 default)
       const scheduledAt = await getNextShortPublishTime(userId);
       const gameName = stream?.category || "Gaming";
       await db.insert(autopilotQueue).values({
@@ -498,6 +514,8 @@ export async function afterStreamCopilot(
         type: "platform_short",
         targetPlatform: "youtubeshorts",
         content: `${gameName} live stream highlight — ${moment.label}.\n\n#Shorts #PS5 #${gameName.replace(/\s/g, "")} #Gaming #NoCommentary`,
+        // caption becomes the SEO hint — include the actual moment label so
+        // pre-seo.ts can write a title around what actually happened.
         caption: `${moment.label} | ${gameName} #Shorts`.substring(0, 90),
         status: "scheduled",
         scheduledAt,
@@ -506,6 +524,9 @@ export async function afterStreamCopilot(
           streamId,
           startSec: moment.startSec,
           gameName,
+          streamTitle: stream?.title || null,
+          clipHint: moment.label,
+          sourceYoutubeId: vodYoutubeId ?? null,
           isStreamHighlight: true,
           copilotGenerated: true,
           tags: ["no commentary", "PS5", gameName, "shorts", "gaming", "live highlight"],
@@ -523,13 +544,15 @@ export async function afterStreamCopilot(
 
   if (streamDurationSec > 3600) {
     try {
+      // Live stream long-form also takes nearest slot (minDaysAhead = 0 default)
       const scheduledAt = await getNextLongFormPublishTime(userId);
       const gameName = stream?.category || "Gaming";
+      const durMin = Math.round(streamDurationSec / 60);
       await db.insert(autopilotQueue).values({
         userId,
         type: "auto-clip",
         targetPlatform: "youtube",
-        content: `${gameName} full gameplay session — no commentary. ${Math.round(streamDurationSec / 60)} minutes of pure ${gameName}.\n\n#PS5 #NoCommentary #Gaming`,
+        content: `${gameName} full gameplay session — no commentary. ${durMin} minutes of pure ${gameName}.\n\n#PS5 #NoCommentary #Gaming`,
         caption: `${gameName} Full Session | No Commentary`.substring(0, 90),
         status: "scheduled",
         scheduledAt,
@@ -541,6 +564,8 @@ export async function afterStreamCopilot(
           targetDurationSec: Math.min(3600, Math.round(streamDurationSec)),
           actualDurationSec: Math.round(streamDurationSec),
           gameName,
+          streamTitle: stream?.title || null,
+          sourceYoutubeId: vodYoutubeId ?? null,
           isStreamReplay: true,
           copilotGenerated: true,
           tags: ["no commentary", "PS5", gameName, "gaming", "full session"],
