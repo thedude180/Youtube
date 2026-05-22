@@ -75,7 +75,7 @@ async function resolveUserTimezone(userId: string): Promise<string> {
       return prefs[0].timezone;
     }
   } catch {}
-  return "UTC";
+  return "America/Chicago"; // default: US Central
 }
 
 function buildHistoricalPerformanceMap(events: any[]): Map<string, { successCount: number; totalCount: number }> {

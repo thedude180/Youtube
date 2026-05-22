@@ -19,7 +19,7 @@ export function getTimezoneOffsetHours(timezone: string, date: Date): number {
 
 /**
  * Looks up the creator's IANA timezone from their notification preferences.
- * Falls back to "UTC" if not set or not found.
+ * Falls back to "America/Chicago" (US Central) if not set or not found.
  */
 export async function getUserTimezone(userId: string): Promise<string> {
   try {
@@ -34,9 +34,9 @@ export async function getUserTimezone(userId: string): Promise<string> {
       Intl.DateTimeFormat("en-US", { timeZone: tz });
       return tz;
     }
-    return "UTC";
+    return "America/Chicago"; // default: US Central
   } catch {
-    return "UTC";
+    return "America/Chicago"; // default: US Central
   }
 }
 

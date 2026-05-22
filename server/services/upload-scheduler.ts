@@ -79,7 +79,7 @@ async function loadOccupiedSlots(userId: string, platform: string, now: Date): P
 export async function getNextOptimalPublishTime(userId: string, platform: string = "youtube"): Promise<Date> {
   const now = new Date();
 
-  let timezone = "America/New_York";
+  let timezone = "America/Chicago"; // US Central
   let getOffsetFn: (tz: string, d: Date) => number = () => -5;
   try {
     const hbe = await import("../human-behavior-engine");
