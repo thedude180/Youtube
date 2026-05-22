@@ -10215,3 +10215,43 @@ export const shortSlotClaims = pgTable("short_slot_claims", {
   index("ssc_user_idx").on(t.userId),
   index("ssc_expires_idx").on(t.expiresAt),
 ]);
+
+// ── Niche Video Research ───────────────────────────────────────────────────────
+// Stores real YouTube video samples scraped from BF6/gaming niche searches.
+// Used by the niche-video-researcher service to find what's working in the niche.
+export const nicheVideoSamples = pgTable("niche_video_samples", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  videoId: text("video_id").notNull(),
+  title: text("title").notNull(),
+  channelName: text("channel_name"),
+  viewCount: integer("view_count").default(0),
+  likeCount: integer("like_count"),
+  durationSec: integer("duration_sec"),
+  uploadDate: text("upload_date"),
+  url: text("url").notNull(),
+  searchQuery: text("search_query"),
+  isShort: boolean("is_short").default(false),
+  metadata: jsonb("metadata").$type<Record<string, any>>(),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("nvs_user_idx").on(t.userId),
+  index("nvs_video_id_idx").on(t.videoId),
+  index("nvs_created_idx").on(t.createdAt),
+]);
+
+export const nicheInsights = pgTable("niche_insights", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  insightType: text("insight_type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  priority: text("priority").default("medium"),
+  sampleCount: integer("sample_count").default(0),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ni_user_idx").on(t.userId),
+  index("ni_created_idx").on(t.createdAt),
+]);

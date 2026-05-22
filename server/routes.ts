@@ -61,6 +61,7 @@ import { registerGrinderRoutes } from "./routes/grinder";
 import { registerEvolutionRoutes } from "./routes/evolution";
 import { registerVaultDocsRoutes } from "./routes/vault-docs";
 import { registerOmniIntelligenceRoutes } from "./routes/omni-intelligence";
+import { registerNicheResearchRoutes } from "./routes/niche-research";
 import { registerEtgaming247Routes } from "./routes/etgaming247";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
@@ -442,6 +443,7 @@ export async function registerRoutes(
   registerEvolutionRoutes(app);
   registerVaultDocsRoutes(app);
   registerOmniIntelligenceRoutes(app);
+  registerNicheResearchRoutes(app);
   registerEtgaming247Routes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {

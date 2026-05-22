@@ -29,6 +29,7 @@ import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
 import ChannelBrandSyncStatus from "./dashboard/ChannelBrandSyncStatus";
 import UpcomingSchedule from "./dashboard/UpcomingSchedule";
 import BackCatalogReviver from "./dashboard/BackCatalogReviver";
+import NicheResearch from "./dashboard/NicheResearch";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const AGENT_ROSTER = [
@@ -1266,6 +1267,8 @@ export default function TeamDashboard() {
         />
 
         <OmniIntelligenceFeed />
+
+        <NicheResearch />
 
         <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="card-growth-intel">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
