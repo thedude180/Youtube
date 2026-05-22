@@ -2408,6 +2408,31 @@ httpServer.listen(
         )
           .then((res: any) => logger.info("[Boot] Shorts schedule reset to tonight", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Shorts schedule reset skipped:", err?.message));
+
+        // ── Non-Battlefield queue purge ───────────────────────────────────────
+        // ETGaming247 is a Battlefield channel.  Any queued Shorts whose source
+        // video or metadata references a non-Battlefield game (e.g. AC Valhalla)
+        // are stale catalog overflow — permanently fail them so they never
+        // publish.  The back-catalog engine now defaults to BF6 for new items.
+        db.execute(
+          sql`UPDATE autopilot_queue q
+              SET status = 'permanent_fail',
+                  error_message = 'Purged: non-Battlefield content — BF6-only channel'
+              WHERE q.type IN ('youtube_short', 'platform_short')
+                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND q.target_platform IN ('youtube', 'youtubeshorts')
+                AND q.source_video_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1 FROM videos v
+                  WHERE v.id = q.source_video_id
+                    AND (v.metadata->>'gameName') IS NOT NULL
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] Non-Battlefield Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Non-Battlefield purge skipped:", err?.message));
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));

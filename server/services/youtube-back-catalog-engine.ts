@@ -427,24 +427,24 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     const channelAvg = computeChannelAverages(allVideos);
 
     // Fetch the most recent stream to find the currently-played game.
-    // This makes the back catalog prioritise content that matches live stream output.
+    // Falls back to "Battlefield 6" (channel's primary game) when not streaming.
     const currentGame = await getCurrentStreamGame(userId);
-    if (currentGame) logger.info(`[BackCatalog] Prioritising game: "${currentGame}"`);
+    const effectiveGame = currentGame ?? "Battlefield 6";
+    if (currentGame) {
+      logger.info(`[BackCatalog] Prioritising live game: "${currentGame}"`);
+    } else {
+      logger.info(`[BackCatalog] No live game detected — defaulting to primary game: "Battlefield 6"`);
+    }
 
-    const ranked = rankVideos(allVideos, channelAvg, currentGame);
+    const ranked = rankVideos(allVideos, channelAvg, effectiveGame);
 
     // ── Hard game-priority gate ───────────────────────────────────────────────
-    // When a current game is detected, restrict ALL candidate selection to that
-    // game's videos until every one of them is fully exhausted (minedForShorts
-    // AND minedForLongForm both true).  Only after full exhaustion does the
-    // system fall through to other games (e.g. AC Valhalla).
-    //
-    // This ensures BF6 streams are always processed before anything else while
-    // the channel is actively playing Battlefield.
+    // Always filter to the effective game (live stream game or Battlefield 6 default).
+    // Only opens to other games after ALL Battlefield 6 content is fully exhausted.
     let gameFilter: ((v: { gameName?: string | null; title?: string | null }) => boolean) | null = null;
 
-    if (currentGame) {
-      const matchesGame = buildGameFilter(currentGame);
+    {
+      const matchesGame = buildGameFilter(effectiveGame);
       const hasUnminedForGame = ranked.some(v =>
         !v.isShort &&
         matchesGame(v) &&
@@ -453,9 +453,9 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       );
       if (hasUnminedForGame) {
         gameFilter = matchesGame;
-        logger.info(`[BackCatalog] Game priority gate ACTIVE — only "${currentGame}" content until fully exhausted`);
+        logger.info(`[BackCatalog] Game priority gate ACTIVE — only "${effectiveGame}" content until fully exhausted`);
       } else {
-        logger.info(`[BackCatalog] Game priority gate CLEAR — "${currentGame}" fully exhausted, opening all games`);
+        logger.info(`[BackCatalog] Game priority gate CLEAR — "${effectiveGame}" fully exhausted, opening all games`);
       }
     }
 

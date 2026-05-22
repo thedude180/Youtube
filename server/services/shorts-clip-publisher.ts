@@ -578,19 +578,11 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   } else {
                     logger.info("[YouTubeSchedule] Short published immediately as public");
                   }
-                  // Upload pre-generated thumbnail immediately — fire and forget
-                  const ytId = (result as any).youtubeId as string | undefined;
-                  const thumbPath = typeof itemMeta.thumbnailPath === "string" ? itemMeta.thumbnailPath : undefined;
-                  if (ytId && thumbPath && fs.existsSync(thumbPath)) {
-                    fs.promises.readFile(thumbPath).then(buf => {
-                      if (buf.length < 1000) return;
-                      return import("../youtube").then(({ setYouTubeThumbnail }) =>
-                        setYouTubeThumbnail(ytChannel.id, ytId, buf, "image/jpeg"),
-                      );
-                    }).catch(tErr =>
-                      logger.warn(`[ShortsPublisher] Thumbnail upload failed for ${ytId}: ${String(tErr).slice(0, 100)}`),
-                    );
-                  }
+                  // NOTE: Do NOT upload a pre-generated thumbnailPath here.
+                  // Pre-generated thumbnails are produced for the landscape source
+                  // video (16:9) and must not be applied to portrait Shorts (9:16).
+                  // YouTube auto-selects a frame from the encoded portrait video —
+                  // that is the correct Short thumbnail.
                 }
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });
               } finally {

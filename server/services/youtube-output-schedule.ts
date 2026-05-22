@@ -145,7 +145,7 @@ async function withShortAdvisoryLock<T>(
 
 // ── 3. DB claim table helpers ─────────────────────────────────────────────────
 
-const CLAIM_TTL_MS = 10 * 60_000; // 10 minutes
+const CLAIM_TTL_MS = 2 * 3_600_000; // 2 hours — must outlive the longest upload batch
 
 /**
  * Attempt to atomically claim a scheduling window in the DB.
@@ -221,7 +221,7 @@ function getActiveShortReservations(userId: string): Date[] {
 
 function reserveShortSlot(userId: string, slot: Date): void {
   const list = _shortSlotReservations.get(userId) ?? [];
-  list.push({ slot, expires: Date.now() + 5 * 60_000 });
+  list.push({ slot, expires: Date.now() + 2 * 3_600_000 }); // 2h — matches CLAIM_TTL_MS
   _shortSlotReservations.set(userId, list);
 }
 
