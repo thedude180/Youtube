@@ -183,19 +183,19 @@ interface PlatformProfile {
  */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
-    label: "YouTube 4K",
-    width: 3840,
-    height: 2160,
-    orientation: "landscape",
+    label: "YouTube Long-Form 9:16",
+    width: 1080,
+    height: 1920,
+    orientation: "portrait",
     codec: "libx264",
     codecArgs: [
       "-profile:v", "high",
-      "-level:v", "5.1",           // H.264 level 5.1 = 4K @ 30fps
+      "-level:v", "4.1",
       "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
-      "-movflags", "+faststart",    // web-optimised: playback starts before full download
+      "-movflags", "+faststart",
     ],
-    crf: 20,                        // slightly higher quality for 4K delivery
-    preset: "ultrafast",            // ~0.3–0.8x real-time — far faster than libx265 "fast"
+    crf: 18,                        // high-quality encode for long-form portrait delivery
+    preset: "fast",
     maxClipSecs: null,
     audioBitrate: "192k",
     audioSampleRate: 48000,
@@ -213,11 +213,11 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
       "-x264-params", "keyint=60:min-keyint=24:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
       "-movflags", "+faststart",
     ],
-    crf: 21,
-    preset: "ultrafast",
+    crf: 18,
+    preset: "fast",
     maxClipSecs: 60,
-    audioBitrate: "128k",
-    audioSampleRate: 44100,
+    audioBitrate: "192k",
+    audioSampleRate: 48000,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
   },
 };

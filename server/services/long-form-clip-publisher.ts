@@ -71,7 +71,7 @@ if (!fs.existsSync(LONG_FORM_TEMP_DIR)) {
 let isRunning = false;
 
 // ---------------------------------------------------------------------------
-// FFmpeg / yt-dlp helpers (16:9 horizontal encoding, no crop)
+// FFmpeg / yt-dlp helpers (9:16 vertical encoding — center-crop to portrait)
 // ---------------------------------------------------------------------------
 
 function runCmd(bin: string, args: string[]): Promise<void> {
@@ -98,8 +98,8 @@ async function extractSegment(
     "-ss", String(startSec),
     "-i", sourcePath,
     "-t", String(durationSec),
-    // Keep original aspect ratio — no crop for long-form
-    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1",
+    // 9:16 vertical — center-crop landscape source to portrait, Lanczos scale to 1080×1920
+    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60",
     "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
     "-c:v", "libx264",
     "-profile:v", "high",
