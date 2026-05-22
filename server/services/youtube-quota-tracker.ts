@@ -460,7 +460,18 @@ export function isQuotaBreakerTripped(): boolean {
 export function markQuotaErrorFromResponse(err: any): boolean {
   const msg = String(err?.message || err || "").toLowerCase();
   const code = err?.code;
-  if (code === 403 || code === "QUOTA_EXCEEDED" || msg.includes("quota") || msg.includes("ratelimitexceeded") || msg.includes("dailylimitexceeded")) {
+  // Per-second rate limits (rateLimitExceeded, userRateLimitExceeded) are
+  // temporary throttles — NOT daily quota exhaustion.  Never trip the circuit
+  // breaker for these: doing so would lock out all publishing for the rest of
+  // the day when only a momentary burst caused the 403.
+  const reason = String(err?.errors?.[0]?.reason || "").toLowerCase();
+  const isRateLimit =
+    reason === "ratelimitexceeded" ||
+    reason === "userratelimitexceeded" ||
+    (msg.includes("ratelimitexceeded") && !msg.includes("daily") && !msg.includes("quotaexceeded"));
+  if (isRateLimit) return false;
+
+  if (code === 403 || code === "QUOTA_EXCEEDED" || msg.includes("quota") || msg.includes("dailylimitexceeded")) {
     tripGlobalQuotaBreaker();
     return true;
   }
@@ -531,11 +542,13 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       counter.broadcast    = Math.min(record.broadcastOps ?? 0, DAILY_OP_CAPS.broadcast);
       counter.livechat     = Math.min(record.livechatOps  ?? 0, DAILY_OP_CAPS.livechat);
       // writeOps stores write + backlogWrite + thumbnail combined (no separate column).
-      // Seed all three conservatively so a day that spent all writeOps on one type
-      // doesn't allow the others to fire again on restart.
-      counter.write        = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.write);
-      counter.backlogWrite = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.backlogWrite);
-      counter.thumbnail    = Math.min(record.writeOps ?? 0, DAILY_OP_CAPS.thumbnail);
+      // Divide evenly across the three types — triple-counting the full writeOps
+      // value into each counter over-inflates all three and can block thumbnails
+      // prematurely when writeOps exceeds the thumbnail cap (50).
+      const writeOpsEach = Math.ceil((record.writeOps ?? 0) / 3);
+      counter.write        = Math.min(writeOpsEach, DAILY_OP_CAPS.write);
+      counter.backlogWrite = Math.min(writeOpsEach, DAILY_OP_CAPS.backlogWrite);
+      counter.thumbnail    = Math.min(writeOpsEach, DAILY_OP_CAPS.thumbnail);
       counter.search       = Math.min(record.searchOps ?? 0, DAILY_OP_CAPS.search);
 
       const isExhausted = record.unitsUsed >= record.quotaLimit;
