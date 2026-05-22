@@ -2388,6 +2388,26 @@ httpServer.listen(
         )
           .then((res: any) => logger.info("[Boot] Over-length Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Over-length Shorts purge skipped:", err?.message));
+
+        // ── Shorts schedule reset ─────────────────────────────────────────────
+        // Valid Shorts that were parked months in the future (e.g. June 2026+)
+        // will never be seen as "due" by the publisher today.  Reset any item
+        // scheduled more than 7 days out to one minute ago so the publisher's
+        // own past-due reschedule logic picks them up and assigns proper slots
+        // starting tonight (quota resets at midnight Pacific each day).
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET scheduled_at = NOW() - INTERVAL '1 minute'
+              WHERE type IN ('youtube_short', 'platform_short')
+                AND status = 'scheduled'
+                AND target_platform IN ('youtube', 'youtubeshorts')
+                AND scheduled_at > NOW() + INTERVAL '7 days'
+                AND (metadata->>'startSec') IS NOT NULL
+                AND (metadata->>'endSec')   IS NOT NULL
+                AND (metadata->>'endSec')::float - (metadata->>'startSec')::float BETWEEN 10 AND 58`
+        )
+          .then((res: any) => logger.info("[Boot] Shorts schedule reset to tonight", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Shorts schedule reset skipped:", err?.message));
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
