@@ -98,12 +98,12 @@ async function extractSegment(
     "-ss", String(startSec),
     "-i", sourcePath,
     "-t", String(durationSec),
-    // 16:9 horizontal — letterbox to 1920×1080, keep original aspect ratio (no crop)
-    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
+    // 16:9 horizontal — letterbox to 3840×2160 (4K), keep original aspect ratio (no crop)
+    "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
     "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
     "-c:v", "libx264",
     "-profile:v", "high",
-    "-level:v", "4.1",
+    "-level:v", "5.1",
     "-crf", "20",
     "-preset", "fast",
     "-movflags", "+faststart",
