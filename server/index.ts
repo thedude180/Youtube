@@ -2371,6 +2371,23 @@ httpServer.listen(
           ))
           .then(res => logger.info("[Boot] Non-YouTube queue items purged", { rows: (res as any)?.rowCount ?? 0 }))
           .catch(err => logger.warn("[Boot] Non-YouTube purge skipped:", err?.message));
+
+        // ── Over-length Shorts purge ──────────────────────────────────────────
+        // Clips where endSec - startSec > 58 are not genuine gaming Shorts —
+        // they are multi-minute segments the AI mis-labeled.  Permanently fail
+        // them so the back-catalog runner re-generates proper 15–58 s highlights.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status = 'permanent_fail',
+                  error_message = 'Purged: clip window exceeded 58 s — not a valid Short'
+              WHERE type IN ('youtube_short', 'platform_short')
+                AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND (metadata->>'startSec') IS NOT NULL
+                AND (metadata->>'endSec')   IS NOT NULL
+                AND (metadata->>'endSec')::float - (metadata->>'startSec')::float > 58`
+        )
+          .then((res: any) => logger.info("[Boot] Over-length Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Over-length Shorts purge skipped:", err?.message));
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
