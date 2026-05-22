@@ -2474,6 +2474,60 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Orphaned auto-clips purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Orphaned auto-clip purge skipped:", err?.message));
 
+        // ── Non-Battlefield auto-clip queue purge ─────────────────────────────
+        // auto-clip items whose source_video_id points to a non-BF6 video (AC
+        // Unity, Syndicate, Valhalla, AI, Shadow of Mordor, etc.) will never
+        // belong on this channel.  Permanently fail them.  Also covers items
+        // with a sourceYoutubeId where the queue's own gameName metadata is
+        // explicitly a different game.
+        db.execute(
+          sql`UPDATE autopilot_queue q
+              SET status = 'permanent_fail',
+                  error_message = 'Purged: non-Battlefield auto-clip — BF6-only channel'
+              WHERE q.type = 'auto-clip'
+                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND (
+                  -- local source video is a different game
+                  (q.source_video_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM videos v
+                    WHERE v.id = q.source_video_id
+                      AND (v.metadata->>'gameName') IS NOT NULL
+                      AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
+                      AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
+                      AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
+                  ))
+                  OR
+                  -- has a YouTube source ID but queue metadata says different game
+                  (q.source_video_id IS NULL
+                   AND q.metadata->>'sourceYoutubeId' IS NOT NULL
+                   AND q.metadata->>'sourceYoutubeId' != ''
+                   AND (q.metadata->>'gameName') IS NOT NULL
+                   AND lower(q.metadata->>'gameName') NOT LIKE '%battlefield%'
+                   AND lower(q.metadata->>'gameName') NOT LIKE '%bf6%'
+                   AND lower(q.metadata->>'gameName') NOT LIKE '%bf 6%'
+                  )
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
+
+        // ── Fake vod-bridge stream cleanup ────────────────────────────────────
+        // bridgeVodsToStreams() was running without a game filter, creating a
+        // stream record for every long VOD in the catalog (AC Unity, Syndicate,
+        // AI, Shadow of Mordor, etc.).  Delete all vod-bridge streams whose
+        // title is clearly not Battlefield so the live stream exhaustion logic
+        // only sees real BF6 content.
+        db.execute(
+          sql`DELETE FROM streams
+              WHERE detected_source = 'vod-bridge'
+                AND is_auto_detected = true
+                AND lower(title) NOT LIKE '%battlefield%'
+                AND lower(title) NOT LIKE '%bf6%'
+                AND lower(title) NOT LIKE '%bf 6%'`
+        )
+          .then((res: any) => logger.info("[Boot] Fake non-BF6 vod-bridge streams deleted", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Fake stream cleanup skipped:", err?.message));
+
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));

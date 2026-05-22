@@ -1280,10 +1280,18 @@ export async function bridgeVodsToStreams(userId: string): Promise<number> {
     ))
     .orderBy(desc(videos.createdAt));
 
+  // ETGaming247 is a Battlefield-only channel — only bridge BF6 VODs to streams.
+  // Skip any video whose gameName is explicitly a different game.
+  const battlefieldVods = longVods.filter(vod => {
+    const game = (((vod.metadata as any)?.gameName) || "").toLowerCase().trim();
+    if (game === "") return true; // untagged — allow (may be BF6)
+    return game.includes("battlefield") || game.includes("bf6") || game.includes("bf 6");
+  });
+
   const MIN_STREAM_MINUTES = 20;
   let created = 0;
 
-  for (const vod of longVods) {
+  for (const vod of battlefieldVods) {
     if (linkedVodIds.has(vod.id)) continue;
     if (!isVideoPostable(vod)) continue;
 
