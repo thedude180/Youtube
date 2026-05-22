@@ -59,14 +59,24 @@ const BACKFILL_BATCH_SIZE            = 50;    // videos per YouTube API fetch ba
 // "editing" — content stays in the pipeline for months/years ahead and the back
 // catalog never runs dry.  Actual uploads to YouTube are still gated by quota
 // (10 k units/day) and the 3-Shorts + 1-LF-per-day cadence in the publisher.
-const MAX_SCHEDULED_DEPTH_GLOBAL     = 10_000;
-// Back catalog never schedules more than this many days ahead — leaves near-term
-// slots available for live stream highlights, which always take priority.
-const MAX_BACK_CATALOG_DAYS_AHEAD    = 21;
+// Deep-reservoir model: every video is fully exhausted — every possible Short and
+// every duration-bucket long-form clip is queued upfront.  The system builds a
+// multi-year backlog on YouTube (private + publishAt) so the channel is never
+// content-dry.  Quota + publisher cadence (3 Shorts/day + 1 LF/day) are the
+// real gates; depth and horizon are deliberately large.
+const MAX_SCHEDULED_DEPTH_GLOBAL     = 50_000;
+// How far ahead back catalog can schedule — 1 full year to build a deep YouTube
+// backlog of private videos waiting to go public at their scheduled times.
+const MAX_BACK_CATALOG_DAYS_AHEAD    = 365;
 // Back catalog skips the first N days so live stream clips always claim those
 // near-term windows first.  Live copilot calls getNextShort/LongFormPublishTime
 // with minDaysAhead=0 (default) so it wins the nearest slots every time.
 const MIN_CATALOG_START_DAYS         = 3;
+// Full Short exhaustion: one clip per SHORT_CLIP_INTERVAL_SEC of source footage,
+// capped at MAX_SHORTS_PER_VIDEO per source.  All clips are queued in a single
+// pass so every moment of the video is represented in the Shorts pipeline.
+const MAX_SHORTS_PER_VIDEO           = 15;
+const SHORT_CLIP_INTERVAL_SEC        = 120; // one Short every 2 minutes of source
 
 // ── Helper: ISO 8601 duration to seconds ─────────────────────────────────────
 
@@ -517,8 +527,6 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
         try {
           // Optimistic lock — claim this video for Shorts mining atomically.
-          // Only proceeds if minedForShorts is still false/null (prevents the
-          // read-modify-write race when two back-catalog runs overlap).
           const claimed = await db.update(backCatalogVideos)
             .set({ minedForShorts: true, updatedAt: new Date() })
             .where(and(
@@ -536,60 +544,68 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             continue;
           }
 
-          const scheduledAt = await getNextShortPublishTime(userId, MIN_CATALOG_START_DAYS);
+          // ── Full video exhaustion ───────────────────────────────────────────
+          // Compute how many evenly-spaced Short clips the video can yield and
+          // queue them ALL in one pass.  Every moment of the source is covered.
+          const dur = v.durationSec ?? 0;
+          const targetCount = Math.min(
+            MAX_SHORTS_PER_VIDEO,
+            Math.max(1, Math.floor(dur / SHORT_CLIP_INTERVAL_SEC)),
+          );
+          const intervalSec = targetCount > 1 ? Math.floor(dur / targetCount) : 0;
+          const localVideoId = v.localVideoId ?? null;
+          let clipsQueued = 0;
 
-          // Enforce 21-day horizon: back catalog never books slots further ahead
-          // than MAX_BACK_CATALOG_DAYS_AHEAD.  Slots beyond that are reserved for
-          // live stream highlights which always take the nearest available window.
-          if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
-            logger.info(`[BackCatalog] Next Short slot ${scheduledAt.toISOString()} is beyond ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — stopping queue fill (live stream slots preserved)`);
-            // Reset the optimistic lock so this video re-enters candidacy next cycle
+          for (let clipIdx = 0; clipIdx < targetCount; clipIdx++) {
+            if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
+
+            const startSec = clipIdx * intervalSec;
+            const scheduledAt = await getNextShortPublishTime(userId, MIN_CATALOG_START_DAYS);
+
+            if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
+              logger.info(`[BackCatalog] Short slot beyond ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — stopping queue fill`);
+              break;
+            }
+
+            await db.insert(autopilotQueue).values({
+              userId,
+              sourceVideoId: localVideoId,
+              type: "platform_short",
+              targetPlatform: "youtubeshorts",
+              content: `Back catalog Short ${clipIdx + 1}/${targetCount} from: ${v.title}`,
+              caption: `🎮 ${v.title.slice(0, 100)} #gaming #shorts`,
+              status: "scheduled",
+              scheduledAt,
+              metadata: {
+                contentType: "platform_short",
+                sourceYoutubeId: v.youtubeVideoId,
+                gameName: v.gameName ?? undefined,
+                startSec,
+                endSec: startSec + SHORT_TARGET_SEC,
+                clipIndex: clipIdx,
+                totalClipsFromSource: targetCount,
+                backCatalogGenerated: true,
+                autoQueued: true,
+                grinderGenerated: false,
+              } as any,
+            });
+
+            clipsQueued++;
+            result.shortsQueued++;
+            logger.debug(`[BackCatalog] Short ${clipIdx + 1}/${targetCount} queued from ${v.youtubeVideoId} startSec=${startSec} → ${scheduledAt.toISOString()}`);
+          }
+
+          // Update queued count with actual clips added
+          if (clipsQueued > 0) {
             await db.update(backCatalogVideos)
-              .set({ minedForShorts: false, updatedAt: new Date() })
+              .set({ shortsQueuedCount: (v.shortsQueuedCount ?? 0) + clipsQueued, updatedAt: new Date() })
               .where(and(
                 eq(backCatalogVideos.userId, userId),
                 eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-              )).catch(() => {});
-            break;
+              ));
+            await trackDerivative(userId, v.id, v.youtubeVideoId, "short_clip", "short_clip", v.viewCount ?? 0);
+            logger.info(`[BackCatalog] ${clipsQueued}/${targetCount} Shorts queued from ${v.youtubeVideoId} ("${v.title?.slice(0, 60)}")`);
           }
-
-          // Find local video ID
-          const localVideoId = v.localVideoId ?? null;
-
-          await db.insert(autopilotQueue).values({
-            userId,
-            sourceVideoId: localVideoId,
-            type: "platform_short",
-            targetPlatform: "youtubeshorts",
-            content: `Back catalog Short from: ${v.title}`,
-            caption: `🎮 ${v.title.slice(0, 100)} #gaming #shorts`,
-            status: "scheduled",
-            scheduledAt,
-            metadata: {
-              contentType: "platform_short",
-              sourceYoutubeId: v.youtubeVideoId,
-              gameName: v.gameName ?? undefined,
-              startSec: 0,
-              endSec: SHORT_TARGET_SEC,
-              backCatalogGenerated: true,
-              autoQueued: true,
-              grinderGenerated: false,
-            } as any,
-          });
-
-          // Update queued count (minedForShorts already set by optimistic lock above)
-          await db.update(backCatalogVideos)
-            .set({ shortsQueuedCount: (v.shortsQueuedCount ?? 0) + 1, updatedAt: new Date() })
-            .where(and(
-              eq(backCatalogVideos.userId, userId),
-              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-            ));
-
-          // Track derivative
-          await trackDerivative(userId, v.id, v.youtubeVideoId, "short_clip", "short_clip", v.viewCount ?? 0);
-
-          result.shortsQueued++;
-          logger.info(`[BackCatalog] Short queued from ${v.youtubeVideoId} for ${scheduledAt.toISOString()}`);
         } catch (err: any) {
           logger.warn(`[BackCatalog] Short queue failed for ${v.youtubeVideoId}: ${err.message?.slice(0, 150)}`);
         }
@@ -657,16 +673,19 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             }
             // (minedForLongForm already set by optimistic lock above, even if no footage found)
           } else {
-            // No local video — queue directly from back catalog with source reference
-            await queueLongFormFromBackCatalog(userId, v);
-            await db.update(backCatalogVideos)
-              .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
-              .where(and(
-                eq(backCatalogVideos.userId, userId),
-                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-              ));
-            await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
-            result.longFormQueued++;
+            // No local video — queue ALL duration-bucket clips directly from back catalog
+            const lfQueued60 = await queueLongFormFromBackCatalog(userId, v);
+            if (lfQueued60 > 0) {
+              await db.update(backCatalogVideos)
+                .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + lfQueued60, updatedAt: new Date() })
+                .where(and(
+                  eq(backCatalogVideos.userId, userId),
+                  eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+                ));
+              await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
+              result.longFormQueued += lfQueued60;
+              logger.info(`[BackCatalog] ${lfQueued60} long-form bucket(s) queued (no-local) from ${v.youtubeVideoId}`);
+            }
           }
         } catch (err: any) {
           logger.warn(`[BackCatalog] Long-form queue failed for ${v.youtubeVideoId}: ${err.message?.slice(0, 150)}`);
@@ -706,15 +725,19 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             continue;
           }
 
-          await queueLongFormFromBackCatalog(userId, v);
-          await db.update(backCatalogVideos)
-            .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + 1, updatedAt: new Date() })
-            .where(and(
-              eq(backCatalogVideos.userId, userId),
-              eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
-            ));
-          await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
-          result.longFormQueued++;
+          // Queue ALL valid duration-bucket clips for this video in one pass
+          const lfQueued = await queueLongFormFromBackCatalog(userId, v);
+          if (lfQueued > 0) {
+            await db.update(backCatalogVideos)
+              .set({ longFormQueuedCount: (v.longFormQueuedCount ?? 0) + lfQueued, updatedAt: new Date() })
+              .where(and(
+                eq(backCatalogVideos.userId, userId),
+                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+              ));
+            await trackDerivative(userId, v.id, v.youtubeVideoId, "long_form_clip", "long_form_clip", v.viewCount ?? 0);
+            result.longFormQueued += lfQueued;
+            logger.info(`[BackCatalog] ${lfQueued} long-form bucket(s) queued from ${v.youtubeVideoId} ("${v.title?.slice(0, 60)}")`);
+          }
         } catch (err: any) {
           logger.warn(`[BackCatalog] Single-seg queue failed: ${err.message?.slice(0, 150)}`);
         }
@@ -728,18 +751,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
   return result;
 }
 
-// ── Queue a single long-form item from back catalog (no local file) ───────────
+// ── Queue ALL long-form clips from back catalog (no local file) ──────────────
+//
+// Full exhaustion model: every valid duration bucket that fits in the source
+// video is queued as a separate long-form clip, each starting at a different
+// offset so they cover distinct sections of the footage.
+//
+// Example: a 45-min video yields clips of 8, 10, 15, 20, 30 and 45 min — six
+// independent uploads, each starting at an evenly-spaced offset.  A 2-hour
+// video would additionally get 60-min clips from multiple start points.
+//
+// Returns the number of queue items actually inserted.
 
-// Duration experiment buckets (minutes) used at queue time so the publisher
-// always knows exactly what to cut — no guesswork at upload time.
+// Duration experiment buckets (minutes). Every bucket that fits in the source
+// video duration is queued as a separate upload, starting at a different offset.
 const LF_EXPERIMENT_BUCKETS_MIN = [8, 10, 15, 20, 30, 45, 60] as const;
-
-function pickExperimentMin(availableSec: number): number {
-  const capped = Math.min(availableSec, 3600);
-  const fits = LF_EXPERIMENT_BUCKETS_MIN.filter((m) => m * 60 <= capped);
-  if (fits.length === 0) return 8;
-  return fits[Math.floor(Math.random() * fits.length)];
-}
 
 async function queueLongFormFromBackCatalog(
   userId: string,
@@ -752,50 +778,68 @@ async function queueLongFormFromBackCatalog(
     localVideoId: number | null;
     viewCount: number | null;
   },
-): Promise<void> {
+): Promise<number> {
   const dur = v.durationSec ?? 0;
 
-  // Safety: never queue a Short or a video under 8 min as long-form
   if (dur < 480) {
-    logger.warn(`[BackCatalog] Skipping long-form queue — source too short (${dur}s): ${v.youtubeVideoId}`);
-    return;
+    logger.warn(`[BackCatalog] Skipping long-form — source too short (${dur}s): ${v.youtubeVideoId}`);
+    return 0;
   }
 
-  const experimentMin = pickExperimentMin(dur);
-  const experimentSec = experimentMin * 60;
-  const scheduledAt = await getNextLongFormPublishTime(userId, MIN_CATALOG_START_DAYS);
+  // All duration buckets that fit in this video
+  const validBuckets = LF_EXPERIMENT_BUCKETS_MIN.filter(m => m * 60 <= dur);
+  if (!validBuckets.length) return 0;
 
-  // Same 21-day horizon as Shorts — live stream replays take priority over
-  // back-catalog long-form in the near-term schedule.
-  if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
-    logger.info(`[BackCatalog] Long-form slot ${scheduledAt.toISOString()} exceeds ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — deferring`);
-    return;
+  // Distribute start offsets evenly so each clip covers a different section.
+  // Clamp so the last frame of each clip doesn't exceed the source duration.
+  const intervalSec = dur / validBuckets.length;
+  let queued = 0;
+
+  for (let i = 0; i < validBuckets.length; i++) {
+    const experimentMin = validBuckets[i];
+    const experimentSec = experimentMin * 60;
+    const rawStart = Math.floor(i * intervalSec);
+    const segmentStartSec = Math.min(rawStart, Math.max(0, dur - experimentSec));
+
+    const scheduledAt = await getNextLongFormPublishTime(userId, MIN_CATALOG_START_DAYS);
+
+    if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
+      logger.info(`[BackCatalog] Long-form slot beyond ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — stopping bucket queue`);
+      break;
+    }
+
+    await db.insert(autopilotQueue).values({
+      userId,
+      sourceVideoId: v.localVideoId,
+      type: "auto-clip",
+      targetPlatform: "youtube",
+      content: `Back catalog long-form clip: ${v.title}`,
+      caption: `${v.gameName ?? "Gaming"} — ${experimentMin} Min Gameplay | No Commentary`,
+      status: "scheduled",
+      scheduledAt,
+      metadata: {
+        contentType: "long-form-clip",
+        sourceYoutubeId: v.youtubeVideoId,
+        sourceTitle: v.title,
+        gameName: v.gameName ?? undefined,
+        segmentStartSec,
+        segmentEndSec: segmentStartSec + experimentSec,
+        totalDurationSec: dur,
+        experimentDurationMin: experimentMin,
+        experimentDurationSec: experimentSec,
+        bucketIndex: i,
+        totalBucketsFromSource: validBuckets.length,
+        noCommentary: true,
+        backCatalogGenerated: true,
+        autoQueued: true,
+      } as any,
+    });
+
+    queued++;
+    logger.debug(`[BackCatalog] Long-form bucket ${i + 1}/${validBuckets.length} (${experimentMin}min @${Math.round(segmentStartSec / 60)}min) queued from ${v.youtubeVideoId} → ${scheduledAt.toISOString()}`);
   }
 
-  await db.insert(autopilotQueue).values({
-    userId,
-    sourceVideoId: v.localVideoId,
-    type: "auto-clip",
-    targetPlatform: "youtube",
-    content: `Back catalog long-form clip: ${v.title}`,
-    caption: `${v.gameName ?? "Gaming"} — ${experimentMin} Min Gameplay | No Commentary`,
-    status: "scheduled",
-    scheduledAt,
-    metadata: {
-      contentType: "long-form-clip",
-      sourceYoutubeId: v.youtubeVideoId,
-      sourceTitle: v.title,
-      gameName: v.gameName ?? undefined,
-      segmentStartSec: 0,
-      segmentEndSec: experimentSec,
-      totalDurationSec: dur,
-      experimentDurationMin: experimentMin,
-      experimentDurationSec: experimentSec,
-      noCommentary: true,
-      backCatalogGenerated: true,
-      autoQueued: true,
-    } as any,
-  });
+  return queued;
 }
 
 // ── Track derivative in back_catalog_derivatives ──────────────────────────────
