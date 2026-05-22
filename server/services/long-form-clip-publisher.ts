@@ -315,33 +315,42 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       let encodedPath: string | null = null;
 
       try {
-        // Prefer local vault file, fall back to yt-dlp
-        if (resolvedYoutubeId) {
-          const [vaultEntry] = await db.select()
-            .from(contentVaultBackups)
-            .where(and(
-              eq(contentVaultBackups.userId, item.userId),
-              eq(contentVaultBackups.youtubeId, resolvedYoutubeId),
-              eq(contentVaultBackups.status, "downloaded"),
-            ))
-            .limit(1);
-
-          if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
-            await extractSegment(vaultEntry.filePath, startSec, durationSec, tmpEncoded);
-          } else {
-            // Cap the download end to startSec + experimentDurationSec so yt-dlp
-            // doesn't fetch footage beyond the bucket we're testing.
-            const downloadEndSec = startSec + durationSec;
-            await downloadSegmentFromYouTube(resolvedYoutubeId, startSec, downloadEndSec, tmpRaw);
-            if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
-            await extractSegment(tmpRaw, 0, durationSec, tmpEncoded);
-          }
+        // Fast path: pre-encoder already built this file ahead of time.
+        // Skip download + encode entirely — just use the ready file.
+        const preBuiltPath = typeof itemMeta.preEncodedPath === "string"
+          ? (itemMeta.preEncodedPath as string) : null;
+        if (preBuiltPath && fs.existsSync(preBuiltPath)) {
+          encodedPath = preBuiltPath;
+          logger.info(`[LongFormPublisher] Pre-encoded file ready for item ${item.id} — skipping download+encode`);
         } else {
-          throw new Error("No YouTube ID to download segment from");
-        }
+          // Prefer local vault file, fall back to yt-dlp
+          if (resolvedYoutubeId) {
+            const [vaultEntry] = await db.select()
+              .from(contentVaultBackups)
+              .where(and(
+                eq(contentVaultBackups.userId, item.userId),
+                eq(contentVaultBackups.youtubeId, resolvedYoutubeId),
+                eq(contentVaultBackups.status, "downloaded"),
+              ))
+              .limit(1);
 
-        if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
-        encodedPath = tmpEncoded;
+            if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
+              await extractSegment(vaultEntry.filePath, startSec, durationSec, tmpEncoded);
+            } else {
+              // Cap the download end to startSec + experimentDurationSec so yt-dlp
+              // doesn't fetch footage beyond the bucket we're testing.
+              const downloadEndSec = startSec + durationSec;
+              await downloadSegmentFromYouTube(resolvedYoutubeId, startSec, downloadEndSec, tmpRaw);
+              if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
+              await extractSegment(tmpRaw, 0, durationSec, tmpEncoded);
+            }
+          } else {
+            throw new Error("No YouTube ID to download segment from");
+          }
+
+          if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
+          encodedPath = tmpEncoded;
+        }
 
         // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
         // Fall back to inline templates if not yet available

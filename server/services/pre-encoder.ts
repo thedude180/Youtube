@@ -35,7 +35,7 @@ const PRE_ENCODE_DIR =
   process.env.PRE_ENCODE_DIR ?? path.join(process.cwd(), "data", "pre-encoded");
 
 const LOOKAHEAD_HOURS   = 36;   // pre-encode items due within the next 36 h
-const MAX_ITEMS_PER_RUN = 8;    // cap per cycle to avoid overwhelming disk / CPU
+const MAX_ITEMS_PER_RUN = 20;   // cap per cycle to avoid overwhelming disk / CPU
 const MIN_FREE_DISK_GB  = 2;    // skip cycle if less than this much space free
 const MAX_FILE_AGE_MS   = 48 * 3_600_000; // delete stale pre-encoded files after 48 h
 

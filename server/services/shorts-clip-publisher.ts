@@ -506,24 +506,36 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           } else {
             const runId = `${item.id}_${Date.now()}`;
             let encodedPath: string | null = null;
-            try {
-              encodedPath = await getEncodedSegment({
-                userId,
-                sourceVideoId: item.sourceVideoId,
-                youtubeId: resolvedYoutubeId,
-                startSec,
-                endSec,
-                runId,
-              });
-            } catch (downloadErr: any) {
-              const errMsg = String(downloadErr?.message ?? downloadErr);
-              const isPermanent = /unavailable|removed by the uploader|not available|format is not available/i.test(errMsg);
-              logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
-              await db.update(autopilotQueue)
-                .set({ status: isPermanent ? "permanent_fail" : "failed", errorMessage: errMsg.slice(0, 500) })
-                .where(eq(autopilotQueue.id, item.id));
-              failed++;
-              continue;
+
+            // Fast path: pre-encoder already built this file ahead of time.
+            // Skip download + encode entirely — just use the ready file.
+            const preBuiltPath = typeof itemMeta.preEncodedPath === "string"
+              ? (itemMeta.preEncodedPath as string) : null;
+            if (preBuiltPath && fs.existsSync(preBuiltPath)) {
+              encodedPath = preBuiltPath;
+              logger.info(`[ShortsPublisher] Pre-encoded file ready for item ${item.id} — skipping download+encode`);
+            }
+
+            if (!encodedPath) {
+              try {
+                encodedPath = await getEncodedSegment({
+                  userId,
+                  sourceVideoId: item.sourceVideoId,
+                  youtubeId: resolvedYoutubeId,
+                  startSec,
+                  endSec,
+                  runId,
+                });
+              } catch (downloadErr: any) {
+                const errMsg = String(downloadErr?.message ?? downloadErr);
+                const isPermanent = /unavailable|removed by the uploader|not available|format is not available/i.test(errMsg);
+                logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
+                await db.update(autopilotQueue)
+                  .set({ status: isPermanent ? "permanent_fail" : "failed", errorMessage: errMsg.slice(0, 500) })
+                  .where(eq(autopilotQueue.id, item.id));
+                failed++;
+                continue;
+              }
             }
 
             if (!encodedPath) {
