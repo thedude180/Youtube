@@ -258,6 +258,15 @@ export async function queueLongFormSegments(
   for (const seg of deduplicated) {
     try {
       const scheduledAt = await getNextLongFormPublishTime(userId);
+
+      // 21-day horizon: back-catalog long-form never books slots further ahead
+      // than needed — near-term slots stay open for live stream replays.
+      const MAX_BACK_CATALOG_DAYS_AHEAD = 21;
+      if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
+        logger.info(`[LongFormSegmenter] Slot ${scheduledAt.toISOString()} exceeds ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — stopping segment queue fill`);
+        break;
+      }
+
       const title = String(seg.title || `${gameName} Gameplay`).substring(0, 90);
       const description = String(
         seg.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #Gaming`,

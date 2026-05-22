@@ -34,7 +34,7 @@ import { spawn } from "child_process";
 import cron from "node-cron";
 import { db } from "../db";
 import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
-import { eq, and, lte, inArray } from "drizzle-orm";
+import { eq, and, lte, inArray, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
@@ -369,7 +369,17 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         eq(autopilotQueue.status, "scheduled"),
         lte(autopilotQueue.scheduledAt, batchWindow),
       ))
-      .orderBy(autopilotQueue.scheduledAt)
+      // Live stream highlights and stream replays always upload before back-catalog items.
+      // YouTube then publishes each at its pre-assigned publishAt time — upload order
+      // only determines which items get processed first within the quota budget.
+      .orderBy(
+        sql`CASE
+          WHEN metadata->>'isStreamHighlight' = 'true'
+            OR metadata->>'isStreamReplay'   = 'true'
+            OR metadata->>'copilotGenerated' = 'true'
+          THEN 0 ELSE 1 END`,
+        autopilotQueue.scheduledAt,
+      )
       .limit(MAX_PER_RUN * 4);
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };

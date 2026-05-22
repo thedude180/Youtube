@@ -60,6 +60,9 @@ const BACKFILL_BATCH_SIZE            = 50;    // videos per YouTube API fetch ba
 // catalog never runs dry.  Actual uploads to YouTube are still gated by quota
 // (10 k units/day) and the 3-Shorts + 1-LF-per-day cadence in the publisher.
 const MAX_SCHEDULED_DEPTH_GLOBAL     = 10_000;
+// Back catalog never schedules more than this many days ahead — leaves near-term
+// slots available for live stream highlights, which always take priority.
+const MAX_BACK_CATALOG_DAYS_AHEAD    = 21;
 
 // ── Helper: ISO 8601 duration to seconds ─────────────────────────────────────
 
@@ -528,6 +531,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
           const scheduledAt = await getNextShortPublishTime(userId);
 
+          // Enforce 21-day horizon: back catalog never books slots further ahead
+          // than MAX_BACK_CATALOG_DAYS_AHEAD.  Slots beyond that are reserved for
+          // live stream highlights which always take the nearest available window.
+          if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
+            logger.info(`[BackCatalog] Next Short slot ${scheduledAt.toISOString()} is beyond ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — stopping queue fill (live stream slots preserved)`);
+            // Reset the optimistic lock so this video re-enters candidacy next cycle
+            await db.update(backCatalogVideos)
+              .set({ minedForShorts: false, updatedAt: new Date() })
+              .where(and(
+                eq(backCatalogVideos.userId, userId),
+                eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId),
+              )).catch(() => {});
+            break;
+          }
+
           // Find local video ID
           const localVideoId = v.localVideoId ?? null;
 
@@ -739,6 +757,13 @@ async function queueLongFormFromBackCatalog(
   const experimentMin = pickExperimentMin(dur);
   const experimentSec = experimentMin * 60;
   const scheduledAt = await getNextLongFormPublishTime(userId);
+
+  // Same 21-day horizon as Shorts — live stream replays take priority over
+  // back-catalog long-form in the near-term schedule.
+  if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
+    logger.info(`[BackCatalog] Long-form slot ${scheduledAt.toISOString()} exceeds ${MAX_BACK_CATALOG_DAYS_AHEAD}-day horizon — deferring`);
+    return;
+  }
 
   await db.insert(autopilotQueue).values({
     userId,
