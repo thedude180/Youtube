@@ -2433,6 +2433,47 @@ httpServer.listen(
         )
           .then((res: any) => logger.info("[Boot] Non-Battlefield Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield purge skipped:", err?.message));
+
+        // ── Non-Battlefield vod-short / vod-long-form purge ───────────────────
+        // vod-continuous-engine creates vod-short/vod-long-form items without
+        // the BF6 game filter.  Purge any that are linked to a source video
+        // whose gameName is not Battlefield (AC Valhalla, AC Syndicate, etc.).
+        db.execute(
+          sql`UPDATE autopilot_queue q
+              SET status = 'permanent_fail',
+                  error_message = 'Purged: non-Battlefield vod content — BF6-only channel'
+              WHERE q.type IN ('vod-short', 'vod-long-form')
+                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND q.source_video_id IS NOT NULL
+                AND EXISTS (
+                  SELECT 1 FROM videos v
+                  WHERE v.id = q.source_video_id
+                    AND (v.metadata->>'gameName') IS NOT NULL
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
+                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] Non-Battlefield vod items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Non-Battlefield vod purge skipped:", err?.message));
+
+        // ── Orphaned auto-clip purge ──────────────────────────────────────────
+        // auto-clip items with no source_video_id AND no sourceYoutubeId in
+        // metadata have no downloadable source — they will always fail at upload
+        // time.  Permanently fail them now so they don't clog the queue or waste
+        // quota budget checks.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status = 'permanent_fail',
+                  error_message = 'Purged: no source video ID and no sourceYoutubeId — cannot download source'
+              WHERE type = 'auto-clip'
+                AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND source_video_id IS NULL
+                AND (metadata->>'sourceYoutubeId' IS NULL OR metadata->>'sourceYoutubeId' = '')`
+        )
+          .then((res: any) => logger.info("[Boot] Orphaned auto-clips purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Orphaned auto-clip purge skipped:", err?.message));
+
       }))).catch(slog("queue-heal"));
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
