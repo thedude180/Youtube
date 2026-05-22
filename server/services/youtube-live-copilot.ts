@@ -572,39 +572,45 @@ export async function afterStreamCopilot(
     } catch { /* continue */ }
   }
 
-  // Queue long-form if stream was > 60 min
+  // Queue long-form if stream was > 60 min.
+  // Start at 300 s (BF6_STREAM_OPEN_SEC equivalent) to skip pre-game lobby,
+  // audio checks, and the first loading screen — straight into match footage.
   const streamDurationMs = stream?.endedAt && stream?.startedAt
     ? new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()
     : 0;
   const streamDurationSec = streamDurationMs / 1000;
+  const LF_SKIP_OPEN_SEC = 300; // skip first 5 min (pre-game / loading screen)
 
   if (streamDurationSec > 3600) {
     try {
       // Live stream long-form also takes nearest slot (minDaysAhead = 0 default)
       const scheduledAt = await getNextLongFormPublishTime(userId);
       const gameName = stream?.category || "Gaming";
-      const durMin = Math.round(streamDurationSec / 60);
+      const lfStartSec = LF_SKIP_OPEN_SEC;
+      const lfEndSec   = Math.round(streamDurationSec);
+      const durMin     = Math.round((lfEndSec - lfStartSec) / 60);
       await db.insert(autopilotQueue).values({
         userId,
         type: "auto-clip",
         targetPlatform: "youtube",
-        content: `${gameName} full gameplay session — no commentary. ${durMin} minutes of pure ${gameName}.\n\n#PS5 #NoCommentary #Gaming`,
-        caption: `${gameName} Full Session | No Commentary`.substring(0, 90),
+        content: `${gameName} full match session — no commentary. ${durMin} min of raw PS5 gameplay.`,
+        caption: `${stream?.title || gameName} Full Session`.substring(0, 90),
         status: "scheduled",
         scheduledAt,
         metadata: {
           contentType: "long-form-clip",
           streamId,
-          segmentStartSec: 0,
-          segmentEndSec: Math.round(streamDurationSec),
-          targetDurationSec: Math.min(3600, Math.round(streamDurationSec)),
-          actualDurationSec: Math.round(streamDurationSec),
+          segmentStartSec: lfStartSec,
+          segmentEndSec: lfEndSec,
+          targetDurationSec: Math.min(3600, lfEndSec - lfStartSec),
+          actualDurationSec: lfEndSec - lfStartSec,
           gameName,
           streamTitle: stream?.title || null,
           sourceYoutubeId: vodYoutubeId ?? null,
           isStreamReplay: true,
           copilotGenerated: true,
-          tags: ["no commentary", "PS5", gameName, "gaming", "full session"],
+          skipLoadingScreens: true,
+          tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "full match"],
         } as any,
       });
       longFormQueued++;

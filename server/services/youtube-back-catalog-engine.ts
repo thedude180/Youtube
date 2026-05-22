@@ -864,6 +864,99 @@ async function trackDerivative(
   } catch { /* non-fatal */ }
 }
 
+// ── BF6 gameplay window estimator ─────────────────────────────────────────────
+// Battlefield 6 matches have a predictable structure: loading/lobby → gameplay
+// → scoreboard.  Without frame-level video analysis we estimate gameplay windows
+// from stream duration and BF6 match-cycle timing so every clip lands on real
+// in-match action — never a loading screen, never a scoreboard, never dead air.
+//
+// Match cycle anatomy (approximate):
+//   0–240 s   loading screen + warmup          ← skip
+//   240–1680 s active Conquest/Breakthrough    ← clip here
+//   1680–1800 s scoreboard + vote screen       ← skip
+//   1800 s+   next match loading               ← skip again
+//
+// The stream opening (first 300 s) is also skipped — covers pre-game lobby,
+// audio setup, first loading screen, and any intro chat interaction.
+
+interface StreamClipWindow {
+  startSec: number;   // safe start for a ≤60 s Short clip
+  label: string;      // what's likely happening — fed directly into the AI title prompt
+  matchNum: number;
+}
+
+const BF6_MATCH_CYCLE_SEC    = 1800;  // ~30 min per match cycle (load + play + board)
+const BF6_LOADING_BUFFER_SEC = 240;   // skip first 4 min of each match (loading)
+const BF6_SCOREBOARD_SEC     = 120;   // skip last 2 min of each match (scoreboard)
+const BF6_STREAM_OPEN_SEC    = 300;   // skip first 5 min of stream (pre-game entirely)
+
+// Specific BF6 action labels cycle across matches and clip positions.
+// These become the AI title hint — concrete enough to write a real title around.
+const BF6_CLIP_LABELS: string[][] = [
+  [
+    "infantry rush straight into the flag cap",
+    "chopper sweep across mid-sector no survivors",
+    "squad wipe in the open, no cover",
+  ],
+  [
+    "armor push down the main road, clears a lane",
+    "back-cap while the whole enemy team rotates",
+    "full-send on the fortified objective",
+  ],
+  [
+    "solo flank catches three off the spawn",
+    "ridge vehicle chain one after another",
+    "infantry clutch hold on the last contested flag",
+  ],
+  [
+    "fast objective trade — in and out before they notice",
+    "anti-air missile drops the helicopter clean",
+    "late-match crunch, one flag left, full commitment",
+  ],
+  [
+    "opening cross-map pressure before the lines set",
+    "multi-kill out of the building window",
+    "flag flip under constant fire",
+  ],
+];
+
+// Returns an ordered list of gameplay-safe moments for Short clip extraction.
+// For a 2-hour BF6 stream this produces ~12 windows (4 matches × 3 moments).
+function bf6GameplayWindows(streamDurationSec: number): StreamClipWindow[] {
+  const windows: StreamClipWindow[] = [];
+  if (streamDurationSec < 600) return windows;
+
+  const effectiveDur = streamDurationSec - BF6_STREAM_OPEN_SEC;
+  if (effectiveDur <= 0) return windows;
+
+  const numMatches = Math.max(1, Math.ceil(effectiveDur / BF6_MATCH_CYCLE_SEC));
+
+  for (let matchIdx = 0; matchIdx < numMatches; matchIdx++) {
+    const matchStart  = BF6_STREAM_OPEN_SEC + matchIdx * BF6_MATCH_CYCLE_SEC;
+    const gameplayStart = matchStart + BF6_LOADING_BUFFER_SEC;
+    const matchEnd    = Math.min(streamDurationSec - 60, matchStart + BF6_MATCH_CYCLE_SEC);
+    const gameplayEnd = matchEnd - BF6_SCOREBOARD_SEC;
+    const gameplayDur = gameplayEnd - gameplayStart;
+
+    if (gameplayDur < 120) continue;
+
+    // Three moments per match: early (15%), mid (48%), late-but-safe (78%).
+    // None of these positions land on loading or scoreboard dead zones.
+    const offsets = [0.15, 0.48, 0.78];
+    const labels  = BF6_CLIP_LABELS[matchIdx % BF6_CLIP_LABELS.length];
+
+    for (let ci = 0; ci < offsets.length; ci++) {
+      windows.push({
+        startSec: Math.floor(gameplayStart + offsets[ci] * gameplayDur),
+        label: labels[ci] ?? `Match ${matchIdx + 1} gameplay`,
+        matchNum: matchIdx + 1,
+      });
+    }
+  }
+
+  return windows;
+}
+
 // ── Past live-stream content queue ───────────────────────────────────────────
 // Runs BEFORE the regular back-catalog phase.  Finds every stream that has
 // ended but hasn't been fully extracted yet and queues Shorts + long-form
@@ -942,21 +1035,32 @@ export async function queuePastStreamContent(userId: string): Promise<{
           } catch { /* non-fatal */ }
         }
 
-        // Queue up to 3 Shorts per past stream
-        const clipsToQueue = stream.contentMinutesExtracted && stream.contentMinutesExtracted > 0
-          ? Math.max(1, 3 - Math.floor(stream.contentMinutesExtracted / 10)) // fewer clips if already partially extracted
-          : 3;
+        // ── Short clip extraction ─────────────────────────────────────────
+        // Use BF6 gameplay windows to pick timestamps that land on in-match
+        // action — not loading screens, not scoreboards, not dead air.
+        const gameplayWindows = bf6GameplayWindows(streamDurationSec);
+
+        // Fallback: if the stream is too short for match-cycle detection,
+        // take one clip at 30% in (well past any opening loading screen).
+        const clipWindows: StreamClipWindow[] = gameplayWindows.length > 0
+          ? gameplayWindows
+          : streamDurationSec > 120
+            ? [{ startSec: Math.floor(streamDurationSec * 0.3), label: "gameplay clip", matchNum: 1 }]
+            : [];
 
         let streamShortsQueued = 0;
-        for (let i = 0; i < clipsToQueue; i++) {
+        for (const win of clipWindows) {
           try {
             const scheduledAt = await getNextShortPublishTime(userId, minDaysAhead);
             await db.insert(autopilotQueue).values({
               userId,
               type: "platform_short",
               targetPlatform: "youtubeshorts",
-              content: `${gameName} live stream highlight from "${stream.title}".\n\n#Shorts #PS5 #${gameName.replace(/\s/g, "")} #Gaming #NoCommentary`,
-              caption: `${stream.title || gameName} | Live Highlight #Shorts`.substring(0, 90),
+              // content field is the AI writing brief — include specific moment
+              // label so the caption generator writes around what actually happens.
+              content: `${gameName} — ${win.label}. No commentary, PS5, raw gameplay.`,
+              // caption (used as fallback title) references the action, not a template.
+              caption: `${win.label.charAt(0).toUpperCase()}${win.label.slice(1)} #Shorts`.substring(0, 90),
               status: "scheduled",
               scheduledAt,
               metadata: {
@@ -967,9 +1071,13 @@ export async function queuePastStreamContent(userId: string): Promise<{
                 sourceYoutubeId: vodYoutubeId ?? null,
                 isStreamHighlight: true,
                 pastStreamExtracted: true,
-                clipIndex: i,
-                startSec: Math.floor((streamDurationSec / clipsToQueue) * i),
-                tags: ["no commentary", "PS5", gameName, "shorts", "gaming", "live highlight"],
+                clipIndex: win.matchNum,
+                startSec: win.startSec,
+                endSec: win.startSec + 38,
+                clipHint: win.label,   // fed directly into the AI caption prompt
+                matchNum: win.matchNum,
+                skipLoadingScreens: true,
+                tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "shorts"],
               } as any,
             });
             streamShortsQueued++;
@@ -979,32 +1087,37 @@ export async function queuePastStreamContent(userId: string): Promise<{
         }
         result.shortsQueued += streamShortsQueued;
 
-        // Queue long-form if stream was over 30 min
+        // ── Long-form extraction ──────────────────────────────────────────
+        // Start at BF6_STREAM_OPEN_SEC to skip the pre-game lobby / first
+        // loading screen entirely.  Long-form goes to end of stream.
         if (streamDurationSec > 1800) {
           try {
             const scheduledAt = await getNextLongFormPublishTime(userId, minDaysAhead);
-            const durMin = Math.round(streamDurationSec / 60);
+            const lfStartSec = BF6_STREAM_OPEN_SEC;  // skip pre-game
+            const lfEndSec   = Math.round(streamDurationSec);
+            const durMin     = Math.round((lfEndSec - lfStartSec) / 60);
             await db.insert(autopilotQueue).values({
               userId,
               type: "auto-clip",
               targetPlatform: "youtube",
-              content: `${gameName} stream replay — ${durMin} min session. No commentary.\n\n#PS5 #NoCommentary #Gaming`,
-              caption: `${stream.title || gameName} Full Session | No Commentary`.substring(0, 90),
+              content: `${gameName} — full session gameplay, no commentary. PS5, ${durMin} min of raw match footage.`,
+              caption: `${stream.title || gameName} Full Session`.substring(0, 90),
               status: "scheduled",
               scheduledAt,
               metadata: {
                 contentType: "long-form-clip",
                 streamId: stream.id,
-                segmentStartSec: 0,
-                segmentEndSec: Math.round(streamDurationSec),
-                targetDurationSec: Math.min(3600, Math.round(streamDurationSec)),
-                actualDurationSec: Math.round(streamDurationSec),
+                segmentStartSec: lfStartSec,
+                segmentEndSec: lfEndSec,
+                targetDurationSec: Math.min(3600, lfEndSec - lfStartSec),
+                actualDurationSec: lfEndSec - lfStartSec,
                 gameName,
                 streamTitle: stream.title || null,
                 sourceYoutubeId: vodYoutubeId ?? null,
                 isStreamReplay: true,
                 pastStreamExtracted: true,
-                tags: ["no commentary", "PS5", gameName, "gaming", "full session"],
+                skipLoadingScreens: true,
+                tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "full match"],
               } as any,
             });
             result.longFormQueued++;

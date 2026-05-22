@@ -181,40 +181,67 @@ async function generateShortCaption(opts: {
   gameName?: string;
 }): Promise<string> {
   const { platform, sourceTitle, hookLine, sourceYoutubeId, gameName } = opts;
-  const fullVideoUrl = sourceYoutubeId ? `https://youtu.be/${sourceYoutubeId}` : null;
-  const guide = PLATFORM_CAPTION_GUIDE[platform] ?? `Platform ${platform}: concise, engaging post for a short gaming clip.`;
+  const isBF6 = /battlefield\s*6|bf\s*6/i.test(gameName ?? "") || /battlefield\s*6|bf\s*6/i.test(sourceTitle);
 
   // Fast fallback if AI is unavailable
-  const fallback = buildFallbackCaption(platform, sourceTitle, hookLine, fullVideoUrl);
+  const fallback = buildFallbackCaption(platform, sourceTitle, hookLine);
 
   try {
     const openai = getOpenAIClientBackground();
-    const prompt = `You are a viral short-form content strategist for a no-commentary PS5 gaming channel called "ET Gaming 247".
 
-Source clip context:
-- Full video title: "${sourceTitle.slice(0, 150)}"
-${gameName ? `- Game: ${gameName}` : ""}
-${hookLine ? `- Hook/moment: "${hookLine.slice(0, 120)}"` : ""}
-${fullVideoUrl ? `- Full video URL: ${fullVideoUrl}` : ""}
+    // The moment/hook line is the single most important input — it's what
+    // actually happened in the clip.  Build the entire prompt around it.
+    const momentContext = hookLine
+      ? `The specific moment in this clip: "${hookLine.slice(0, 150)}"`
+      : `Clip from: "${sourceTitle.slice(0, 120)}"`;
 
-Target platform: YouTube Shorts
-Platform rules: ${guide}
+    const bf6Voice = isBF6 ? `
+This is Battlefield 6 PS5 gameplay — no commentary, no facecam, no reaction, just raw match footage.
+BF6-specific context: Conquest or Breakthrough matches. Infantry, armor, helicopters, jets.
+Channel name: ETGaming247. No team — solo player. PS5 controller, no mods.` : "";
 
-Write a punchy YouTube Shorts title for this clip. Make it hook viewers in the first 3 words.
-For the description section, include: "Watch more at youtube.com/ETGaming247"
+    const prompt = `You are writing a YouTube Shorts title for a real gaming clip on the ET Gaming 247 channel.
+${bf6Voice}
 
-Respond with ONLY the caption text, no JSON, no quotes, no explanation.`;
+${momentContext}
+${gameName ? `Game: ${gameName}` : ""}
+
+Rules — follow every single one:
+1. Title must be 50–80 characters MAX. No exceptions.
+2. Sound like a REAL gamer wrote it — casual, direct, no corporate language.
+3. Start with the action or reaction — NOT with a hashtag, NOT with the channel name.
+4. Forbidden words and phrases: "Ultimate", "Epic", "Amazing", "Incredible", "Watch more", "Full video", "Check out", "You won't believe", "Insane gameplay", "No Commentary Gaming", "raw footage", emojis in the title.
+5. Hashtags go at the END only — max 3, all lowercase: #shorts #bf6 #ps5
+6. Write about the specific moment — not generic "gameplay highlights".
+7. Tone: dry, confident, like a player who's seen it all. No hype for its own sake.
+8. If you don't have a specific moment, write a title from the perspective of the player in that situation — first-person implied ("Ran straight through their squad", "Took the flag before they even noticed").
+
+Examples of GOOD titles:
+- "Ran straight through their entire squad #shorts #bf6 #ps5"
+- "They didn't see the back-cap coming #shorts #bf6"
+- "Four in the open. Clean. #shorts #bf6 #ps5"
+- "Chopper down, infantry clear, flag capped #shorts #bf6"
+
+Examples of BAD titles (do NOT write these):
+- "EPIC Battlefield 6 Gameplay Moments! #Shorts #Gaming"
+- "Incredible No Commentary PS5 Gameplay | Watch More!"
+- "You Won't Believe This BF6 Clip 😱 #shorts"
+
+Respond with ONLY the title text. No JSON, no quotes, no explanation.`;
 
     const res = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      max_completion_tokens: 300,
+      max_completion_tokens: 120,
     });
 
-    const text = (res.choices[0].message.content || "").trim();
-    if (text.length < 10) return fallback;
+    const text = (res.choices[0].message.content || "").trim()
+      // Strip surrounding quotes if the model adds them
+      .replace(/^["']|["']$/g, "")
+      .trim();
 
-    return text.slice(0, 2000);
+    if (text.length < 8 || text.length > 200) return fallback;
+    return text;
   } catch {
     return fallback;
   }
@@ -224,10 +251,22 @@ function buildFallbackCaption(
   _platform: string,
   title: string,
   hookLine: string | undefined,
-  _fullVideoUrl: string | null,
 ): string {
-  const base = hookLine || title;
-  return `${base.slice(0, 90)} #Shorts #Gaming #PS5`;
+  // Fallback titles also avoid template language — use the moment label directly
+  // if available, otherwise clean up the source title.
+  if (hookLine && hookLine.length >= 8) {
+    const clean = hookLine.charAt(0).toUpperCase() + hookLine.slice(1);
+    return `${clean.slice(0, 70)} #shorts #bf6 #ps5`;
+  }
+  // Strip generic suffixes from back-catalog titles before using as fallback
+  const stripped = title
+    .replace(/\s*\|.*$/, "")
+    .replace(/\s*#.*$/, "")
+    .replace(/\bno commentary\b/gi, "")
+    .replace(/\bno facecam\b/gi, "")
+    .replace(/\bPS5\b/gi, "")
+    .trim();
+  return `${stripped.slice(0, 70)} #shorts #bf6 #ps5`;
 }
 
 // ---------------------------------------------------------------------------
