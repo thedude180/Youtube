@@ -135,8 +135,8 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     "-y",
     "-i", rawPath,
     "-t", String(durationSec),
-    // 9:16 vertical — center-crop landscape source to portrait, Lanczos scale to 1080×1920
-    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60",
+    // 16:9 horizontal — letterbox to 1920×1080, keep original aspect ratio (no crop)
+    "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
     "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
     "-c:v", "libx264",
     "-profile:v", "high",

@@ -183,10 +183,10 @@ interface PlatformProfile {
  */
 const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
   youtube: {
-    label: "YouTube Long-Form 9:16",
-    width: 1080,
-    height: 1920,
-    orientation: "portrait",
+    label: "YouTube Long-Form 16:9",
+    width: 1920,
+    height: 1080,
+    orientation: "landscape",
     codec: "libx264",
     codecArgs: [
       "-profile:v", "high",
@@ -194,7 +194,7 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
       "-x264-params", "keyint=120:min-keyint=48:bframes=2:ref=3:aq-mode=2:aq-strength=1.0",
       "-movflags", "+faststart",
     ],
-    crf: 18,                        // high-quality encode for long-form portrait delivery
+    crf: 18,
     preset: "fast",
     maxClipSecs: null,
     audioBitrate: "192k",

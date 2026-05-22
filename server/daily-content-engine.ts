@@ -441,7 +441,7 @@ RULES:
 - Titles: Use curiosity gaps, numbers, and strong hooks. Under 60 chars. Front-load keywords. Examples: "I Can't Believe This Actually Worked..." or "This 1v4 Clutch Changed Everything"
 - Descriptions: First 2 lines are shown in search — make them count. Include primary keyword in first sentence. Add timestamps at EVERY chapter for YouTube chapters feature. End with a call-to-action. Include 3-5 related keyword phrases naturally.
 - Tags: 15-25 tags mixing broad niche keywords with specific long-tail keywords. Include topic/subject variations and trending terms.
-- Shorts: Strong opening moment in first 0.5 seconds. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags. Include #Shorts in the description.
+- Shorts: Each Short MUST be a genuine gaming highlight — boss fight climax, clutch play, funny reaction, unexpected win/fail. It must start ON the exciting action (never loading screen, menu, slow walk). Duration is 30-58 seconds, sweet spot 40-50 seconds. CRITICAL: endMinute - startMinute MUST be between 0.5 and 0.97 (i.e. 30-58 seconds). Never more than 0.97 minutes apart. Title must work as both a YouTube Short title AND TikTok caption. Hashtags must include trending + niche-specific tags. Include #Shorts.
 - Each batch must feel like a FRESH standalone video — unique angle, unique title.
 - Long-form structure: engaging opening in first 3 seconds, chapter breaks every 5-8 minutes, maintain viewer interest throughout, end-screen call-to-action.
 
@@ -450,6 +450,7 @@ CRITICAL JSON RULES — YOU MUST FOLLOW THESE OR THE RESPONSE WILL BE REJECTED:
 - Game titles like Battlefield 6, PS5, etc. must NOT be wrapped in double quotes within descriptions or titles
 - For apostrophes in words (don't, won't, player's), always use a real apostrophe (') never a double-quote (")
 - All string values must be valid JSON — no unescaped special characters
+- For shorts: endMinute - startMinute MUST be between 0.5 and 0.97. This is enforced — any Short with a larger gap will be rejected.
 
 Return ONLY valid JSON:
 {
@@ -470,13 +471,13 @@ Return ONLY valid JSON:
   },
   "shorts": [
     {
-      "title": "string - attention-grabbing title under 50 chars",
+      "title": "string - attention-grabbing title under 50 chars with gaming hook",
       "description": "string - SEO description with keywords and CTA",
       "startMinute": number,
       "endMinute": number,
-      "hook": "what makes this moment compelling and shareable",
+      "hook": "one sentence describing the specific exciting gaming action (boss kill, clutch play, funny moment)",
       "hashtags": ["array of 5-8 hashtags mixing trending + niche"],
-      "targetDuration": "string like 0:34",
+      "targetDuration": "string like 0:45 — always between 0:30 and 0:58",
       "tiktokCaption": "TikTok-optimized caption with hooks and trending hashtags"
     }
   ]
@@ -660,7 +661,9 @@ async function queueBatchContent(
           aiModel: "gpt-4o-mini",
           sourceStreamId: stream.stream.id,
           startSec: short.startMinute * 60,
-          endSec: short.endMinute * 60,
+          // Hard cap: Shorts MUST be ≤58 seconds regardless of what the AI returned.
+          // If endMinute is too far from startMinute (AI hallucination), clamp to +45s.
+          endSec: Math.min(short.endMinute * 60, short.startMinute * 60 + 58),
           segmentStartMin: short.startMinute,
           segmentEndMin: short.endMinute,
           tags: short.hashtags?.map((h: string) => h.replace(/^#/, "")) || [],

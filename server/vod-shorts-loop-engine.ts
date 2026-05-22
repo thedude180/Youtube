@@ -279,10 +279,17 @@ async function runShortsExtraction(userId: string): Promise<any> {
         model: "gpt-4o-mini",
         messages: [{
           role: "system",
-          content: `You are a YouTube Shorts AI expert. Identify the top 3 most viral-worthy moments from this video for YouTube Shorts. Each should be 15-60 seconds, start with a strong hook, and end with a cliffhanger or punchline. Return JSON: {shorts: [{title, hookLine, startTimeSec, endTimeSec, viralScore, platform: "youtube-shorts"}]}.`
+          content: `You are a YouTube Shorts expert for the gaming niche (PS5 gameplay). Your job is to identify the top 3 most viral gaming moments for the YouTube Shorts shelf. Rules you MUST follow:
+1. Each clip MUST be between 15 and 58 seconds total. endTimeSec - startTimeSec MUST be between 15 and 58. NO exceptions.
+2. Start exactly on a high-action frame: boss appears, clutch play begins, funny reaction, unexpected moment.
+3. Do NOT start during loading screens, menus, walking, or slow dialogue.
+4. The clip must be self-contained — viewers need no context from before it.
+5. hookLine = one sentence describing the exciting action (used as title/caption).
+6. viralScore = 1-100 rating of likely Shorts virality.
+Return JSON: {"shorts": [{"title": string, "hookLine": string, "startTimeSec": number, "endTimeSec": number, "viralScore": number, "platform": "youtube-shorts"}]}`
         }, {
           role: "user",
-          content: `Video: "${sanitizeForPrompt(video.title)}" (${(video.metadata as any)?.duration || 600}s, ${(video.metadata as any)?.viewCount || 0} views). Description: ${sanitizeForPrompt((video.description || "").slice(0, 200))}. Extract the most viral Short clips.`
+          content: `PS5 gaming video: "${sanitizeForPrompt(video.title)}" (total length: ${(video.metadata as any)?.duration || 600} seconds). Description: ${sanitizeForPrompt((video.description || "").slice(0, 200))}. Find the 3 most exciting 15-58 second gaming moments that would go viral on the Shorts shelf. Each clip window MUST be 15-58 seconds (endTimeSec - startTimeSec between 15 and 58).`
         }],
         max_completion_tokens: 4000,
         response_format: { type: "json_object" },
@@ -293,7 +300,11 @@ async function runShortsExtraction(userId: string): Promise<any> {
 
       for (const short of shorts) {
         const startT = Math.max(0, short.startTimeSec || 0);
-        const endT = Math.max(startT + 3, short.endTimeSec || 60);
+        // Hard cap: clips MUST be 15–58 s. If AI returned a longer window, take the
+        // first 45 s of it (usually where the hook/action begins).
+        const rawEnd = Math.max(startT + 15, short.endTimeSec || (startT + 45));
+        const endT = Math.min(rawEnd, startT + 58);
+        if (endT - startT < 10) continue; // skip degenerate clips
         await db.insert(contentClips).values({
           userId,
           sourceVideoId: video.id,
