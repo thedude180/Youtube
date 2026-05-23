@@ -42,6 +42,7 @@ import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initPreEncoder } from "./services/pre-encoder";
 import { initPreSeo } from "./services/pre-seo";
 import { initChannelBrandSync } from "./services/youtube-channel-brand-sync";
+import { initPipelineTracer, stopPipelineTracer } from "./services/pipeline-tracer";
 import { createLogger } from "./lib/logger";
 import { AppError, createErrorResponse } from "./lib/errors";
 import { closeAllConnections } from "./routes/events";
@@ -3165,6 +3166,12 @@ httpServer.listen(
       // Light cycle every ~4h, full strategic cycle every ~22–24h.
       initYouTubeAIOrchestrator();
 
+      // ── Pipeline Tracer — end-to-end content verification agent ──────────
+      // Every 30 min: batch-verifies all recently published videos against the
+      // YouTube API, detects stuck/missing content, and records every finding
+      // in pipeline_traces. First run: 8–12 min after boot.
+      initPipelineTracer();
+
       // ── Channel Brand Sync — SEO + thumbnail consistency sweep ───────────────
       // Ensures all Shorts have game-matched SEO+thumbnails, livestream archives
       // get replay-optimised metadata, and every video passes brand alignment.
@@ -3706,6 +3713,7 @@ httpServer.listen(
     stopFortressCleanup();
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
+    stopPipelineTracer();
     stopPushCleanup();
     stopAutoFixCleanup();
     stopSettingsCleanup();

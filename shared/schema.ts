@@ -10255,3 +10255,36 @@ export const nicheInsights = pgTable("niche_insights", {
   index("ni_user_idx").on(t.userId),
   index("ni_created_idx").on(t.createdAt),
 ]);
+
+// ── Pipeline Traces ───────────────────────────────────────────────────────────
+// End-to-end trace of every published piece of content from queue entry through
+// YouTube API confirmation. The tracer agent verifies each published video is
+// actually live, detects stuck items, and flags anomalies automatically.
+export const pipelineTraces = pgTable("pipeline_traces", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  queueItemId: integer("queue_item_id"),
+  youtubeVideoId: text("youtube_video_id"),
+  contentType: text("content_type"),
+  gameName: text("game_name"),
+  // Stage values: uploaded | verified_live | verified_missing |
+  //               stuck_scheduled | stuck_processing | failed | daily_summary
+  stage: text("stage").notNull(),
+  // Status values: ok | warning | error
+  status: text("status").notNull(),
+  // Milliseconds from scheduledAt → this event (pipeline latency)
+  durationMs: integer("duration_ms"),
+  detail: jsonb("detail").$type<Record<string, any>>(),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("pt_user_idx").on(t.userId),
+  index("pt_queue_item_idx").on(t.queueItemId),
+  index("pt_youtube_id_idx").on(t.youtubeVideoId),
+  index("pt_stage_idx").on(t.stage),
+  index("pt_created_idx").on(t.createdAt),
+]);
+
+export const insertPipelineTraceSchema = createInsertSchema(pipelineTraces).omit({ id: true, createdAt: true });
+export type PipelineTrace = typeof pipelineTraces.$inferSelect;
+export type InsertPipelineTrace = z.infer<typeof insertPipelineTraceSchema>;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Suspense, lazy } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
+
+const PipelineHealth = lazy(() => import("@/pages/dashboard/PipelineHealth"));
 import {
   Plus, Loader2, ChevronRight, Lightbulb, FileText, Video,
   Scissors, Eye, CalendarClock, CheckCircle2,
@@ -287,6 +289,13 @@ export default function PipelineTab() {
 
   return (
     <div className="space-y-3" data-testid="pipeline-tab">
+      {/* ── Pipeline Tracer — end-to-end YouTube verification agent ── */}
+      <div className="rounded-xl border border-border/60 bg-card px-4 py-3">
+        <Suspense fallback={<Skeleton className="h-40 w-full rounded-lg" />}>
+          <PipelineHealth />
+        </Suspense>
+      </div>
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <QuickStats items={items} />
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
