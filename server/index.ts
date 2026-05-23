@@ -2795,7 +2795,7 @@ httpServer.listen(
     });
 
     delay(3_000, () => {
-      import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or }) => {
+      import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or, ilike }) => {
         const readCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
         const unreadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
         db.delete(notifications).where(or(
@@ -2804,6 +2804,19 @@ httpServer.listen(
         )).then((r: any) => {
           logger.info("Startup notification cleanup complete", { deleted: r?.rowCount || 0 });
         }).catch((e: any) => logger.warn("Startup notification cleanup failed", { error: String(e) }));
+
+        // Purge false-positive "youtube needs reconnection" notifications that were
+        // generated when auto-fix-engine misclassified "youtubeshorts is not connected"
+        // (a platform_channels config gap) as a real OAuth disconnection.
+        // YouTube OAuth is valid — these warnings are noise. Remove them on boot.
+        db.delete(notifications).where(
+          and(
+            ilike(notifications.title, "%needs reconnection%"),
+            ilike(notifications.message, "%requires reconnecting your account%"),
+          )
+        ).then((r: any) => {
+          if ((r?.rowCount || 0) > 0) logger.info("Purged false-positive reconnect notifications", { deleted: r.rowCount });
+        }).catch((e: any) => logger.warn("False-positive reconnect notification purge failed", { error: String(e) }));
       }))).catch(slog("startupNotifCleanup"));
     });
 

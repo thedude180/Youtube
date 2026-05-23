@@ -1,5 +1,5 @@
 import { db, withRetry } from "./db";
-import { autopilotQueue, notifications, deadLetterQueue } from "@shared/schema";
+import { autopilotQueue, notifications, deadLetterQueue, channels } from "@shared/schema";
 import { eq, and, gte, lte, inArray, sql, gt } from "drizzle-orm";
 import { getNextResetTime, getQuotaStatus, getPacificDate } from "./services/youtube-quota-tracker";
 import { selfHealingCore } from "./self-healing-core";
@@ -291,7 +291,28 @@ export async function autoFixFailedPosts(): Promise<{
         // Non-YouTube platforms are disabled — silently permanent-fail their items.
         const isYouTubePlatform = post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts";
         if (!metadata.permanentFailNotified && isYouTubePlatform) {
-          await createNotification(post.userId, notifTitle, friendlyMsg, notifSeverity, notifActionUrl);
+          // For config_missing: suppress the notification when the YouTube OAuth token
+          // is actually present and valid. "X is not connected" errors in this case mean
+          // a platform_channels row is missing (a config issue), NOT an OAuth disconnection.
+          // Firing a reconnect alert when the token is valid causes false-positive warnings.
+          let shouldNotify = true;
+          if (category === "config_missing") {
+            const ytChannels = await db.select({ accessToken: channels.accessToken, refreshToken: channels.refreshToken })
+              .from(channels)
+              .where(and(eq(channels.userId, post.userId), eq(channels.platform, "youtube")))
+              .limit(1);
+            const ytCh = ytChannels[0];
+            if (ytCh && (ytCh.accessToken || ytCh.refreshToken) && ytCh.accessToken !== "dev_api_key_mode") {
+              // OAuth token is present — this is NOT a real disconnect, skip the notification
+              shouldNotify = false;
+              logger.debug("[AutoFix] Suppressing config_missing reconnect alert — YouTube OAuth token is valid", {
+                postId: post.id, platform: post.targetPlatform, error: errorMsg,
+              });
+            }
+          }
+          if (shouldNotify) {
+            await createNotification(post.userId, notifTitle, friendlyMsg, notifSeverity, notifActionUrl);
+          }
         }
         await db.update(autopilotQueue)
           .set({

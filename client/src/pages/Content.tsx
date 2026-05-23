@@ -730,8 +730,11 @@ function LibraryTab() {
   const { toast } = useToast();
   const { data: videos, isLoading, error } = useVideos();
   const [, setLocation] = useLocation();
-  const { data: linkedChannels } = useQuery<any[]>({ queryKey: ["/api/linked-channels"], staleTime: 60_000 });
-  const hasYtOauth = (linkedChannels || []).some((c: any) => c.platform === "youtube" && c.accessToken);
+  const { data: ytReconnectStatus } = useQuery<{ needsReconnect: boolean }>({
+    queryKey: ["/api/oauth/needs-reconnect"],
+    staleTime: 60_000,
+  });
+  const hasYtOauth = ytReconnectStatus ? !ytReconnectStatus.needsReconnect : true;
 
   const dismissYtBanner = () => {
     sessionStorage.setItem("yt_connect_banner_dismissed", "1");
