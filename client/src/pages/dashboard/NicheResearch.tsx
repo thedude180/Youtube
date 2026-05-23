@@ -8,8 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import {
   Search, RefreshCw, ExternalLink, Flame, Clock, Eye,
-  Lightbulb, Target, TrendingUp, Zap, BarChart3,
+  Lightbulb, Target, TrendingUp, Zap, BarChart3, FileVideo,
+  CheckSquare, Sparkles, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { useState } from "react";
 
 interface VideoSample {
   id: number;
@@ -34,12 +36,23 @@ interface NicheInsight {
   createdAt: string | null;
 }
 
+interface VideoBlueprint {
+  type: "short" | "long-form";
+  titleFormula: string;
+  titleExample: string;
+  durationRange: string;
+  hookStyle: string;
+  contentBeats: string[];
+  whyItWorks: string;
+}
+
 interface NicheData {
   samples: VideoSample[];
   insights: NicheInsight[];
   sampleCount: number;
   lastSampleAt: string | null;
   isRunning: boolean;
+  gameName?: string;
 }
 
 function fmt(n: number | null | undefined): string {
@@ -57,12 +70,15 @@ function fmtDur(sec: number | null | undefined): string {
   return s > 0 ? `${m}m${s}s` : `${m}m`;
 }
 
-const INSIGHT_TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  title_pattern:    { label: "Title Pattern",   icon: BarChart3,  color: "text-violet-400"  },
-  duration_insight: { label: "Duration",        icon: Clock,      color: "text-blue-400"    },
-  content_strategy: { label: "Strategy",        icon: Target,     color: "text-emerald-400" },
-  opportunity:      { label: "Opportunity",     icon: Zap,        color: "text-amber-400"   },
-};
+function parseBlueprint(body: string): VideoBlueprint | null {
+  try {
+    const parsed = JSON.parse(body);
+    if (!parsed?.type || !parsed?.titleFormula) return null;
+    return parsed as VideoBlueprint;
+  } catch {
+    return null;
+  }
+}
 
 function PriorityDot({ priority }: { priority: string | null }) {
   const cls = priority === "high"
@@ -71,6 +87,95 @@ function PriorityDot({ priority }: { priority: string | null }) {
     ? "bg-amber-400"
     : "bg-emerald-400";
   return <span className={`h-1.5 w-1.5 rounded-full shrink-0 mt-1.5 ${cls}`} />;
+}
+
+function BlueprintCard({ bp, index }: { bp: VideoBlueprint; index: number }) {
+  const [expanded, setExpanded] = useState(index === 0);
+  const isShort = bp.type === "short";
+
+  return (
+    <div
+      className="rounded-lg border border-border/40 bg-card/50 overflow-hidden"
+      data-testid={`card-blueprint-${index}`}
+    >
+      {/* Header — always visible */}
+      <button
+        className="w-full text-left px-4 py-3 flex items-center gap-3"
+        onClick={() => setExpanded(v => !v)}
+        data-testid={`button-blueprint-expand-${index}`}
+      >
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${
+          isShort
+            ? "bg-red-500/15 text-red-400 border border-red-500/20"
+            : "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+        }`}>
+          {isShort ? "SHORT" : "LONG-FORM"}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="text-xs font-mono text-foreground/80 leading-tight line-clamp-1" data-testid={`text-title-formula-${index}`}>
+            {bp.titleFormula}
+          </span>
+        </span>
+        <span className="shrink-0 text-muted-foreground/50">
+          {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </span>
+      </button>
+
+      {/* Expanded body */}
+      {expanded && (
+        <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
+
+          {/* Example title */}
+          <div data-testid={`section-title-example-${index}`}>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Example Title</p>
+            <div className="bg-muted/40 rounded-md px-3 py-2">
+              <p className="text-sm font-medium text-foreground" data-testid={`text-title-example-${index}`}>
+                {bp.titleExample}
+              </p>
+            </div>
+          </div>
+
+          {/* Duration + hook row */}
+          <div className="grid grid-cols-2 gap-2" data-testid={`section-meta-${index}`}>
+            <div className="bg-muted/30 rounded-md px-3 py-2">
+              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Duration</p>
+              <p className="text-sm font-semibold text-foreground" data-testid={`text-duration-range-${index}`}>{bp.durationRange}</p>
+            </div>
+            <div className="bg-muted/30 rounded-md px-3 py-2">
+              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Hook</p>
+              <p className="text-xs text-foreground/80 leading-tight" data-testid={`text-hook-style-${index}`}>{bp.hookStyle}</p>
+            </div>
+          </div>
+
+          {/* Content beats — production checklist */}
+          {bp.contentBeats?.length > 0 && (
+            <div data-testid={`section-beats-${index}`}>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
+                <CheckSquare className="h-3 w-3" />
+                Structure
+              </p>
+              <ol className="space-y-1.5">
+                {bp.contentBeats.map((beat, bi) => (
+                  <li key={bi} className="flex items-start gap-2 text-xs" data-testid={`text-beat-${index}-${bi}`}>
+                    <span className="shrink-0 text-[9px] font-mono text-muted-foreground/60 mt-0.5 w-3">{bi + 1}</span>
+                    <span className="text-foreground/80">{beat}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* Why it works */}
+          {bp.whyItWorks && (
+            <div className="flex items-start gap-2 bg-amber-500/8 border border-amber-500/20 rounded-md px-3 py-2" data-testid={`section-why-${index}`}>
+              <Sparkles className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed" data-testid={`text-why-${index}`}>{bp.whyItWorks}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function NicheResearch() {
@@ -91,18 +196,30 @@ export default function NicheResearch() {
 
   const hasData = (data?.samples?.length ?? 0) > 0 || (data?.insights?.length ?? 0) > 0;
 
-  const titlePatterns = data?.insights?.filter(i => i.insightType === "title_pattern") ?? [];
+  const titlePatterns    = data?.insights?.filter(i => i.insightType === "title_pattern")    ?? [];
   const durationInsights = data?.insights?.filter(i => i.insightType === "duration_insight") ?? [];
-  const opportunities = data?.insights?.filter(i => i.insightType === "opportunity") ?? [];
-  const strategies = data?.insights?.filter(i => i.insightType === "content_strategy") ?? [];
-  const topSamples = data?.samples?.slice(0, 8) ?? [];
+  const opportunities    = data?.insights?.filter(i => i.insightType === "opportunity")      ?? [];
+  const strategies       = data?.insights?.filter(i => i.insightType === "content_strategy") ?? [];
+  const topSamples       = data?.samples?.slice(0, 8) ?? [];
+
+  const blueprints: VideoBlueprint[] = (data?.insights ?? [])
+    .filter(i => i.insightType === "video_blueprint")
+    .map(i => parseBlueprint(i.body))
+    .filter((b): b is VideoBlueprint => b !== null);
+
+  const gameName = data?.gameName ?? "Gaming";
 
   return (
     <Card data-testid="card-niche-research">
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Search className="h-4 w-4 text-violet-400" />
-          BF6 Niche Research
+          Niche Research
+          {data?.gameName && (
+            <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-normal" data-testid="badge-game-name">
+              {data.gameName}
+            </Badge>
+          )}
         </CardTitle>
         <div className="flex items-center gap-2">
           {data?.lastSampleAt && (
@@ -123,7 +240,7 @@ export default function NicheResearch() {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5">
         {isLoading && (
           <div className="space-y-2" data-testid="skeleton-niche-research">
             <Skeleton className="h-4 w-3/4" />
@@ -136,7 +253,9 @@ export default function NicheResearch() {
         {!isLoading && !hasData && (
           <div className="flex flex-col items-center justify-center py-8 text-center space-y-3" data-testid="empty-niche-research">
             <Search className="h-9 w-9 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">No niche data yet. Run a scan to see what's working in BF6.</p>
+            <p className="text-sm text-muted-foreground">
+              No niche data yet. Run a scan to see what's working for {gameName} on YouTube and get content blueprints.
+            </p>
             <Button onClick={() => runMutation.mutate()} disabled={runMutation.isPending} data-testid="button-start-first-scan">
               <Search className="h-4 w-4 mr-2" />
               Scan Now
@@ -156,6 +275,12 @@ export default function NicheResearch() {
                 <Lightbulb className="h-3 w-3" />
                 {data!.insights.length} insights
               </span>
+              {blueprints.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <FileVideo className="h-3 w-3 text-violet-400" />
+                  {blueprints.length} blueprints
+                </span>
+              )}
               {data?.isRunning && (
                 <Badge variant="secondary" className="text-[10px] py-0 px-1.5 text-amber-600 bg-amber-100 dark:bg-amber-900/30" data-testid="badge-scan-running">
                   Scanning…
@@ -163,7 +288,23 @@ export default function NicheResearch() {
               )}
             </div>
 
-            {/* Opportunities — show first, highest value */}
+            {/* ── Content Blueprints — shown first, highest value ── */}
+            {blueprints.length > 0 && (
+              <div data-testid="section-blueprints">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1">
+                  <FileVideo className="h-3 w-3 text-violet-400" />
+                  Content Blueprints
+                  <span className="text-[9px] text-muted-foreground/50 font-normal normal-case tracking-normal ml-1">— copy-ready templates from what's winning</span>
+                </p>
+                <div className="space-y-2">
+                  {blueprints.map((bp, i) => (
+                    <BlueprintCard key={i} bp={bp} index={i} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Top Opportunities ── */}
             {opportunities.length > 0 && (
               <div data-testid="section-opportunities">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -181,7 +322,7 @@ export default function NicheResearch() {
               </div>
             )}
 
-            {/* Title patterns */}
+            {/* ── Title patterns ── */}
             {titlePatterns.length > 0 && (
               <div data-testid="section-title-patterns">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -201,7 +342,7 @@ export default function NicheResearch() {
               </div>
             )}
 
-            {/* Duration insights */}
+            {/* ── Duration insights ── */}
             {durationInsights.length > 0 && (
               <div data-testid="section-duration-insights">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -221,7 +362,7 @@ export default function NicheResearch() {
               </div>
             )}
 
-            {/* Content strategies */}
+            {/* ── Content strategies ── */}
             {strategies.length > 0 && (
               <div data-testid="section-strategies">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -244,7 +385,7 @@ export default function NicheResearch() {
               </div>
             )}
 
-            {/* Top performing videos in niche */}
+            {/* ── Top performing similar videos ── */}
             {topSamples.length > 0 && (
               <div data-testid="section-top-niche-videos">
                 <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1">

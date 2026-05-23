@@ -1,11 +1,16 @@
 /**
  * Niche Video Researcher
  * ─────────────────────────────────────────────────────────────────────────────
- * Searches YouTube for BF6/gaming similar videos and analyses what's working:
+ * Searches YouTube for similar videos in the user's gaming niche and analyses
+ * what's structurally working:
  *  • title word patterns in high-view videos
  *  • duration sweet spots (Shorts vs long-form)
  *  • upload recency vs performance
+ *  • content blueprints — concrete copy-ready templates for Shorts & long-form
  *  • actionable takeaways for ETGaming247's content
+ *
+ * Queries are built dynamically from the user's most-played game (streams table)
+ * so results always reflect what's actually being streamed, not a hardcoded title.
  *
  * Uses yt-dlp `ytsearch` (same pattern as omni-intelligence-harvester).
  * Runs every 7 days automatically; available on-demand via API.
@@ -16,8 +21,8 @@ import { promisify } from "util";
 import path from "path";
 import fs from "fs";
 import { db } from "../db";
-import { users, channels, nicheVideoSamples, nicheInsights } from "@shared/schema";
-import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
+import { users, channels, streams, nicheVideoSamples, nicheInsights } from "@shared/schema";
+import { eq, and, desc, gte, lt, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
@@ -36,23 +41,70 @@ function resolveYtdlp(): string {
   return fs.existsSync(local) ? local : "yt-dlp";
 }
 
-const BF6_QUERIES = [
-  `ytsearch${MAX_PER_QUERY}:battlefield 6 ps5 no commentary 2026`,
-  `ytsearch${MAX_PER_QUERY}:bf6 gameplay shorts ps5 2026`,
-  `ytsearch${MAX_PER_QUERY}:battlefield 6 gaming highlights youtube`,
-  `ytsearch${MAX_PER_QUERY}:battlefield ps5 no commentary gaming channel`,
-  `ytsearch15:battlefield 6 short clips viral 2026`,
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Detect what game the user is primarily streaming from their streams table.
+// Falls back to "Battlefield 6" if no recent stream has a category set.
+// ─────────────────────────────────────────────────────────────────────────────
+async function getTopGameForUser(userId: string): Promise<string> {
+  try {
+    const recent = await db.select({ category: streams.category })
+      .from(streams)
+      .where(and(eq(streams.userId, userId), isNotNull(streams.category)))
+      .orderBy(desc(streams.id))
+      .limit(10);
+
+    if (!recent.length) return "Battlefield 6";
+
+    // Most frequent category among recent streams
+    const freq: Record<string, number> = {};
+    for (const r of recent) {
+      if (r.category) freq[r.category] = (freq[r.category] ?? 0) + 1;
+    }
+    const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+    return top?.[0] ?? "Battlefield 6";
+  } catch {
+    return "Battlefield 6";
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build a set of yt-dlp search queries tailored to the user's game.
+// ─────────────────────────────────────────────────────────────────────────────
+function buildSearchQueries(gameName: string): string[] {
+  // Derive a short keyword from the game name for tighter queries
+  const n   = gameName.toLowerCase();
+  let short = gameName;
+  if (/battlefield 6|bf6/.test(n))          short = "BF6";
+  else if (/battlefield/.test(n))            short = "Battlefield";
+  else if (/call of duty|cod|warzone/.test(n)) short = "COD";
+  else if (/fortnite/.test(n))               short = "Fortnite";
+  else if (/apex/.test(n))                   short = "Apex Legends";
+  else if (/valorant/.test(n))               short = "Valorant";
+  else if (/minecraft/.test(n))              short = "Minecraft";
+  else if (/elden ring/.test(n))             short = "Elden Ring";
+  else if (/destiny/.test(n))                short = "Destiny 2";
+  else if (/halo/.test(n))                   short = "Halo";
+
+  const year = new Date().getFullYear();
+  return [
+    `ytsearch${MAX_PER_QUERY}:${short} ps5 no commentary ${year}`,
+    `ytsearch${MAX_PER_QUERY}:${short} gameplay shorts ps5 ${year}`,
+    `ytsearch${MAX_PER_QUERY}:${short} gaming highlights youtube`,
+    `ytsearch${MAX_PER_QUERY}:${short} ps5 no commentary gaming channel`,
+    `ytsearch15:${short} short clips viral ${year}`,
+  ];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 1: Scrape similar-video metadata via yt-dlp
 // ─────────────────────────────────────────────────────────────────────────────
-async function scrapeSamples(userId: string): Promise<number> {
+async function scrapeSamples(userId: string, gameName: string): Promise<number> {
   const ytdlp   = resolveYtdlp();
   const expiry  = new Date(Date.now() + SAMPLE_TTL_MS);
+  const queries = buildSearchQueries(gameName);
   let   saved   = 0;
 
-  for (const query of BF6_QUERIES) {
+  for (const query of queries) {
     try {
       const { stdout } = await execFileAsync(
         ytdlp,
@@ -106,14 +158,14 @@ async function scrapeSamples(userId: string): Promise<number> {
     }
   }
 
-  logger.info("[NicheResearcher] Scraped samples", { userId: userId.slice(0, 8), saved });
+  logger.info("[NicheResearcher] Scraped samples", { userId: userId.slice(0, 8), saved, game: gameName });
   return saved;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 2: AI-powered pattern analysis on collected samples
+// STEP 2: AI-powered pattern analysis + content blueprint generation
 // ─────────────────────────────────────────────────────────────────────────────
-async function analysePatterns(userId: string): Promise<void> {
+async function analysePatterns(userId: string, gameName: string): Promise<void> {
   const since   = new Date(Date.now() - SAMPLE_TTL_MS);
   const samples = await db.select().from(nicheVideoSamples)
     .where(and(eq(nicheVideoSamples.userId, userId), gte(nicheVideoSamples.createdAt, since)))
@@ -130,12 +182,12 @@ async function analysePatterns(userId: string): Promise<void> {
     `${i + 1}. "${s.title}" | views:${s.viewCount ?? 0} | dur:${s.durationSec ?? "?"}s | channel:${s.channelName ?? "?"} | isShort:${s.isShort}`
   ).join("\n");
 
-  const prompt = `You are analysing YouTube video data from the BF6 (Battlefield 6) no-commentary gaming niche on behalf of ETGaming247 (a PS5 BF6 gaming channel). Your job is to extract patterns from this data and produce ACTIONABLE insights the creator can implement TODAY in their own content.
+  const prompt = `You are analysing YouTube video data from the ${gameName} no-commentary gaming niche on behalf of ETGaming247 (a PS5 gaming channel). Extract patterns and produce ACTIONABLE insights the creator can implement TODAY.
 
 TOP ${top30.length} VIDEOS BY VIEW COUNT:
 ${sampleList}
 
-Analyse this data and respond with a JSON object (no markdown) with this exact shape:
+Respond with a JSON object (no markdown) with this exact shape:
 {
   "titlePatterns": [
     { "pattern": "short description of what title words/structures get views", "evidence": "example from data", "priority": "high|medium" }
@@ -149,21 +201,51 @@ Analyse this data and respond with a JSON object (no markdown) with this exact s
   "topOpportunities": [
     "one sentence opportunity ETGaming247 can act on immediately"
   ],
-  "nicheHealthScore": 0-100
+  "nicheHealthScore": 0-100,
+  "videoBlueprints": [
+    {
+      "type": "short",
+      "titleFormula": "Fill-in-the-blank title template derived from top-performing titles. Use [BRACKETS] for variable parts.",
+      "titleExample": "A concrete title you'd actually publish, following the formula above.",
+      "durationRange": "e.g. 35-50s",
+      "hookStyle": "Describe in one sentence what the first 3 seconds should show/do.",
+      "contentBeats": [
+        "0-3s: What happens here",
+        "3-30s: What happens here",
+        "30-45s: What happens here"
+      ],
+      "whyItWorks": "One sentence grounded in the actual data above — what evidence shows this structure performs."
+    },
+    {
+      "type": "long-form",
+      "titleFormula": "Fill-in-the-blank title template for long-form videos.",
+      "titleExample": "A concrete long-form title you'd actually publish.",
+      "durationRange": "e.g. 18-40min",
+      "hookStyle": "Describe what should happen in the first 30 seconds to retain viewers.",
+      "contentBeats": [
+        "0-30s: ...",
+        "30s-10min: ...",
+        "10-30min: ...",
+        "30min+: ..."
+      ],
+      "whyItWorks": "One sentence grounded in the actual data above."
+    }
+  ]
 }
 
 Rules:
-- Base every finding on the actual data above, not general advice
-- Title patterns should be very specific (e.g. "PS5 in title adds ~40% more views" or "Short action verbs in first 3 words correlate with >100K views")
-- Duration findings should name specific second/minute ranges
-- Strategies must be immediately applicable to a BF6 no-commentary PS5 channel
+- Base EVERY finding on the actual data above, not general advice
+- Title formulas must use [BRACKETS] for variable parts (e.g. [MOMENT] [GAME] No Commentary PS5 #Shorts)
+- titleExample must be a title ETGaming247 could literally use tomorrow
+- contentBeats must be specific and sequential — they are a production checklist
+- whyItWorks must cite something from the data (e.g. "3 of the top 5 videos do this")
 - topOpportunities: 3-5 items max, each under 20 words
-- Be honest — if the data is thin, say so`;
+- Be honest — if data is thin, say so in whyItWorks`;
 
   let result: Awaited<ReturnType<typeof executeRoutedAICall>>;
   try {
     result = await executeRoutedAICall(
-      { taskType: "competitive_intel", userId, maxTokens: 1200 },
+      { taskType: "competitive_intel", userId, maxTokens: 1800 },
       "You are a YouTube niche analyst. Respond with valid JSON only — no markdown, no commentary.",
       prompt
     );
@@ -201,6 +283,21 @@ Rules:
     toInsert.push({ userId, insightType: "opportunity", title: opp, body: "", priority: "high", sampleCount: count, expiresAt: expiry });
   }
 
+  // Content blueprints — stored as JSON in the body field
+  for (const bp of (parsed.videoBlueprints ?? []).slice(0, 4)) {
+    if (!bp?.type || !bp?.titleFormula) continue;
+    const label = bp.type === "short" ? "Short Blueprint" : "Long-form Blueprint";
+    toInsert.push({
+      userId,
+      insightType: "video_blueprint",
+      title: label,
+      body: JSON.stringify(bp),
+      priority: "high",
+      sampleCount: count,
+      expiresAt: expiry,
+    });
+  }
+
   if (toInsert.length > 0) {
     for (const row of toInsert) {
       try { await db.insert(nicheInsights).values(row as any); } catch { /* skip */ }
@@ -212,6 +309,7 @@ Rules:
     insights: toInsert.length,
     model: result.model,
     sampleCount: count,
+    game: gameName,
   });
 }
 
@@ -240,8 +338,9 @@ export async function runNicheResearchCycle(): Promise<void> {
     for (const { id: userId } of allUsers) {
       try {
         await cleanup();
-        const saved = await scrapeSamples(userId);
-        if (saved >= 5) await analysePatterns(userId);
+        const gameName = await getTopGameForUser(userId);
+        const saved = await scrapeSamples(userId, gameName);
+        if (saved >= 5) await analysePatterns(userId, gameName);
       } catch (err: any) {
         logger.error("[NicheResearcher] User cycle failed", { userId: userId.slice(0, 8), err: err.message?.slice(0, 120) });
       }
@@ -257,7 +356,7 @@ export async function runNicheResearchCycle(): Promise<void> {
 export async function getNicheResearchData(userId: string) {
   const since = new Date(Date.now() - SAMPLE_TTL_MS);
 
-  const [samples, insights] = await Promise.all([
+  const [samples, insights, gameRow] = await Promise.all([
     db.select({
       id:           nicheVideoSamples.id,
       videoId:      nicheVideoSamples.videoId,
@@ -277,14 +376,16 @@ export async function getNicheResearchData(userId: string) {
     db.select().from(nicheInsights)
       .where(and(eq(nicheInsights.userId, userId), gte(nicheInsights.createdAt, since)))
       .orderBy(desc(nicheInsights.createdAt))
-      .limit(30),
+      .limit(50),
+
+    getTopGameForUser(userId),
   ]);
 
   const lastSampleAt = samples[0]?.createdAt ?? null;
   const sampleCount  = samples.length;
   const isRunning    = _running;
 
-  return { samples, insights, sampleCount, lastSampleAt, isRunning };
+  return { samples, insights, sampleCount, lastSampleAt, isRunning, gameName: gameRow };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
