@@ -25,6 +25,21 @@ export async function detectTrendFromStream(userId: string, stream: typeof strea
   const ctx = detectContentContext(stream.title, stream.description, stream.category, { gameName: (stream as any).gameName });
   const topic = ctx.gameName || ctx.topicName || ctx.subNiche || stream.title;
 
+  // This is a Battlefield-only channel. Only run trend analysis for BF-related
+  // content so non-BF streams (old AC Unity, Syndicate, etc.) don't produce
+  // trend items or waste AI quota.
+  const topicLower = topic.toLowerCase();
+  const isBattlefield =
+    topicLower.includes("battlefield") ||
+    topicLower.includes("bf6") ||
+    topicLower.includes("bf 6") ||
+    topicLower.includes("bf2042") ||
+    topicLower.includes("bf 2042");
+  if (!isBattlefield) {
+    logger.debug(`[TrendRider] Skipping non-BF6 topic: "${topic}"`);
+    return null;
+  }
+
   const existingOverride = await db.select().from(trendOverrides)
     .where(and(
       eq(trendOverrides.userId, userId),

@@ -182,7 +182,7 @@ async function generateAndUploadThumbnail(
       : extractGameName(videoTitle, videoDescription);
     const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext, resolvedGame !== "PS5 Gameplay" ? resolvedGame : undefined);
     if (!prompt) {
-      logger.warn("Empty thumbnail prompt, skipping", { videoDbId });
+      logger.debug("Empty thumbnail prompt, skipping", { videoDbId });
       return false;
     }
 
@@ -770,7 +770,7 @@ export async function generateAndUploadThumbnailForClip(
       researchContext, resolvedGame,
     );
     if (!prompt) {
-      logger.warn("Clip thumbnail prompt empty — skipping", { clipYoutubeId });
+      logger.debug("Clip thumbnail prompt empty — skipping", { clipYoutubeId });
       return false;
     }
 

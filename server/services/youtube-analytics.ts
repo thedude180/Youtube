@@ -132,12 +132,14 @@ export async function fetchViewsByDayAndHour(userId: string): Promise<{
   const ch = await getFirstChannelForUser(userId);
   if (!ch || !ch.accessToken) return EMPTY;
 
+  // YouTube Analytics removed the "dayOfWeek" dimension. Use "day,hour" (date
+  // string + hour) and compute day-of-week from the date ourselves.
   const rows = await fetchAnalyticsReport(ch.accessToken, ch.channelId, {
     startDate: daysAgoStr(90),
     endDate: daysAgoStr(0),
     metrics: "views,estimatedMinutesWatched",
-    dimensions: "dayOfWeek,hour",
-    sort: "dayOfWeek,hour",
+    dimensions: "day,hour",
+    sort: "day,hour",
   }, userId);
 
   if (!rows || rows.length === 0) return EMPTY;
@@ -146,7 +148,10 @@ export async function fetchViewsByDayAndHour(userId: string): Promise<{
   let maxViews = 1;
 
   for (const row of rows) {
-    const [dayOfWeek, hour, views, minutes] = row;
+    const [dateStr, hour, views, minutes] = row;
+    // Extract day-of-week (0=Sun … 6=Sat) from the "YYYY-MM-DD" date string.
+    // Use UTC to avoid timezone shifts flipping the date.
+    const dayOfWeek = new Date(String(dateStr) + "T00:00:00Z").getUTCDay();
     const key = `${dayOfWeek}-${hour}`;
     viewMap[key] = { views: Number(views) || 0, minutes: Number(minutes) || 0 };
     if ((Number(views) || 0) > maxViews) maxViews = Number(views);

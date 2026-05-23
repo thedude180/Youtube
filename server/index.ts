@@ -2594,18 +2594,42 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Stuck-processing items reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Stuck-processing reset skipped:", err?.message));
 
-        // ── failed → permanent_fail for format errors ─────────────────────────
-        // Items in 'failed' status with "Requested format is not available" will
-        // never recover — permanently fail them so they stop polluting the queue.
+        // ── failed → permanent_fail for unrecoverable errors ──────────────────
+        // Items in 'failed' status that will never recover — permanently fail
+        // them on every boot so they stop being retried and polluting the queue.
         db.execute(
           sql`UPDATE autopilot_queue
               SET status        = 'permanent_fail',
                   error_message = 'Permanently failed: ' || error_message
               WHERE status = 'failed'
-                AND error_message ILIKE '%Requested format is not available%'`
+                AND (
+                  error_message ILIKE '%Requested format is not available%'
+                  OR error_message ILIKE '%no YouTube ID or local file%'
+                  OR error_message ILIKE '%Studio video % has no YouTube ID%'
+                )`
         )
-          .then((res: any) => logger.info("[Boot] Format-error failed items → permanent_fail", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
-          .catch((err: any) => logger.warn("[Boot] Format-error permanent_fail upgrade skipped:", err?.message));
+          .then((res: any) => logger.info("[Boot] Unrecoverable failed items → permanent_fail", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Unrecoverable permanent_fail upgrade skipped:", err?.message));
+
+        // ── studio_auto_publish items with no source ──────────────────────────
+        // Dev-seed studio videos (sv1–sv4) have no YouTube ID or local file and
+        // will never be publishable.  Permanently fail scheduled/failed items
+        // that reference non-existent studio videos so the publisher stops
+        // retrying them.
+        db.execute(
+          sql`UPDATE autopilot_queue q
+              SET status        = 'permanent_fail',
+                  error_message = 'Purged: studio video has no uploadable source (boot cleanup)'
+              WHERE q.type = 'studio_auto_publish'
+                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND NOT EXISTS (
+                  SELECT 1 FROM studio_videos sv
+                  WHERE sv.id = q.source_video_id
+                    AND (sv.youtube_video_id IS NOT NULL OR sv.local_file_path IS NOT NULL)
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] No-source studio items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Studio no-source purge skipped:", err?.message));
 
         // ── Fake vod-bridge stream cleanup ────────────────────────────────────
         // bridgeVodsToStreams() was running without a game filter, creating a
