@@ -2588,12 +2588,24 @@ httpServer.listen(
           sql`UPDATE autopilot_queue
               SET status        = 'scheduled',
                   scheduled_at  = NOW() - INTERVAL '1 minute',
-                  error_message = 'Reset: stuck in processing >30 min — retrying (boot cleanup)'
-              WHERE status = 'processing'
-                AND updated_at < NOW() - INTERVAL '30 minutes'`
+                  error_message = 'Reset: stuck in processing state — retrying (boot cleanup)'
+              WHERE status = 'processing'`
         )
           .then((res: any) => logger.info("[Boot] Stuck-processing items reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Stuck-processing reset skipped:", err?.message));
+
+        // ── failed → permanent_fail for format errors ─────────────────────────
+        // Items in 'failed' status with "Requested format is not available" will
+        // never recover — permanently fail them so they stop polluting the queue.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'permanent_fail',
+                  error_message = 'Permanently failed: ' || error_message
+              WHERE status = 'failed'
+                AND error_message ILIKE '%Requested format is not available%'`
+        )
+          .then((res: any) => logger.info("[Boot] Format-error failed items → permanent_fail", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Format-error permanent_fail upgrade skipped:", err?.message));
 
         // ── Fake vod-bridge stream cleanup ────────────────────────────────────
         // bridgeVodsToStreams() was running without a game filter, creating a
@@ -2613,6 +2625,131 @@ httpServer.listen(
           .catch((err: any) => logger.warn("[Boot] Fake stream cleanup skipped:", err?.message));
 
       }))).catch(slog("queue-heal"));
+
+      // ── Recurring queue health sweep (every 10 min) ────────────────────────
+      // The back-catalog runner regenerates items from broken sources each cycle.
+      // This sweep catches them quickly without waiting for the next boot.
+      const queueHealthSweep = setInterval(async () => {
+        try {
+          // 1. Permanent-fail broken-source items (any new ones the runner created)
+          await db.execute(
+            sql`UPDATE autopilot_queue
+                SET status        = 'permanent_fail',
+                    error_message = 'Source video unavailable — format not accessible on YouTube (sweep)'
+                WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
+                  AND metadata->>'sourceYoutubeId' IS NOT NULL
+                  AND metadata->>'sourceYoutubeId' != ''
+                  AND metadata->>'sourceYoutubeId' IN (
+                    SELECT DISTINCT metadata->>'sourceYoutubeId'
+                    FROM   autopilot_queue
+                    WHERE  status        = 'permanent_fail'
+                      AND  error_message ILIKE '%Requested format is not available%'
+                      AND  metadata->>'sourceYoutubeId' IS NOT NULL
+                  )`
+          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Broken-source items purged", { rows: r.rowCount }); });
+
+          // 2. Escalate format-error 'failed' items to permanent_fail
+          await db.execute(
+            sql`UPDATE autopilot_queue
+                SET status        = 'permanent_fail',
+                    error_message = 'Permanently failed: ' || error_message
+                WHERE status = 'failed'
+                  AND error_message ILIKE '%Requested format is not available%'`
+          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Format-error items → permanent_fail", { rows: r.rowCount }); });
+
+          // 3. Delete expired short-slot claims (keeps scheduler window clean)
+          await db.execute(
+            sql`DELETE FROM short_slot_claims WHERE claimed_slot < NOW() - INTERVAL '1 hour'`
+          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Expired slot claims deleted", { rows: r.rowCount }); });
+
+        } catch (sweepErr: any) {
+          logger.warn("[Sweep] Queue health sweep error", { error: sweepErr?.message });
+        }
+      }, 10 * 60_000); // every 10 minutes
+      backgroundIntervals.push(queueHealthSweep);
+
+      // ── Deferred first-Short reschedule (T+30 min) ─────────────────────────
+      // The back-catalog runner starts at T+10–20 min. After it completes, run
+      // one more cleanup pass and pull the first healthy Short to publish today.
+      delay(30 * 60_000, async () => {
+        try {
+          logger.info("[Boot+30] Running post-runner cleanup and first-Short reschedule");
+
+          // Fail any broken-source items the runner just created
+          const purge = await db.execute(
+            sql`UPDATE autopilot_queue
+                SET status        = 'permanent_fail',
+                    error_message = 'Source video unavailable — format not accessible on YouTube (post-runner)'
+                WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
+                  AND metadata->>'sourceYoutubeId' IS NOT NULL
+                  AND metadata->>'sourceYoutubeId' != ''
+                  AND metadata->>'sourceYoutubeId' IN (
+                    SELECT DISTINCT metadata->>'sourceYoutubeId'
+                    FROM   autopilot_queue
+                    WHERE  status        = 'permanent_fail'
+                      AND  error_message ILIKE '%Requested format is not available%'
+                      AND  metadata->>'sourceYoutubeId' IS NOT NULL
+                  )`
+          );
+          logger.info("[Boot+30] Broken-source purge", { rows: (purge as any)?.rowCount ?? 0 });
+
+          // Clear all slot claims so scheduler can find today's slots
+          await db.execute(sql`DELETE FROM short_slot_claims`);
+          logger.info("[Boot+30] Slot claims cleared");
+
+          // Check if any Short is already due today
+          const [todayShort] = await db.execute(
+            sql`SELECT id FROM autopilot_queue
+                WHERE status IN ('scheduled','publishing')
+                  AND type IN ('platform_short','youtube_short')
+                  AND scheduled_at < NOW() + INTERVAL '24 hours'
+                  AND scheduled_at > NOW() - INTERVAL '6 hours'
+                LIMIT 1`
+          ) as any;
+
+          if (!todayShort?.rows?.length) {
+            // Pull the first healthy Short forward to right now
+            const [first] = await db.execute(
+              sql`UPDATE autopilot_queue
+                  SET scheduled_at  = NOW() - INTERVAL '1 minute',
+                      error_message = NULL
+                  WHERE id = (
+                    SELECT q.id
+                    FROM autopilot_queue q
+                    WHERE q.status = 'scheduled'
+                      AND q.type IN ('platform_short','youtube_short')
+                      AND q.target_platform IN ('youtube','youtubeshorts')
+                      AND (q.metadata->>'sourceYoutubeId' IS NULL
+                           OR q.metadata->>'sourceYoutubeId' NOT IN (
+                             SELECT DISTINCT metadata->>'sourceYoutubeId'
+                             FROM autopilot_queue
+                             WHERE status = 'permanent_fail'
+                               AND error_message ILIKE '%Requested format is not available%'
+                               AND metadata->>'sourceYoutubeId' IS NOT NULL
+                           ))
+                    ORDER BY q.scheduled_at ASC
+                    LIMIT 1
+                  )
+                  RETURNING id, scheduled_at`
+            ) as any;
+            if (first?.rows?.length) {
+              logger.info("[Boot+30] First healthy Short pulled to now for immediate publish", { id: first.rows[0]?.id });
+              // Kick the Shorts publisher
+              import("./services/shorts-clip-publisher")
+                .then(m => m.runShortsClipPublisher())
+                .then(r => logger.info("[Boot+30] Shorts publisher kicked", r))
+                .catch(e => logger.warn("[Boot+30] Shorts publisher kick failed", { error: e?.message }));
+            } else {
+              logger.info("[Boot+30] No healthy Short found to reschedule — back-catalog runner will fill queue");
+            }
+          } else {
+            logger.info("[Boot+30] Short already due today — no reschedule needed");
+          }
+        } catch (e: any) {
+          logger.warn("[Boot+30] Deferred reschedule failed", { error: e?.message });
+        }
+      });
+
       tokenBudget.rehydrate().catch(slog("tokenBudget.rehydrate"));
       import("./lib/ai-attack-shield").then(m => m.rehydrateInjectionStats()).catch(slog("rehydrateInjectionStats"));
       if (!LITE_MODE) { try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); } }

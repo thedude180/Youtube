@@ -526,6 +526,27 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
 
         try {
+          // Skip sources that are confirmed broken (have permanent_fail with format error).
+          // These videos can't be downloaded by yt-dlp regardless of clip parameters.
+          const [brokenRow] = await db
+            .select({ cnt: sql<number>`count(*)::int` })
+            .from(autopilotQueue)
+            .where(
+              and(
+                sql`metadata->>'sourceYoutubeId' = ${v.youtubeVideoId}`,
+                eq(autopilotQueue.status, "permanent_fail"),
+                sql`error_message ILIKE '%Requested format is not available%'`
+              )
+            );
+          if ((brokenRow?.cnt ?? 0) > 0) {
+            logger.info(`[BackCatalog] Skipping broken source ${v.youtubeVideoId} — has format-error permanent_fails; marking mined`);
+            await db.update(backCatalogVideos)
+              .set({ minedForShorts: true, updatedAt: new Date() })
+              .where(eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId))
+              .catch(() => {});
+            continue;
+          }
+
           // Optimistic lock — claim this video for Shorts mining atomically.
           const claimed = await db.update(backCatalogVideos)
             .set({ minedForShorts: true, updatedAt: new Date() })

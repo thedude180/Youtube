@@ -620,6 +620,81 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  // ── Force-push-first: clear bottlenecks and publish next healthy Short NOW ──
+  app.post("/api/youtube/queue/force-push-first", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      // 1. Permanent-fail broken-source items
+      const purge = await db.execute(
+        sql`UPDATE autopilot_queue
+            SET status        = 'permanent_fail',
+                error_message = 'Source video unavailable — format not accessible on YouTube (force-push)'
+            WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
+              AND metadata->>'sourceYoutubeId' IS NOT NULL
+              AND metadata->>'sourceYoutubeId' != ''
+              AND metadata->>'sourceYoutubeId' IN (
+                SELECT DISTINCT metadata->>'sourceYoutubeId'
+                FROM   autopilot_queue
+                WHERE  status        = 'permanent_fail'
+                  AND  error_message ILIKE '%Requested format is not available%'
+                  AND  metadata->>'sourceYoutubeId' IS NOT NULL
+              )`
+      );
+
+      // 2. Clear all short-slot claims so the scheduler can reassign slots
+      await db.execute(sql`DELETE FROM short_slot_claims`);
+
+      // 3. Find and reschedule the first healthy Short to right now
+      const [updated] = await db.execute(
+        sql`UPDATE autopilot_queue
+            SET scheduled_at  = NOW() - INTERVAL '1 minute',
+                error_message = NULL
+            WHERE id = (
+              SELECT q.id
+              FROM autopilot_queue q
+              WHERE q.status = 'scheduled'
+                AND q.type IN ('platform_short','youtube_short')
+                AND q.target_platform IN ('youtube','youtubeshorts')
+                AND (q.metadata->>'sourceYoutubeId' IS NULL
+                     OR q.metadata->>'sourceYoutubeId' NOT IN (
+                       SELECT DISTINCT metadata->>'sourceYoutubeId'
+                       FROM autopilot_queue
+                       WHERE status = 'permanent_fail'
+                         AND error_message ILIKE '%Requested format is not available%'
+                         AND metadata->>'sourceYoutubeId' IS NOT NULL
+                     ))
+              ORDER BY q.scheduled_at ASC
+              LIMIT 1
+            )
+            RETURNING id, type, target_platform, scheduled_at, metadata`
+      ) as any;
+
+      const pushedItem = updated?.rows?.[0] ?? null;
+
+      // 4. Kick the Shorts publisher asynchronously
+      if (pushedItem) {
+        import("../services/shorts-clip-publisher")
+          .then(m => m.runShortsClipPublisher())
+          .catch(e => logger.warn("[ForcePush] Publisher kick failed", { error: e?.message }));
+      }
+
+      res.json({
+        success: true,
+        brokenSourcesPurged: (purge as any)?.rowCount ?? 0,
+        slotClaimsCleared: true,
+        itemRescheduled: pushedItem ? { id: pushedItem.id, type: pushedItem.type, platform: pushedItem.target_platform } : null,
+        publisherKicked: !!pushedItem,
+        message: pushedItem
+          ? `Moved item ${pushedItem.id} to now and kicked the publisher`
+          : "No healthy Short found — back-catalog runner will queue one on next cycle",
+      });
+    } catch (err: any) {
+      logger.error("[ForcePush] force-push-first failed", { error: err?.message });
+      res.status(500).json({ error: "Force-push failed", detail: err?.message });
+    }
+  });
+
   app.get("/api/autopilot/queue/:id/format-preview", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
