@@ -864,34 +864,39 @@ async function trackDerivative(
   } catch { /* non-fatal */ }
 }
 
-// ── BF6 gameplay window estimator ─────────────────────────────────────────────
-// Battlefield 6 matches have a predictable structure: loading/lobby → gameplay
-// → scoreboard.  Without frame-level video analysis we estimate gameplay windows
-// from stream duration and BF6 match-cycle timing so every clip lands on real
-// in-match action — never a loading screen, never a scoreboard, never dead air.
+// ── Gameplay window estimators ────────────────────────────────────────────────
+// Both functions below return ordered lists of "safe" start timestamps for
+// Short clip extraction — timestamps that fall inside active gameplay and
+// avoid the dead zones every game produces:
 //
-// Match cycle anatomy (approximate):
-//   0–240 s   loading screen + warmup          ← skip
-//   240–1680 s active Conquest/Breakthrough    ← clip here
-//   1680–1800 s scoreboard + vote screen       ← skip
-//   1800 s+   next match loading               ← skip again
+//   • opening dead zone  — lobby, character select, first loading screen
+//   • per-round loading  — map load / matchmaking between rounds
+//   • per-round trailing — scoreboard, stats screen, vote screen
 //
-// The stream opening (first 300 s) is also skipped — covers pre-game lobby,
-// audio setup, first loading screen, and any intro chat interaction.
+// Neither function downloads or analyses video frames.  Instead they model
+// the known/estimated structure of each game's session cycle from stream
+// duration alone, positioning clips at 15 %, 48 %, and 78 % of each active
+// window so no clip can accidentally start on a transition.
 
 interface StreamClipWindow {
   startSec: number;   // safe start for a ≤60 s Short clip
-  label: string;      // what's likely happening — fed directly into the AI title prompt
+  label: string;      // what's likely happening — fed into the AI title prompt
   matchNum: number;
 }
+
+// ── 1. BF6-specific estimator ─────────────────────────────────────────────────
+// Battlefield 6 match anatomy (approximate):
+//   0–240 s   loading screen + warmup           ← skip
+//   240–1680 s active Conquest / Breakthrough   ← clip here
+//   1680–1800 s scoreboard + vote screen        ← skip
+//   1800 s+   next match loading                ← skip again
+// Stream open: first 300 s (pre-game lobby, audio setup, first loading screen).
 
 const BF6_MATCH_CYCLE_SEC    = 1800;  // ~30 min per match cycle (load + play + board)
 const BF6_LOADING_BUFFER_SEC = 240;   // skip first 4 min of each match (loading)
 const BF6_SCOREBOARD_SEC     = 120;   // skip last 2 min of each match (scoreboard)
 const BF6_STREAM_OPEN_SEC    = 300;   // skip first 5 min of stream (pre-game entirely)
 
-// Specific BF6 action labels cycle across matches and clip positions.
-// These become the AI title hint — concrete enough to write a real title around.
 const BF6_CLIP_LABELS: string[][] = [
   [
     "infantry rush straight into the flag cap",
@@ -920,8 +925,6 @@ const BF6_CLIP_LABELS: string[][] = [
   ],
 ];
 
-// Returns an ordered list of gameplay-safe moments for Short clip extraction.
-// For a 2-hour BF6 stream this produces ~12 windows (4 matches × 3 moments).
 function bf6GameplayWindows(streamDurationSec: number): StreamClipWindow[] {
   const windows: StreamClipWindow[] = [];
   if (streamDurationSec < 600) return windows;
@@ -932,16 +935,14 @@ function bf6GameplayWindows(streamDurationSec: number): StreamClipWindow[] {
   const numMatches = Math.max(1, Math.ceil(effectiveDur / BF6_MATCH_CYCLE_SEC));
 
   for (let matchIdx = 0; matchIdx < numMatches; matchIdx++) {
-    const matchStart  = BF6_STREAM_OPEN_SEC + matchIdx * BF6_MATCH_CYCLE_SEC;
+    const matchStart    = BF6_STREAM_OPEN_SEC + matchIdx * BF6_MATCH_CYCLE_SEC;
     const gameplayStart = matchStart + BF6_LOADING_BUFFER_SEC;
-    const matchEnd    = Math.min(streamDurationSec - 60, matchStart + BF6_MATCH_CYCLE_SEC);
-    const gameplayEnd = matchEnd - BF6_SCOREBOARD_SEC;
-    const gameplayDur = gameplayEnd - gameplayStart;
+    const matchEnd      = Math.min(streamDurationSec - 60, matchStart + BF6_MATCH_CYCLE_SEC);
+    const gameplayEnd   = matchEnd - BF6_SCOREBOARD_SEC;
+    const gameplayDur   = gameplayEnd - gameplayStart;
 
     if (gameplayDur < 120) continue;
 
-    // Three moments per match: early (15%), mid (48%), late-but-safe (78%).
-    // None of these positions land on loading or scoreboard dead zones.
     const offsets = [0.15, 0.48, 0.78];
     const labels  = BF6_CLIP_LABELS[matchIdx % BF6_CLIP_LABELS.length];
 
@@ -955,6 +956,121 @@ function bf6GameplayWindows(streamDurationSec: number): StreamClipWindow[] {
   }
 
   return windows;
+}
+
+// ── 2. Generic game window estimator ─────────────────────────────────────────
+// Works for any game by modelling the universal stream structure:
+//   opening dead zone → [load → active play → trailing dead zone] × N rounds
+//
+// Timing profiles are calibrated per game category so the loading/trailing
+// dead zones match what each genre actually produces on screen.  Clip windows
+// are placed at 15 %, 48 %, and 78 % of each active play segment — the same
+// positions used in bf6GameplayWindows — so they always land on in-motion
+// content regardless of genre.
+
+type GameType = "fps" | "battle_royale" | "racing" | "rpg" | "sports" | "fighting" | "generic";
+
+interface GameTimingProfile {
+  openSkipSec: number;      // dead time at stream start (lobby / menu / first load)
+  roundCycleSec: number;    // total seconds for one round/session including transitions
+  loadingBufferSec: number; // dead time at the START of each round (loading screen in)
+  scoreboardSec: number;    // dead time at the END of each round (stats / vote screen)
+  clipsPerRound: number;    // Short clip windows to produce per round
+  minActiveSec: number;     // minimum active gameplay needed to bother extracting
+}
+
+const GAME_TIMING_PROFILES: Record<GameType, GameTimingProfile> = {
+  //              open   cycle  load  trail  clips  min
+  fps:            { openSkipSec: 180, roundCycleSec: 1200, loadingBufferSec: 90,  scoreboardSec: 60,  clipsPerRound: 3, minActiveSec: 120 },
+  battle_royale:  { openSkipSec: 180, roundCycleSec: 1800, loadingBufferSec: 120, scoreboardSec: 60,  clipsPerRound: 3, minActiveSec: 180 },
+  racing:         { openSkipSec: 120, roundCycleSec: 600,  loadingBufferSec: 30,  scoreboardSec: 20,  clipsPerRound: 2, minActiveSec: 60  },
+  rpg:            { openSkipSec: 300, roundCycleSec: 3600, loadingBufferSec: 90,  scoreboardSec: 60,  clipsPerRound: 4, minActiveSec: 300 },
+  sports:         { openSkipSec: 120, roundCycleSec: 3000, loadingBufferSec: 90,  scoreboardSec: 120, clipsPerRound: 3, minActiveSec: 180 },
+  fighting:       { openSkipSec: 120, roundCycleSec: 600,  loadingBufferSec: 30,  scoreboardSec: 20,  clipsPerRound: 2, minActiveSec: 60  },
+  generic:        { openSkipSec: 180, roundCycleSec: 1500, loadingBufferSec: 90,  scoreboardSec: 60,  clipsPerRound: 3, minActiveSec: 120 },
+};
+
+// Clip offset positions within the active window — same as BF6.
+// 15 % = early action, 48 % = mid peak, 78 % = late pressure.
+const GENERIC_CLIP_OFFSETS = [0.15, 0.48, 0.78, 0.62]; // 4th used only for rpg (clipsPerRound=4)
+
+// Generic action labels that work for any game.
+// Rotate across rounds so consecutive clips get different descriptions.
+const GENERIC_CLIP_LABELS: string[][] = [
+  ["early game action, heating up",          "mid-game momentum peak",            "late pressure, crunch time"                   ],
+  ["strong opening play",                    "pivotal mid-round moment",          "game-defining final stretch"                  ],
+  ["fast start, setting the pace",           "peak intensity mid-session",        "high-stakes closing action"                   ],
+  ["aggressive early push",                  "the tide turns mid-game",           "last-chance play under pressure"              ],
+  ["clean opening, finding the rhythm",      "momentum shift mid-session",        "closing out with everything on the line"      ],
+];
+
+function detectGameType(gameName: string): GameType {
+  const n = gameName.toLowerCase();
+  if (/battlefield|call of duty|\bcod\b|warzone|apex legends|valorant|counter.strike|\bcsgo\b|overwatch|rainbow six|\br6\b|halo|destiny|\bcs2\b/.test(n)) return "fps";
+  if (/fortnite|\bpubg\b|fall guys|super people/.test(n)) return "battle_royale";
+  if (/\bf1\b|nascar|need for speed|forza|gran turismo|\bdirt\b|rally|formula|wreckfest/.test(n)) return "racing";
+  if (/minecraft|elden ring|dark souls|world of warcraft|\bwow\b|final fantasy|pokemon|zelda|skyrim|witcher|baldur|diablo|starfield/.test(n)) return "rpg";
+  if (/\bfifa\b|\bea fc\b|\bnba\b|madden|\bmlb\b|\bnhl\b|\bufc\b|rocket league/.test(n)) return "sports";
+  if (/mortal kombat|street fighter|tekken|smash|guilty gear|dragon ball/.test(n)) return "fighting";
+  return "generic";
+}
+
+/**
+ * Generic gameplay window estimator — works for ANY game.
+ *
+ * Models the universal dead-zone structure every game produces:
+ *   opening dead zone → [loading → active play → trailing dead zone] × N rounds
+ *
+ * Clip start times are positioned at 15 %, 48 %, and 78 % of each active
+ * play segment so they always land on in-motion content, never on a loading
+ * screen, scoreboard, menu, or stats page.
+ *
+ * @param streamDurationSec  Total stream length in seconds
+ * @param gameName           Game title (used for category detection + labels)
+ * @returns ordered list of safe clip windows (same shape as bf6GameplayWindows)
+ */
+export function genericGameplayWindows(streamDurationSec: number, gameName = "Gaming"): StreamClipWindow[] {
+  const gameType = detectGameType(gameName);
+  const p        = GAME_TIMING_PROFILES[gameType];
+  const windows: StreamClipWindow[] = [];
+
+  // Need at least the open skip + half a round to produce any clip
+  if (streamDurationSec < p.openSkipSec + p.roundCycleSec * 0.5) return windows;
+
+  const effectiveDur = streamDurationSec - p.openSkipSec;
+  if (effectiveDur <= 0) return windows;
+
+  const numRounds = Math.max(1, Math.ceil(effectiveDur / p.roundCycleSec));
+
+  for (let roundIdx = 0; roundIdx < numRounds; roundIdx++) {
+    const roundStart  = p.openSkipSec + roundIdx * p.roundCycleSec;
+    const activeStart = roundStart + p.loadingBufferSec;
+    const roundEnd    = Math.min(streamDurationSec - 30, roundStart + p.roundCycleSec);
+    const activeEnd   = roundEnd - p.scoreboardSec;
+    const activeDur   = activeEnd - activeStart;
+
+    if (activeDur < p.minActiveSec) continue;
+
+    const labels    = GENERIC_CLIP_LABELS[roundIdx % GENERIC_CLIP_LABELS.length];
+    const positions = GENERIC_CLIP_OFFSETS.slice(0, p.clipsPerRound);
+
+    for (let ci = 0; ci < positions.length; ci++) {
+      windows.push({
+        startSec: Math.floor(activeStart + positions[ci] * activeDur),
+        label:    labels[ci % labels.length] ?? `${gameName} gameplay`,
+        matchNum: roundIdx + 1,
+      });
+    }
+  }
+
+  return windows;
+}
+
+/** Returns the stream-open skip in seconds appropriate for a given game. */
+function gameOpenSkipSec(gameName: string): number {
+  const isBF6 = /battlefield 6|bf6/i.test(gameName);
+  if (isBF6) return BF6_STREAM_OPEN_SEC;
+  return GAME_TIMING_PROFILES[detectGameType(gameName)].openSkipSec;
 }
 
 // ── Past live-stream content queue ───────────────────────────────────────────
@@ -1036,12 +1152,16 @@ export async function queuePastStreamContent(userId: string): Promise<{
         }
 
         // ── Short clip extraction ─────────────────────────────────────────
-        // Use BF6 gameplay windows to pick timestamps that land on in-match
-        // action — not loading screens, not scoreboards, not dead air.
-        const gameplayWindows = bf6GameplayWindows(streamDurationSec);
+        // Route to BF6-specific window estimator for BF6 streams (tightest
+        // dead-zone knowledge), generic estimator for every other game.
+        // Both skip loading screens, scoreboards, and dead air entirely.
+        const isBF6Stream = /battlefield 6|bf6/i.test(gameName);
+        const gameplayWindows = isBF6Stream
+          ? bf6GameplayWindows(streamDurationSec)
+          : genericGameplayWindows(streamDurationSec, gameName);
 
-        // Fallback: if the stream is too short for match-cycle detection,
-        // take one clip at 30% in (well past any opening loading screen).
+        // Fallback: stream too short for cycle detection — one clip at 30 %
+        // of duration (well past any opening loading screen for any game).
         const clipWindows: StreamClipWindow[] = gameplayWindows.length > 0
           ? gameplayWindows
           : streamDurationSec > 120
@@ -1077,7 +1197,7 @@ export async function queuePastStreamContent(userId: string): Promise<{
                 clipHint: win.label,   // fed directly into the AI caption prompt
                 matchNum: win.matchNum,
                 skipLoadingScreens: true,
-                tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "shorts"],
+                tags: ["no commentary", "PS5", gameName, "shorts", "gameplay"],
               } as any,
             });
             streamShortsQueued++;
@@ -1088,14 +1208,15 @@ export async function queuePastStreamContent(userId: string): Promise<{
         result.shortsQueued += streamShortsQueued;
 
         // ── Long-form extraction ──────────────────────────────────────────
-        // Start at BF6_STREAM_OPEN_SEC to skip the pre-game lobby / first
-        // loading screen entirely.  Long-form goes to end of stream.
+        // Start past the opening dead zone (game-aware) to skip pre-game
+        // lobby / first loading screen.  Long-form runs to end of stream.
         if (streamDurationSec > 1800) {
           try {
             const scheduledAt = await getNextLongFormPublishTime(userId, minDaysAhead);
-            const lfStartSec = BF6_STREAM_OPEN_SEC;  // skip pre-game
+            const lfStartSec = gameOpenSkipSec(gameName);  // game-aware open skip
             const lfEndSec   = Math.round(streamDurationSec);
             const durMin     = Math.round((lfEndSec - lfStartSec) / 60);
+            const baseTags   = ["no commentary", "PS5", gameName, "full match", "gameplay"];
             await db.insert(autopilotQueue).values({
               userId,
               type: "auto-clip",
@@ -1117,7 +1238,7 @@ export async function queuePastStreamContent(userId: string): Promise<{
                 isStreamReplay: true,
                 pastStreamExtracted: true,
                 skipLoadingScreens: true,
-                tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "full match"],
+                tags: baseTags,
               } as any,
             });
             result.longFormQueued++;
