@@ -237,30 +237,45 @@ function runProcess(bin: string, args: string[]): Promise<string> {
   });
 }
 
-// 4K libx264 ultrafast on a 60-min source clip can take up to ~3 hours on a CPU host.
-// Hard-kill at 4 hours; the watchdog uses 5 hours to give encoding room to breathe.
-const FFMPEG_HARD_TIMEOUT_MS = 4 * 60 * 60 * 1000;  // 4 hours
+// With 4 threads + ultrafast preset a 60-min 4K source encodes in ~45–75 min.
+// Hard-kill at 90 minutes — if it hasn't finished by then something is stuck.
+// Stall detector (below) kills sooner: if no stderr progress for 15 min the
+// encode is frozen (disk full, stuck I/O) and we abort immediately.
+const FFMPEG_HARD_TIMEOUT_MS = 90 * 60 * 1000;   // 90 minutes
+const FFMPEG_STALL_TIMEOUT_MS = 15 * 60 * 1000;  // 15 minutes without progress = stalled
 
 // ── Encoding CPU budget ───────────────────────────────────────────────────────
 // 4K libx264 will use every available core if unconstrained, starving the web
 // server and causing 504 timeouts. Two limits work together:
 //   1. nice -n 15  — OS scheduler gives the web server priority over FFmpeg
 //      whenever both compete for a core. The process still runs, just yields.
-//   2. -threads 2  — caps FFmpeg's own thread pool so it can't flood all cores.
-// With these in place the web server stays responsive during a long 4K encode.
-// If encoding speed is a concern later, raise FFMPEG_ENCODE_THREADS (max = cores−1).
-const FFMPEG_ENCODE_THREADS = 2;
+//   2. -threads 4  — 4 threads encode ~2× faster than 2-thread, finishing sooner
+//      so FFmpeg releases CPU/memory back to the server in half the time.
+//      The nice -n 15 keeps the server responsive while FFmpeg runs.
+const FFMPEG_ENCODE_THREADS = 4;
 
 function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     // Spawn via `nice -n 15` so the OS deprioritises FFmpeg vs the Express server.
     const proc = spawn("nice", ["-n", "15", FFMPEG_BIN, "-y", ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let totalDuration = 0;
+    let lastProgressAt = Date.now();
 
     const hardTimeout = setTimeout(() => {
       proc.kill("SIGKILL");
-      reject(new Error("FFmpeg hard timeout — encoding exceeded 4 hours, killed"));
+      reject(new Error("FFmpeg hard timeout — encoding exceeded 90 minutes, killed"));
     }, FFMPEG_HARD_TIMEOUT_MS);
+
+    // Stall detector: if no stderr progress update for 15 min the encode is
+    // frozen (disk full, stuck I/O, zombie process) — kill it immediately.
+    const stallTimer = setInterval(() => {
+      if (Date.now() - lastProgressAt > FFMPEG_STALL_TIMEOUT_MS) {
+        clearTimeout(hardTimeout);
+        clearInterval(stallTimer);
+        proc.kill("SIGKILL");
+        reject(new Error("FFmpeg stall — no encoding progress for 15 minutes, killed"));
+      }
+    }, 60_000); // check every minute
 
     proc.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
@@ -268,6 +283,8 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
       if (durMatch && !totalDuration) {
         totalDuration = parseInt(durMatch[1]) * 3600 + parseInt(durMatch[2]) * 60 + parseFloat(durMatch[3]);
       }
+      // Any stderr output (progress, Duration, codec info) resets the stall clock.
+      lastProgressAt = Date.now();
       if (onProgress && totalDuration > 0) {
         const timeMatch = text.match(/time=(\d+):(\d+):(\d+\.\d+)/);
         const fpsMatch = text.match(/fps=\s*(\d+\.?\d*)/);
@@ -284,11 +301,13 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
 
     proc.on("close", (code) => {
       clearTimeout(hardTimeout);
+      clearInterval(stallTimer);
       if (code === 0) resolve();
       else reject(new Error(`FFmpeg exited with code ${code}`));
     });
     proc.on("error", (err) => {
       clearTimeout(hardTimeout);
+      clearInterval(stallTimer);
       reject(err);
     });
   });

@@ -90,21 +90,34 @@ Respond as strict JSON only:
   "seoScore": 85
 }`;
 
-  // 3-minute timeout: the critical-path AI semaphore may queue this call for
-  // up to ~2 min when the circuit breaker is recovering from a 429.  The actual
-  // OpenAI API call is only a few seconds — the budget is for queue-wait time.
-  const SEO_TIMEOUT_MS = 180_000;
-  const r = await Promise.race([
-    openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000,
-    }),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`OpenAI SEO call timed out after ${SEO_TIMEOUT_MS / 1000}s`)), SEO_TIMEOUT_MS)
-    ),
-  ]);
+  // 45-second timeout: the actual OpenAI call takes 2–5 s; the budget covers
+  // the AI semaphore queue wait. If the queue is saturated (>8 background callers
+  // waiting) callers are dropped before reaching here, so 45 s is ample.
+  // On timeout we fall back to a clean rule-based title rather than throwing,
+  // so the clip still gets packaged and published without blocking the pipeline.
+  const SEO_TIMEOUT_MS = 45_000;
+  let r: Awaited<ReturnType<typeof openai.chat.completions.create>> | null = null;
+  try {
+    r = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 2000,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`OpenAI SEO call timed out after ${SEO_TIMEOUT_MS / 1000}s`)), SEO_TIMEOUT_MS)
+      ),
+    ]);
+  } catch {
+    // AI is busy or timed out — use a clean fallback so packaging continues.
+    return {
+      title: `${sourceTitle}${partLabel} | ${platformLabel}`.slice(0, 200),
+      description: `${sourceTitle} — pure PS5 gameplay, no commentary.\n\n#Gaming #PS5 #NoCommentary`,
+      tags: [game, "gaming", "PS5", "no commentary", "gameplay"].slice(0, 20),
+      seoScore: 70,
+    };
+  }
 
   const raw = r.choices[0]?.message?.content ?? "{}";
   let parsed: Record<string, unknown>;

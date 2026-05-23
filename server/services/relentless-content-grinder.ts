@@ -65,6 +65,39 @@ function extractJsonFromResponse(raw: string): any {
   }
 
   if (endPos > 0) {
+    try { return JSON.parse(content.slice(0, endPos + 1)); } catch { /* fall through to truncation repair */ }
+  }
+
+  // Truncation repair: the AI response was cut off mid-JSON (token limit hit).
+  // Close any open string, then close open arrays/objects from innermost out.
+  // This recovers partial moments arrays so at least the complete items survive.
+  try {
+    let repaired = content;
+    // If we're inside an unclosed string, close it
+    let inStr = false;
+    let esc = false;
+    for (const ch of repaired) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\" && inStr) { esc = true; continue; }
+      if (ch === '"') inStr = !inStr;
+    }
+    if (inStr) repaired += '"';
+    // Count unclosed brackets/braces and close them in order
+    const stack: string[] = [];
+    let inS = false, es = false;
+    for (const ch of repaired) {
+      if (es) { es = false; continue; }
+      if (ch === "\\" && inS) { es = true; continue; }
+      if (ch === '"') { inS = !inS; continue; }
+      if (inS) continue;
+      if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+      else if ((ch === "}" || ch === "]") && stack.length) stack.pop();
+    }
+    repaired += stack.reverse().join("");
+    return JSON.parse(repaired);
+  } catch { /* fall through */ }
+
+  if (endPos > 0) {
     return JSON.parse(content.slice(0, endPos + 1));
   }
 
@@ -529,7 +562,7 @@ Return raw JSON only (no markdown code blocks):
   ],
   "exhaustionEstimate": 0-100
 }`,
-      maxTokens: 3000,
+      maxTokens: 4096,
       temperature: 0.8,
     });
 

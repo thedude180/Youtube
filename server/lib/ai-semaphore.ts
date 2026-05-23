@@ -25,9 +25,11 @@ export const MIN_INTER_CALL_DELAY_MS = 2_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 12;
 // Background callers fail-fast when this many are already queued.
-// Raised from 6 → 8 → 16: 50+ autonomous agents need more queue depth.
-// Critical-path callers (publish, pipeline-analyze) bypass this limit entirely.
-const BACKGROUND_MAX_QUEUE_DEPTH = 16;
+// Lowered from 16 → 8: deep queues cause callers to wait 180 s+, time out,
+// and then retry — amplifying the load. Fail-fast at 8 forces background
+// engines to back off and retry on their next natural cycle instead of
+// piling up. Critical-path callers (publish, pipeline-analyze) bypass this.
+const BACKGROUND_MAX_QUEUE_DEPTH = 8;
 const _bootTime = Date.now();
 
 let _busy = false;
