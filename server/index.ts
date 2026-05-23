@@ -2605,6 +2605,67 @@ httpServer.listen(
           logger.info("[Boot] BF6-first reschedule applied", { bf6: bf6Ids.length, nonBf6: nonBf6Ids.length });
         }).catch((e: any) => logger.warn("[Boot] BF6-first reschedule skipped", { error: e?.message }));
 
+        // ── Long-form queue: purge hollow skeletons ───────────────────────────
+        // Hundreds of catalog-remix / smart-edit / catalog-clip items were created
+        // with no source video, no title and no game name — they can never publish.
+        // Permanently fail them so the queue reflects only real content.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'permanent_fail',
+                  error_message = 'Purged: hollow long-form item — no source video or content (boot cleanup)'
+              WHERE target_platform = 'youtube'
+                AND type NOT IN ('platform_short', 'youtube_short')
+                AND status IN ('pending', 'scheduled', 'queued')
+                AND (metadata->>'sourceYoutubeId' IS NULL OR metadata->>'sourceYoutubeId' = '')
+                AND (metadata->>'title'           IS NULL OR metadata->>'title'           = '')
+                AND (metadata->>'gameName'        IS NULL OR metadata->>'gameName'        = '')`
+        ).then((r: any) => {
+          if ((r?.rowCount ?? 0) > 0) logger.info("[Boot] Hollow long-form items purged", { rows: r.rowCount });
+        }).catch((e: any) => logger.warn("[Boot] Hollow long-form purge skipped", { error: e?.message }));
+
+        // ── Long-form queue: BF6-first reschedule ────────────────────────────
+        // After the hollow purge, reorder all remaining pending/scheduled long-form
+        // items so BF6 / Battlefield items publish first (1/day cadence) and
+        // non-BF6 content publishes only after all Battlefield content is done.
+        // Guard: only runs when there are non-hollow long-form items still in old slots.
+        db.execute(
+          sql`SELECT COUNT(*) as cnt
+              FROM autopilot_queue
+              WHERE target_platform = 'youtube'
+                AND type NOT IN ('platform_short', 'youtube_short')
+                AND status IN ('pending', 'scheduled')
+                AND (metadata->>'sourceYoutubeId' IS NOT NULL AND metadata->>'sourceYoutubeId' != '')
+                AND scheduled_at < '2026-05-24T07:05:00Z'`
+        ).then(async (chk: any) => {
+          const cnt = Number(chk?.rows?.[0]?.cnt ?? 0);
+          if (cnt === 0) return; // already rescheduled
+          await db.execute(
+            sql`WITH ranked AS (
+                  SELECT id,
+                    ROW_NUMBER() OVER (ORDER BY
+                      CASE
+                        WHEN LOWER(COALESCE(metadata->>'gameName','')) SIMILAR TO '%(battlefield|bf6|bf 6|bf2042|bf 2042)%' THEN 0
+                        ELSE 1
+                      END,
+                      scheduled_at ASC
+                    ) - 1 AS slot_num
+                  FROM autopilot_queue
+                  WHERE target_platform = 'youtube'
+                    AND type NOT IN ('platform_short', 'youtube_short')
+                    AND status IN ('pending', 'scheduled')
+                    AND (metadata->>'sourceYoutubeId' IS NOT NULL AND metadata->>'sourceYoutubeId' != '')
+                )
+                UPDATE autopilot_queue q
+                SET scheduled_at  = TIMESTAMP WITH TIME ZONE '2026-05-24T07:05:00Z'
+                                    + (r.slot_num * INTERVAL '24 hours'),
+                    status        = 'scheduled',
+                    error_message = NULL
+                FROM ranked r
+                WHERE q.id = r.id`
+          );
+          logger.info("[Boot] Long-form BF6-first reschedule applied", { eligibleItems: cnt });
+        }).catch((e: any) => logger.warn("[Boot] Long-form BF6-first reschedule skipped", { error: e?.message }));
+
         // ── Stuck-processing reset ────────────────────────────────────────────
         // If the server crashed or was killed while a publish job was running,
         // that item stays in 'processing' forever and blocks the publisher slot.
