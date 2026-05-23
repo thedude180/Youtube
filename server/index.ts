@@ -2605,6 +2605,35 @@ httpServer.listen(
           logger.info("[Boot] BF6-first reschedule applied", { bf6: bf6Ids.length, nonBf6: nonBf6Ids.length });
         }).catch((e: any) => logger.warn("[Boot] BF6-first reschedule skipped", { error: e?.message }));
 
+        // ── BF6 back-catalog mined-flag reset ────────────────────────────────
+        // All BF6/Battlefield back catalog videos were marked mined_for_shorts=true
+        // and mined_for_long_form=true after producing only 1 clip each — because
+        // the optimistic lock flags them immediately before the clip loop runs.
+        // These are all multi-hour livestream VODs (some 12h+) and should yield
+        // up to 15 Shorts and multiple long-form segments each.
+        // Reset the mined flags so the back-catalog runner re-mines them fully
+        // on its next cycle. The engine's broken-source check will skip any
+        // sources with confirmed download failures automatically.
+        db.execute(
+          sql`UPDATE back_catalog_videos
+              SET mined_for_shorts      = false,
+                  mined_for_long_form   = false,
+                  shorts_queued_count   = 0,
+                  long_form_queued_count = 0,
+                  updated_at            = NOW()
+              WHERE is_short = false
+                AND (
+                  LOWER(game_name) LIKE '%battlefield%' OR
+                  LOWER(game_name) LIKE '%bf6%' OR
+                  LOWER(game_name) LIKE '%bf 6%' OR
+                  LOWER(game_name) LIKE '%bf2042%' OR
+                  LOWER(game_name) LIKE '%bf 2042%' OR
+                  LOWER(title)     LIKE '%battlefield%'
+                )`
+        ).then((r: any) => {
+          logger.info("[Boot] BF6 back-catalog mined flags reset", { rows: r?.rowCount ?? 0 });
+        }).catch((e: any) => logger.warn("[Boot] BF6 mined-flag reset skipped", { error: e?.message }));
+
         // ── Long-form queue: purge hollow skeletons ───────────────────────────
         // Hundreds of catalog-remix / smart-edit / catalog-clip items were created
         // with no source video, no title and no game name — they can never publish.
