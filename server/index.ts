@@ -2521,6 +2521,44 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
 
+        // ── Broken source-video cleanup ───────────────────────────────────────
+        // Videos whose source YouTube ID is permanently unavailable (private,
+        // deleted, geo-restricted, or format-unavailable) will fail every single
+        // publish attempt.  Rather than letting the publisher waste quota cycles
+        // trying and failing them one-by-one, detect them at boot and permanently
+        // fail all queued items that reference them so the publisher can get to
+        // healthy content immediately.  The list is maintained here and grows as
+        // new broken sources are confirmed in production logs.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'permanent_fail',
+                  error_message = 'Source video unavailable — format not accessible on YouTube (boot cleanup)'
+              WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND metadata->>'sourceYoutubeId' IN (
+                  'VxQumHwVu70',
+                  '3Dw4UB86S9g'
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] Broken-source queue items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Broken-source purge skipped:", err?.message));
+
+        // ── Stuck-processing reset ────────────────────────────────────────────
+        // If the server crashed or was killed while a publish job was running,
+        // that item stays in 'processing' forever and blocks the publisher slot.
+        // Any item still in 'processing' after 30 minutes is stale — reset it
+        // to 'scheduled' (due immediately) so it gets retried cleanly on the
+        // next publisher cycle.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'scheduled',
+                  scheduled_at  = NOW() - INTERVAL '1 minute',
+                  error_message = 'Reset: stuck in processing >30 min — retrying (boot cleanup)'
+              WHERE status = 'processing'
+                AND updated_at < NOW() - INTERVAL '30 minutes'`
+        )
+          .then((res: any) => logger.info("[Boot] Stuck-processing items reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Stuck-processing reset skipped:", err?.message));
+
         // ── Fake vod-bridge stream cleanup ────────────────────────────────────
         // bridgeVodsToStreams() was running without a game filter, creating a
         // stream record for every long VOD in the catalog (AC Unity, Syndicate,
