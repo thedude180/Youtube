@@ -473,7 +473,13 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
           const candidate = withJitter(winTarget, winStart, winEnd);
 
           if (candidate.getTime() <= now.getTime() + 60_000) continue;
-          if (lastSt && candidate.getTime() - lastSt.getTime() < MIN_SHORT_GAP_MS) continue;
+          // Gap check: only enforce minimum spacing when the candidate slot comes
+          // AFTER the last scheduled Short.  If candidate < lastSt the arithmetic
+          // produces a negative number that would incorrectly block every earlier
+          // slot and push new items years into the future.
+          if (lastSt
+              && candidate.getTime() > lastSt.getTime()
+              && candidate.getTime() - lastSt.getTime() < MIN_SHORT_GAP_MS) continue;
 
           const tooClose = allUploads.some(
             t => Math.abs(t.getTime() - candidate.getTime()) < MIN_ANY_GAP_MS,

@@ -2521,26 +2521,62 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
 
-        // ── Broken source-video cleanup ───────────────────────────────────────
-        // Videos whose source YouTube ID is permanently unavailable (private,
-        // deleted, geo-restricted, or format-unavailable) will fail every single
-        // publish attempt.  Rather than letting the publisher waste quota cycles
-        // trying and failing them one-by-one, detect them at boot and permanently
-        // fail all queued items that reference them so the publisher can get to
-        // healthy content immediately.  The list is maintained here and grows as
-        // new broken sources are confirmed in production logs.
+        // ── Broken source-video cleanup (dynamic / self-healing) ─────────────
+        // Any source YouTube ID that has already produced at least one
+        // "Requested format is not available" permanent_fail is confirmed broken.
+        // Permanently fail ALL remaining scheduled/pending items that share the
+        // same sourceYoutubeId so the publisher never wastes a quota cycle on
+        // them again.  This runs on every boot and is a no-op once clean — no
+        // hardcoded list needed; it auto-catches new broken sources as they
+        // appear in the error history.
         db.execute(
           sql`UPDATE autopilot_queue
               SET status        = 'permanent_fail',
                   error_message = 'Source video unavailable — format not accessible on YouTube (boot cleanup)'
               WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND metadata->>'sourceYoutubeId' IS NOT NULL
+                AND metadata->>'sourceYoutubeId' != ''
                 AND metadata->>'sourceYoutubeId' IN (
-                  'VxQumHwVu70',
-                  '3Dw4UB86S9g'
+                  SELECT DISTINCT metadata->>'sourceYoutubeId'
+                  FROM   autopilot_queue
+                  WHERE  status        = 'permanent_fail'
+                    AND  error_message ILIKE '%Requested format is not available%'
+                    AND  metadata->>'sourceYoutubeId' IS NOT NULL
                 )`
         )
           .then((res: any) => logger.info("[Boot] Broken-source queue items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Broken-source purge skipped:", err?.message));
+
+        // ── Far-future Short cleanup ──────────────────────────────────────────
+        // The scheduler gap-check bug (fixed in youtube-output-schedule.ts)
+        // previously pushed new Short queue items years into the future because
+        // every candidate before the last scheduled item was skipped.  This left
+        // hundreds of platform_short / youtube_short rows with scheduled_at dates
+        // up to May 2027, most of them pointing to broken source videos.
+        // Permanently fail anything scheduled more than 14 days out so the
+        // publisher only works through near-term content and the scheduler can
+        // repopulate with correct dates.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'permanent_fail',
+                  error_message = 'Purged: scheduled >14 days out — scheduler gap-check cleanup'
+              WHERE type   IN ('youtube_short', 'platform_short')
+                AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND scheduled_at > NOW() + INTERVAL '14 days'`
+        )
+          .then((res: any) => logger.info("[Boot] Far-future Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Far-future Shorts purge skipped:", err?.message));
+
+        // ── Short-slot claim reset ────────────────────────────────────────────
+        // short_slot_claims rows expire after 10 min but persist in the table.
+        // Stale claims block the scheduler from finding available windows —
+        // especially critical after the gap-check bug pushed claims to 2027.
+        // Delete all claim rows at boot so the scheduler starts with a clean
+        // slate; any legitimate in-flight slot will simply be re-claimed on the
+        // next scheduling cycle (within seconds).
+        db.execute(sql`DELETE FROM short_slot_claims`)
+          .then((res: any) => logger.info("[Boot] Short-slot claims reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Short-slot claim reset skipped:", err?.message));
 
         // ── Stuck-processing reset ────────────────────────────────────────────
         // If the server crashed or was killed while a publish job was running,
