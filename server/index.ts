@@ -2578,6 +2578,33 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Short-slot claims reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Short-slot claim reset skipped:", err?.message));
 
+        // ── One-time BF6-first queue reschedule (May 2026) ───────────────────
+        // Moves confirmed Battlefield Shorts to the front of the queue at proper
+        // 3/day cadence (8h slots) starting at quota reset. Non-BF6 clips pushed
+        // behind. Guard: only runs if item 7529 still has an old scheduled_at.
+        db.execute(
+          sql`SELECT scheduled_at FROM autopilot_queue WHERE id = 7529 AND status = 'pending' LIMIT 1`
+        ).then(async (chk: any) => {
+          const row = chk?.rows?.[0];
+          const quotaReset = new Date("2026-05-24T07:05:00Z");
+          if (!row || new Date(row.scheduled_at) >= quotaReset) return; // already done
+          const bf6Ids   = [7529, 7534, 7535, 7528, 5884, 10784, 10785, 7527, 5893, 5895];
+          const nonBf6Ids = [7533, 12031, 12033, 12029, 11869, 11867, 12028, 12027, 12030,
+                             11868, 12032, 12034, 12026, 13063, 13046, 13057, 13039, 13044,
+                             13060, 13043, 7892, 10786, 3902, 18099, 18462];
+          const GAP = 8 * 60 * 60 * 1000;
+          for (let i = 0; i < bf6Ids.length; i++) {
+            const t = new Date(quotaReset.getTime() + i * GAP).toISOString();
+            await db.execute(sql`UPDATE autopilot_queue SET scheduled_at=${t}, status='pending', error_message=NULL WHERE id=${bf6Ids[i]}`);
+          }
+          const nonStart = new Date(quotaReset.getTime() + bf6Ids.length * GAP);
+          for (let i = 0; i < nonBf6Ids.length; i++) {
+            const t = new Date(nonStart.getTime() + i * GAP).toISOString();
+            await db.execute(sql`UPDATE autopilot_queue SET scheduled_at=${t}, status='pending', error_message=NULL WHERE id=${nonBf6Ids[i]}`);
+          }
+          logger.info("[Boot] BF6-first reschedule applied", { bf6: bf6Ids.length, nonBf6: nonBf6Ids.length });
+        }).catch((e: any) => logger.warn("[Boot] BF6-first reschedule skipped", { error: e?.message }));
+
         // ── Stuck-processing reset ────────────────────────────────────────────
         // If the server crashed or was killed while a publish job was running,
         // that item stays in 'processing' forever and blocks the publisher slot.

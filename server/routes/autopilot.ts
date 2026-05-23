@@ -695,6 +695,66 @@ export function registerAutopilotRoutes(app: Express) {
     }
   });
 
+  // One-shot BF6-first reschedule: moves confirmed Battlefield items to the front
+  // of the Shorts queue at proper 3/day cadence, pushes non-BF6 clips behind them.
+  app.post("/api/youtube/queue/reschedule-bf6-first", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      // Confirmed BF6/Battlefield items in the order they should publish
+      const bf6Ids = [7529, 7534, 7535, 7528, 5884, 10784, 10785, 7527, 5893, 5895];
+      // Non-BF6 items to push behind all Battlefield content
+      const nonBf6Ids = [7533, 12031, 12033, 12029, 11869, 11867, 12028, 12027, 12030,
+                         11868, 12032, 12034, 12026, 13063, 13046, 13057, 13039, 13044,
+                         13060, 13043, 7892, 10786, 3902, 18099, 18462];
+
+      // Quota resets at midnight Pacific = 07:05 UTC May 24 2026
+      // 3 Shorts/day cadence = one slot every 8 hours
+      const quotaReset = new Date("2026-05-24T07:05:00Z");
+      const SLOT_GAP_MS = 8 * 60 * 60 * 1000; // 8 hours
+
+      // Clear slot claims so the scheduler doesn't conflict with the new schedule
+      await db.execute(sql`DELETE FROM short_slot_claims`);
+
+      // Schedule BF6 items at 8h intervals starting from quota reset
+      for (let i = 0; i < bf6Ids.length; i++) {
+        const slotTime = new Date(quotaReset.getTime() + i * SLOT_GAP_MS);
+        await db.update(autopilotQueue)
+          .set({ scheduledAt: slotTime, status: "pending" as any, errorMessage: null })
+          .where(eq(autopilotQueue.id, bf6Ids[i]));
+      }
+
+      // Schedule non-BF6 items immediately after the last BF6 slot
+      const nonBf6Start = new Date(quotaReset.getTime() + bf6Ids.length * SLOT_GAP_MS);
+      for (let i = 0; i < nonBf6Ids.length; i++) {
+        const slotTime = new Date(nonBf6Start.getTime() + i * SLOT_GAP_MS);
+        await db.update(autopilotQueue)
+          .set({ scheduledAt: slotTime, status: "pending" as any, errorMessage: null })
+          .where(eq(autopilotQueue.id, nonBf6Ids[i]));
+      }
+
+      logger.info("[Reschedule] BF6-first reschedule complete", {
+        bf6Count: bf6Ids.length,
+        nonBf6Count: nonBf6Ids.length,
+        firstSlot: quotaReset.toISOString(),
+        nonBf6Start: nonBf6Start.toISOString(),
+      });
+
+      res.json({
+        success: true,
+        bf6ItemsRescheduled: bf6Ids.length,
+        nonBf6ItemsPushedBack: nonBf6Ids.length,
+        bf6FirstSlot: quotaReset.toISOString(),
+        nonBf6FirstSlot: nonBf6Start.toISOString(),
+        cadence: "3 Shorts/day (8h intervals)",
+        message: `${bf6Ids.length} Battlefield Shorts queued first starting at quota reset. ${nonBf6Ids.length} non-BF6 clips scheduled behind them.`,
+      });
+    } catch (err: any) {
+      logger.error("[Reschedule] BF6-first reschedule failed", { error: err?.message });
+      res.status(500).json({ error: "Reschedule failed", detail: err?.message });
+    }
+  });
+
   app.get("/api/autopilot/queue/:id/format-preview", async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
