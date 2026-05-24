@@ -34,7 +34,7 @@ import { spawn } from "child_process";
 import cron from "node-cron";
 import { db } from "../db";
 import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
-import { eq, and, lte, inArray, sql } from "drizzle-orm";
+import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { getYtdlpBin } from "../lib/dependency-check";
@@ -404,7 +404,14 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       .where(and(
         // youtube_short / platform_short / platform_text_short — legacy types
         // vod-short — created by vod-continuous-engine with clipId + startSec/endSec
-        inArray(autopilotQueue.type, ["youtube_short", "platform_short", "platform_text_short", "vod-short"]),
+        // auto-clip with contentType='youtube-short' — back-catalog engine Shorts
+        or(
+          inArray(autopilotQueue.type, ["youtube_short", "platform_short", "platform_text_short", "vod-short"]),
+          and(
+            eq(autopilotQueue.type, "auto-clip"),
+            sql`${autopilotQueue.metadata}->>'contentType' = 'youtube-short'`,
+          ),
+        ),
         eq(autopilotQueue.status, "scheduled"),
         lte(autopilotQueue.scheduledAt, batchWindow),
       ))
@@ -491,8 +498,10 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       }
 
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
-      const startSec = Number(itemMeta.startSec ?? 0);
-      const endSec = Number(itemMeta.endSec ?? 60);
+      // back-catalog auto-clip Shorts store segment bounds as segmentStartSec/segmentEndSec;
+      // content-grinder Shorts use startSec/endSec.  Fall back gracefully for either shape.
+      const startSec = Number(itemMeta.startSec ?? itemMeta.segmentStartSec ?? 0);
+      const endSec   = Number(itemMeta.endSec   ?? itemMeta.segmentEndSec   ?? 60);
       const clipId = typeof itemMeta.clipId === "number" ? itemMeta.clipId : undefined;
       const sourceYoutubeId = typeof itemMeta.sourceYoutubeId === "string" ? itemMeta.sourceYoutubeId : undefined;
       const hookLine = typeof itemMeta.hookLine === "string" ? itemMeta.hookLine : undefined;
