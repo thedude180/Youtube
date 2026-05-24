@@ -414,7 +414,18 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             sql`${autopilotQueue.metadata}->>'contentType' = 'youtube-short'`,
           ),
         ),
-        eq(autopilotQueue.status, "scheduled"),
+        // Accept 'scheduled' for all types.
+        // Also accept 'pending' for platform_short / vod-short that have a sourceYoutubeId
+        // in their metadata — these are fully ready to upload but got created without the
+        // 'scheduled' status due to a distributor sequencing issue.
+        or(
+          eq(autopilotQueue.status, "scheduled"),
+          and(
+            inArray(autopilotQueue.type, ["platform_short", "vod-short"]),
+            eq(autopilotQueue.status, "pending"),
+            sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
+          ),
+        ),
         lte(autopilotQueue.scheduledAt, batchWindow),
       ))
       // Live stream highlights and stream replays always upload before back-catalog items.
