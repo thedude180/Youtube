@@ -7,6 +7,7 @@ import { createOrUpdateCustomerProfile, updateCustomerActivity } from "../../cus
 import { ADMIN_EMAIL } from "@shared/models/auth";
 import { z } from "zod";
 import { recordLoginAttempt, checkAccountLock } from "../../services/security-fortress";
+import { getAppUrl } from "../../lib/app-url";
 
 const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
@@ -311,10 +312,7 @@ export function registerAuthRoutes(app: Express): void {
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS);
       await authStorage.createPasswordResetToken(user.id, token, expiresAt);
 
-      const host = req.get("host") || "localhost:5000";
-      const protocol = (req.headers["x-forwarded-proto"] as string) || "http";
-      const appUrl = `${protocol}://${host}`;
-
+      const appUrl = getAppUrl();
       const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
       const html = `<!DOCTYPE html>

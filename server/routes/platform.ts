@@ -7,7 +7,7 @@ import { linkedChannels, streamDestinations, subscriptions, channels, videos } f
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireYouTubeOnly } from "@shared/youtube-only";
-import { requireAuth, getUserId, parseNumericId } from "./helpers";
+import { requireAuth, requireAdmin, getUserId, parseNumericId } from "./helpers";
 import { cached } from "../lib/cache";
 import { sendSSEEvent } from "./events";
 import { trackQuotaUsage, getQuotaStatus, getDailyOpCounts } from "../services/youtube-quota-tracker";
@@ -173,11 +173,9 @@ export async function registerPlatformRoutes(app: Express) {
       userId = (req.session as any)?.youtubeOAuthUserId || null;
       if (userId) resolvedBy = "session-key";
     }
-    // Layer 3: active Passport session (user stayed logged in)
-    if (!userId && req.isAuthenticated()) {
-      userId = getUserId(req) || null;
-      if (userId) resolvedBy = "passport-session";
-    }
+    // Note: we intentionally do NOT fall back to the current Passport session user here.
+    // Doing so would allow an attacker to craft a callback URL that binds their YouTube
+    // tokens to any currently-logged-in user's account (account-binding CSRF).
 
     logger.info(`[YouTube Callback] code=${!!code} state=${state?.slice(0,12)} userId=${userId} resolvedBy=${resolvedBy} googleError=${googleError || "none"}`);
 
@@ -251,6 +249,8 @@ export async function registerPlatformRoutes(app: Express) {
   // Works in both dev and production — restricted by role=admin on the channel's user.
   // Usage: navigate to /api/admin/channels/32/reconnect-youtube in the browser.
   app.get("/api/admin/channels/:id/reconnect-youtube", async (req: any, res) => {
+    const adminUserId = requireAdmin(req, res);
+    if (!adminUserId) return;
 
     const channelRowId = parseInt(req.params.id, 10);
     if (isNaN(channelRowId)) return res.status(400).json({ error: "Invalid channel row ID" });
@@ -288,6 +288,8 @@ export async function registerPlatformRoutes(app: Express) {
   // reconnect on behalf of its real owner. Works in both dev and production.
   // Usage: navigate to /api/admin/yt-reconnect in the browser (or tap the UI button).
   app.get("/api/admin/yt-reconnect", async (req: any, res) => {
+    const adminUserId = requireAdmin(req, res);
+    if (!adminUserId) return;
 
     try {
       const { db } = await import("../db");
@@ -341,6 +343,9 @@ export async function registerPlatformRoutes(app: Express) {
   // Call this once after deploy to fix any stale/missing shorts tokens in production.
   // Usage: navigate to /api/admin/sync-shorts-tokens in the browser.
   app.get("/api/admin/sync-shorts-tokens", async (req: any, res) => {
+    const adminUserId = requireAdmin(req, res);
+    if (!adminUserId) return;
+
     try {
       const { db } = await import("../db");
       const { channels } = await import("@shared/schema");
@@ -2117,13 +2122,9 @@ export async function registerPlatformRoutes(app: Express) {
       req.session.save(() => {});
     }
 
-    // 3. Last resort: use logged-in session user
-    if (!userId) {
-      if (req.isAuthenticated()) {
-        userId = getUserId(req);
-        logger.warn(`[OAuth ${platform}] State not found — falling back to session user ${userId}`);
-      }
-    }
+    // Note: we intentionally do NOT fall back to the current Passport session user here.
+    // Doing so would allow an attacker to send a victim a crafted callback URL that binds
+    // the attacker's OAuth tokens to the victim's account (account-binding CSRF).
 
     if (!userId) {
       logger.error(`[OAuth ${platform}] Cannot resolve userId — state=${state?.substring(0, 8)}... session=${JSON.stringify((req.session as any).pendingOAuthState)}`);

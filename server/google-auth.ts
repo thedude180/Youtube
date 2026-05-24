@@ -1,6 +1,7 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import type { Express } from "express";
+import crypto from "crypto";
 import { google } from "googleapis";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { storage } from "./storage";
@@ -96,24 +97,39 @@ export function setupGoogleAuth(app: Express) {
     )
   );
 
-  app.get("/api/auth/google", (req, res, next) => {
+  app.get("/api/auth/google", (req: any, res, next) => {
     const dynamicCallback = getCallbackUrl(req);
-    passport.authenticate("google", {
-      scope: [
-        "openid",
-        "email",
-        "profile",
-        "https://www.googleapis.com/auth/youtube.readonly",
-        "https://www.googleapis.com/auth/youtube",
-        "https://www.googleapis.com/auth/youtube.upload",
-      ],
-      accessType: "offline",
-      prompt: "consent",
-      callbackURL: dynamicCallback,
-    } as any)(req, res, next);
+    const state = crypto.randomBytes(32).toString("hex");
+    (req.session as any).googleOAuthState = state;
+    req.session.save((saveErr: any) => {
+      if (saveErr) logger.warn("[GoogleAuth] Session save error before OAuth redirect:", saveErr);
+      passport.authenticate("google", {
+        scope: [
+          "openid",
+          "email",
+          "profile",
+          "https://www.googleapis.com/auth/youtube.readonly",
+          "https://www.googleapis.com/auth/youtube",
+          "https://www.googleapis.com/auth/youtube.upload",
+        ],
+        accessType: "offline",
+        prompt: "consent",
+        callbackURL: dynamicCallback,
+        state,
+      } as any)(req, res, next);
+    });
   });
 
-  app.get("/api/auth/google/callback", (req, res, next) => {
+  app.get("/api/auth/google/callback", (req: any, res, next) => {
+    const returnedState = req.query.state as string | undefined;
+    const expectedState = (req.session as any).googleOAuthState as string | undefined;
+    delete (req.session as any).googleOAuthState;
+
+    if (!returnedState || !expectedState || returnedState !== expectedState) {
+      logger.warn("[GoogleAuth] OAuth state mismatch — possible CSRF attempt, rejecting callback");
+      return res.redirect("/?auth_error=state_mismatch");
+    }
+
     const dynamicCallback = getCallbackUrl(req);
     passport.authenticate("google", {
       failureRedirect: "/?auth_error=true",
