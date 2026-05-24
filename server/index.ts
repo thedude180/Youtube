@@ -2916,39 +2916,55 @@ httpServer.listen(
             logger.info("[Boot+30] Short already due today — no reschedule needed");
           }
 
-          // ── Near-term long-form backfill ─────────────────────────────────
-          // If the next 48 hours have no long-form scheduled, pull the earliest
-          // healthy long-form item forward to tomorrow's 18:30 CDT slot
-          // (23:30 UTC ± small jitter) so the publisher can encode and upload
-          // it tonight as a private video with tomorrow's publishAt.
+          // ── Near-term long-form backfill (per-day, next 3 days) ──────────
+          // Check each of the next 3 days individually.  A single 48h window
+          // check misses days where the gap is at day+1 but day+2 is filled —
+          // it would incorrectly report "covered" and leave day+1 empty.
+          // Each empty day gets its earliest healthy long-form moved into it.
           try {
-            const lfWindowStart = new Date(Date.now() + 60_000);            // from now
-            const lfWindowEnd   = new Date(Date.now() + 48 * 3_600_000);   // +48 h
+            // Horizon: everything scheduled beyond day 3 is the pull pool.
+            const poolHorizon = new Date();
+            poolHorizon.setUTCDate(poolHorizon.getUTCDate() + 4);
+            poolHorizon.setUTCHours(0, 0, 0, 0);
 
-            const nearTermLf = await db.execute(
-              sql`SELECT id FROM autopilot_queue
-                  WHERE status = 'scheduled'
-                    AND scheduled_at >= ${lfWindowStart.toISOString()}
-                    AND scheduled_at <  ${lfWindowEnd.toISOString()}
-                    AND (
-                      metadata->>'contentType' IN ('long-form-clip','vod_long_form')
-                      OR type = 'vod-long-form'
-                    )
-                  LIMIT 1`
-            ) as any;
+            let lfPublisherKicked = false;
 
-            if (!nearTermLf?.rows?.length) {
-              // Tomorrow's slot is empty — compute 18:30 CDT = 23:30 UTC for tomorrow
-              const tomorrow = new Date();
-              tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-              tomorrow.setUTCHours(23, 30, 0, 0);
-              // ±15 min jitter so uploads don't cluster at :30
-              const jitterMs   = (Math.random() * 30 - 15) * 60_000;
-              const tomorrowLfSlot = new Date(tomorrow.getTime() + jitterMs);
+            for (let dayOffset = 1; dayOffset <= 3; dayOffset++) {
+              const dayStart = new Date();
+              dayStart.setUTCDate(dayStart.getUTCDate() + dayOffset);
+              dayStart.setUTCHours(0, 0, 0, 0);
+              const dayEnd = new Date();
+              dayEnd.setUTCDate(dayEnd.getUTCDate() + dayOffset);
+              dayEnd.setUTCHours(23, 59, 59, 999);
+
+              const existing = await db.execute(
+                sql`SELECT id FROM autopilot_queue
+                    WHERE status = 'scheduled'
+                      AND scheduled_at >= ${dayStart.toISOString()}
+                      AND scheduled_at <  ${dayEnd.toISOString()}
+                      AND (
+                        metadata->>'contentType' IN ('long-form-clip','vod_long_form')
+                        OR type = 'vod-long-form'
+                      )
+                    LIMIT 1`
+              ) as any;
+
+              if (existing?.rows?.length) {
+                logger.info(`[Boot+30] Long-form day+${dayOffset} already filled — skipping`);
+                continue;
+              }
+
+              // This day is empty — pull the earliest healthy item from the pool
+              // (beyond day 3 to avoid stealing from an already-filled near day)
+              const targetSlot = new Date();
+              targetSlot.setUTCDate(targetSlot.getUTCDate() + dayOffset);
+              targetSlot.setUTCHours(23, 30, 0, 0); // 18:30 CDT
+              const jitterMs = (Math.random() * 30 - 15) * 60_000;
+              const slot = new Date(targetSlot.getTime() + jitterMs);
 
               const moved = await db.execute(
                 sql`UPDATE autopilot_queue
-                    SET scheduled_at  = ${tomorrowLfSlot.toISOString()},
+                    SET scheduled_at  = ${slot.toISOString()},
                         error_message = NULL
                     WHERE id = (
                       SELECT q.id
@@ -2958,8 +2974,7 @@ httpServer.listen(
                                q.metadata->>'contentType' IN ('long-form-clip','vod_long_form')
                                OR q.type = 'vod-long-form'
                              )
-                        AND  q.scheduled_at > ${lfWindowEnd.toISOString()}
-                        -- Skip sources with confirmed yt-dlp download failures
+                        AND  q.scheduled_at >= ${poolHorizon.toISOString()}
                         AND  (
                                q.metadata->>'sourceYoutubeId' IS NULL
                                OR q.metadata->>'sourceYoutubeId' NOT IN (
@@ -2977,20 +2992,17 @@ httpServer.listen(
               ) as any;
 
               if (moved?.rows?.length) {
-                logger.info("[Boot+30] Long-form backfill: pulled earliest healthy item to tomorrow slot", {
-                  id: moved.rows[0]?.id,
-                  slot: tomorrowLfSlot.toISOString(),
-                });
-                // Kick the long-form publisher so it picks this up now
-                import("./services/long-form-clip-publisher")
-                  .then(m => m.runLongFormClipPublisher())
-                  .then(r => logger.info("[Boot+30] Long-form publisher kicked after backfill", r))
-                  .catch(e => logger.warn("[Boot+30] Long-form publisher kick failed", { error: e?.message }));
+                logger.info(`[Boot+30] Long-form day+${dayOffset} backfill: pulled item ${moved.rows[0]?.id} to ${slot.toISOString()}`);
+                if (!lfPublisherKicked) {
+                  lfPublisherKicked = true;
+                  import("./services/long-form-clip-publisher")
+                    .then(m => m.runLongFormClipPublisher())
+                    .then(r => logger.info("[Boot+30] Long-form publisher kicked after backfill", r))
+                    .catch(e => logger.warn("[Boot+30] Long-form publisher kick failed", { error: e?.message }));
+                }
               } else {
-                logger.info("[Boot+30] No healthy long-form found to backfill — back-catalog runner will generate on next cycle");
+                logger.info(`[Boot+30] No healthy long-form available to fill day+${dayOffset}`);
               }
-            } else {
-              logger.info("[Boot+30] Long-form already in next-48h window — no backfill needed");
             }
           } catch (lfErr: any) {
             logger.warn("[Boot+30] Near-term long-form backfill failed", { error: lfErr?.message });
