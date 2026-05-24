@@ -399,6 +399,17 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
         if (!uploadResult?.youtubeId) throw new Error("Upload returned no YouTube ID");
 
+        // Add to game-specific long-form playlist immediately after upload.
+        // Non-fatal — playlist failure never blocks the status update.
+        {
+          const lfYtIdForPlaylist = uploadResult.youtubeId;
+          import("../../playlist-manager")
+            .then(({ addUploadToPlaylist }) =>
+              addUploadToPlaylist(item.userId, ytChannel.id, lfYtIdForPlaylist, gameName, "longform")
+            )
+            .catch(e => logger.warn(`[LongFormPublisher] Playlist assignment failed for ${lfYtIdForPlaylist}: ${e?.message}`));
+        }
+
         // Upload pre-generated thumbnail immediately after video upload — fire and forget
         {
           const lfYtId = uploadResult.youtubeId;

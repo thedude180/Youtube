@@ -747,6 +747,51 @@ export async function autoAssignVideoToPlaylist(userId: string, videoId: number,
   }
 }
 
+/**
+ * Add a freshly-uploaded YouTube video to the correct game playlist immediately.
+ * Called by Shorts and long-form publishers right after a successful upload so
+ * the video appears in the playlist the moment YouTube processes it.
+ *
+ * Playlist rules:
+ *   short    → "<Game> - Shorts & Highlights"
+ *   longform → "<Game> - Full Gameplay & Videos"
+ *
+ * Creates the playlist automatically if it doesn't exist yet.
+ * Non-fatal — a playlist failure never blocks the upload status update.
+ */
+export async function addUploadToPlaylist(
+  userId: string,
+  channelId: number,
+  youtubeVideoId: string,
+  gameName: string,
+  contentType: "short" | "longform",
+): Promise<boolean> {
+  try {
+    const normalizedGame = (gameName || "Gaming").toLowerCase().trim();
+    const playlistType: PlaylistType = contentType === "short" ? "shorts" : "longform";
+
+    const mapping = await getOrCreateGamePlaylist(userId, normalizedGame, playlistType, channelId);
+    if (!mapping.youtubePlaylistId) {
+      logger.warn("addUploadToPlaylist: no YouTube playlist ID — skipping insert", {
+        userId, gameName: normalizedGame, contentType,
+      });
+      return false;
+    }
+
+    const ok = await addVideoToYouTubePlaylist(channelId, mapping.youtubePlaylistId, youtubeVideoId);
+    logger.info("addUploadToPlaylist: video added", {
+      youtubeVideoId, playlistId: mapping.youtubePlaylistId,
+      gameName: normalizedGame, contentType, success: ok,
+    });
+    return ok;
+  } catch (err) {
+    logger.warn("addUploadToPlaylist: non-fatal error", {
+      youtubeVideoId, gameName, contentType, error: String(err).slice(0, 120),
+    });
+    return false;
+  }
+}
+
 export async function runPlaylistOrganizationForAllUsers(): Promise<number> {
   let usersProcessed = 0;
 

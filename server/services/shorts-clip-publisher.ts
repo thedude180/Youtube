@@ -667,13 +667,25 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
 
       // Persist result
       if (result.success) {
+        const uploadedYtId = (result as any).youtubeId as string | undefined;
+
+        // Add to game-specific Shorts playlist immediately after upload.
+        // Non-fatal — playlist failure never blocks the status update.
+        if (uploadedYtId) {
+          import("../../playlist-manager")
+            .then(({ addUploadToPlaylist }) =>
+              addUploadToPlaylist(userId, ytChannel.id, uploadedYtId, gameName ?? "Gaming", "short")
+            )
+            .catch(e => logger.warn("[ShortsPublisher] Playlist assignment failed", { error: e?.message }));
+        }
+
         await db.update(autopilotQueue)
           .set({
             status: "published",
             publishedAt: new Date(),
             metadata: {
               ...itemMeta,
-              youtubeVideoId: (result as any).youtubeId,
+              youtubeVideoId: uploadedYtId,
               publishedPostId: result.postId,
             } as any,
           })

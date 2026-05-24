@@ -144,6 +144,14 @@ Output format: Return ONLY the image generation prompt as a single paragraph. No
       logger.warn("Auto-thumbnail hit 429 rate limit — pausing for 10 minutes", {
         cooldownUntil: new Date(thumbnailRateLimitCooldownUntil).toISOString(),
       });
+    } else if (msg.toLowerCase().includes("ai queue full") || msg.toLowerCase().includes("background callers waiting")) {
+      // AI semaphore is saturated — all background slots are in use by other systems.
+      // Pause thumbnail generation for 30 minutes so we don't hammer the queue
+      // with 500 sequential failures (each waiting 3 s for a slot that never frees).
+      thumbnailRateLimitCooldownUntil = Date.now() + 30 * 60_000;
+      logger.warn("Auto-thumbnail paused 30 min — AI queue full, background semaphore saturated", {
+        cooldownUntil: new Date(thumbnailRateLimitCooldownUntil).toISOString(),
+      });
     } else {
       logger.error("Failed to generate thumbnail prompt", { error: msg.substring(0, 200) });
     }
