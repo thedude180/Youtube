@@ -159,7 +159,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
             commentCount: Math.floor(v.views * 0.004),
             publishedAt: hoursAgo(v.hoursBack).toISOString(),
             privacyStatus: "public",
-            stats: { views: v.views, likes: v.likes, ctr: v.ctr, avgWatchTime: v.dur * 0.42 / 60 },
+            stats: { views: v.views, likes: v.likes, comments: Math.floor(v.views * 0.004), ctr: v.ctr, avgWatchTime: v.dur * 0.42 / 60 },
           },
         }))
       ).returning({ id: videos.id });
@@ -332,7 +332,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
           caption: "Nobody expected this game — 28 kills, zero build, solo",
           status: "pending",
           scheduledAt: hoursFromNow(1),
-          metadata: { viralScore: 94, estimatedViews: 12_000, game: "Fortnite", contentType: "short" },
+          metadata: { viralScore: 94, estimatedViews: 12_000, game: "Fortnite", contentType: "short" } as any,
         },
         {
           userId: DEMO_USER_ID,
@@ -342,7 +342,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
           caption: "3 full squad wipes in one aggressive Rebirth game",
           status: "pending",
           scheduledAt: hoursFromNow(5),
-          metadata: { viralScore: 87, estimatedViews: 9_500, game: "Warzone", contentType: "short" },
+          metadata: { viralScore: 87, estimatedViews: 9_500, game: "Warzone", contentType: "short" } as any,
         },
         {
           userId: DEMO_USER_ID,
@@ -352,7 +352,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
           caption: "Plat II to Diamond — one uncut session",
           status: "pending",
           scheduledAt: hoursFromNow(9),
-          metadata: { viralScore: 79, estimatedViews: 7_200, game: "MW3", contentType: "short" },
+          metadata: { viralScore: 79, estimatedViews: 7_200, game: "MW3", contentType: "short" } as any,
         },
         {
           userId: DEMO_USER_ID,
@@ -362,7 +362,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
           caption: "Can I actually beat Honour Mode without dying?",
           status: "pending",
           scheduledAt: hoursFromNow(13),
-          metadata: { viralScore: 85, estimatedViews: 18_000, game: "Baldur's Gate 3", contentType: "long_form" },
+          metadata: { viralScore: 85, estimatedViews: 18_000, game: "Baldur's Gate 3", contentType: "long_form" } as any,
         },
         {
           userId: DEMO_USER_ID,
@@ -372,7 +372,7 @@ async function ensureDemoDataSeeded(): Promise<void> {
           caption: "2v3 late ring — somehow pulled it off",
           status: "processing",
           scheduledAt: new Date(),
-          metadata: { viralScore: 83, estimatedViews: 8_800, game: "Apex Legends", contentType: "short" },
+          metadata: { viralScore: 83, estimatedViews: 8_800, game: "Apex Legends", contentType: "short" } as any,
         },
       ]);
       logger.info("[demo-seed] Created demo autopilot queue");

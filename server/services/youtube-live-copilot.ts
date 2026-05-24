@@ -31,7 +31,7 @@ import {
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getRawOpenAIClientForDirectUse } from "../lib/openai";
-import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
+import { tryAcquireAISlotNow, releaseAISlot, setBackgroundAIConcurrency } from "../lib/ai-semaphore";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { sendSSEEvent } from "../routes/events";
 import { getNextShortPublishTime, getNextLongFormPublishTime } from "./youtube-output-schedule";
@@ -141,6 +141,12 @@ export async function prepareLiveStream(
   userId: string,
   streamId: number,
 ): Promise<LiveStreamPrep> {
+  // Throttle background AI engines to 1 concurrent slot while the stream is
+  // live — this reserves the other slots for real-time stream operations
+  // (chat replies, moment detection) instead of letting catalog/SEO tasks pile up.
+  setBackgroundAIConcurrency(1);
+  logger.info("[LiveCopilot] Background AI concurrency capped to 1 — live stream starting");
+
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
   const ytChannels = await db.select().from(channels)
     .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")));
@@ -510,6 +516,10 @@ export async function afterStreamCopilot(
   userId: string,
   streamId: number,
 ): Promise<AfterStreamResult> {
+  // Restore normal background AI concurrency now that the live stream is over.
+  setBackgroundAIConcurrency(null);
+  logger.info("[LiveCopilot] Background AI concurrency restored to normal — stream ended");
+
   const state = getStreamState(streamId);
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
 

@@ -28,9 +28,12 @@ const NOT_LIVE_SIGNALS = [
   '"status":"LIVE_STREAM_OFFLINE"',
 ];
 
+// Reduced from 10 000 ms — sequential 10-second timeouts were stacking up to
+// 20-30 s total latency.  4 s is enough for YouTube's CDN on a healthy connection;
+// if a single hop times out we fall through to the next detection method anyway.
+const FETCH_TIMEOUT_MS = 4_000;
+
 function containsLiveSignal(html: string): boolean {
-  // Must have at least one STRONG signal — a soft "isLive":true alone is insufficient
-  // because it appears in VOD/ended-stream metadata and causes false positives.
   const hasStrong = STRONG_LIVE_SIGNALS.some(s => html.includes(s));
   if (!hasStrong) return false;
   const isOffline = NOT_LIVE_SIGNALS.some(s => html.includes(s));
@@ -60,7 +63,7 @@ function extractVideoIdAndTitle(html: string, finalUrl: string): { videoId: stri
 async function fetchLivePage(url: string): Promise<{ isLive: boolean; videoId: string | null; title: string | null }> {
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
     });
     if (!res.ok) return { isLive: false, videoId: null, title: null };
@@ -76,7 +79,7 @@ async function fetchLivePage(url: string): Promise<{ isLive: boolean; videoId: s
 async function resolveChannelHandle(channelId: string): Promise<string | null> {
   try {
     const res = await fetch(`https://www.youtube.com/channel/${channelId}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       redirect: "follow",
       headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
     });
@@ -95,7 +98,7 @@ async function resolveChannelHandle(channelId: string): Promise<string | null> {
 export async function checkYouTubeLiveViaWatchPage(videoId: string): Promise<boolean> {
   try {
     const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
     });
     if (!res.ok) return false;
@@ -107,10 +110,15 @@ export async function checkYouTubeLiveViaWatchPage(videoId: string): Promise<boo
 }
 
 async function checkChannelLivePage(channelId: string): Promise<{ isLive: boolean; videoId: string | null; title: string | null }> {
-  const direct = await fetchLivePage(`https://www.youtube.com/channel/${channelId}/live`);
+  // Run the direct channel/id/live fetch AND handle resolution concurrently —
+  // previously these were sequential (fetch → resolve → fetch again), which
+  // stacked two 10-second timeouts when the channel wasn't live.
+  const [direct, handle] = await Promise.all([
+    fetchLivePage(`https://www.youtube.com/channel/${channelId}/live`),
+    resolveChannelHandle(channelId),
+  ]);
   if (direct.isLive) return direct;
 
-  const handle = await resolveChannelHandle(channelId);
   if (handle) {
     const byHandle = await fetchLivePage(`https://www.youtube.com/@${handle}/live`);
     if (byHandle.isLive) return byHandle;
@@ -123,7 +131,7 @@ async function checkRssFeed(channelId: string): Promise<Array<{ videoId: string;
   try {
     const feedRes = await fetch(
       `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
-      { signal: AbortSignal.timeout(10000), headers: { "User-Agent": UA } }
+      { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { "User-Agent": UA } }
     );
     if (!feedRes.ok) return [];
     const xml = await feedRes.text();
@@ -160,10 +168,19 @@ export async function detectYouTubeLiveFromChannel(channelId: string): Promise<{
     if (livePage.isLive) return livePage;
 
     const rssEntries = await checkRssFeed(channelId);
-    for (const entry of rssEntries) {
-      const live = await checkYouTubeLiveViaWatchPage(entry.videoId);
-      if (live) return { isLive: true, videoId: entry.videoId, title: entry.title };
-    }
+    if (rssEntries.length === 0) return { isLive: false, videoId: null, title: null };
+
+    // Check all recent RSS entries in parallel instead of sequentially —
+    // previously each watch-page fetch was sequential (up to 8 × 10 s = 80 s
+    // worst-case).  Parallel execution caps total RSS check time at one timeout.
+    const watchResults = await Promise.all(
+      rssEntries.map(async (entry) => {
+        const live = await checkYouTubeLiveViaWatchPage(entry.videoId);
+        return live ? entry : null;
+      })
+    );
+    const found = watchResults.find(r => r !== null);
+    if (found) return { isLive: true, videoId: found.videoId, title: found.title };
 
     return { isLive: false, videoId: null, title: null };
   } catch {

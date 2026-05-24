@@ -427,25 +427,34 @@ async function syncChannelTokens(): Promise<void> {
 async function healProductionPipeline(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
   try {
-    // ── PRE-STEP: clear today's quota record ───────────────────────────────────
-    // This MUST run before restoreQuotaBreakerOnStartup() below.  If a stale
-    // record with units_used ≥ limit exists in the DB, restoreQuotaBreakerOnStartup
-    // will pre-trip the in-memory circuit breaker and block ALL YouTube API calls
-    // for the rest of the day — even though we just deployed a fresh server.
+    // ── PRE-STEP: conditionally clear today's quota record ────────────────────
+    // Only delete the record when quota is NOT already exhausted.  If quota was
+    // burned before this deploy, we preserve the record so restoreQuotaBreakerOnStartup
+    // (called next) can pre-arm the circuit breaker before any service fires a
+    // real YouTube API call.
     //
-    // By deleting the record here (synchronously, before the restore call) we
-    // ensure restoreQuotaBreakerOnStartup finds nothing, creates a clean record
-    // at 0, and does NOT trip the breaker.  If the YouTube API genuinely has
-    // no quota left today, the first real API call will get a 403, which
-    // markQuotaErrorFromResponse() will catch and trip the breaker properly.
+    // Previous behaviour (unconditional DELETE) caused quota to burn within 23 s
+    // of every boot: all background services fired simultaneously into an already-
+    // exhausted quota, received 403s, then the breaker finally tripped — wasting
+    // the entire startup window.
     try {
-      await db.execute(
-        sql`DELETE FROM youtube_quota_usage
-            WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
+      const exhaustedCheck = await db.execute(
+        sql`SELECT COUNT(*) AS cnt FROM youtube_quota_usage
+            WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
+              AND units_used >= quota_limit`
       );
-      process.stdout.write("[prod-heal] Quota record deleted — fresh quota state for this boot\n");
+      const exhaustedCount = Number((exhaustedCheck.rows?.[0] as any)?.cnt ?? 0);
+      if (exhaustedCount === 0) {
+        await db.execute(
+          sql`DELETE FROM youtube_quota_usage
+              WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
+        );
+        process.stdout.write("[prod-heal] Quota record deleted — fresh quota state for this boot\n");
+      } else {
+        process.stdout.write("[prod-heal] Quota preserved — already exhausted, circuit breaker will arm via startup restore\n");
+      }
     } catch (qErr: any) {
-      process.stdout.write(`[prod-heal] Quota record delete skipped (non-fatal): ${qErr.message}\n`);
+      process.stdout.write(`[prod-heal] Quota record check/delete skipped (non-fatal): ${qErr.message}\n`);
     }
 
     // ── FIRST: restore the YouTube quota circuit breaker from DB ──────────────
