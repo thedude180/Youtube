@@ -67,6 +67,7 @@ const PrivacyPolicy  = lazyRetry(() => import("@/pages/Legal").then(m => ({ defa
 const TermsOfService = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.TermsOfService })));
 const DataDisclosure = lazyRetry(() => import("@/pages/Legal").then(m => ({ default: m.DataDisclosure })));
 const ResetPassword  = lazyRetry(() => import("@/pages/ResetPassword"));
+const DemoLanding    = lazyRetry(() => import("@/pages/DemoLanding"));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -760,6 +761,8 @@ function AppContent() {
   );
 
   if (isLoading) return loader;
+
+  if (location === "/demo") return <Suspense fallback={loader}><DemoLanding /></Suspense>;
 
   if (!isAuthenticated) {
     if (location === "/pricing")         return <Suspense fallback={loader}><Pricing /></Suspense>;

@@ -49,6 +49,7 @@ import { registerTrustGovernanceRoutes } from "./routes/trust-governance";
 import { registerResilienceObservabilityRoutes, registerCorrelationMiddleware, getRequestCorrelationId } from "./routes/resilience-observability";
 import { registerLearningGovernanceRoutes } from "./routes/learning-governance";
 import { registerChannelLaunchRoutes } from "./routes/channel-launch";
+import { registerDemoRoutes, DEMO_USER_ID, DEMO_USER_CLAIMS } from "./routes/demo";
 import { registerOpsHealthRoutes } from "./routes/ops-health";
 import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
 import { registerResolutionIntelligenceRoutes } from "./routes/resolution-intelligence";
@@ -136,6 +137,21 @@ export async function registerRoutes(
   if (!IS_DEV) {
     registerAuthRoutes(app);
   }
+
+  // ── Demo account routes (public — no auth required to call /api/demo/*) ────
+  registerDemoRoutes(app);
+
+  // ── Demo session middleware — fakes auth for Google API reviewer sessions ───
+  // When req.session.isDemoUser is set (via POST /api/demo/start), we inject
+  // the demo user's claims so every downstream /api handler treats this
+  // request as fully authenticated without a real OAuth token.
+  app.use("/api", (req, _res, next) => {
+    if ((req.session as any)?.isDemoUser && !req.isAuthenticated()) {
+      (req as any).user = DEMO_USER_CLAIMS;
+      req.isAuthenticated = (() => true) as typeof req.isAuthenticated;
+    }
+    next();
+  });
 
   // ── Dev auth bypass: auto-authenticate all /api routes in development ──────
   // In production this block is never reached (IS_DEV is false at build time).
