@@ -34,11 +34,23 @@ import { createLogger } from "./logger";
 const logger = createLogger("yt-dlp-section");
 
 // ---------------------------------------------------------------------------
-// Format strings — ordered from highest quality to most permissive fallback
+// Format strings — ordered for speed on long-form source videos
+//
+// Format 18 MUST be first.  It is a 360p combined video+audio continuous MP4
+// (not DASH).  yt-dlp uses HTTP Range requests to seek directly to the byte
+// offset for the requested time window — no DASH manifest to download, no
+// thousands of segment URLs to iterate.  A 90-second clip from a 10-hour
+// source downloads in ~5 seconds instead of timing out after 480 seconds.
+//
+// The DASH selectors are kept as fallbacks for videos that only have DASH
+// streams available (rare for YouTube gaming content).
 // ---------------------------------------------------------------------------
 const SECTION_FORMAT_STRATEGIES = [
-  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-  "bestvideo[height<=720]+bestaudio/best[height<=720]/best[ext=mp4]/best",
+  // Non-DASH combined MP4 — fastest possible section download via HTTP Range
+  "18/best[ext=mp4][height<=480][protocol=https]/best[ext=mp4][height<=480]",
+  // DASH fallback — 720p video + audio
+  "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
+  // Last resort
   "best",
 ];
 

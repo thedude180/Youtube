@@ -161,10 +161,18 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
 
     if (!allVideoIds.length) return { total: 0, newLinks: 0, updated: 0, errors: 0 };
 
-    const existing = await db.select({ youtubeId: videoCatalogLinks.youtubeId })
+    const existing = await db.select({ youtubeId: videoCatalogLinks.youtubeId, lastSyncedAt: videoCatalogLinks.lastSyncedAt })
       .from(videoCatalogLinks)
       .where(eq(videoCatalogLinks.userId, userId));
     const existingIds = new Set(existing.map(e => e.youtubeId));
+
+    // Skip re-fetching videos that were synced within the last 6 hours
+    const recentCutoffPublic = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const recentlySyncedPublic = new Set(
+      existing
+        .filter(e => e.lastSyncedAt && e.lastSyncedAt > recentCutoffPublic)
+        .map(e => e.youtubeId),
+    );
 
     let newLinks = 0;
     let updated = 0;
@@ -172,13 +180,18 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
 
     for (let i = 0; i < allVideoIds.length; i += 50) {
       const batch = allVideoIds.slice(i, i + 50);
+      const idsNeedingFetch = batch.filter(id => !recentlySyncedPublic.has(id));
+      if (idsNeedingFetch.length === 0) {
+        updated += batch.filter(id => existingIds.has(id)).length;
+        continue;
+      }
       const quotaBatch = await getQuotaStatus(userId);
       if (quotaBatch.remaining < 10) {
         logger.warn(`[${userId}] Quota exhausted during public video detail fetch — processed ${i} of ${allVideoIds.length}`);
         break;
       }
       try {
-        const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${batch.join(",")}${keyParam}`;
+        const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${idsNeedingFetch.join(",")}${keyParam}`;
         const vResp = await fetch(vUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(20000) });
         await trackQuotaUsage(userId, "list", 1);
         if (!vResp.ok) {
@@ -335,10 +348,23 @@ export async function syncFullCatalog(userId: string): Promise<{
 
   if (!allVideoIds.length) return { total: 0, newLinks: 0, updated: 0, errors: 0 };
 
-  const existing = await db.select({ youtubeId: videoCatalogLinks.youtubeId })
+  const existing = await db.select({ youtubeId: videoCatalogLinks.youtubeId, lastSyncedAt: videoCatalogLinks.lastSyncedAt })
     .from(videoCatalogLinks)
     .where(eq(videoCatalogLinks.userId, userId));
   const existingIds = new Set(existing.map(e => e.youtubeId));
+
+  // Videos synced within the last 6 hours don't need detail re-fetching.
+  // This prevents the hourly catalog sync from consuming ~90 quota units on
+  // every cycle for a 4,000+ video catalog.  Only new videos (not in the DB)
+  // and stale videos (last synced >6h ago) will hit the YouTube API.
+  const recentCutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const recentlySyncedIds = new Set(
+    existing
+      .filter(e => e.lastSyncedAt && e.lastSyncedAt > recentCutoff)
+      .map(e => e.youtubeId),
+  );
+  const staleCount = allVideoIds.filter(id => !recentlySyncedIds.has(id)).length;
+  logger.info(`[${userId}] Detail fetch: ${staleCount} need refresh, ${allVideoIds.length - staleCount} recently synced (skipping)`);
 
   let newLinks = 0;
   let updated = 0;
@@ -346,6 +372,14 @@ export async function syncFullCatalog(userId: string): Promise<{
 
   for (let i = 0; i < allVideoIds.length; i += 50) {
     const batch = allVideoIds.slice(i, i + 50);
+
+    // Filter out recently synced IDs — no quota needed for them
+    const idsNeedingFetch = batch.filter(id => !recentlySyncedIds.has(id));
+    if (idsNeedingFetch.length === 0) {
+      // Count existing as "updated" so stats are correct; no API call needed
+      updated += batch.filter(id => existingIds.has(id)).length;
+      continue;
+    }
 
     const quotaCheck = await getQuotaStatus(userId);
     if (quotaCheck.remaining < 10) {
@@ -356,7 +390,7 @@ export async function syncFullCatalog(userId: string): Promise<{
     try {
       const videosResp = await yt.videos.list({
         part: ["snippet", "contentDetails", "statistics", "status", "liveStreamingDetails"],
-        id: batch,
+        id: idsNeedingFetch,
       });
       await trackQuotaUsage(userId, "list", 1);
 

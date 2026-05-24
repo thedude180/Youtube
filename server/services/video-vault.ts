@@ -229,11 +229,13 @@ const PERMANENT_FAILURE_PATTERNS = [
 ];
 
 // Format strings tried in order for every client, from most specific to most permissive.
-// Using multiple format strings ensures we never hard-fail just because one
-// resolution or container combo isn't available for a given video.
+// Format 18 is first: it is a 360p combined video+audio non-DASH MP4.  yt-dlp
+// uses HTTP Range requests to seek directly — no DASH manifest to parse, so
+// downloads complete quickly even for 10-hour source videos.  Quality is
+// sufficient for Shorts and long-form clips after encoding.
 const VAULT_FORMAT_STRATEGIES = [
+  "18/best[ext=mp4][height<=480][protocol=https]/best[ext=mp4][height<=480]",
   "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-  "bestvideo[height<=720]+bestaudio/best[height<=720]/best[ext=mp4]/best",
   "best",
 ];
 const BOT_DETECTION_PATTERNS = [
