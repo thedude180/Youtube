@@ -1,7 +1,7 @@
 import { sanitizeForPrompt, sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
 import { videos, channels, autopilotQueue } from "@shared/schema";
-import { eq, desc, and, gte, sql, lt } from "drizzle-orm";
+import { eq, desc, and, gte, sql, lt, count, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { storage } from "../storage";
@@ -13,20 +13,27 @@ const openai = getOpenAIClientBackground();
 
 const ENGINE_INTERVAL_MS = 60 * 60 * 1000;
 const MAX_OPPORTUNITIES_PER_CYCLE = 8;
+// Maximum future catalog items allowed before skipping a cycle entirely.
+// Keeps the queue from growing unbounded when the engine runs every hour.
+const MAX_CATALOG_BACKLOG = 14;
 
 const userTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const runningCycles = new Set<string>();
 
-function peakHourSlot(index: number, total: number): Date {
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(10, 0, 0, 0);
-  if (start < now) start.setDate(start.getDate() + 1);
-  const windowMs = 14 * 3600_000;
-  const spacing = total > 1 ? windowMs / total : windowMs / 2;
-  const jitter = (Math.random() - 0.5) * 1_200_000;
-  return new Date(start.getTime() + index * spacing + jitter);
+// Spread catalog items 1 per day starting tomorrow at 09:00 UTC (04:00 CDT).
+// This avoids same-day pileups that skew the schedule view and analytics.
+function catalogSlot(index: number): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1 + index); // day+1, day+2, …
+  d.setUTCHours(9, 0, 0, 0);                // 09:00 UTC = 04:00 CDT
+  d.setUTCMinutes(Math.floor(Math.random() * 30)); // 0–30 min jitter
+  return d;
 }
+
+const CATALOG_TYPES = [
+  "catalog-clip", "catalog-compilation", "catalog-reactivation",
+  "catalog-reaction", "catalog-remix",
+];
 
 interface CatalogOpportunity {
   sourceVideoTitle: string;
@@ -129,6 +136,22 @@ export async function runCatalogCycle(userId: string): Promise<void> {
     logger.info(`[${userId}] Catalog cycle already running, skipping`);
     return;
   }
+
+  // Backlog guard — skip this cycle if there are already enough future catalog
+  // items queued. Prevents hourly runs from growing an unbounded same-day pile.
+  const [backlogRow] = await db.select({ n: count() }).from(autopilotQueue).where(
+    and(
+      eq(autopilotQueue.userId, userId),
+      inArray(autopilotQueue.type, CATALOG_TYPES),
+      eq(autopilotQueue.status, "scheduled"),
+      gte(autopilotQueue.scheduledAt, new Date()),
+    )
+  );
+  if ((backlogRow?.n ?? 0) >= MAX_CATALOG_BACKLOG) {
+    logger.info(`[${userId}] Catalog backlog full (${backlogRow?.n} items) — skipping cycle`);
+    return;
+  }
+
   runningCycles.add(userId);
 
   try {
@@ -190,7 +213,8 @@ export async function runCatalogCycle(userId: string): Promise<void> {
           content: opp.editingBrief,
           caption: `[${opp.repurposeType.replace(/_/g, " ").toUpperCase()}] ${sanitizeForPrompt(opp.sourceVideoTitle)}`,
           status: opp.urgency === "immediate" ? "pending" : "scheduled",
-          scheduledAt: opp.urgency === "immediate" ? new Date() : peakHourSlot(i, itemsToQueue.length),
+          // Spread 1 item per day; "immediate" urgency still goes now.
+          scheduledAt: opp.urgency === "immediate" ? new Date() : catalogSlot(i),
           metadata: {
             contentType: opp.repurposeType,
             aiModel: "gpt-4o-mini",

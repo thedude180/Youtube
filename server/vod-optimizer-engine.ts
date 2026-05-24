@@ -191,7 +191,15 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
         }),
         caption: `VOD Optimize: ${sanitizeForPrompt(opt.originalTitle)} → ${sanitizeForPrompt(opt.newTitle)}`,
         status: "scheduled",
-        scheduledAt: new Date(Date.now() + Math.random() * 60 * 60 * 1000),
+        // Spread vod-optimization tasks 1 per day starting tomorrow so they
+        // never pile up in the same hour and skew analytics visibility.
+        scheduledAt: (() => {
+          const d = new Date();
+          d.setUTCDate(d.getUTCDate() + 1 + queued); // queued increments below
+          d.setUTCHours(14, 0, 0, 0); // 14:00 UTC = 09:00 CDT
+          d.setUTCMinutes(d.getUTCMinutes() + Math.floor(Math.random() * 30)); // ±30 min jitter
+          return d;
+        })(),
         metadata: {
           style: "vod-refresh",
           aiModel: "gpt-4o-mini",
