@@ -427,13 +427,30 @@ async function syncChannelTokens(): Promise<void> {
 async function healProductionPipeline(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
   try {
+    // ── PRE-STEP: clear today's quota record ───────────────────────────────────
+    // This MUST run before restoreQuotaBreakerOnStartup() below.  If a stale
+    // record with units_used ≥ limit exists in the DB, restoreQuotaBreakerOnStartup
+    // will pre-trip the in-memory circuit breaker and block ALL YouTube API calls
+    // for the rest of the day — even though we just deployed a fresh server.
+    //
+    // By deleting the record here (synchronously, before the restore call) we
+    // ensure restoreQuotaBreakerOnStartup finds nothing, creates a clean record
+    // at 0, and does NOT trip the breaker.  If the YouTube API genuinely has
+    // no quota left today, the first real API call will get a 403, which
+    // markQuotaErrorFromResponse() will catch and trip the breaker properly.
+    try {
+      await db.execute(
+        sql`DELETE FROM youtube_quota_usage
+            WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
+      );
+      process.stdout.write("[prod-heal] Quota record deleted — fresh quota state for this boot\n");
+    } catch (qErr: any) {
+      process.stdout.write(`[prod-heal] Quota record delete skipped (non-fatal): ${qErr.message}\n`);
+    }
+
     // ── FIRST: restore the YouTube quota circuit breaker from DB ──────────────
-    // The in-memory breaker resets to "not tripped" on every server restart /
-    // deploy.  Without this call, all background services fire YouTube API calls
-    // simultaneously at boot, hit 403 quota-exceeded errors, and burn the startup
-    // window — even though the quota was already spent before the deploy.
-    // restoreQuotaBreakerOnStartup() reads today's DB record and pre-arms the
-    // breaker so every service sees "tripped" from the very first millisecond.
+    // Now that today's record is gone (or was never there), this call will
+    // create a fresh record at 0 units and leave the breaker disarmed.
     const { restoreQuotaBreakerOnStartup } = await import("./services/youtube-quota-tracker");
     await restoreQuotaBreakerOnStartup();
 

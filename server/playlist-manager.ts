@@ -403,6 +403,14 @@ async function generateAndSetPlaylistThumbnail(
 }
 
 async function addVideoToYouTubePlaylist(channelId: number, playlistId: string, youtubeVideoId: string): Promise<boolean> {
+  // Skip immediately if the quota circuit breaker is active — avoids wasting
+  // a round-trip that will return a predictable 403 and keeps the server load
+  // low when quota is exhausted for the day.
+  const { isQuotaBreakerTripped, markQuotaErrorFromResponse } = await import("./services/youtube-quota-tracker");
+  if (isQuotaBreakerTripped()) {
+    logger.warn("Playlist add skipped — quota circuit breaker active", { youtubeVideoId });
+    return false;
+  }
   try {
     const { getAuthenticatedClient } = await import("./youtube");
     const { google } = await import("googleapis");
@@ -424,6 +432,8 @@ async function addVideoToYouTubePlaylist(channelId: number, playlistId: string, 
     });
     return true;
   } catch (err) {
+    // Trip the circuit breaker if this was a quota-exceeded 403
+    markQuotaErrorFromResponse(err);
     logger.error("Failed to add video to YouTube playlist", {
       playlistId, youtubeVideoId, error: String(err)
     });
