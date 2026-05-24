@@ -37,7 +37,7 @@ import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/s
 import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
-import { getYtdlpBin } from "../lib/dependency-check";
+import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, getNextShortPublishTime } from "./youtube-output-schedule";
@@ -116,52 +116,7 @@ async function downloadSegmentFromYouTube(
   endSec: number,
   outputPath: string,
 ): Promise<void> {
-  const ytdlp = getYtdlpBin();
-  const cookiesPath = path.join(process.cwd(), ".local", "yt-cookies.txt");
-  const hasCookies = fs.existsSync(cookiesPath) && fs.statSync(cookiesPath).size > 10;
-
-  const sectionStr = `*${startSec}-${endSec}`;
-  const baseArgs = (formatStr: string): string[] => {
-    const args: string[] = [
-      "--download-sections", sectionStr,
-      "--force-keyframes-at-cuts",
-      "-f", formatStr,
-      "--merge-output-format", "mp4",
-      "-o", outputPath,
-      "--no-playlist",
-      "--quiet",
-      "--no-warnings",
-    ];
-    if (hasCookies) args.push("--cookies", cookiesPath);
-    args.push(`https://www.youtube.com/watch?v=${youtubeId}`);
-    return args;
-  };
-
-  // Format fallback chain: preferred → standard → last-resort
-  const formats = [
-    "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "bestvideo[height<=720]+bestaudio/best[height<=720]",
-    "best[height<=1080]/best[height<=720]/best",
-  ];
-
-  let lastErr: Error | null = null;
-  for (const fmt of formats) {
-    try {
-      // Remove stale output from a failed previous attempt before retrying
-      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-      await runCmd(ytdlp, baseArgs(fmt));
-      return;
-    } catch (err: any) {
-      lastErr = err;
-      const msg: string = err?.message || String(err);
-      // "Requested format is not available" — try next format
-      // Other errors (network, DRM) — propagate immediately
-      if (!msg.includes("Requested format is not available") && !msg.includes("not available")) {
-        throw err;
-      }
-    }
-  }
-  throw lastErr ?? new Error(`All format fallbacks failed for ${youtubeId}`);
+  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
 }
 
 // ---------------------------------------------------------------------------

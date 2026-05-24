@@ -27,7 +27,7 @@ import { db } from "../db";
 import { autopilotQueue } from "@shared/schema";
 import { eq, and, lte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getYtdlpBin } from "../lib/dependency-check";
+import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 
 const logger = createLogger("pre-encoder");
 
@@ -82,23 +82,7 @@ async function downloadSection(
   endSec: number,
   outputPath: string,
 ): Promise<void> {
-  const ytdlp = getYtdlpBin();
-  const cookiesPath = path.join(process.cwd(), ".local", "yt-cookies.txt");
-  const hasCookies = fs.existsSync(cookiesPath) && fs.statSync(cookiesPath).size > 10;
-
-  const args: string[] = [
-    "--download-sections", `*${startSec}-${endSec}`,
-    "--force-keyframes-at-cuts",
-    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best",
-    "--merge-output-format", "mp4",
-    "-o", outputPath,
-    "--no-playlist",
-    "--quiet",
-    "--no-warnings",
-  ];
-  if (hasCookies) args.push("--cookies", cookiesPath);
-  args.push(`https://www.youtube.com/watch?v=${youtubeId}`);
-  await runCmd(ytdlp, args);
+  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
 }
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
