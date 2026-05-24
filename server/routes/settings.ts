@@ -125,7 +125,7 @@ export function registerSettingsRoutes(app: Express) {
     if (!userId) return;
     const id = parseNumericId(req.params.id as string as string, res);
     if (id === null) return;
-    await storage.markRead(id);
+    await storage.markRead(id, userId);
     apiCache.invalidate(`notifications:${userId}`);
     apiCache.invalidate(`notifications-unread:${userId}`);
     res.json({ success: true });

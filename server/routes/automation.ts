@@ -523,7 +523,7 @@ export async function registerAutomationRoutes(app: Express) {
       if (id === null) return;
       const [existing] = await db.select().from(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId))).limit(1);
       if (!existing) return res.status(404).json({ error: "Not found" });
-      const notif = await storage.markRead(id);
+      const notif = await storage.markRead(id, userId);
       res.json(notif);
     } catch (err) { res.status(500).json({ error: "Failed to mark read" }); }
   });

@@ -152,6 +152,24 @@ export async function getNextActiveWindow(userId: string): Promise<Date> {
 
 // === Discord Webhook Notifications ===
 
+/**
+ * Validates that a URL is a genuine Discord webhook.
+ * Rejects any non-HTTPS scheme, non-Discord hostname, or private/loopback
+ * addresses to prevent SSRF via user-supplied webhook URLs.
+ */
+function isValidDiscordWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "discord.com" && host !== "discordapp.com" && host !== "canary.discord.com" && host !== "ptb.discord.com") return false;
+    if (!parsed.pathname.startsWith("/api/webhooks/")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendDiscordWebhook(
   webhookUrl: string,
   title: string,
@@ -159,6 +177,12 @@ export async function sendDiscordWebhook(
   severity: string,
   fields?: Array<{ name: string; value: string; inline?: boolean }>,
 ): Promise<boolean> {
+  if (!isValidDiscordWebhookUrl(webhookUrl)) {
+    logger.warn("[NotificationSystem] Blocked Discord webhook send — URL failed allowlist check", {
+      url: webhookUrl.slice(0, 80),
+    });
+    return false;
+  }
   try {
     const embed: Record<string, any> = {
       title,
