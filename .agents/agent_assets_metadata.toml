@@ -36,3 +36,9 @@ id = "sTHh0oO8gB1LjjnpZXUZR"
 uri = "file://docs/youtube-only-enforcement.md"
 type = "text"
 title = "YouTube-Only Enforcement Changes"
+
+[[outputs]]
+id = "a62j1Uir8p8VWHbA0IuQ-"
+uri = "file://client/public/youtube-quota-request.pdf"
+type = "pdf"
+title = "YouTube API Quota Increase Request — 1,000,000 units/day"
