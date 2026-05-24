@@ -2373,6 +2373,17 @@ httpServer.listen(
           .then(res => logger.info("[Boot] Non-YouTube queue items purged", { rows: (res as any)?.rowCount ?? 0 }))
           .catch(err => logger.warn("[Boot] Non-YouTube purge skipped:", err?.message));
 
+        // ── Delete all failed items ───────────────────────────────────────────
+        // permanent_fail and failed rows are dead weight — they will never run
+        // again. Remove them entirely so the queue stays clean and counts are
+        // accurate. Published items are never touched.
+        db.execute(
+          sql`DELETE FROM autopilot_queue
+              WHERE status IN ('permanent_fail', 'failed')`
+        )
+          .then((res: any) => logger.info("[Boot] Failed queue items deleted", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Failed items delete skipped:", err?.message));
+
         // ── Over-length Shorts purge ──────────────────────────────────────────
         // Clips where endSec - startSec > 58 are not genuine gaming Shorts —
         // they are multi-minute segments the AI mis-labeled.  Permanently fail
