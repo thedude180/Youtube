@@ -1,5 +1,6 @@
-const CACHE_NAME = 'creatoros-v1';
-const STATIC_ASSETS = ['/', '/manifest.json'];
+const CACHE_NAME = 'creatoros-v2';
+const ASSETS_CACHE = 'creatoros-assets-v2';
+const STATIC_ASSETS = ['/', '/manifest.json', '/offline.html'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -11,7 +12,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter((k) => k !== CACHE_NAME && k !== ASSETS_CACHE)
+          .map((k) => caches.delete(k))
+      )
     )
   );
   self.clients.claim();
@@ -19,8 +24,26 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('/api/')) return;
-  
+
+  const url = new URL(event.request.url);
+
+  if (url.pathname.includes('/api/')) return;
+
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.open(ASSETS_CACHE).then((cache) =>
+        cache.match(event.request).then((cached) => {
+          if (cached) return cached;
+          return fetch(event.request).then((response) => {
+            if (response.ok) cache.put(event.request, response.clone());
+            return response;
+          });
+        })
+      )
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -30,7 +53,13 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || new Response('Offline', { status: 503 })))
+      .catch(() =>
+        caches.match(event.request).then(
+          (cached) => cached || caches.match('/offline.html').then(
+            (offline) => offline || new Response('Offline', { status: 503 })
+          )
+        )
+      )
   );
 });
 

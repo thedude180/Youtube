@@ -10,7 +10,6 @@ import { useToast } from "@/hooks/use-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/Sidebar";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useAuth } from "@/hooks/use-auth";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { AdvancedModeProvider, useAdvancedMode } from "@/hooks/use-advanced-mode";
@@ -27,25 +26,27 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { OfflineStatusBadge, PWAInstallPrompt } from "@/components/OfflineIndicator";
 import { offlineEngine } from "@/lib/offline-engine";
-import { BackToTop } from "@/components/BackToTop";
 import { prefetchForRoute, prefetchDashboard, prefetchChunkForRoute, prefetchAllChunks, prefetchAllRoutes } from "@/lib/prefetch";
 import { GlobalProgress } from "@/components/GlobalProgress";
-import { ScrollProgress } from "@/components/ScrollProgress";
-import { HealthRibbon } from "@/components/HealthRibbon";
-import { SystemPulseHUD } from "@/components/SystemPulseHUD";
-import { SessionTracker } from "@/components/SessionTracker";
 import { lazyRetry, isChunkError } from "@/lib/lazyRetry";
-import { FeedbackWidget } from "@/components/FeedbackWidget";
-import CookieConsent from "@/components/CookieConsent";
 import { CreatorModeProvider } from "@/hooks/use-creator-mode";
-import { LiveStreamBanner } from "@/components/LiveStreamBanner";
-import { PlatformReconnectBanner } from "@/components/PlatformReconnectBanner";
 
 
-const CommandPalette = lazyRetry(() => import("@/components/CommandPalette"));
-const FloatingChat    = lazyRetry(() => import("@/components/FloatingChat"));
+const CommandPalette        = lazyRetry(() => import("@/components/CommandPalette"));
+const FloatingChat          = lazyRetry(() => import("@/components/FloatingChat"));
+const NotificationBell      = lazyRetry(() => import("@/components/NotificationBell").then(m => ({ default: m.NotificationBell })));
+const OfflineStatusBadge    = lazyRetry(() => import("@/components/OfflineIndicator").then(m => ({ default: m.OfflineStatusBadge })));
+const PWAInstallPrompt      = lazyRetry(() => import("@/components/OfflineIndicator").then(m => ({ default: m.PWAInstallPrompt })));
+const BackToTop             = lazyRetry(() => import("@/components/BackToTop").then(m => ({ default: m.BackToTop })));
+const ScrollProgress        = lazyRetry(() => import("@/components/ScrollProgress").then(m => ({ default: m.ScrollProgress })));
+const HealthRibbon          = lazyRetry(() => import("@/components/HealthRibbon").then(m => ({ default: m.HealthRibbon })));
+const SystemPulseHUD        = lazyRetry(() => import("@/components/SystemPulseHUD").then(m => ({ default: m.SystemPulseHUD })));
+const SessionTracker        = lazyRetry(() => import("@/components/SessionTracker").then(m => ({ default: m.SessionTracker })));
+const FeedbackWidget        = lazyRetry(() => import("@/components/FeedbackWidget").then(m => ({ default: m.FeedbackWidget })));
+const CookieConsent         = lazyRetry(() => import("@/components/CookieConsent"));
+const LiveStreamBanner      = lazyRetry(() => import("@/components/LiveStreamBanner").then(m => ({ default: m.LiveStreamBanner })));
+const PlatformReconnectBanner = lazyRetry(() => import("@/components/PlatformReconnectBanner").then(m => ({ default: m.PlatformReconnectBanner })));
 
 const Dashboard   = lazyRetry(() => import("@/pages/Dashboard"));
 const Content     = lazyRetry(() => import("@/pages/Content"));
@@ -539,7 +540,7 @@ function AuthenticatedApp() {
                 </div>
               )}
               {isFocusMode && <span className="text-xs text-muted-foreground">Focus Mode</span>}
-              {!isFocusMode && <SessionTracker />}
+              {!isFocusMode && <Suspense fallback={null}><SessionTracker /></Suspense>}
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
               <Tooltip>
@@ -550,16 +551,16 @@ function AuthenticatedApp() {
                 </TooltipTrigger>
                 <TooltipContent>Search (Ctrl+K)</TooltipContent>
               </Tooltip>
-              {!isFocusMode && <SystemPulseHUD />}
-              {!isFocusMode && <OfflineStatusBadge />}
+              {!isFocusMode && <Suspense fallback={null}><SystemPulseHUD /></Suspense>}
+              {!isFocusMode && <Suspense fallback={null}><OfflineStatusBadge /></Suspense>}
               {!isFocusMode && <HeaderClock />}
               {!isFocusMode && <ThemeToggle />}
-              {!isFocusMode && <NotificationBell />}
+              {!isFocusMode && <Suspense fallback={null}><NotificationBell /></Suspense>}
             </div>
           </header>
-          {!isFocusMode && <HealthRibbon />}
-          <LiveStreamBanner />
-          {!isFocusMode && <PlatformReconnectBanner />}
+          {!isFocusMode && <Suspense fallback={null}><HealthRibbon /></Suspense>}
+          <Suspense fallback={null}><LiveStreamBanner /></Suspense>
+          {!isFocusMode && <Suspense fallback={null}><PlatformReconnectBanner /></Suspense>}
           <main id="main-content" className="flex-1 overflow-auto pb-16 md:pb-0">
             <Suspense fallback={<PageSkeleton />}>
               <RouteTransition>
@@ -574,15 +575,15 @@ function AuthenticatedApp() {
       <Suspense fallback={null}>
         <FloatingChat externalOpen={chatOpen} onExternalClose={() => setChatOpen(false)} />
       </Suspense>
-      <FeedbackWidget />
+      <Suspense fallback={null}><FeedbackWidget /></Suspense>
       <Suspense fallback={null}>
         <CommandPalette onNavigate={handlePaletteNavigate} onToggleTheme={toggleTheme} onToggleAdvanced={toggleAdvanced} onOpenChat={handleOpenChat} onFocusMode={toggleFocusMode} onShowShortcuts={() => setShowShortcuts(true)} />
       </Suspense>
       {showShortcuts && <ShortcutsHelp onClose={() => setShowShortcuts(false)} />}
-      <PWAInstallPrompt />
+      <Suspense fallback={null}><PWAInstallPrompt /></Suspense>
       <GlobalErrorToast />
-      <BackToTop />
-      <ScrollProgress />
+      <Suspense fallback={null}><BackToTop /></Suspense>
+      <Suspense fallback={null}><ScrollProgress /></Suspense>
     </SidebarProvider>
   );
 }
@@ -869,7 +870,7 @@ function App() {
           <OfflineBanner />
           <GlobalProgress />
           <Toaster />
-          <CookieConsent />
+          <Suspense fallback={null}><CookieConsent /></Suspense>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
