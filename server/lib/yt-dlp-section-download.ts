@@ -43,13 +43,21 @@ const SECTION_FORMAT_STRATEGIES = [
 ];
 
 // ---------------------------------------------------------------------------
-// Player-client strategies — ordered by bot-bypass effectiveness on server IPs
+// Player-client strategies — ordered by reliability in production server IPs
+//
+// IMPORTANT: tv_embedded is intentionally omitted.  In practice it returns
+// only storyboard images and a single audio track — no video streams — so
+// every format selector (including "best") reports "Requested format is not
+// available".  Using it wastes an attempt and delays the real fallbacks.
+//
+// The default client (empty args) uses yt-dlp's built-in "android_vr" which
+// successfully lists all formats in production testing.  It must come first.
 // ---------------------------------------------------------------------------
 const CLIENT_STRATEGIES: Array<string[]> = [
-  ["--extractor-args", "youtube:player_client=tv_embedded"],
+  [], // default (android_vr) — confirmed working in production tests
   ["--extractor-args", "youtube:player_client=ios"],
   ["--extractor-args", "youtube:player_client=android"],
-  [], // plain web fallback
+  ["--extractor-args", "youtube:player_client=web"],
 ];
 
 // ---------------------------------------------------------------------------
@@ -136,6 +144,10 @@ export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise
         "--retries", "3",
         "--fragment-retries", "3",
         "--extractor-retries", "2",
+        // Required since YouTube's Nov 2024 obfuscation — without this yt-dlp
+        // falls back to deno (not installed) and emits "Failed to extract any
+        // player response" on android/ios/web clients.
+        "--js-runtimes", "node",
         ...clientArgs,
       ];
       if (hasCookies) args.push("--cookies", resolvedCookiesPath);

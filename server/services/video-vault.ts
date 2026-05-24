@@ -136,26 +136,33 @@ const BROWSER_UA_POOL = [
 // header is the most reliable path — YouTube validates the token and bypasses
 // po_token checking for authenticated sessions.  Fall back to the po_token-exempt
 // clients only if the authenticated path also fails.
+// IMPORTANT: tv_embedded is intentionally NOT in either list.
+// In production, tv_embedded returns only storyboard images + 1 audio track —
+// no video streams — so every format selector (including "best") reports
+// "Requested format is not available".  Confirmed by --list-formats testing.
+//
+// android_vr is the default yt-dlp client and confirmed working in production.
+// It must appear early in both lists.
 const PLAYER_CLIENTS_WITH_AUTH = [
-  "web",               // best with an OAuth Bearer header
-  "tv_embedded",       // also respects Bearer header; works well on server IPs
+  "android_vr",        // default yt-dlp client — confirmed working in production
+  "web",               // works well with an OAuth Bearer header
   "android_testsuite", // po_token-exempt (2025+) — backup
   "mediaconnect",      // po_token-exempt (2025+) — backup
-  "android_vr",
   "ios",
   "mweb",
+  "android",
 ];
 
 // Without a token, skip the auth-dependent clients and go straight to the
 // po_token-exempt list.
 const PLAYER_CLIENTS_ANON = [
+  "android_vr",        // default yt-dlp client — confirmed working in production
   "android_testsuite", // po_token-exempt (2025+)
   "mediaconnect",      // po_token-exempt (2025+)
-  "tv_embedded",
-  "android_vr",
   "ios",
   "mweb",
   "web",
+  "android",
 ];
 
 // InnerTube API clients — used for direct authenticated download that bypasses
