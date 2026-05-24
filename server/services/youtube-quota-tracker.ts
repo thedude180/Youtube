@@ -326,10 +326,19 @@ export async function canAffordOperation(userId: string, operation: QuotaOperati
   const status = await getQuotaStatus(userId);
   const cost = QUOTA_COSTS[operation] * count;
 
-  const isTier1 = operation === "upload" || operation === "write" || operation === "backlogWrite" || operation === "thumbnail";
-  const required = isTier1
-    ? cost + SAFETY_BUFFER                  // Tier 1: just the floor
-    : cost + SAFETY_BUFFER + UPLOAD_RESERVE; // Tier 2: must leave room for uploads
+  // Only videos.insert (upload) bypasses the upload reserve.  Every other
+  // operation — including writes, thumbnails, broadcasts, and livechat —
+  // must leave UPLOAD_RESERVE units available so uploads are never starved.
+  //
+  // Previously write/backlogWrite/thumbnail were "Tier 1" and only needed
+  // cost + SAFETY_BUFFER (250 units) to run.  This allowed metadata pushes
+  // and thumbnail uploads to burn the daily quota down to ~250 units, leaving
+  // far less than the 1600 units needed for a single videos.insert — so
+  // uploads could never happen despite upload_ops = 0 in the DB every day.
+  const isUploadOp = operation === "upload";
+  const required = isUploadOp
+    ? cost + SAFETY_BUFFER                  // uploads only: just the safety floor
+    : cost + SAFETY_BUFFER + UPLOAD_RESERVE; // everything else: preserve room for uploads
 
   return status.remaining >= required;
 }

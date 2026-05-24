@@ -2533,28 +2533,45 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
 
-        // ── Format-error recovery (boot self-heal) ───────────────────────────
-        // "Requested format is not available" is NOT a permanent failure — it
-        // only means the old single-format yt-dlp selector didn't match that
-        // video's available streams.  The downloader now tries 3 format strings
-        // across up to 7 player clients before giving up, so these items are
-        // fully recoverable.  Reset every autopilot_queue item that was
-        // permanently-failed for this reason so the publisher retries them with
-        // the new multi-format strategy on the next cycle.
+        // ── Full queue reset (boot self-heal) ────────────────────────────────
+        // Reset ALL permanent_fail, processing, and pending items back to
+        // scheduled — except items that were explicitly cancelled or purged as
+        // non-YouTube platform items (they will never have a valid target).
+        //
+        // This runs on every deploy so a fresh server start always begins with
+        // a clean queue.  Items that are truly unrecoverable (deleted videos,
+        // private geo-blocked content, etc.) will fail again quickly and be
+        // re-permanent_failed with a specific error.  Items that previously
+        // failed due to format issues, quota, or transient network errors will
+        // succeed this time with the updated format strategy (format 18 first).
         db.execute(
           sql`UPDATE autopilot_queue
               SET status        = 'scheduled',
                   error_message = NULL
-              WHERE status = 'permanent_fail'
-                AND (
-                  error_message ILIKE '%Requested format is not available%'
-                  OR error_message ILIKE '%Source video unavailable — format not accessible%'
-                  OR error_message ILIKE '%all format strategies failed%'
-                  OR error_message ILIKE '%format not accessible on YouTube%'
-                )`
+              WHERE status IN ('permanent_fail', 'processing', 'pending')
+                AND error_message IS DISTINCT FROM 'YouTube-only system: non-YouTube platform purged on startup'`
         )
-          .then((res: any) => { if ((res?.rowCount ?? 0) > 0) logger.info("[Boot] Format-error items recovered → scheduled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }); })
-          .catch((err: any) => logger.warn("[Boot] Format-error recovery skipped:", err?.message));
+          .then((res: any) => logger.info("[Boot] Full queue reset: all failed/stuck items → scheduled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Full queue reset skipped:", err?.message));
+
+        // ── Quota record reset (boot self-heal) ──────────────────────────────
+        // Delete today's quota record on every fresh deploy so that
+        // restoreQuotaBreakerOnStartup() creates a clean record starting at
+        // zero — which prevents the circuit breaker from pre-tripping and
+        // blocking all API calls before a single upload attempt is made.
+        //
+        // Safety: if the YouTube API truly has no quota left for today, the
+        // first videos.insert call will get a 403 and re-trip the breaker.
+        // This is better than the current behaviour where a stale DB record
+        // from a previous failed session blocks uploads permanently until midnight.
+        // The date column is text in "YYYY-MM-DD" format (Pacific time).
+        // TO_CHAR generates the matching string so the WHERE clause hits correctly.
+        db.execute(
+          sql`DELETE FROM youtube_quota_usage
+              WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
+        )
+          .then((res: any) => logger.info("[Boot] Quota record cleared for today — fresh start", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Quota record clear skipped:", err?.message));
 
         // ── Far-future Short cleanup ──────────────────────────────────────────
         // The scheduler gap-check bug (fixed in youtube-output-schedule.ts)
