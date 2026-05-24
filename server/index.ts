@@ -1158,9 +1158,10 @@ async function healProductionPipeline(): Promise<void> {
       const { videos: videosTable, channels: channelsTbl, autopilotQueue: aqTable } = await import("@shared/schema");
       const { inArray: inArrayOp } = await import("drizzle-orm");
 
-      // Join videos → channels to get userId; pick up to 20 long-form (≥60 min) videos
+      // Join videos → channels to get userId; pick up to 2 long-form (≥60 min) videos
       // that have never been through the content maximizer, ordered randomly so a
-      // different batch is processed on each restart and the whole catalog gets covered.
+      // different pair is processed on each restart and the whole catalog gets covered.
+      // Limit is intentionally small (2) to avoid flooding the AI semaphore on boot.
       const longFormVideos: Array<{ id: number; channelId: number; userId: string }> = await db
         .select({
           id: videosTable.id,
@@ -1171,7 +1172,7 @@ async function healProductionPipeline(): Promise<void> {
         .innerJoin(channelsTbl, eq(channelsTbl.id, videosTable.channelId))
         .where(sql`(${videosTable.metadata}->>'durationSec')::float >= 3600`)
         .orderBy(sql`RANDOM()`)
-        .limit(20);
+        .limit(2);
 
       let maximizerCatchUpCount = 0;
 
@@ -1191,13 +1192,18 @@ async function healProductionPipeline(): Promise<void> {
 
         if (existing.length > 0) continue;
 
-        import("./services/content-maximizer").then(({ maximizeContentFromVideo }) =>
-          maximizeContentFromVideo(userId, vid.id).then(r => {
-            if (r.longFormsQueued > 0 || r.experimentsCreated > 0) {
-              process.stdout.write(`[prod-heal] Maximizer catch-up: video ${vid.id} → ${r.longFormsQueued} long-forms, ${r.experimentsCreated} experiments\n`);
-            }
-          }).catch(() => undefined)
-        ).catch(() => undefined);
+        // Stagger each call by 10 min per slot so they don't all hit the AI
+        // semaphore simultaneously on boot.
+        const delayMs = maximizerCatchUpCount * 10 * 60_000;
+        setTimeout(() => {
+          import("./services/content-maximizer").then(({ maximizeContentFromVideo }) =>
+            maximizeContentFromVideo(userId, vid.id).then(r => {
+              if (r.longFormsQueued > 0 || r.experimentsCreated > 0) {
+                process.stdout.write(`[prod-heal] Maximizer catch-up: video ${vid.id} → ${r.longFormsQueued} long-forms, ${r.experimentsCreated} experiments\n`);
+              }
+            }).catch(() => undefined)
+          ).catch(() => undefined);
+        }, delayMs);
 
         maximizerCatchUpCount++;
       }
