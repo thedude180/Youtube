@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube Data API v3 — Quota Increase Request</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 14px;
+    color: #1a1a1a;
+    background: #fff;
+    padding: 48px 64px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  @media print {
+    body { padding: 20px 32px; }
+    .no-print { display: none; }
+  }
+  h1 { font-size: 22px; color: #1a73e8; margin-bottom: 4px; }
+  h2 { font-size: 15px; color: #1a73e8; margin: 28px 0 10px; border-bottom: 2px solid #1a73e8; padding-bottom: 4px; }
+  h3 { font-size: 13px; color: #444; margin: 16px 0 6px; }
+  .subtitle { color: #555; font-size: 13px; margin-bottom: 28px; }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 6px 12px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+  }
+  .meta-label { font-weight: 600; color: #555; }
+  .meta-value { color: #1a1a1a; }
+  p { line-height: 1.7; margin-bottom: 10px; color: #333; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  thead th {
+    background: #1a73e8;
+    color: #fff;
+    padding: 9px 12px;
+    text-align: left;
+    font-weight: 600;
+  }
+  tbody tr:nth-child(even) { background: #f8f9fa; }
+  tbody tr:hover { background: #e8f0fe; }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #e0e0e0;
+    vertical-align: top;
+  }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.method { font-family: "Courier New", monospace; font-size: 12px; }
+  .total-row td {
+    font-weight: 700;
+    background: #e8f0fe !important;
+    border-top: 2px solid #1a73e8;
+  }
+  .highlight-box {
+    background: #fff3e0;
+    border-left: 4px solid #f57c00;
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .info-box {
+    background: #e8f5e9;
+    border-left: 4px solid #43a047;
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .scope-pill {
+    display: inline-block;
+    background: #e8f0fe;
+    color: #1a73e8;
+    border: 1px solid #c5d8fb;
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    margin: 3px 4px 3px 0;
+  }
+  .print-btn {
+    display: inline-block;
+    margin: 0 0 24px;
+    padding: 10px 22px;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .print-btn:hover { background: #1558b0; }
+  ul { padding-left: 20px; line-height: 1.8; color: #333; }
+  li { margin-bottom: 4px; }
+  .quota-big {
+    font-size: 32px;
+    font-weight: 700;
+    color: #d32f2f;
+  }
+  .quota-need {
+    font-size: 32px;
+    font-weight: 700;
+    color: #2e7d32;
+  }
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 12px 0;
+  }
+  .stat-card {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px 20px;
+    text-align: center;
+  }
+  .stat-card .label { font-size: 12px; color: #666; margin-bottom: 6px; }
+  footer { margin-top: 40px; font-size: 11px; color: #888; border-top: 1px solid #eee; padding-top: 12px; }
+</style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+
+<h1>YouTube Data API v3 — Quota Increase Request</h1>
+<p class="subtitle">Prepared for submission to Google API Console &amp; YouTube API Support</p>
+
+<!-- ───────────────────────────── PROJECT IDENTITY ───────────────────────────── -->
+<h2>1. Project Identity</h2>
+<div class="meta-grid">
+  <span class="meta-label">Application name</span>
+  <span class="meta-value">CreatorOS — AI-Powered YouTube Channel Operating System</span>
+
+  <span class="meta-label">Channel / Brand</span>
+  <span class="meta-value">ET Gaming 247 (YouTube gaming channel)</span>
+
+  <span class="meta-label">OAuth Client</span>
+  <span class="meta-value">Configured via Google Cloud Console (GOOGLE_CLIENT_ID)</span>
+
+  <span class="meta-label">API product</span>
+  <span class="meta-value">YouTube Data API v3</span>
+
+  <span class="meta-label">Current daily quota</span>
+  <span class="meta-value">10,000 units/day (default)</span>
+
+  <span class="meta-label">Quota requested</span>
+  <span class="meta-value"><strong>50,000 units/day</strong> (minimum viable) — 200,000 units/day preferred</span>
+</div>
+
+<!-- ───────────────────────────── USE CASE ───────────────────────────── -->
+<h2>2. Use Case &amp; Application Description</h2>
+<p>
+  <strong>CreatorOS</strong> is a self-hosted, fully autonomous content operations system built to run a
+  YouTube gaming channel end-to-end without manual intervention. The system continuously processes a
+  back-catalog of gaming stream recordings, extracts highlights, packages them as YouTube Shorts and
+  long-form clips, and publishes them on a fixed schedule (3 Shorts/day + 1 long-form/day).
+</p>
+<p>
+  All operations run server-side in production. There is <strong>exactly one YouTube channel owner</strong>
+  (a single authenticated user) and <strong>one linked YouTube channel</strong>. This is not a
+  multi-tenant or third-party tool — every API call is made on behalf of that single channel.
+</p>
+
+<h3>Core automated workflows that require API access:</h3>
+<ul>
+  <li><strong>Content publishing</strong> — uploads 3–4 videos per day to the channel using <code>videos.insert</code></li>
+  <li><strong>Metadata management</strong> — sets titles, descriptions, tags, and category via <code>videos.update</code> and uploads AI-generated thumbnails via <code>thumbnails.set</code></li>
+  <li><strong>Playlist organization</strong> — automatically creates game-specific playlists and assigns each video to the correct playlist (<code>playlists.insert</code>, <code>playlistItems.insert</code>)</li>
+  <li><strong>Catalog sync</strong> — hourly delta sync reads the channel's video list to detect new uploads and update performance scores (<code>videos.list</code>, <code>channels.list</code>, <code>playlistItems.list</code>)</li>
+  <li><strong>Pipeline verification</strong> — every 30 minutes, a pipeline tracer verifies recently published videos are live and not stuck (<code>videos.list</code>)</li>
+  <li><strong>Live stream copilot</strong> — during live streams, reads and responds to chat for audience engagement (<code>liveBroadcasts.list</code>, <code>liveChatMessages.list</code>, <code>liveChatMessages.insert</code>)</li>
+  <li><strong>Community engagement</strong> — AI generates replies to viewer comments on published videos (<code>commentThreads.list</code>, <code>commentThreads.insert</code>)</li>
+</ul>
+
+<!-- ───────────────────────────── SCOPES ───────────────────────────── -->
+<h2>3. OAuth Scopes Requested</h2>
+<span class="scope-pill">https://www.googleapis.com/auth/youtube</span>
+<span class="scope-pill">https://www.googleapis.com/auth/youtube.upload</span>
+<span class="scope-pill">https://www.googleapis.com/auth/youtube.readonly</span>
+<span class="scope-pill">https://www.googleapis.com/auth/youtube.force-ssl</span>
+
+<p style="margin-top:10px">
+  <strong>youtube</strong> — required for playlist management, comment posting, and live chat actions.<br>
+  <strong>youtube.upload</strong> — required for <code>videos.insert</code> (video upload).<br>
+  <strong>youtube.readonly</strong> — required for all <code>*.list</code> read operations.<br>
+  <strong>youtube.force-ssl</strong> — required for write operations on comments and live chat.
+</p>
+
+<!-- ───────────────────────────── API METHODS ───────────────────────────── -->
+<h2>4. API Methods &amp; Daily Quota Consumption</h2>
+
+<p>Quota costs are per the official
+  <a href="https://developers.google.com/youtube/v3/determine_quota_cost" target="_blank">YouTube API quota calculator</a>.
+  Estimates are based on normal autonomous operation for one channel publishing 3–4 videos per day.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>API Method</th>
+      <th>Operation</th>
+      <th style="text-align:right">Cost / call</th>
+      <th style="text-align:right">Calls / day</th>
+      <th style="text-align:right">Units / day</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="method">videos.insert</td>
+      <td>Write</td>
+      <td class="num">1,600</td>
+      <td class="num">4</td>
+      <td class="num"><strong>6,400</strong></td>
+      <td>Upload 3 Shorts + 1 long-form clip per day</td>
+    </tr>
+    <tr>
+      <td class="method">videos.update</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">15</td>
+      <td class="num">750</td>
+      <td>Update title, description, tags, category, privacy status after upload; AI-optimized metadata refreshes</td>
+    </tr>
+    <tr>
+      <td class="method">thumbnails.set</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">4</td>
+      <td class="num">200</td>
+      <td>Upload AI-generated custom thumbnail for each published video</td>
+    </tr>
+    <tr>
+      <td class="method">playlists.insert</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">3</td>
+      <td class="num">150</td>
+      <td>Create new game-specific playlists as new games are detected in the content catalog</td>
+    </tr>
+    <tr>
+      <td class="method">playlists.delete</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">1</td>
+      <td class="num">50</td>
+      <td>Remove empty or merged playlists during cleanup cycles</td>
+    </tr>
+    <tr>
+      <td class="method">playlistItems.insert</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">4</td>
+      <td class="num">200</td>
+      <td>Assign each newly published video to its game-specific playlist</td>
+    </tr>
+    <tr>
+      <td class="method">commentThreads.insert</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">5</td>
+      <td class="num">250</td>
+      <td>Post AI-generated pinned comment on each published video; reply to viewer questions</td>
+    </tr>
+    <tr>
+      <td class="method">liveChatMessages.insert</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">10</td>
+      <td class="num">500</td>
+      <td>Live stream copilot replies (rate-limited to max 8/hour during active streams)</td>
+    </tr>
+    <tr>
+      <td class="method">liveChatMessages.delete</td>
+      <td>Write</td>
+      <td class="num">50</td>
+      <td class="num">5</td>
+      <td class="num">250</td>
+      <td>Moderation: remove spam or violating messages during live stream</td>
+    </tr>
+    <tr>
+      <td class="method">videos.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">250</td>
+      <td class="num">250</td>
+      <td>Hourly catalog sync (delta-only, paginated), pipeline tracer every 30 min, performance score reads</td>
+    </tr>
+    <tr>
+      <td class="method">channels.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">48</td>
+      <td class="num">48</td>
+      <td>Hourly channel status checks (subscriber count, upload quota, linked channel verification)</td>
+    </tr>
+    <tr>
+      <td class="method">playlistItems.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">60</td>
+      <td class="num">60</td>
+      <td>Back-catalog import: paginate through "Uploads" playlist to discover all existing videos</td>
+    </tr>
+    <tr>
+      <td class="method">liveBroadcasts.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">48</td>
+      <td class="num">48</td>
+      <td>Check for active or upcoming live broadcasts; live revenue activation checks</td>
+    </tr>
+    <tr>
+      <td class="method">commentThreads.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">60</td>
+      <td class="num">60</td>
+      <td>Scan recent videos for new viewer comments to reply to</td>
+    </tr>
+    <tr>
+      <td class="method">liveChatMessages.list</td>
+      <td>Read</td>
+      <td class="num">1</td>
+      <td class="num">120</td>
+      <td class="num">120</td>
+      <td>Poll live chat for messages during active stream sessions (rate-limited polling)</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="4"><strong>TOTAL — normal operation (4 uploads/day)</strong></td>
+      <td class="num"><strong>9,336</strong></td>
+      <td><em>Exceeds 10,000 limit on back-catalog import days</em></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="two-col">
+  <div class="stat-card">
+    <div class="label">Current daily quota limit</div>
+    <div class="quota-big">10,000</div>
+    <div class="label">units/day — exhausted by ~9 AM</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Minimum quota needed</div>
+    <div class="quota-need">50,000</div>
+    <div class="label">units/day (5× current default)</div>
+  </div>
+</div>
+
+<div class="highlight-box">
+  <strong>Why 10,000 units is not enough:</strong> A single video upload (<code>videos.insert</code>)
+  costs 1,600 units. Publishing 4 videos per day already consumes 6,400 units — leaving only
+  3,600 units for all metadata updates, thumbnails, playlist management, catalog sync, pipeline
+  verification, and live stream operations. On back-catalog import days (when the system scans
+  hundreds of existing videos for the first time), read operations alone push total consumption
+  well above 10,000 units before any uploads can complete.
+</div>
+
+<!-- ───────────────────────────── QUOTA IMPACT ───────────────────────────── -->
+<h2>5. Impact of Current Quota Limit</h2>
+<ul>
+  <li>Uploads fail daily because the 10,000 unit limit is exhausted by catalog sync and metadata operations before <code>videos.insert</code> can run</li>
+  <li>The autonomous publishing schedule (3 Shorts + 1 long-form per day) cannot be maintained — the channel goes days without new content</li>
+  <li>Back-catalog import (scanning the channel's upload history to import existing videos) consumes large amounts of <code>playlistItems.list</code> + <code>videos.list</code> calls, crowding out upload capacity</li>
+  <li>The system has already implemented a circuit breaker that halts all API calls when quota is exceeded, but this means all automation stops until midnight Pacific time every day</li>
+</ul>
+
+<!-- ───────────────────────────── COMPLIANCE ───────────────────────────── -->
+<h2>6. Policy Compliance &amp; Data Handling</h2>
+<div class="info-box">
+  <strong>This application is fully compliant with YouTube API Services Terms of Service:</strong>
+</div>
+<ul>
+  <li><strong>Single-user, single-channel:</strong> Only one YouTube account is ever authenticated. All API calls are made on behalf of the channel owner (ET Gaming 247). No third-party channels are accessed.</li>
+  <li><strong>No data resale or scraping:</strong> API data is used exclusively to operate the owner's channel. No data is sold, shared, or used to train models for third parties.</li>
+  <li><strong>No fake engagement:</strong> The system never purchases, simulates, or inflates views, likes, subscribers, or comments. All interactions are genuine automated responses from the channel owner.</li>
+  <li><strong>OAuth token storage:</strong> Tokens are stored server-side in a private PostgreSQL database with no public access. Tokens are only used to authenticate calls on behalf of the authenticated channel owner.</li>
+  <li><strong>Token refresh:</strong> OAuth refresh tokens are rotated on a 12-hour schedule using Google's token refresh endpoint.</li>
+  <li><strong>User data deletion:</strong> The channel owner can revoke OAuth access at any time via Google Account settings, which immediately removes all stored tokens.</li>
+  <li><strong>Rate limiting:</strong> The system enforces an internal circuit breaker that halts all API calls the moment quota is exhausted, preventing excess consumption beyond the daily limit.</li>
+  <li><strong>Live chat:</strong> Live chat replies are capped at 8 per hour by the live stream copilot. All replies are clearly non-deceptive automated responses from the channel operator.</li>
+</ul>
+
+<!-- ───────────────────────────── QUOTA REQUEST ───────────────────────────── -->
+<h2>7. Requested Quota Increase</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Scenario</th>
+      <th style="text-align:right">Units/day needed</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Minimum viable</strong> — publishing only, no back-catalog import</td>
+      <td class="num">20,000</td>
+      <td>Covers 4 uploads + metadata + playlists + lightweight sync</td>
+    </tr>
+    <tr>
+      <td><strong>Recommended</strong> — full autonomous operation</td>
+      <td class="num">50,000</td>
+      <td>Covers all workflows including back-catalog import, live stream copilot, and comment engagement</td>
+    </tr>
+    <tr>
+      <td><strong>Preferred</strong> — room to grow as channel scales</td>
+      <td class="num">200,000</td>
+      <td>Supports multiple concurrent content series, back-catalog campaigns, and live stream days</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="info-box">
+  <strong>We are requesting 50,000 units/day</strong> as the minimum needed to run the channel autonomously.
+  This is a 5× increase from the default. At this level, the system can publish its daily content
+  schedule AND run background catalog management without ever hitting the limit under normal conditions.
+</div>
+
+<!-- ───────────────────────────── WHERE TO SUBMIT ───────────────────────────── -->
+<h2>8. How to Submit This Request to Google</h2>
+<ol style="line-height:2; padding-left:20px; color:#333">
+  <li>Go to <strong>Google Cloud Console</strong> → APIs &amp; Services → <strong>YouTube Data API v3</strong> → <strong>Quotas</strong></li>
+  <li>Click <strong>"Request a higher quota"</strong> (pencil icon next to "Queries per day")</li>
+  <li>Fill in the requested amount (<strong>50,000</strong> or <strong>200,000</strong>) and paste the information from this document into the justification field</li>
+  <li>Alternatively, submit via the official form: <a href="https://support.google.com/youtube/contact/yt_api_forms" target="_blank">support.google.com/youtube/contact/yt_api_forms</a></li>
+  <li>Select <strong>"YouTube Data API"</strong> → <strong>"Quota increase request"</strong></li>
+  <li>Attach a PDF of this page (use the Print button above)</li>
+</ol>
+
+<footer>
+  Generated by CreatorOS &bull; ET Gaming 247 &bull; YouTube Data API v3 Quota Request &bull;
+  Document date: <script>document.write(new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}))</script>
+</footer>
+
+</body>
+</html>
