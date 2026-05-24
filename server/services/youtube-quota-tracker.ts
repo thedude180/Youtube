@@ -407,19 +407,14 @@ export function initQuotaResetCron(): void {
       // the counter from DB (today's record won't exist yet, so it starts at 0).
 
       try {
-        const { runBackCatalogForAllEligibleUsers } = await import("./youtube-back-catalog-runner");
         const { runShortsClipPublisher } = await import("./shorts-clip-publisher");
         const { runLongFormClipPublisher } = await import("./long-form-clip-publisher");
 
-        // Small stagger so the catalog runner (which does API reads) and publishers
-        // (which do uploads) don't flood the quota in the same second.
-        const catalogResult = await runBackCatalogForAllEligibleUsers().catch(err => {
-          logger.error("[QuotaReset] Back catalog cycle failed:", { error: String(err) });
-          return { usersRun: 0, errors: 1 };
-        });
-        logger.info("[QuotaReset] Back catalog cycle complete", catalogResult);
-
-        await new Promise(r => setTimeout(r, 5_000)); // 5 s gap before publishers
+        // Publishers run FIRST — the entire purpose of the new quota day is to
+        // pre-upload scheduled content to YouTube as private videos with publishAt.
+        // Back catalog has its own 22h cycle and must NOT steal upload quota at midnight.
+        // Thumbnails, SEO writes, and catalog runs happen later in the day only if
+        // upload quota is left over.
         const [shortsResult, longFormResult] = await Promise.allSettled([
           runShortsClipPublisher(),
           runLongFormClipPublisher(),

@@ -359,11 +359,42 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
   return generated;
 }
 
+/**
+ * Returns true if any scheduled video items are waiting to be uploaded to YouTube.
+ * Used to enforce the upload-first policy: thumbnails and backfills are deferred
+ * until the publisher has cleared the upload queue for the day.
+ */
+async function hasPendingVideoUploads(): Promise<boolean> {
+  const result = await db.execute(
+    sql`SELECT EXISTS (
+      SELECT 1 FROM autopilot_queue
+      WHERE status = 'scheduled'
+        AND (
+          type IN ('platform_short','youtube_short','vod-short','vod-long-form')
+          OR (type = 'auto-clip' AND (
+            metadata->>'contentType' = 'youtube-short'
+            OR metadata->>'contentType' = 'long-form-clip'
+          ))
+        )
+    ) AS pending`
+  ) as any;
+  const row = result?.rows?.[0];
+  return row?.pending === true || row?.pending === 'true';
+}
+
 export async function runAutoThumbnailGeneration(): Promise<{ generated: number; skipped: number }> {
   let generated = 0;
   let skipped = 0;
 
   try {
+    // Upload-first policy: thumbnails burn 50 units each. Getting videos onto
+    // YouTube as private/scheduled content is always higher priority. Defer
+    // until there are no pending video uploads left for the publisher to handle.
+    if (await hasPendingVideoUploads()) {
+      logger.info("[AutoThumbnail] Generation skipped — video uploads pending (upload-first policy)");
+      return { generated, skipped };
+    }
+
     const ytChannels = await db.select().from(channels)
       .where(and(
         eq(channels.platform, "youtube"),
@@ -454,6 +485,14 @@ export async function runThumbnailBackfillSweep(userId: string): Promise<{ proce
     if (isQuotaBreakerTripped()) {
       logger.warn("Thumbnail backfill skipped — quota circuit breaker active", { userId });
       return { processed, remaining: -1, quotaExhausted: true };
+    }
+
+    // Upload-first policy: backfill thumbnails only after all scheduled video
+    // uploads have been sent to YouTube. Thumbnails can always run tomorrow;
+    // a missing scheduled video means content doesn't post at the right time.
+    if (await hasPendingVideoUploads()) {
+      logger.info("Thumbnail backfill skipped — video uploads pending (upload-first policy)", { userId });
+      return { processed, remaining: -1, quotaExhausted: false };
     }
 
     const ytChannels = await db.select().from(channels)
