@@ -389,6 +389,9 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           scheduledStartTime: lfScheduledAt ? lfScheduledAt.toISOString() : undefined,
           videoFilePath: encodedPath,
           enableMonetization: true,
+          // Sets the YouTube Studio "Game" field so this video appears on the
+          // game's YouTube page and benefits from game-specific discovery.
+          gameTitle: gameName,
         });
 
         if (lfIsScheduled) {
@@ -403,7 +406,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         // Non-fatal — playlist failure never blocks the status update.
         {
           const lfYtIdForPlaylist = uploadResult.youtubeId;
-          import("../../playlist-manager")
+          import("../playlist-manager")
             .then(({ addUploadToPlaylist }) =>
               addUploadToPlaylist(item.userId, ytChannel.id, lfYtIdForPlaylist, gameName, "longform")
             )

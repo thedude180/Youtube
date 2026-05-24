@@ -354,6 +354,7 @@ async function uploadToYouTube(opts: {
   tags: string[];
   videoFilePath: string;
   scheduledStartTime?: string;
+  gameTitle?: string;
 }): Promise<{ success: boolean; youtubeId?: string; error?: string }> {
   try {
     const result = await uploadVideoToYouTube(opts.channelId, {
@@ -369,6 +370,7 @@ async function uploadToYouTube(opts: {
       scheduledStartTime: opts.scheduledStartTime,
       videoFilePath: opts.videoFilePath,
       enableMonetization: true,
+      gameTitle: opts.gameTitle,
     });
     if (!result?.youtubeId) return { success: false, error: "Upload returned no YouTube ID" };
     return { success: true, youtubeId: result.youtubeId };
@@ -640,6 +642,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   // Pass the item's original scheduledAt so YouTube publishes it
                   // at the right spaced time rather than immediately.
                   scheduledStartTime: shortScheduledAt ? shortScheduledAt.toISOString() : undefined,
+                  // Sets the YouTube Studio "Game" field so YouTube can surface this
+                  // Short in game-specific browsing (e.g. Battlefield 6 game page).
+                  gameTitle: gameName ?? undefined,
                 });
 
                 if (result.success) {
@@ -653,6 +658,17 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   // video (16:9) and must not be applied to portrait Shorts (9:16).
                   // YouTube auto-selects a frame from the encoded portrait video —
                   // that is the correct Short thumbnail.
+
+                  // Add to game-specific Shorts playlist immediately after upload.
+                  // Non-fatal — playlist failure never blocks the status update.
+                  const uploadedYtIdForPlaylist = (result as any).youtubeId as string | undefined;
+                  if (uploadedYtIdForPlaylist) {
+                    import("../playlist-manager")
+                      .then(({ addUploadToPlaylist }) =>
+                        addUploadToPlaylist(userId, ytChannel.id, uploadedYtIdForPlaylist, gameName ?? "Gaming", "short")
+                      )
+                      .catch(e => logger.warn("[ShortsPublisher] Playlist assignment failed", { error: e?.message }));
+                  }
                 }
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });
               } finally {
@@ -668,16 +684,6 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       // Persist result
       if (result.success) {
         const uploadedYtId = (result as any).youtubeId as string | undefined;
-
-        // Add to game-specific Shorts playlist immediately after upload.
-        // Non-fatal — playlist failure never blocks the status update.
-        if (uploadedYtId) {
-          import("../../playlist-manager")
-            .then(({ addUploadToPlaylist }) =>
-              addUploadToPlaylist(userId, ytChannel.id, uploadedYtId, gameName ?? "Gaming", "short")
-            )
-            .catch(e => logger.warn("[ShortsPublisher] Playlist assignment failed", { error: e?.message }));
-        }
 
         await db.update(autopilotQueue)
           .set({

@@ -870,6 +870,8 @@ export async function uploadVideoToYouTube(
     videoFilePath?: string;
     videoBuffer?: Buffer;
     enableMonetization?: boolean;
+    /** YouTube's "Game" field in Studio — passed as snippet.gameTitle (undocumented but accepted). */
+    gameTitle?: string;
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
@@ -937,16 +939,25 @@ export async function uploadVideoToYouTube(
   const monetizationLabel = options.enableMonetization === true ? ", monetization: enabled" : "";
 
   try {
+    // Build snippet — include gameTitle if provided.
+    // snippet.gameTitle is not in YouTube's public TypeScript schema but IS accepted
+    // by the API and sets the "Game" field visible in YouTube Studio.
+    const snippetBody: any = {
+      title: cleanTitle,
+      description: cleanDescription,
+      tags: cleanTags,
+      categoryId: options.categoryId || "22",
+      defaultLanguage: "en",
+    };
+    if (options.gameTitle) {
+      const cleanGame = options.gameTitle.trim().slice(0, 100);
+      if (cleanGame) snippetBody.gameTitle = cleanGame;
+    }
+
     const response = await youtube.videos.insert({
       part: ["snippet", "status"],
       requestBody: {
-        snippet: {
-          title: cleanTitle,
-          description: cleanDescription,
-          tags: cleanTags,
-          categoryId: options.categoryId || "22",
-          defaultLanguage: "en",
-        },
+        snippet: snippetBody,
         status: statusBody,
       },
       media: {
