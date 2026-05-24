@@ -71,7 +71,8 @@ const MAX_BACK_CATALOG_DAYS_AHEAD    = 365;
 // Back catalog skips the first N days so live stream clips always claim those
 // near-term windows first.  Live copilot calls getNextShort/LongFormPublishTime
 // with minDaysAhead=0 (default) so it wins the nearest slots every time.
-const MIN_CATALOG_START_DAYS         = 3;
+// Set to 1 (not 3) so tomorrow's slot is filled when no live-stream clip claims it.
+const MIN_CATALOG_START_DAYS         = 1;
 // Full Short exhaustion: one clip per SHORT_CLIP_INTERVAL_SEC of source footage,
 // capped at MAX_SHORTS_PER_VIDEO per source.  All clips are queued in a single
 // pass so every moment of the video is represented in the Shorts pipeline.

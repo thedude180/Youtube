@@ -2630,6 +2630,17 @@ httpServer.listen(
                   LOWER(game_name) LIKE '%bf2042%' OR
                   LOWER(game_name) LIKE '%bf 2042%' OR
                   LOWER(title)     LIKE '%battlefield%'
+                )
+                -- Never reset sources that have confirmed yt-dlp download failures.
+                -- Those sources get mined_for_long_form=true from the sweep; resetting
+                -- them here causes an infinite queue-then-fail loop.
+                AND youtube_video_id NOT IN (
+                  SELECT DISTINCT metadata->>'sourceYoutubeId'
+                  FROM   autopilot_queue
+                  WHERE  status        = 'permanent_fail'
+                    AND  error_message ILIKE '%Requested format is not available%'
+                    AND  metadata->>'sourceYoutubeId' IS NOT NULL
+                    AND  metadata->>'sourceYoutubeId' != ''
                 )`
         ).then((r: any) => {
           logger.info("[Boot] BF6 back-catalog mined flags reset", { rows: r?.rowCount ?? 0 });
@@ -2790,6 +2801,23 @@ httpServer.listen(
                   )`
           ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Broken-source items purged", { rows: r.rowCount }); });
 
+          // 1b. Mark those sources in back_catalog_videos so the engine never
+          //     re-queues them after the boot mined-flag reset.
+          await db.execute(
+            sql`UPDATE back_catalog_videos
+                SET mined_for_long_form = true,
+                    updated_at          = NOW()
+                WHERE youtube_video_id IN (
+                  SELECT DISTINCT metadata->>'sourceYoutubeId'
+                  FROM   autopilot_queue
+                  WHERE  status        = 'permanent_fail'
+                    AND  error_message ILIKE '%Requested format is not available%'
+                    AND  metadata->>'sourceYoutubeId' IS NOT NULL
+                    AND  metadata->>'sourceYoutubeId' != ''
+                )
+                AND mined_for_long_form = false`
+          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Download-failed sources blocked in back_catalog_videos", { rows: r.rowCount }); });
+
           // 2. Escalate format-error 'failed' items to permanent_fail
           await db.execute(
             sql`UPDATE autopilot_queue
@@ -2887,6 +2915,87 @@ httpServer.listen(
           } else {
             logger.info("[Boot+30] Short already due today — no reschedule needed");
           }
+
+          // ── Near-term long-form backfill ─────────────────────────────────
+          // If the next 48 hours have no long-form scheduled, pull the earliest
+          // healthy long-form item forward to tomorrow's 18:30 CDT slot
+          // (23:30 UTC ± small jitter) so the publisher can encode and upload
+          // it tonight as a private video with tomorrow's publishAt.
+          try {
+            const lfWindowStart = new Date(Date.now() + 60_000);            // from now
+            const lfWindowEnd   = new Date(Date.now() + 48 * 3_600_000);   // +48 h
+
+            const nearTermLf = await db.execute(
+              sql`SELECT id FROM autopilot_queue
+                  WHERE status = 'scheduled'
+                    AND scheduled_at >= ${lfWindowStart.toISOString()}
+                    AND scheduled_at <  ${lfWindowEnd.toISOString()}
+                    AND (
+                      metadata->>'contentType' IN ('long-form-clip','vod_long_form')
+                      OR type = 'vod-long-form'
+                    )
+                  LIMIT 1`
+            ) as any;
+
+            if (!nearTermLf?.rows?.length) {
+              // Tomorrow's slot is empty — compute 18:30 CDT = 23:30 UTC for tomorrow
+              const tomorrow = new Date();
+              tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+              tomorrow.setUTCHours(23, 30, 0, 0);
+              // ±15 min jitter so uploads don't cluster at :30
+              const jitterMs   = (Math.random() * 30 - 15) * 60_000;
+              const tomorrowLfSlot = new Date(tomorrow.getTime() + jitterMs);
+
+              const moved = await db.execute(
+                sql`UPDATE autopilot_queue
+                    SET scheduled_at  = ${tomorrowLfSlot.toISOString()},
+                        error_message = NULL
+                    WHERE id = (
+                      SELECT q.id
+                      FROM   autopilot_queue q
+                      WHERE  q.status = 'scheduled'
+                        AND  (
+                               q.metadata->>'contentType' IN ('long-form-clip','vod_long_form')
+                               OR q.type = 'vod-long-form'
+                             )
+                        AND  q.scheduled_at > ${lfWindowEnd.toISOString()}
+                        -- Skip sources with confirmed yt-dlp download failures
+                        AND  (
+                               q.metadata->>'sourceYoutubeId' IS NULL
+                               OR q.metadata->>'sourceYoutubeId' NOT IN (
+                                 SELECT DISTINCT metadata->>'sourceYoutubeId'
+                                 FROM   autopilot_queue
+                                 WHERE  status        = 'permanent_fail'
+                                   AND  error_message ILIKE '%Requested format is not available%'
+                                   AND  metadata->>'sourceYoutubeId' IS NOT NULL
+                               )
+                             )
+                      ORDER BY q.scheduled_at ASC
+                      LIMIT 1
+                    )
+                    RETURNING id, scheduled_at`
+              ) as any;
+
+              if (moved?.rows?.length) {
+                logger.info("[Boot+30] Long-form backfill: pulled earliest healthy item to tomorrow slot", {
+                  id: moved.rows[0]?.id,
+                  slot: tomorrowLfSlot.toISOString(),
+                });
+                // Kick the long-form publisher so it picks this up now
+                import("./services/long-form-clip-publisher")
+                  .then(m => m.runLongFormClipPublisher())
+                  .then(r => logger.info("[Boot+30] Long-form publisher kicked after backfill", r))
+                  .catch(e => logger.warn("[Boot+30] Long-form publisher kick failed", { error: e?.message }));
+              } else {
+                logger.info("[Boot+30] No healthy long-form found to backfill — back-catalog runner will generate on next cycle");
+              }
+            } else {
+              logger.info("[Boot+30] Long-form already in next-48h window — no backfill needed");
+            }
+          } catch (lfErr: any) {
+            logger.warn("[Boot+30] Near-term long-form backfill failed", { error: lfErr?.message });
+          }
+
         } catch (e: any) {
           logger.warn("[Boot+30] Deferred reschedule failed", { error: e?.message });
         }
