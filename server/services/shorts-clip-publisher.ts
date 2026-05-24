@@ -544,7 +544,11 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                 });
               } catch (downloadErr: any) {
                 const errMsg = String(downloadErr?.message ?? downloadErr);
-                const isPermanent = /unavailable|removed by the uploader|not available|format is not available/i.test(errMsg);
+                // "format is not available" is NOT permanent — it means the format selector
+                // didn't match this video's streams.  The new downloadYouTubeSection utility
+                // handles this by trying multiple format strings across multiple player clients.
+                // Only treat truly irrecoverable conditions as permanent (private, deleted, geo-blocked).
+                const isPermanent = /this video is private|video has been removed|no longer available|video unavailable|account.*terminated|content.*not available in your country/i.test(errMsg);
                 logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
                 await db.update(autopilotQueue)
                   .set({ status: isPermanent ? "permanent_fail" : "failed", errorMessage: errMsg.slice(0, 500) })

@@ -2533,31 +2533,28 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
 
-        // ── Broken source-video cleanup (dynamic / self-healing) ─────────────
-        // Any source YouTube ID that has already produced at least one
-        // "Requested format is not available" permanent_fail is confirmed broken.
-        // Permanently fail ALL remaining scheduled/pending items that share the
-        // same sourceYoutubeId so the publisher never wastes a quota cycle on
-        // them again.  This runs on every boot and is a no-op once clean — no
-        // hardcoded list needed; it auto-catches new broken sources as they
-        // appear in the error history.
+        // ── Format-error recovery (boot self-heal) ───────────────────────────
+        // "Requested format is not available" is NOT a permanent failure — it
+        // only means the old single-format yt-dlp selector didn't match that
+        // video's available streams.  The downloader now tries 3 format strings
+        // across up to 7 player clients before giving up, so these items are
+        // fully recoverable.  Reset every autopilot_queue item that was
+        // permanently-failed for this reason so the publisher retries them with
+        // the new multi-format strategy on the next cycle.
         db.execute(
           sql`UPDATE autopilot_queue
-              SET status        = 'permanent_fail',
-                  error_message = 'Source video unavailable — format not accessible on YouTube (boot cleanup)'
-              WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
-                AND metadata->>'sourceYoutubeId' IS NOT NULL
-                AND metadata->>'sourceYoutubeId' != ''
-                AND metadata->>'sourceYoutubeId' IN (
-                  SELECT DISTINCT metadata->>'sourceYoutubeId'
-                  FROM   autopilot_queue
-                  WHERE  status        = 'permanent_fail'
-                    AND  error_message ILIKE '%Requested format is not available%'
-                    AND  metadata->>'sourceYoutubeId' IS NOT NULL
+              SET status        = 'scheduled',
+                  error_message = NULL
+              WHERE status = 'permanent_fail'
+                AND (
+                  error_message ILIKE '%Requested format is not available%'
+                  OR error_message ILIKE '%Source video unavailable — format not accessible%'
+                  OR error_message ILIKE '%all format strategies failed%'
+                  OR error_message ILIKE '%format not accessible on YouTube%'
                 )`
         )
-          .then((res: any) => logger.info("[Boot] Broken-source queue items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
-          .catch((err: any) => logger.warn("[Boot] Broken-source purge skipped:", err?.message));
+          .then((res: any) => { if ((res?.rowCount ?? 0) > 0) logger.info("[Boot] Format-error items recovered → scheduled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }); })
+          .catch((err: any) => logger.warn("[Boot] Format-error recovery skipped:", err?.message));
 
         // ── Far-future Short cleanup ──────────────────────────────────────────
         // The scheduler gap-check bug (fixed in youtube-output-schedule.ts)
@@ -2734,17 +2731,18 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Stuck-processing items reset", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Stuck-processing reset skipped:", err?.message));
 
-        // ── failed → permanent_fail for unrecoverable errors ──────────────────
-        // Items in 'failed' status that will never recover — permanently fail
-        // them on every boot so they stop being retried and polluting the queue.
+        // ── failed → permanent_fail for truly unrecoverable errors ───────────
+        // Items in 'failed' status that will NEVER recover regardless of retry.
+        // NOTE: "Requested format is not available" is intentionally excluded —
+        // it is a recoverable format-selection issue handled by the multi-format
+        // fallback chain in downloadYouTubeSection / tryYtDlpDownload.
         db.execute(
           sql`UPDATE autopilot_queue
               SET status        = 'permanent_fail',
                   error_message = 'Permanently failed: ' || error_message
               WHERE status = 'failed'
                 AND (
-                  error_message ILIKE '%Requested format is not available%'
-                  OR error_message ILIKE '%no YouTube ID or local file%'
+                  error_message ILIKE '%no YouTube ID or local file%'
                   OR error_message ILIKE '%Studio video % has no YouTube ID%'
                 )`
         )
@@ -2791,54 +2789,9 @@ httpServer.listen(
       }))).catch(slog("queue-heal"));
 
       // ── Recurring queue health sweep (every 10 min) ────────────────────────
-      // The back-catalog runner regenerates items from broken sources each cycle.
-      // This sweep catches them quickly without waiting for the next boot.
       const queueHealthSweep = setInterval(async () => {
         try {
-          // 1. Permanent-fail broken-source items (any new ones the runner created)
-          await db.execute(
-            sql`UPDATE autopilot_queue
-                SET status        = 'permanent_fail',
-                    error_message = 'Source video unavailable — format not accessible on YouTube (sweep)'
-                WHERE status NOT IN ('published', 'permanent_fail', 'cancelled')
-                  AND metadata->>'sourceYoutubeId' IS NOT NULL
-                  AND metadata->>'sourceYoutubeId' != ''
-                  AND metadata->>'sourceYoutubeId' IN (
-                    SELECT DISTINCT metadata->>'sourceYoutubeId'
-                    FROM   autopilot_queue
-                    WHERE  status        = 'permanent_fail'
-                      AND  error_message ILIKE '%Requested format is not available%'
-                      AND  metadata->>'sourceYoutubeId' IS NOT NULL
-                  )`
-          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Broken-source items purged", { rows: r.rowCount }); });
-
-          // 1b. Mark those sources in back_catalog_videos so the engine never
-          //     re-queues them after the boot mined-flag reset.
-          await db.execute(
-            sql`UPDATE back_catalog_videos
-                SET mined_for_long_form = true,
-                    updated_at          = NOW()
-                WHERE youtube_video_id IN (
-                  SELECT DISTINCT metadata->>'sourceYoutubeId'
-                  FROM   autopilot_queue
-                  WHERE  status        = 'permanent_fail'
-                    AND  error_message ILIKE '%Requested format is not available%'
-                    AND  metadata->>'sourceYoutubeId' IS NOT NULL
-                    AND  metadata->>'sourceYoutubeId' != ''
-                )
-                AND mined_for_long_form = false`
-          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Download-failed sources blocked in back_catalog_videos", { rows: r.rowCount }); });
-
-          // 2. Escalate format-error 'failed' items to permanent_fail
-          await db.execute(
-            sql`UPDATE autopilot_queue
-                SET status        = 'permanent_fail',
-                    error_message = 'Permanently failed: ' || error_message
-                WHERE status = 'failed'
-                  AND error_message ILIKE '%Requested format is not available%'`
-          ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Format-error items → permanent_fail", { rows: r.rowCount }); });
-
-          // 3. Delete expired short-slot claims (keeps scheduler window clean)
+          // 1. Delete expired short-slot claims (keeps scheduler window clean)
           await db.execute(
             sql`DELETE FROM short_slot_claims WHERE claimed_slot < NOW() - INTERVAL '1 hour'`
           ).then((r: any) => { if ((r?.rowCount ?? 0) > 0) logger.info("[Sweep] Expired slot claims deleted", { rows: r.rowCount }); });

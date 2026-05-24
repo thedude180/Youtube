@@ -97,8 +97,7 @@ const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
 //
 // The previous format string omitted option 2, causing all YouTube Shorts and
 // any video served from the "android_testsuite" extractor to permanently fail
-// with "Requested format is not available".
-const DOWNLOAD_QUALITY = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best";
+// DOWNLOAD_QUALITY removed — tryYtDlpDownload now iterates VAULT_FORMAT_STRATEGIES internally.
 const MIN_FREE_SPACE_GB = 3;
 
 // ── Human-like download timing ────────────────────────────────────────────────
@@ -210,15 +209,25 @@ const LIVE_EVENT_PATTERNS = [
 ];
 // Errors that indicate the video can NEVER be downloaded regardless of client/token.
 // When any client hits one of these, skip immediately (no retry across clients).
+// NOTE: "Requested format is not available" is intentionally NOT here — it means
+// the chosen format selector doesn't match this video's available streams.  That
+// is a format-selection problem, not a permanent video problem.  We handle it by
+// trying a different format string in tryYtDlpDownload's internal fallback chain.
 const PERMANENT_FAILURE_PATTERNS = [
-  /requested format is not available/i,
-  /no video formats found/i,
   /this video is private/i,
   /this video has been removed/i,
   /this video is no longer available/i,
   /video unavailable/i,
   /content is not available in your country/i,
-  /no formats are available/i,
+];
+
+// Format strings tried in order for every client, from most specific to most permissive.
+// Using multiple format strings ensures we never hard-fail just because one
+// resolution or container combo isn't available for a given video.
+const VAULT_FORMAT_STRATEGIES = [
+  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+  "bestvideo[height<=720]+bestaudio/best[height<=720]/best[ext=mp4]/best",
+  "best",
 ];
 const BOT_DETECTION_PATTERNS = [
   /sign in to confirm.*bot/i,
@@ -1040,69 +1049,76 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
   const ua = BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
 
   // Randomise sub-request timing so the traffic pattern is irregular.
-  // --sleep-requests: pause between each HTTP request yt-dlp makes.
-  // --sleep-interval / --max-sleep-interval: per-fragment pause range.
   const sleepReq = (2 + Math.random() * 3).toFixed(1);        // 2.0–5.0 s
   const sleepMin = (0.5 + Math.random() * 2).toFixed(1);      // 0.5–2.5 s
   const sleepMax = (parseFloat(sleepMin) + 1 + Math.random() * 4).toFixed(1); // +1–4 s more
 
-  try {
-    await execFileAsync(resolveYtdlp(), [
-      "-f", DOWNLOAD_QUALITY,
-      "--merge-output-format", "mp4",
-      "-o", outputPath,
-      "--no-warnings",
-      "--no-playlist",
+  // Base args shared across all format attempts for this client
+  const baseArgs = [
+    "--merge-output-format", "mp4",
+    "-o", outputPath,
+    "--no-warnings",
+    "--no-playlist",
+    "--no-check-certificates",
+    "--socket-timeout", "60",
+    // JS runtime for YouTube's obfuscated extraction (required since Nov 2024)
+    "--js-runtimes", "node",
+    // Retry / resilience
+    "--retries", "3",
+    "--fragment-retries", "3",
+    "--file-access-retries", "3",
+    "--extractor-retries", "2",
+    // Human-like request pacing
+    "--sleep-requests", sleepReq,
+    "--sleep-interval",   sleepMin,
+    "--max-sleep-interval", sleepMax,
+    // One fragment at a time — real browsers don't parallel-stream
+    "--concurrent-fragments", "1",
+    // No .part temp files — reduces observable bot signals
+    "--no-part",
+    // Rotate browser identity
+    "--user-agent", ua,
+    // Navigation context headers (Chromium Sec-Fetch-* suite)
+    "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "--add-header", "Accept-Language:en-US,en;q=0.9",
+    "--add-header", "Sec-Fetch-Dest:document",
+    "--add-header", "Sec-Fetch-Mode:navigate",
+    "--add-header", "Sec-Fetch-Site:none",
+    "--add-header", "Sec-Fetch-User:?1",
+    "--add-header", "Cache-Control:max-age=0",
+    "--add-header", "Upgrade-Insecure-Requests:1",
+    "--referer", "https://www.youtube.com/",
+    "--extractor-args", `youtube:player_client=${playerClient}`,
+    ...authArgs,
+    url,
+  ];
 
-      // ── JS runtime for YouTube's obfuscated extraction ─────────────────────
-      // YouTube's API (since Nov 2024) requires JS execution to derive stream
-      // URLs.  Without a runtime yt-dlp falls back to deno (not installed),
-      // producing "No supported JavaScript runtime" warnings and missing formats.
-      // Node.js 20 is present in PATH from Nix.  Note: yt-dlp's runtime flag
-      // uses "node" not "nodejs".
-      "--js-runtimes", "node",
-
-      // ── Retry / resilience ────────────────────────────────────────────────
-      "--retries", "3",
-      "--fragment-retries", "3",
-      "--file-access-retries", "3",
-
-      // ── Human-like request pacing ──────────────────────────────────────────
-      "--sleep-requests", sleepReq,
-      "--sleep-interval",   sleepMin,
-      "--max-sleep-interval", sleepMax,
-
-      // ── One fragment at a time — real browsers don't parallel-stream ───────
-      "--concurrent-fragments", "1",
-
-      // ── No .part temp files — reduces observable bot signals ───────────────
-      "--no-part",
-
-      // ── Rotate browser identity ────────────────────────────────────────────
-      "--user-agent", ua,
-
-      // ── Navigation context headers (Chromium Sec-Fetch-* suite) ───────────
-      // These are injected by every real browser; their absence is a bot signal.
-      "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "--add-header", "Accept-Language:en-US,en;q=0.9",
-      "--add-header", "Sec-Fetch-Dest:document",
-      "--add-header", "Sec-Fetch-Mode:navigate",
-      "--add-header", "Sec-Fetch-Site:none",
-      "--add-header", "Sec-Fetch-User:?1",
-      "--add-header", "Cache-Control:max-age=0",
-      "--add-header", "Upgrade-Insecure-Requests:1",
-
-      // ── Referrer: came from a YouTube page, not a raw URL ─────────────────
-      "--referer", "https://www.youtube.com/",
-
-      "--extractor-args", `youtube:player_client=${playerClient}`,
-      ...authArgs,
-      url,
-    ], { timeout: 600_000 });
-  } catch (err: any) {
-    const stderr = String(err?.stderr || "").substring(0, 400);
-    throw new Error(`yt-dlp ${playerClient}: ${String(err?.message || "").substring(0, 150)}\nstderr: ${stderr}`);
+  // Try each format string in order.  "Requested format is not available" means
+  // the format selector didn't match this video's streams — try the next one.
+  // Only throw once all formats are exhausted so the caller can try the next client.
+  let lastErr = "";
+  for (const formatStr of VAULT_FORMAT_STRATEGIES) {
+    // Remove stale output before each attempt
+    try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
+    try {
+      await execFileAsync(resolveYtdlp(), ["-f", formatStr, ...baseArgs], { timeout: 600_000 });
+      return; // success — caller will verify file size
+    } catch (err: any) {
+      const msg = String(err?.message || err).substring(0, 400);
+      lastErr = msg;
+      const isFormatErr = /requested format is not available|no video formats found|no formats are available/i.test(msg);
+      if (isFormatErr) {
+        logger.debug(`[Vault] Format unavailable for ${playerClient} (${formatStr.slice(0, 40)}) — trying next format`);
+        continue; // try the next format string
+      }
+      // Non-format error (bot detection, network, etc.) — propagate immediately
+      // so the client loop can decide whether to retry with another client
+      throw new Error(`yt-dlp ${playerClient}: ${msg}`);
+    }
   }
+
+  // All format strings exhausted for this client
+  throw new Error(`yt-dlp ${playerClient}: all format strategies failed. Last: ${lastErr.substring(0, 200)}`);
 }
 
 async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$inferSelect, accessToken?: string | null): Promise<boolean> {
