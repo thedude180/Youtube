@@ -142,7 +142,7 @@ export function setupGoogleAuth(app: Express) {
       }
 
 
-      req.login(user, (loginErr) => {
+      req.login(user, (loginErr: any) => {
         if (loginErr) {
           logger.error("Google auth req.login error:", loginErr);
           return res.redirect("/?auth_error=login_failed");
@@ -160,7 +160,7 @@ export function setupGoogleAuth(app: Express) {
           }
         }, 5_000);
 
-        req.session.save((saveErr) => {
+        req.session.save((saveErr: any) => {
           clearTimeout(saveTimer);
           if (saveErr) logger.error("Google auth session save error:", saveErr);
           if (!redirectSent) {

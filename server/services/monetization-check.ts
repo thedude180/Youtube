@@ -11,7 +11,23 @@ export async function isMonetizationUnlocked(userId: string, platform: string): 
   const channel = userChannels[0];
   if (!channel) return false;
 
-  if ((channel as any).monetizationStatus === "enabled" || (channel as any).monetizationStatus === "active") {
+  // If monetization is explicitly disabled, respect that
+  const platformData = channel.platformData as any;
+  if (
+    (channel as any).monetizationStatus === "disabled" ||
+    platformData?.monetization === false ||
+    platformData?.monetizationEnabled === false
+  ) {
+    return false;
+  }
+
+  // If explicitly enabled, fast-path true
+  if (
+    (channel as any).monetizationStatus === "enabled" ||
+    (channel as any).monetizationStatus === "active" ||
+    platformData?.monetization === true ||
+    platformData?.monetizationEnabled === true
+  ) {
     return true;
   }
 
@@ -24,12 +40,10 @@ export async function isMonetizationUnlocked(userId: string, platform: string): 
 
   if (programs.length > 0) return true;
 
-  const platformData = channel.platformData as any;
-  if (platformData?.monetization === true || platformData?.monetizationEnabled === true) {
-    return true;
-  }
-
-  return false;
+  // Channel is connected but monetization status not explicitly set →
+  // default to enabled (the channel owner controls monetization in YouTube Studio;
+  // we should not suppress ads on every upload just because the DB field is blank).
+  return true;
 }
 
 export async function getMonetizationStatus(userId: string): Promise<Record<string, boolean>> {

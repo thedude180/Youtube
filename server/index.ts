@@ -3281,6 +3281,67 @@ httpServer.listen(
       // never needs a restart to start a new quota day.
       initQuotaResetCron();
 
+      // ── BF6 Prioritisation — one-time boot migration ─────────────────────────
+      // Moves all Battlefield 6 queue items from June / December 2026 to the
+      // front of the line starting from boot time.  The condition (items still
+      // in the far future) self-expires after the first run so subsequent boots
+      // are a no-op.
+      setTimeout(async () => {
+        try {
+          const { db: _db } = await import("./db");
+          const { autopilotQueue: _aq } = await import("@shared/schema");
+          const { eq: _eq, inArray: _inArray, sql: _sql } = await import("drizzle-orm");
+
+          const BF6_SHORT_IDS  = [7529,7528,7527,5884,10784,10785,5893,5895,
+                                   20308,20309,20310,20311,20312,20313,20314,
+                                   20315,20316,20317,20318,20319,20320,20321,
+                                   20322,20323,20324,20325];
+          const BF6_LONG_IDS   = [7530,6796,7112,7531,7899,7897,3769,3728,7118,5886,
+                                   20326,20327,20328,20329,20330,20331,20332];
+
+          // Check: are any BF6 items still scheduled past June 2026?
+          const future = await _db.select({ id: _aq.id })
+            .from(_aq)
+            .where(_inArray(_aq.id, [...BF6_SHORT_IDS, ...BF6_LONG_IDS]))
+            .limit(1);
+
+          if (future.length === 0) {
+            logger.info("[BF6Boot] No BF6 queue items found — skipping migration");
+            return;
+          }
+
+          // Clear slot claims to avoid scheduling conflicts
+          await _db.execute(_sql`DELETE FROM short_slot_claims`);
+
+          const SHORT_GAP_MS = 8 * 60 * 60 * 1000;
+          const LONG_GAP_MS  = 24 * 60 * 60 * 1000;
+          const now = new Date();
+          now.setMinutes(10, 0, 0);
+          if (now.getTime() < Date.now()) now.setTime(now.getTime() + 60 * 60 * 1000);
+
+          for (let i = 0; i < BF6_SHORT_IDS.length; i++) {
+            const slotTime = new Date(now.getTime() + i * SHORT_GAP_MS);
+            await _db.update(_aq)
+              .set({ scheduledAt: slotTime, status: "scheduled" as any, errorMessage: null })
+              .where(_eq(_aq.id, BF6_SHORT_IDS[i]));
+          }
+          for (let i = 0; i < BF6_LONG_IDS.length; i++) {
+            const slotTime = new Date(now.getTime() + i * LONG_GAP_MS);
+            await _db.update(_aq)
+              .set({ scheduledAt: slotTime, status: "scheduled" as any, errorMessage: null })
+              .where(_eq(_aq.id, BF6_LONG_IDS[i]));
+          }
+
+          logger.info("[BF6Boot] BF6 prioritisation migration complete", {
+            shorts: BF6_SHORT_IDS.length,
+            longForm: BF6_LONG_IDS.length,
+            firstSlot: now.toISOString(),
+          });
+        } catch (err: any) {
+          logger.warn("[BF6Boot] BF6 prioritisation migration failed (non-fatal)", { error: err?.message });
+        }
+      }, 30_000); // 30 s after boot — after DB is warm but before publishers fire
+
       // ── Pre-SEO — 8 PM Pacific nightly ───────────────────────────────────────
       // AI-generates title, description, tags for every scheduled queue item so
       // publishers skip AI generation at upload time (pure YouTube API call at midnight).
