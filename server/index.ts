@@ -2453,53 +2453,9 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Shorts schedule reset to tonight", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Shorts schedule reset skipped:", err?.message));
 
-        // ── Non-Battlefield queue purge ───────────────────────────────────────
-        // ETGaming247 is a Battlefield channel.  Any queued Shorts whose source
-        // video or metadata references a non-Battlefield game (e.g. AC Valhalla)
-        // are stale catalog overflow — permanently fail them so they never
-        // publish.  The back-catalog engine now defaults to BF6 for new items.
-        db.execute(
-          sql`UPDATE autopilot_queue q
-              SET status = 'permanent_fail',
-                  error_message = 'Purged: non-Battlefield content — BF6-only channel'
-              WHERE q.type IN ('youtube_short', 'platform_short')
-                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
-                AND q.target_platform IN ('youtube', 'youtubeshorts')
-                AND q.source_video_id IS NOT NULL
-                AND EXISTS (
-                  SELECT 1 FROM videos v
-                  WHERE v.id = q.source_video_id
-                    AND (v.metadata->>'gameName') IS NOT NULL
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
-                )`
-        )
-          .then((res: any) => logger.info("[Boot] Non-Battlefield Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
-          .catch((err: any) => logger.warn("[Boot] Non-Battlefield purge skipped:", err?.message));
-
-        // ── Non-Battlefield vod-short / vod-long-form purge ───────────────────
-        // vod-continuous-engine creates vod-short/vod-long-form items without
-        // the BF6 game filter.  Purge any that are linked to a source video
-        // whose gameName is not Battlefield (AC Valhalla, AC Syndicate, etc.).
-        db.execute(
-          sql`UPDATE autopilot_queue q
-              SET status = 'permanent_fail',
-                  error_message = 'Purged: non-Battlefield vod content — BF6-only channel'
-              WHERE q.type IN ('vod-short', 'vod-long-form')
-                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
-                AND q.source_video_id IS NOT NULL
-                AND EXISTS (
-                  SELECT 1 FROM videos v
-                  WHERE v.id = q.source_video_id
-                    AND (v.metadata->>'gameName') IS NOT NULL
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
-                    AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
-                )`
-        )
-          .then((res: any) => logger.info("[Boot] Non-Battlefield vod items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
-          .catch((err: any) => logger.warn("[Boot] Non-Battlefield vod purge skipped:", err?.message));
+        // NOTE: game-specific purges removed — channel publishes multi-game content
+        // (PS5 Gameplay, Assassin's Creed, Gaming general, Battlefield, etc.).
+        // Purging by gameName was killing legitimate auto-generated content every boot.
 
         // ── Orphaned auto-clip purge ──────────────────────────────────────────
         // auto-clip items with no source_video_id AND no sourceYoutubeId in
@@ -2518,52 +2474,8 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Orphaned auto-clips purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Orphaned auto-clip purge skipped:", err?.message));
 
-        // ── Non-Battlefield auto-clip queue purge ─────────────────────────────
-        // auto-clip items whose source_video_id points to a non-BF6 video (AC
-        // Unity, Syndicate, Valhalla, AI, Shadow of Mordor, etc.) will never
-        // belong on this channel.  Permanently fail them.  Also covers items
-        // with a sourceYoutubeId where the queue's own gameName metadata is
-        // explicitly a different game.
-        // Non-Battlefield auto-clip purge: only applies to stale/incorrect items.
-        // Items tagged backCatalogGenerated=true were intentionally created by the
-        // back-catalog engine for a non-BF6 game after BF6 was fully exhausted —
-        // those are valid multi-game content and must NOT be purged.
-        // Items tagged isStreamHighlight/isStreamReplay/pastStreamExtracted are live-stream
-        // clips and must also be preserved regardless of gameName.
-        db.execute(
-          sql`UPDATE autopilot_queue q
-              SET status = 'permanent_fail',
-                  error_message = 'Purged: non-Battlefield auto-clip — BF6-only channel (stale)'
-              WHERE q.type = 'auto-clip'
-                AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
-                AND (q.metadata->>'backCatalogGenerated' IS NULL OR q.metadata->>'backCatalogGenerated' != 'true')
-                AND (q.metadata->>'isStreamHighlight'    IS NULL OR q.metadata->>'isStreamHighlight'    != 'true')
-                AND (q.metadata->>'isStreamReplay'       IS NULL OR q.metadata->>'isStreamReplay'       != 'true')
-                AND (q.metadata->>'pastStreamExtracted'  IS NULL OR q.metadata->>'pastStreamExtracted'  != 'true')
-                AND (
-                  -- local source video is a different game
-                  (q.source_video_id IS NOT NULL AND EXISTS (
-                    SELECT 1 FROM videos v
-                    WHERE v.id = q.source_video_id
-                      AND (v.metadata->>'gameName') IS NOT NULL
-                      AND lower(v.metadata->>'gameName') NOT LIKE '%battlefield%'
-                      AND lower(v.metadata->>'gameName') NOT LIKE '%bf6%'
-                      AND lower(v.metadata->>'gameName') NOT LIKE '%bf 6%'
-                  ))
-                  OR
-                  -- has a YouTube source ID but queue metadata says different game
-                  (q.source_video_id IS NULL
-                   AND q.metadata->>'sourceYoutubeId' IS NOT NULL
-                   AND q.metadata->>'sourceYoutubeId' != ''
-                   AND (q.metadata->>'gameName') IS NOT NULL
-                   AND lower(q.metadata->>'gameName') NOT LIKE '%battlefield%'
-                   AND lower(q.metadata->>'gameName') NOT LIKE '%bf6%'
-                   AND lower(q.metadata->>'gameName') NOT LIKE '%bf 6%'
-                  )
-                )`
-        )
-          .then((res: any) => logger.info("[Boot] Non-Battlefield auto-clips purged (stale only)", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
-          .catch((err: any) => logger.warn("[Boot] Non-Battlefield auto-clip purge skipped:", err?.message));
+        // NOTE: game-specific auto-clip purge removed — all generated auto-clips
+        // are valid regardless of gameName. Channel is multi-game.
 
         // ── Full queue reset (boot self-heal) ────────────────────────────────
         // Reset ALL permanent_fail, processing, and pending items back to
@@ -2624,6 +2536,22 @@ httpServer.listen(
         )
           .then((res: any) => logger.info("[Boot] Far-future Shorts purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Far-future Shorts purge skipped:", err?.message));
+
+        // ── Far-future auto-clip reschedule ───────────────────────────────────
+        // The back-catalog distributor sometimes pushes auto-clip items years into
+        // the future (e.g. 2027-04-09).  These will never be picked up by the
+        // publisher which only processes items where scheduled_at <= NOW().
+        // Collapse them into a rolling 7-day window so they publish soon.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET scheduled_at  = NOW() + (random() * INTERVAL '7 days'),
+                  error_message = NULL
+              WHERE type   = 'auto-clip'
+                AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+                AND scheduled_at > NOW() + INTERVAL '7 days'`
+        )
+          .then((res: any) => logger.info("[Boot] Far-future auto-clips rescheduled to 7-day window", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Far-future auto-clip reschedule skipped:", err?.message));
 
         // ── Short-slot claim reset ────────────────────────────────────────────
         // short_slot_claims rows expire after 10 min but persist in the table.
@@ -2812,7 +2740,7 @@ httpServer.listen(
                 AND NOT EXISTS (
                   SELECT 1 FROM studio_videos sv
                   WHERE sv.id = q.source_video_id
-                    AND (sv.youtube_video_id IS NOT NULL OR sv.local_file_path IS NOT NULL)
+                    AND (sv.youtube_id IS NOT NULL OR sv.file_path IS NOT NULL)
                 )`
         )
           .then((res: any) => logger.info("[Boot] No-source studio items purged", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
@@ -2881,7 +2809,7 @@ httpServer.listen(
           logger.info("[Boot+30] Slot claims cleared");
 
           // Check if any Short is already due today
-          const [todayShort] = await db.execute(
+          const todayShortResult = await db.execute(
             sql`SELECT id FROM autopilot_queue
                 WHERE status IN ('scheduled','publishing')
                   AND type IN ('platform_short','youtube_short')
@@ -2890,9 +2818,9 @@ httpServer.listen(
                 LIMIT 1`
           ) as any;
 
-          if (!todayShort?.rows?.length) {
+          if (!todayShortResult?.rows?.length) {
             // Pull the first healthy Short forward to right now
-            const [first] = await db.execute(
+            const first = await db.execute(
               sql`UPDATE autopilot_queue
                   SET scheduled_at  = NOW() - INTERVAL '1 minute',
                       error_message = NULL

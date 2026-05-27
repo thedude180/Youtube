@@ -171,6 +171,11 @@ async function getUserConnectedPlatforms(userId: string): Promise<Set<string>> {
     return true;
   }).map(c => c.platform));
 
+  // youtube channel connection also covers youtubeshorts — both use the same
+  // OAuth token.  platform_short items use target_platform='youtubeshorts' but
+  // the channels table only stores platform='youtube'.
+  if (result.has("youtube")) result.add("youtubeshorts");
+
   _connectedPlatformsCache.set(userId, { result, expiresAt: now + 30_000 });
   return result;
 }
