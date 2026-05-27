@@ -474,6 +474,21 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const sourceYoutubeId = typeof itemMeta.sourceYoutubeId === "string" ? itemMeta.sourceYoutubeId : undefined;
       const hookLine = typeof itemMeta.hookLine === "string" ? itemMeta.hookLine : undefined;
 
+      // ── Guard: clip must be a genuine Short (< 60 seconds) ──────────────────
+      // Hard-reject items where the segment is 60 seconds or longer — those are
+      // long-form clips that must go through the long-form publisher, not here.
+      // We check the raw requested duration; the encoder would clamp to 60s but
+      // we want a clean fail rather than a silent truncated long-form upload.
+      const requestedDurationSec = endSec - startSec;
+      if (requestedDurationSec >= 60) {
+        logger.warn(`[ShortsPublisher] Item ${item.id} has segment duration ${Math.round(requestedDurationSec)}s — must be <60s for Shorts. Rejecting.`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: `Shorts guard: segment is ${Math.round(requestedDurationSec)}s — Shorts must be <60 seconds. Re-queue via long-form publisher if ≥8 min.` })
+          .where(eq(autopilotQueue.id, item.id));
+        failed++;
+        continue;
+      }
+
       // Back-catalog Shorts have sourceVideoId=null but carry sourceYoutubeId in
       // metadata — getEncodedSegment yt-dlp downloads directly from that URL.
       // Only hard-fail if BOTH are absent.

@@ -3142,12 +3142,14 @@ httpServer.listen(
       }).catch(slog("trust-governance schedulers"));
       // Stagger AI-intensive engines: spread initial runs over 2-10 min to avoid startup 429 storms
       const stagger = (minMs: number) => minMs + Math.floor(Math.random() * 120_000);
-      import("./auto-thumbnail-engine").then(async m => {
-        await new Promise(r => setTimeout(r, stagger(2 * 60_000)));
-        await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
-        const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("auto-thumbnail-engine import"));
+      // AUTO-THUMBNAIL PAUSED — preserving quota exclusively for video uploads.
+      // Re-enable once upload cadence is stable and quota increase is approved.
+      // import("./auto-thumbnail-engine").then(async m => {
+      //   await new Promise(r => setTimeout(r, stagger(2 * 60_000)));
+      //   await m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration"));
+      //   const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
+      //   backgroundIntervals.push(iv);
+      // }).catch(slog("auto-thumbnail-engine import"));
       import("./marketer-engine").then(async m => {
         await new Promise(r => setTimeout(r, stagger(3 * 60_000)));
         await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
@@ -3169,27 +3171,9 @@ httpServer.listen(
         const ivClean = setInterval(() => m.runPlaylistCleanupForAllUsers().catch(slog("runPlaylistCleanup")), jitter(24 * 60 * 60_000));
         backgroundIntervals.push(ivClean);
       }).catch(slog("playlist-manager import"));
-      import("./auto-thumbnail-engine").then(async m => {
-        await new Promise(r => setTimeout(r, stagger(8 * 60_000)));
-        const { channels: channelsTable } = await import("@shared/schema");
-        const { sql: sqlTag, eq: eqOp, and: andOp } = await import("drizzle-orm");
-        const ytChannelRows = await db.select({ userId: channelsTable.userId }).from(channelsTable)
-          .where(andOp(
-            eqOp(channelsTable.platform, "youtube"),
-            sqlTag`${channelsTable.accessToken} IS NOT NULL`,
-            sqlTag`${channelsTable.userId} IS NOT NULL`,
-          ));
-        const uniqueUserIds = [...new Set(ytChannelRows.map(r => r.userId).filter(Boolean))] as string[];
-        for (const uid of uniqueUserIds) {
-          await m.runThumbnailBackfillSweep(uid).catch(slog("runThumbnailBackfillSweep"));
-        }
-        const iv = setInterval(async () => {
-          for (const uid of uniqueUserIds) {
-            await m.runThumbnailBackfillSweep(uid).catch(slog("runThumbnailBackfillSweep-interval"));
-          }
-        }, jitter(6 * 60 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("auto-thumbnail-backfill import"));
+      // THUMBNAIL BACKFILL PAUSED — preserving quota exclusively for video uploads.
+      // Re-enable once upload cadence is stable and quota increase is approved.
+      // import("./auto-thumbnail-engine").then(async m => { ... }).catch(slog("auto-thumbnail-backfill import"));
       import("./vod-optimizer-engine").then(async m => {
         await new Promise(r => setTimeout(r, stagger(7 * 60_000)));
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
@@ -3295,11 +3279,10 @@ httpServer.listen(
       // in pipeline_traces. First run: 8–12 min after boot.
       initPipelineTracer();
 
-      // ── Channel Brand Sync — SEO + thumbnail consistency sweep ───────────────
-      // Ensures all Shorts have game-matched SEO+thumbnails, livestream archives
-      // get replay-optimised metadata, and every video passes brand alignment.
-      // First run: 25-30 min after boot. Repeats daily at 3:30 AM.
-      initChannelBrandSync();
+      // CHANNEL BRAND SYNC PAUSED — metadata/SEO sweeps burn write-op quota.
+      // Preserving all 10k units/day for actual video uploads.
+      // Re-enable once quota increase is approved.
+      // initChannelBrandSync();
 
       import("./token-refresh").then(async m => {
         // Delay first token keep-alive by 5 minutes so it doesn't fire during

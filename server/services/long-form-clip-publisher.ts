@@ -182,6 +182,48 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       const endSec = Number(itemMeta.segmentEndSec ?? 0);
       const rawDurationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
 
+      // ── Guard: reject anything that is actually a Short being passed as long-form ──
+      // 1. No #shorts tag anywhere in pre-built SEO fields — Shorts content
+      //    must never appear as a long-form upload.
+      const metaShortsFields = [
+        String(itemMeta.seoTitle ?? ""),
+        String(itemMeta.seoDescription ?? ""),
+        String(item.caption ?? ""),
+        String(itemMeta.caption ?? ""),
+        ...(Array.isArray(itemMeta.seoTags) ? (itemMeta.seoTags as string[]) : []),
+        ...(Array.isArray(itemMeta.tags)    ? (itemMeta.tags    as string[]) : []),
+      ].join(" ");
+      if (/#shorts/i.test(metaShortsFields)) {
+        logger.warn(`[LongFormPublisher] Item ${item.id} contains #shorts in metadata — skipping (Shorts must not be promoted as long-form)`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: "Long-form guard: #shorts found in metadata — item is a Short, not a long-form video" })
+          .where(eq(autopilotQueue.id, item.id));
+        failed++;
+        continue;
+      }
+      // 2. Reject style='short-clip' items that somehow reached this publisher.
+      if (itemMeta.style === "short-clip" || itemMeta.contentType === "youtube-short") {
+        logger.warn(`[LongFormPublisher] Item ${item.id} is flagged as a Short (style/contentType) — skipping`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: "Long-form guard: item is flagged as a Short (style=short-clip or contentType=youtube-short)" })
+          .where(eq(autopilotQueue.id, item.id));
+        failed++;
+        continue;
+      }
+      // 3. Source video must be long enough to be a genuine stream segment (≥30 min).
+      //    Back-catalog items carry sourceTotalDurationSec in metadata so we can
+      //    check this even when sourceVideoId is null.
+      const sourceTotalSec = Number(itemMeta.sourceTotalDurationSec ?? itemMeta.totalDurationSec ?? 0);
+      const MIN_SOURCE_SEC = 30 * 60; // 30 minutes — live-stream minimum
+      if (sourceTotalSec > 0 && sourceTotalSec < MIN_SOURCE_SEC) {
+        logger.warn(`[LongFormPublisher] Item ${item.id} source is only ${Math.round(sourceTotalSec / 60)}m — likely a short clip, not a live stream. Skipping.`);
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: `Long-form guard: source video is only ${Math.round(sourceTotalSec / 60)} min — live-stream segments must be from recordings ≥30 min` })
+          .where(eq(autopilotQueue.id, item.id));
+        failed++;
+        continue;
+      }
+
       // Back-catalog items have sourceVideoId=null but carry sourceYoutubeId in
       // metadata — the publisher yt-dlp downloads directly from YouTube so a
       // local file is not required.  Only fail if BOTH are absent.
@@ -335,22 +377,30 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
         // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
         // Fall back to inline templates if not yet available
-        const title = String(
+        // Strip any #shorts tag that may appear in AI-generated fields — long-form
+        // videos must NEVER carry the #Shorts tag or YouTube will classify them as Shorts.
+        const stripShortsTag = (s: string) => s.replace(/#shorts\b/gi, "").replace(/\s{2,}/g, " ").trim();
+
+        const title = stripShortsTag(String(
           (typeof itemMeta.seoTitle === "string" && itemMeta.seoTitle.length > 5
             ? itemMeta.seoTitle
             : null)
           ?? item.caption
           ?? `${gameName} Gameplay — ${targetMin} Minutes`,
-        ).substring(0, 100);
+        ).substring(0, 100));
 
         const fullVideoUrl = resolvedYoutubeId ? `\n\nFull recording → https://youtu.be/${resolvedYoutubeId}` : "";
-        const description = (
+        const description = stripShortsTag((
           typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
             ? itemMeta.seoDescription
             : `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`
-        ).substring(0, 5000);
+        ).substring(0, 5000));
 
-        const preBuiltTagsLF = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
+        const rawTagsLF = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
+        // Strip "shorts" from any tag — long-form must not have it anywhere
+        const preBuiltTagsLF = rawTagsLF
+          ? rawTagsLF.filter((t: string) => !/^#?shorts$/i.test(t.trim()))
+          : null;
 
         const lfScheduledAt  = effectiveScheduledAt;
         const lfIsScheduled  = lfScheduledAt && lfScheduledAt.getTime() > Date.now() + 60_000;
