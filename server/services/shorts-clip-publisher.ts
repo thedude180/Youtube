@@ -326,6 +326,10 @@ async function uploadToYouTube(opts: {
       videoFilePath: opts.videoFilePath,
       enableMonetization: true,
       gameTitle: opts.gameTitle,
+      // AI content disclosure per YouTube policy 2025:
+      // These Shorts are real gameplay footage from live streams — not AI-generated
+      // video or audio content. AI was used only for titles/descriptions/curation.
+      selfDeclaredMadeWithAI: false,
     });
     if (!result?.youtubeId) return { success: false, error: "Upload returned no YouTube ID" };
     return { success: true, youtubeId: result.youtubeId };

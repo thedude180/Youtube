@@ -872,6 +872,14 @@ export async function uploadVideoToYouTube(
     enableMonetization?: boolean;
     /** YouTube's "Game" field in Studio — passed as snippet.gameTitle (undocumented but accepted). */
     gameTitle?: string;
+    /**
+     * YouTube AI content disclosure (per YouTube policy 2025).
+     * Set true ONLY if the VIDEO/AUDIO itself is realistic AI-generated or synthetic
+     * content (deepfakes, AI voices, AI-generated scenes, etc.).
+     * Real gameplay footage with AI-curated titles/descriptions does NOT qualify.
+     * Defaults to false — explicitly declares the video is not AI-generated content.
+     */
+    selfDeclaredMadeWithAI?: boolean;
   }
 ): Promise<{ youtubeId: string; title: string; status: string } | null> {
   if (isQuotaBreakerTripped()) throw Object.assign(new Error("YouTube API quota exceeded — circuit breaker active until midnight Pacific"), { code: "QUOTA_EXCEEDED" });
@@ -905,6 +913,12 @@ export async function uploadVideoToYouTube(
 
   let privacyStatus = options.privacyStatus || "public";
   const statusBody: any = { privacyStatus };
+
+  // YouTube AI content disclosure (required per YouTube policy 2025).
+  // Always set explicitly so YouTube knows we have reviewed the policy.
+  // Real gameplay footage sourced from live streams is NOT AI-generated video/audio
+  // content — set false unless caller explicitly declares synthetic media is present.
+  statusBody.selfDeclaredMadeWithAI = options.selfDeclaredMadeWithAI === true;
 
   if (options.enableMonetization === true) {
     statusBody.selfDeclaredMadeForKids = false;

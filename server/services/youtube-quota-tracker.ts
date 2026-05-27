@@ -205,11 +205,33 @@ function getNextResetTime(): Date {
 
 async function getOrCreateDailyRecord(userId: string) {
   const today = getPacificDate();
-  const existing = await db.select().from(youtubeQuotaUsage)
-    .where(and(eq(youtubeQuotaUsage.userId, userId), eq(youtubeQuotaUsage.date, today)))
-    .limit(1);
 
-  if (existing.length > 0) return existing[0];
+  try {
+    const existing = await db.select().from(youtubeQuotaUsage)
+      .where(and(eq(youtubeQuotaUsage.userId, userId), eq(youtubeQuotaUsage.date, today)))
+      .limit(1);
+
+    if (existing.length > 0) return existing[0];
+  } catch (selectErr: any) {
+    // Production schema may be missing new columns (e.g. broadcast_ops, livechat_ops)
+    // until db:push runs against prod.  Return a synthetic zero-usage record so
+    // uploads are never blocked by a schema migration lag.
+    logger.warn(`[QuotaTracker] SELECT failed (schema mismatch?) — returning safe fallback record for ${userId}: ${selectErr?.message?.slice(0, 120)}`);
+    return {
+      id: -1,
+      userId,
+      date: today,
+      unitsUsed: 0,
+      readOps: 0,
+      writeOps: 0,
+      searchOps: 0,
+      uploadOps: 0,
+      broadcastOps: 0,
+      livechatOps: 0,
+      quotaLimit: DEFAULT_DAILY_LIMIT,
+      lastUpdatedAt: new Date(),
+    };
+  }
 
   try {
     const [record] = await db.insert(youtubeQuotaUsage).values({
@@ -225,12 +247,31 @@ async function getOrCreateDailyRecord(userId: string) {
     return record;
   } catch (err: any) {
     if (err.code === "23505") {
-      const [record] = await db.select().from(youtubeQuotaUsage)
-        .where(and(eq(youtubeQuotaUsage.userId, userId), eq(youtubeQuotaUsage.date, today)))
-        .limit(1);
-      return record;
+      try {
+        const [record] = await db.select().from(youtubeQuotaUsage)
+          .where(and(eq(youtubeQuotaUsage.userId, userId), eq(youtubeQuotaUsage.date, today)))
+          .limit(1);
+        return record;
+      } catch {
+        // fallback below
+      }
     }
-    throw err;
+    // INSERT also failed (e.g. missing column in INSERT list) — return safe fallback
+    logger.warn(`[QuotaTracker] INSERT failed — returning safe fallback record for ${userId}: ${err?.message?.slice(0, 120)}`);
+    return {
+      id: -1,
+      userId,
+      date: today,
+      unitsUsed: 0,
+      readOps: 0,
+      writeOps: 0,
+      searchOps: 0,
+      uploadOps: 0,
+      broadcastOps: 0,
+      livechatOps: 0,
+      quotaLimit: DEFAULT_DAILY_LIMIT,
+      lastUpdatedAt: new Date(),
+    };
   }
 }
 

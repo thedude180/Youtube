@@ -423,6 +423,10 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           // Sets the YouTube Studio "Game" field so this video appears on the
           // game's YouTube page and benefits from game-specific discovery.
           gameTitle: gameName,
+          // AI content disclosure per YouTube policy 2025:
+          // Long-form content is real gameplay footage — not AI-generated video or audio.
+          // AI was used only for titles/descriptions/segment selection (metadata, not content).
+          selfDeclaredMadeWithAI: false,
         });
 
         if (lfIsScheduled) {
