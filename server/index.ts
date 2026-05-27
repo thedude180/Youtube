@@ -2818,11 +2818,34 @@ httpServer.listen(
                 LIMIT 1`
           ) as any;
 
-          if (!todayShortResult?.rows?.length) {
-            // Pull the first healthy Short forward to right now
-            const first = await db.execute(
+          // Fill today's Short cadence: up to 3 Shorts spread 8 h apart.
+          // Count how many Shorts are already scheduled/published today.
+          const todayStart = new Date();
+          todayStart.setUTCHours(0, 0, 0, 0);
+          const todayEnd   = new Date();
+          todayEnd.setUTCHours(23, 59, 59, 999);
+          const alreadyToday = await db.execute(
+            sql`SELECT COUNT(*)::int AS cnt
+                FROM autopilot_queue
+                WHERE status IN ('scheduled','processing','published')
+                  AND type IN ('platform_short','youtube_short','auto-clip')
+                  AND target_platform IN ('youtube','youtubeshorts')
+                  AND scheduled_at >= ${todayStart.toISOString()}
+                  AND scheduled_at <= ${todayEnd.toISOString()}`
+          ) as any;
+          const todayCount = Number(alreadyToday?.rows?.[0]?.cnt ?? 0);
+          const DAILY_SHORT_TARGET = 3;
+          const slotsNeeded = Math.max(0, DAILY_SHORT_TARGET - todayCount);
+          logger.info(`[Boot+30] Today's Shorts: ${todayCount} scheduled/published, need ${slotsNeeded} more`);
+
+          let shortPublisherKicked = false;
+          for (let i = 0; i < slotsNeeded; i++) {
+            // Space Shorts evenly: first one is due immediately, rest are 8 h apart
+            const offsetMs = i === 0 ? -60_000 : i * 8 * 60 * 60_000;
+            const slotTime = new Date(Date.now() + offsetMs);
+            const pulled = await db.execute(
               sql`UPDATE autopilot_queue
-                  SET scheduled_at  = NOW() - INTERVAL '1 minute',
+                  SET scheduled_at  = ${slotTime.toISOString()},
                       error_message = NULL
                   WHERE id = (
                     SELECT q.id
@@ -2830,12 +2853,13 @@ httpServer.listen(
                     WHERE q.status = 'scheduled'
                       AND q.type IN ('platform_short','youtube_short')
                       AND q.target_platform IN ('youtube','youtubeshorts')
+                      AND q.scheduled_at > ${todayEnd.toISOString()}
                       AND (q.metadata->>'sourceYoutubeId' IS NULL
                            OR q.metadata->>'sourceYoutubeId' NOT IN (
                              SELECT DISTINCT metadata->>'sourceYoutubeId'
                              FROM autopilot_queue
                              WHERE status = 'permanent_fail'
-                               AND error_message ILIKE '%Requested format is not available%'
+                               AND error_message ILIKE '%permanently inaccessible%'
                                AND metadata->>'sourceYoutubeId' IS NOT NULL
                            ))
                     ORDER BY q.scheduled_at ASC
@@ -2843,18 +2867,22 @@ httpServer.listen(
                   )
                   RETURNING id, scheduled_at`
             ) as any;
-            if (first?.rows?.length) {
-              logger.info("[Boot+30] First healthy Short pulled to now for immediate publish", { id: first.rows[0]?.id });
-              // Kick the Shorts publisher
-              import("./services/shorts-clip-publisher")
-                .then(m => m.runShortsClipPublisher())
-                .then(r => logger.info("[Boot+30] Shorts publisher kicked", r))
-                .catch(e => logger.warn("[Boot+30] Shorts publisher kick failed", { error: e?.message }));
+            if (pulled?.rows?.length) {
+              logger.info(`[Boot+30] Short slot ${i + 1}/${slotsNeeded} filled: item ${pulled.rows[0]?.id} → ${slotTime.toISOString()}`);
+              if (!shortPublisherKicked) {
+                shortPublisherKicked = true;
+                import("./services/shorts-clip-publisher")
+                  .then(m => m.runShortsClipPublisher())
+                  .then(r => logger.info("[Boot+30] Shorts publisher kicked", r))
+                  .catch(e => logger.warn("[Boot+30] Shorts publisher kick failed", { error: e?.message }));
+              }
             } else {
-              logger.info("[Boot+30] No healthy Short found to reschedule — back-catalog runner will fill queue");
+              logger.info(`[Boot+30] No healthy Short available for slot ${i + 1} — back-catalog runner will fill queue`);
+              break;
             }
-          } else {
-            logger.info("[Boot+30] Short already due today — no reschedule needed");
+          }
+          if (slotsNeeded === 0) {
+            logger.info("[Boot+30] Today's Short cadence already full — no reschedule needed");
           }
 
           // ── Near-term long-form backfill (per-day, next 3 days) ──────────
@@ -3194,6 +3222,33 @@ httpServer.listen(
       // publishers.  Then re-schedules itself for the next midnight so the server
       // never needs a restart to start a new quota day.
       initQuotaResetCron();
+
+      // ── Hourly publisher sweep ────────────────────────────────────────────────
+      // The quota reset cron only fires once at midnight Pacific.  Items that
+      // become due throughout the day (e.g. a Short scheduled for 10:33 AM) sit
+      // unprocessed until the next midnight unless we poll regularly.
+      // This sweep runs every ~60 minutes and picks up any newly-due items.
+      const runPublisherSweep = async () => {
+        try {
+          const { isQuotaBreakerTripped } = await import("./services/youtube-quota-tracker");
+          if (isQuotaBreakerTripped()) {
+            logger.info("[HourlySweep] Quota breaker active — skipping");
+            return;
+          }
+          const [sp, lp] = await Promise.allSettled([
+            import("./services/shorts-clip-publisher").then(m => m.runShortsClipPublisher()),
+            import("./services/long-form-clip-publisher").then(m => m.runLongFormClipPublisher()),
+          ]);
+          logger.info("[HourlySweep] Shorts:", sp.status === "fulfilled" ? sp.value : { err: String((sp as any).reason) });
+          logger.info("[HourlySweep] LongForm:", lp.status === "fulfilled" ? lp.value : { err: String((lp as any).reason) });
+        } catch (e: any) {
+          logger.warn("[HourlySweep] Failed:", { error: e?.message });
+        }
+      };
+      // First sweep: 45 min after boot so Boot+30 has already finished
+      const hourlySweepInitTimer = setTimeout(runPublisherSweep, jitter(45 * 60_000));
+      const hourlySweepInterval = setInterval(runPublisherSweep, jitter(60 * 60_000));
+      backgroundIntervals.push(hourlySweepInterval);
 
       // ── BF6 Prioritisation — one-time boot migration ─────────────────────────
       // Moves all Battlefield 6 queue items from June / December 2026 to the
