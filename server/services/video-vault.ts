@@ -80,7 +80,9 @@ const VAULT_DIR = path.join(process.cwd(), "vault");
 const _warnedNoToken = new Set<string>();
 const _warnedNoDownloadToken = new Set<string>();
 registerCache("vault.warnedNoToken", () => { _warnedNoToken.clear(); _warnedNoDownloadToken.clear(); });
-const PUBLIC_CHANNEL_URL = "https://youtube.com/@etgaming274";
+// Channel: ET Gaming 274 — @ETGAMING274 (https://www.youtube.com/@etgaming274)
+// Using lowercase handle — YouTube handles are case-insensitive and yt-dlp accepts either form.
+const PUBLIC_CHANNEL_URL = "https://www.youtube.com/@etgaming274";
 // Download at the highest available resolution — no height cap.
 // The stream encoder handles whatever resolution arrives: native 4K sources
 // are encoded straight to 4K without upscaling; lower-res sources are
