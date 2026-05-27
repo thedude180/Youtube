@@ -480,7 +480,7 @@ async function syncCookiesFileToDb(): Promise<void> {
   }
 }
 
-async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "stream"): Promise<ScrapedVideo[]> {
+async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "stream", accessToken?: string | null): Promise<ScrapedVideo[]> {
   const videos: ScrapedVideo[] = [];
   try {
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
@@ -504,12 +504,19 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       catch { return []; }
     })();
     const hasCookies = cookiesArgs.length > 0;
-    // When cookies are present yt-dlp sends an authenticated session: let it use
-    // its own built-in UA so YouTube returns a consistent desktop response.
-    // Without cookies we rotate through the pool to blend in with organic traffic.
-    const ua = hasCookies
+    // When authenticated (OAuth token or cookies) let yt-dlp use its own built-in
+    // UA so YouTube returns a consistent desktop response.
+    // Without any auth we rotate through the pool to blend in with organic traffic.
+    const hasAuth = hasCookies || !!accessToken;
+    const ua = hasAuth
       ? null
       : BROWSER_UA_POOL[Math.floor(Math.random() * BROWSER_UA_POOL.length)];
+    // Pass the OAuth Bearer token when available — this authenticates channel listing
+    // directly via the same token the system auto-refreshes every 12h, bypassing
+    // YouTube's datacenter-IP bot detection without needing browser cookies.
+    const oauthArgs: string[] = accessToken
+      ? ["--add-header", `Authorization:Bearer ${accessToken}`]
+      : [];
     const { stdout } = await execFileAsync(resolveYtdlp(), [
       "--flat-playlist",
       "--dump-json",
@@ -522,6 +529,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
       "--referer", "https://www.youtube.com/",
+      ...oauthArgs,
       // player_client=web is intentionally omitted for flat-playlist listing:
       // it triggers YouTube's datacenter-IP bot detection but is NOT needed
       // to enumerate video IDs. Only set it when downloading actual streams.
@@ -561,13 +569,18 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   // Always try the free scraping path first.  Catalog indexing HAS a non-API
   // alternative, so quota should be preserved for uploads and metadata updates
   // which have no other path.
-  logger.info("[Vault] Scraping channel via yt-dlp (quota-free):", PUBLIC_CHANNEL_URL);
+  // Fetch the OAuth token once up-front — used for both the yt-dlp scraping path
+  // (Authorization:Bearer header) and the YouTube Data API fallback below.
+  // The token guardian auto-refreshes this every 12h, so no manual management needed.
+  const accessTokenForIndex = await getVaultYouTubeToken(userId);
+
+  logger.info("[Vault] Scraping channel via yt-dlp (quota-free):", { url: PUBLIC_CHANNEL_URL, authenticated: !!accessTokenForIndex });
   try {
     // Run tabs sequentially — concurrent execFile calls each allocate large buffers
     // and previously caused memory spikes up to 1.5 GB simultaneously.
-    const videos  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`,  "video");
-    const shorts  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`,  "short");
-    const streams = await scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream");
+    const videos  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/videos`,  "video",  accessTokenForIndex);
+    const shorts  = await scrapeTab(`${PUBLIC_CHANNEL_URL}/shorts`,  "short",  accessTokenForIndex);
+    const streams = await scrapeTab(`${PUBLIC_CHANNEL_URL}/streams`, "stream", accessTokenForIndex);
     allVideosRaw = [...videos, ...shorts, ...streams];
     logger.info(`[Vault] yt-dlp scraping returned ${allVideosRaw.length} videos`);
     if (allVideosRaw.length > 0) {
@@ -585,7 +598,6 @@ export async function indexAllChannelVideos(userId: string): Promise<{ indexed: 
   // UPLOAD_RESERVE so that uploads (1600 units each) always have headroom.
   // Only attempt the API if scraping returned zero results.
   if (allVideosRaw.length === 0) {
-    const accessTokenForIndex = await getVaultYouTubeToken(userId);
     if (accessTokenForIndex) {
       // Catalog listing costs ~27 units for 1340 videos — use the dedicated
       // canAffordCatalogListing check (not canAffordOperation) so the 4000-unit
