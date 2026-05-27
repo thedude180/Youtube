@@ -270,9 +270,21 @@ export async function wireAgentCoordination(): Promise<void> {
               try {
                 const { startRecording: retry } = await import("./stream-recorder");
                 const retryResult = await retry(event.userId, videoId);
-                logger.info(`Stream recording retry: ${retryResult.success ? "started" : retryResult.error}`);
+                if (retryResult.success) {
+                  logger.info(`Stream recording retry succeeded for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
+                } else {
+                  // Both the initial attempt and the 30s retry failed to find an HLS manifest.
+                  // This means the video is NOT actually live (detection false-positive or stream ended
+                  // before recording started). Reset the live gate so background AI pipelines
+                  // (SEO generation, copyright checks, etc.) are no longer throttled to 1 slot.
+                  logger.warn(`Stream recording retry also failed (${retryResult.error}) — ${videoId} is not live, resetting live gate`);
+                  setLiveActive(event.userId, false);
+                  logger.info(`[LiveGate] Live gate reset after recording failure — background AI restored to normal`);
+                }
               } catch (err: any) {
                 logger.warn(`Stream recording retry failed: ${err.message}`);
+                // Reset live gate on exception too — if we can't record it, the stream isn't reachable.
+                setLiveActive(event.userId, false);
               }
             }, 30_000);
           }

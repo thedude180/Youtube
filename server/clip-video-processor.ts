@@ -437,15 +437,9 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
         try { fs.unlinkSync(outputPath); } catch {}
       }
 
-      // Try ytdl-core first (faster, no subprocess overhead)
-      const ytdlSuccess = await downloadWithYtdlCore(youtubeId, outputPath);
-      if (ytdlSuccess) {
-        logger.info("Source video downloaded via ytdl-core", { youtubeId, size: fs.statSync(outputPath).size });
-        return outputPath;
-      }
-
-      // Fall back to yt-dlp with OAuth auth header to avoid bot detection
-      logger.info("Falling back to yt-dlp", { youtubeId, authenticated: !!accessToken });
+      // Use yt-dlp directly — ytdl-core is deprecated and fails with
+      // "Failed to find any playable formats" on all current YouTube videos.
+      logger.info("Downloading with yt-dlp", { youtubeId, authenticated: !!accessToken });
       const ytDlpSuccess = await downloadWithYtDlp(youtubeId, outputPath, accessToken);
       if (ytDlpSuccess) {
         logger.info("Source video downloaded via yt-dlp fallback", { youtubeId, size: fs.statSync(outputPath).size });
@@ -504,7 +498,11 @@ export async function cutClipFromVideo(
     "-c:a", "aac",
     "-b:a", "128k",
     "-movflags", "+faststart",
-    "-vf", "scale='min(1080,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+    // scale to fit in 1080×1920 portrait box, pad remainder with black, then
+    // force SAR=1:1 so the non-1:1 SAR present in many YouTube source files
+    // (e.g. 1216:1215) doesn't cause the final encode to be flagged as invalid
+    // or misdisplayed by YouTube's Short ingestion pipeline.
+    "-vf", "scale='min(1080,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
     "-r", "30",
     outputPath,
   ], { timeout: 120_000 });
