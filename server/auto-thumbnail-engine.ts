@@ -80,7 +80,7 @@ async function generateThumbnailPrompt(videoTitle: string, videoDescription: str
           role: "system",
           content: `You are the world's best YouTube thumbnail designer, specialising in PS5 NO-COMMENTARY gaming channels. Your thumbnails consistently achieve 8–15% CTR.
 
-CHANNEL IDENTITY — ET Gaming 247:
+CHANNEL IDENTITY — ET Gaming 274:
 - PS5 gaming, no face cam, no commentary — the thumbnail must rely entirely on in-game visuals
 - Brand aesthetic: cinematic dark backgrounds, high-contrast warm/neon accent colours (deep navy or dark charcoal base + vivid orange, electric blue, or gold highlights)
 - Every thumbnail must feel like a movie poster for the game being played

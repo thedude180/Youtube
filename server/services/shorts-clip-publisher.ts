@@ -60,19 +60,25 @@ let isRunning = false;
 // FFmpeg / yt-dlp helpers
 // ---------------------------------------------------------------------------
 
-function runCmd(bin: string, args: string[]): Promise<void> {
+function runCmd(bin: string, args: string[], timeoutMs = 480_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     const errBufs: Buffer[] = [];
+    // Kill the process after timeoutMs to prevent stuck encodes blocking the publisher
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`Process timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
     proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) return resolve();
       const msg = Buffer.concat(errBufs).toString("utf8").slice(-600);
       const err = new Error(msg) as Error & { exitCode?: number };
       err.exitCode = code ?? -1;
       reject(err);
     });
-    proc.on("error", reject);
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
   });
 }
 
@@ -153,9 +159,9 @@ async function generateShortCaption(opts: {
     const bf6Voice = isBF6 ? `
 This is Battlefield 6 PS5 gameplay — no commentary, no facecam, no reaction, just raw match footage.
 BF6-specific context: Conquest or Breakthrough matches. Infantry, armor, helicopters, jets.
-Channel name: ETGaming247. No team — solo player. PS5 controller, no mods.` : "";
+Channel name: ETGaming274. No team — solo player. PS5 controller, no mods.` : "";
 
-    const prompt = `You are writing a YouTube Shorts title for a real gaming clip on the ET Gaming 247 channel.
+    const prompt = `You are writing a YouTube Shorts title for a real gaming clip on the ET Gaming 274 channel.
 ${bf6Voice}
 
 ${momentContext}
@@ -416,7 +422,8 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       // can no longer cover another upload (1,600 units + 200 safety buffer).
       // This lets each batch run use as much of the daily 10k as possible
       // without tipping the breaker, building one more day ahead each cycle.
-      if (!await canAffordOperation(item.userId, "upload")) {
+      // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
+      if (!await canAffordOperation(item.userId, "upload").catch(() => true)) {
         logger.info(`[ShortsPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
         break;
       }

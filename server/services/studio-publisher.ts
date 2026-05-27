@@ -101,7 +101,8 @@ export async function publishStudioVideo(
 
     if (hasLocalFile) {
       // Quota gate: videos.insert costs 1600 units — check before attempting
-      if (!(await canAffordOperation(userId, "upload"))) {
+      // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
+      if (!(await canAffordOperation(userId, "upload").catch(() => true))) {
         throw Object.assign(
           new Error("YouTube API quota too low to upload — will retry when quota resets"),
           { code: "QUOTA_EXCEEDED" }

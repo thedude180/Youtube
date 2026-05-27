@@ -74,16 +74,22 @@ let isRunning = false;
 // FFmpeg / yt-dlp helpers (16:9 horizontal encoding — letterbox to landscape)
 // ---------------------------------------------------------------------------
 
-function runCmd(bin: string, args: string[]): Promise<void> {
+function runCmd(bin: string, args: string[], timeoutMs = 5_400_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     const errBufs: Buffer[] = [];
+    // Kill the process after timeoutMs (default 90 min) to prevent stuck encodes
+    const timer = setTimeout(() => {
+      proc.kill("SIGKILL");
+      reject(new Error(`Process timed out after ${Math.round(timeoutMs / 60_000)}m`));
+    }, timeoutMs);
     proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
     proc.on("close", (code) => {
+      clearTimeout(timer);
       if (code === 0) return resolve();
       reject(new Error(Buffer.concat(errBufs).toString("utf8").slice(-600)));
     });
-    proc.on("error", reject);
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
   });
 }
 
@@ -172,7 +178,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 
       // Per-upload budget check — stops the batch when remaining quota can no
       // longer cover another upload (1,600 units + 200 safety buffer).
-      if (!await canAffordOperation(item.userId, "upload")) {
+      // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
+      if (!await canAffordOperation(item.userId, "upload").catch(() => true)) {
         logger.info(`[LongFormPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
         break;
       }

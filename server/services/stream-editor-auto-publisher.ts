@@ -169,7 +169,8 @@ export async function processAutoPublishQueue(): Promise<void> {
     if (!studioVideoId) continue;
 
     // Per-upload quota check: ensure we have enough budget for this specific upload
-    const affordable = await canAffordOperation(item.userId, "upload");
+    // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
+    const affordable = await canAffordOperation(item.userId, "upload").catch(() => true);
     if (!affordable) {
       logger.warn(`[AutoPublisher] Insufficient quota for upload of sv${studioVideoId} — deferring remaining items`);
       break; // Stop processing further items this tick; poller will retry later
