@@ -103,7 +103,11 @@ export interface DownloadSectionOpts {
   outputPath: string;
   /** Optional cookies file path — used when present and non-trivial. */
   cookiesPath?: string;
-  /** Download timeout in ms per attempt (default 8 minutes). */
+  /** Download timeout in ms per attempt (default 90 seconds).
+   *  Kept short so the client×format retry matrix exhausts quickly
+   *  instead of hanging 8 min per attempt when YouTube throttles the IP.
+   *  Format-18 HTTP-Range downloads finish in <10 s; DASH in <60 s.
+   */
   timeoutMs?: number;
 }
 
@@ -119,7 +123,7 @@ export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise
     startSec,
     endSec,
     outputPath,
-    timeoutMs = 8 * 60 * 1000,
+    timeoutMs = 90_000,
   } = opts;
 
   const ytdlp = getYtdlpBin();
@@ -144,7 +148,13 @@ export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise
 
       const args: string[] = [
         "--download-sections", sectionStr,
-        "--force-keyframes-at-cuts",
+        // NOTE: --force-keyframes-at-cuts is intentionally omitted.
+        // For 10-hour gaming streams it causes yt-dlp to re-encode around the
+        // cut point (downloading several extra minutes of video), which pushes
+        // wall-clock time well past 480 s on a server IP that YouTube throttles.
+        // Format-18 uses HTTP Range requests and seeks to the exact byte offset
+        // anyway, so keyframe alignment is handled natively and re-encoding is
+        // not needed.  DASH segments are already pre-cut at GOP boundaries.
         "-f", formatStr,
         "--merge-output-format", "mp4",
         "-o", outputPath,

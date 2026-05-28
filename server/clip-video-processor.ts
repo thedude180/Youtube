@@ -23,6 +23,12 @@ if (!fs.existsSync(CLIP_DIR)) {
 
 const activeDownloads = new Map<string, Promise<string>>();
 
+// Hard limit: only 1 full-video download may run at a time.
+// Full gaming-stream downloads (4–10 hours) exhaust memory and block
+// the publisher pipeline's yt-dlp-section segment downloads.
+const MAX_CONCURRENT_FULL_DOWNLOADS = 1;
+let _activeFullDownloadCount = 0;
+
 const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number }>();
 const softFailCounts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_SOFT_RETRIES = 3;
@@ -415,9 +421,20 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
   const existing = activeDownloads.get(youtubeId);
   if (existing) return existing;
 
+  // Enforce global concurrent download cap.
+  // Full gaming-stream downloads (4–10 h) exhaust memory; allow only 1 at a time
+  // so the publisher's yt-dlp-section segment downloads can still proceed.
+  if (_activeFullDownloadCount >= MAX_CONCURRENT_FULL_DOWNLOADS) {
+    throw new Error(
+      `Full-video download limit reached (${_activeFullDownloadCount}/${MAX_CONCURRENT_FULL_DOWNLOADS} active). ` +
+      `Will retry ${youtubeId} once a slot is free.`,
+    );
+  }
+
   const downloadPromise = (async () => {
+    _activeFullDownloadCount++;
     try {
-      logger.info("Downloading source video", { youtubeId, authenticated: !!userId });
+      logger.info("Downloading source video", { youtubeId, authenticated: !!userId, concurrent: _activeFullDownloadCount });
 
       // Fetch the YouTube access token once — used for both availability check and download.
       // Authenticated requests bypass YouTube's server-IP bot detection.
@@ -461,6 +478,7 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
       }
       throw new Error(`All download methods failed for ${youtubeId} (attempt ${newCount}/${MAX_SOFT_RETRIES}). Will retry after cooldown.`);
     } finally {
+      _activeFullDownloadCount--;
       activeDownloads.delete(youtubeId);
     }
   })();

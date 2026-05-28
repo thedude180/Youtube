@@ -1163,9 +1163,25 @@ async function healProductionPipeline(): Promise<void> {
     //    meta.duration ("PT10H7M21S") to shadow meta.durationSec (numeric seconds),
     //    making all duration math produce NaN.  Run up to 6 videos per startup so we
     //    don't spike the AI queue on every restart.
+    //
+    //    QUEUE GUARD: Skip entirely if the autopilot queue already has ≥100 scheduled
+    //    items.  A full queue means the back-catalog runner already produced enough
+    //    work; running the maximizer on top would only saturate the AI semaphore and
+    //    compete with the publisher pipeline for memory.
     try {
       const { videos: videosTable, channels: channelsTbl, autopilotQueue: aqTable } = await import("@shared/schema");
       const { inArray: inArrayOp } = await import("drizzle-orm");
+
+      const [{ scheduledCount }] = await db
+        .select({ scheduledCount: sql<number>`count(*)::int` })
+        .from(aqTable)
+        .where(eq(aqTable.status, "scheduled"));
+
+      if ((scheduledCount ?? 0) >= 100) {
+        process.stdout.write(
+          `[prod-heal] Maximizer catch-up skipped — queue already has ${scheduledCount} scheduled items (≥100 threshold)\n`,
+        );
+      } else {
 
       // Join videos → channels to get userId; pick up to 2 long-form (≥60 min) videos
       // that have never been through the content maximizer, ordered randomly so a
@@ -1220,6 +1236,8 @@ async function healProductionPipeline(): Promise<void> {
       if (maximizerCatchUpCount > 0) {
         process.stdout.write(`[prod-heal] Content maximizer catch-up: ${maximizerCatchUpCount} long-form videos queued for re-processing\n`);
       }
+
+      } // end else (scheduledCount < 100)
     } catch (catchUpErr: any) {
       process.stdout.write(`[prod-heal] Warning: maximizer catch-up failed: ${catchUpErr?.message}\n`);
     }
