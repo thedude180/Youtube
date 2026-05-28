@@ -1,25 +1,16 @@
 /**
  * yt-dlp-section-download.ts
  *
- * Shared, battle-hardened yt-dlp section downloader used by all publishers
- * (shorts-clip-publisher, long-form-clip-publisher, pre-encoder).
+ * Downloads a time-bounded section of a YouTube video.
  *
- * Strategy:
- *  1. Rotates through four YouTube player clients:
- *       tv_embedded → ios → android → (plain web fallback)
- *     tv_embedded is the most reliable bypass for Replit server-IP bot detection.
- *     iOS/Android use official app APIs that YouTube rarely blocks.
- *     Plain web is kept as a last resort.
+ * Works exactly like downloading the video normally to your hard drive —
+ * yt-dlp picks whatever format the video has available (best quality up to
+ * 1080p), then downloads only the bytes for the requested time window.
+ * No re-encoding, no format juggling — just a straight download.
  *
- *  2. Within each client, tries three format strings from most to least specific:
- *       1080p best → 720p → absolute best
- *     This prevents "Requested format is not available" hard failures.
- *
- *  3. Adds --socket-timeout, --retries, --fragment-retries so transient
- *     network hiccups don't count as hard failures.
- *
- *  4. Retries the full client×format matrix — does NOT bail on a format error
- *     from one client before trying the next client with the same format.
+ * Two attempts maximum:
+ *   1. Default yt-dlp client (android_vr) — works for most videos
+ *   2. iOS client fallback — handles videos that block the default client
  *
  * Usage:
  *   await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
@@ -34,42 +25,23 @@ import { createLogger } from "./logger";
 const logger = createLogger("yt-dlp-section");
 
 // ---------------------------------------------------------------------------
-// Format strings — ordered for speed on long-form source videos
-//
-// Format 18 MUST be first.  It is a 360p combined video+audio continuous MP4
-// (not DASH).  yt-dlp uses HTTP Range requests to seek directly to the byte
-// offset for the requested time window — no DASH manifest to download, no
-// thousands of segment URLs to iterate.  A 90-second clip from a 10-hour
-// source downloads in ~5 seconds instead of timing out after 480 seconds.
-//
-// The DASH selectors are kept as fallbacks for videos that only have DASH
-// streams available (rare for YouTube gaming content).
+// Best available format — like a normal download.
+// Prefers a single combined MP4 file so there's no DASH merge step.
+// Falls back to video+audio DASH merge if the combined file isn't offered.
+// Height cap at 1080p keeps file sizes reasonable for short clips.
 // ---------------------------------------------------------------------------
-const SECTION_FORMAT_STRATEGIES = [
-  // Non-DASH combined MP4 — fastest possible section download via HTTP Range
-  "18/best[ext=mp4][height<=480][protocol=https]/best[ext=mp4][height<=480]",
-  // DASH fallback — 720p video + audio
-  "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720]+bestaudio/best[height<=720]",
-  // Last resort
-  "best",
-];
+const DOWNLOAD_FORMAT =
+  "best[ext=mp4][height<=1080]" +         // single-file MP4 up to 1080p (fastest)
+  "/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]" + // DASH merge
+  "/bestvideo[height<=1080]+bestaudio" +   // any container DASH merge
+  "/best";                                 // absolute fallback — whatever is available
 
 // ---------------------------------------------------------------------------
-// Player-client strategies — ordered by reliability in production server IPs
-//
-// IMPORTANT: tv_embedded is intentionally omitted.  In practice it returns
-// only storyboard images and a single audio track — no video streams — so
-// every format selector (including "best") reports "Requested format is not
-// available".  Using it wastes an attempt and delays the real fallbacks.
-//
-// The default client (empty args) uses yt-dlp's built-in "android_vr" which
-// successfully lists all formats in production testing.  It must come first.
+// Client strategies — only two, in order of reliability
 // ---------------------------------------------------------------------------
-const CLIENT_STRATEGIES: Array<string[]> = [
-  [], // default (android_vr) — confirmed working in production tests
-  ["--extractor-args", "youtube:player_client=ios"],
-  ["--extractor-args", "youtube:player_client=android"],
-  ["--extractor-args", "youtube:player_client=web"],
+const CLIENT_STRATEGIES: Array<{ label: string; args: string[] }> = [
+  { label: "default", args: [] },
+  { label: "ios", args: ["--extractor-args", "youtube:player_client=ios"] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -103,10 +75,10 @@ export interface DownloadSectionOpts {
   outputPath: string;
   /** Optional cookies file path — used when present and non-trivial. */
   cookiesPath?: string;
-  /** Download timeout in ms per attempt (default 90 seconds).
-   *  Kept short so the client×format retry matrix exhausts quickly
-   *  instead of hanging 8 min per attempt when YouTube throttles the IP.
-   *  Format-18 HTTP-Range downloads finish in <10 s; DASH in <60 s.
+  /**
+   * Download timeout in ms per attempt (default 3 minutes).
+   * A 38-second clip downloads in seconds under normal conditions.
+   * 3 minutes gives plenty of headroom even on a throttled server IP.
    */
   timeoutMs?: number;
 }
@@ -114,8 +86,10 @@ export interface DownloadSectionOpts {
 /**
  * Downloads a time-bounded section of a YouTube video using yt-dlp.
  *
- * Tries every combination of player-client × format strategy, stopping as
- * soon as one succeeds.  Throws only after the full matrix is exhausted.
+ * Behaves like a normal "download to hard drive" — yt-dlp picks the best
+ * available format automatically, downloads only the requested time window,
+ * and returns the output file.  Tries the default client first, falls back
+ * to the iOS client once if the default fails.
  */
 export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise<void> {
   const {
@@ -123,7 +97,7 @@ export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise
     startSec,
     endSec,
     outputPath,
-    timeoutMs = 90_000,
+    timeoutMs = 180_000, // 3 minutes — plenty for any section of a real video
   } = opts;
 
   const ytdlp = getYtdlpBin();
@@ -139,78 +113,72 @@ export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise
 
   const attempts: string[] = [];
 
-  for (const clientArgs of CLIENT_STRATEGIES) {
-    const clientLabel = clientArgs[1]?.replace("youtube:player_client=", "") ?? "web";
+  for (const client of CLIENT_STRATEGIES) {
+    // Remove stale output before each attempt
+    try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
 
-    for (const formatStr of SECTION_FORMAT_STRATEGIES) {
-      // Always remove stale output before each attempt
-      try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
+    const args: string[] = [
+      "--download-sections", sectionStr,
+      // No --force-keyframes-at-cuts — that flag re-encodes the video around
+      // cut points and causes massive slowdowns on long-form source videos.
+      // yt-dlp with --download-sections already seeks to the right position
+      // in the file; the encoder handles alignment from there.
+      "-f", DOWNLOAD_FORMAT,
+      "--merge-output-format", "mp4",
+      "-o", outputPath,
+      "--no-playlist",
+      "--quiet",
+      "--no-warnings",
+      "--no-check-certificates",
+      "--socket-timeout", "60",
+      "--retries", "3",
+      "--fragment-retries", "3",
+      // Required since YouTube's Nov 2024 obfuscation — without this yt-dlp
+      // falls back to deno (not installed) and fails with "Failed to extract
+      // any player response".
+      "--js-runtimes", "node",
+      ...client.args,
+    ];
+    if (hasCookies) args.push("--cookies", resolvedCookiesPath);
+    args.push(url);
 
-      const args: string[] = [
-        "--download-sections", sectionStr,
-        // NOTE: --force-keyframes-at-cuts is intentionally omitted.
-        // For 10-hour gaming streams it causes yt-dlp to re-encode around the
-        // cut point (downloading several extra minutes of video), which pushes
-        // wall-clock time well past 480 s on a server IP that YouTube throttles.
-        // Format-18 uses HTTP Range requests and seeks to the exact byte offset
-        // anyway, so keyframe alignment is handled natively and re-encoding is
-        // not needed.  DASH segments are already pre-cut at GOP boundaries.
-        "-f", formatStr,
-        "--merge-output-format", "mp4",
-        "-o", outputPath,
-        "--no-playlist",
-        "--quiet",
-        "--no-warnings",
-        "--no-check-certificates",
-        "--socket-timeout", "60",
-        "--retries", "3",
-        "--fragment-retries", "3",
-        "--extractor-retries", "2",
-        // Required since YouTube's Nov 2024 obfuscation — without this yt-dlp
-        // falls back to deno (not installed) and emits "Failed to extract any
-        // player response" on android/ios/web clients.
-        "--js-runtimes", "node",
-        ...clientArgs,
-      ];
-      if (hasCookies) args.push("--cookies", resolvedCookiesPath);
-      args.push(url);
-
-      try {
-        // Wrap in a per-attempt timeout so a hung download doesn't block forever
-        await Promise.race([
-          runYtdlp(ytdlp, args),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`yt-dlp timed out after ${timeoutMs / 1000}s`)), timeoutMs),
+    try {
+      await Promise.race([
+        runYtdlp(ytdlp, args),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`yt-dlp timed out after ${timeoutMs / 1000}s`)),
+            timeoutMs,
           ),
-        ]);
+        ),
+      ]);
 
-        // Verify the output file is real
-        if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
-          logger.info("yt-dlp section download succeeded", {
-            youtubeId,
-            client: clientLabel,
-            format: formatStr.slice(0, 60),
-          });
-          return;
-        }
-
-        attempts.push(`${clientLabel}/${formatStr.slice(0, 40)}: output empty`);
-      } catch (err: any) {
-        const msg = (err?.message || String(err)).slice(0, 200);
-        attempts.push(`${clientLabel}/${formatStr.slice(0, 40)}: ${msg}`);
-        logger.warn("yt-dlp attempt failed", {
+      // Verify the output file exists and has real content
+      if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+        logger.info("yt-dlp section download succeeded", {
           youtubeId,
-          client: clientLabel,
-          format: formatStr.slice(0, 60),
-          error: msg,
+          sectionStr,
+          client: client.label,
+          sizeKb: Math.round(fs.statSync(outputPath).size / 1024),
         });
-        // Continue to next format/client — never bail early on a single attempt
+        return; // Done
       }
+
+      attempts.push(`${client.label}: output file empty after download`);
+    } catch (err: any) {
+      const msg = (err?.message || String(err)).slice(0, 300);
+      attempts.push(`${client.label}: ${msg}`);
+      logger.warn("yt-dlp attempt failed", {
+        youtubeId,
+        client: client.label,
+        error: msg,
+      });
+      // Try the next client
     }
   }
 
   throw new Error(
-    `All yt-dlp strategies failed for ${youtubeId} (${CLIENT_STRATEGIES.length} clients × ${SECTION_FORMAT_STRATEGIES.length} formats). ` +
-    `Last attempts: ${attempts.slice(-4).join(" | ")}`,
+    `yt-dlp section download failed for ${youtubeId} [${sectionStr}] after ${CLIENT_STRATEGIES.length} attempts. ` +
+    `Errors: ${attempts.join(" | ")}`,
   );
 }
