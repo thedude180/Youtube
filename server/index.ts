@@ -915,11 +915,12 @@ async function healProductionPipeline(): Promise<void> {
     //    3 days out gets pulled back to 24 h from now so it publishes quickly
     //    rather than trickling out over weeks.
     //
-    //    EXCEPTION: Shorts and long-form clips are intentionally batch-uploaded
-    //    to YouTube with publishAt set to their scheduled time (up to 14 days
-    //    out).  These items must NOT be collapsed — YouTube is already holding
-    //    them as "Scheduled" at the right release time.
-    const { autopilotQueue, scheduleItems, vodAutopilotConfig: vodConfig } = await import("@shared/schema");
+    //    PROTECTED types — these use YouTube's publishAt scheduler and MUST keep
+    //    their spaced release times intact.  Never collapse them:
+    //      • platform_short / youtube_short / platform_text_short — back-catalog Shorts
+    //      • auto-clip (ANY subtype) — back-catalog long-form + any future clip type
+    //      • live-clip-moment — copilot-generated highlight clips
+    const { autopilotQueue, vodAutopilotConfig: vodConfig } = await import("@shared/schema");
     const { gt, lte, notInArray } = await import("drizzle-orm");
     const cutoff = new Date(Date.now() + 3 * 86400_000);      // 3 days from now
     const pullBackTo = new Date(Date.now() + 86400_000);       // 24 h from now
@@ -931,25 +932,24 @@ async function healProductionPipeline(): Promise<void> {
         and(
           eq(autopilotQueue.status, "scheduled"),
           gt(autopilotQueue.scheduledAt, cutoff),
-          // Preserve Shorts and long-form clips — these use YouTube's publishAt
-          // scheduler and must keep their spaced release times intact.
-          notInArray(autopilotQueue.type, ["platform_short", "youtube_short", "platform_text_short"]),
-          sql`NOT (${autopilotQueue.type} = 'auto-clip' AND ${autopilotQueue.metadata}->>'contentType' = 'long-form-clip')`,
+          // All YouTube-scheduled clip types are exempt — they have a publishAt
+          // already registered with the YouTube API. Collapsing them would cause
+          // all queued uploads to burst at once instead of releasing on schedule.
+          notInArray(autopilotQueue.type, [
+            "platform_short",
+            "youtube_short",
+            "platform_text_short",
+            "auto-clip",
+            "live-clip-moment",
+          ]),
         )!
       );
     const farFutureQueueCount = (farFutureQueueResult as any)?.rowCount ?? "?";
 
-    // Also collapse far-future schedule_items (the YouTube publish calendar)
-    const farFutureScheduleResult = await db
-      .update(scheduleItems)
-      .set({ scheduledAt: pullBackTo })
-      .where(
-        and(
-          eq(scheduleItems.status, "scheduled"),
-          gt(scheduleItems.scheduledAt, cutoff),
-        )!
-      );
-    const farFutureScheduleCount = (farFutureScheduleResult as any)?.rowCount ?? "?";
+    // NOTE: schedule_items (YouTube publish calendar) is intentionally NOT reset here.
+    // Those entries represent the planned publishing calendar and must be preserved
+    // as-is so the output-schedule enforcer can maintain proper cadence spacing.
+    const farFutureScheduleCount = 0;
 
     // 6. Bump VOD autopilot long-form cap from the legacy "1/day" default to 2/day
     //    so the backlog can clear at twice the previous rate.
