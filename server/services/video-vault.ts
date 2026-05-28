@@ -1833,14 +1833,10 @@ export async function downloadVaultEntry(userId: string, entryId: number): Promi
 // publisher can move on to the next clip and retry this one next cycle.
 // ---------------------------------------------------------------------------
 
-const _activeSourceDownloads = new Map<string, boolean>();
-
 export async function queueVaultDownloadForSource(
   youtubeId: string,
   userId: string,
 ): Promise<"already_downloaded" | "in_progress" | "queued"> {
-  // Already running on this server instance — don't double-queue
-  if (_activeSourceDownloads.get(youtubeId)) return "in_progress";
 
   // Check DB — is it already downloaded and the file is on disk?
   const [existing] = await db
@@ -1888,31 +1884,16 @@ export async function queueVaultDownloadForSource(
 
   if (!vaultEntry) return "queued";
 
-  // Mark in-flight so parallel publisher cycles don't start a second download
-  _activeSourceDownloads.set(youtubeId, true);
-
-  // Kick off the full-video download asynchronously (non-blocking).
-  // This is exactly "download the whole video to disk first" — yt-dlp pulls the
-  // complete file, stores it at vault/{youtubeId}.mp4, updates the DB row to
-  // status='downloaded'.  On the next publisher cycle the fast vault→ffmpeg-cut
-  // path runs instead of trying to grab a section over the network.
-  const capturedEntry = vaultEntry;
-  (async () => {
-    try {
-      const accessToken = await getVaultYouTubeToken(userId);
-      logger.info(`[Vault] Background full-video download started: ${youtubeId}${accessToken ? " (authenticated)" : " (anonymous)"}`);
-      const success = await downloadSingleVideo(capturedEntry, accessToken);
-      if (success) {
-        logger.info(`[Vault] Background full-video download complete: ${youtubeId}`);
-      } else {
-        logger.warn(`[Vault] Background full-video download returned false: ${youtubeId}`);
-      }
-    } catch (err: any) {
-      logger.warn(`[Vault] Background full-video download failed for ${youtubeId}: ${err?.message?.slice(0, 200)}`);
-    } finally {
-      _activeSourceDownloads.delete(youtubeId);
-    }
-  })();
+  // Wake up the continuous download loop if it isn't already running.
+  // processVaultDownloads processes ALL indexed entries one after the next —
+  // including the entry we just created/ensured above.  After each download it
+  // calls exhaustVaultEntry to immediately queue every clip type (Shorts + long-form).
+  // This is the same as a human editor: download the whole video → edit all clips.
+  if (!isVaultRunning) {
+    processVaultDownloads(userId).catch((err: any) =>
+      logger.warn(`[Vault] queueVaultDownloadForSource: failed to start download loop for ${youtubeId}: ${err?.message?.slice(0, 200)}`),
+    );
+  }
 
   return "queued";
 }

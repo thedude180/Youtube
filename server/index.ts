@@ -3395,6 +3395,14 @@ httpServer.listen(
       // Vault Clip Exhauster — zero-touch: runs immediately after each download
       // AND sweeps every 10 min to catch anything missed. No human click needed.
       import("./services/vault-clip-exhauster").then(m => m.initVaultClipExhauster()).catch(slog("vault-clip-exhauster import"));
+
+      // Perpetual Downloader — Download → Edit → Upload pipeline, forever.
+      // Downloads every indexed vault video to disk one after the next, exactly
+      // like a human editor saving files locally before cutting clips.
+      // After each download, vault-clip-exhauster immediately queues all Shorts
+      // and long-form clips.  Publishers upload them on quota.  Repeats every
+      // 3 min so newly-indexed videos (from back-catalog runner) are picked up fast.
+      import("./services/perpetual-downloader").then(m => m.initPerpetualDownloader()).catch(slog("perpetual-downloader import"));
     });
 
     // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───
