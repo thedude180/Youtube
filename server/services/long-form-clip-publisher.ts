@@ -136,16 +136,17 @@ async function downloadSegmentFromYouTube(
 // Main publish function
 // ---------------------------------------------------------------------------
 
-export async function runLongFormClipPublisher(): Promise<{ published: number; failed: number; skipped: number }> {
+export async function runLongFormClipPublisher(): Promise<{ published: number; failed: number; skipped: number; quotaExhausted: boolean }> {
   if (isRunning) {
     logger.debug("Long-form publisher already running — skipping");
-    return { published: 0, failed: 0, skipped: 1 };
+    return { published: 0, failed: 0, skipped: 1, quotaExhausted: false };
   }
   isRunning = true;
 
   let published = 0;
   let failed = 0;
   let skipped = 0;
+  let quotaExhausted = false;
 
   try {
     const now = new Date();
@@ -164,13 +165,13 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       .orderBy(autopilotQueue.scheduledAt)
       .limit(MAX_PER_RUN * 4);
 
-    if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
+    if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
     // Check YouTube API quota once — stop the whole batch if tripped
     const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping long-form batch");
-      return { published: 0, failed: 0, skipped: dueItems.length };
+      return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: true };
     }
 
     for (const item of dueItems) {
@@ -181,6 +182,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
       if (!await canAffordOperation(item.userId, "upload").catch(() => true)) {
         logger.info(`[LongFormPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
+        quotaExhausted = true;
         break;
       }
 
@@ -547,8 +549,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
     await recordHeartbeat("longFormClipPublisher", "completed").catch(() => {});
   }
 
-  logger.info("Long-form clip publisher cycle complete", { published, failed, skipped });
-  return { published, failed, skipped };
+  logger.info("Long-form clip publisher cycle complete", { published, failed, skipped, quotaExhausted });
+  return { published, failed, skipped, quotaExhausted };
 }
 
 // ---------------------------------------------------------------------------
@@ -573,8 +575,16 @@ export function startPerpetualLongFormLoop(): void {
     while (_perpetualRunning) {
       try {
         const result = await runLongFormClipPublisher();
-        if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
-          // Nothing to do — wait before polling again
+
+        if (result.quotaExhausted) {
+          // YouTube daily quota is spent — sleep until midnight Pacific reset
+          const { getNextResetTime } = await import("./youtube-quota-tracker");
+          const msUntilReset = Math.max(getNextResetTime().getTime() - Date.now(), 60_000);
+          const hUntil = (msUntilReset / 3_600_000).toFixed(1);
+          logger.info(`[LongFormPublisher] Quota exhausted — sleeping ${hUntil}h until midnight Pacific reset`);
+          await new Promise(r => setTimeout(r, msUntilReset));
+        } else if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
+          // Queue empty — wait before polling again
           await new Promise(r => setTimeout(r, 10 * 60_000)); // 10 min idle wait
         } else {
           // Work was done — short pause then immediately check for more

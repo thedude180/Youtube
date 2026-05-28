@@ -349,16 +349,17 @@ async function uploadToYouTube(opts: {
 // Main processing loop
 // ---------------------------------------------------------------------------
 
-export async function runShortsClipPublisher(): Promise<{ published: number; failed: number; skipped: number }> {
+export async function runShortsClipPublisher(): Promise<{ published: number; failed: number; skipped: number; quotaExhausted: boolean }> {
   if (isRunning) {
     logger.debug("Publisher already running — skipping cycle");
-    return { published: 0, failed: 0, skipped: 1 };
+    return { published: 0, failed: 0, skipped: 1, quotaExhausted: false };
   }
   isRunning = true;
 
   let published = 0;
   let failed = 0;
   let skipped = 0;
+  let quotaExhausted = false;
 
   try {
     const now = new Date();
@@ -406,13 +407,13 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       )
       .limit(MAX_PER_RUN * 4);
 
-    if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0 };
+    if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
     // Check YouTube API quota once before the loop — stop the entire batch if tripped
     const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn("YouTube quota breaker active — skipping shorts batch");
-      return { published: 0, failed: 0, skipped: dueItems.length };
+      return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: true };
     }
 
     for (const item of dueItems) {
@@ -425,6 +426,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       // .catch(() => true) — quota-tracker DB errors are non-fatal; default to "can afford"
       if (!await canAffordOperation(item.userId, "upload").catch(() => true)) {
         logger.info(`[ShortsPublisher] Upload budget at ceiling — stopping batch (${published} uploaded this run)`);
+        quotaExhausted = true;
         break;
       }
 
@@ -742,8 +744,8 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     await recordHeartbeat("shortsClipPublisher", "completed").catch(() => {});
   }
 
-  logger.info("Shorts publisher cycle complete", { published, failed, skipped });
-  return { published, failed, skipped };
+  logger.info("Shorts publisher cycle complete", { published, failed, skipped, quotaExhausted });
+  return { published, failed, skipped, quotaExhausted };
 }
 
 // ---------------------------------------------------------------------------
@@ -763,9 +765,16 @@ export function startPerpetualShortsLoop(): void {
     while (_perpetualRunning) {
       try {
         const result = await runShortsClipPublisher();
-        // If nothing was published or processed, back off briefly to avoid
-        // hammering the DB when the queue is empty or quota is exhausted.
-        if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
+
+        if (result.quotaExhausted) {
+          // YouTube daily quota is spent — sleep until midnight Pacific reset
+          const { getNextResetTime } = await import("./youtube-quota-tracker");
+          const msUntilReset = Math.max(getNextResetTime().getTime() - Date.now(), 60_000);
+          const hUntil = (msUntilReset / 3_600_000).toFixed(1);
+          logger.info(`[ShortsPublisher] Quota exhausted — sleeping ${hUntil}h until midnight Pacific reset`);
+          await new Promise(r => setTimeout(r, msUntilReset));
+        } else if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
+          // Queue empty — back off briefly before polling again
           await new Promise(r => setTimeout(r, 5 * 60_000)); // 5 min idle wait
         } else {
           // Work was done — restart immediately to pick up the next batch
