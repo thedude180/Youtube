@@ -584,8 +584,24 @@ export function startPerpetualLongFormLoop(): void {
           logger.info(`[LongFormPublisher] Quota exhausted — sleeping ${hUntil}h until midnight Pacific reset`);
           await new Promise(r => setTimeout(r, msUntilReset));
         } else if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
-          // Queue empty — wait before polling again
-          await new Promise(r => setTimeout(r, 10 * 60_000)); // 10 min idle wait
+          // Queue is genuinely empty — try to resume or recycle before waiting.
+          // RESUME: mines any newly indexed/unmined videos (e.g. fresh live-stream VOD).
+          // RECYCLE: vault fully exhausted → resets mined flags → re-queues everything
+          //          so the channel keeps publishing in a never-ending loop.
+          const { runPerpetualRecycler } = await import("./youtube-perpetual-recycler");
+          const recycleResult = await runPerpetualRecycler();
+          if (recycleResult.triggered) {
+            logger.info(
+              recycleResult.fullRecycle
+                ? "[LongFormPublisher] Full vault recycle complete — all videos re-queued for next cycle"
+                : "[LongFormPublisher] Resumed mining — back-catalog engine triggered for remaining videos",
+            );
+            // Give the engine 60 s to populate the queue before checking again
+            await new Promise(r => setTimeout(r, 60_000));
+          } else {
+            // Nothing to do right now — poll again in 10 min
+            await new Promise(r => setTimeout(r, 10 * 60_000));
+          }
         } else {
           // Work was done — short pause then immediately check for more
           await new Promise(r => setTimeout(r, 5_000)); // 5 s breathing room

@@ -641,6 +641,22 @@ export async function afterStreamCopilot(
   // Clear stream state
   _streamState.delete(streamId);
 
+  // After a stream ends, fire vault sync + back-catalog engine after a short delay
+  // so the newly published VOD gets mined immediately rather than waiting 22 h for
+  // the next scheduled back-catalog cycle.  Non-fatal — runs entirely in background.
+  setTimeout(async () => {
+    try {
+      logger.info(`[Copilot] Post-stream: syncing vault + triggering back-catalog engine for new VOD (user ${userId.slice(0, 8)})`);
+      const { startVaultSync } = await import("./video-vault");
+      await startVaultSync(userId); // re-index so the new VOD appears in back_catalog_videos
+      const { runBackCatalogForAllEligibleUsers } = await import("./youtube-back-catalog-runner");
+      await runBackCatalogForAllEligibleUsers();
+      logger.info("[Copilot] Post-stream back-catalog mining complete — new VOD clips queued");
+    } catch (err: any) {
+      logger.warn(`[Copilot] Post-stream back-catalog trigger failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    }
+  }, 10 * 60_000); // 10-min delay: give YouTube time to process and publish the VOD
+
   return { shortsQueued, longFormQueued, clipMomentsFound, vodOptimized: false };
 }
 
