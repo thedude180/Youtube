@@ -2423,6 +2423,15 @@ httpServer.listen(
           .then(res => logger.info("[Boot] Non-YouTube queue items purged", { rows: (res as any)?.rowCount ?? 0 }))
           .catch(err => logger.warn("[Boot] Non-YouTube purge skipped:", err?.message));
 
+        // ── Reset stuck "publishing" items ────────────────────────────────────
+        // If the server crashed mid-upload, items get stuck in "publishing".
+        // Reset them to "scheduled" so they retry on next publisher sweep.
+        db.update(autopilotQueue)
+          .set({ status: "scheduled" })
+          .where(eq(autopilotQueue.status, "publishing" as any))
+          .then((res: any) => logger.info("[Boot] Stuck publishing items reset to scheduled", { rows: (res as any)?.rowCount ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Publishing reset skipped:", err?.message));
+
         // ── Delete all failed items ───────────────────────────────────────────
         // permanent_fail and failed rows are dead weight — they will never run
         // again. Remove them entirely so the queue stays clean and counts are

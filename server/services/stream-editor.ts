@@ -423,6 +423,7 @@ async function processClip(
   onProgress?: (pct: number, fps: number, stage: string) => void,
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
+  if (!profile) throw new Error(`Unknown platform "${platform}" — no encoding profile found. Cannot process clip.`);
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
   const vf = buildCinematicVideoFilter(gameName, enhancements, profile, sourceFps, sourceWidth, sourceHeight, actualDuration);
   const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
