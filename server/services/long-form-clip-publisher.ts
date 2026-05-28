@@ -369,12 +369,14 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
             if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
               await extractSegment(vaultEntry.filePath, startSec, durationSec, tmpEncoded);
             } else {
-              // Cap the download end to startSec + experimentDurationSec so yt-dlp
-              // doesn't fetch footage beyond the bucket we're testing.
-              const downloadEndSec = startSec + durationSec;
-              await downloadSegmentFromYouTube(resolvedYoutubeId, startSec, downloadEndSec, tmpRaw);
-              if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
-              await extractSegment(tmpRaw, 0, durationSec, tmpEncoded);
+              // Source video not in vault — queue a full download in the background
+              // (same as downloading the whole video to your hard drive first, then
+              // cutting clips locally).  Reset this item to scheduled so the next
+              // publisher cycle can use the local file via the vault fast-path above.
+              const { queueVaultDownloadForSource } = await import("./video-vault");
+              const queueResult = await queueVaultDownloadForSource(resolvedYoutubeId, item.userId);
+              logger.info(`[LongFormPublisher] Full-video download ${queueResult} for ${resolvedYoutubeId} — item will retry on next cycle`);
+              throw new Error(`__vault_download_pending__: ${resolvedYoutubeId} (${queueResult})`);
             }
           } else {
             throw new Error("No YouTube ID to download segment from");
@@ -531,11 +533,21 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         }
       } catch (err: any) {
         const errMsg = err?.message?.slice(0, 500) ?? "unknown error";
-        logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });
-        await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: errMsg })
-          .where(eq(autopilotQueue.id, item.id));
-        failed++;
+
+        // Full-video download was queued — reset to scheduled so the next
+        // publisher cycle retries once the video is downloaded to disk.
+        if (errMsg.includes("__vault_download_pending__")) {
+          await db.update(autopilotQueue)
+            .set({ status: "scheduled", errorMessage: null })
+            .where(eq(autopilotQueue.id, item.id));
+          skipped++;
+        } else {
+          logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });
+          await db.update(autopilotQueue)
+            .set({ status: "failed", errorMessage: errMsg })
+            .where(eq(autopilotQueue.id, item.id));
+          failed++;
+        }
       } finally {
         if (fs.existsSync(tmpRaw)) fs.unlinkSync(tmpRaw);
         if (encodedPath && fs.existsSync(encodedPath)) fs.unlinkSync(encodedPath);

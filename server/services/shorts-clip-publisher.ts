@@ -290,11 +290,16 @@ async function getEncodedSegment(opts: {
     }
 
     if (!rawSourcePath && !fs.existsSync(tmpEncoded)) {
-      // Either no vault file was found, or vault was corrupt and we cleared rawSourcePath above
       if (!youtubeId) return null;
-      await downloadSegmentFromYouTube(youtubeId, startSec, endSec, tmpRaw);
-      if (!fs.existsSync(tmpRaw)) throw new Error("yt-dlp produced no output");
-      await extractSegmentFromFile(tmpRaw, 0, durationSec, tmpEncoded);
+      // Source video is not in the vault yet.
+      // Queue a full-video download in the background — exactly like downloading
+      // the whole video to your hard drive first, then cutting clips from it
+      // locally.  Once the download finishes, the vault fast-path above handles
+      // all clips from this source with a simple ffmpeg seek (no network needed).
+      const { queueVaultDownloadForSource } = await import("../services/video-vault");
+      const queueResult = await queueVaultDownloadForSource(youtubeId, userId);
+      logger.info(`[ShortsPublisher] Full-video download ${queueResult} for ${youtubeId} — item will retry on next cycle`);
+      throw new Error(`__vault_download_pending__: ${youtubeId} (${queueResult})`);
     }
 
     if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
@@ -572,10 +577,18 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                 });
               } catch (downloadErr: any) {
                 const errMsg = String(downloadErr?.message ?? downloadErr);
-                // "format is not available" is NOT permanent — it means the format selector
-                // didn't match this video's streams.  The new downloadYouTubeSection utility
-                // handles this by trying multiple format strings across multiple player clients.
-                // Only treat truly irrecoverable conditions as permanent (private, deleted, geo-blocked).
+
+                // Full-video download was queued — reset to scheduled so the
+                // next publisher cycle retries once the video is on disk.
+                if (errMsg.includes("__vault_download_pending__")) {
+                  await db.update(autopilotQueue)
+                    .set({ status: "scheduled", errorMessage: null })
+                    .where(eq(autopilotQueue.id, item.id));
+                  skipped++;
+                  continue;
+                }
+
+                // Only treat truly irrecoverable conditions as permanent.
                 const isPermanent = /this video is private|video has been removed|no longer available|video unavailable|account.*terminated|content.*not available in your country/i.test(errMsg);
                 logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
                 await db.update(autopilotQueue)
