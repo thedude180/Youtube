@@ -555,9 +555,46 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 // Initialiser — wired into server startup
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Perpetual loop — runs continuously, restarting immediately after each batch.
+// Long-form encodes are expensive (up to 60 min of source footage) so the
+// idle wait is longer than Shorts to avoid CPU/disk pressure while encoding.
+// The daily-cap and quota gate inside runLongFormClipPublisher() are the
+// real throttle; the loop itself drives work as fast as those gates allow.
+// ---------------------------------------------------------------------------
+
+let _perpetualRunning = false;
+
+export function startPerpetualLongFormLoop(): void {
+  if (_perpetualRunning) return;
+  _perpetualRunning = true;
+
+  const loop = async () => {
+    while (_perpetualRunning) {
+      try {
+        const result = await runLongFormClipPublisher();
+        if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
+          // Nothing to do — wait before polling again
+          await new Promise(r => setTimeout(r, 10 * 60_000)); // 10 min idle wait
+        } else {
+          // Work was done — short pause then immediately check for more
+          await new Promise(r => setTimeout(r, 5_000)); // 5 s breathing room
+        }
+      } catch (err: any) {
+        logger.warn("Perpetual long-form loop error — restarting in 2 min", { error: err?.message?.slice(0, 200) });
+        await new Promise(r => setTimeout(r, 2 * 60_000));
+      }
+    }
+  };
+
+  loop().catch(err => logger.error("Perpetual long-form loop crashed", { error: String(err) }));
+  logger.info("[LongFormPublisher] Perpetual loop started — will restart immediately after each batch");
+}
+
 export function initLongFormClipPublisher(): void {
-  // Run at minute 45 of every even hour (offset from Shorts publisher at :05 / :35)
+  // Cron kept as a safety net in case perpetual loop crashes
   cron.schedule("45 */2 * * *", async () => {
+    if (_perpetualRunning) return; // perpetual loop already handles this
     try {
       await runLongFormClipPublisher();
     } catch (err: any) {
@@ -565,12 +602,10 @@ export function initLongFormClipPublisher(): void {
     }
   });
 
-  // Warm-up after 20 minutes so other services settle first
+  // Start perpetual loop after 20-minute warm-up so other services settle first
   setTimeout(() => {
-    runLongFormClipPublisher().catch((err: unknown) =>
-      logger.warn("Long-form publisher warm-up error", { error: (err as Error)?.message })
-    );
+    startPerpetualLongFormLoop();
   }, 20 * 60_000);
 
-  logger.info("Long-Form Clip Publisher initialised — runs every 2 h, max 1 upload per run");
+  logger.info("Long-Form Clip Publisher initialised — perpetual mode: ON");
 }

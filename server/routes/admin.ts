@@ -433,4 +433,165 @@ export function registerAdminRoutes(app: Express) {
       res.status(500).json({ error: "Playlist prune failed" });
     }
   });
+
+  // ── Content Reset — wipe all content-side data and restart fresh ─────────
+  // Wipes vault entries, queue, clips, studio videos, edit jobs, back-catalog
+  // derivatives, longform segments, and all physical temp files.
+  // Auth/OAuth/channel connections/user accounts are NEVER touched.
+  // Immediately kicks off: vault index → vault download → back-catalog cycle.
+  app.post("/api/admin/content-reset", requireAdmin, adminRateLimit, async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+
+    logger.warn("[ContentReset] Content reset initiated by admin", { userId });
+
+    try {
+      const {
+        contentVaultBackups,
+        streamEditJobs,
+        studioVideos,
+        autopilotQueue,
+        contentClips,
+        backCatalogVideos,
+        longformExtractionSegments,
+        youtubeOutputMetrics,
+        learningEvents,
+      } = await import("@shared/schema");
+
+      const { sql: drizzleSql, ne } = await import("drizzle-orm");
+      const fs = await import("fs");
+      const path = await import("path");
+
+      // ── 1. Wipe all content tables ────────────────────────────────────────
+      // Order matters: delete dependants before parents to avoid FK violations
+
+      // Reset vault: keep the video index rows but clear all download state
+      // so everything re-downloads fresh from YouTube
+      await db.update(contentVaultBackups).set({
+        status: "indexed",
+        filePath: null,
+        fileSize: null,
+        downloadedAt: null,
+        downloadError: null,
+        metadata: drizzleSql`'{}'::jsonb`,
+      });
+
+      await db.delete(streamEditJobs);
+      await db.delete(studioVideos);
+      await db.delete(contentClips);
+      await db.delete(autopilotQueue);
+      await db.delete(longformExtractionSegments);
+      await db.delete(backCatalogVideos);
+
+      // Reset learning metrics so the learning brain starts fresh from real data
+      await db.delete(youtubeOutputMetrics);
+      await db.delete(learningEvents);
+
+      logger.info("[ContentReset] All content tables wiped");
+
+      // ── 2. Wipe physical temp files ───────────────────────────────────────
+      const dirsToWipe = [
+        path.join(process.cwd(), "vault"),
+        path.join(process.cwd(), "data", "longform-tmp"),
+        path.join(process.cwd(), "data", "shorts-tmp"),
+        path.join(process.cwd(), "data", "studio"),
+        path.join(process.cwd(), "data", "stream-editor"),
+        path.join(process.cwd(), "data", "pre-encoded"),
+        path.join(process.cwd(), "data", "thumbnails"),
+      ];
+
+      let filesDeleted = 0;
+      for (const dir of dirsToWipe) {
+        if (!fs.existsSync(dir)) continue;
+        try {
+          const entries = fs.readdirSync(dir);
+          for (const entry of entries) {
+            const full = path.join(dir, entry);
+            try {
+              const stat = fs.statSync(full);
+              if (stat.isFile()) {
+                fs.unlinkSync(full);
+                filesDeleted++;
+              }
+            } catch { /* non-fatal — file may already be gone */ }
+          }
+        } catch (dirErr: any) {
+          logger.warn(`[ContentReset] Could not clear dir ${dir}: ${dirErr?.message}`);
+        }
+      }
+      logger.info(`[ContentReset] Physical files wiped: ${filesDeleted} files`);
+
+      // ── 3. Kick off fresh vault index + download immediately ──────────────
+      // Don't wait — fire and forget so the HTTP response returns fast
+      setImmediate(async () => {
+        try {
+          const { channels } = await import("@shared/schema");
+          const { eq: eqOp, and: andOp, isNotNull } = await import("drizzle-orm");
+
+          // Find the real YouTube channel with a token
+          const [ytChannel] = await db.select({ userId: channels.userId })
+            .from(channels)
+            .where(andOp(
+              eqOp(channels.platform, "youtube"),
+              isNotNull(channels.accessToken),
+              ne(channels.userId, "dev_bypass_user"),
+            ))
+            .limit(1);
+
+          if (!ytChannel) {
+            logger.warn("[ContentReset] No connected YouTube channel found — skipping vault kickoff");
+            return;
+          }
+
+          const uid = ytChannel.userId!;
+          logger.info(`[ContentReset] Kicking off vault sync for user ${uid.slice(0, 8)}…`);
+
+          const { startVaultSync } = await import("../services/video-vault");
+          await startVaultSync(uid);
+          logger.info("[ContentReset] Vault sync + download started");
+
+          // Wait 30 s for initial indexing to complete, then fire back-catalog cycle
+          await new Promise(r => setTimeout(r, 30_000));
+
+          logger.info("[ContentReset] Firing immediate back-catalog cycle…");
+          const { runBackCatalogForAllEligibleUsers } = await import("../services/youtube-back-catalog-runner");
+          await runBackCatalogForAllEligibleUsers();
+          logger.info("[ContentReset] Initial back-catalog cycle complete");
+
+          // Kick off both perpetual publisher loops so they run immediately and
+          // then continuously without waiting for the next cron tick.
+          const shortsPublisherMod = await import("../services/shorts-clip-publisher");
+          const longFormPublisherMod = await import("../services/long-form-clip-publisher");
+
+          // Start perpetual loops (idempotent — won't double-start if already running)
+          shortsPublisherMod.startPerpetualShortsLoop();
+          longFormPublisherMod.startPerpetualLongFormLoop();
+
+          logger.info("[ContentReset] Perpetual publisher loops started");
+        } catch (kickErr: any) {
+          logger.error("[ContentReset] Post-reset kickoff failed", { error: kickErr?.message?.slice(0, 200) });
+        }
+      });
+
+      res.json({
+        ok: true,
+        message: "Content reset complete. Vault re-indexing and back-catalog download started automatically.",
+        filesDeleted,
+        tablesWiped: [
+          "content_vault_backups (reset to indexed)",
+          "stream_edit_jobs",
+          "studio_videos",
+          "content_clips",
+          "autopilot_queue",
+          "longform_extraction_segments",
+          "back_catalog_videos",
+          "youtube_output_metrics",
+          "learning_events",
+        ],
+      });
+    } catch (err: any) {
+      logger.error("[ContentReset] Reset failed", { error: err?.message });
+      res.status(500).json({ error: "Content reset failed: " + err?.message?.slice(0, 200) });
+    }
+  });
 }

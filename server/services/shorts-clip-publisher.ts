@@ -746,8 +746,46 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
   return { published, failed, skipped };
 }
 
+// ---------------------------------------------------------------------------
+// Perpetual loop — runs continuously, restarting immediately after each batch.
+// This ensures the publisher never idles while there is queued content.
+// The quota gate and daily-cap checks inside runShortsClipPublisher() are the
+// real throttle; the loop itself just drives work as fast as those gates allow.
+// ---------------------------------------------------------------------------
+
+let _perpetualRunning = false;
+
+export function startPerpetualShortsLoop(): void {
+  if (_perpetualRunning) return;
+  _perpetualRunning = true;
+
+  const loop = async () => {
+    while (_perpetualRunning) {
+      try {
+        const result = await runShortsClipPublisher();
+        // If nothing was published or processed, back off briefly to avoid
+        // hammering the DB when the queue is empty or quota is exhausted.
+        if (result.published === 0 && result.failed === 0 && result.skipped === 0) {
+          await new Promise(r => setTimeout(r, 5 * 60_000)); // 5 min idle wait
+        } else {
+          // Work was done — restart immediately to pick up the next batch
+          await new Promise(r => setTimeout(r, 2_000)); // 2 s breathing room
+        }
+      } catch (err: any) {
+        logger.warn("Perpetual shorts loop error — restarting in 60s", { error: err?.message?.slice(0, 200) });
+        await new Promise(r => setTimeout(r, 60_000));
+      }
+    }
+  };
+
+  loop().catch(err => logger.error("Perpetual shorts loop crashed", { error: String(err) }));
+  logger.info("[ShortsPublisher] Perpetual loop started — will restart immediately after each batch");
+}
+
 export function initShortsClipPublisher(): void {
+  // Cron kept as a safety net in case perpetual loop crashes
   cron.schedule("5,35 * * * *", async () => {
+    if (_perpetualRunning) return; // perpetual loop already handles this
     try {
       await runShortsClipPublisher();
     } catch (err: any) {
@@ -755,12 +793,10 @@ export function initShortsClipPublisher(): void {
     }
   });
 
-  // Warm-up run after 12-minute delay so YouTube tokens are verified first
+  // Start perpetual loop after 12-minute warm-up delay so YouTube tokens are verified first
   setTimeout(() => {
-    runShortsClipPublisher().catch((err: unknown) =>
-      logger.warn("Shorts publisher warm-up error", { error: (err as Error)?.message })
-    );
+    startPerpetualShortsLoop();
   }, 12 * 60_000);
 
-  logger.info("Shorts Clip Publisher initialised — platform: YouTube Shorts");
+  logger.info("Shorts Clip Publisher initialised — perpetual mode: ON");
 }

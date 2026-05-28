@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
@@ -286,6 +286,25 @@ function AdminSystemHealthTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
   const { toast } = useToast();
   const [pruneResults, setPruneResults] = useState<any>(null);
+  const [resetConfirm, setResetConfirm] = useState(false);
+
+  const contentResetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/content-reset", {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setResetConfirm(false);
+      toast({
+        title: "Content reset complete",
+        description: "Vault re-indexing and back-catalog download started. Shorts and long-form will begin uploading automatically.",
+      });
+    },
+    onError: (e: any) => {
+      setResetConfirm(false);
+      toast({ title: "Reset failed", description: e.message, variant: "destructive" });
+    },
+  });
 
   const pruneMutation = useMutation({
     mutationFn: async (dryRun: boolean) => {
@@ -533,6 +552,65 @@ function AdminSystemHealthTab() {
                   ))}
                 </>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Content Reset ─────────────────────────────────────────────── */}
+      <Card className="border-red-900/40">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2 text-red-400">
+            <RotateCcw className="w-5 h-5" />
+            Content Reset
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Wipes all vault downloads, queued clips, studio videos, edit jobs, and the
+            back-catalog — then immediately re-indexes the YouTube channel and starts
+            downloading everything fresh. Auth, OAuth tokens, and channel connections
+            are never touched.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            After reset: the system starts in <strong>perpetual mode</strong> — BF6
+            content is prioritised first, the full back-catalog downloads in parallel,
+            and both the Shorts and long-form publishers restart automatically as soon
+            as each batch finishes, building a scheduled queue forever.
+          </p>
+          {!resetConfirm ? (
+            <Button
+              variant="destructive"
+              onClick={() => setResetConfirm(true)}
+              data-testid="button-content-reset-confirm"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset All Content
+            </Button>
+          ) : (
+            <div className="flex items-center gap-3 p-3 bg-red-950/40 rounded-md border border-red-800/40">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+              <span className="text-sm text-red-300">This will permanently delete all content data. Are you sure?</span>
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setResetConfirm(false)}
+                  disabled={contentResetMutation.isPending}
+                  data-testid="button-content-reset-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => contentResetMutation.mutate()}
+                  disabled={contentResetMutation.isPending}
+                  data-testid="button-content-reset-execute"
+                >
+                  {contentResetMutation.isPending ? "Resetting…" : "Yes, Reset Everything"}
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
