@@ -42,8 +42,20 @@ try {
 
 // Pre-load DB-persisted permanent failures into the in-memory map on startup.
 // Without this, every server restart clears the cache and clip-video-processor
-// retries permanently-failed videos (e.g. Jrt9VPmojMA) immediately on boot,
-// spawning multiple yt-dlp processes that exhaust RAM and trigger an OOM loop.
+// retries permanently-failed videos immediately on boot, spawning yt-dlp
+// processes that exhaust RAM and trigger an OOM loop.
+//
+// Also seeds hardcoded permanently-inaccessible IDs — these are blocked
+// immediately at T+0 before perpetual-repair's T+5min first cycle runs.
+// Belt-and-suspenders: perpetual-repair's alwaysBlock + vault marking
+// covers the same IDs, but the early-boot window (T+0 to T+5) needs this.
+const HARDCODED_PERMANENT_FAILS: Record<string, string> = {
+  "Jrt9VPmojMA": "Cross-contaminated metadata — permanently inaccessible (hardcoded boot block)",
+};
+for (const [ytId, reason] of Object.entries(HARDCODED_PERMANENT_FAILS)) {
+  permanentlyFailedIds.set(ytId, { reason, failedAt: Date.now() });
+}
+
 (async () => {
   try {
     const failed = await db
@@ -51,9 +63,9 @@ try {
       .from(contentVaultBackups)
       .where(eq(contentVaultBackups.status, "failed"));
     for (const row of failed) {
-      if (row.youtubeId && row.downloadError && !permanentlyFailedIds.has(row.youtubeId)) {
+      if (row.youtubeId && !permanentlyFailedIds.has(row.youtubeId)) {
         permanentlyFailedIds.set(row.youtubeId, {
-          reason: row.downloadError.substring(0, 300),
+          reason: (row.downloadError ?? "vault-failed").substring(0, 300),
           failedAt: Date.now(),
         });
       }
@@ -61,6 +73,7 @@ try {
     if (failed.length > 0) {
       logger.info(`[clip-video-processor] Pre-loaded ${failed.length} permanently-failed video IDs from DB — will skip without yt-dlp attempts`);
     }
+    logger.info(`[clip-video-processor] Boot block list: ${permanentlyFailedIds.size} IDs (${Object.keys(HARDCODED_PERMANENT_FAILS).length} hardcoded + ${failed.length} from DB)`);
   } catch (err: any) {
     logger.warn("[clip-video-processor] Could not pre-load permanent failures from DB", { error: err?.message });
   }
