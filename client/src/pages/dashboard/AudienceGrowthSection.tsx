@@ -504,7 +504,7 @@ function GeoCard() {
       <CardContent className="p-2 pt-0">
         <div className="space-y-1">
           {sorted.map((c) => (
-            <div key={c.code} className="space-y-0.5" data-testid={`geo-row-${c.code.toLowerCase()}`}>
+            <div key={c.code} className="space-y-0.5" data-testid={`geo-row-${c.code?.toLowerCase() ?? "unknown"}`}>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs">{c.code}</span>
                 <span className="text-[10px] text-muted-foreground">
