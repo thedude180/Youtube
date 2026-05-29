@@ -3,13 +3,13 @@ import { contentVaultBackups, channels } from "@shared/schema";
 import { eq, and, ne, sql, isNull, inArray } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
-import os from "os";
 import { execFile } from "child_process";
 import { promisify } from "util";
 
 import { createLogger } from "../lib/logger";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { registerCache } from "./resilience-core";
+import { getContainerMemory, hasSpawnHeadroom, MIN_SPAWN_HEADROOM_BYTES } from "../lib/container-memory";
 
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
@@ -489,12 +489,13 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     logger.info(`[Vault] Scraping tab: ${tabUrl}`);
 
     // Memory gate: yt-dlp is a Python process that needs 80–150 MB at startup.
-    // If a download is already running (another yt-dlp process) AND OS free
-    // memory is below 15%, skip the scrape to avoid OOM-killing either process.
-    // The scrape will re-run on the next scheduled cycle (typically minutes away).
-    const osFreeRatio = os.freemem() / os.totalmem();
-    if (isVaultRunning && osFreeRatio < 0.15) {
-      logger.warn(`[Vault] Skipping ${contentType} scrape — download in progress and OS free memory only ${Math.round(osFreeRatio * 100)}%`);
+    // If a download is already running (another yt-dlp process) AND the CONTAINER
+    // is over 85% of its memory limit, skip the scrape to avoid OOM-killing either
+    // process.  Uses cgroup usage (not host os.freemem, which is meaningless inside
+    // a capped container).  The scrape re-runs on the next scheduled cycle.
+    const scrapeMem = getContainerMemory();
+    if (isVaultRunning && (scrapeMem.usedRatio > 0.85 || !hasSpawnHeadroom(scrapeMem))) {
+      logger.warn(`[Vault] Skipping ${contentType} scrape — download in progress and container memory at ${Math.round(scrapeMem.usedRatio * 100)}% (${Math.round(scrapeMem.freeBytes / 1024 / 1024)}MB free)`);
       return videos;
     }
 
@@ -1469,39 +1470,51 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
 
       // Memory pressure gate — halt downloads before the server OOMs.
       //
-      // We use OS-level free-memory percentage as the primary signal because
-      // V8 heap ratio (heapUsed/heapTotal) is a misleading proxy: the GC
-      // lazily expands heapTotal, so the ratio stays at 90-96% even when the
-      // OS still has hundreds of MB free.  Blocking on heap ratio caused ALL
-      // vault downloads to be permanently skipped in production.
+      // CRITICAL: we measure CONTAINER memory (cgroup current/limit), NOT host
+      // memory.  `os.freemem()/os.totalmem()` report the HOST machine, which on
+      // the production deployment has tens of GB free even while THIS container
+      // is capped at ~512 MB–1 GB and about to be OOM-killed.  A host-based gate
+      // therefore never fires before the kernel kills the process — which is
+      // exactly what caused the repeated OOM crash loops.  getContainerMemory()
+      // reads the cgroup usage the OOM killer itself watches.
       //
-      // OS thresholds (conservative — production server has ~512 MB–1 GB RAM):
-      //   < 10% OS free  = critical OOM risk → stop immediately (tightened from 4%)
-      //   10–15% OS free = high pressure → wait 30 s up to 4×, then stop
-      //   > 15% OS free  = normal operation → continue downloading
+      // Container thresholds (fraction of cgroup limit in use):
+      //   > 90% used = critical OOM risk → stop immediately
+      //   85–90% used = high pressure → wait 30 s up to 4×, then stop
+      //   < 85% used = normal operation → continue downloading
       //
       // V8 heap is kept as a last-resort safety net (> 95% = stop) to guard
-      // against pathological allocations that the OS metric would miss.
-      const osFreeRatio = os.freemem() / os.totalmem();
+      // against pathological allocations the cgroup metric might lag on.
+      const mem = getContainerMemory();
+      const usedPct = Math.round(mem.usedRatio * 100);
       const heapUsage = process.memoryUsage();
       const heapRatio = heapUsage.heapTotal > 0 ? heapUsage.heapUsed / heapUsage.heapTotal : 0;
 
-      if (osFreeRatio < 0.10 || heapRatio > 0.95) {
+      if (mem.usedRatio > 0.90 || heapRatio > 0.95) {
         logger.warn(
-          `[Vault] Critical memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%, heap: ${Math.round(heapRatio * 100)}%) — stopping downloads`,
+          `[Vault] Critical memory pressure (container used: ${usedPct}% of ${Math.round(mem.limitBytes / 1024 / 1024)}MB, heap: ${Math.round(heapRatio * 100)}%) — stopping downloads`,
         );
         break;
       }
-      if (osFreeRatio < 0.15) {
+      // Absolute-headroom floor: even below 90% used, a small container may not
+      // have enough free RAM for yt-dlp/ffmpeg's 80–150 MB startup spike.  Stop
+      // unless at least MIN_SPAWN_HEADROOM_BYTES is free.
+      if (mem.freeBytes < MIN_SPAWN_HEADROOM_BYTES) {
+        logger.warn(
+          `[Vault] Insufficient spawn headroom (${Math.round(mem.freeBytes / 1024 / 1024)}MB free, need ${Math.round(MIN_SPAWN_HEADROOM_BYTES / 1024 / 1024)}MB) — stopping downloads`,
+        );
+        break;
+      }
+      if (mem.usedRatio > 0.85) {
         memPressureWaits++;
         if (memPressureWaits > 4) {
           logger.warn(
-            `[Vault] Sustained memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%) — stopping downloads after ${memPressureWaits} waits`,
+            `[Vault] Sustained memory pressure (container used: ${usedPct}%) — stopping downloads after ${memPressureWaits} waits`,
           );
           break;
         }
         logger.warn(
-          `[Vault] Memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%, heap: ${Math.round(heapRatio * 100)}%) — waiting 30 s for GC (${memPressureWaits}/4)`,
+          `[Vault] Memory pressure (container used: ${usedPct}%, heap: ${Math.round(heapRatio * 100)}%) — waiting 30 s for GC (${memPressureWaits}/4)`,
         );
         await new Promise(r => setTimeout(r, 30_000));
         continue;
