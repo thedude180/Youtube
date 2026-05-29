@@ -98,13 +98,13 @@ async function runCycle(): Promise<void> {
       continue;
     }
 
-    logger.info(`[PerpetualDownloader] Starting download cycle — ${pending} video(s) pending for ${userId}`);
+    logger.info(`[PerpetualDownloader] Starting download cycle — ${pending} video(s) pending for ${userId} (cap: ${MAX_DOWNLOADS_PER_CYCLE}/cycle)`);
 
     try {
-      // This runs the full while(true) loop:
-      //   for each indexed entry → download full video → exhaustVaultEntry (queues clips)
-      // It only returns when all pending entries are done or max failures reached.
-      await processVaultDownloads(userId);
+      // Capped cycle: download at most MAX_DOWNLOADS_PER_CYCLE videos, then
+      // yield.  The 3-minute inter-cycle timer picks up remaining items next
+      // time.  This prevents boot-time download storms from exhausting RAM.
+      await processVaultDownloads(userId, MAX_DOWNLOADS_PER_CYCLE);
       logger.info(`[PerpetualDownloader] Cycle complete for ${userId}`);
     } catch (err: any) {
       logger.warn(`[PerpetualDownloader] Cycle error for ${userId}: ${err?.message?.slice(0, 200)}`);
@@ -134,6 +134,12 @@ function scheduleNextCycle(): void {
 // Public API
 // ---------------------------------------------------------------------------
 
+// Maximum successful downloads per perpetual-downloader cycle.
+// Keeps each cycle small enough to stay within RAM budget on the production
+// container (~512 MB–1 GB).  On-demand callers (vault sync, queueVaultDownload)
+// continue to use Infinity so they are not throttled.
+const MAX_DOWNLOADS_PER_CYCLE = 2;
+
 /**
  * Start the perpetual download → edit → upload pipeline.
  * Safe to call multiple times — only one loop ever runs.
@@ -142,10 +148,20 @@ export function initPerpetualDownloader(): void {
   if (_started) return;
   _started = true;
 
-  logger.info("[PerpetualDownloader] Starting — vault downloads will run continuously");
+  logger.info("[PerpetualDownloader] Starting — vault downloads will run continuously (max 2/cycle)");
 
-  // First run: 30 seconds after boot — fast enough to start filling the vault
-  // immediately after boot while the back-catalog import finishes in parallel.
+  // First run: 20 minutes after boot.
+  //
+  // Why 20 minutes?  On every restart prod-heal resets all stale-disk
+  // "downloaded" vault entries back to "indexed", which would immediately
+  // trigger re-downloads and cause RAM spikes before the system has
+  // stabilised.  A 20-minute delay ensures:
+  //   T+5 min  — perpetual-repair cancels bad queue items
+  //   T+10–15 min — back-catalog runner fires (with vault filter in place)
+  //   T+20 min — perpetual-downloader starts, memory pressure is stable
+  //
+  // The per-cycle cap (MAX_DOWNLOADS_PER_CYCLE = 2) further limits burst
+  // usage even in subsequent cycles.
   _loopTimer = setTimeout(async () => {
     try {
       await runCycle();
@@ -154,7 +170,7 @@ export function initPerpetualDownloader(): void {
     } finally {
       scheduleNextCycle();
     }
-  }, 30_000);
+  }, 20 * 60_000);
 }
 
 export function stopPerpetualDownloader(): void {

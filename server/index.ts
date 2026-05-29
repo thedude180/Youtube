@@ -556,11 +556,21 @@ async function healProductionPipeline(): Promise<void> {
     //
     //     We identify local paths by the "/home/runner/" prefix.  Object-storage
     //     cloud paths (gs:// or https://storage.googleapis.com/) are left intact.
+    // Cap stale-disk resets to 3 per boot.  Resetting all N items at once
+    // causes the perpetual-downloader (even with its 20-min startup delay) to
+    // immediately queue N yt-dlp downloads when it first fires, spiking RAM.
+    // By draining 3 at a time we keep the download burst small and predictable.
+    // Remaining stale items are reset on the next restart cycle.
     const downloadedResetResult = await db.execute(
       sqlTag`UPDATE content_vault_backups
              SET status = 'indexed', file_path = NULL
-             WHERE status = 'downloaded'
-               AND file_path LIKE '/home/runner/%'`,
+             WHERE id IN (
+               SELECT id FROM content_vault_backups
+               WHERE status = 'downloaded'
+                 AND file_path LIKE '/home/runner/%'
+               ORDER BY updated_at ASC
+               LIMIT 3
+             )`,
     );
     const downloadedResetCount = (downloadedResetResult as any)?.rowCount ?? "?";
 

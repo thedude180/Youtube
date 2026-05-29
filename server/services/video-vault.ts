@@ -1427,14 +1427,15 @@ async function recoverBotDetectedEntries(userId: string, accessToken: string): P
   }
 }
 
-export async function processVaultDownloads(userId: string): Promise<void> {
+export async function processVaultDownloads(userId: string, maxDownloads = Infinity): Promise<void> {
   if (isVaultRunning) {
     logger.info("[Vault] Download processor already running — skipping");
     return;
   }
 
   isVaultRunning = true;
-  logger.info("[Vault] Starting background download processor...");
+  const cycleLabel = maxDownloads === Infinity ? "unlimited" : `max ${maxDownloads}`;
+  logger.info(`[Vault] Starting background download processor (${cycleLabel} per cycle)...`);
 
   // Fetch YouTube OAuth token once for the whole session
   const accessToken = await getVaultYouTubeToken(userId);
@@ -1455,7 +1456,17 @@ export async function processVaultDownloads(userId: string): Promise<void> {
     const MAX_CONSECUTIVE_FAILURES = 20; // raised from 5 — many entries need multiple client attempts
 
     let memPressureWaits = 0;
+    let downloadCount = 0;
     while (true) {
+      // Per-cycle download cap — prevents download storms that exhaust RAM on boot.
+      // On-demand callers (vault sync, queueVaultDownloadForSource) pass Infinity.
+      // The perpetual-downloader passes a small number (e.g. 2) to stay within
+      // memory budget — it will pick up the remaining items in subsequent cycles.
+      if (downloadCount >= maxDownloads) {
+        logger.info(`[Vault] Per-cycle cap reached (${maxDownloads}) — deferring remaining downloads to next cycle`);
+        break;
+      }
+
       // Memory pressure gate — halt downloads before the server OOMs.
       //
       // We use OS-level free-memory percentage as the primary signal because
@@ -1465,23 +1476,23 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       // vault downloads to be permanently skipped in production.
       //
       // OS thresholds (conservative — production server has ~512 MB–1 GB RAM):
-      //   < 4% OS free  = critical OOM risk → stop immediately
-      //   4–8% OS free  = high pressure → wait 30 s up to 4×, then stop
-      //   > 8% OS free  = normal operation → continue downloading
+      //   < 10% OS free  = critical OOM risk → stop immediately (tightened from 4%)
+      //   10–15% OS free = high pressure → wait 30 s up to 4×, then stop
+      //   > 15% OS free  = normal operation → continue downloading
       //
-      // V8 heap is kept as a last-resort safety net (> 98% = stop) to guard
+      // V8 heap is kept as a last-resort safety net (> 95% = stop) to guard
       // against pathological allocations that the OS metric would miss.
       const osFreeRatio = os.freemem() / os.totalmem();
       const heapUsage = process.memoryUsage();
       const heapRatio = heapUsage.heapTotal > 0 ? heapUsage.heapUsed / heapUsage.heapTotal : 0;
 
-      if (osFreeRatio < 0.04 || heapRatio > 0.98) {
+      if (osFreeRatio < 0.10 || heapRatio > 0.95) {
         logger.warn(
           `[Vault] Critical memory pressure (OS free: ${Math.round(osFreeRatio * 100)}%, heap: ${Math.round(heapRatio * 100)}%) — stopping downloads`,
         );
         break;
       }
-      if (osFreeRatio < 0.08) {
+      if (osFreeRatio < 0.15) {
         memPressureWaits++;
         if (memPressureWaits > 4) {
           logger.warn(
@@ -1531,6 +1542,7 @@ export async function processVaultDownloads(userId: string): Promise<void> {
       const success = await downloadSingleVideo(next, accessToken);
       if (success) {
         consecutiveFailures = 0;
+        downloadCount++;
         // Notify stream editor — marks any queued stream_edit_jobs for this vault
         // entry as ready-to-encode and wakes the stream editor if it is idle.
         // This is the critical handoff between vault and encoder.
