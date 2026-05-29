@@ -296,7 +296,20 @@ export async function runBackCatalogImport(userId: string): Promise<{
 // ── Game name extraction heuristic ───────────────────────────────────────────
 
 function extractGameName(title: string, tags: string[]): string | null {
-  // Common game patterns in titles
+  // Always try the title-keyword detector first — it handles BF6, Battlefield,
+  // Assassin's Creed, etc. with regex patterns that are far more reliable than
+  // a plain KNOWN_GAMES substring scan.  This also prevents "PS5", "Xbox", or
+  // other generic platform tags from winning when the real game is in the title.
+  const fromTitle = detectGameFromTitle(title);
+  if (fromTitle) return fromTitle;
+
+  // Also check against all tags for keyword hits
+  for (const tag of tags) {
+    const fromTag = detectGameFromTitle(tag);
+    if (fromTag) return fromTag;
+  }
+
+  // Common game patterns in titles/tags not covered by the keyword detector
   const KNOWN_GAMES = [
     "Minecraft", "Fortnite", "Warzone", "Apex Legends", "Elden Ring",
     "GTA", "GTA V", "GTA 5", "GTA 6", "Red Dead", "Cyberpunk", "Skyrim",
@@ -307,6 +320,7 @@ function extractGameName(title: string, tags: string[]): string | null {
     "Dead Cells", "Hollow Knight", "Celeste", "Terraria", "Stardew Valley",
     "Animal Crossing", "Pokemon", "Call of Duty", "Destiny", "Anthem",
     "The Last of Us", "God of War", "Spider-Man", "Horizon",
+    "Assassin's Creed", "Assassin", "Shadow of War", "Dragon Age",
   ];
 
   const combined = `${title} ${tags.join(" ")}`;
@@ -316,10 +330,21 @@ function extractGameName(title: string, tags: string[]): string | null {
     }
   }
 
-  // Try to extract from tags first
-  if (tags.length > 0 && tags[0].length > 2 && tags[0].length < 50) {
-    // First tag is often the game name
-    return tags[0];
+  // Fall back to first tag only if it is clearly a game name (not a platform
+  // catch-all like "PS5", "Xbox", "Gaming", "gameplay").
+  const PLATFORM_GENERIC = new Set([
+    "ps5", "ps4", "xbox", "playstation", "gaming", "gameplay", "games",
+    "live", "stream", "shorts", "no commentary", "raw gameplay",
+  ]);
+  if (tags.length > 0) {
+    const firstTag = tags[0].trim();
+    if (
+      firstTag.length > 2 &&
+      firstTag.length < 50 &&
+      !PLATFORM_GENERIC.has(firstTag.toLowerCase())
+    ) {
+      return firstTag;
+    }
   }
 
   return null;

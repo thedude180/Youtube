@@ -16,8 +16,8 @@
  */
 
 import { db } from "../db";
-import { contentPipeline, autopilotQueue, users } from "@shared/schema";
-import { eq, lt, and, or, ilike, sql, inArray } from "drizzle-orm";
+import { contentPipeline, autopilotQueue, users, backCatalogVideos } from "@shared/schema";
+import { eq, lt, and, or, ilike, sql, inArray, ne, isNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordHeartbeat } from "./engine-heartbeat";
 
@@ -121,6 +121,66 @@ async function runRepairCycle(): Promise<void> {
         .set({ status: "queued", scheduledAt: retryAt, errorMessage: null })
         .where(inArray(autopilotQueue.id, permanentFailIds.map(r => r.id)));
       summary.push(`${permanentFailIds.length} permanent_fail → queued (+1h)`);
+    }
+
+    // 5a. Cancel corrupted queue items with cross-contaminated YouTube IDs ──
+    // These items have a sourceYoutubeId that doesn't match their streamTitle
+    // (e.g., a BF6 live-stream ID stored against an AC Syndicate title).
+    // yt-dlp will never succeed on them — cancel them so they stop burning
+    // download attempts and log noise.
+    const corruptedYtIds = ["Jrt9VPmojMA"];
+    for (const ytId of corruptedYtIds) {
+      const corrupted = await db
+        .select({ id: autopilotQueue.id })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.status, "scheduled"),
+          ilike(sql`${autopilotQueue.metadata}::text`, `%${ytId}%`),
+        ));
+      if (corrupted.length > 0) {
+        await db.update(autopilotQueue)
+          .set({ status: "cancelled" as any, errorMessage: `corrupted-yt-id:${ytId}` })
+          .where(inArray(autopilotQueue.id, corrupted.map(r => r.id)));
+        summary.push(`${corrupted.length} corrupted-yt-id(${ytId}) → cancelled`);
+        logger.info(`[perpetual-repair] Cancelled ${corrupted.length} corrupted queue items (sourceYoutubeId=${ytId})`);
+      }
+    }
+
+    // 5b. Fix BF6 live streams misclassified as "PS5" or other generic names ─
+    // When a stream title contains "Battlefield" or "BF6" but game_name was set
+    // to a generic platform tag instead, the game priority gate ignores it.
+    // Re-classify these so the back catalog runner picks them up correctly.
+    const bf6Misclassified = await db
+      .select({ id: backCatalogVideos.id, title: backCatalogVideos.title, gameName: backCatalogVideos.gameName })
+      .from(backCatalogVideos)
+      .where(and(
+        or(
+          ilike(backCatalogVideos.title, "%battlefield%"),
+          ilike(backCatalogVideos.title, "%bf6%"),
+          ilike(backCatalogVideos.title, "%bf 6%"),
+        ),
+        or(
+          isNull(backCatalogVideos.gameName),
+          ilike(backCatalogVideos.gameName, "ps5"),
+          ilike(backCatalogVideos.gameName, "ps4"),
+          ilike(backCatalogVideos.gameName, "xbox"),
+          ilike(backCatalogVideos.gameName, "gaming"),
+          ilike(backCatalogVideos.gameName, "gameplay"),
+          ilike(backCatalogVideos.gameName, "live"),
+          ilike(backCatalogVideos.gameName, "stream"),
+        ),
+      ));
+    if (bf6Misclassified.length > 0) {
+      await db.update(backCatalogVideos)
+        .set({
+          gameName: "Battlefield 6",
+          minedForShorts: false,
+          minedForLongForm: false,
+          updatedAt: new Date(),
+        })
+        .where(inArray(backCatalogVideos.id, bf6Misclassified.map(r => r.id)));
+      summary.push(`${bf6Misclassified.length} BF6 videos reclassified (was generic game_name)`);
+      logger.info(`[perpetual-repair] Reclassified ${bf6Misclassified.length} BF6 catalog videos from generic game_name to "Battlefield 6"`);
     }
 
     // 5. Empty autopilot queues → replenish ───────────────────────────────
