@@ -123,49 +123,75 @@ async function runRepairCycle(): Promise<void> {
       summary.push(`${permanentFailIds.length} permanent_fail → queued (+1h)`);
     }
 
-    // 5a. Cancel corrupted queue items with cross-contaminated YouTube IDs ──
-    // These video IDs are permanently un-downloadable (bot-detected, all formats
-    // blocked, geo-fenced, or cross-contaminated metadata). Every restart clears
-    // the in-memory permanentlyFailedIds cache, so without this step the
-    // clip-video-processor immediately retries them, spawning yt-dlp processes
-    // that exhaust container RAM and trigger an OOM crash loop (~16 min cycle).
-    // This step runs every 30 min AND at the first-boot 5-min cycle to ensure
-    // the crash loop is broken before publishers start at T+12 min.
-    const corruptedYtIds = ["Jrt9VPmojMA"];
-    for (const ytId of corruptedYtIds) {
-      // Cancel ALL non-terminal statuses (scheduled, pending, processing, publishing)
-      const corrupted = await db
-        .select({ id: autopilotQueue.id })
-        .from(autopilotQueue)
-        .where(and(
-          or(
-            eq(autopilotQueue.status, "scheduled"),
-            eq(autopilotQueue.status, "pending"),
-            eq(autopilotQueue.status, "processing"),
-            eq(autopilotQueue.status, "publishing"),
-          ),
-          ilike(sql`${autopilotQueue.metadata}::text`, `%${ytId}%`),
-        ));
-      if (corrupted.length > 0) {
-        await db.update(autopilotQueue)
-          .set({ status: "cancelled" as any, errorMessage: `corrupted-yt-id:${ytId}` })
-          .where(inArray(autopilotQueue.id, corrupted.map(r => r.id)));
-        summary.push(`${corrupted.length} corrupted-yt-id(${ytId}) → cancelled`);
-        logger.info(`[perpetual-repair] Cancelled ${corrupted.length} corrupted queue items (sourceYoutubeId=${ytId})`);
+    // 5a. Cancel ALL queue items referencing permanently inaccessible videos ──
+    // Reads every distinct youtube_id that has a 'failed' row in
+    // content_vault_backups, then cancels any active autopilot_queue item that
+    // references one of those IDs via metadata.sourceYoutubeId.
+    //
+    // Why this matters: the clip-video-processor caches permanently-failed IDs
+    // in memory, but that cache is cleared on every server restart. Without this
+    // step the processor retries them immediately on boot, spawning yt-dlp
+    // processes that exhaust container RAM and trigger an OOM crash loop.
+    //
+    // This step also covers Jrt9VPmojMA (cross-contaminated metadata) and any
+    // video that was geo-blocked, DRM-protected, or otherwise permanently
+    // inaccessible and recorded as 'failed' in the vault.
+    //
+    // Runs every 30 min AND at the first-boot 5-min cycle so it fires before
+    // publishers start at T+12 min.
+    {
+      const failedVaultRows = await db
+        .selectDistinct({ youtubeId: contentVaultBackups.youtubeId })
+        .from(contentVaultBackups)
+        .where(eq(contentVaultBackups.status, "failed"));
+
+      const failedYtIds = failedVaultRows.map(r => r.youtubeId).filter(Boolean) as string[];
+
+      // Also always include the known cross-contaminated IDs even if vault rows
+      // haven't been created for them yet (belt-and-suspenders).
+      const alwaysBlock = ["Jrt9VPmojMA"];
+      for (const id of alwaysBlock) {
+        if (!failedYtIds.includes(id)) failedYtIds.push(id);
       }
 
-      // Mark content_vault_backups as permanently failed so the
-      // clip-video-processor's DB-backed permanent-fail check skips it on
-      // every restart without needing the in-memory cache to survive.
-      await db.update(contentVaultBackups)
-        .set({
-          status: "failed",
-          downloadError: `Permanently failed — yt-dlp cannot download ${ytId} (all formats blocked/bot-detected). Cancelled by perpetual-repair to prevent OOM restart loop.`,
-        })
-        .where(and(
-          eq(contentVaultBackups.youtubeId, ytId),
-          ne(contentVaultBackups.status, "downloaded"),
-        ));
+      let totalCancelled = 0;
+      for (const ytId of failedYtIds) {
+        // Cancel ALL non-terminal statuses: scheduled, pending, processing, publishing
+        const corrupted = await db
+          .select({ id: autopilotQueue.id })
+          .from(autopilotQueue)
+          .where(and(
+            or(
+              eq(autopilotQueue.status, "scheduled"),
+              eq(autopilotQueue.status, "pending"),
+              eq(autopilotQueue.status, "processing"),
+              eq(autopilotQueue.status, "publishing"),
+            ),
+            sql`${autopilotQueue.metadata}->>'sourceYoutubeId' = ${ytId}`,
+          ));
+        if (corrupted.length > 0) {
+          await db.update(autopilotQueue)
+            .set({ status: "cancelled" as any, errorMessage: `perm-failed-vault-id:${ytId}` })
+            .where(inArray(autopilotQueue.id, corrupted.map(r => r.id)));
+          totalCancelled += corrupted.length;
+        }
+
+        // Ensure the vault backup row itself is marked failed (idempotent).
+        await db.update(contentVaultBackups)
+          .set({
+            status: "failed",
+            downloadError: `Permanently failed — video inaccessible (geo-blocked, DRM, or bot-detected). Marked by perpetual-repair to prevent OOM restart loops.`,
+          })
+          .where(and(
+            eq(contentVaultBackups.youtubeId, ytId),
+            ne(contentVaultBackups.status, "downloaded"),
+          ));
+      }
+
+      if (totalCancelled > 0) {
+        summary.push(`${totalCancelled} items referencing failed vault IDs → cancelled`);
+        logger.info(`[perpetual-repair] Cancelled ${totalCancelled} queue items across ${failedYtIds.length} permanently-failed video IDs`);
+      }
     }
 
     // 5b. Fix BF6 live streams misclassified as "PS5" or other generic names ─
