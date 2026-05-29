@@ -2494,6 +2494,66 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Shorts schedule reset to tonight", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Shorts schedule reset skipped:", err?.message));
 
+        // ── BF6-first queue prioritisation ───────────────────────────────────
+        // Battlefield 6 is the channel's primary game.  Any BF6 content that
+        // ended up scheduled more than 1 day out is pulled into the next 30
+        // days at 8 h spacing (≈ 3/day cadence) so it ships before older or
+        // less-relevant game content.  The BF6 long-form that is scheduled
+        // later today is also moved to immediately-due so it beats the
+        // Assassin's Creed slot.  Only 'scheduled' items are touched — already
+        // published/cancelled items are never modified.
+
+        // 1. Any BF6 long-form more than 2 h in the future → due right now.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET scheduled_at  = NOW() - INTERVAL '2 minutes',
+                  error_message = NULL
+              WHERE status = 'scheduled'
+                AND type = 'vod-long-form'
+                AND scheduled_at > NOW() + INTERVAL '2 hours'
+                AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')`
+        )
+          .then((res: any) => logger.info("[Boot] BF6 long-form moved to front", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] BF6 long-form front-move skipped:", err?.message));
+
+        // 2. BF6 platform_shorts parked > 1 day out → spread over next 30 days.
+        db.execute(
+          sql`WITH ranked AS (
+                SELECT id,
+                       ROW_NUMBER() OVER (ORDER BY id) AS rn
+                FROM autopilot_queue
+                WHERE status = 'scheduled'
+                  AND type = 'platform_short'
+                  AND scheduled_at > NOW() + INTERVAL '1 day'
+                  AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')
+              )
+              UPDATE autopilot_queue q
+              SET scheduled_at = NOW() + ((r.rn - 1) * INTERVAL '8 hours') + INTERVAL '1 hour'
+              FROM ranked r
+              WHERE q.id = r.id`
+        )
+          .then((res: any) => logger.info("[Boot] BF6 platform_shorts pulled forward", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] BF6 platform_shorts pull skipped:", err?.message));
+
+        // 3. BF6 auto-clips parked > 1 day out → spread over next 20 days.
+        db.execute(
+          sql`WITH ranked AS (
+                SELECT id,
+                       ROW_NUMBER() OVER (ORDER BY id) AS rn
+                FROM autopilot_queue
+                WHERE status = 'scheduled'
+                  AND type = 'auto-clip'
+                  AND scheduled_at > NOW() + INTERVAL '1 day'
+                  AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')
+              )
+              UPDATE autopilot_queue q
+              SET scheduled_at = NOW() + ((r.rn - 1) * INTERVAL '12 hours') + INTERVAL '2 hours'
+              FROM ranked r
+              WHERE q.id = r.id`
+        )
+          .then((res: any) => logger.info("[Boot] BF6 auto-clips pulled forward", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] BF6 auto-clips pull skipped:", err?.message));
+
         // NOTE: game-specific purges removed — channel publishes multi-game content
         // (PS5 Gameplay, Assassin's Creed, Gaming general, Battlefield, etc.).
         // Purging by gameName was killing legitimate auto-generated content every boot.
