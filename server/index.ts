@@ -2535,21 +2535,15 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] BF6 platform_shorts pulled forward", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] BF6 platform_shorts pull skipped:", err?.message));
 
-        // 3. BF6 auto-clips parked > 1 day out → spread over next 20 days.
+        // 3. BF6 auto-clips parked > 1 day out → make immediately due.
+        //    (The long-form publisher's daily cap handles spacing automatically.)
         db.execute(
-          sql`WITH ranked AS (
-                SELECT id,
-                       ROW_NUMBER() OVER (ORDER BY id) AS rn
-                FROM autopilot_queue
-                WHERE status = 'scheduled'
-                  AND type = 'auto-clip'
-                  AND scheduled_at > NOW() + INTERVAL '1 day'
-                  AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')
-              )
-              UPDATE autopilot_queue q
-              SET scheduled_at = NOW() + ((r.rn - 1) * INTERVAL '12 hours') + INTERVAL '2 hours'
-              FROM ranked r
-              WHERE q.id = r.id`
+          sql`UPDATE autopilot_queue
+              SET scheduled_at = NOW() - INTERVAL '1 minute'
+              WHERE status = 'scheduled'
+                AND type = 'auto-clip'
+                AND scheduled_at > NOW() + INTERVAL '1 day'
+                AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')`
         )
           .then((res: any) => logger.info("[Boot] BF6 auto-clips pulled forward", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] BF6 auto-clips pull skipped:", err?.message));
@@ -3348,8 +3342,8 @@ httpServer.listen(
           logger.warn("[HourlySweep] Failed:", { error: e?.message });
         }
       };
-      // First sweep: 45 min after boot so Boot+30 has already finished
-      const hourlySweepInitTimer = setTimeout(runPublisherSweep, jitter(45 * 60_000));
+      // First sweep: 5 s after boot — post immediately on every restart
+      const hourlySweepInitTimer = setTimeout(runPublisherSweep, 5_000);
       const hourlySweepInterval = setInterval(runPublisherSweep, jitter(60 * 60_000));
       backgroundIntervals.push(hourlySweepInterval);
 

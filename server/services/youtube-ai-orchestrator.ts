@@ -112,7 +112,7 @@ function jitter(baseMs: number, rangeMs = baseMs * 0.1): number {
   return baseMs + Math.floor(Math.random() * rangeMs);
 }
 
-const STARTUP_DELAY_MS = jitter(90_000, 90_000); // 90 s–3 min (fast start)
+const STARTUP_DELAY_MS = jitter(30_000, 10_000); // 30–40 s (start right after boot)
 const LIGHT_CYCLE_MS = jitter(4 * 60 * 60_000, 30 * 60_000);  // ~4 h
 const FULL_CYCLE_MS  = jitter(22 * 60 * 60_000, 2 * 60 * 60_000); // 22–24 h
 

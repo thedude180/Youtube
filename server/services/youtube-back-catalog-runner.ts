@@ -37,7 +37,7 @@ function jitter(baseMs: number, jitterMs = baseMs * 0.1): number {
   return baseMs + Math.floor(Math.random() * jitterMs);
 }
 
-const STARTUP_DELAY_MS = jitter(90_000, 90_000); // 90 s–3 min (fast start)
+const STARTUP_DELAY_MS = jitter(10_000, 5_000); // 10–15 s (start immediately after boot)
 const REPEAT_INTERVAL_MS = jitter(22 * 60 * 60_000, 2 * 60 * 60_000); // 22–24 h
 
 // ── State ────────────────────────────────────────────────────────────────────
