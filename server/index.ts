@@ -2816,6 +2816,7 @@ httpServer.listen(
                 AND (
                   error_message ILIKE '%no YouTube ID or local file%'
                   OR error_message ILIKE '%Studio video % has no YouTube ID%'
+                  OR error_message ILIKE '%No sourceVideoId and no sourceYoutubeId%'
                 )`
         )
           .then((res: any) => logger.info("[Boot] Unrecoverable failed items → permanent_fail", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))

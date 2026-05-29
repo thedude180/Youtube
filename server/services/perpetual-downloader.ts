@@ -144,8 +144,8 @@ export function initPerpetualDownloader(): void {
 
   logger.info("[PerpetualDownloader] Starting — vault downloads will run continuously");
 
-  // First run: 3 minutes after boot so the vault index (back catalog import)
-  // has time to finish adding entries before we start downloading.
+  // First run: 30 seconds after boot — fast enough to start filling the vault
+  // immediately after boot while the back-catalog import finishes in parallel.
   _loopTimer = setTimeout(async () => {
     try {
       await runCycle();
@@ -154,7 +154,7 @@ export function initPerpetualDownloader(): void {
     } finally {
       scheduleNextCycle();
     }
-  }, 3 * 60_000);
+  }, 30_000);
 }
 
 export function stopPerpetualDownloader(): void {
