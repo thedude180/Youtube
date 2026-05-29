@@ -16,7 +16,7 @@
  */
 
 import { db } from "../db";
-import { contentPipeline, autopilotQueue, users, backCatalogVideos } from "@shared/schema";
+import { contentPipeline, autopilotQueue, users, backCatalogVideos, trustBudgetPeriods } from "@shared/schema";
 import { eq, lt, and, or, ilike, sql, inArray, ne, isNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordHeartbeat } from "./engine-heartbeat";
@@ -181,6 +181,52 @@ async function runRepairCycle(): Promise<void> {
         .where(inArray(backCatalogVideos.id, bf6Misclassified.map(r => r.id)));
       summary.push(`${bf6Misclassified.length} BF6 videos reclassified (was generic game_name)`);
       logger.info(`[perpetual-repair] Reclassified ${bf6Misclassified.length} BF6 catalog videos from generic game_name to "Battlefield 6"`);
+    }
+
+    // 5c. Reset autopilot_queue items stuck in "processing" or "publishing" ─
+    // Items that hit "processing" / "publishing" and then the server restarted
+    // (or the encode/upload timed out) are permanently stuck — nothing rescues
+    // them.  Reset them to "scheduled" so the shorts publisher picks them up
+    // on the next cycle.
+    // Use createdAt as proxy — any item created more than 2h ago still in
+    // processing/publishing has definitely been abandoned mid-flight.
+    const STUCK_QUEUE_MS = 2 * 60 * 60_000;
+    const stuckQueueCutoff = new Date(Date.now() - STUCK_QUEUE_MS);
+    const stuckQueueIds = await db
+      .select({ id: autopilotQueue.id })
+      .from(autopilotQueue)
+      .where(and(
+        or(
+          eq(autopilotQueue.status, "processing"),
+          eq(autopilotQueue.status, "publishing"),
+        ),
+        lt(autopilotQueue.createdAt, stuckQueueCutoff),
+      ));
+    if (stuckQueueIds.length > 0) {
+      await db.update(autopilotQueue)
+        .set({ status: "scheduled", errorMessage: null })
+        .where(inArray(autopilotQueue.id, stuckQueueIds.map(r => r.id)));
+      summary.push(`${stuckQueueIds.length} stuck-queue (processing/publishing) → scheduled`);
+    }
+
+    // 5d. Reset exhausted distribution:youtube trust budget ────────────────
+    // The autopilot-engine checks this budget before dispatching any YouTube
+    // distribution action.  If it hits zero the channel stops publishing for
+    // the rest of the day.  Replenish it so the engine can dispatch again.
+    // We use a generous budget (10,000) so a single day of normal operation
+    // can never exhaust it.
+    const exhaustedBudgets = await db
+      .select({ id: trustBudgetPeriods.id })
+      .from(trustBudgetPeriods)
+      .where(and(
+        eq(trustBudgetPeriods.agentName, "distribution:youtube"),
+        eq(trustBudgetPeriods.endingBudget, 0),
+      ));
+    if (exhaustedBudgets.length > 0) {
+      await db.update(trustBudgetPeriods)
+        .set({ endingBudget: 10000, startingBudget: 10000, deductionsCount: 0, totalDeducted: 0 })
+        .where(inArray(trustBudgetPeriods.id, exhaustedBudgets.map(r => r.id)));
+      summary.push(`${exhaustedBudgets.length} exhausted distribution:youtube trust budgets replenished`);
     }
 
     // 5. Empty autopilot queues → replenish ───────────────────────────────

@@ -292,14 +292,27 @@ async function getEncodedSegment(opts: {
     if (!rawSourcePath && !fs.existsSync(tmpEncoded)) {
       if (!youtubeId) return null;
       // Source video is not in the vault yet.
-      // Queue a full-video download in the background — exactly like downloading
-      // the whole video to your hard drive first, then cutting clips from it
-      // locally.  Once the download finishes, the vault fast-path above handles
-      // all clips from this source with a simple ffmpeg seek (no network needed).
-      const { queueVaultDownloadForSource } = await import("../services/video-vault");
-      const queueResult = await queueVaultDownloadForSource(youtubeId, userId);
-      logger.info(`[ShortsPublisher] Full-video download ${queueResult} for ${youtubeId} — item will retry on next cycle`);
-      throw new Error(`__vault_download_pending__: ${youtubeId} (${queueResult})`);
+      // First, attempt a targeted section download (downloads only the needed clip —
+      // no waiting for full vault download to finish).  If that works we encode
+      // immediately and the upload proceeds.  If yt-dlp fails on the section download
+      // we fall back to queueing the full vault download for the next cycle.
+      try {
+        const sectionEndSec = startSec + durationSec;
+        await downloadYouTubeSection({ youtubeId, startSec, endSec: sectionEndSec, outputPath: tmpRaw });
+        await extractSegmentFromFile(tmpRaw, 0, durationSec, tmpEncoded);
+        logger.info(`[ShortsPublisher] Section download+encode succeeded for ${youtubeId} [${startSec}-${sectionEndSec}s]`);
+        // Also queue a full vault download in the background so future clips from
+        // this source use the faster local-file path instead of re-downloading.
+        import("../services/video-vault").then(({ queueVaultDownloadForSource }) =>
+          queueVaultDownloadForSource(youtubeId, userId)
+        ).catch(() => {});
+      } catch (sectionErr: any) {
+        // Section download failed — queue full vault download for future cycles
+        const { queueVaultDownloadForSource } = await import("../services/video-vault");
+        const queueResult = await queueVaultDownloadForSource(youtubeId, userId);
+        logger.warn(`[ShortsPublisher] Section download failed for ${youtubeId}: ${String(sectionErr?.message ?? sectionErr).slice(0, 120)} — queued vault (${queueResult})`);
+        throw new Error(`__vault_download_pending__: ${youtubeId} (${queueResult})`);
+      }
     }
 
     if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
@@ -605,17 +618,26 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               try {
                 // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
                 // Fall back to on-demand AI generation if not yet available
-                const titleCaption =
-                  (typeof itemMeta.seoTitle === "string" && itemMeta.seoTitle.length > 5
+                let titleCaption: string =
+                  typeof itemMeta.seoTitle === "string" && itemMeta.seoTitle.length > 5
                     ? itemMeta.seoTitle
-                    : null)
-                  ?? await generateShortCaption({
-                    platform,
-                    sourceTitle,
-                    hookLine,
-                    sourceYoutubeId: resolvedYoutubeId,
-                    gameName,
-                  });
+                    : "";
+                if (!titleCaption) {
+                  try {
+                    titleCaption = await generateShortCaption({
+                      platform,
+                      sourceTitle,
+                      hookLine,
+                      sourceYoutubeId: resolvedYoutubeId,
+                      gameName,
+                    });
+                  } catch (captionErr: any) {
+                    // AI queue full or transient error — use static fallback so upload
+                    // is never blocked by caption generation.
+                    logger.warn(`[ShortsPublisher] Caption AI unavailable (${String(captionErr?.message ?? captionErr).slice(0, 80)}) — using fallback caption`);
+                    titleCaption = buildFallbackCaption(platform, sourceTitle, hookLine);
+                  }
+                }
 
                 const ytDesc =
                   (typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
@@ -753,9 +775,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     isRunning = false;
   }
 
-  if (published > 0) {
-    await recordHeartbeat("shortsClipPublisher", "completed").catch(() => {});
-  }
+  // Always record heartbeat so monitoring never shows the publisher as "dead"
+  // just because a cycle had nothing new to upload (quota, empty queue, etc.)
+  await recordHeartbeat("shortsClipPublisher", "completed").catch(() => {});
 
   logger.info("Shorts publisher cycle complete", { published, failed, skipped, quotaExhausted });
   return { published, failed, skipped, quotaExhausted };

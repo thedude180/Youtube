@@ -435,8 +435,11 @@ function ensureVaultDir() {
 }
 
 async function getFreeSpaceGB(): Promise<number> {
+  // Check the workspace volume, not the root overlay (which is only 4MB).
+  // /home/runner/workspace is mounted on a btrfs volume with 256 GB total.
+  const checkPath = process.cwd(); // resolves to /home/runner/workspace in production
   try {
-    const { stdout } = await execFileAsync("df", ["--output=avail", "-B1", "/"], { timeout: 5000 });
+    const { stdout } = await execFileAsync("df", ["--output=avail", "-B1", checkPath], { timeout: 5000 });
     const lines = stdout.trim().split("\n");
     const bytes = parseInt(lines[lines.length - 1].trim(), 10);
     return bytes / (1024 * 1024 * 1024);
