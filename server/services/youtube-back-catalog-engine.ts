@@ -29,8 +29,31 @@ import {
   channels,
   autopilotQueue,
   streams,
+  contentVaultBackups,
 } from "@shared/schema";
 import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not } from "drizzle-orm";
+
+// ── Permanently-failed vault ID cache ────────────────────────────────────────
+// Refreshed at the start of every runBackCatalogMonetizationCycle call.
+// Any youtube ID in this set is permanently inaccessible — yt-dlp cannot
+// download it (geo-blocked, DRM, bot-detected, or cross-contaminated metadata).
+// Checking here prevents the runner from queuing items that will immediately
+// trigger yt-dlp downloads, consume RAM, and potentially cause OOM crashes.
+let _failedVaultIds: Set<string> = new Set();
+
+async function refreshFailedVaultIds(): Promise<void> {
+  try {
+    const rows = await db
+      .selectDistinct({ youtubeId: contentVaultBackups.youtubeId })
+      .from(contentVaultBackups)
+      .where(eq(contentVaultBackups.status, "failed"));
+    _failedVaultIds = new Set(rows.map(r => r.youtubeId).filter(Boolean) as string[]);
+    // Always block known cross-contaminated IDs regardless of vault rows
+    _failedVaultIds.add("Jrt9VPmojMA");
+  } catch {
+    // Non-fatal — if the DB query fails, keep the previous cache
+  }
+}
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
 import {
@@ -552,6 +575,19 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
 
         try {
+          // Skip videos that are permanently inaccessible in the vault.
+          // These are geo-blocked, DRM-protected, bot-detected, or cross-contaminated.
+          // Queuing them creates yt-dlp download attempts that exhaust RAM and
+          // cause OOM crashes. Check the in-memory cache first (O(1), no DB hit).
+          if (_failedVaultIds.has(v.youtubeVideoId)) {
+            logger.info(`[BackCatalog] Skipping ${v.youtubeVideoId} — permanently failed in vault; marking mined to prevent future attempts`);
+            await db.update(backCatalogVideos)
+              .set({ minedForShorts: true, updatedAt: new Date() })
+              .where(eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId))
+              .catch(() => {});
+            continue;
+          }
+
           // Skip sources that are confirmed broken (have permanent_fail with format error).
           // These videos can't be downloaded by yt-dlp regardless of clip parameters.
           const [brokenRow] = await db
@@ -826,6 +862,16 @@ async function queueLongFormFromBackCatalog(
     viewCount: number | null;
   },
 ): Promise<number> {
+  // Guard: skip permanently inaccessible videos before any DB work
+  if (_failedVaultIds.has(v.youtubeVideoId)) {
+    logger.info(`[BackCatalog] Skipping long-form for ${v.youtubeVideoId} — permanently failed in vault`);
+    await db.update(backCatalogVideos)
+      .set({ minedForLongForm: true, updatedAt: new Date() })
+      .where(eq(backCatalogVideos.youtubeVideoId, v.youtubeVideoId))
+      .catch(() => {});
+    return 0;
+  }
+
   const dur = v.durationSec ?? 0;
 
   if (dur < 480) {
@@ -1215,8 +1261,14 @@ export async function queuePastStreamContent(userId: string): Promise<{
             ? [{ startSec: Math.floor(streamDurationSec * 0.3), label: "gameplay clip", matchNum: 1 }]
             : [];
 
+        // Skip stream Shorts if the VOD YouTube ID is permanently inaccessible
+        if (vodYoutubeId && _failedVaultIds.has(vodYoutubeId)) {
+          logger.info(`[BackCatalog/PastStreams] Skipping stream ${stream.id} Shorts — VOD ${vodYoutubeId} is permanently failed in vault`);
+        }
+
         let streamShortsQueued = 0;
         for (const win of clipWindows) {
+          if (vodYoutubeId && _failedVaultIds.has(vodYoutubeId)) break;
           try {
             const scheduledAt = await getNextShortPublishTime(userId, minDaysAhead);
             await db.insert(autopilotQueue).values({
@@ -1257,7 +1309,7 @@ export async function queuePastStreamContent(userId: string): Promise<{
         // ── Long-form extraction ──────────────────────────────────────────
         // Start past the opening dead zone (game-aware) to skip pre-game
         // lobby / first loading screen.  Long-form runs to end of stream.
-        if (streamDurationSec > 1800) {
+        if (streamDurationSec > 1800 && !(vodYoutubeId && _failedVaultIds.has(vodYoutubeId))) {
           try {
             const scheduledAt = await getNextLongFormPublishTime(userId, minDaysAhead);
             const lfStartSec = gameOpenSkipSec(gameName);  // game-aware open skip
@@ -1345,6 +1397,10 @@ export async function runBackCatalogMonetizationCycle(userId: string): Promise<{
   _lastCycleAt.set(userId, Date.now());
 
   logger.info(`[BackCatalog] Starting monetization cycle for ${userId.slice(0, 8)}`);
+
+  // Load the current set of permanently-failed vault IDs so every queueing
+  // path below can skip them without individual DB lookups per video.
+  await refreshFailedVaultIds();
 
   // ── Phase 0: Past live streams (highest priority) ─────────────────────────
   // Process all ended streams that haven't been fully extracted yet.

@@ -3309,9 +3309,11 @@ httpServer.listen(
 
       // ── Back Catalog Runner — dedicated autonomous runner ────────────────────
       // Replaces the old inline back-catalog wiring.  initBackCatalogRunner()
-      // handles its own startup delay (90 s–3 min jittered) and 22–24 h repeat
+      // handles its own startup delay (10–15 min jittered) and 22–24 h repeat
       // interval, quota-breaker checks, and per-user error isolation.
-      initBackCatalogRunner();
+      try { initBackCatalogRunner(); } catch (e: any) {
+        logger.error("[Boot] initBackCatalogRunner threw — runner will not start", { error: e?.message });
+      }
 
       // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
       // Fires once at the precise moment the YouTube API quota resets (midnight
@@ -3424,7 +3426,9 @@ httpServer.listen(
       // Controls all YouTube systems: catalog, scoring, queueing, learning,
       // monetization audits, internal linking, failure recovery, daily reports.
       // Light cycle every ~4h, full strategic cycle every ~22–24h.
-      initYouTubeAIOrchestrator();
+      try { initYouTubeAIOrchestrator(); } catch (e: any) {
+        logger.error("[Boot] initYouTubeAIOrchestrator threw — orchestrator will not start", { error: e?.message });
+      }
 
       // ── Pipeline Tracer — end-to-end content verification agent ──────────
       // Every 30 min: batch-verifies all recently published videos against the

@@ -37,7 +37,11 @@ function jitter(baseMs: number, jitterMs = baseMs * 0.1): number {
   return baseMs + Math.floor(Math.random() * jitterMs);
 }
 
-const STARTUP_DELAY_MS = jitter(10_000, 5_000); // 10–15 s (start immediately after boot)
+// Delay first run so perpetual-repair (T+5 min) can cancel any already-queued
+// permanently-failed items before the runner generates new ones.  A 10-second
+// delay caused the Jrt9VPmojMA OOM crash loop — runner fired before any guard
+// was active, created 29 bad items, and yt-dlp exhausted container RAM.
+const STARTUP_DELAY_MS = jitter(10 * 60_000, 5 * 60_000); // 10–15 min
 const REPEAT_INTERVAL_MS = jitter(22 * 60 * 60_000, 2 * 60 * 60_000); // 22–24 h
 
 // ── State ────────────────────────────────────────────────────────────────────
