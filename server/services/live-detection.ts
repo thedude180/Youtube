@@ -253,9 +253,14 @@ async function checkYouTubeLive(channelRow: any): Promise<{ broadcast: DetectedB
       }
 
       // API returned no active broadcasts despite scraping saying live.
-      // This happens during stream startup. Return scraping result — API will
-      // confirm on the next poll cycle.
-      logger.info(`[LiveDetection] YouTube API found no active broadcast; scraping confirmed. Will re-check in ${PLATFORM_POLL_MS.youtube / 60000} min.`);
+      // This is the definitive signal — YouTube API is authoritative.
+      // Scheduled/upcoming streams and VODs can show hlsManifestUrl in the watch
+      // page HTML before the stream is actually serving live segments, which
+      // causes false-positive scraping hits. When the API explicitly contradicts
+      // the scraping result, suppress the scraping hit entirely so it cannot
+      // accumulate to the scrapingHits>=2 threshold and fire live services.
+      logger.info(`[LiveDetection] YouTube API found no active broadcast despite scraping — suppressing hit (scheduled/VOD false-positive prevention)`);
+      return { broadcast: null, pipeline: "scraping" };
     } catch (err: any) {
       markQuotaErrorFromResponse(err);
       logger.warn(`[LiveDetection] YouTube API check failed:`, err?.message);
