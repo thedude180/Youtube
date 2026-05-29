@@ -16,7 +16,7 @@
  */
 
 import { db } from "../db";
-import { contentPipeline, autopilotQueue, users, backCatalogVideos, trustBudgetPeriods } from "@shared/schema";
+import { contentPipeline, autopilotQueue, users, backCatalogVideos, trustBudgetPeriods, contentVaultBackups } from "@shared/schema";
 import { eq, lt, and, or, ilike, sql, inArray, ne, isNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { recordHeartbeat } from "./engine-heartbeat";
@@ -124,17 +124,26 @@ async function runRepairCycle(): Promise<void> {
     }
 
     // 5a. Cancel corrupted queue items with cross-contaminated YouTube IDs ──
-    // These items have a sourceYoutubeId that doesn't match their streamTitle
-    // (e.g., a BF6 live-stream ID stored against an AC Syndicate title).
-    // yt-dlp will never succeed on them — cancel them so they stop burning
-    // download attempts and log noise.
+    // These video IDs are permanently un-downloadable (bot-detected, all formats
+    // blocked, geo-fenced, or cross-contaminated metadata). Every restart clears
+    // the in-memory permanentlyFailedIds cache, so without this step the
+    // clip-video-processor immediately retries them, spawning yt-dlp processes
+    // that exhaust container RAM and trigger an OOM crash loop (~16 min cycle).
+    // This step runs every 30 min AND at the first-boot 5-min cycle to ensure
+    // the crash loop is broken before publishers start at T+12 min.
     const corruptedYtIds = ["Jrt9VPmojMA"];
     for (const ytId of corruptedYtIds) {
+      // Cancel ALL non-terminal statuses (scheduled, pending, processing, publishing)
       const corrupted = await db
         .select({ id: autopilotQueue.id })
         .from(autopilotQueue)
         .where(and(
-          eq(autopilotQueue.status, "scheduled"),
+          or(
+            eq(autopilotQueue.status, "scheduled"),
+            eq(autopilotQueue.status, "pending"),
+            eq(autopilotQueue.status, "processing"),
+            eq(autopilotQueue.status, "publishing"),
+          ),
           ilike(sql`${autopilotQueue.metadata}::text`, `%${ytId}%`),
         ));
       if (corrupted.length > 0) {
@@ -144,6 +153,19 @@ async function runRepairCycle(): Promise<void> {
         summary.push(`${corrupted.length} corrupted-yt-id(${ytId}) → cancelled`);
         logger.info(`[perpetual-repair] Cancelled ${corrupted.length} corrupted queue items (sourceYoutubeId=${ytId})`);
       }
+
+      // Mark content_vault_backups as permanently failed so the
+      // clip-video-processor's DB-backed permanent-fail check skips it on
+      // every restart without needing the in-memory cache to survive.
+      await db.update(contentVaultBackups)
+        .set({
+          status: "failed",
+          downloadError: `Permanently failed — yt-dlp cannot download ${ytId} (all formats blocked/bot-detected). Cancelled by perpetual-repair to prevent OOM restart loop.`,
+        })
+        .where(and(
+          eq(contentVaultBackups.youtubeId, ytId),
+          ne(contentVaultBackups.status, "downloaded"),
+        ));
     }
 
     // 5b. Fix BF6 live streams misclassified as "PS5" or other generic names ─
@@ -188,9 +210,10 @@ async function runRepairCycle(): Promise<void> {
     // (or the encode/upload timed out) are permanently stuck — nothing rescues
     // them.  Reset them to "scheduled" so the shorts publisher picks them up
     // on the next cycle.
-    // Use createdAt as proxy — any item created more than 2h ago still in
+    // Use createdAt as proxy — any item created more than 1h ago still in
     // processing/publishing has definitely been abandoned mid-flight.
-    const STUCK_QUEUE_MS = 2 * 60 * 60_000;
+    // (was 2h — shortened because publish cycles complete in <10 min normally)
+    const STUCK_QUEUE_MS = 1 * 60 * 60_000;
     const stuckQueueCutoff = new Date(Date.now() - STUCK_QUEUE_MS);
     const stuckQueueIds = await db
       .select({ id: autopilotQueue.id })

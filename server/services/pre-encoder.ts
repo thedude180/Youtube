@@ -196,6 +196,8 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
       // Skip items already pre-encoded
       sql`${autopilotQueue.metadata}->>'preEncodedPath' IS NULL`,
+      // Skip items the pre-encoder has already failed on 3+ times (permanently blocked)
+      sql`COALESCE((${autopilotQueue.metadata}->>'preEncoderFailCount')::int, 0) < 3`,
     ))
     .orderBy(autopilotQueue.scheduledAt)
     .limit(MAX_ITEMS_PER_RUN);
@@ -285,9 +287,38 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       }
     } catch (err: any) {
       errors++;
-      logger.warn(
-        `[PreEncoder] Failed to pre-encode item ${item.id}: ${err.message?.slice(0, 200)}`,
-      );
+      const errMsg = err.message?.slice(0, 300) ?? String(err);
+      logger.warn(`[PreEncoder] Failed to pre-encode item ${item.id}: ${errMsg}`);
+
+      // Track failure count in metadata so we can stop retrying permanently-blocked videos.
+      // After 3 failures the item is excluded from future pre-encoder cycles via the query
+      // filter (preEncoderFailCount >= 3). At that point we leave it in "scheduled" so
+      // the publisher can still attempt a live-download on its next cycle.
+      const prevCount = typeof meta.preEncoderFailCount === "number" ? meta.preEncoderFailCount : 0;
+      const newCount = prevCount + 1;
+      const updatedMeta: Record<string, unknown> = {
+        ...meta,
+        preEncoderFailCount: newCount,
+        preEncoderLastError: errMsg,
+        preEncoderLastFailedAt: new Date().toISOString(),
+      };
+
+      try {
+        await db.update(autopilotQueue)
+          .set({ metadata: updatedMeta as any })
+          .where(and(
+            eq(autopilotQueue.id, item.id),
+            eq(autopilotQueue.status, "scheduled"),
+          ));
+        if (newCount >= 3) {
+          logger.warn(
+            `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) reached ${newCount} pre-encode failures — ` +
+            `excluded from future pre-encoder cycles; publisher will attempt live download.`,
+          );
+        }
+      } catch (metaErr: any) {
+        logger.debug(`[PreEncoder] Could not update failure count for item ${item.id}`, { error: metaErr?.message });
+      }
     } finally {
       // Always clean up the raw download file
       if (fs.existsSync(rawPath)) fs.unlinkSync(rawPath);

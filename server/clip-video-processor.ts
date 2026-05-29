@@ -40,6 +40,32 @@ try {
   registerMap("clip-permanentlyFailedIds", permanentlyFailedIds, 200);
 } catch {}
 
+// Pre-load DB-persisted permanent failures into the in-memory map on startup.
+// Without this, every server restart clears the cache and clip-video-processor
+// retries permanently-failed videos (e.g. Jrt9VPmojMA) immediately on boot,
+// spawning multiple yt-dlp processes that exhaust RAM and trigger an OOM loop.
+(async () => {
+  try {
+    const failed = await db
+      .select({ youtubeId: contentVaultBackups.youtubeId, downloadError: contentVaultBackups.downloadError })
+      .from(contentVaultBackups)
+      .where(eq(contentVaultBackups.status, "failed"));
+    for (const row of failed) {
+      if (row.youtubeId && row.downloadError && !permanentlyFailedIds.has(row.youtubeId)) {
+        permanentlyFailedIds.set(row.youtubeId, {
+          reason: row.downloadError.substring(0, 300),
+          failedAt: Date.now(),
+        });
+      }
+    }
+    if (failed.length > 0) {
+      logger.info(`[clip-video-processor] Pre-loaded ${failed.length} permanently-failed video IDs from DB — will skip without yt-dlp attempts`);
+    }
+  } catch (err: any) {
+    logger.warn("[clip-video-processor] Could not pre-load permanent failures from DB", { error: err?.message });
+  }
+})();
+
 const PERMANENT_FAIL_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
 export function markPermanentlyFailed(youtubeId: string, reason: string): void {
