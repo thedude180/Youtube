@@ -2432,6 +2432,20 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Stuck publishing items reset to scheduled", { rows: (res as any)?.rowCount ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Publishing reset skipped:", err?.message));
 
+        // ── Cancel stuck "pending" live-clip-moment items ─────────────────────
+        // live-clip-moment items are created by the false-positive live detection
+        // and have no real source to process. Cancel them so they never block the
+        // queue. All other pending types are left alone (they are valid work).
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status        = 'cancelled',
+                  error_message = 'Cancelled: live-clip-moment from false-positive live detection (boot cleanup)'
+              WHERE type = 'live-clip-moment'
+                AND status = 'pending'`
+        )
+          .then((res: any) => logger.info("[Boot] Stuck live-clip-moment items cancelled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] Live-clip-moment cancel skipped:", err?.message));
+
         // ── Delete all failed items ───────────────────────────────────────────
         // permanent_fail and failed rows are dead weight — they will never run
         // again. Remove them entirely so the queue stays clean and counts are
@@ -3105,15 +3119,17 @@ httpServer.listen(
           const { streams: streamsTable } = await import("@shared/schema");
           const { db: _db } = await import("./db");
           const { lt, and: _and, eq: _eq } = await import("drizzle-orm");
-          const staleAfterMs = 8 * 60 * 60 * 1000; // 8 hours
-          const staleCutoff = new Date(Date.now() - staleAfterMs);
+          // Reset ALL "live" streams on boot — the in-memory live gate resets to
+          // false on every restart, so any DB-live stream is stale by definition.
+          // recoverActiveLiveStreams (called immediately after) re-arms the gate
+          // for any stream that is genuinely still broadcasting.
           const staleResult = await _db
             .update(streamsTable)
             .set({ status: "ended", endedAt: new Date() })
-            .where(_and(_eq(streamsTable.status, "live"), lt(streamsTable.startedAt, staleCutoff)))
+            .where(_eq(streamsTable.status, "live"))
             .returning({ id: streamsTable.id });
           if (staleResult.length > 0) {
-            logger.warn(`[Startup] Reset ${staleResult.length} stale live stream(s) to ended (stuck >8h)`);
+            logger.warn(`[Startup] Reset ${staleResult.length} stale live stream(s) to ended on boot`);
           }
         } catch (e: any) {
           logger.warn("[Startup] Stale-live cleanup failed:", e?.message);
