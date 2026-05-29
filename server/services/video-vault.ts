@@ -559,7 +559,8 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     }
     logger.info(`[Vault] Tab ${contentType}: scraped ${videos.length} entries`);
   } catch (err: any) {
-    logger.error(`[Vault] Failed to scrape ${contentType} tab:`, err.message?.substring(0, 500));
+    const detail = err.stderr?.toString().trim().substring(0, 400) || err.message?.substring(0, 400) || String(err);
+    logger.error(`[Vault] Failed to scrape ${contentType} tab: ${detail}`);
   }
   return videos;
 }
