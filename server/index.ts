@@ -3251,16 +3251,20 @@ httpServer.listen(
       ], 1_500);
     });
 
-    // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup ─────────────────────
+    // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup — 3 s stagger ────────
+    // Staggered so each service gets a fresh DB connection instead of all 8
+    // competing for pool slots simultaneously.
     if (!LITE_MODE) delay(22_000, () => {
-      import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine"));
-      import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention"));
-      import("./services/universal-learning-observer").then(m => m.initUniversalObserver()).catch(slog("initUniversalObserver"));
-      import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(slog("initVodShortsLoopEngine"));
-      import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(slog("initVodContinuousEngine"));
-      import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(slog("registerApiCache"));
-      startCleanupCoordinator();
-      startResilienceWatchdog();
+      staggeredBoot([
+        { label: "continuity-engine",           fn: () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine")) },
+        { label: "log-retention",               fn: () => import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention")) },
+        { label: "universal-learning-observer", fn: () => import("./services/universal-learning-observer").then(m => m.initUniversalObserver()).catch(slog("initUniversalObserver")) },
+        { label: "vod-shorts-loop-engine",      fn: () => import("./vod-shorts-loop-engine").then(m => m.initVodShortsLoopEngine()).catch(slog("initVodShortsLoopEngine")) },
+        { label: "vod-continuous-engine",       fn: () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(slog("initVodContinuousEngine")) },
+        { label: "api-cache",                   fn: () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(slog("registerApiCache")) },
+        { label: "cleanup-coordinator",         fn: () => { startCleanupCoordinator(); } },
+        { label: "resilience-watchdog",         fn: () => { startResilienceWatchdog(); } },
+      ], 3_000);
     });
 
     // ── WAVE 8 (T+25s): Content engines — thumbnails, marketing, daily ──────
