@@ -521,17 +521,25 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     const oauthArgs: string[] = accessToken
       ? ["--add-header", `Authorization:Bearer ${accessToken}`]
       : [];
-    // Build scrape args — helper so we can retry with/without --js-runtimes.
-    // --no-warnings removed so real errors surface in logs instead of
-    // silently swallowing yt-dlp's stderr.
+    // Build scrape args.  Two-attempt strategy:
+    //   1. With --extractor-args youtubetab:innertube_client=android  (InnerTube
+    //      Android API — bypasses YouTube's degraded-page bot detection that
+    //      causes "Incomplete yt initial data received" from datacenter IPs).
+    //   2. Same but also drop --js-runtimes node in case the current yt-dlp
+    //      binary changed how that flag interacts with the Android client.
+    // --no-warnings is intentionally omitted so real errors surface in logs.
     const scrapeExecOpts = { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 } as const;
     const buildScrapeArgs = (useJsRuntime: boolean) => [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
-      // --js-runtimes node: required since YouTube's Nov 2024 obfuscation changes.
-      // Fallback retries WITHOUT this flag in case the latest yt-dlp binary
-      // changed its behaviour (flat-playlist doesn't always need JS player eval).
+      // Force InnerTube Android client for channel-tab browsing.
+      // This is the documented fix for "Incomplete yt initial data received":
+      // the Android client uses the InnerTube API directly instead of scraping
+      // the web page, so it works from Replit's datacenter IPs.
+      "--extractor-args", "youtubetab:innertube_client=android",
+      // --js-runtimes node: required for JS-eval extraction (YouTube Nov 2024).
+      // Dropped in fallback attempt in case it conflicts with android client.
       ...(useJsRuntime ? ["--js-runtimes", "node"] : []),
       ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
@@ -548,7 +556,7 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(true), scrapeExecOpts));
     } catch (primaryErr: any) {
       const d = (primaryErr.stderr?.toString().trim() || primaryErr.stdout?.toString().trim() || primaryErr.message || "").substring(0, 300);
-      logger.warn(`[Vault] ${contentType} primary scrape (--js-runtimes) failed: ${d} — retrying without`);
+      logger.warn(`[Vault] ${contentType} primary scrape (android+js-runtimes) failed: ${d} — retrying android-only`);
       ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(false), scrapeExecOpts));
     }
 
@@ -578,7 +586,26 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
   return videos;
 }
 
+// Guard against two back-catalog runner cycles triggering simultaneous scraping.
+// yt-dlp channel-tab scraping takes ~10 min total (3 tabs × 90s primary + 90s
+// fallback).  Parallel runs hit YouTube twice and cause "Incomplete yt initial
+// data" errors on both.  The second call waits and returns the previous result.
+let _indexLock = false;
+
 export async function indexAllChannelVideos(userId: string): Promise<{ indexed: number; newlyAdded: number }> {
+  if (_indexLock) {
+    logger.warn("[Vault] indexAllChannelVideos already running — skipping duplicate call");
+    return { indexed: 0, newlyAdded: 0 };
+  }
+  _indexLock = true;
+  try {
+    return await _indexAllChannelVideosImpl(userId);
+  } finally {
+    _indexLock = false;
+  }
+}
+
+async function _indexAllChannelVideosImpl(userId: string): Promise<{ indexed: number; newlyAdded: number }> {
   logger.info("[Vault] Starting FULL channel index for user", userId);
 
   let allVideosRaw: ScrapedVideo[] = [];
