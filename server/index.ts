@@ -3359,8 +3359,9 @@ httpServer.listen(
           logger.warn("[HourlySweep] Failed:", { error: e?.message });
         }
       };
-      // First sweep: 5 s after boot — post immediately on every restart
-      const hourlySweepInitTimer = setTimeout(runPublisherSweep, 5_000);
+      // First sweep: 2 min after boot — gives DB pool time to stabilise after
+      // the wave 7/8 thundering herd before hitting YouTube API + DB together.
+      const hourlySweepInitTimer = setTimeout(runPublisherSweep, 2 * 60_000);
       const hourlySweepInterval = setInterval(runPublisherSweep, jitter(60 * 60_000));
       backgroundIntervals.push(hourlySweepInterval);
 
@@ -3469,9 +3470,9 @@ httpServer.listen(
       // production queue items (dev and prod share the same DB).
       if (process.env.NODE_ENV === "production") {
         import("./services/stream-editor-auto-publisher").then(m => {
-          // Fire immediately on startup so pending items are processed as soon as
-          // the server boots (e.g. right after quota resets at midnight Pacific).
-          m.processAutoPublishQueue().catch(slog("processAutoPublishQueue startup"));
+          // First run: 90 s after boot — after DB pool has stabilised from the
+          // wave 7/8 thundering herd. Subsequent runs every ~5 min as before.
+          setTimeout(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue startup")), 90_000);
           const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
           backgroundIntervals.push(iv);
         }).catch(slog("stream-editor-auto-publisher import"));
@@ -3484,23 +3485,20 @@ httpServer.listen(
         m.startStreamEditorWatchdog();
         // Auto-retry jobs that failed only because of a packaging/SEO timeout.
         // Clips are already encoded on disk — safe to re-package once the AI
-        // queue recovers. Runs once on startup then every 15 min.
-        m.autoRetryPackagingFailedJobs().catch(slog("autoRetryPackagingFailedJobs startup"));
+        // queue recovers. First run: 60 s after boot; then every 15 min.
+        setTimeout(() => m.autoRetryPackagingFailedJobs().catch(slog("autoRetryPackagingFailedJobs startup")), 60_000);
         const rpiv = setInterval(() => m.autoRetryPackagingFailedJobs().catch(slog("autoRetryPackagingFailedJobs")), jitter(15 * 60_000));
         backgroundIntervals.push(rpiv);
       }).catch(slog("stream-editor watchdog import"));
 
-      // Vault Clip Exhauster — zero-touch: runs immediately after each download
-      // AND sweeps every 10 min to catch anything missed. No human click needed.
-      import("./services/vault-clip-exhauster").then(m => m.initVaultClipExhauster()).catch(slog("vault-clip-exhauster import"));
+      // Vault Clip Exhauster — delayed 90 s so the DB pool stabilises after the
+      // wave 7/8 thundering herd before the first sweep runs.
+      setTimeout(() => import("./services/vault-clip-exhauster").then(m => m.initVaultClipExhauster()).catch(slog("vault-clip-exhauster import")), 90_000);
 
-      // Perpetual Downloader — Download → Edit → Upload pipeline, forever.
-      // Downloads every indexed vault video to disk one after the next, exactly
-      // like a human editor saving files locally before cutting clips.
-      // After each download, vault-clip-exhauster immediately queues all Shorts
-      // and long-form clips.  Publishers upload them on quota.  Repeats every
-      // 3 min so newly-indexed videos (from back-catalog runner) are picked up fast.
-      import("./services/perpetual-downloader").then(m => m.initPerpetualDownloader()).catch(slog("perpetual-downloader import"));
+      // Perpetual Downloader — delayed 120 s so container-memory gate has a
+      // settled heap reading and the DB pool is fully warmed before the first
+      // download attempt (yt-dlp + ffmpeg are the heaviest memory consumers).
+      setTimeout(() => import("./services/perpetual-downloader").then(m => m.initPerpetualDownloader()).catch(slog("perpetual-downloader import")), 120_000);
     });
 
     // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───

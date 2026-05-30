@@ -521,25 +521,36 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     const oauthArgs: string[] = accessToken
       ? ["--add-header", `Authorization:Bearer ${accessToken}`]
       : [];
-    const { stdout } = await execFileAsync(resolveYtdlp(), [
+    // Build scrape args — helper so we can retry with/without --js-runtimes.
+    // --no-warnings removed so real errors surface in logs instead of
+    // silently swallowing yt-dlp's stderr.
+    const scrapeExecOpts = { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 } as const;
+    const buildScrapeArgs = (useJsRuntime: boolean) => [
       "--flat-playlist",
       "--dump-json",
       "--no-download",
-      "--no-warnings",
-      // Use Node.js as the JS runtime for YouTube's obfuscated extraction.
-      // Required since YouTube's Nov 2024 API changes; without this, yt-dlp
-      // falls back to deno (not installed) and misses many formats / gets 400s.
-      "--js-runtimes", "node",
+      // --js-runtimes node: required since YouTube's Nov 2024 obfuscation changes.
+      // Fallback retries WITHOUT this flag in case the latest yt-dlp binary
+      // changed its behaviour (flat-playlist doesn't always need JS player eval).
+      ...(useJsRuntime ? ["--js-runtimes", "node"] : []),
       ...(ua ? ["--user-agent", ua] : []),
       "--add-header", "Accept-Language:en-US,en;q=0.9",
       "--referer", "https://www.youtube.com/",
       ...oauthArgs,
-      // player_client=web is intentionally omitted for flat-playlist listing:
-      // it triggers YouTube's datacenter-IP bot detection but is NOT needed
-      // to enumerate video IDs. Only set it when downloading actual streams.
+      // player_client=web intentionally omitted: triggers datacenter-IP bot
+      // detection but is NOT needed to enumerate video IDs.
       ...cookiesArgs,
       tabUrl,
-    ], { timeout: 90_000, maxBuffer: 20 * 1024 * 1024 });
+    ];
+
+    let stdout: string;
+    try {
+      ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(true), scrapeExecOpts));
+    } catch (primaryErr: any) {
+      const d = (primaryErr.stderr?.toString().trim() || primaryErr.stdout?.toString().trim() || primaryErr.message || "").substring(0, 300);
+      logger.warn(`[Vault] ${contentType} primary scrape (--js-runtimes) failed: ${d} — retrying without`);
+      ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(false), scrapeExecOpts));
+    }
 
     for (const line of stdout.split("\n").filter(Boolean)) {
       try {
@@ -559,8 +570,10 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     }
     logger.info(`[Vault] Tab ${contentType}: scraped ${videos.length} entries`);
   } catch (err: any) {
-    const detail = err.stderr?.toString().trim().substring(0, 400) || err.message?.substring(0, 400) || String(err);
-    logger.error(`[Vault] Failed to scrape ${contentType} tab: ${detail}`);
+    const stderr = err.stderr?.toString().trim() || "";
+    const stdoutErr = err.stdout?.toString().trim() || "";
+    const detail = stderr || stdoutErr || err.message?.substring(0, 400) || String(err);
+    logger.error(`[Vault] Failed to scrape ${contentType} tab (both attempts): ${detail.substring(0, 500)}`);
   }
   return videos;
 }
