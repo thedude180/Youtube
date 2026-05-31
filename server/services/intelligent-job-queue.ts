@@ -37,13 +37,10 @@ class IntelligentJobQueue {
     try {
       if (opts.dedupeKey) {
         const existing = await db.query.intelligentJobs.findFirst({
-          where: and(
-            eq(intelligentJobs.dedupeKey, opts.dedupeKey),
-            sql`${intelligentJobs.status} IN ('queued', 'processing')`
-          ),
+          where: eq(intelligentJobs.dedupeKey, opts.dedupeKey),
         });
         if (existing) {
-          logger.info(`[JobQueue] Job with dedupeKey ${opts.dedupeKey} already exists, skipping`);
+          logger.info(`[JobQueue] Job with dedupeKey ${opts.dedupeKey} already exists (status: ${existing.status}), skipping`);
           return null;
         }
       }
