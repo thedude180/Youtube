@@ -112,7 +112,8 @@ RULES:
 - hookLines, bodyParagraph, chapters, ctaLine, and hashtags are SEPARATE fields — do NOT combine them into one string.
 - Do NOT include social links or website URLs in any field — they are added automatically.
 - Do NOT use placeholder text like "[TIMESTAMPS]" or "[YOUR LINK HERE]".
-- Ensure tone is energetic and matches gaming content.`;
+- Ensure tone is energetic and matches gaming content.
+- NEVER mention AI, AI-generated, AI-powered, AI-curated, AI-assisted, artificial intelligence, machine learning, or any AI tool in ANY field. YouTube's AI disclosure is handled via a separate mechanism — it must NOT appear in titles, descriptions, tags, or hashtags.`;
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 

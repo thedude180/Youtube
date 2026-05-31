@@ -171,7 +171,7 @@ Rules — follow every single one:
 1. Title must be 50–80 characters MAX. No exceptions.
 2. Sound like a REAL gamer wrote it — casual, direct, no corporate language.
 3. Start with the action or reaction — NOT with a hashtag, NOT with the channel name.
-4. Forbidden words and phrases: "Ultimate", "Epic", "Amazing", "Incredible", "Watch more", "Full video", "Check out", "You won't believe", "Insane gameplay", "No Commentary Gaming", "raw footage", emojis in the title.
+4. Forbidden words and phrases: "Ultimate", "Epic", "Amazing", "Incredible", "Watch more", "Full video", "Check out", "You won't believe", "Insane gameplay", "No Commentary Gaming", "raw footage", emojis in the title, "AI", "AI-generated", "AI-powered", "AI-curated", "AI-edited", "artificial intelligence", "auto-generated", "made with AI".
 5. Hashtags go at the END only — max 3, all lowercase: #shorts #bf6 #ps5
 6. Write about the specific moment — not generic "gameplay highlights".
 7. Tone: dry, confident, like a player who's seen it all. No hype for its own sake.

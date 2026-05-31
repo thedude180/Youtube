@@ -139,7 +139,7 @@ Game: ${game}
 Moment context: ${hint || "(intense gameplay moment)"}
 
 Write metadata that captures the live energy — NOT a generic "gameplay" title.
-Rules: honest description of what happened, compelling without being clickbait.
+Rules: honest description of what happened, compelling without being clickbait. NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 
 1. TITLE (40-60 chars) — describe the actual moment. Pattern: "[What happened] in ${game} #Shorts"
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Live ${game} moment — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
@@ -155,7 +155,7 @@ Game: ${game}
 Duration: ~${durMin} min${sourceLink ? `\nVOD: ${sourceLink}` : ""}
 
 Write metadata that positions this as a complete authentic session — not a highlights reel.
-Rules: honest description of the session, click-worthy without being clickbait.
+Rules: honest description of the session, click-worthy without being clickbait. NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 
 1. TITLE (50-80 chars) — pattern: "${game} Live Session — ${durMin} Min | No Commentary"
 2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Full ${game} live session, ${durMin} min. No commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
@@ -170,7 +170,7 @@ Source video: "${srcTitle}"
 Game: ${game}
 Clip hint: ${hint || "(none)"}
 
-Write:
+Write: NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 1. TITLE (40-60 chars) — punchy, sell the moment, game name included. Pattern: "Clutch ${game} Play — No Commentary #Shorts"
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Raw ${game} gameplay — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
 3. TAGS (up to 12, total < 400 chars) — game, shorts, no commentary, gameplay, ETGaming247.
@@ -184,7 +184,7 @@ Source video: "${srcTitle}"
 Game: ${game}
 Duration: ~${durMin} min${sourceLink ? `\nSource: ${sourceLink}` : ""}
 
-Write:
+Write: NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 1. TITLE (50-80 chars) — game + duration + "No Commentary". Pattern: "${game} — ${durMin} Min Gameplay | No Commentary"
 2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Raw ${game} gameplay, ${durMin} min."${sourceLink ? ` Include: ${sourceLink}` : ""}
 3. TAGS (up to 15, total < 500 chars) — game, gameplay, no commentary, ETGaming247, 3-4 game-specific tags.

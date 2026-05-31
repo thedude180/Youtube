@@ -81,6 +81,7 @@ Rules:
 - Description must be ${descLen}, naturally include ${game} keywords, end with a subscribe CTA
 - Provide exactly 20 highly relevant gaming tags (mix of broad + niche, include "${game}", "${platform}" gaming)
 - seoScore is your estimate 0-100 of how well this package will rank
+- NEVER mention AI, AI-generated, AI-powered, AI-curated, artificial intelligence, or any AI tool in title, description, or tags
 
 Respond as strict JSON only:
 {
