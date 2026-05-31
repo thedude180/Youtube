@@ -10,6 +10,7 @@ import { createLogger } from "../lib/logger";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { registerCache } from "./resilience-core";
 import { getContainerMemory, hasSpawnHeadroom, MIN_SPAWN_HEADROOM_BYTES } from "../lib/container-memory";
+import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 
 const logger = createLogger("video-vault");
 const execFileAsync = promisify(execFile);
@@ -533,11 +534,12 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       "--flat-playlist",
       "--dump-json",
       "--no-download",
-      // Force InnerTube Android client for channel-tab browsing.
-      // This is the documented fix for "Incomplete yt initial data received":
-      // the Android client uses the InnerTube API directly instead of scraping
-      // the web page, so it works from Replit's datacenter IPs.
-      "--extractor-args", "youtubetab:innertube_client=android",
+      // Force InnerTube iOS client for channel-tab browsing.
+      // Uses the `youtube` extractor-args key (applies to all YouTube
+      // sub-extractors including youtube:tab) with the iOS client, which
+      // calls the InnerTube API directly and is confirmed reliable from
+      // datacenter IPs (avoids "Incomplete yt initial data received").
+      "--extractor-args", "youtube:innertube_client=ios",
       // --js-runtimes node: required for JS-eval extraction (YouTube Nov 2024).
       // Dropped in fallback attempt in case it conflicts with android client.
       ...(useJsRuntime ? ["--js-runtimes", "node"] : []),
@@ -551,13 +553,19 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
       tabUrl,
     ];
 
+    // Hold one global yt-dlp slot for the entire two-attempt scrape.
+    // Releasing between attempts would let another service grab the slot
+    // mid-tab, which defeats the memory-gate purpose.
     let stdout: string;
+    const releaseScrapeSLot = await acquireYtdlpSlot();
     try {
       ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(true), scrapeExecOpts));
     } catch (primaryErr: any) {
       const d = (primaryErr.stderr?.toString().trim() || primaryErr.stdout?.toString().trim() || primaryErr.message || "").substring(0, 300);
-      logger.warn(`[Vault] ${contentType} primary scrape (android+js-runtimes) failed: ${d} — retrying android-only`);
+      logger.warn(`[Vault] ${contentType} primary scrape (ios+js-runtimes) failed: ${d} — retrying ios-only`);
       ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(false), scrapeExecOpts));
+    } finally {
+      releaseScrapeSLot();
     }
 
     for (const line of stdout.split("\n").filter(Boolean)) {
@@ -1169,7 +1177,12 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
     // Remove stale output before each attempt
     try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
     try {
-      await execFileAsync(resolveYtdlp(), ["-f", formatStr, ...baseArgs], { timeout: 600_000 });
+      const releaseDl = await acquireYtdlpSlot();
+      try {
+        await execFileAsync(resolveYtdlp(), ["-f", formatStr, ...baseArgs], { timeout: 600_000 });
+      } finally {
+        releaseDl();
+      }
       return; // success — caller will verify file size
     } catch (err: any) {
       const msg = String(err?.message || err).substring(0, 400);

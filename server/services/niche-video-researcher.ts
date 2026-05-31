@@ -26,6 +26,7 @@ import { eq, and, desc, gte, lt, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
+import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 
 const logger = createLogger("niche-researcher");
 const execFileAsync = promisify(execFile);
@@ -106,13 +107,20 @@ async function scrapeSamples(userId: string, gameName: string): Promise<number> 
 
   for (const query of queries) {
     try {
-      const { stdout } = await execFileAsync(
-        ytdlp,
-        ["--flat-playlist", "-j", "--no-download",
-          "--playlist-end", String(MAX_PER_QUERY),
-          query],
-        { timeout: 60_000, maxBuffer: 8 * 1024 * 1024 }
-      );
+      const releaseNiche = await acquireYtdlpSlot();
+      let _nichemStdout: string;
+      try {
+        ({ stdout: _nichemStdout } = await execFileAsync(
+          ytdlp,
+          ["--flat-playlist", "-j", "--no-download",
+            "--playlist-end", String(MAX_PER_QUERY),
+            query],
+          { timeout: 60_000, maxBuffer: 8 * 1024 * 1024 }
+        ));
+      } finally {
+        releaseNiche();
+      }
+      const { stdout } = { stdout: _nichemStdout! };
 
       const lines = stdout.trim().split("\n").filter(Boolean);
       for (const line of lines) {

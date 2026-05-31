@@ -21,36 +21,9 @@ import fs from "fs";
 import { spawn } from "child_process";
 import { getYtdlpBin } from "./dependency-check";
 import { createLogger } from "./logger";
+import { acquireYtdlpSlot } from "./ytdlp-gate";
 
 const logger = createLogger("yt-dlp-section");
-
-// ---------------------------------------------------------------------------
-// Global concurrency cap for section downloads.
-// Each yt-dlp process consumes ~150–300 MB RAM during a section download.
-// Without a cap, the shorts publisher can spawn 8+ simultaneous downloads
-// (one per AI semaphore slot), exhausting container RAM and triggering OOM.
-// Max 2 concurrent section downloads keeps peak memory usage safe.
-// ---------------------------------------------------------------------------
-const MAX_CONCURRENT_SECTION_DL = 2;
-let _activeSectionDls = 0;
-const _sectionDlQueue: Array<() => void> = [];
-
-function acquireSectionSlot(): Promise<void> {
-  return new Promise((resolve) => {
-    if (_activeSectionDls < MAX_CONCURRENT_SECTION_DL) {
-      _activeSectionDls++;
-      resolve();
-    } else {
-      _sectionDlQueue.push(() => { _activeSectionDls++; resolve(); });
-    }
-  });
-}
-
-function releaseSectionSlot(): void {
-  _activeSectionDls--;
-  const next = _sectionDlQueue.shift();
-  if (next) next();
-}
 
 // ---------------------------------------------------------------------------
 // Best available format — like a normal download.
@@ -120,11 +93,11 @@ export interface DownloadSectionOpts {
  * to the iOS client once if the default fails.
  */
 export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise<void> {
-  await acquireSectionSlot();
+  const release = await acquireYtdlpSlot();
   try {
     await _downloadYouTubeSectionInner(opts);
   } finally {
-    releaseSectionSlot();
+    release();
   }
 }
 

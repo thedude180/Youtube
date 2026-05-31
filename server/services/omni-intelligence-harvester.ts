@@ -26,6 +26,7 @@ import { eq, and, desc, gte, lt, sql, isNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
+import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 
 const logger = createLogger("omni-intelligence");
 const execFileAsync = promisify(execFile);
@@ -56,14 +57,21 @@ async function harvestYouTubeTrending(userId: string): Promise<number> {
 
   for (const query of queries) {
     try {
-      const { stdout } = await execFileAsync(
-        ytdlp,
-        ["--flat-playlist", "-j", "--no-download",
-          "--playlist-end", String(MAX_YT_RESULTS),
-          "--js-runtimes", "node",
-          query],
-        { timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }
-      );
+      const releaseOmni = await acquireYtdlpSlot();
+      let _omniStdout: string;
+      try {
+        ({ stdout: _omniStdout } = await execFileAsync(
+          ytdlp,
+          ["--flat-playlist", "-j", "--no-download",
+            "--playlist-end", String(MAX_YT_RESULTS),
+            "--js-runtimes", "node",
+            query],
+          { timeout: 45_000, maxBuffer: 8 * 1024 * 1024 }
+        ));
+      } finally {
+        releaseOmni();
+      }
+      const stdout = _omniStdout!;
       const lines = stdout.trim().split("\n").filter(Boolean);
       for (const line of lines) {
         try {
