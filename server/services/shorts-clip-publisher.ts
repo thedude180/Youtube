@@ -824,8 +824,11 @@ export function startPerpetualShortsLoop(): void {
             // Give the engine 60 s to populate the queue before checking again
             await new Promise(r => setTimeout(r, 60_000));
           } else {
-            // Nothing to do right now — poll again in 5 min
-            await new Promise(r => setTimeout(r, 5 * 60_000));
+            // Uploads are priority-one when not live — retry in 90 s.
+            // During a live stream back off to 5 min to save stream resources.
+            const { isLiveActive } = await import("../lib/live-gate");
+            const idleWaitMs = isLiveActive() ? 5 * 60_000 : 90_000;
+            await new Promise(r => setTimeout(r, idleWaitMs));
           }
         } else {
           // Work was done — restart immediately to pick up the next batch

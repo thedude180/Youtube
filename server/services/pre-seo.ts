@@ -419,13 +419,14 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
   return { processed, seoGenerated, thumbsExtracted, errors };
 }
 
-// ── Scheduling: every 6 hours ─────────────────────────────────────────────────
+// ── Scheduling: every 2 hours ─────────────────────────────────────────────────
 // Runs continuously so that as the back catalog fills the queue with thousands
 // of items, every one gets its SEO title/description/tags and thumbnail frame
 // well before its scheduled publish time.  The AI semaphore + token budget
 // inside runPreSeoCycle() prevent runaway Claude spend.
+// 2 h keeps SEO always ahead of uploads (publishers are priority-one when not live).
 
-const CYCLE_INTERVAL_MS = 6 * 3_600_000; // 6 hours
+const CYCLE_INTERVAL_MS = 2 * 3_600_000; // 2 hours
 
 let _preSeoTimer: ReturnType<typeof setTimeout> | null = null;
 

@@ -611,8 +611,11 @@ export function startPerpetualLongFormLoop(): void {
             // Give the engine 60 s to populate the queue before checking again
             await new Promise(r => setTimeout(r, 60_000));
           } else {
-            // Nothing to do right now — poll again in 10 min
-            await new Promise(r => setTimeout(r, 10 * 60_000));
+            // Uploads are priority-one when not live — retry in 2 min.
+            // During a live stream back off to 10 min to save stream resources.
+            const { isLiveActive } = await import("../lib/live-gate");
+            const idleWaitMs = isLiveActive() ? 10 * 60_000 : 2 * 60_000;
+            await new Promise(r => setTimeout(r, idleWaitMs));
           }
         } else {
           // Work was done — short pause then immediately check for more

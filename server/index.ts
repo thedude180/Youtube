@@ -3362,7 +3362,8 @@ httpServer.listen(
       // First sweep: 2 min after boot — gives DB pool time to stabilise after
       // the wave 7/8 thundering herd before hitting YouTube API + DB together.
       const hourlySweepInitTimer = setTimeout(runPublisherSweep, 2 * 60_000);
-      const hourlySweepInterval = setInterval(runPublisherSweep, jitter(60 * 60_000));
+      // 15-minute sweep: uploads are priority-one when not live — check 4× more often
+      const hourlySweepInterval = setInterval(runPublisherSweep, jitter(15 * 60_000));
       backgroundIntervals.push(hourlySweepInterval);
 
       // ── BF6 Prioritisation — one-time boot migration ─────────────────────────
