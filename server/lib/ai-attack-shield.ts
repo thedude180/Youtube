@@ -855,21 +855,21 @@ export function adaptiveLearningGuard(): (req: Request, res: Response, next: Nex
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DAILY_CAPS: Record<string, number> = {
-  "content-grinder":           500_000,  // 100k → 500k — never caps; main content workhorse
-  "ai-team-engine":            600_000,  // 200k → 600k — full-day autonomous strategy sessions
-  "vod-optimizer":             300_000,  // 80k  → 300k — full library SEO coverage daily
-  "content-consistency-agent": 200_000,  // 60k  → 200k — consistency across full backlog
-  "shorts-pipeline":           150_000,  // capped at 150k — ~18 videos/day at ~8k tokens each; prevents crowding out other engines
-  "thumbnail-intelligence":    250_000,  // 50k  → 250k — deep game research + A/B analysis
-  "repurpose-engine":          200_000,  // 60k  → 200k — maximum repurpose variations
-  "viral-optimizer":         3_000_000,  // 500k → 3M — full library sweep without daily exhaustion
-  "autopilot":                 400_000,  // 160k → 400k — all-day autonomous scheduling
-  "tos-monitor":               150_000,  // 40k  → 150k — comprehensive compliance monitoring
-  "marketer-engine":           400_000,  // 160k → 400k — full marketing automation
-  "auto-thumbnail":            150_000,  // 30k  → 150k — thumbnail generation for every video
-  "smart-scheduler":            80_000,  // 20k  → 80k  — optimal posting time queries
-  "upload-seo":                150_000,  // 40k  → 150k — SEO for all uploads
-  "trend-rider":                60_000,  // 10k  → 60k  — hourly trend analysis without limits
+  "content-grinder":           100_000,  // 500k → 100k — right-sized for 6K-sub channel
+  "ai-team-engine":            100_000,  // 600k → 100k — daily strategy, bounded
+  "vod-optimizer":             100_000,  // 300k → 100k — full library SEO, bounded
+  "content-consistency-agent":  75_000,  // 200k → 75k  — consistency checks, bounded
+  "shorts-pipeline":           150_000,  // kept — ~18 videos/day at ~8k tokens each
+  "thumbnail-intelligence":    100_000,  // 250k → 100k — game research + analysis
+  "repurpose-engine":           75_000,  // 200k → 75k  — repurpose variations, bounded
+  "viral-optimizer":           150_000,  // 3M   → 150k — was 3 million/day, excessive
+  "autopilot":                 150_000,  // 400k → 150k — autonomous scheduling, bounded
+  "tos-monitor":               100_000,  // kept roughly — compliance monitoring
+  "marketer-engine":           100_000,  // 400k → 100k — marketing automation, bounded
+  "auto-thumbnail":            100_000,  // kept roughly — thumbnail generation
+  "smart-scheduler":            50_000,  // 80k  → 50k  — posting time queries
+  "upload-seo":                150_000,  // kept — SEO for all uploads
+  "trend-rider":                40_000,  // 60k  → 40k  — hourly trend analysis
 };
 
 const DEFAULT_DAILY_CAP = 150_000;  // fallback cap for any unlisted engine — generous to prevent surprise gaps

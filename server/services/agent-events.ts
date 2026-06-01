@@ -14,6 +14,12 @@ const logger = createLogger("agent-events");
 const _gameVaultPipelineRunning = new Set<string>();
 const _gameVaultPipelineTTL = new Map<string, number>();
 
+// Cooldown map: userId:videoId → expiry timestamp
+// Prevents live-detection false positives from re-triggering the recording loop
+// after both initial + retry HLS attempts have already confirmed the stream is not live.
+const _recordingFailureCooldown = new Map<string, number>();
+const RECORDING_FAILURE_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours
+
 function acquireGameVaultLock(key: string): boolean {
   const now = Date.now();
   const expiry = _gameVaultPipelineTTL.get(key);
@@ -258,40 +264,48 @@ export async function wireAgentCoordination(): Promise<void> {
     logger.info(`[LiveGate] Background pipelines paused — live stream active for ${event.userId.slice(0, 8)}`);
 
     if (videoId) {
-      setTimeout(async () => {
-        try {
-          const { startRecording } = await import("./stream-recorder");
-          const result = await startRecording(event.userId, videoId);
-          if (result.success) {
-            logger.info(`Stream recording started for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
-          } else {
-            logger.warn(`Stream recording failed to start: ${result.error} — will retry in 30s`);
-            setTimeout(async () => {
-              try {
-                const { startRecording: retry } = await import("./stream-recorder");
-                const retryResult = await retry(event.userId, videoId);
-                if (retryResult.success) {
-                  logger.info(`Stream recording retry succeeded for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
-                } else {
-                  // Both the initial attempt and the 30s retry failed to find an HLS manifest.
-                  // This means the video is NOT actually live (detection false-positive or stream ended
-                  // before recording started). Reset the live gate so background AI pipelines
-                  // (SEO generation, copyright checks, etc.) are no longer throttled to 1 slot.
-                  logger.warn(`Stream recording retry also failed (${retryResult.error}) — ${videoId} is not live, resetting live gate`);
+      const cooldownKey = `${event.userId}:${videoId}`;
+      const cooldownExpiry = _recordingFailureCooldown.get(cooldownKey) ?? 0;
+      if (Date.now() < cooldownExpiry) {
+        logger.info(`[RecordingCooldown] Skipping recording attempt for ${videoId} — confirmed not-live within last 4h, cooldown expires in ${Math.round((cooldownExpiry - Date.now()) / 60_000)} min`);
+        setLiveActive(event.userId, false);
+      } else {
+        setTimeout(async () => {
+          try {
+            const { startRecording } = await import("./stream-recorder");
+            const result = await startRecording(event.userId, videoId);
+            if (result.success) {
+              logger.info(`Stream recording started for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
+            } else {
+              logger.warn(`Stream recording failed to start: ${result.error} — will retry in 30s`);
+              setTimeout(async () => {
+                try {
+                  const { startRecording: retry } = await import("./stream-recorder");
+                  const retryResult = await retry(event.userId, videoId);
+                  if (retryResult.success) {
+                    logger.info(`Stream recording retry succeeded for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
+                  } else {
+                    // Both the initial attempt and the 30s retry failed to find an HLS manifest.
+                    // This means the video is NOT actually live (detection false-positive or stream ended
+                    // before recording started). Set a 4h cooldown so live-detection re-polls don't
+                    // immediately re-trigger the same failed recording loop.
+                    logger.warn(`Stream recording retry also failed (${retryResult.error}) — ${videoId} is not live, resetting live gate`);
+                    setLiveActive(event.userId, false);
+                    _recordingFailureCooldown.set(cooldownKey, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
+                    logger.info(`[LiveGate] Live gate reset after recording failure — background AI restored to normal. Recording cooldown set for ${videoId} (4h)`);
+                  }
+                } catch (err: any) {
+                  logger.warn(`Stream recording retry failed: ${err.message}`);
                   setLiveActive(event.userId, false);
-                  logger.info(`[LiveGate] Live gate reset after recording failure — background AI restored to normal`);
+                  _recordingFailureCooldown.set(cooldownKey, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
                 }
-              } catch (err: any) {
-                logger.warn(`Stream recording retry failed: ${err.message}`);
-                // Reset live gate on exception too — if we can't record it, the stream isn't reachable.
-                setLiveActive(event.userId, false);
-              }
-            }, 30_000);
+              }, 30_000);
+            }
+          } catch (err: any) {
+            logger.warn(`Stream recorder startup failed: ${err.message}`);
           }
-        } catch (err: any) {
-          logger.warn(`Stream recorder startup failed: ${err.message}`);
-        }
-      }, 5_000);
+        }, 5_000);
+      }
     }
 
     // 1. Immediately start the stream operator (if liveChatId available)

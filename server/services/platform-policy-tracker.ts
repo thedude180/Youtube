@@ -562,9 +562,9 @@ export async function enforceComplianceRules(
       if (!hasProperDisclosure) {
         result.violations.push({
           rule: "missing_disclosure",
-          severity: "critical",
-          description: `Content appears to contain sponsored/paid elements but lacks proper disclosure required by ${platform}`,
-          recommendation: `Add proper disclosure (e.g., #ad, #sponsored) as required by ${platform} and FTC guidelines`,
+          severity: "warning",
+          description: `Content may contain sponsored/paid elements but lacks explicit disclosure required by ${platform}`,
+          recommendation: `If content is sponsored, add proper disclosure (e.g., #ad, #sponsored) as required by ${platform} and FTC guidelines`,
         });
         result.compliant = false;
       }
