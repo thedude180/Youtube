@@ -259,36 +259,39 @@ export async function wireAgentCoordination(): Promise<void> {
     logger.info(`stream.started for ${event.userId.slice(0, 8)} — videoId: ${videoId ?? "none"}, liveChatId: ${liveChatId ? "present" : "absent"}`);
 
     // ── RECORDING GATE ────────────────────────────────────────────────────
-    // Problem: setLiveActive(true) sets background AI concurrency to 1 (from 8).
-    // When stream.started fires as a false positive (stale broadcast in DB, YouTube
-    // API lag), all background services pile up at the 1-slot limit the moment the
-    // 40s startup grace expires → 100 MB/tick memory growth → OOM in ~90s.
+    // The live detection system already dual-confirms before firing stream.started:
+    //   Pipeline 1: no-quota scraping (detectYouTubeLiveFromChannel)
+    //   Pipeline 2: YouTube Data API (checkYouTubeLiveBroadcasts)
+    // liveChatId presence is best-effort from the API — its absence does NOT mean
+    // "unconfirmed"; the stream was dual-confirmed either way.
     //
-    // Fix: liveChatId is a strong YouTube-confirmed signal → activate immediately.
-    //      videoId only (no liveChatId) = live-detection polling hit → verify via
-    //      HLS recording before activating the live gate. If both HLS attempts fail,
-    //      the stream is NOT live; set a 4h cooldown and abort without ever touching
-    //      setLiveActive, so background AI runs at full capacity throughout.
+    // The problem: YouTube's own API + scraping data can LAG. A stream that ended
+    // minutes ago still shows as "live" in both sources. setLiveActive(true) drops
+    // background AI from 8 → 1 concurrent slot. If the stream is stale, all background
+    // services pile up at the 1-slot limit the moment the 40s startup grace expires
+    // → 100 MB/tick memory growth → OOM in ~90s, before setLiveActive(false) can run.
+    //
+    // HLS manifest existence is the definitive "is this stream actually broadcasting"
+    // check — no manifest means no active ingest, regardless of what YouTube's API says.
+    // We verify HLS for ALL stream.started events before activating the live gate,
+    // including those with liveChatId, because YouTube's data can lag for both signals.
+    // For a real live stream HLS is available within seconds; for a stale one it never is.
 
-    let recordingStarted = false;
-
-    if (videoId && !liveChatId) {
-      // Unconfirmed detection — verify via HLS before activating the live gate.
+    if (videoId) {
       const cooldownKey = `${event.userId}:${videoId}`;
       const cooldownExpiry = _recordingFailureCooldown.get(cooldownKey) ?? 0;
       if (Date.now() < cooldownExpiry) {
-        logger.info(`[RecordingCooldown] stream.started for ${videoId} suppressed — confirmed not-live within last 4h, cooldown expires in ${Math.round((cooldownExpiry - Date.now()) / 60_000)} min`);
+        logger.info(`[RecordingGate] stream.started for ${videoId} suppressed — confirmed not-live within last 4h, cooldown expires in ${Math.round((cooldownExpiry - Date.now()) / 60_000)} min`);
         return;
       }
 
-      // 5s delay — YouTube needs a moment to publish the HLS manifest
+      // 5s delay — YouTube needs a moment to publish the HLS manifest after going live
       await new Promise<void>(resolve => setTimeout(resolve, 5_000));
 
       try {
         const { startRecording } = await import("./stream-recorder");
         const result = await startRecording(event.userId, videoId);
         if (result.success) {
-          recordingStarted = true;
           logger.info(`[RecordingGate] HLS confirmed live — activating live gate for ${event.userId.slice(0, 8)}, videoId: ${videoId}`);
         } else {
           // First attempt failed — retry once after 30s
@@ -296,12 +299,11 @@ export async function wireAgentCoordination(): Promise<void> {
           await new Promise<void>(resolve => setTimeout(resolve, 30_000));
           const retryResult = await startRecording(event.userId, videoId);
           if (retryResult.success) {
-            recordingStarted = true;
             logger.info(`[RecordingGate] Retry confirmed live — activating live gate for ${event.userId.slice(0, 8)}, videoId: ${videoId}`);
           } else {
-            logger.warn(`[RecordingGate] Both attempts failed (${retryResult.error}) — ${videoId} is NOT live. Suppressing live gate. 4h cooldown set.`);
+            logger.warn(`[RecordingGate] Both HLS attempts failed (${retryResult.error}) — ${videoId} is NOT live (YouTube API lag). Suppressing live gate. 4h cooldown set.`);
             _recordingFailureCooldown.set(cooldownKey, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
-            return; // Not a real live stream — abort entire live pipeline without touching live gate
+            return; // Stream is stale — abort entire live pipeline without touching the live gate
           }
         }
       } catch (err: any) {
@@ -309,7 +311,7 @@ export async function wireAgentCoordination(): Promise<void> {
         _recordingFailureCooldown.set(`${event.userId}:${videoId}`, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
         return;
       }
-    } else if (!videoId && !liveChatId) {
+    } else if (!liveChatId) {
       logger.info(`stream.started has no videoId or liveChatId for ${event.userId.slice(0, 8)} — skipping`);
       return;
     }
@@ -317,24 +319,7 @@ export async function wireAgentCoordination(): Promise<void> {
     // ── CONFIRMED LIVE: activate live gate ──────────────────────────────
     setLiveActive(event.userId, true);
     pauseForLive(event.userId, 0); // 0 = placeholder streamId (only one stream at a time)
-    logger.info(`[LiveGate] Stream confirmed live — background pipelines paused for ${event.userId.slice(0, 8)}`);
-
-    // If we arrived via liveChatId path (no recording check yet), start recording now
-    if (videoId && !recordingStarted) {
-      setTimeout(async () => {
-        try {
-          const { startRecording } = await import("./stream-recorder");
-          const result = await startRecording(event.userId, videoId);
-          if (result.success) {
-            logger.info(`Stream recording started for ${event.userId.slice(0, 8)} — videoId: ${videoId}`);
-          } else {
-            logger.warn(`Stream recording failed after live gate activation: ${result.error}`);
-          }
-        } catch (err: any) {
-          logger.warn(`Stream recorder startup failed: ${err.message}`);
-        }
-      }, 5_000);
-    }
+    logger.info(`[LiveGate] HLS confirmed — background pipelines paused for ${event.userId.slice(0, 8)}`);
 
     // 1. Immediately start the stream operator (if liveChatId available)
     if (liveChatId) {
