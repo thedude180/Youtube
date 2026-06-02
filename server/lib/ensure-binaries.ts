@@ -46,6 +46,36 @@ function curlDownload(url: string, dest: string, timeoutMs = 180_000): void {
 // fetch, stalling all vault downloads until the next restart.
 const YTDLP_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
+// ── Persistent refresh-timestamp file ────────────────────────────────────────
+// We store the timestamp of the last SUCCESSFUL download in a small sidecar
+// file rather than relying on the binary's mtime.  The mtime approach can
+// drift if the filesystem re-stats the file, if the container snapshots and
+// restores it, or if the atomic rename resets the clock.  The sidecar file
+// survives container restarts (same .local/bin/ persistent volume) and is
+// always written only after a confirmed successful download.
+const YTDLP_REFRESH_TS_FILE = path.join(BIN_DIR, ".ytdlp-last-refresh");
+
+function readYtDlpLastRefreshMs(): number {
+  try {
+    if (fs.existsSync(YTDLP_REFRESH_TS_FILE)) {
+      const ts = parseInt(fs.readFileSync(YTDLP_REFRESH_TS_FILE, "utf8"), 10);
+      if (!isNaN(ts) && ts > 0) return ts;
+    }
+  } catch { /* fallback to mtime below */ }
+  // Fallback: use file mtime if sidecar is missing (first run or migration)
+  try {
+    if (fs.existsSync(YTDLP_DEST)) return fs.statSync(YTDLP_DEST).mtimeMs;
+  } catch { /* ignore */ }
+  return 0;
+}
+
+function writeYtDlpLastRefreshMs(): void {
+  try {
+    fs.mkdirSync(BIN_DIR, { recursive: true });
+    fs.writeFileSync(YTDLP_REFRESH_TS_FILE, Date.now().toString(), "utf8");
+  } catch { /* non-fatal */ }
+}
+
 // Prevent concurrent update attempts (startup + periodic refresh racing).
 let _ytdlpUpdateInFlight = false;
 
@@ -56,7 +86,8 @@ async function ensureYtDlp(): Promise<void> {
     let needsDownload = true;
 
     if (fs.existsSync(YTDLP_DEST)) {
-      const ageMs = Date.now() - fs.statSync(YTDLP_DEST).mtimeMs;
+      const lastRefreshMs = readYtDlpLastRefreshMs();
+      const ageMs = Date.now() - lastRefreshMs;
       if (ageMs < YTDLP_MAX_AGE_MS) {
         log.info(`yt-dlp binary is fresh (${Math.round(ageMs / 3600000)}h old) — skipping download`);
         needsDownload = false;
@@ -75,11 +106,13 @@ async function ensureYtDlp(): Promise<void> {
       curlDownload(YTDLP_URL, tmp, 120_000);
       // Atomic replace so a partial download never breaks the running binary
       fs.renameSync(tmp, YTDLP_DEST);
+      // Record successful download timestamp in the persistent sidecar file
+      writeYtDlpLastRefreshMs();
       log.info("yt-dlp updated to latest");
     } catch (err: any) {
       // If update fails but old binary still exists, keep using it
       if (fs.existsSync(YTDLP_DEST)) {
-        log.warn("yt-dlp update failed — using existing binary");
+        log.warn(`yt-dlp update failed — using existing binary (${err?.message ?? err})`);
       } else {
         log.error("yt-dlp download failed — vault downloads will degrade", err);
       }

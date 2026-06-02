@@ -442,23 +442,20 @@ async function healProductionPipeline(): Promise<void> {
     // exhausted quota, received 403s, then the breaker finally tripped — wasting
     // the entire startup window.
     try {
-      const exhaustedCheck = await db.execute(
-        sql`SELECT COUNT(*) AS cnt FROM youtube_quota_usage
-            WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')
-              AND units_used >= quota_limit`
+      // Purge quota records from PREVIOUS quota-reset days only.
+      // Today's record is intentionally preserved — restoreQuotaBreakerOnStartup()
+      // reads it and restores in-memory op-counters so a mid-day restart doesn't
+      // reset used-unit tracking to zero and allow a second full upload burst.
+      // Deleting today's record (old behaviour) caused double-uploads on reboots:
+      // the publisher saw 0 units used, uploaded again, and burned 3,300+ units
+      // the moment the quota window was only half-used.
+      await db.execute(
+        sql`DELETE FROM youtube_quota_usage
+            WHERE date < TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
       );
-      const exhaustedCount = Number((exhaustedCheck.rows?.[0] as any)?.cnt ?? 0);
-      if (exhaustedCount === 0) {
-        await db.execute(
-          sql`DELETE FROM youtube_quota_usage
-              WHERE date = TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
-        );
-        process.stdout.write("[prod-heal] Quota record deleted — fresh quota state for this boot\n");
-      } else {
-        process.stdout.write("[prod-heal] Quota preserved — already exhausted, circuit breaker will arm via startup restore\n");
-      }
+      process.stdout.write("[prod-heal] Previous-day quota records purged — today's record preserved for mid-day restart safety\n");
     } catch (qErr: any) {
-      process.stdout.write(`[prod-heal] Quota record check/delete skipped (non-fatal): ${qErr.message}\n`);
+      process.stdout.write(`[prod-heal] Quota record purge skipped (non-fatal): ${qErr.message}\n`);
     }
 
     // ── FIRST: restore the YouTube quota circuit breaker from DB ──────────────
@@ -558,20 +555,27 @@ async function healProductionPipeline(): Promise<void> {
     //     "downloaded" with no file — the stream editor defers them, the
     //     downloader skips them, and the entire pipeline stalls.
     //
-    //     We identify local paths by the "/home/runner/" prefix.  Object-storage
-    //     cloud paths (gs:// or https://storage.googleapis.com/) are left intact.
+    //     We identify local paths by the process home-directory prefix.
+    //     Object-storage cloud paths (gs:// or https://storage.googleapis.com/)
+    //     are left intact.
+    //     NOTE: Use process.env.HOME (always the real home dir of the current
+    //     process) instead of a hardcoded '/home/runner' path — Replit's
+    //     container home directory changed and the hardcoded path was silently
+    //     matching nothing, leaving thousands of stale vault entries stuck in
+    //     'downloaded' forever.
     // Cap stale-disk resets to 3 per boot.  Resetting all N items at once
     // causes the perpetual-downloader (even with its 20-min startup delay) to
     // immediately queue N yt-dlp downloads when it first fires, spiking RAM.
     // By draining 3 at a time we keep the download burst small and predictable.
     // Remaining stale items are reset on the next restart cycle.
+    const _localHome = (process.env.HOME ?? "/home/runner").replace(/\/+$/, "");
     const downloadedResetResult = await db.execute(
       sqlTag`UPDATE content_vault_backups
              SET status = 'indexed', file_path = NULL
              WHERE id IN (
                SELECT id FROM content_vault_backups
                WHERE status = 'downloaded'
-                 AND file_path LIKE '/home/runner/%'
+                 AND file_path LIKE ${_localHome + "/%"}
                ORDER BY updated_at ASC
                LIMIT 3
              )`,

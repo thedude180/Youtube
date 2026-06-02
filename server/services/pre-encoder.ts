@@ -290,17 +290,31 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       const errMsg = err.message?.slice(0, 300) ?? String(err);
       logger.warn(`[PreEncoder] Failed to pre-encode item ${item.id}: ${errMsg}`);
 
+      // Hard format errors are permanent — no retry will ever succeed.
+      // "Requested format is not available" means the video is age-restricted,
+      // region-locked, or the format manifest was pulled by YouTube.  Retrying
+      // wastes two yt-dlp gate slots per cycle and produces identical 403s.
+      // Jump straight to the exclusion threshold (3) so the query filter skips
+      // this item on every future pre-encoder cycle.
+      const isHardFormatError =
+        errMsg.includes("Requested format is not available") ||
+        errMsg.includes("format is not available") ||
+        errMsg.includes("This video is not available") ||
+        errMsg.includes("Video unavailable");
+
       // Track failure count in metadata so we can stop retrying permanently-blocked videos.
       // After 3 failures the item is excluded from future pre-encoder cycles via the query
       // filter (preEncoderFailCount >= 3). At that point we leave it in "scheduled" so
       // the publisher can still attempt a live-download on its next cycle.
       const prevCount = typeof meta.preEncoderFailCount === "number" ? meta.preEncoderFailCount : 0;
-      const newCount = prevCount + 1;
+      // Hard format errors skip straight to the exclusion threshold — no gradual retry
+      const newCount = isHardFormatError ? 3 : prevCount + 1;
       const updatedMeta: Record<string, unknown> = {
         ...meta,
         preEncoderFailCount: newCount,
         preEncoderLastError: errMsg,
         preEncoderLastFailedAt: new Date().toISOString(),
+        ...(isHardFormatError ? { preEncoderHardFail: true } : {}),
       };
 
       try {
@@ -310,7 +324,13 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             eq(autopilotQueue.id, item.id),
             eq(autopilotQueue.status, "scheduled"),
           ));
-        if (newCount >= 3) {
+        if (isHardFormatError) {
+          logger.warn(
+            `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) hard format error — ` +
+            `permanently blacklisted from pre-encoder; will not retry. ` +
+            `Error: ${errMsg.slice(0, 120)}`,
+          );
+        } else if (newCount >= 3) {
           logger.warn(
             `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) reached ${newCount} pre-encode failures — ` +
             `excluded from future pre-encoder cycles; publisher will attempt live download.`,

@@ -38,25 +38,39 @@ export function validateEnv(): void {
   const missing: string[] = [];
   const warned: string[] = [];
 
-  for (const spec of SPECS) {
-    const val = process.env[spec.key];
-    if (!val || val.trim() === "") {
-      if (spec.required) {
-        missing.push(`  ✗ ${spec.key} — ${spec.description}`);
-      } else {
-        warned.push(`  ⚠ ${spec.key} — ${spec.description}`);
-      }
+  // ── Required vars — checked immediately; missing = fatal ──────────────────
+  for (const spec of SPECS.filter(s => s.required)) {
+    if (!process.env[spec.key]?.trim()) {
+      missing.push(`  ✗ ${spec.key} — ${spec.description}`);
     }
-  }
-
-  if (warned.length > 0) {
-    logger.warn(`Optional env vars not set (features will degrade):\n${warned.join("\n")}`);
   }
 
   if (missing.length > 0) {
     const msg = `Fatal: required environment variables are missing:\n${missing.join("\n")}\n\nCopy .env.example to .env and fill in the values.`;
     logger.error(msg);
     process.exit(1);
+  }
+
+  // ── Optional vars — deferred check at T+10 s ────────────────────────────
+  // Replit injects secrets asynchronously during container cold-boot; on a fresh
+  // start they can arrive 2–5 s after the Node process begins.  Checking them
+  // immediately produces false "key missing" warnings.  Scheduling the check
+  // at T+10 s ensures secrets have been fully injected before we log anything.
+  const optionalMissing = SPECS.filter(
+    s => !s.required && !process.env[s.key]?.trim()
+  );
+
+  if (optionalMissing.length > 0) {
+    setTimeout(() => {
+      const stillMissing = optionalMissing.filter(s => !process.env[s.key]?.trim());
+      if (stillMissing.length > 0) {
+        logger.warn(
+          `Optional env vars not set (features will degrade):\n` +
+          stillMissing.map(s => `  ⚠ ${s.key} — ${s.description}`).join("\n")
+        );
+      }
+      // If stillMissing.length === 0, keys arrived via Replit secret injection — all good
+    }, 10_000);
   }
 
   logger.info("Environment validation passed");
