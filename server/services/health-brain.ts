@@ -191,11 +191,16 @@ class HealthBrain {
       try { await Promise.resolve(record.stop()); } catch {}
     }
     const reason = "Unrecoverable memory leak — server restarting";
-    const detail = "Memory usage remained above 350 MB after emergency relief. The server will restart automatically and resume all operations.";
+    const detail = "Memory usage remained above 500 MB after emergency relief. The server will restart automatically and resume all operations.";
     writeCrashMarker(reason, detail);
     await sendCriticalAlert(reason, detail);
+    // Give the alert email time to send, then perform a clean exit so Replit
+    // restarts the container with fresh memory.  Previously this threw an Error
+    // that was silently caught by the MemoryGuardian's .catch(), leaving the
+    // process alive in a zombie state while memory kept growing until SIGKILL.
     await new Promise(r => setTimeout(r, 3000));
-    throw new Error("[HealthBrain] Critical health check failure — restart required");
+    logger.warn("[HealthBrain] Exiting process for clean container restart");
+    process.exit(1);
   }
 
   async forceRestart(name: string): Promise<void> {

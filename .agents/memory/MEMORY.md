@@ -1,0 +1,1 @@
+- [OOM crash loop fixes](oom-crash-fix.md) — 3 root causes of 24-min production crash cycle; all fixed; container memory gate now enforced at ytdlp-gate slot acquisition
