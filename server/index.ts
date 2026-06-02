@@ -38,6 +38,10 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shorts-prep-pipeline";
+import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
+import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
+import { getAiQueueStatus } from "./lib/ai-semaphore";
 import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initPreEncoder } from "./services/pre-encoder";
 import { initPreSeo } from "./services/pre-seo";
@@ -2093,6 +2097,7 @@ app.get("/api/health", async (_req, res) => {
         ytdlp:  { available: depStatus.ytdlp.available,  version: depStatus.ytdlp.version, binary: depStatus.ytdlp.binary },
       },
       hardened: true,
+      ai_queues: getAiQueueStatus(),
     });
   } catch (err) {
     const depStatus = getDependencyStatus();
@@ -3446,6 +3451,38 @@ httpServer.listen(
         logger.error("[Boot] initYouTubeAIOrchestrator threw — orchestrator will not start", { error: e?.message });
       }
 
+      // ── Shorts + Longform Prep Pipelines ─────────────────────────────────
+      // T+25s: start prep pipelines after AI queue saturation window clears.
+      // Production only — dev has no YouTube OAuth tokens.
+      if (process.env.NODE_ENV === "production") {
+        setTimeout(async () => {
+          try {
+            const { db: _db } = await import("./db");
+            const { channels: _ch } = await import("@shared/schema");
+            const { eq: _eq } = await import("drizzle-orm");
+            const userRows = await _db
+              .select({ userId: _ch.userId, id: _ch.id })
+              .from(_ch)
+              .where(_eq(_ch.platform, "youtube"))
+              .limit(1);
+            if (!userRows.length) {
+              logger.warn("[Boot] No YouTube channel found — prep pipelines not started");
+              return;
+            }
+            const { userId: prepUserId, id: channelId } = userRows[0];
+            startShortsPrepPipeline(prepUserId);
+            startLongformPrepPipeline(prepUserId);
+            // T+30s: publisher reads ready rows only — zero AI calls
+            setTimeout(() => {
+              startQuotaAwarePublisher(prepUserId, channelId);
+            }, 5_000);
+            logger.info(`[Boot] Prep pipelines + quota publisher started for user ${prepUserId.slice(0, 8)}…`);
+          } catch (e: any) {
+            logger.error("[Boot] Prep pipeline startup failed", { error: e?.message });
+          }
+        }, 25_000);
+      }
+
       // ── Pipeline Tracer — end-to-end content verification agent ──────────
       // Every 30 min: batch-verifies all recently published videos against the
       // YouTube API, detects stuck/missing content, and records every finding
@@ -3997,6 +4034,9 @@ httpServer.listen(
     stopFortressCleanup();
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
+    stopShortsPrepPipeline();
+    stopLongformPrepPipeline();
+    stopQuotaAwarePublisher();
     stopPipelineTracer();
     stopPushCleanup();
     stopAutoFixCleanup();

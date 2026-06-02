@@ -343,3 +343,83 @@ export function cleanupPreAcquiredToken(): void {
     releaseAISlot();
   }
 }
+
+// ─── Three-tier pool system ───────────────────────────────────────────────────
+// Independent p-limit pools so pipeline tiers are never blocked by background
+// optimization engines filling every slot.
+//
+// Tier ownership:
+//   shorts_pipeline (3 slots)  → shorts-prep-pipeline (title/desc/SEO/thumbnail)
+//   longform_pipeline (2 slots) → longform-prep-pipeline + ai-orchestrator
+//   background (8 slots)       → all other optimization/improvement engines
+
+import pLimit from "p-limit";
+
+export type AiTier = "shorts_pipeline" | "longform_pipeline" | "background";
+
+export const TIER_LIMITS: Record<AiTier, number> = {
+  shorts_pipeline: 3,
+  longform_pipeline: 2,
+  background: 8,
+};
+
+const _tierPools: Record<AiTier, ReturnType<typeof pLimit>> = {
+  shorts_pipeline: pLimit(TIER_LIMITS.shorts_pipeline),
+  longform_pipeline: pLimit(TIER_LIMITS.longform_pipeline),
+  background: pLimit(TIER_LIMITS.background),
+};
+
+/**
+ * Returns the pLimit instance for the given tier.
+ * Wrap async AI calls in this to get semaphore protection.
+ *
+ *   const sem = getAiSemaphore('shorts_pipeline');
+ *   return sem(() => callOpenAI({ messages, tier: 'shorts_pipeline' }));
+ */
+export function getAiSemaphore(tier: AiTier = "background") {
+  return _tierPools[tier];
+}
+
+/**
+ * Fast-reject if the tier pool is at capacity. Call this BEFORE queueing
+ * so callers get an immediate error instead of waiting in queue.
+ */
+export function assertTierCapacity(tier: AiTier, module: string): void {
+  const limit = TIER_LIMITS[tier];
+  const pool = _tierPools[tier];
+  if (pool.activeCount >= limit) {
+    const label = {
+      shorts_pipeline: "Shorts Pipeline",
+      longform_pipeline: "Long-form Pipeline",
+      background: "background",
+    }[tier];
+    throw new Error(
+      `[${module}] AI queue full for ${label} tasks ` +
+        `(${pool.activeCount}/${limit} active, ${pool.pendingCount} pending) — request dropped`
+    );
+  }
+}
+
+/**
+ * Snapshot of all three tier queues.
+ * Exposed via /api/health for diagnostics.
+ */
+export function getAiQueueStatus() {
+  return {
+    shorts_pipeline: {
+      active: _tierPools.shorts_pipeline.activeCount,
+      pending: _tierPools.shorts_pipeline.pendingCount,
+      limit: TIER_LIMITS.shorts_pipeline,
+    },
+    longform_pipeline: {
+      active: _tierPools.longform_pipeline.activeCount,
+      pending: _tierPools.longform_pipeline.pendingCount,
+      limit: TIER_LIMITS.longform_pipeline,
+    },
+    background: {
+      active: _tierPools.background.activeCount,
+      pending: _tierPools.background.pendingCount,
+      limit: TIER_LIMITS.background,
+    },
+  };
+}

@@ -233,6 +233,33 @@ export function trackAICall(endpoint: string, tokensIn: number, tokensOut: numbe
   metrics.callsByEndpoint.set(endpoint, existing);
 }
 
+/**
+ * Convenience wrapper: call OpenAI chat completions with tier-aware routing.
+ * Pipeline tiers (shorts_pipeline, longform_pipeline) use the primary semaphore;
+ * background tier uses the background semaphore.
+ *
+ * Returns the raw ChatCompletion response so callers can access
+ * `.choices[0].message.content` directly.
+ */
+export async function callOpenAI({
+  tier,
+  messages,
+  maxTokens = 500,
+  model = "gpt-4o-mini",
+}: {
+  tier: "shorts_pipeline" | "longform_pipeline" | "background";
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  maxTokens?: number;
+  model?: string;
+}) {
+  const client = tier === "background" ? getOpenAIClientBackground() : getOpenAIClient();
+  return client.chat.completions.create({
+    model,
+    messages,
+    max_tokens: maxTokens,
+  });
+}
+
 export function getAITelemetry() {
   const endpointStats: Record<string, any> = {};
   for (const [key, val] of metrics.callsByEndpoint) {

@@ -191,6 +191,28 @@ export interface IStorage {
   createContentClip(c: InsertContentClip): Promise<ContentClip>;
   updateContentClip(id: number, updates: Partial<InsertContentClip>): Promise<ContentClip>;
 
+  // ── Shorts prep pipeline ──────────────────────────────────────────────────
+  getEncodedClipsWithoutReadyPayload(userId: string): Promise<any[]>;
+  upsertShortsReadyPayload(clipId: number, payload: any): Promise<void>;
+  getReadyShortsPayloads(userId: string, limit: number): Promise<any[]>;
+  markShortsClipPublished(clipId: number, data: any): Promise<void>;
+  markShortsClipUploadFailed(clipId: number, reason: string): Promise<void>;
+  getClipFilePath(clipId: number): Promise<string>;
+
+  // ── Longform prep pipeline ────────────────────────────────────────────────
+  getDownloadedVideosWithoutReadyPayload(userId: string): Promise<any[]>;
+  upsertLongformReadyPayload(videoId: number, payload: any): Promise<void>;
+  getReadyLongformPayloads(userId: string, limit: number): Promise<any[]>;
+  markVideoPublished(videoId: number, data: any): Promise<void>;
+  markVideoUploadFailed(videoId: number, reason: string): Promise<void>;
+  getVideoFilePath(videoId: number): Promise<string>;
+
+  // ── Quota-aware publisher ─────────────────────────────────────────────────
+  getDailyPublishCounts(userId: string, since: Date): Promise<{ short: number; longform: number }>;
+  incrementDailyPublishCount(userId: string, type: "short" | "longform"): Promise<void>;
+  getQuotaUsedToday(userId: string, since: Date): Promise<number>;
+  recordQuotaUsage(userId: string, units: number): Promise<void>;
+
   getVideoVersions(videoId: number): Promise<VideoVersion[]>;
   createVideoVersion(v: InsertVideoVersion): Promise<VideoVersion>;
 
@@ -2004,6 +2026,192 @@ export class DatabaseStorage implements IStorage {
       .where(lt(tokenBudgetUsage.day, cutoffDay))
       .returning({ engine: tokenBudgetUsage.engine });
     return deleted.length;
+  }
+
+  // ── Shorts prep pipeline ──────────────────────────────────────────────────
+
+  async getEncodedClipsWithoutReadyPayload(userId: string): Promise<any[]> {
+    const rows = await db.select().from(contentClips)
+      .where(and(
+        eq(contentClips.userId, userId),
+        eq(contentClips.status, "encoded"),
+        sql`(${contentClips.metadata}->>'readyPayload') IS NULL`,
+      ))
+      .orderBy(contentClips.createdAt)
+      .limit(20);
+    return rows.map(clip => ({
+      id: clip.id,
+      videoId: clip.sourceVideoId ?? 0,
+      sourceVideoTitle: (clip.metadata as any)?.sourceVideoTitle ?? clip.title,
+      sourceVideoDescription: (clip.metadata as any)?.sourceVideoDescription ?? "",
+      sourceVideoTags: (clip.metadata as any)?.sourceVideoTags ?? [],
+      clipStartSec: clip.startTime ?? 0,
+      clipEndSec: clip.endTime ?? 0,
+      clipFilePath: (clip.metadata as any)?.filePath ?? "",
+      gameName: (clip.metadata as any)?.gameName ?? "Gaming",
+      channelName: (clip.metadata as any)?.channelName ?? "ET Gaming 274",
+      hookMomentDescription: (clip.metadata as any)?.hookMomentDescription,
+    }));
+  }
+
+  async upsertShortsReadyPayload(clipId: number, payload: any): Promise<void> {
+    const [existing] = await db.select({ metadata: contentClips.metadata })
+      .from(contentClips).where(eq(contentClips.id, clipId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(contentClips)
+      .set({ status: "ready_to_upload", metadata: { ...meta, readyPayload: payload } as any })
+      .where(eq(contentClips.id, clipId));
+  }
+
+  async getReadyShortsPayloads(userId: string, limit: number): Promise<any[]> {
+    const rows = await db.select().from(contentClips)
+      .where(and(
+        eq(contentClips.userId, userId),
+        eq(contentClips.status, "ready_to_upload"),
+        sql`(${contentClips.metadata}->>'readyPayload') IS NOT NULL`,
+      ))
+      .orderBy(contentClips.createdAt)
+      .limit(limit);
+    return rows.map(r => (r.metadata as any)?.readyPayload ?? null).filter(Boolean);
+  }
+
+  async markShortsClipPublished(clipId: number, data: any): Promise<void> {
+    const [existing] = await db.select({ metadata: contentClips.metadata })
+      .from(contentClips).where(eq(contentClips.id, clipId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(contentClips)
+      .set({ status: "published", publishedAt: new Date(), metadata: { ...meta, publishedData: data } as any })
+      .where(eq(contentClips.id, clipId));
+  }
+
+  async markShortsClipUploadFailed(clipId: number, reason: string): Promise<void> {
+    const [existing] = await db.select({ metadata: contentClips.metadata })
+      .from(contentClips).where(eq(contentClips.id, clipId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(contentClips)
+      .set({ status: "upload_failed", metadata: { ...meta, uploadFailReason: reason } as any })
+      .where(eq(contentClips.id, clipId));
+  }
+
+  async getClipFilePath(clipId: number): Promise<string> {
+    const [clip] = await db.select({ metadata: contentClips.metadata })
+      .from(contentClips).where(eq(contentClips.id, clipId)).limit(1);
+    const filePath = (clip?.metadata as any)?.filePath;
+    if (!filePath) throw new Error(`No file path for clip ${clipId}`);
+    return filePath as string;
+  }
+
+  // ── Longform prep pipeline ────────────────────────────────────────────────
+
+  async getDownloadedVideosWithoutReadyPayload(userId: string): Promise<any[]> {
+    const rows = await db.select().from(studioVideos)
+      .where(and(
+        eq(studioVideos.userId, userId),
+        inArray(studioVideos.status, ["downloaded", "encoded", "processed"]),
+        sql`(${studioVideos.metadata}->>'readyPayload') IS NULL`,
+      ))
+      .orderBy(studioVideos.createdAt)
+      .limit(10);
+    return rows.map(v => ({
+      id: v.id,
+      userId: v.userId,
+      youtubeVideoId: v.youtubeId,
+      title: v.title,
+      description: v.description ?? "",
+      tags: (v.metadata as any)?.tags ?? [],
+      durationSec: parseInt(v.duration ?? "0", 10) || 0,
+      viewCount: 0,
+      likeCount: 0,
+      gameName: (v.metadata as any)?.gameName ?? "Gaming",
+      channelName: "ET Gaming 274",
+      filePath: v.filePath ?? "",
+      publishedAt: null,
+      score: null,
+    }));
+  }
+
+  async upsertLongformReadyPayload(videoId: number, payload: any): Promise<void> {
+    const [existing] = await db.select({ metadata: studioVideos.metadata })
+      .from(studioVideos).where(eq(studioVideos.id, videoId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(studioVideos)
+      .set({ status: "ready_to_upload", metadata: { ...meta, readyPayload: payload } as any, updatedAt: new Date() })
+      .where(eq(studioVideos.id, videoId));
+  }
+
+  async getReadyLongformPayloads(userId: string, limit: number): Promise<any[]> {
+    const rows = await db.select().from(studioVideos)
+      .where(and(
+        eq(studioVideos.userId, userId),
+        eq(studioVideos.status, "ready_to_upload"),
+        sql`(${studioVideos.metadata}->>'readyPayload') IS NOT NULL`,
+      ))
+      .orderBy(studioVideos.createdAt)
+      .limit(limit);
+    return rows.map(r => (r.metadata as any)?.readyPayload ?? null).filter(Boolean);
+  }
+
+  async markVideoPublished(videoId: number, data: any): Promise<void> {
+    const [existing] = await db.select({ metadata: studioVideos.metadata })
+      .from(studioVideos).where(eq(studioVideos.id, videoId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(studioVideos)
+      .set({
+        status: "published",
+        youtubeId: data.youtubeVideoId,
+        metadata: { ...meta, publishedData: data } as any,
+        updatedAt: new Date(),
+      })
+      .where(eq(studioVideos.id, videoId));
+  }
+
+  async markVideoUploadFailed(videoId: number, reason: string): Promise<void> {
+    const [existing] = await db.select({ metadata: studioVideos.metadata })
+      .from(studioVideos).where(eq(studioVideos.id, videoId)).limit(1);
+    const meta = (existing?.metadata as any) ?? {};
+    await db.update(studioVideos)
+      .set({ status: "upload_failed", metadata: { ...meta, uploadFailReason: reason } as any, updatedAt: new Date() })
+      .where(eq(studioVideos.id, videoId));
+  }
+
+  async getVideoFilePath(videoId: number): Promise<string> {
+    const [vid] = await db.select({ filePath: studioVideos.filePath })
+      .from(studioVideos).where(eq(studioVideos.id, videoId)).limit(1);
+    if (!vid?.filePath) throw new Error(`No file path for studio video ${videoId}`);
+    return vid.filePath;
+  }
+
+  // ── Quota-aware publisher ─────────────────────────────────────────────────
+
+  async getDailyPublishCounts(userId: string, since: Date): Promise<{ short: number; longform: number }> {
+    const [sc] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(contentClips)
+      .where(and(
+        eq(contentClips.userId, userId),
+        eq(contentClips.status, "published"),
+        gte(contentClips.publishedAt, since),
+      ));
+    const [lc] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(studioVideos)
+      .where(and(
+        eq(studioVideos.userId, userId),
+        eq(studioVideos.status, "published"),
+        gte(studioVideos.updatedAt, since),
+      ));
+    return { short: Number(sc?.count ?? 0), longform: Number(lc?.count ?? 0) };
+  }
+
+  async incrementDailyPublishCount(_userId: string, _type: "short" | "longform"): Promise<void> {
+    // Counts are derived from markShortsClipPublished / markVideoPublished — no separate counter
+  }
+
+  async getQuotaUsedToday(userId: string, since: Date): Promise<number> {
+    const counts = await this.getDailyPublishCounts(userId, since);
+    return (counts.short + counts.longform) * (1600 + 50);
+  }
+
+  async recordQuotaUsage(_userId: string, _units: number): Promise<void> {
+    // Quota usage is computed from daily publish counts — no separate tracker needed
   }
 }
 

@@ -117,6 +117,41 @@ export async function callClaudeBackground(params: ClaudeCallParams): Promise<Cl
   return _callClaudeInternal(params, true);
 }
 
+/**
+ * Messages-array variant of callClaude() — returns the raw Anthropic Message
+ * so callers can inspect `response.content[0].type === 'text' ? response.content[0].text`.
+ *
+ * Use this in pipeline services (shorts-prep-pipeline, longform-prep-pipeline)
+ * that need the raw Anthropic response format.
+ *
+ * @param tier  'shorts_pipeline' | 'longform_pipeline' → critical-path semaphore;
+ *              'background' → background semaphore slot.
+ */
+export async function callClaudeMessages({
+  tier,
+  messages,
+  maxTokens = 1000,
+  model = CLAUDE_MODELS.sonnet,
+}: {
+  tier: "shorts_pipeline" | "longform_pipeline" | "background";
+  messages: Anthropic.MessageParam[];
+  maxTokens?: number;
+  model?: ClaudeModel;
+}): Promise<Anthropic.Message> {
+  const background = tier === "background";
+  const client = getClaudeClient();
+  const result = await withRetry(
+    () =>
+      client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        messages,
+      }),
+    background
+  );
+  return result;
+}
+
 async function _callClaudeInternal(params: ClaudeCallParams, background: boolean): Promise<ClaudeCallResult> {
   const {
     system,
