@@ -1,1 +1,2 @@
 - [OOM crash loop fixes](oom-crash-fix.md) — 3 root causes of 24-min production crash cycle; all fixed; container memory gate now enforced at ytdlp-gate slot acquisition
+- [ESM-only packages in CJS production bundle](esm-cjs-production-trap.md) — p-limit v5+ and other pure-ESM packages crash the CJS prod build on boot; check `"type": "module"` before importing any package in server code.

@@ -345,15 +345,17 @@ export function cleanupPreAcquiredToken(): void {
 }
 
 // ─── Three-tier pool system ───────────────────────────────────────────────────
-// Independent p-limit pools so pipeline tiers are never blocked by background
-// optimization engines filling every slot.
+// Independent concurrency pools so pipeline tiers are never blocked by
+// background optimization engines filling every slot.
 //
 // Tier ownership:
 //   shorts_pipeline (3 slots)  → shorts-prep-pipeline (title/desc/SEO/thumbnail)
 //   longform_pipeline (2 slots) → longform-prep-pipeline + ai-orchestrator
 //   background (8 slots)       → all other optimization/improvement engines
-
-import pLimit from "p-limit";
+//
+// NOTE: p-limit v5+ is pure ESM and cannot be imported in a CJS production
+// bundle (causes "TypeError: (0, hD.default) is not a function" on boot).
+// We use an equivalent hand-written limiter instead — identical API, zero deps.
 
 export type AiTier = "shorts_pipeline" | "longform_pipeline" | "background";
 
@@ -363,10 +365,54 @@ export const TIER_LIMITS: Record<AiTier, number> = {
   background: 8,
 };
 
-const _tierPools: Record<AiTier, ReturnType<typeof pLimit>> = {
-  shorts_pipeline: pLimit(TIER_LIMITS.shorts_pipeline),
-  longform_pipeline: pLimit(TIER_LIMITS.longform_pipeline),
-  background: pLimit(TIER_LIMITS.background),
+// ── Minimal concurrency limiter (drop-in replacement for p-limit) ─────────────
+type ConcurrencyLimiter = {
+  <T>(fn: () => Promise<T>): Promise<T>;
+  readonly activeCount: number;
+  readonly pendingCount: number;
+};
+
+function makeConcurrencyLimiter(concurrency: number): ConcurrencyLimiter {
+  if (concurrency < 1) throw new RangeError("Concurrency limit must be >= 1");
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  function drain() {
+    while (active < concurrency && queue.length > 0) {
+      const run = queue.shift()!;
+      run();
+    }
+  }
+
+  function limiter<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const run = () => {
+        active++;
+        Promise.resolve()
+          .then(() => fn())
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            drain();
+          });
+      };
+      if (active < concurrency) {
+        run();
+      } else {
+        queue.push(run);
+      }
+    });
+  }
+
+  Object.defineProperty(limiter, "activeCount",  { get: () => active });
+  Object.defineProperty(limiter, "pendingCount", { get: () => queue.length });
+  return limiter as ConcurrencyLimiter;
+}
+
+const _tierPools: Record<AiTier, ConcurrencyLimiter> = {
+  shorts_pipeline:  makeConcurrencyLimiter(TIER_LIMITS.shorts_pipeline),
+  longform_pipeline: makeConcurrencyLimiter(TIER_LIMITS.longform_pipeline),
+  background:       makeConcurrencyLimiter(TIER_LIMITS.background),
 };
 
 /**
