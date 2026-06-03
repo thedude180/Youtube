@@ -65,6 +65,7 @@ import {
 } from "./youtube-output-schedule";
 import {
   autoSwitchFocusGameIfNeeded,
+  getFocusSwitchedToday,
   buildFocusGameRegex,
   MIN_FOCUS_DAYS_AHEAD,
 } from "../lib/game-focus";
@@ -578,6 +579,20 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       } catch (err: any) {
         logger.debug(`[BackCatalog] Metadata queue error ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
       }
+    }
+
+    // ── Same-day switch guard ─────────────────────────────────────────────────
+    // If the focus game was auto-switched TODAY, defer all new clip queuing until
+    // tomorrow's reset so today's already-scheduled content for the old game
+    // publishes without mixing in the new game on the same day.
+    // Metadata refreshes (above) are still allowed — they're game-independent.
+    const switchedToday = await getFocusSwitchedToday();
+    if (switchedToday) {
+      logger.info(
+        `[BackCatalog] Focus switched to "${focusGame}" today — ` +
+        `clip queuing deferred until tomorrow's reset. Metadata refresh only.`,
+      );
+      return result;
     }
 
     // ── Queue Shorts from old videos ──────────────────────────────────────────

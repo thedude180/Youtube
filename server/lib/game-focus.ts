@@ -167,15 +167,40 @@ export async function autoSwitchFocusGameIfNeeded(userId: string): Promise<strin
     if (topGame) {
       log.info(
         `[GameFocus] Auto-switching focus from "${currentFocus}" → "${topGame}" ` +
-        `(${topCount} streams ≥ threshold ${STREAM_SWITCH_THRESHOLD})`,
+        `(${topCount} streams ≥ threshold ${STREAM_SWITCH_THRESHOLD}). ` +
+        `Today's existing schedule for "${currentFocus}" will finish; ` +
+        `"${topGame}" content queues from tomorrow's reset.`,
       );
-      return await setFocusGame(topGame);
+      const switched = await setFocusGame(topGame);
+      // Record the calendar date of this switch so the back catalog engine can
+      // defer all new-game queuing until tomorrow (today's schedule runs out first).
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      await storage.setSystemSetting("game_focus:switch_day", today).catch(() => {});
+      return switched;
     }
 
     return currentFocus;
   } catch (err: any) {
     log.warn(`[GameFocus] autoSwitch failed (non-fatal): ${err?.message}`);
     return await getFocusGame().catch(() => DEFAULT_GAME);
+  }
+}
+
+// ── Same-day switch guard ─────────────────────────────────────────────────────
+
+/**
+ * Returns true if the focus game was auto-switched TODAY.
+ * Used by the back catalog engine to defer all new-game clip queuing
+ * until tomorrow's reset — today's existing schedule runs out first.
+ */
+export async function getFocusSwitchedToday(): Promise<boolean> {
+  try {
+    const switchDay = await storage.getSystemSetting("game_focus:switch_day");
+    if (!switchDay) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    return switchDay === today;
+  } catch {
+    return false;
   }
 }
 
