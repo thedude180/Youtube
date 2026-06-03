@@ -32,6 +32,7 @@ import { createLogger } from "../lib/logger";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("clip-seo-sync");
 
@@ -295,7 +296,12 @@ async function syncOneClip(
 
   const sourceYtId: string | undefined =
     (meta.sourceYoutubeId as string) || undefined;
-  const gameName: string = String(meta.gameName ?? "Gaming").slice(0, 80);
+  // Use clip metadata gameName if present; fall back to the configured focus game
+  // so AI prompts stay on-brand even when clips lack explicit game tags.
+  const rawGameName = String(meta.gameName ?? "").trim();
+  const gameName: string = (rawGameName && rawGameName.toLowerCase() !== "gaming")
+    ? rawGameName.slice(0, 80)
+    : (await getFocusGame()).slice(0, 80);
   const isShort = item.type.toLowerCase().includes("short");
 
   // Resolve source back-catalog video for context

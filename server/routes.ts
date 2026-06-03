@@ -616,6 +616,38 @@ export async function registerRoutes(
     }
   });
 
+  // ── Game focus API ────────────────────────────────────────────────────────────
+  app.get("/api/youtube/game-focus", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getFocusGame } = await import("./lib/game-focus");
+      const game = await getFocusGame();
+      res.json({ game });
+    } catch (err: any) {
+      logger.error(`[GameFocus] GET error: ${err.message}`);
+      res.status(500).json({ error: "Failed to get focus game" });
+    }
+  });
+
+  app.post("/api/youtube/game-focus", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { game } = req.body ?? {};
+    if (!game || typeof game !== "string" || !game.trim()) {
+      return res.status(400).json({ error: "game is required" });
+    }
+    try {
+      const { setFocusGame } = await import("./lib/game-focus");
+      const canonical = await setFocusGame(game.trim());
+      logger.info(`[GameFocus] User ${userId.slice(0, 8)} set focus game to "${canonical}"`);
+      res.json({ game: canonical, ok: true });
+    } catch (err: any) {
+      logger.error(`[GameFocus] POST error: ${err.message}`);
+      res.status(500).json({ error: "Failed to set focus game" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.

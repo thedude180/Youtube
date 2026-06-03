@@ -2399,6 +2399,13 @@ httpServer.listen(
       checkDependencies().catch(err => logger.error("[Boot] dependency-check failed", { error: String(err) }));
     });
 
+    // ── WAVE 0.5 (T+3s): One-time data migrations ────────────────────────────
+    delay(3_000, () => {
+      import("./lib/startup-migrations").then(m => m.runStartupMigrations()).catch(
+        err => logger.warn("[Boot] startup-migrations failed (non-fatal):", err?.message),
+      );
+    });
+
     // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
     delay(5_000, () => {
       // Mirror youtube channel tokens to the paired youtubeshorts row immediately on every boot.

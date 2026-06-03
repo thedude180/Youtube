@@ -63,6 +63,11 @@ import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
 } from "./youtube-output-schedule";
+import {
+  getFocusGame,
+  buildFocusGameRegex,
+  MIN_FOCUS_DAYS_AHEAD,
+} from "../lib/game-focus";
 
 const logger = createLogger("back-catalog-engine");
 
@@ -490,36 +495,65 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
     const channelAvg = computeChannelAverages(allVideos);
 
-    // Fetch the most recent stream to find the currently-played game.
-    // Falls back to "Battlefield 6" (channel's primary game) when not streaming.
-    const currentGame = await getCurrentStreamGame(userId);
-    const effectiveGame = currentGame ?? "Battlefield 6";
-    if (currentGame) {
-      logger.info(`[BackCatalog] Prioritising live game: "${currentGame}"`);
-    } else {
-      logger.info(`[BackCatalog] No live game detected — defaulting to primary game: "Battlefield 6"`);
-    }
+    // Use the persistent focus game setting (system_settings key "game_focus:current").
+    // Defaults to "Battlefield 6". Changed via POST /api/youtube/game-focus.
+    // Replaces the old getCurrentStreamGame() approach — focus game is now explicitly
+    // controlled and held steady regardless of what was streamed last.
+    const focusGame = await getFocusGame();
+    logger.info(`[BackCatalog] Focus game: "${focusGame}" (from game_focus:current setting)`);
 
-    const ranked = rankVideos(allVideos, channelAvg, effectiveGame);
+    const ranked = rankVideos(allVideos, channelAvg, focusGame);
 
-    // ── Hard game-priority gate ───────────────────────────────────────────────
-    // Always filter to the effective game (live stream game or Battlefield 6 default).
-    // Only opens to other games after ALL Battlefield 6 content is fully exhausted.
+    // ── Hard game-priority gate with 30-day depth check ──────────────────────
+    // Gate stays ACTIVE (focus-game-only) while EITHER:
+    //   (a) unmined focus-game source videos still exist, OR
+    //   (b) fewer than MIN_FOCUS_DAYS_AHEAD × 4 slots are banked in the next 30 days.
+    // Only when BOTH conditions clear does the gate open to other games.
     let gameFilter: ((v: { gameName?: string | null; title?: string | null }) => boolean) | null = null;
 
     {
-      const matchesGame = buildGameFilter(effectiveGame);
+      const matchesGame = buildGameFilter(focusGame);
+      const focusRe     = buildFocusGameRegex(focusGame).source;
+
+      // Count focus-game items already scheduled within the next MIN_FOCUS_DAYS_AHEAD days
+      const windowEnd = new Date(Date.now() + MIN_FOCUS_DAYS_AHEAD * 24 * 60 * 60 * 1000);
+      const [focusDepthRow] = await db
+        .select({ cnt: sql<number>`count(*)::int` })
+        .from(autopilotQueue)
+        .where(
+          and(
+            eq(autopilotQueue.userId, userId),
+            eq(autopilotQueue.status, "scheduled"),
+            gte(autopilotQueue.scheduledAt, new Date()),
+            lt(autopilotQueue.scheduledAt, windowEnd),
+            sql`(
+              ${autopilotQueue.content} ~* ${focusRe}
+              OR ${autopilotQueue.caption} ~* ${focusRe}
+            )`,
+          ),
+        );
+
+      const DAILY_OUTPUT   = 4; // 3 Shorts + 1 long-form
+      const focusThreshold = MIN_FOCUS_DAYS_AHEAD * DAILY_OUTPUT; // 120 slots
+      const focusDepth     = focusDepthRow?.cnt ?? 0;
+
       const hasUnminedForGame = ranked.some(v =>
         !v.isShort &&
         matchesGame(v) &&
         ((v.durationSec ?? 0) >= SHORT_MIN_SOURCE_SEC || (v.durationSec ?? 0) >= SINGLE_SEG_MIN_SOURCE_SEC) &&
         (!v.minedForShorts || !v.minedForLongForm),
       );
-      if (hasUnminedForGame) {
+
+      if (hasUnminedForGame || focusDepth < focusThreshold) {
         gameFilter = matchesGame;
-        logger.info(`[BackCatalog] Game priority gate ACTIVE — only "${effectiveGame}" content until fully exhausted`);
+        logger.info(
+          `[BackCatalog] Game priority gate ACTIVE — "${focusGame}" ` +
+          `(${focusDepth}/${focusThreshold} slots in next ${MIN_FOCUS_DAYS_AHEAD}d, unmined=${hasUnminedForGame})`,
+        );
       } else {
-        logger.info(`[BackCatalog] Game priority gate CLEAR — "${effectiveGame}" fully exhausted, opening all games`);
+        logger.info(
+          `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked, mixing allowed`,
+        );
       }
     }
 
