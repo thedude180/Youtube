@@ -64,7 +64,7 @@ import {
   getNextLongFormPublishTime,
 } from "./youtube-output-schedule";
 import {
-  getFocusGame,
+  autoSwitchFocusGameIfNeeded,
   buildFocusGameRegex,
   MIN_FOCUS_DAYS_AHEAD,
 } from "../lib/game-focus";
@@ -499,8 +499,10 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     // Defaults to "Battlefield 6". Changed via POST /api/youtube/game-focus.
     // Replaces the old getCurrentStreamGame() approach — focus game is now explicitly
     // controlled and held steady regardless of what was streamed last.
-    const focusGame = await getFocusGame();
-    logger.info(`[BackCatalog] Focus game: "${focusGame}" (from game_focus:current setting)`);
+    // Auto-switch if a new game has hit 2+ cataloged streams; otherwise returns
+    // the current persistent focus game (default: "Battlefield 6").
+    const focusGame = await autoSwitchFocusGameIfNeeded(userId);
+    logger.info(`[BackCatalog] Focus game: "${focusGame}"`);
 
     const ranked = rankVideos(allVideos, channelAvg, focusGame);
 
