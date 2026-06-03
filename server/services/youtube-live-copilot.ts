@@ -169,8 +169,14 @@ export async function prepareLiveStream(
     ? `Live BF6 no commentary on PS5. All-Out Warfare, vehicles, infantry fights, and raw gameplay. Stay for full matches and subscribe for more. Drop a like if you enjoy raw BF6.`
     : `Welcome! ${gameName} no-commentary PS5 gameplay. No talking — just raw gameplay. Subscribe for more.`;
 
+  // Default live title: always include the game so viewers know what's playing
+  // the moment they see it in their feed or notifications.
+  const defaultLiveTitle = gameName && gameName !== "Gaming"
+    ? `🔴 LIVE: ${gameName} — No Commentary PS5`
+    : `🔴 LIVE: ${streamTitle}`;
+
   let prep: LiveStreamPrep = {
-    title: streamTitle,
+    title: defaultLiveTitle,
     description: `Live no-commentary ${gameName} gameplay from ETGaming247. No facecam, no fake hype, no talking over the game — just raw gameplay, full matches, objective pressure, vehicles, infantry fights, and controlled chaos.\n\nStay for full matches, livestream replays, Shorts, and clean gameplay cut with 92 BPM pressure.\n\n#NoCommentary #${gameName.replace(/\s/g, "")} #PS5 #ETGaming247`,
     tags: ["no commentary", "no facecam", "raw gameplay", "PS5", gameName, "gaming", "live", "gameplay", "ETGaming247", "92 bpm"],
     thumbnailConcept: `Action screenshot from ${gameName} with bold 2-3 word overlay (e.g. LIVE NOW or RAW WAR). Top-left: 92 BPM marker. Bottom: NO COMMENTARY strip.`,

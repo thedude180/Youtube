@@ -13,11 +13,14 @@
  *   3. AI: generate YouTube Short title (≤100 chars, hook-first)
  *   4. AI: generate SEO description (keyword-rich, CTA, hashtags)
  *   5. AI: generate tag set (≤500 chars total, ranked by search volume)
- *   6. AI: generate thumbnail concept (composition, text overlay, color grade)
- *   7. Write all metadata to DB → status: 'ready_to_upload'
+ *   6. Write all metadata to DB → status: 'ready_to_upload'
+ *
+ * NOTE: Shorts intentionally have NO custom thumbnail.
+ * YouTube Shorts are discovered through the Shorts feed which uses a frame
+ * from the video, not a custom thumbnail. Uploading a custom thumbnail to a
+ * Short wastes quota and doesn't improve CTR.
  */
 import { callOpenAI } from "../lib/openai";
-import { callClaudeMessages } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { setJitteredInterval } from "../lib/timer-utils";
 import { assertTierCapacity } from "../lib/ai-semaphore";
@@ -40,14 +43,6 @@ export interface ClipRecord {
   hookMomentDescription?: string;
 }
 
-interface ThumbnailConcept {
-  composition: string;
-  textOverlay: string;
-  colorGrade: string;
-  focalElement: string;
-  mood: string;
-  avoidElements: string;
-}
 
 export interface ShortsReadyPayload {
   clipId: number;
@@ -56,8 +51,8 @@ export interface ShortsReadyPayload {
   tags: string[];
   categoryId: string;
   defaultLanguage: string;
-  thumbnailConcept: ThumbnailConcept;
-  thumbnailFilePath: string | null;
+  thumbnailConcept: null;
+  thumbnailFilePath: null;
   status: "ready_to_upload";
   preparedAt: Date;
 }
@@ -200,54 +195,10 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
   }
   log.info(`[ShortsPrepPipeline] Clip ${clip.id} tags: [${tags.join(", ")}]`);
 
-  // Step 5 — Thumbnail concept (Claude for visual composition reasoning)
-  assertTierCapacity("shorts_pipeline", "shorts-prep");
-  const thumbResult = await callClaudeMessages({
-    tier: "shorts_pipeline",
-    messages: [
-      {
-        role: "user",
-        content:
-          "You design YouTube gaming thumbnails. Describe a thumbnail concept for this Short.\n\n" +
-          `Game: ${clip.gameName}\n` +
-          `Title: ${title}\n` +
-          `Hook moment: ${hookMoment}\n\n` +
-          "Output ONLY valid JSON with these fields:\n" +
-          '{\n' +
-          '  "composition": "subject positioning and rule-of-thirds description",\n' +
-          '  "textOverlay": "4 words max, ALL CAPS, high contrast",\n' +
-          '  "colorGrade": "shadow and highlight color direction",\n' +
-          '  "focalElement": "the single most eye-catching element and its frame position",\n' +
-          '  "mood": "2-3 emotion words",\n' +
-          '  "avoidElements": "UI elements to hide or crop out"\n' +
-          "}\n\n" +
-          "For gaming thumbnails: prefer destruction/explosion in upper frame, " +
-          "small player vs massive threat compositions, minimal HUD visible, " +
-          "desaturated backgrounds with one hot color accent on the focal element.",
-      },
-    ],
-    maxTokens: 300,
-  });
-
-  let thumbnailConcept: ThumbnailConcept = {
-    composition: "center subject, rule-of-thirds enemy upper right",
-    textOverlay: "INSANE MOMENT",
-    colorGrade: "cool blue shadows, orange fire highlights",
-    focalElement: "explosion filling upper 50% of frame",
-    mood: "tense, disbelief, survival",
-    avoidElements: "no HUD, no minimap, no health bar",
-  };
-  try {
-    const raw =
-      thumbResult.content[0].type === "text" ? thumbResult.content[0].text.trim() : "{}";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    thumbnailConcept = { ...thumbnailConcept, ...JSON.parse(cleaned) };
-  } catch {
-    log.warn(`[ShortsPrepPipeline] Clip ${clip.id} thumbnail parse failed — using defaults`);
-  }
-  log.info(`[ShortsPrepPipeline] Clip ${clip.id} thumbnail concept ready`);
-
-  // Step 6 — Persist to DB as ready_to_upload
+  // Step 5 — Persist to DB as ready_to_upload
+  // NOTE: thumbnailConcept is intentionally null — Shorts use a video frame,
+  // not a custom thumbnail. Custom thumbnails on Shorts waste quota and do not
+  // improve discovery in the Shorts feed.
   const payload: ShortsReadyPayload = {
     clipId: clip.id,
     title,
@@ -255,7 +206,7 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
     tags,
     categoryId: "20",
     defaultLanguage: "en",
-    thumbnailConcept,
+    thumbnailConcept: null,
     thumbnailFilePath: null,
     status: "ready_to_upload",
     preparedAt: new Date(),

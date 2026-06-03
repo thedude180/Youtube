@@ -226,11 +226,25 @@ export async function runChannelHygiene(userId: string): Promise<HygieneReport> 
         report.aiGameplayScrubbed++;
       }
 
-      // Rule 3 — Add "[Replay]" to completed livestream VODs ─────────────────
+      // Rule 3 — Add "Replay:" to completed livestream VODs ───────────────────
       // (Rule 2 — Shorts thumbnails handled in the draft queue below)
       if (isVod && needsReplayMarker(updates.title || title)) {
-        const base   = (updates.title || title).replace(/^\[?REPLAY\]?\s*/i, "").trim();
-        updates.title = `[Replay] ${base}`;
+        const base    = (updates.title || title).replace(/^replay\s*:\s*/i, "").trim();
+        updates.title = `Replay: ${base}`;
+
+        // Also update description to clearly identify this as a replay
+        const currentDesc = updates.description || description;
+        if (!currentDesc.toLowerCase().includes("replay") && !currentDesc.toLowerCase().includes("full stream")) {
+          const replayHeader = `Full stream replay — originally broadcast live on ETGaming274.\n\n`;
+          updates.description = replayHeader + currentDesc.slice(0, 4900).trim();
+        }
+
+        // Ensure replay-specific tags
+        const currentTags = updates.tags || tags;
+        const replayTagsToAdd = ["stream replay", "full stream", "replay", "live replay", "no commentary"];
+        const merged = Array.from(new Set([...currentTags, ...replayTagsToAdd]));
+        updates.tags = merged.slice(0, 500); // YouTube tag array limit
+
         needsUpdate   = true;
         report.livestreamsRelabeled++;
         log.info(`[ChannelHygiene] VOD → Replay: "${base.slice(0, 60)}"`);
