@@ -10,6 +10,7 @@ import { cached } from "../lib/cache";
 import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
+import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
 
 const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
@@ -593,5 +594,27 @@ export function registerAdminRoutes(app: Express) {
       logger.error("[ContentReset] Reset failed", { error: err?.message });
       res.status(500).json({ error: "Content reset failed: " + err?.message?.slice(0, 200) });
     }
+  });
+
+  // ── Channel Hygiene ─────────────────────────────────────────────────────────
+
+  app.post("/api/admin/channel-hygiene/run", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const targetUserId: string = (req.body as any)?.userId || userId;
+      const report = await runChannelHygiene(targetUserId);
+      res.json({ ok: true, report });
+    } catch (err: any) {
+      logger.error("[ChannelHygiene] Manual run failed", { error: err?.message });
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Hygiene run failed" });
+    }
+  });
+
+  app.get("/api/admin/channel-hygiene/status", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const report = getLastHygieneReport();
+    res.json({ ok: true, report });
   });
 }

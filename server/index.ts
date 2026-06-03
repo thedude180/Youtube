@@ -42,6 +42,7 @@ import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shor
 import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
 import { startResurrectionEngine, stopResurrectionEngine } from "./services/resurrection-engine";
+import { startChannelHygieneService, stopChannelHygieneService } from "./services/channel-hygiene";
 import { getAiQueueStatus } from "./lib/ai-semaphore";
 import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initPreEncoder } from "./services/pre-encoder";
@@ -3348,6 +3349,15 @@ httpServer.listen(
         }
       }, 35_000);
 
+      // ── Channel Hygiene (T+60s) ───────────────────────────────────────────────
+      // Removes "AI gameplay" from all metadata, adds Replay markers to VODs,
+      // blocks thumbnails on Shorts, cleans pending drafts.  Repeats every 24h.
+      setTimeout(() => {
+        try { startChannelHygieneService(); } catch (e: any) {
+          logger.error("[Boot] startChannelHygieneService threw", { error: e?.message });
+        }
+      }, 60_000);
+
       // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
       // Fires once at the precise moment the YouTube API quota resets (midnight
       // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory
@@ -4052,6 +4062,7 @@ httpServer.listen(
     stopLongformPrepPipeline();
     stopQuotaAwarePublisher();
     stopResurrectionEngine();
+    stopChannelHygieneService();
     stopPipelineTracer();
     stopPushCleanup();
     stopAutoFixCleanup();
