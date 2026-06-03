@@ -20,6 +20,10 @@ const logger = createLogger("content-grinder");
 
 const GRIND_INTERVAL_MS = 45 * 60_000;
 
+// Fix #4 — spread token budget across the day instead of burning it in 3 hours
+const GRINDER_MAX_PER_CYCLE       = 20;        // max videos processed per cycle
+const GRINDER_INTER_VIDEO_DELAY_MS = 30_000;   // 30s between each video
+
 /**
  * Strip markdown code fences and parse JSON from an AI response.
  * Claude sometimes wraps output in ```json\n...\n``` blocks even when
@@ -179,7 +183,7 @@ async function grindUserContent(userId: string): Promise<GrindState> {
     return state;
   }
 
-  for (const video of longFormVideos) {
+  for (const video of longFormVideos.slice(0, GRINDER_MAX_PER_CYCLE)) {
     try {
       const exhaustionLevel = await checkVideoExhaustion(userId, video);
 
@@ -225,7 +229,7 @@ async function grindUserContent(userId: string): Promise<GrindState> {
       const pacingResult = await enhanceRetentionPacing(userId, video);
       if (pacingResult) state.pacingEnhanced++;
 
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, GRINDER_INTER_VIDEO_DELAY_MS));
     } catch (err: any) {
       logger.warn(`[${userId.substring(0, 8)}] Failed to grind video ${video.id}: ${err.message?.substring(0, 200)}`);
     }

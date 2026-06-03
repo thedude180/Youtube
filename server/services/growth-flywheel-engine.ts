@@ -15,6 +15,15 @@ import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledge
 const logger = createLogger("growth-flywheel");
 
 const FLYWHEEL_CYCLE_MS = 30 * 60_000;
+
+/** Fix #7 — guard against phantom non-YouTube platform users in AI loops */
+function isYouTubeUser(userId: string): boolean {
+  if (userId.startsWith("tiktok_"))  return false;
+  if (userId.startsWith("rumble_"))  return false;
+  if (userId.startsWith("kick_"))    return false;
+  if (userId.startsWith("twitch_"))  return false;
+  return true;
+}
 const MEMORY_CONSOLIDATION_MS = 2 * 60 * 60_000;
 const COMPETITIVE_SCAN_MS = 60 * 60_000;
 const AUTO_APPROVE_THRESHOLD = 85;
@@ -126,6 +135,11 @@ async function runFlywheelCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
+    // Fix #7 — skip phantom non-YouTube users (tiktok_, rumble_, kick_, twitch_)
+    if (!isYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+      continue;
+    }
     try {
       await spinFlywheelForUser(user.id);
     } catch (err) {
@@ -386,6 +400,10 @@ async function runMemoryConsolidation(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
+    if (!isYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+      continue;
+    }
     try {
       await consolidateMemoryForUser(user.id);
     } catch (err) {
@@ -534,6 +552,10 @@ async function runCompetitiveIntelScan(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
+    if (!isYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+      continue;
+    }
     try {
       await scanCompetitiveIntelForUser(user.id);
     } catch (err) {

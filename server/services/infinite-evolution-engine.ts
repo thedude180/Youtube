@@ -12,6 +12,15 @@ import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-
 const logger = createLogger("infinite-evolution");
 
 const EVOLUTION_CYCLE_MS = 60 * 60_000;
+
+/** Fix #7 — guard against phantom non-YouTube platform users in AI loops */
+function isYouTubeUser(userId: string): boolean {
+  if (userId.startsWith("tiktok_"))  return false;
+  if (userId.startsWith("rumble_"))  return false;
+  if (userId.startsWith("kick_"))    return false;
+  if (userId.startsWith("twitch_"))  return false;
+  return true;
+}
 let evolutionInterval: ReturnType<typeof setInterval> | null = null;
 
 const evoStore = createEngineStore("infinite-evolution", 10 * 60_000);
@@ -100,6 +109,11 @@ export async function runEvolutionCycle(): Promise<void> {
     const allUsers = await db.select({ id: users.id }).from(users).limit(10);
 
     for (const user of allUsers) {
+      // Fix #7 — skip phantom non-YouTube users (tiktok_, rumble_, kick_, twitch_)
+      if (!isYouTubeUser(user.id)) {
+        logger.debug(`[EvolutionEngine] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+        continue;
+      }
       try {
         await evolveAllSystems(user.id);
       } catch (err: any) {

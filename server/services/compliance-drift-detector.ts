@@ -159,6 +159,20 @@ async function detectPlatformDrift(platform: string): Promise<DriftDetectionResu
         severity,
         status: "detected",
       });
+
+      // Fix #8 — log violation detail so "20 critical, 3 high" shows WHAT drifted
+      const critical = driftChanges.filter(c => c.severity === "critical");
+      const high     = driftChanges.filter(c => c.severity === "warning");
+      if (critical.length > 0 || high.length > 0) {
+        const { createLogger } = await import("../lib/logger");
+        const driftLog = createLogger("compliance-drift-detector");
+        driftLog.warn(`[Compliance] Drift detected on ${platform}: ${critical.length} critical, ${high.length} high`, {
+          platform,
+          summary: { critical: critical.length, high: high.length, total: driftChanges.length },
+          criticalDrifts: critical.map(c => ({ category: (c as any).category, rule: (c as any).rule ?? (c as any).description ?? JSON.stringify(c).slice(0, 120) })),
+          highDrifts:     high.map(c => ({ category: (c as any).category, rule: (c as any).rule ?? (c as any).description ?? JSON.stringify(c).slice(0, 120) })),
+        });
+      }
     }
   }
 

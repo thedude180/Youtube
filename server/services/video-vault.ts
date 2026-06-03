@@ -599,12 +599,19 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
 // fallback).  Parallel runs hit YouTube twice and cause "Incomplete yt initial
 // data" errors on both.  The second call waits and returns the previous result.
 let _indexLock = false;
+let _lastIndexCallMs = 0;
+const INDEX_MIN_GAP_MS = 10 * 60 * 1000; // Fix #6 — minimum 10 min between calls
 
 export async function indexAllChannelVideos(userId: string): Promise<{ indexed: number; newlyAdded: number }> {
+  const now = Date.now();
+  if (now - _lastIndexCallMs < INDEX_MIN_GAP_MS) {
+    return { indexed: 0, newlyAdded: 0 };
+  }
   if (_indexLock) {
     logger.warn("[Vault] indexAllChannelVideos already running — skipping duplicate call");
     return { indexed: 0, newlyAdded: 0 };
   }
+  _lastIndexCallMs = now;
   _indexLock = true;
   try {
     return await _indexAllChannelVideosImpl(userId);

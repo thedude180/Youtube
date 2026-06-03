@@ -4537,6 +4537,8 @@ export const youtubePushBacklog = pgTable("youtube_push_backlog", {
   attempts: integer("attempts").notNull().default(0),
   maxAttempts: integer("max_attempts").notNull().default(3),
   lastError: text("last_error"),
+  retryAfter: timestamp("retry_after"),
+  resurrectionCount: integer("resurrection_count").default(0),
   processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -5354,6 +5356,8 @@ export const contentVaultBackups = pgTable("content_vault_backups", {
   createdAt: timestamp("created_at").defaultNow(),
   downloadedAt: timestamp("downloaded_at"),
   permanentRetention: boolean("permanent_retention").notNull().default(false),
+  retryAfter: timestamp("retry_after"),
+  resurrectionCount: integer("resurrection_count").default(0),
 }, (table) => [
   index("vault_user_idx").on(table.userId),
   index("vault_platform_idx").on(table.platform),

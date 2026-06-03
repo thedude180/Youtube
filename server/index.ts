@@ -41,6 +41,7 @@ import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services
 import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shorts-prep-pipeline";
 import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
+import { startResurrectionEngine, stopResurrectionEngine } from "./services/resurrection-engine";
 import { getAiQueueStatus } from "./lib/ai-semaphore";
 import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initPreEncoder } from "./services/pre-encoder";
@@ -3338,6 +3339,15 @@ httpServer.listen(
         logger.error("[Boot] initBackCatalogRunner threw — runner will not start", { error: e?.message });
       }
 
+      // ── Resurrection Engine (T+35s) ──────────────────────────────────────────
+      // Scans for permanently_failed items across all pipeline tables and gives
+      // them another chance after their cooldown window. Safe to start early.
+      setTimeout(() => {
+        try { startResurrectionEngine(); } catch (e: any) {
+          logger.error("[Boot] startResurrectionEngine threw — resurrection will not run", { error: e?.message });
+        }
+      }, 35_000);
+
       // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
       // Fires once at the precise moment the YouTube API quota resets (midnight
       // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory
@@ -4041,6 +4051,7 @@ httpServer.listen(
     stopShortsPrepPipeline();
     stopLongformPrepPipeline();
     stopQuotaAwarePublisher();
+    stopResurrectionEngine();
     stopPipelineTracer();
     stopPushCleanup();
     stopAutoFixCleanup();

@@ -1,2 +1,4 @@
 - [OOM crash loop fixes](oom-crash-fix.md) — 3 root causes of 24-min production crash cycle; all fixed; container memory gate now enforced at ytdlp-gate slot acquisition
 - [ESM-only packages in CJS production bundle](esm-cjs-production-trap.md) — p-limit v5+ and other pure-ESM packages crash the CJS prod build on boot; check `"type": "module"` before importing any package in server code.
+- [PDF extraction method](pdf-extraction.md) — attached PDFs must be extracted with `pdftotext <file> -`; direct utf-8 reads fail on binary PDFs; pdftotext is in PATH.
+- [Resurrection engine column names](resurrection-engine-targets.md) — content_vault_backups uses `download_error` (not `error_message`) and has no attempts column; pre_encoder_queue / shorts_clip_queue / video_metadata_sync_queue are raw-SQL targets only (no Drizzle table), caught by per-target try/catch.
