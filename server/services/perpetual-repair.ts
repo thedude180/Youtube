@@ -147,13 +147,6 @@ async function runRepairCycle(): Promise<void> {
 
       const failedYtIds = failedVaultRows.map(r => r.youtubeId).filter(Boolean) as string[];
 
-      // Also always include the known cross-contaminated IDs even if vault rows
-      // haven't been created for them yet (belt-and-suspenders).
-      const alwaysBlock = ["Jrt9VPmojMA"];
-      for (const id of alwaysBlock) {
-        if (!failedYtIds.includes(id)) failedYtIds.push(id);
-      }
-
       let totalCancelled = 0;
       for (const ytId of failedYtIds) {
         // Cancel ALL non-terminal statuses: scheduled, pending, processing, publishing

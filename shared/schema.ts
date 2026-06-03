@@ -10292,3 +10292,25 @@ export const pipelineTraces = pgTable("pipeline_traces", {
 export const insertPipelineTraceSchema = createInsertSchema(pipelineTraces).omit({ id: true, createdAt: true });
 export type PipelineTrace = typeof pipelineTraces.$inferSelect;
 export type InsertPipelineTrace = z.infer<typeof insertPipelineTraceSchema>;
+
+// ─── yt_dlp_backoff ──────────────────────────────────────────────────────────
+// Persists yt-dlp download failure backoff across reboots.
+// Keyed by youtube_id; the in-memory yt-dlp-backoff.ts module reads/writes here.
+export const ytDlpBackoff = pgTable("yt_dlp_backoff", {
+  youtubeId:       text("youtube_id").primaryKey(),
+  failureType:     text("failure_type").notNull(),
+  consecutiveFails:integer("consecutive_fails").notNull().default(1),
+  retryAfter:      timestamp("retry_after", { withTimezone: true }).notNull(),
+  lastFailureAt:   timestamp("last_failure_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_yt_dlp_backoff_retry").on(t.retryAfter),
+]);
+
+// ─── system_settings ─────────────────────────────────────────────────────────
+// Generic key-value store for persistent system flags (e.g. live-gate cooldowns).
+export const systemSettings = pgTable("system_settings", {
+  key:       text("key").primaryKey(),
+  value:     text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

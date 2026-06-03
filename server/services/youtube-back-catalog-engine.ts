@@ -48,8 +48,6 @@ async function refreshFailedVaultIds(): Promise<void> {
       .from(contentVaultBackups)
       .where(eq(contentVaultBackups.status, "failed"));
     _failedVaultIds = new Set(rows.map(r => r.youtubeId).filter(Boolean) as string[]);
-    // Always block known cross-contaminated IDs regardless of vault rows
-    _failedVaultIds.add("Jrt9VPmojMA");
   } catch {
     // Non-fatal — if the DB query fails, keep the previous cache
   }

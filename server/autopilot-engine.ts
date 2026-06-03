@@ -1667,10 +1667,13 @@ export async function processScheduledPosts() {
           );
 
           if (criticalViolations.length > 0) {
-            logger.warn("Content blocked by compliance check", {
-              postId: post.id, platform: post.targetPlatform,
-              violations: criticalViolations.map(v => v.rule),
-            });
+            const { evaluateComplianceViolations } = await import("./lib/compliance-violations");
+            evaluateComplianceViolations(
+              post.id,
+              (post as any).videoId ?? 0,
+              ((meta?.youtubeVideoId ?? meta?.youtubeId ?? "unknown") as string),
+              criticalViolations.map(v => v.rule),
+            );
 
             await db.update(autopilotQueue)
               .set({

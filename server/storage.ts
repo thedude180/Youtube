@@ -2214,6 +2214,101 @@ export class DatabaseStorage implements IStorage {
   async recordQuotaUsage(_userId: string, _units: number): Promise<void> {
     // Quota usage is computed from daily publish counts — no separate tracker needed
   }
+
+  // ── system_settings ────────────────────────────────────────────────────────
+
+  async getSystemSetting(key: string): Promise<string | null> {
+    const { systemSettings } = await import("@shared/schema");
+    const [row] = await db.select({ value: systemSettings.value })
+      .from(systemSettings).where(eq(systemSettings.key, key)).limit(1);
+    return row?.value ?? null;
+  }
+
+  async setSystemSetting(key: string, value: string): Promise<void> {
+    const { systemSettings } = await import("@shared/schema");
+    await db.insert(systemSettings)
+      .values({ key, value, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: systemSettings.key, set: { value, updatedAt: new Date() } });
+  }
+
+  async deleteSystemSetting(key: string): Promise<void> {
+    const { systemSettings } = await import("@shared/schema");
+    await db.delete(systemSettings).where(eq(systemSettings.key, key));
+  }
+
+  // ── yt_dlp_backoff ─────────────────────────────────────────────────────────
+
+  async getYtDlpBackoff(youtubeId: string): Promise<any | null> {
+    const { ytDlpBackoff } = await import("@shared/schema");
+    const [row] = await db.select().from(ytDlpBackoff)
+      .where(eq(ytDlpBackoff.youtubeId, youtubeId)).limit(1);
+    if (!row) return null;
+    return {
+      failureType:      row.failureType,
+      consecutiveFails: row.consecutiveFails,
+      retryAfterIso:    row.retryAfter.toISOString(),
+      lastFailureIso:   row.lastFailureAt.toISOString(),
+    };
+  }
+
+  async setYtDlpBackoff(youtubeId: string, data: {
+    failureType:      string;
+    consecutiveFails: number;
+    retryAfterIso:    string;
+    lastFailureIso:   string;
+  }): Promise<void> {
+    const { ytDlpBackoff } = await import("@shared/schema");
+    await db.insert(ytDlpBackoff)
+      .values({
+        youtubeId,
+        failureType:      data.failureType,
+        consecutiveFails: data.consecutiveFails,
+        retryAfter:       new Date(data.retryAfterIso),
+        lastFailureAt:    new Date(data.lastFailureIso),
+        updatedAt:        new Date(),
+      })
+      .onConflictDoUpdate({
+        target: ytDlpBackoff.youtubeId,
+        set: {
+          failureType:      data.failureType,
+          consecutiveFails: data.consecutiveFails,
+          retryAfter:       new Date(data.retryAfterIso),
+          lastFailureAt:    new Date(data.lastFailureIso),
+          updatedAt:        new Date(),
+        },
+      });
+  }
+
+  async deleteYtDlpBackoff(youtubeId: string): Promise<void> {
+    const { ytDlpBackoff } = await import("@shared/schema");
+    await db.delete(ytDlpBackoff).where(eq(ytDlpBackoff.youtubeId, youtubeId));
+  }
+
+  // ── content_vault_backups block status ─────────────────────────────────────
+  // Used by checkVideoBlockStatus() to replace hardcoded block arrays.
+
+  async getVideoBlock(youtubeId: string): Promise<{
+    reason:            string | null;
+    resurrectionCount: number;
+    retryAfter:        Date | null;
+  } | null> {
+    const [row] = await db.select({
+      downloadError:     contentVaultBackups.downloadError,
+      resurrectionCount: contentVaultBackups.resurrectionCount,
+      retryAfter:        contentVaultBackups.retryAfter,
+      status:            contentVaultBackups.status,
+    }).from(contentVaultBackups)
+      .where(and(
+        eq(contentVaultBackups.youtubeId, youtubeId),
+        inArray(contentVaultBackups.status as any, ["failed", "permanently_failed", "download_failed"]),
+      )).limit(1);
+    if (!row) return null;
+    return {
+      reason:            row.downloadError ?? null,
+      resurrectionCount: row.resurrectionCount ?? 0,
+      retryAfter:        row.retryAfter ?? null,
+    };
+  }
 }
 
 export const storage = new DatabaseStorage();

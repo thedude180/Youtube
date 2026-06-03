@@ -432,6 +432,7 @@ async function syncChannelTokens(): Promise<void> {
 //   3. stream_edit_jobs stuck in "processing" — reset to "queued".
 async function healProductionPipeline(): Promise<void> {
   if (process.env.NODE_ENV !== "production") return;
+  await awaitDbReady();
   try {
     // ── PRE-STEP: conditionally clear today's quota record ────────────────────
     // Only delete the record when quota is NOT already exhausted.  If quota was
@@ -1725,6 +1726,7 @@ const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
 
 import { registerCleanup } from "./services/cleanup-coordinator";
 import { staggeredBoot } from "./services/boot-sequencer";
+import { awaitDbReady } from "./lib/db-boot-ready";
 registerCleanup("globalRateLimit", () => {
   const now = Date.now();
   for (const [key, entry] of globalRateLimitMap) {

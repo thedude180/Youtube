@@ -14,11 +14,50 @@ const logger = createLogger("agent-events");
 const _gameVaultPipelineRunning = new Set<string>();
 const _gameVaultPipelineTTL = new Map<string, number>();
 
-// Cooldown map: userId:videoId → expiry timestamp
-// Prevents live-detection false positives from re-triggering the recording loop
-// after both initial + retry HLS attempts have already confirmed the stream is not live.
+// Cooldown map: userId:videoId → expiry timestamp (in-memory fast-path)
+// Also persisted to system_settings table for cross-reboot resilience (Fix #5).
 const _recordingFailureCooldown = new Map<string, number>();
 const RECORDING_FAILURE_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours
+const LIVE_GATE_COOLDOWN_PREFIX = "live_gate_cooldown";
+
+async function checkLiveGateCooldown(cooldownKey: string, videoId: string): Promise<boolean> {
+  // Fast path — same session, in-memory
+  const memExpiry = _recordingFailureCooldown.get(cooldownKey) ?? 0;
+  if (Date.now() < memExpiry) {
+    logger.info(
+      `[RecordingGate] ${videoId} suppressed (in-memory cooldown) — ` +
+      `expires in ${Math.round((memExpiry - Date.now()) / 60_000)} min`
+    );
+    return true;
+  }
+  // Cross-reboot path — check DB
+  try {
+    const { storage: stor } = await import("../storage");
+    const raw = await stor.getSystemSetting(`${LIVE_GATE_COOLDOWN_PREFIX}:${cooldownKey}`);
+    if (raw) {
+      const dbExpiry = new Date(raw).getTime();
+      if (Date.now() < dbExpiry) {
+        _recordingFailureCooldown.set(cooldownKey, dbExpiry); // restore to memory
+        logger.info(
+          `[RecordingGate] ${videoId} suppressed (persisted cooldown) — ` +
+          `expires in ${Math.round((dbExpiry - Date.now()) / 60_000)} min`
+        );
+        return true;
+      }
+    }
+  } catch { /* fail open — don't block real streams */ }
+  return false;
+}
+
+function persistLiveGateCooldown(cooldownKey: string, expiryMs: number): void {
+  // Fire-and-forget DB write — in-memory is already set, DB is best-effort
+  import("../storage").then(({ storage: stor }) =>
+    stor.setSystemSetting(
+      `${LIVE_GATE_COOLDOWN_PREFIX}:${cooldownKey}`,
+      new Date(expiryMs).toISOString()
+    )
+  ).catch(() => {});
+}
 
 function acquireGameVaultLock(key: string): boolean {
   const now = Date.now();
@@ -279,9 +318,7 @@ export async function wireAgentCoordination(): Promise<void> {
 
     if (videoId) {
       const cooldownKey = `${event.userId}:${videoId}`;
-      const cooldownExpiry = _recordingFailureCooldown.get(cooldownKey) ?? 0;
-      if (Date.now() < cooldownExpiry) {
-        logger.info(`[RecordingGate] stream.started for ${videoId} suppressed — confirmed not-live within last 4h, cooldown expires in ${Math.round((cooldownExpiry - Date.now()) / 60_000)} min`);
+      if (await checkLiveGateCooldown(cooldownKey, videoId)) {
         return;
       }
 
@@ -301,14 +338,18 @@ export async function wireAgentCoordination(): Promise<void> {
           if (retryResult.success) {
             logger.info(`[RecordingGate] Retry confirmed live — activating live gate for ${event.userId.slice(0, 8)}, videoId: ${videoId}`);
           } else {
-            logger.warn(`[RecordingGate] Both HLS attempts failed (${retryResult.error}) — ${videoId} is NOT live (YouTube API lag). Suppressing live gate. 4h cooldown set.`);
-            _recordingFailureCooldown.set(cooldownKey, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
+            logger.warn(`[RecordingGate] Both HLS attempts failed (${retryResult.error}) — ${videoId} is NOT live (YouTube API lag). Suppressing live gate. 4h cooldown set (persisted).`);
+            const cooldownExp = Date.now() + RECORDING_FAILURE_COOLDOWN_MS;
+            _recordingFailureCooldown.set(cooldownKey, cooldownExp);
+            persistLiveGateCooldown(cooldownKey, cooldownExp);
             return; // Stream is stale — abort entire live pipeline without touching the live gate
           }
         }
       } catch (err: any) {
-        logger.warn(`[RecordingGate] Error: ${err.message} — assuming not live. 4h cooldown set.`);
-        _recordingFailureCooldown.set(`${event.userId}:${videoId}`, Date.now() + RECORDING_FAILURE_COOLDOWN_MS);
+        logger.warn(`[RecordingGate] Error: ${err.message} — assuming not live. 4h cooldown set (persisted).`);
+        const errCooldownExp = Date.now() + RECORDING_FAILURE_COOLDOWN_MS;
+        _recordingFailureCooldown.set(cooldownKey, errCooldownExp);
+        persistLiveGateCooldown(cooldownKey, errCooldownExp);
         return;
       }
     } else if (!liveChatId) {

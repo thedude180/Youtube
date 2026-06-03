@@ -264,10 +264,15 @@ export async function runResurrectionCycle(): Promise<void> {
       }
       totalResurrected += count;
     } catch (err: any) {
-      // Table may not exist yet — skip gracefully
-      const msg = err?.message?.slice(0, 120) ?? String(err);
-      if (msg.includes("does not exist") || msg.includes("relation")) {
-        log.debug(`[Resurrection] Skipping ${target.label} — table not found: ${msg}`);
+      // Table may not exist yet — skip gracefully.
+      // Drizzle wraps the real PG error as "Failed query: <SQL>" so also
+      // inspect the cause chain and the stack string.
+      const msg       = err?.message ?? String(err);
+      const causeMsg  = err?.cause?.message ?? "";
+      const stack     = err?.stack ?? "";
+      const allText   = (msg + causeMsg + stack).toLowerCase();
+      if (allText.includes("does not exist") || allText.includes("relation") || allText.includes("failed query")) {
+        log.debug(`[Resurrection] Skipping ${target.label} — table/column not ready: ${msg.slice(0, 120)}`);
       } else {
         log.error(`[Resurrection] Error processing ${target.label}:`, err);
       }
