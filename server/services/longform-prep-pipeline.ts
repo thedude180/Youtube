@@ -23,6 +23,7 @@ import { createLogger } from "../lib/logger";
 import { setJitteredInterval } from "../lib/timer-utils";
 import { assertTierCapacity } from "../lib/ai-semaphore";
 import { storage } from "../storage";
+import { getNextLongFormPublishTime } from "./youtube-output-schedule";
 
 const log = createLogger("longform-prep-pipeline");
 
@@ -68,6 +69,7 @@ export interface LongformReadyPayload {
   chapters: ChapterMarker[];
   thumbnailConcept: ThumbnailConcept;
   thumbnailFilePath: string | null;
+  scheduledAt: Date;
   status: "ready_to_upload";
   preparedAt: Date;
 }
@@ -316,7 +318,17 @@ export async function prepareLongformForUpload(
     finalDescription = `${description}\n\n${chapterText}`.slice(0, 5000);
   }
 
-  // Step 8 — Persist to DB
+  // Step 8 — Claim a long-form publish slot
+  let scheduledAt: Date;
+  try {
+    scheduledAt = await getNextLongFormPublishTime(video.userId);
+    log.info(`[LongformPrepPipeline] Video ${video.id} scheduled → ${scheduledAt.toISOString()}`);
+  } catch (e) {
+    scheduledAt = new Date(Date.now() + 3_600_000);
+    log.warn(`[LongformPrepPipeline] Video ${video.id} slot claim failed, using fallback:`, e);
+  }
+
+  // Step 9 — Persist to DB
   const payload: LongformReadyPayload = {
     videoId: video.id,
     title,
@@ -327,6 +339,7 @@ export async function prepareLongformForUpload(
     chapters,
     thumbnailConcept,
     thumbnailFilePath: null,
+    scheduledAt,
     status: "ready_to_upload",
     preparedAt: new Date(),
   };

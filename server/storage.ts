@@ -2041,6 +2041,7 @@ export class DatabaseStorage implements IStorage {
       .limit(20);
     return rows.map(clip => ({
       id: clip.id,
+      userId: clip.userId,
       videoId: clip.sourceVideoId ?? 0,
       sourceVideoTitle: (clip.metadata as any)?.sourceVideoTitle ?? clip.title,
       sourceVideoDescription: (clip.metadata as any)?.sourceVideoDescription ?? "",

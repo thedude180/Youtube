@@ -25,12 +25,14 @@ import { createLogger } from "../lib/logger";
 import { setJitteredInterval } from "../lib/timer-utils";
 import { assertTierCapacity } from "../lib/ai-semaphore";
 import { storage } from "../storage";
+import { getNextShortPublishTime } from "./youtube-output-schedule";
 
 const log = createLogger("shorts-prep-pipeline");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface ClipRecord {
   id: number;
+  userId: string;
   videoId: number;
   sourceVideoTitle: string;
   sourceVideoDescription: string;
@@ -53,6 +55,7 @@ export interface ShortsReadyPayload {
   defaultLanguage: string;
   thumbnailConcept: null;
   thumbnailFilePath: null;
+  scheduledAt: Date;
   status: "ready_to_upload";
   preparedAt: Date;
 }
@@ -148,10 +151,31 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
     ],
     maxTokens: 200,
   });
-  const description = descResult.choices[0].message.content?.trim().slice(0, 5000) ?? "";
+  let description = descResult.choices[0].message.content?.trim().slice(0, 4800) ?? "";
   log.info(
     `[ShortsPrepPipeline] Clip ${clip.id} description ready (${description.length} chars)`
   );
+
+  // Append source-video back-link so viewers can find the full video.
+  // Lookup the source video's YouTube ID from the DB.
+  if (clip.videoId) {
+    try {
+      const sourceVideo = await storage.getVideo(clip.videoId);
+      const srcYtId =
+        (sourceVideo?.metadata as any)?.youtubeId ??
+        (sourceVideo?.metadata as any)?.youtubeVideoId ??
+        null;
+      if (srcYtId) {
+        description = `${description}\n\n📺 Full video: https://www.youtube.com/watch?v=${srcYtId}`.slice(0, 5000);
+        log.info(`[ShortsPrepPipeline] Clip ${clip.id} source link appended → yt:${srcYtId}`);
+      } else {
+        description = `${description}\n\n📺 From: ${clip.sourceVideoTitle}`.slice(0, 5000);
+        log.info(`[ShortsPrepPipeline] Clip ${clip.id} no YouTube ID — used source title`);
+      }
+    } catch (e) {
+      log.warn(`[ShortsPrepPipeline] Clip ${clip.id} source video lookup failed:`, e);
+    }
+  }
 
   // Step 4 — Tag set
   assertTierCapacity("shorts_pipeline", "shorts-prep");
@@ -195,7 +219,20 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
   }
   log.info(`[ShortsPrepPipeline] Clip ${clip.id} tags: [${tags.join(", ")}]`);
 
-  // Step 5 — Persist to DB as ready_to_upload
+  // Step 5 — Claim a scheduled publish slot
+  // Claiming happens here (pre-upload) so the output schedule stays coherent
+  // even if multiple clips finish prep at the same time.
+  let scheduledAt: Date;
+  try {
+    scheduledAt = await getNextShortPublishTime(clip.userId);
+    log.info(`[ShortsPrepPipeline] Clip ${clip.id} scheduled → ${scheduledAt.toISOString()}`);
+  } catch (e) {
+    // Fall back to 1 hour from now so the publisher can still pick it up.
+    scheduledAt = new Date(Date.now() + 3_600_000);
+    log.warn(`[ShortsPrepPipeline] Clip ${clip.id} slot claim failed, using fallback:`, e);
+  }
+
+  // Step 6 — Persist to DB as ready_to_upload
   // NOTE: thumbnailConcept is intentionally null — Shorts use a video frame,
   // not a custom thumbnail. Custom thumbnails on Shorts waste quota and do not
   // improve discovery in the Shorts feed.
@@ -208,6 +245,7 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
     defaultLanguage: "en",
     thumbnailConcept: null,
     thumbnailFilePath: null,
+    scheduledAt,
     status: "ready_to_upload",
     preparedAt: new Date(),
   };

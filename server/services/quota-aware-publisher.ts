@@ -70,6 +70,14 @@ async function publishReadyShort(
 
   const filePath = await storage.getClipFilePath(payload.clipId);
 
+  // If a future slot was reserved during prep, upload as scheduled (private +
+  // publishAt).  YouTube Studio will show it under "Scheduled" instead of
+  // "Drafts".  If the slot time is already past, the upload helper falls back
+  // to publishing immediately as public.
+  const scheduledAt: string | undefined = payload.scheduledAt
+    ? new Date(payload.scheduledAt).toISOString()
+    : undefined;
+
   const result = await uploadVideoToYouTube(channelId, {
     title: payload.title,
     description: payload.description,
@@ -77,13 +85,17 @@ async function publishReadyShort(
     categoryId: payload.categoryId,
     privacyStatus: "public",
     videoFilePath: filePath,
+    ...(scheduledAt ? { scheduledStartTime: scheduledAt } : {}),
   });
 
   if (!result?.youtubeId) {
     throw new Error(`Upload returned no YouTube ID for clip ${payload.clipId}`);
   }
 
-  log.info(`[QuotaPublisher] ✅ Short uploaded — YouTube ID: ${result.youtubeId}`);
+  log.info(
+    `[QuotaPublisher] ✅ Short uploaded — YouTube ID: ${result.youtubeId}` +
+    (scheduledAt ? ` | scheduled: ${scheduledAt}` : " | immediate")
+  );
 
   await storage.markShortsClipPublished(payload.clipId, {
     youtubeVideoId: result.youtubeId,
@@ -108,6 +120,10 @@ async function publishReadyLongform(
 
   const filePath = await storage.getVideoFilePath(payload.videoId);
 
+  const scheduledAt: string | undefined = payload.scheduledAt
+    ? new Date(payload.scheduledAt).toISOString()
+    : undefined;
+
   const result = await uploadVideoToYouTube(channelId, {
     title: payload.title,
     description: payload.description,
@@ -115,13 +131,17 @@ async function publishReadyLongform(
     categoryId: payload.categoryId,
     privacyStatus: "public",
     videoFilePath: filePath,
+    ...(scheduledAt ? { scheduledStartTime: scheduledAt } : {}),
   });
 
   if (!result?.youtubeId) {
     throw new Error(`Upload returned no YouTube ID for video ${payload.videoId}`);
   }
 
-  log.info(`[QuotaPublisher] ✅ Long-form uploaded — YouTube ID: ${result.youtubeId}`);
+  log.info(
+    `[QuotaPublisher] ✅ Long-form uploaded — YouTube ID: ${result.youtubeId}` +
+    (scheduledAt ? ` | scheduled: ${scheduledAt}` : " | immediate")
+  );
 
   await storage.markVideoPublished(payload.videoId, {
     youtubeVideoId: result.youtubeId,
