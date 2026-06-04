@@ -176,6 +176,11 @@ Generate a copyright-safe, high-performing rewrite. Respond with JSON:
     };
   } catch (err: any) {
     logger.warn(`Copyright guardian: AI fix generation failed — ${err.message}`);
+    // Re-throw AI queue-full errors so the scan loop can break instead of hammering
+    // every remaining video with the same queued-up failure (generates log spam).
+    if (err?.message?.includes("AI queue full") || err?.message?.includes("queue full")) {
+      throw err;
+    }
     return null;
   }
 }
@@ -316,6 +321,12 @@ async function runGuardianScan(userId: string): Promise<void> {
         }
         state.scannedVideos++;
       } catch (err: any) {
+        // AI queue-full: stop scanning immediately and retry on the next cycle
+        // (12 s × remaining videos = minutes of repeated failures and log spam).
+        if (err?.message?.includes("AI queue full") || err?.message?.includes("queue full")) {
+          logger.warn(`[${userId}] Copyright Guardian: AI queue full — pausing scan, will resume next cycle`);
+          break;
+        }
         logger.warn(`[${userId}] Copyright Guardian: error scanning video ${video.id}: ${err.message}`);
         state.scannedVideos++;
       }

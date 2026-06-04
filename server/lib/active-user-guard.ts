@@ -23,6 +23,7 @@ const ACTIVE_PLATFORM_PREFIX_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}/i;
 const PHANTOM_USER_IDS = new Set([
   "tiktok_-000hfXLzkfKJGE24wvR-qZP9Pw6iwxLWyeM",
   "54374239",
+  "google_api_demo_reviewer", // Google API demo/test account — appeared in growth-flywheel logs
 ]);
 
 export function isActiveYouTubeUser(userId: string): boolean {

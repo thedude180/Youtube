@@ -84,7 +84,7 @@ export async function getOrCreateTrustBudget(userId: string, agentName: string) 
     deductionsCount: 0,
     totalDeducted: 0,
     metadata: { initialPeriod: true },
-  });
+  }).onConflictDoNothing();
 
   return created;
 }
@@ -156,7 +156,7 @@ export async function resetTrustBudget(userId: string, agentName: string, newTot
     endingBudget: budget.budgetRemaining ?? DEFAULT_BUDGET_TOTAL,
     deductionsCount: 0,
     totalDeducted: (budget.budgetTotal ?? DEFAULT_BUDGET_TOTAL) - (budget.budgetRemaining ?? DEFAULT_BUDGET_TOTAL),
-  });
+  }).onConflictDoNothing();
 
   const now = new Date();
   await db.update(trustBudgetRecords).set({
@@ -175,7 +175,7 @@ export async function resetTrustBudget(userId: string, agentName: string, newTot
     endingBudget: total,
     deductionsCount: 0,
     totalDeducted: 0,
-  });
+  }).onConflictDoNothing();
 
   await logGovernanceAction(userId, "trust_budget_reset", "trust_budget", {
     agentName, newTotal: total,
@@ -902,7 +902,7 @@ export async function resetExpiredBudgets(): Promise<number> {
       deductionsCount: 0,
       totalDeducted: 0,
       metadata: { previousPeriodId: period.id, resetAt: now.toISOString() },
-    });
+    }).onConflictDoNothing();
 
     const userAgentKey = `${period.userId}:${period.agentName}`;
     if (!processedUsers.has(userAgentKey)) {

@@ -1144,8 +1144,10 @@ export async function fetchChannelVideosViaRss(youtubeChannelId: string): Promis
   viewCount: number;
   likeCount: number;
 }>> {
-  if (!youtubeChannelId?.startsWith("UC")) {
-    ytLogger.warn("fetchChannelVideosViaRss: invalid channel ID", { youtubeChannelId });
+  // Real YouTube channel IDs are always "UC" + exactly 22 base64 chars = 24 chars total.
+  // Reject anything shorter (demo placeholders like "UCdemo_ETGaming247" are only 18 chars).
+  if (!youtubeChannelId?.startsWith("UC") || youtubeChannelId.length < 24) {
+    ytLogger.warn("fetchChannelVideosViaRss: invalid or placeholder channel ID — skipping", { youtubeChannelId });
     return [];
   }
 

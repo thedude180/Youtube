@@ -1551,7 +1551,12 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
       const heapUsage = process.memoryUsage();
       const heapRatio = heapUsage.heapTotal > 0 ? heapUsage.heapUsed / heapUsage.heapTotal : 0;
 
-      if (mem.usedRatio > 0.90 || heapRatio > 0.95) {
+      // Heap check is only meaningful when the container is also constrained.
+      // If the container has ample free RAM (< 75% used) a high heap ratio just
+      // means V8 GC will run — the OOM killer is not close.  Stopping downloads
+      // because "heap: 98%, container: 13%" wastes 1.7 GB of free container RAM.
+      const heapAlarm = heapRatio > 0.95 && mem.usedRatio > 0.75;
+      if (mem.usedRatio > 0.90 || heapAlarm) {
         logger.warn(
           `[Vault] Critical memory pressure (container used: ${usedPct}% of ${Math.round(mem.limitBytes / 1024 / 1024)}MB, heap: ${Math.round(heapRatio * 100)}%) — stopping downloads`,
         );

@@ -247,6 +247,53 @@ async function migration003FixFakeGameNames(): Promise<void> {
   }
 }
 
+// ── Migration 004: Purge google_api_demo_reviewer phantom user ────────────────
+// This demo account was auto-created by Google OAuth review tooling and leaked
+// into production.  It is listed in PHANTOM_USER_IDS but its DB rows still
+// cause spurious growth-flywheel cycles.  Delete all rows bound to it once.
+const FLAG_004 = "migration_004_purge_demo_reviewer_done";
+
+async function migration004PurgeDemoReviewer(): Promise<void> {
+  if (await getFlag(FLAG_004)) return;
+
+  try {
+    log.info("[Migration 004] Purging google_api_demo_reviewer phantom user rows");
+
+    const DEMO_ID = "google_api_demo_reviewer";
+
+    // Users table first, then any FK-dependent tables cascade or are cleaned up.
+    const tables = [
+      "agent_activities",
+      "videos",
+      "channels",
+      "platform_channels",
+      "content_queue",
+      "content_vault_backups",
+      "ai_content_suggestions",
+      "users",
+    ];
+
+    let total = 0;
+    for (const table of tables) {
+      try {
+        const r = await db.execute(sql.raw(`DELETE FROM "${table}" WHERE user_id = '${DEMO_ID}'`));
+        const count = (r as any)?.rowCount ?? 0;
+        if (count > 0) {
+          log.info(`[Migration 004]  → deleted ${count} row(s) from ${table}`);
+          total += count;
+        }
+      } catch {
+        // Table may not have user_id or may not exist — skip silently.
+      }
+    }
+
+    log.info(`[Migration 004] Complete — ${total} total rows purged`);
+    await setFlag(FLAG_004);
+  } catch (err: any) {
+    log.warn(`[Migration 004] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -254,6 +301,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration001SetFocusGame();
     await migration002Bf6QueueReorder();
     await migration003FixFakeGameNames();
+    await migration004PurgeDemoReviewer();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

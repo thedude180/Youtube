@@ -1070,6 +1070,16 @@ export async function reprocessBackCatalog(userId: string): Promise<{
 async function viralReprocessAsync(userId: string, videoList: any[], jobId: number) {
   let completed = 0;
 
+  // Check viral-optimizer budget once before touching any video.
+  // Each per-video call also checks, but without this gate a 40-video batch
+  // generates 40 identical "budget exhausted" log entries at the same instant.
+  if (!tokenBudget.checkBudget("viral-optimizer", 1)) {
+    logger.warn(`[BackCatalog] viral-optimizer daily budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
+    const session = sessions.get(userId);
+    if (session) session.state = "idle";
+    return;
+  }
+
   for (const video of videoList) {
     const currentSession = sessions.get(userId);
     if (!currentSession || currentSession.state === "paused") break;

@@ -191,6 +191,7 @@ export async function withCronLock(
   const expiresAt = new Date(now.getTime() + ttlMs);
   const start = Date.now();
 
+  // ── Step 1: Acquire lock ─────────────────────────────────────────────────
   try {
     const result = await db.execute(sql`
       INSERT INTO cron_locks (job_name, locked_by, locked_at, expires_at)
@@ -205,37 +206,40 @@ export async function withCronLock(
     `);
 
     if (!result.rowCount || result.rowCount === 0) {
-      return false;
+      return false; // another instance holds the lock
     }
-
-    let lastError: string | null = null;
-    try {
-      await fn();
-    } catch (err: any) {
-      lastError = err?.message?.substring(0, 500) || "Unknown error";
-      throw err;
-    } finally {
-      const duration = Date.now() - start;
-      await db.update(cronLocks)
-        .set({
-          expiresAt: new Date(0),
-          lastCompletedAt: new Date(),
-          lastDurationMs: duration,
-          executionCount: sql`COALESCE(execution_count, 0) + 1`,
-          lastError,
-        })
-        .where(eq(cronLocks.jobName, jobName))
-        .catch(e => logger.warn(`[CronLock] Failed to release lock for ${jobName}`, e?.message));
-    }
-
-    return true;
   } catch (err: any) {
     if (err?.message?.includes("cron_locks") || err?.code === "23505") {
-      return false;
+      return false; // lock-contention race — expected, not an error
     }
-    logger.error(`[CronLock] Unexpected error acquiring lock for ${jobName}:`, err?.message);
+    logger.error(`[CronLock] Failed to acquire lock for ${jobName}:`, err?.message);
     return false;
   }
+
+  // ── Step 2: Run the guarded function ─────────────────────────────────────
+  // Errors here are from fn(), NOT from the lock mechanism.  Logged separately
+  // so the callsite is clear and the misleading "acquiring lock" phrase is gone.
+  let lastError: string | null = null;
+  try {
+    await fn();
+  } catch (err: any) {
+    lastError = err?.message?.substring(0, 500) || "Unknown error";
+    logger.error(`[CronLock] Error inside guarded job "${jobName}":`, lastError);
+  } finally {
+    const duration = Date.now() - start;
+    await db.update(cronLocks)
+      .set({
+        expiresAt: new Date(0),
+        lastCompletedAt: new Date(),
+        lastDurationMs: duration,
+        executionCount: sql`COALESCE(execution_count, 0) + 1`,
+        lastError,
+      })
+      .where(eq(cronLocks.jobName, jobName))
+      .catch(e => logger.warn(`[CronLock] Failed to release lock for ${jobName}`, e?.message));
+  }
+
+  return true;
 }
 
 export async function getCronLockStatus(): Promise<Array<{
