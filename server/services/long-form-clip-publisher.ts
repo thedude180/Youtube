@@ -162,10 +162,30 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         lte(autopilotQueue.scheduledAt, batchWindow),
         sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form')`,
       ))
-      .orderBy(autopilotQueue.scheduledAt)
+      // Priority order:
+      //   0 — recent live-stream VOD uploads (vod-long-form) — new content first
+      //   1 — back-catalog segmented clips (auto-clip long-form) — after new content
+      // Within each tier, earliest scheduled_at wins.
+      .orderBy(
+        sql`CASE
+          WHEN ${autopilotQueue.type} = 'vod-long-form' THEN 0
+          ELSE 1
+        END`,
+        autopilotQueue.scheduledAt,
+      )
       .limit(MAX_PER_RUN * 4);
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
+
+    // ── Live stream gate ──────────────────────────────────────────────────────
+    // When a live stream is active, pause all long-form publishing entirely.
+    // Long-form uploads are heavy (quota + bandwidth) — during a live stream
+    // all resources stay focused on the stream.  Resumes automatically after.
+    const { isLiveActive: _isLiveNow } = await import("../lib/live-gate");
+    if (_isLiveNow()) {
+      logger.info("[LongFormPublisher] Live stream active — long-form publishing paused until stream ends");
+      return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: false };
+    }
 
     // Check YouTube API quota once — stop the whole batch if tripped
     const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");

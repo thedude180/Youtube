@@ -412,20 +412,46 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         ),
         lte(autopilotQueue.scheduledAt, batchWindow),
       ))
-      // Live stream highlights and stream replays always upload before back-catalog items.
-      // YouTube then publishes each at its pre-assigned publishAt time — upload order
-      // only determines which items get processed first within the quota budget.
+      // Priority order (upload order determines which items use quota first):
+      //   0 — live stream clips (highlights, replays, copilot-generated) — always first
+      //   1 — new gameplay Shorts (youtube_short, platform_short, vod-short) — current content
+      //   2 — back-catalog auto-clips — after new content is cleared
+      // Within each tier, earliest scheduled_at wins.
       .orderBy(
         sql`CASE
-          WHEN metadata->>'isStreamHighlight' = 'true'
-            OR metadata->>'isStreamReplay'   = 'true'
-            OR metadata->>'copilotGenerated' = 'true'
-          THEN 0 ELSE 1 END`,
+          WHEN ${autopilotQueue.metadata}->>'isStreamHighlight' = 'true'
+            OR ${autopilotQueue.metadata}->>'isStreamReplay'   = 'true'
+            OR ${autopilotQueue.metadata}->>'copilotGenerated' = 'true'
+          THEN 0
+          WHEN ${autopilotQueue.type} IN ('youtube_short', 'platform_short', 'vod-short')
+          THEN 1
+          ELSE 2
+        END`,
         autopilotQueue.scheduledAt,
       )
       .limit(MAX_PER_RUN * 4);
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
+
+    // ── Live stream gate ──────────────────────────────────────────────────────
+    // When a live stream is active, pause all normal publishing (priority 1+).
+    // Only live-specific content (priority 0) may publish during a stream — we
+    // need the quota headroom for live operations and clip highlights.
+    // After the stream ends the loop resumes automatically on the next cycle.
+    const { isLiveActive: _isLiveNow } = await import("../lib/live-gate");
+    if (_isLiveNow()) {
+      const liveItems = dueItems.filter(i => {
+        const m = (i.metadata ?? {}) as Record<string, unknown>;
+        return m.isStreamHighlight === "true" || m.isStreamReplay === "true" || m.copilotGenerated === "true";
+      });
+      if (liveItems.length === 0) {
+        logger.info("[ShortsPublisher] Live stream active — normal publishing paused, no live clips to process");
+        return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: false };
+      }
+      logger.info(`[ShortsPublisher] Live stream active — publishing ${liveItems.length} live clip(s) only`);
+      // Replace dueItems with only live clips so the loop below only processes those
+      dueItems.splice(0, dueItems.length, ...liveItems);
+    }
 
     // Check YouTube API quota once before the loop — stop the entire batch if tripped
     const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
