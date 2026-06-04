@@ -3390,12 +3390,17 @@ httpServer.listen(
             logger.info("[HourlySweep] Quota breaker active — skipping");
             return;
           }
-          const [sp, lp] = await Promise.allSettled([
-            import("./services/shorts-clip-publisher").then(m => m.runShortsClipPublisher()),
-            import("./services/long-form-clip-publisher").then(m => m.runLongFormClipPublisher()),
-          ]);
-          logger.info("[HourlySweep] Shorts:", sp.status === "fulfilled" ? sp.value : { err: String((sp as any).reason) });
-          logger.info("[HourlySweep] LongForm:", lp.status === "fulfilled" ? lp.value : { err: String((lp as any).reason) });
+          // Long-form runs FIRST — guarantees the daily long-form slot is filled
+          // before Shorts consume the quota budget.  Sequential, not parallel,
+          // so the Shorts cadence gate (which yields if no long-form today) works.
+          const lpResult = await import("./services/long-form-clip-publisher")
+            .then(m => m.runLongFormClipPublisher())
+            .catch((e: unknown) => ({ err: String(e) }));
+          logger.info("[HourlySweep] LongForm:", lpResult);
+          const spResult = await import("./services/shorts-clip-publisher")
+            .then(m => m.runShortsClipPublisher())
+            .catch((e: unknown) => ({ err: String(e) }));
+          logger.info("[HourlySweep] Shorts:", spResult);
         } catch (e: any) {
           logger.warn("[HourlySweep] Failed:", { error: e?.message });
         }

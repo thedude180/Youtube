@@ -40,7 +40,7 @@ import { uploadVideoToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
-import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, getNextShortPublishTime } from "./youtube-output-schedule";
+import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, countUploadedLongFormForDate, getNextShortPublishTime } from "./youtube-output-schedule";
 
 const logger = createLogger("shorts-publisher");
 
@@ -451,6 +451,34 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       logger.info(`[ShortsPublisher] Live stream active — publishing ${liveItems.length} live clip(s) only`);
       // Replace dueItems with only live clips so the loop below only processes those
       dueItems.splice(0, dueItems.length, ...liveItems);
+    }
+
+    // ── Cadence gate ─────────────────────────────────────────────────────────
+    // Before uploading any Shorts, ensure today already has a long-form video
+    // uploading or uploaded.  This maintains the 3-Shorts + 1-long-form/day
+    // rhythm even when the perpetual Shorts loop runs faster than the long-form
+    // loop.  Only applies when long-form items are actually in the queue — if
+    // the queue has none, Shorts proceed normally so the channel never stalls.
+    if (!_isLiveNow()) {
+      const firstUserId = dueItems[0]?.userId;
+      if (firstUserId) {
+        const [lfInQueue] = await db
+          .select({ cnt: sql<number>`count(*)::int` })
+          .from(autopilotQueue)
+          .where(and(
+            eq(autopilotQueue.userId, firstUserId),
+            eq(autopilotQueue.status, "scheduled"),
+            inArray(autopilotQueue.type, ["auto-clip", "vod-long-form"]),
+            sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form')`,
+          ));
+        if ((lfInQueue?.cnt ?? 0) > 0) {
+          const todayLfCount = await countUploadedLongFormForDate(firstUserId, new Date());
+          if (todayLfCount === 0) {
+            logger.info("[ShortsPublisher] Cadence gate: long-form pending but none uploaded today — yielding to long-form publisher (next run in ~90s)");
+            return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
+          }
+        }
+      }
     }
 
     // Check YouTube API quota once before the loop — stop the entire batch if tripped
