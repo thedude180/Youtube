@@ -39,6 +39,7 @@ import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
 import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
+import { initChannelIntelligenceEngine, stopChannelIntelligenceEngine } from "./services/channel-intelligence-engine";
 import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shorts-prep-pipeline";
 import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
@@ -3361,6 +3362,14 @@ httpServer.listen(
         logger.error("[Boot] initPublishingWatchdog threw — watchdog will not run", { error: e?.message });
       }
 
+      // ── Channel Intelligence Engine ───────────────────────────────────────────
+      // Reads all signal layers (queue depth, view velocity, zombie videos, top
+      // performers) every 2 hours. Adjusts content strategy, triggers zombie repair,
+      // and refills the queue before it runs dry.  First run at T+35 min.
+      try { initChannelIntelligenceEngine(); } catch (e: any) {
+        logger.error("[Boot] initChannelIntelligenceEngine threw — intelligence engine will not run", { error: e?.message });
+      }
+
       // ── Resurrection Engine (T+35s) ──────────────────────────────────────────
       // Scans for permanently_failed items across all pipeline tables and gives
       // them another chance after their cooldown window. Safe to start early.
@@ -4080,6 +4089,7 @@ httpServer.listen(
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
     stopPublishingWatchdog();
+    stopChannelIntelligenceEngine();
     stopShortsPrepPipeline();
     stopLongformPrepPipeline();
     stopQuotaAwarePublisher();

@@ -732,11 +732,186 @@ export default function YouTubeAutopilotStatus() {
         )}
       </div>
 
+      {/* Channel Intelligence */}
+      <ChannelIntelligencePanel />
+
       {/* Publishing Watchdog */}
       <WatchdogPanel />
 
       {/* 7-day schedule calendar */}
       <QueueCalendar maxShorts={today.shortsMax ?? 3} maxLongForm={today.longFormMax ?? 1} />
+    </div>
+  );
+}
+
+// ── ChannelIntelligencePanel ──────────────────────────────────────────────────
+
+interface IntelligenceData {
+  channelHealthScore:  number;
+  publishedLast24h:    number;
+  publishedLast7days:  number;
+  queueDepth:          number;
+  queueHealthDays:     number;
+  zombieCount:         number;
+  topGame:             string | null;
+  topFormat:           string | null;
+  topDurationBucket:   string | null;
+  quotaBlocked:        boolean;
+  actions:             string[];
+  lastRunAt:           string | null;
+  nextRunAt:           string | null;
+  scores: {
+    publishRate: number;
+    queueDepth:  number;
+    zombieFree:  number;
+    quotaHealth: number;
+  };
+}
+
+function healthColor(score: number): string {
+  if (score >= 80) return "text-emerald-400";
+  if (score >= 60) return "text-amber-400";
+  if (score >= 40) return "text-orange-400";
+  return "text-red-400";
+}
+
+function healthBarColor(score: number): string {
+  if (score >= 80) return "bg-emerald-400";
+  if (score >= 60) return "bg-amber-400";
+  if (score >= 40) return "bg-orange-400";
+  return "bg-red-400";
+}
+
+function ChannelIntelligencePanel() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const { data, isLoading, refetch } = useQuery<IntelligenceData>({
+    queryKey: ["/api/youtube/intelligence/status"],
+    refetchInterval: 120_000,
+    enabled: !!user,
+  });
+
+  const runMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/intelligence/run"),
+    onSuccess: () => {
+      toast({ title: "Intelligence cycle started", description: "Reading all signal layers now…" });
+      queryClient.invalidateQueries({ queryKey: ["/api/youtube/intelligence/status"] });
+      setTimeout(() => refetch(), 4000);
+    },
+    onError: () => toast({ title: "Failed", description: "Could not trigger intelligence cycle.", variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className="rounded-lg bg-background/40 border border-border/20 p-3 h-20 animate-pulse" data-testid="card-intelligence-loading" />;
+  }
+
+  const score = data?.channelHealthScore ?? 0;
+
+  return (
+    <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2.5" data-testid="card-channel-intelligence">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+          <Brain className="h-3.5 w-3.5 text-violet-400" />
+          Channel Intelligence
+        </span>
+        <div className="flex items-center gap-1.5">
+          {data?.lastRunAt && (
+            <span className="text-[9px] text-muted-foreground/60">
+              {formatDistanceToNow(new Date(data.lastRunAt), { addSuffix: true })}
+            </span>
+          )}
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending}
+            data-testid="button-intelligence-run"
+            className="text-[9px] px-1.5 py-0.5 rounded border border-border/30 text-muted-foreground hover:border-border/60 hover:text-foreground transition-all disabled:opacity-40"
+          >
+            {runMutation.isPending ? "Scanning…" : "Run Now"}
+          </button>
+        </div>
+      </div>
+
+      {/* Health score bar */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">Channel Health</span>
+          <span className={`text-[13px] font-bold tabular-nums ${healthColor(score)}`} data-testid="text-health-score">
+            {score}<span className="text-[9px] font-normal text-muted-foreground/50">/100</span>
+          </span>
+        </div>
+        <div className="h-1.5 bg-border/20 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${healthBarColor(score)}`}
+            style={{ width: `${score}%` }}
+            data-testid="bar-health-score"
+          />
+        </div>
+        {data?.scores && (
+          <div className="flex gap-2 pt-0.5">
+            {[
+              { label: "Pub", value: data.scores.publishRate, max: 25 },
+              { label: "Queue", value: data.scores.queueDepth, max: 25 },
+              { label: "Vitals", value: data.scores.zombieFree, max: 25 },
+              { label: "Quota", value: data.scores.quotaHealth, max: 25 },
+            ].map(s => (
+              <div key={s.label} className="flex-1 text-center" data-testid={`score-${s.label.toLowerCase()}`}>
+                <p className="text-[8px] text-muted-foreground/50">{s.label}</p>
+                <p className={`text-[10px] font-medium ${s.value >= s.max * 0.8 ? "text-emerald-400" : s.value >= s.max * 0.4 ? "text-amber-400" : "text-red-400"}`}>
+                  {s.value}/{s.max}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Key metrics */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+        <div className="flex items-center justify-between" data-testid="metric-published-24h">
+          <span className="text-muted-foreground/60">Published 24h</span>
+          <span className={data?.publishedLast24h ? "text-emerald-400 font-medium" : "text-muted-foreground"}>
+            {data?.publishedLast24h ?? 0}
+          </span>
+        </div>
+        <div className="flex items-center justify-between" data-testid="metric-queue-days">
+          <span className="text-muted-foreground/60">Queue runway</span>
+          <span className={(data?.queueHealthDays ?? 0) >= 3 ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
+            {data?.queueHealthDays?.toFixed(1) ?? "—"}d
+          </span>
+        </div>
+        <div className="flex items-center justify-between" data-testid="metric-top-game">
+          <span className="text-muted-foreground/60">Top game</span>
+          <span className="text-foreground/80 font-medium truncate max-w-[80px]" title={data?.topGame ?? "—"}>
+            {data?.topGame ?? "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between" data-testid="metric-zombies">
+          <span className="text-muted-foreground/60">Zombies</span>
+          <span className={(data?.zombieCount ?? 0) > 0 ? "text-amber-400 font-medium" : "text-muted-foreground"}>
+            {data?.zombieCount ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {/* Recent actions */}
+      {data?.actions && data.actions.length > 0 && (
+        <div className="space-y-0.5 pt-0.5 border-t border-border/15" data-testid="list-intelligence-actions">
+          <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">Last actions</p>
+          {data.actions.slice(0, 4).map((a, i) => (
+            <p key={i} className="text-[9px] text-muted-foreground/70 font-mono truncate" data-testid={`text-intelligence-action-${i}`}>
+              {a}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {data?.quotaBlocked && (
+        <p className="text-[9px] text-red-400 flex items-center gap-1" data-testid="text-quota-blocked">
+          <AlertTriangle className="h-3 w-3 shrink-0" /> YouTube quota exhausted — resets at midnight Pacific
+        </p>
+      )}
     </div>
   );
 }

@@ -18,8 +18,8 @@
  */
 
 import { db } from "../db";
-import { channels } from "@shared/schema";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { channels, pipelineTraces, autopilotQueue } from "@shared/schema";
+import { eq, and, isNotNull, gte, count } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { fetchChannelVideosViaRss } from "../youtube";
@@ -198,6 +198,45 @@ export async function runWatchdogCycle(): Promise<void> {
   }
 }
 
+// ── Multi-layer verification helpers ─────────────────────────────────────────
+
+/**
+ * Layer 2: Check pipeline_traces for verified_live entries today.
+ * Pipeline tracer confirms the video is indexed public via YouTube Data API.
+ * RSS can lag 15-30 min; this layer catches that window.
+ */
+async function checkPipelineTracesToday(userId: string): Promise<number> {
+  const startOfDayUTC = new Date();
+  startOfDayUTC.setUTCHours(0, 0, 0, 0);
+  const result = await db.select({ n: count() })
+    .from(pipelineTraces)
+    .where(and(
+      eq(pipelineTraces.userId, userId),
+      eq(pipelineTraces.stage, "verified_live"),
+      gte(pipelineTraces.createdAt, startOfDayUTC),
+    ));
+  return Number(result[0]?.n ?? 0);
+}
+
+/**
+ * Layer 3: Check autopilot_queue for items marked as published today.
+ * Most conservative — confirms our own pipeline has pushed something to YouTube.
+ * The video may still be processing on YouTube's side but was sent from our end.
+ */
+async function checkQueuePublishedToday(userId: string): Promise<number> {
+  const startOfDayUTC = new Date();
+  startOfDayUTC.setUTCHours(0, 0, 0, 0);
+  const result = await db.select({ n: count() })
+    .from(autopilotQueue)
+    .where(and(
+      eq(autopilotQueue.userId, userId),
+      eq(autopilotQueue.targetPlatform, "youtube"),
+      eq(autopilotQueue.status, "published"),
+      gte(autopilotQueue.publishedAt, startOfDayUTC),
+    ));
+  return Number(result[0]?.n ?? 0);
+}
+
 async function processChannel(userId: string, channelId: string): Promise<void> {
   state.channelId = channelId;
 
@@ -214,16 +253,45 @@ async function processChannel(userId: string, channelId: string): Promise<void> 
   state.todayPublishedCount = feedResult.count;
   state.lastError = null;
 
+  // ── Layer 1: RSS feed ─────────────────────────────────────────────────────
   if (feedResult.count > 0) {
     logger.info(
-      `[Watchdog] ✓ Channel ${channelId} — ${feedResult.count} video(s) published today: ${feedResult.titles.join(" | ").slice(0, 120)}`
+      `[Watchdog] ✓ L1-RSS: ${feedResult.count} video(s) today — ${feedResult.titles.join(" | ").slice(0, 120)}`
     );
     state.status = "healthy";
+    state.todayPublishedCount = feedResult.count;
     return;
   }
 
+  // ── Layer 2: Pipeline traces (YouTube Data API verified) ──────────────────
+  try {
+    const l2count = await checkPipelineTracesToday(userId);
+    if (l2count > 0) {
+      logger.info(`[Watchdog] ✓ L2-PipelineTraces: ${l2count} verified_live trace(s) today — RSS may be lagging`);
+      state.status = "healthy";
+      state.todayPublishedCount = l2count;
+      return;
+    }
+  } catch (err: any) {
+    logger.warn(`[Watchdog] L2 check failed: ${err.message?.slice(0, 100)}`);
+  }
+
+  // ── Layer 3: autopilot_queue published status ─────────────────────────────
+  try {
+    const l3count = await checkQueuePublishedToday(userId);
+    if (l3count > 0) {
+      logger.info(`[Watchdog] ✓ L3-Queue: ${l3count} item(s) published today — awaiting YouTube propagation`);
+      state.status = "healthy";
+      state.todayPublishedCount = l3count;
+      return;
+    }
+  } catch (err: any) {
+    logger.warn(`[Watchdog] L3 check failed: ${err.message?.slice(0, 100)}`);
+  }
+
+  state.todayPublishedCount = 0;
   const hourUTC = new Date().getUTCHours();
-  logger.warn(`[Watchdog] ⚠ No videos published today on ${channelId} (${hourUTC}:xx UTC)`);
+  logger.warn(`[Watchdog] ⚠ All 3 layers confirm: no videos published today on ${channelId} (${hourUTC}:xx UTC)`);
 
   // Don't act before the normal publishing window — give the scheduled sweep a chance
   if (hourUTC < FIRST_ACTION_HOUR_UTC) {

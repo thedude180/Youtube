@@ -1312,4 +1312,31 @@ export function registerAutopilotRoutes(app: Express) {
       res.status(500).json({ error: "Failed to trigger watchdog" });
     }
   });
+
+  // ── Channel Intelligence Engine ───────────────────────────────────────────
+
+  app.get("/api/youtube/intelligence/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getIntelligenceReport } = await import("../services/channel-intelligence-engine");
+      res.json(getIntelligenceReport());
+    } catch (err) {
+      logger.error("[Autopilot] Intelligence status error:", err);
+      res.status(500).json({ error: "Failed to get intelligence report" });
+    }
+  });
+
+  app.post("/api/youtube/intelligence/run", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { triggerIntelligenceNow } = await import("../services/channel-intelligence-engine");
+      const report = await triggerIntelligenceNow();
+      res.json({ success: true, report });
+    } catch (err) {
+      logger.error("[Autopilot] Intelligence trigger error:", err);
+      res.status(500).json({ error: "Failed to trigger intelligence cycle" });
+    }
+  });
 }
