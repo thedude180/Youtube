@@ -1285,4 +1285,31 @@ export function registerAutopilotRoutes(app: Express) {
       res.status(500).json({ error: "Failed to fetch quota status" });
     }
   });
+
+  // ── Publishing Watchdog ───────────────────────────────────────────────────
+
+  app.get("/api/youtube/watchdog/status", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getWatchdogStatus } = await import("../services/publishing-watchdog");
+      res.json(getWatchdogStatus());
+    } catch (err) {
+      logger.error("[Autopilot] Watchdog status error:", err);
+      res.status(500).json({ error: "Failed to get watchdog status" });
+    }
+  });
+
+  app.post("/api/youtube/watchdog/run", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { triggerWatchdogNow } = await import("../services/publishing-watchdog");
+      const status = await triggerWatchdogNow();
+      res.json({ success: true, status });
+    } catch (err) {
+      logger.error("[Autopilot] Watchdog trigger error:", err);
+      res.status(500).json({ error: "Failed to trigger watchdog" });
+    }
+  });
 }

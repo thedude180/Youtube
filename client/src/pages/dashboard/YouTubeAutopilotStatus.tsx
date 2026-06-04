@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Video, Zap, Clock, AlertCircle, CheckCircle2, Brain,
   TrendingUp, TrendingDown, Radio, BarChart3, RefreshCw, CalendarDays, FlaskConical, Timer,
+  Shield, AlertTriangle, Eye,
 } from "lucide-react";
 import { formatDistanceToNow, addDays, startOfDay, endOfDay, isToday, format } from "date-fns";
 
@@ -731,8 +732,148 @@ export default function YouTubeAutopilotStatus() {
         )}
       </div>
 
+      {/* Publishing Watchdog */}
+      <WatchdogPanel />
+
       {/* 7-day schedule calendar */}
       <QueueCalendar maxShorts={today.shortsMax ?? 3} maxLongForm={today.longFormMax ?? 1} />
+    </div>
+  );
+}
+
+// ── WatchdogPanel ─────────────────────────────────────────────────────────────
+
+type WatchdogStatusType = 'healthy' | 'recovering' | 'quota_blocked' | 'too_early' | 'no_channel' | 'unknown';
+
+interface WatchdogData {
+  lastCheckAt:         string | null;
+  todayPublishedCount: number;
+  lastRecoveryAt:      string | null;
+  recoveryCount:       number;
+  lastRecoveryActions: string[];
+  recoveryInProgress:  boolean;
+  status:              WatchdogStatusType;
+  lastError:           string | null;
+  nextCheckAt:         string | null;
+  channelId:           string | null;
+}
+
+const WATCHDOG_STATUS_COLORS: Record<WatchdogStatusType, string> = {
+  healthy:      "text-emerald-400 bg-emerald-500/15 border-emerald-500/30",
+  recovering:   "text-amber-400 bg-amber-500/15 border-amber-500/30",
+  quota_blocked:"text-red-400 bg-red-500/15 border-red-500/30",
+  too_early:    "text-blue-400 bg-blue-500/15 border-blue-500/30",
+  no_channel:   "text-muted-foreground bg-muted/20 border-border/30",
+  unknown:      "text-muted-foreground bg-muted/20 border-border/30",
+};
+
+const WATCHDOG_STATUS_LABELS: Record<WatchdogStatusType, string> = {
+  healthy:      "Healthy",
+  recovering:   "Repairing",
+  quota_blocked:"Quota Blocked",
+  too_early:    "Waiting",
+  no_channel:   "No Channel",
+  unknown:      "Unknown",
+};
+
+function WatchdogPanel() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const { data, isLoading, refetch } = useQuery<WatchdogData>({
+    queryKey: ["/api/youtube/watchdog/status"],
+    refetchInterval: 60_000,
+    enabled: !!user,
+  });
+
+  const runMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/watchdog/run"),
+    onSuccess: () => {
+      toast({ title: "Watchdog scan started", description: "Checking public channel feed now…" });
+      queryClient.invalidateQueries({ queryKey: ["/api/youtube/watchdog/status"] });
+      setTimeout(() => refetch(), 3000);
+    },
+    onError: () => toast({ title: "Failed", description: "Could not trigger watchdog scan.", variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className="rounded-lg bg-background/40 border border-border/20 p-3 h-16 animate-pulse" data-testid="card-watchdog-loading" />;
+  }
+
+  const st = (data?.status ?? "unknown") as WatchdogStatusType;
+  const colorClass = WATCHDOG_STATUS_COLORS[st];
+  const label      = WATCHDOG_STATUS_LABELS[st];
+
+  return (
+    <div className="rounded-lg bg-background/40 border border-border/20 p-3 space-y-2" data-testid="card-publishing-watchdog">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+          <Shield className="h-3.5 w-3.5 text-violet-400" />
+          Publishing Watchdog
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded border ${colorClass}`} data-testid="badge-watchdog-status">
+            {label}
+          </span>
+          <button
+            onClick={() => runMutation.mutate()}
+            disabled={runMutation.isPending || data?.recoveryInProgress}
+            data-testid="button-watchdog-run"
+            className="text-[9px] px-1.5 py-0.5 rounded border border-border/30 text-muted-foreground hover:border-border/60 hover:text-foreground transition-all disabled:opacity-40"
+          >
+            {runMutation.isPending || data?.recoveryInProgress ? "Scanning…" : "Check Now"}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+        <span className="flex items-center gap-1" data-testid="text-watchdog-today-count">
+          <Eye className="h-3 w-3" />
+          <span className={data?.todayPublishedCount ? "text-emerald-400 font-medium" : ""}>
+            {data?.todayPublishedCount ?? 0} video{(data?.todayPublishedCount ?? 0) !== 1 ? "s" : ""} today
+          </span>
+        </span>
+        {data?.lastCheckAt && (
+          <span className="flex items-center gap-1" data-testid="text-watchdog-last-check">
+            <Clock className="h-3 w-3 opacity-60" />
+            checked {formatDistanceToNow(new Date(data.lastCheckAt), { addSuffix: true })}
+          </span>
+        )}
+        {data?.recoveryCount ? (
+          <span className="flex items-center gap-1 text-amber-400" data-testid="text-watchdog-recovery-count">
+            <AlertTriangle className="h-3 w-3" />
+            {data.recoveryCount} repair{data.recoveryCount !== 1 ? "s" : ""} today
+          </span>
+        ) : null}
+      </div>
+
+      {/* Last repair actions */}
+      {data?.lastRecoveryActions && data.lastRecoveryActions.length > 0 && (
+        <div className="space-y-0.5" data-testid="list-watchdog-actions">
+          <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">Last repair actions</p>
+          {data.lastRecoveryActions.slice(0, 5).map((a, i) => (
+            <p key={i} className="text-[9px] text-muted-foreground font-mono truncate" data-testid={`text-watchdog-action-${i}`}>
+              {a}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* Error message */}
+      {data?.lastError && (
+        <p className="text-[9px] text-red-400 font-mono truncate" data-testid="text-watchdog-error">
+          ⚠ {data.lastError}
+        </p>
+      )}
+
+      {/* Next check */}
+      {data?.nextCheckAt && (
+        <p className="text-[9px] text-muted-foreground/50" data-testid="text-watchdog-next-check">
+          Next check {formatDistanceToNow(new Date(data.nextCheckAt), { addSuffix: true })}
+        </p>
+      )}
     </div>
   );
 }

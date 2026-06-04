@@ -38,6 +38,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
 import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shorts-prep-pipeline";
 import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
@@ -3352,6 +3353,14 @@ httpServer.listen(
         logger.error("[Boot] initBackCatalogRunner threw — runner will not start", { error: e?.message });
       }
 
+      // ── Publishing Watchdog ───────────────────────────────────────────────────
+      // Dead-man's switch: checks the public channel RSS feed every 30 min.
+      // If no Short or VOD has been published today by 10 AM UTC, it runs a
+      // full pipeline repair (token refresh → long-form → Shorts → back-catalog).
+      try { initPublishingWatchdog(); } catch (e: any) {
+        logger.error("[Boot] initPublishingWatchdog threw — watchdog will not run", { error: e?.message });
+      }
+
       // ── Resurrection Engine (T+35s) ──────────────────────────────────────────
       // Scans for permanently_failed items across all pipeline tables and gives
       // them another chance after their cooldown window. Safe to start early.
@@ -4070,6 +4079,7 @@ httpServer.listen(
     stopFortressCleanup();
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
+    stopPublishingWatchdog();
     stopShortsPrepPipeline();
     stopLongformPrepPipeline();
     stopQuotaAwarePublisher();
