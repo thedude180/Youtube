@@ -2386,28 +2386,38 @@ httpServer.listen(
     // check a completely clear event loop to respond to GET /.
     const delay = (ms: number, fn: () => void) => setTimeout(fn, ms);
 
-    // ── WARP SPEED STARTUP ────────────────────────────────────────────────────
+    // ── SEQUENTIAL BOOT CHAIN ─────────────────────────────────────────────────
+    // Each wave starts only after the previous wave completes.
+    // The listen callback returns immediately (critical for health checks).
+    // Waves register their services quickly; heavy first-runs are deferred
+    // inside each service on its own schedule (handoff pattern).
     const slog = (label: string) => (err: any) => logger.error(`[Boot] ${label} failed`, { error: String(err) });
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+    // Boot chain starts with a 2s idle window so the health check at GET /
+    // gets a clear event loop before any startup work begins.
+    let __bootChain = sleep(2_000);
+    const wave = (fn: (() => void) | (() => Promise<void>), gapMs = 2_000) => {
+      __bootChain = __bootChain
+        .then(() => Promise.resolve().then(() => fn()))
+        .catch((err: any) => logger.error("[Boot] Wave error", { error: String(err) }))
+        .then(() => sleep(gapMs));
+    };
 
-    // Health check window: T+0→5s event loop IDLE. All services launch in
-    // tight parallel waves after that. Most inits just register a setInterval
-    // (sub-ms) — heavy work runs on each service's own deferred first cycle.
-    // Total boot: ~35s (was 730s).
-
-    // ── WAVE 0 (T+2s): Binary availability probe ─────────────────────────────
-    delay(2_000, () => {
+    // ── WAVE 0: Binary availability probe ─────────────────────────────────────
+    wave(() => {
       checkDependencies().catch(err => logger.error("[Boot] dependency-check failed", { error: String(err) }));
     });
 
-    // ── WAVE 0.5 (T+3s): One-time data migrations ────────────────────────────
-    delay(3_000, () => {
-      import("./lib/startup-migrations").then(m => m.runStartupMigrations()).catch(
+    // ── WAVE 0.5: One-time data migrations ───────────────────────────────────
+    // Awaited so migrations fully complete before any DB work in later waves.
+    wave(async () => {
+      await import("./lib/startup-migrations").then(m => m.runStartupMigrations()).catch(
         err => logger.warn("[Boot] startup-migrations failed (non-fatal):", err?.message),
       );
     });
 
-    // ── WAVE 1 (T+5s): Core pipeline — seeds, autopilot, event wiring ───────
-    delay(5_000, () => {
+    // ── WAVE 1: Core pipeline — seeds, autopilot, event wiring ──────────────
+    wave(() => {
       // Mirror youtube channel tokens to the paired youtubeshorts row immediately on every boot.
       // Both rows share the same Google OAuth account — keeping them in sync ensures the
       // shorts publisher always has a valid token without any manual reconnect step.
@@ -3123,12 +3133,13 @@ httpServer.listen(
       import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
     });
 
-    // ── Crash recovery check (T+3s): email owner if last shutdown was unplanned ─
-    delay(3_000, () => {
+    // ── Crash recovery check: email owner if last shutdown was unplanned ────────
+    wave(() => {
       import("./services/critical-alert").then(m => m.checkAndReportCrashRecovery()).catch(() => {});
     });
 
-    delay(3_000, () => {
+    // ── Notification cleanup wave ─────────────────────────────────────────────
+    wave(() => {
       import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte, or, ilike }) => {
         const readCutoff = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
         const unreadCutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
@@ -3154,8 +3165,8 @@ httpServer.listen(
       }))).catch(slog("startupNotifCleanup"));
     });
 
-    // ── WAVE 2 (T+7s): Event wiring, DLQ, content loops ─────────────────────
-    delay(7_000, () => {
+    // ── WAVE 2: Event wiring, DLQ, content loops ─────────────────────────────
+    wave(() => {
       import("./services/agent-events").then(m => m.wireAgentCoordination().catch(slog("wireAgentCoordination"))).catch(slog("agent-events import"));
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
@@ -3171,8 +3182,8 @@ httpServer.listen(
       if (!LITE_MODE) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
-    // ── WAVE 3 (T+10s): Live detection, agents, watchers ─────────────────────
-    delay(10_000, () => {
+    // ── WAVE 3: Live detection, agents, watchers ──────────────────────────────
+    wave(() => {
       // Heartbeat loop — runs every 15s but each platform is internally throttled
       // to its own poll interval (YouTube 45s, Twitch 30s, Kick 45s,
       // TikTok 15min, Rumble 30min). Each poll is skipped if the platform was
@@ -3223,10 +3234,8 @@ httpServer.listen(
       });
     });
 
-    // ── WAVE 4 (T+13s): Stream agents, consistency, copyright, multistream ──
-    // Staggered 2 000ms apart — prevents simultaneous DB reads + platform API
-    // calls from all services firing in the same event loop tick.
-    if (!LITE_MODE) delay(13_000, () => {
+    // ── WAVE 4: Stream agents, consistency, copyright — 2s stagger ───────────
+    if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "content-consistency-agent", fn: () => import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import")) },
         { label: "stream-agent",              fn: () => import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import")) },
@@ -3238,10 +3247,8 @@ httpServer.listen(
       ], 2_000);
     });
 
-    // ── WAVE 5 (T+16s): Intelligence engines batch 1 ─────────────────────────
-    // Awaiting tokenBudget.ready ensures rehydration from DB is complete before
-    // any budget-consuming AI engines can run their first budget check.
-    if (!LITE_MODE) delay(16_000, () => {
+    // ── WAVE 5: Intelligence engines batch 1 ─────────────────────────────────
+    if (!LITE_MODE) wave(() => {
       tokenBudget.ready.then(() => {
         startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
         import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
@@ -3252,10 +3259,8 @@ httpServer.listen(
       }).catch(slog("wave5-ready-gate"));
     });
 
-    // ── WAVE 6 (T+19s): Intelligence engines batch 2 + live agents ──────────
-    // Staggered 1 500ms apart — keeps AI engine initializations from flooding
-    // the OpenAI rate limiter (15 req/min) and DB connection pool simultaneously.
-    if (!LITE_MODE) delay(19_000, () => {
+    // ── WAVE 6: Intelligence engines batch 2 + live agents — 1.5s stagger ───
+    if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
         { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
@@ -3271,10 +3276,8 @@ httpServer.listen(
       ], 1_500);
     });
 
-    // ── WAVE 7 (T+22s): Continuity, VOD, cache, cleanup — 3 s stagger ────────
-    // Staggered so each service gets a fresh DB connection instead of all 8
-    // competing for pool slots simultaneously.
-    if (!LITE_MODE) delay(22_000, () => {
+    // ── WAVE 7: Continuity, VOD, cache, cleanup — 3s stagger ─────────────────
+    if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "continuity-engine",           fn: () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine")) },
         { label: "log-retention",               fn: () => import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention")) },
@@ -3287,8 +3290,8 @@ httpServer.listen(
       ], 3_000);
     });
 
-    // ── WAVE 8 (T+25s): Content engines — thumbnails, marketing, daily ──────
-    if (!LITE_MODE) delay(25_000, () => {
+    // ── WAVE 8: Content engines — marketing, daily, back-catalog ─────────────
+    if (!LITE_MODE) wave(() => {
       import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
       import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
       import("./services/pipeline-self-heal").then(m => m.initPipelineSelfHeal()).catch(slog("initPipelineSelfHeal"));
@@ -3572,8 +3575,8 @@ httpServer.listen(
       setTimeout(() => import("./services/perpetual-downloader").then(m => m.initPerpetualDownloader()).catch(slog("perpetual-downloader import")), 120_000);
     });
 
-    // ── WAVE 9 (T+60s): Advanced engines — feedback, edits, detection, AI ───
-    if (!LITE_MODE) delay(60_000, () => {
+    // ── WAVE 9: Advanced engines — feedback, edits, detection, AI ────────────
+    if (!LITE_MODE) wave(() => {
       import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
       import("./smart-edit-engine").then(async m => {
         await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
@@ -3590,10 +3593,8 @@ httpServer.listen(
       import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine"));
     });
 
-    // ── WAVE 10 (T+80s): Autonomous command engines ─────────────────────────
-    // Staggered 1 500ms apart — each engine may make YouTube/TikTok/Discord API
-    // calls on its first cycle; spreading start times avoids quota bursts.
-    if (!LITE_MODE) delay(80_000, () => {
+    // ── WAVE 10: Autonomous command engines + publishers — 1.5s stagger ──────
+    if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "tos-compliance-monitor",    fn: () => import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor")) },
         { label: "media-command-center",      fn: () => import("./services/media-command-center").then(m => m.startMediaCommandCenter()).catch(slog("startMediaCommandCenter")) },
@@ -3610,11 +3611,8 @@ httpServer.listen(
       ], 1_500);
     });
 
-    // ── WAVE 10.5 (T+100s): Autonomous meta-intelligence engines ─────────────
-    // 12 engines — staggered 1 000ms apart (total spread: ~11s).
-    // These engines periodically call OpenAI (15 req/min limit) and read
-    // analytics data — spacing their starts keeps the AI rate limiter safe.
-    if (!LITE_MODE) delay(100_000, () => {
+    // ── WAVE 10.5: Autonomous meta-intelligence engines — 1s stagger ─────────
+    if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
         { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
@@ -3633,8 +3631,8 @@ httpServer.listen(
       ], 1_000);
     });
 
-    // ── WAVE 11 (T+120s): Self-healing, webhook pipeline, health brain ───────
-    if (!LITE_MODE) delay(120_000, () => {
+    // ── WAVE 11: Self-healing, webhook pipeline, health brain ────────────────
+    if (!LITE_MODE) wave(() => {
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
@@ -3662,11 +3660,11 @@ httpServer.listen(
         m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
       }).catch(slog("notificationWatchdog"));
 
-      logger.info("WARP SPEED BOOT COMPLETE — all 50+ engines online in ~34s");
+      logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 
-    // ── WAVE 12 (T+37s): Autonomous Social Media Company ──────────────────
-    if (!LITE_MODE) delay(37_000, async () => {
+    // ── WAVE 12: Autonomous Social Media Company — job handlers ──────────────
+    if (!LITE_MODE) wave(async () => {
       try {
         // Register job handlers for all autonomous job types
         jobQueue.registerHandler("extract_and_publish_clip", async (job) => {
@@ -3924,7 +3922,7 @@ httpServer.listen(
       }
     });
 
-    delay(39_000, async () => {
+    wave(async () => {
       try {
         // Register autonomous engines with healthBrain for monitoring
         healthBrain.register({
@@ -3949,7 +3947,7 @@ httpServer.listen(
       }
     });
 
-    delay(40_000, async () => {
+    wave(async () => {
       try {
         const { db: database } = await import("./db");
         const { sql: sqlTag } = await import("drizzle-orm");
@@ -3969,7 +3967,7 @@ httpServer.listen(
       }
     });
 
-    delay(41_000, async () => {
+    wave(async () => {
       try {
         // Schedule daily autonomous cycles
         dailyBriefing.scheduleAt9am();
