@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { videos, channels, autopilotQueue, notifications } from "@shared/schema";
-import { eq, and, isNull, desc, lt, sql } from "drizzle-orm";
+import { videos, channels, autopilotQueue, notifications, youtubeOutputMetrics } from "@shared/schema";
+import { eq, and, isNull, desc, lt, sql, isNotNull, avg } from "drizzle-orm";
 import { getOpenAIClientBackground as getOpenAIClientBackground } from "./lib/openai";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
@@ -42,6 +42,78 @@ const THUMBNAIL_PROMPT_TOKENS = 600;
 const THUMBNAIL_RATE_LIMIT_COOLDOWN_MS = 10 * 60_000;
 let thumbnailRateLimitCooldownUntil = 0;
 
+// ── Thumbnail style tags ───────────────────────────────────────────────────────
+// 5 discrete styles tracked in youtube_output_metrics.thumbnail_style_tag.
+// The learner identifies which style gets the best CTR × retention and
+// feeds the winning tag back into generateThumbnailPrompt as a hint.
+const THUMBNAIL_STYLES = [
+  "dark-cinematic",    // Dark BG, dramatic lighting, moody atmosphere
+  "action-freeze",     // Freeze-frame of an intense in-game moment
+  "clean-minimal",     // Simple composition, game logo or text prominent
+  "character-close",   // Character face / armour / gear close-up
+  "battlefield-chaos", // Wide explosive frame, multi-entity chaos
+] as const;
+type ThumbnailStyleTag = typeof THUMBNAIL_STYLES[number];
+
+function detectThumbnailStyleFromPrompt(prompt: string): ThumbnailStyleTag {
+  const p = prompt.toLowerCase();
+  if (p.includes("chaos") || p.includes("explosion") || p.includes("multiple") || p.includes("wide shot")) {
+    return "battlefield-chaos";
+  }
+  if (p.includes("freeze") || p.includes("mid-action") || p.includes("bullet") || p.includes("impact") || p.includes("intense moment")) {
+    return "action-freeze";
+  }
+  if (p.includes("close-up") || p.includes("closeup") || p.includes("character") || p.includes("armor") || p.includes("armour") || p.includes("portrait")) {
+    return "character-close";
+  }
+  if (p.includes("minimal") || p.includes("clean") || p.includes("simple") || p.includes("logo")) {
+    return "clean-minimal";
+  }
+  return "dark-cinematic";
+}
+
+async function getBestThumbnailStyle(userId: string, gameName: string | undefined): Promise<ThumbnailStyleTag | null> {
+  if (!gameName) return null;
+  try {
+    const rows = await db
+      .select({
+        style: youtubeOutputMetrics.thumbnailStyleTag,
+        avgCtr: avg(youtubeOutputMetrics.ctr),
+        avgHook: avg(youtubeOutputMetrics.hookRetentionPct),
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.gameName, gameName),
+        isNotNull(youtubeOutputMetrics.thumbnailStyleTag),
+        sql`${youtubeOutputMetrics.views} > 10`,
+      ))
+      .groupBy(youtubeOutputMetrics.thumbnailStyleTag)
+      .orderBy(sql`AVG(${youtubeOutputMetrics.ctr}) * AVG(COALESCE(${youtubeOutputMetrics.hookRetentionPct}, 50)) DESC`)
+      .limit(1);
+
+    const best = rows[0];
+    if (!best?.style || Number(best.count) < 2) return null;
+    return best.style as ThumbnailStyleTag;
+  } catch {
+    return null;
+  }
+}
+
+async function tagThumbnailStyle(userId: string, youtubeVideoId: string, style: ThumbnailStyleTag): Promise<void> {
+  try {
+    await db.update(youtubeOutputMetrics)
+      .set({ thumbnailStyleTag: style })
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.youtubeVideoId, youtubeVideoId),
+      ));
+  } catch {
+    // Non-blocking — row may not exist yet if performance hasn't been recorded
+  }
+}
+
 function isChannelDisconnected(channelId: number): boolean {
   if (Date.now() > disconnectedChannelsTTL) {
     disconnectedChannels.clear();
@@ -54,7 +126,7 @@ function markChannelDisconnected(channelId: number): void {
   disconnectedChannels.add(channelId);
 }
 
-async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string, gameName?: string): Promise<string> {
+async function generateThumbnailPrompt(videoTitle: string, videoDescription: string, videoType: string, researchContext?: string, gameName?: string, styleHint?: string | null): Promise<string> {
   if (Date.now() < thumbnailRateLimitCooldownUntil) {
     logger.info("Auto-thumbnail in rate-limit cooldown — skipping prompt generation", {
       cooldownRemainingMs: thumbnailRateLimitCooldownUntil - Date.now(),
@@ -108,7 +180,7 @@ GAME ACCURACY — NON-NEGOTIABLE:
 If a game is specified, the thumbnail MUST faithfully reproduce that game's art style, character designs, colour palette, and environment. Do NOT substitute generic "video game" imagery or characters from a different game.
 
 ANTI-CLICKBAIT:
-Thumbnails must accurately represent the video. No misleading imagery. Build viewer trust.${researchSection}`,
+Thumbnails must accurately represent the video. No misleading imagery. Build viewer trust.${researchSection}${styleHint ? `\n\nPROVEN STYLE HINT (data-driven):\nAnalytics show that for this game, the "${styleHint}" visual style achieves the highest CTR × audience-retention score. Lean into this style unless the video content genuinely demands a different approach.` : ""}`,
         },
         {
           role: "user",
@@ -188,7 +260,8 @@ async function generateAndUploadThumbnail(
     const resolvedGame = detectedGameName && detectedGameName !== "Unknown" && detectedGameName !== "Gaming" && detectedGameName !== "Uncategorized"
       ? detectedGameName
       : extractGameName(videoTitle, videoDescription);
-    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext, resolvedGame !== "PS5 Gameplay" ? resolvedGame : undefined);
+    const bestStyle = await getBestThumbnailStyle(userId, resolvedGame !== "PS5 Gameplay" ? resolvedGame : undefined);
+    const prompt = await generateThumbnailPrompt(videoTitle, videoDescription, videoType, researchContext, resolvedGame !== "PS5 Gameplay" ? resolvedGame : undefined, bestStyle);
     if (!prompt) {
       logger.debug("Empty thumbnail prompt, skipping", { videoDbId });
       return false;
@@ -262,6 +335,9 @@ async function generateAndUploadThumbnail(
     await setYouTubeThumbnail(channelId, youtubeId, finalBuffer, finalMimeType);
     await trackQuotaUsage(userId, "thumbnail").catch(() => {});
 
+    const detectedStyle = detectThumbnailStyleFromPrompt(prompt);
+    await tagThumbnailStyle(userId, youtubeId, detectedStyle);
+
     const meta = ((await db.select().from(videos).where(eq(videos.id, videoDbId)))[0]?.metadata as any) || {};
     await db.update(videos).set({
       metadata: {
@@ -269,10 +345,11 @@ async function generateAndUploadThumbnail(
         autoThumbnailGenerated: true,
         autoThumbnailGeneratedAt: new Date().toISOString(),
         thumbnailPrompt: prompt.substring(0, 500),
+        thumbnailStyleTag: detectedStyle,
       },
     }).where(eq(videos.id, videoDbId));
 
-    logger.info("Auto-thumbnail uploaded to YouTube", { videoDbId, youtubeId, videoTitle });
+    logger.info("Auto-thumbnail uploaded to YouTube", { videoDbId, youtubeId, videoTitle, style: detectedStyle });
 
     sendSSEEvent(userId, "content-update", { type: "thumbnail_generated", videoId: videoDbId });
 

@@ -10041,6 +10041,8 @@ export const youtubeOutputMetrics = pgTable("youtube_output_metrics", {
   first72hViews: integer("first_72h_views").default(0),
   sevenDayViews: integer("seven_day_views").default(0),
   performanceScore: real("performance_score").default(0),
+  hookRetentionPct: real("hook_retention_pct"),
+  thumbnailStyleTag: text("thumbnail_style_tag"),
   measuredAt: timestamp("measured_at"),
   publishedAt: timestamp("published_at"),
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
@@ -10051,6 +10053,8 @@ export const youtubeOutputMetrics = pgTable("youtube_output_metrics", {
   index("yom_bucket_idx").on(t.durationBucket),
   index("yom_game_idx").on(t.gameName),
   index("yom_ytid_idx").on(t.youtubeVideoId),
+  index("yom_hook_idx").on(t.hookRetentionPct),
+  index("yom_thumb_style_idx").on(t.thumbnailStyleTag),
 ]);
 export type YoutubeOutputMetric = typeof youtubeOutputMetrics.$inferSelect;
 
@@ -10314,3 +10318,47 @@ export const systemSettings = pgTable("system_settings", {
   value:     text("value").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Playlist Funnels ──────────────────────────────────────────────────────────
+// Tracks per-game funnel playlists that sequence Shorts → long-form to convert
+// casual viewers into dedicated ones. One row per game per user.
+export const playlistFunnels = pgTable("playlist_funnels", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  gameName: text("game_name").notNull(),
+  youtubePlaylistId: text("youtube_playlist_id").notNull(),
+  funnelType: text("funnel_type").notNull().default("mixed"),
+  videoCount: integer("video_count").default(0),
+  shortsCount: integer("shorts_count").default(0),
+  longFormCount: integer("long_form_count").default(0),
+  lastVideoAddedAt: timestamp("last_video_added_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("pf_user_idx").on(t.userId),
+  index("pf_game_idx").on(t.gameName),
+  index("pf_channel_idx").on(t.channelId),
+  uniqueIndex("pf_user_game_idx").on(t.userId, t.gameName),
+]);
+export type PlaylistFunnel = typeof playlistFunnels.$inferSelect;
+
+// ── Watch-Next Links ──────────────────────────────────────────────────────────
+// Tracks which Shorts have had a "watch next" long-form link injected into their
+// description. Used by the watch-next linker to avoid duplicate updates.
+export const watchNextLinks = pgTable("watch_next_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  shortYoutubeId: text("short_youtube_id").notNull(),
+  longFormYoutubeId: text("long_form_youtube_id"),
+  gameName: text("game_name"),
+  updateSuccess: boolean("update_success").default(false),
+  failReason: text("fail_reason"),
+  linkedAt: timestamp("linked_at").defaultNow(),
+}, (t) => [
+  index("wnl_user_idx").on(t.userId),
+  index("wnl_short_idx").on(t.shortYoutubeId),
+  uniqueIndex("wnl_short_user_idx").on(t.userId, t.shortYoutubeId),
+]);
+export type WatchNextLink = typeof watchNextLinks.$inferSelect;

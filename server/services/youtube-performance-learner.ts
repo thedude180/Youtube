@@ -166,6 +166,21 @@ export async function recordVideoPerformance(
       ))
       .limit(1);
 
+    // ── Hook retention % ─────────────────────────────────────────────────────
+    // For Shorts (≤60 s): averageViewPercent is the hook score directly.
+    //   If 80% of a 45s Short was watched, hookRetentionPct = 80.
+    // For long-form: we estimate % of the first 30 s watched.
+    //   If avg view duration is 8 min on a 20 min video, viewers reliably
+    //   watched at least the first 30 s, so hookRetentionPct = 100.
+    //   If avg view duration < 30 s, hookRetentionPct = (avgViewSec/30)*100.
+    const avgViewSec = analytics.averageViewDurationSec ?? 0;
+    const avp = analytics.averageViewPercent ?? 0;
+    const hookRetentionPct = contentType === "short"
+      ? avp
+      : avgViewSec >= 30
+        ? 100
+        : Math.round((avgViewSec / 30) * 100);
+
     const metricsPayload = {
       sourceVideoId: knownMeta?.sourceVideoId,
       contentType,
@@ -176,13 +191,14 @@ export async function recordVideoPerformance(
       impressions: analytics.impressions ?? 0,
       ctr: analytics.ctr ?? 0,
       views: analytics.views ?? 0,
-      averageViewDurationSec: analytics.averageViewDurationSec ?? 0,
-      averageViewPercent: analytics.averageViewPercent ?? 0,
+      averageViewDurationSec: avgViewSec,
+      averageViewPercent: avp,
       watchTimeMinutes: analytics.watchTimeMinutes ?? wt,
       likes: analytics.likes ?? 0,
       comments: analytics.comments ?? 0,
       subscribersGained: analytics.subscribersGained ?? 0,
       performanceScore: perf,
+      hookRetentionPct,
       measuredAt: new Date(),
       publishedAt: knownMeta?.publishedAt,
     };

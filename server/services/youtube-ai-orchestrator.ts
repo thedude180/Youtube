@@ -40,6 +40,8 @@ import {
 import { runDailyLearningCycle, getLearningSummary } from "./youtube-learning-brain";
 import { auditBatchForUser } from "./youtube-monetization-readiness";
 import { buildInternalLinkingPlan } from "./youtube-internal-linking-engine";
+import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
+import { linkWatchNextForUser } from "./youtube-watch-next-linker";
 
 const logger = createLogger("youtube-ai-orchestrator");
 
@@ -58,6 +60,8 @@ export type YouTubeAITaskName =
   | "run_learning_cycle"
   | "run_monetization_readiness"
   | "build_internal_linking_plan"
+  | "sync_playlist_funnels"
+  | "link_watch_next"
   | "check_failed_jobs"
   | "retry_safe_failures"
   | "generate_daily_report";
@@ -219,6 +223,22 @@ async function buildExecutionPlan(userId: string, fullCycle: boolean): Promise<Y
       estimatedQuotaCost: 1,
     },
     {
+      name: "sync_playlist_funnels",
+      priority: 4,
+      allowedToRun: quotaOk && (catalogStatus?.totalVideos ?? 0) > 5,
+      requiresApproval: false,
+      reason: "Create/update per-game funnel playlists (Shorts → long-form)",
+      estimatedQuotaCost: 3,
+    },
+    {
+      name: "link_watch_next",
+      priority: 4,
+      allowedToRun: quotaOk && (catalogStatus?.totalVideos ?? 0) > 3,
+      requiresApproval: false,
+      reason: "Inject watch-next long-form links into Short descriptions",
+      estimatedQuotaCost: 2,
+    },
+    {
       name: "check_failed_jobs",
       priority: 6,
       allowedToRun: true,
@@ -333,6 +353,20 @@ async function executeTask(
       case "build_internal_linking_plan": {
         const plan = await buildInternalLinkingPlan(userId);
         log(`Internal linking plan built — ${plan.playlistSuggestions?.length ?? 0} playlists, ${plan.descriptionLinkBlocks?.length ?? 0} link blocks`);
+        result.tasksRun.push(taskName);
+        break;
+      }
+
+      case "sync_playlist_funnels": {
+        const r = await syncPlaylistFunnels(userId);
+        log(`Playlist funnels synced — ${r.playlistsCreated} created, ${r.videosAdded} videos added across ${r.gamesProcessed} games${r.errors.length ? ` (${r.errors.length} errors)` : ""}`);
+        result.tasksRun.push(taskName);
+        break;
+      }
+
+      case "link_watch_next": {
+        const r = await linkWatchNextForUser(userId);
+        log(`Watch-next links — ${r.linked} linked, ${r.failed} failed, ${r.skipped} skipped${r.errors.length ? ` (${r.errors.length} errors)` : ""}`);
         result.tasksRun.push(taskName);
         break;
       }
