@@ -19,12 +19,13 @@
  */
 
 import { db } from "../db";
-import { channels } from "@shared/schema";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { channels, autopilotQueue } from "@shared/schema";
+import { eq, and, isNotNull, count, gte, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { runBackCatalogMonetizationCycle } from "./youtube-back-catalog-engine";
 import { runClipSeoSync } from "./youtube-clip-seo-sync";
+import { runGrindCycle } from "./relentless-content-grinder";
 
 const logger = createLogger("back-catalog-runner");
 
@@ -42,16 +43,25 @@ function jitter(baseMs: number, jitterMs = baseMs * 0.1): number {
 // delay caused the Jrt9VPmojMA OOM crash loop — runner fired before any guard
 // was active, created 29 bad items, and yt-dlp exhausted container RAM.
 const STARTUP_DELAY_MS = jitter(10 * 60_000, 5 * 60_000); // 10–15 min
-const REPEAT_INTERVAL_MS = jitter(22 * 60 * 60_000, 2 * 60 * 60_000); // 22–24 h
+
+// ── Adaptive interval constants ───────────────────────────────────────────────
+// Interval adapts based on queue depth after every completed cycle.
+// This ensures the queue refills fast when depleted and eases back when healthy.
+const INTERVAL_URGENT_MS   = jitter( 1 * 60 * 60_000, 10 * 60_000); // ~1h  — queue < 7 items
+const INTERVAL_LOW_MS      = jitter( 3 * 60 * 60_000, 30 * 60_000); // ~3h  — queue 7-20 items
+const INTERVAL_MODERATE_MS = jitter( 8 * 60 * 60_000, 60 * 60_000); // ~8h  — queue 20-42 items
+const INTERVAL_HEALTHY_MS  = jitter(22 * 60 * 60_000,  2 * 60 * 60_000); // ~22-24h — queue ≥ 42
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 let startupTimer: ReturnType<typeof setTimeout> | null = null;
-let repeatInterval: ReturnType<typeof setInterval> | null = null;
+let repeatTimer:  ReturnType<typeof setTimeout> | null = null;
 let running = false;
 let paused = false;
-let lastRunAt: Date | null = null;
-let lastRunResult: { usersRun: number; errors: number } | null = null;
+let lastRunAt:      Date | null = null;
+let nextRunAt:      Date | null = null;
+let lastRunResult:  { usersRun: number; errors: number; queueDepth?: number } | null = null;
+let lastIntervalMs: number = INTERVAL_HEALTHY_MS;
 
 // ── Eligible user resolution ─────────────────────────────────────────────────
 
@@ -73,6 +83,36 @@ async function getEligibleUserIds(): Promise<string[]> {
   )];
 
   return unique;
+}
+
+// ── Queue-depth probe ─────────────────────────────────────────────────────────
+// Reads the pending/scheduled YouTube queue without touching the YouTube API.
+// Used to decide how aggressively to re-run the back-catalog cycle.
+
+async function getGlobalQueueDepth(): Promise<number> {
+  try {
+    const now     = new Date();
+    const plus14d = new Date(now.getTime() + 14 * 24 * 60 * 60_000);
+    const r = await db.select({ n: count() })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.targetPlatform, "youtube"),
+        inArray(autopilotQueue.status, ["scheduled", "pending"]),
+        gte(autopilotQueue.scheduledAt, now),
+        // look only 14 days ahead — no need to plan further for adaptive purposes
+      ));
+    return Number(r[0]?.n ?? 0);
+  } catch {
+    return 99; // assume healthy on error to avoid spurious extra runs
+  }
+}
+
+/** Choose the next cycle delay based on how full the queue is. */
+function adaptiveIntervalMs(queueDepth: number): number {
+  if (queueDepth <  7) return INTERVAL_URGENT_MS;   // ~1h — nearly empty
+  if (queueDepth < 20) return INTERVAL_LOW_MS;       // ~3h — thin
+  if (queueDepth < 42) return INTERVAL_MODERATE_MS;  // ~8h — building up
+  return INTERVAL_HEALTHY_MS;                        // ~22-24h — queue is full
 }
 
 // ── Core cycle ───────────────────────────────────────────────────────────────
@@ -130,6 +170,16 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
         logger.warn(`[BackCatalogRunner] Clip SEO sync failed for ${userId.slice(0, 8)}: ${seoErr?.message?.slice(0, 150)}`);
       }
 
+      // If new content was queued, immediately kick a grind cycle so the
+      // schedule gaps are filled without waiting for the next 45-min tick.
+      const newContent = result.queueResult.shortsQueued + result.queueResult.longFormQueued;
+      if (newContent > 0) {
+        logger.info(`[BackCatalogRunner] ${newContent} new clips queued — triggering immediate grind cycle for ${userId.slice(0, 8)}`);
+        runGrindCycle().catch(gErr => {
+          logger.warn(`[BackCatalogRunner] Post-catalog grind failed: ${gErr?.message?.slice(0, 150)}`);
+        });
+      }
+
       usersRun++;
     } catch (err: any) {
       errors++;
@@ -160,7 +210,45 @@ export function initBackCatalogRunner(): void {
     return;
   }
 
-  logger.info(`[BackCatalogRunner] Scheduled — first run in ${Math.round(STARTUP_DELAY_MS / 60_000)} min, then every ${Math.round(REPEAT_INTERVAL_MS / 3_600_000)} h`);
+  logger.info(`[BackCatalogRunner] Scheduled — first run in ${Math.round(STARTUP_DELAY_MS / 60_000)} min, then adaptive (1h–24h based on queue depth)`);
+
+  // Recursive setTimeout — interval shrinks when queue is thin, expands when full.
+  function scheduleNextRun(): void {
+    getGlobalQueueDepth().then(depth => {
+      const intervalMs = adaptiveIntervalMs(depth);
+      lastIntervalMs = intervalMs;
+      nextRunAt = new Date(Date.now() + intervalMs);
+      logger.info(
+        `[BackCatalogRunner] Adaptive schedule: queue=${depth} items → next run in ${Math.round(intervalMs / 60_000)} min`
+      );
+      repeatTimer = setTimeout(async () => {
+        if (running) {
+          logger.warn("[BackCatalogRunner] Previous cycle still running — rescheduling");
+          scheduleNextRun();
+          return;
+        }
+        running = true;
+        logger.info("[BackCatalogRunner] Adaptive cycle triggered");
+        try {
+          await runBackCatalogForAllEligibleUsers();
+        } finally {
+          running = false;
+        }
+        scheduleNextRun(); // recurse with updated queue depth
+      }, intervalMs);
+    }).catch(err => {
+      logger.warn(`[BackCatalogRunner] Queue depth check failed — defaulting to 8h: ${err?.message}`);
+      lastIntervalMs = INTERVAL_MODERATE_MS;
+      nextRunAt = new Date(Date.now() + INTERVAL_MODERATE_MS);
+      repeatTimer = setTimeout(async () => {
+        if (!running) {
+          running = true;
+          try { await runBackCatalogForAllEligibleUsers(); } finally { running = false; }
+        }
+        scheduleNextRun();
+      }, INTERVAL_MODERATE_MS);
+    });
+  }
 
   startupTimer = setTimeout(async () => {
     logger.info("[BackCatalogRunner] Startup delay complete — running first back catalog cycle");
@@ -176,19 +264,7 @@ export function initBackCatalogRunner(): void {
       }
     }
 
-    repeatInterval = setInterval(async () => {
-      if (running) {
-        logger.warn("[BackCatalogRunner] Previous cycle still running — skipping this interval");
-        return;
-      }
-      running = true;
-      logger.info("[BackCatalogRunner] Daily repeat — starting back catalog cycle");
-      try {
-        await runBackCatalogForAllEligibleUsers();
-      } finally {
-        running = false;
-      }
-    }, REPEAT_INTERVAL_MS);
+    scheduleNextRun(); // kick off adaptive repeat
   }, STARTUP_DELAY_MS);
 }
 
@@ -197,9 +273,9 @@ export function stopBackCatalogRunner(): void {
     clearTimeout(startupTimer);
     startupTimer = null;
   }
-  if (repeatInterval) {
-    clearInterval(repeatInterval);
-    repeatInterval = null;
+  if (repeatTimer) {
+    clearTimeout(repeatTimer);
+    repeatTimer = null;
   }
   logger.info("[BackCatalogRunner] Stopped");
 }
@@ -208,13 +284,10 @@ export function getBackCatalogRunnerStatus() {
   return {
     running,
     paused,
-    lastRunAt: lastRunAt?.toISOString() ?? null,
+    lastRunAt:    lastRunAt?.toISOString() ?? null,
     lastRunResult,
-    startupDelayMs: STARTUP_DELAY_MS,
-    repeatIntervalMs: REPEAT_INTERVAL_MS,
-    nextRunEta: lastRunAt
-      ? new Date(lastRunAt.getTime() + REPEAT_INTERVAL_MS).toISOString()
-      : null,
+    lastIntervalMs,
+    nextRunEta:   nextRunAt?.toISOString() ?? null,
   };
 }
 

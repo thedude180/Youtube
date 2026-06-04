@@ -1355,8 +1355,12 @@ export function registerStreamRoutes(app: Express) {
     const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     const { getBackCatalogStatus } = await import("../services/youtube-back-catalog-engine");
-    const status = await getBackCatalogStatus(userId);
-    res.json(status);
+    const { getBackCatalogRunnerStatus } = await import("../services/youtube-back-catalog-runner");
+    const [status, runner] = await Promise.all([
+      getBackCatalogStatus(userId),
+      Promise.resolve(getBackCatalogRunnerStatus()),
+    ]);
+    res.json({ ...status, runner });
   }));
 
   app.post("/api/youtube/back-catalog/import", asyncHandler(async (req: any, res) => {

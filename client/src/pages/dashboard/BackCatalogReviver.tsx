@@ -31,6 +31,13 @@ interface BackCatalogStatus {
   monetizationWarnings: number;
   estimatedBacklogDays: number;
   lastCycleAt: string | null;
+  runner?: {
+    running: boolean;
+    paused: boolean;
+    lastRunAt: string | null;
+    lastIntervalMs: number;
+    nextRunEta: string | null;
+  };
   topOpportunities: Array<{
     youtubeVideoId: string;
     title: string;
@@ -238,13 +245,49 @@ export default function BackCatalogReviver() {
         </div>
       )}
 
-      {/* Last cycle status */}
-      {status?.lastCycleAt && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground" data-testid="text-last-cycle">
-          <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-          <span>Last cycle: {new Date(status.lastCycleAt).toLocaleString()}</span>
-        </div>
-      )}
+      {/* Runner status row */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground" data-testid="runner-status-row">
+        {status?.lastCycleAt && (
+          <div className="flex items-center gap-1.5" data-testid="text-last-cycle">
+            <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+            <span>Last cycle: {new Date(status.lastCycleAt).toLocaleString()}</span>
+          </div>
+        )}
+        {status?.runner?.nextRunEta && (
+          <div className="flex items-center gap-1.5" data-testid="text-next-run">
+            <Clock className="h-3 w-3 text-blue-400" />
+            <span>
+              Next run:{" "}
+              {(() => {
+                const ms = new Date(status.runner!.nextRunEta!).getTime() - Date.now();
+                if (ms <= 0) return "imminent";
+                const h = Math.floor(ms / 3_600_000);
+                const m = Math.floor((ms % 3_600_000) / 60_000);
+                return h > 0 ? `${h}h ${m}m` : `${m}m`;
+              })()}
+              {" "}·{" "}
+              <span className="text-blue-400 font-medium">
+                {status.runner!.lastIntervalMs < 2 * 3_600_000 ? "⚡ urgent" :
+                 status.runner!.lastIntervalMs < 5 * 3_600_000 ? "🔄 filling" :
+                 status.runner!.lastIntervalMs < 14 * 3_600_000 ? "↑ building" :
+                 "✓ healthy"}
+              </span>
+            </span>
+          </div>
+        )}
+        {status?.runner?.running && (
+          <div className="flex items-center gap-1.5 text-amber-400" data-testid="text-runner-active">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Cycle running…</span>
+          </div>
+        )}
+        {status?.runner?.paused && (
+          <div className="flex items-center gap-1.5 text-red-400" data-testid="text-runner-paused">
+            <AlertCircle className="h-3 w-3" />
+            <span>Runner paused</span>
+          </div>
+        )}
+      </div>
 
       {/* Top opportunities */}
       <div>

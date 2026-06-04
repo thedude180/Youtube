@@ -20,9 +20,12 @@ const logger = createLogger("content-grinder");
 
 const GRIND_INTERVAL_MS = 45 * 60_000;
 
-// Fix #4 — spread token budget across the day instead of burning it in 3 hours
-const GRINDER_MAX_PER_CYCLE       = 20;        // max videos processed per cycle
-const GRINDER_INTER_VIDEO_DELAY_MS = 30_000;   // 30s between each video
+// Throughput constants — grinder uses these in normal mode.
+// Burst mode (triggered when queue is thin) overrides these at runtime.
+// Fix #4 — spread token budget across the day instead of burning it in 3 hours.
+const GRINDER_MAX_PER_CYCLE_NORMAL = 20;  // max videos processed per cycle (normal)
+const GRINDER_MAX_PER_CYCLE_BURST  = 50;  // max videos per cycle in burst mode
+const GRINDER_INTER_VIDEO_DELAY_MS = 15_000; // 15s between videos (was 30s — AI semaphore provides backpressure)
 
 /**
  * Strip markdown code fences and parse JSON from an AI response.
@@ -183,7 +186,14 @@ async function grindUserContent(userId: string): Promise<GrindState> {
     return state;
   }
 
-  for (const video of longFormVideos.slice(0, GRINDER_MAX_PER_CYCLE)) {
+  // Burst mode: if the queue is thin (< half a day's worth), extract more clips
+  // per cycle so the pipeline catches up faster. AI semaphore (max 8) provides
+  // natural backpressure so we don't burst the model rate limit.
+  const burstMode = longFormVideos.length > GRINDER_MAX_PER_CYCLE_NORMAL;
+  const maxThisCycle = burstMode ? GRINDER_MAX_PER_CYCLE_BURST : GRINDER_MAX_PER_CYCLE_NORMAL;
+  if (burstMode) logger.info(`[ContentGrinder] Burst mode: ${longFormVideos.length} videos pending — processing up to ${maxThisCycle}`);
+
+  for (const video of longFormVideos.slice(0, maxThisCycle)) {
     try {
       const exhaustionLevel = await checkVideoExhaustion(userId, video);
 
