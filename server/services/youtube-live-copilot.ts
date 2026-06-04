@@ -177,8 +177,8 @@ export async function prepareLiveStream(
 
   let prep: LiveStreamPrep = {
     title: defaultLiveTitle,
-    description: `Live no-commentary ${gameName} gameplay from ETGaming247. No facecam, no fake hype, no talking over the game — just raw gameplay, full matches, objective pressure, vehicles, infantry fights, and controlled chaos.\n\nStay for full matches, livestream replays, Shorts, and clean gameplay cut with 92 BPM pressure.\n\n#NoCommentary #${gameName.replace(/\s/g, "")} #PS5 #ETGaming247`,
-    tags: ["no commentary", "no facecam", "raw gameplay", "PS5", gameName, "gaming", "live", "gameplay", "ETGaming247", "92 bpm"],
+    description: `Live no-commentary ${gameName} gameplay from ET Gaming 274. No facecam, no fake hype, no talking over the game — just raw gameplay, full matches, objective pressure, vehicles, infantry fights, and controlled chaos.\n\nStay for full matches, livestream replays, Shorts, and clean gameplay cut with 92 BPM pressure.\n\n#NoCommentary #${gameName.replace(/\s/g, "")} #PS5 #ETGaming274`,
+    tags: ["no commentary", "no facecam", "raw gameplay", "PS5", gameName, "gaming", "live", "gameplay", "ETGaming274", "92 bpm"],
     thumbnailConcept: `Action screenshot from ${gameName} with bold 2-3 word overlay (e.g. LIVE NOW or RAW WAR). Top-left: 92 BPM marker. Bottom: NO COMMENTARY strip.`,
     pinnedMessage: defaultPinnedMsg,
     faqResponses: {
@@ -204,7 +204,7 @@ export async function prepareLiveStream(
       "Pinned comment prepared and ready to post",
       "Clips plan prepared — mark timestamps during stream for best Shorts moments",
     ],
-    replayPlan: `After stream: (1) Watch back and mark timestamps for 3-5 Short candidates (vehicle hits, clutch moments, objective turns, final tickets). (2) Identify 1-2 long-form candidates — best 10-30 min sections with sustained pressure. (3) Pull thumbnail screenshot from highest-pressure moment. (4) Apply 92 BPM cadence: HOOK→CONTEXT→PRESSURE→PAYOFF→RESET. Trim idle opening and dead air. (5) Queue Shorts in scheduled windows (08:00 / 14:30 / 21:30). (6) Package long-form with full ETGaming247 SEO metadata. (7) Update VOD title/description for replay packaging.`,
+    replayPlan: `After stream: (1) Watch back and mark timestamps for 3-5 Short candidates (vehicle hits, clutch moments, objective turns, final tickets). (2) Identify 1-2 long-form candidates — best 10-30 min sections with sustained pressure. (3) Pull thumbnail screenshot from highest-pressure moment. (4) Apply 92 BPM cadence: HOOK→CONTEXT→PRESSURE→PAYOFF→RESET. Trim idle opening and dead air. (5) Queue Shorts in scheduled windows (08:00 / 14:30 / 21:30). (6) Package long-form with full ET Gaming 274 SEO metadata. (7) Update VOD title/description for replay packaging.`,
     connectionStatus,
     quotaStatus,
     liveStreamStatus: stream?.status || "idle",
@@ -218,7 +218,7 @@ export async function prepareLiveStream(
         messages: [
           {
             role: "system",
-            content: `You are preparing a YouTube live stream for ETGaming247 — a no-commentary, no-facecam PS5 gaming channel. Brand: "No talking. Just gameplay. 92 BPM cadence." Game: ${sanitizeForPrompt(gameName, 80)}. Stream title: ${sanitizeForPrompt(streamTitle, 80)}. Return only raw JSON.`,
+            content: `You are preparing a YouTube live stream for ET Gaming 274 — a no-commentary, no-facecam PS5 gaming channel. Brand: "No talking. Just gameplay. 92 BPM cadence." Game: ${sanitizeForPrompt(gameName, 80)}. Stream title: ${sanitizeForPrompt(streamTitle, 80)}. Return only raw JSON.`,
           },
           {
             role: "user",

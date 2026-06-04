@@ -140,12 +140,120 @@ async function migration002Bf6QueueReorder(): Promise<void> {
   }
 }
 
+// ── Migration 003: fix fake game names + force re-optimization ────────────────
+// Many back_catalog_videos rows have AI-hallucinated game_name values like
+// "AI PS5", "AI gaming", "EPIC fast-paced action", or "ETGaming247".  Some
+// have NULL.  This migration:
+//   1. Detects the real game from the video title using regex patterns.
+//   2. Normalises variant spellings ("ac valhalla" → "Assassin's Creed Valhalla").
+//   3. Resets last_optimized_at + bumps metadata_opportunity_score to 20 for
+//      every affected row so the existing-video-optimizer re-runs promptly.
+// Safe to run in production — pure UPDATE, no schema changes.
+
+async function migration003FixFakeGameNames(): Promise<void> {
+  const FLAG = "migration:003:fix_fake_game_names_v2";
+  if (await getFlag(FLAG)) {
+    log.info("[Migration 003] Fake game-name fix already done — skipping");
+    return;
+  }
+
+  try {
+    // Step A: Detect real game from title for rows with NULL / fake game_names.
+    // Uses PostgreSQL CASE WHEN so the entire fix is one round-trip.
+    const fixResult = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET
+        game_name = CASE
+          WHEN title ~* 'assassin''?s creed shadows|ac shadows'               THEN 'Assassin''s Creed Shadows'
+          WHEN title ~* 'valhalla'                                             THEN 'Assassin''s Creed Valhalla'
+          WHEN title ~* 'assassin''?s creed iv|black flag'                    THEN 'Assassin''s Creed IV: Black Flag'
+          WHEN title ~* 'adéwalé|adewale'                                     THEN 'Assassin''s Creed IV: Black Flag'
+          WHEN title ~* 'assassin''?s creed origins'                          THEN 'Assassin''s Creed Origins'
+          WHEN title ~* 'assassin''?s creed odyssey'                          THEN 'Assassin''s Creed Odyssey'
+          WHEN title ~* 'assassin''?s creed'                                  THEN 'Assassin''s Creed'
+          WHEN title ~* 'shadow of mordor'                                    THEN 'Middle-earth: Shadow of Mordor'
+          WHEN title ~* 'shadow of war|nemesis phase'                         THEN 'Middle-earth: Shadow of War'
+          WHEN title ~* 'ratchet|ratchet.{0,5}clank'                         THEN 'Ratchet & Clank'
+          WHEN title ~* 'space marine 2|space marine'                         THEN 'Warhammer 40,000: Space Marine 2'
+          WHEN title ~* 'dragon age'                                          THEN 'Dragon Age: The Veilguard'
+          WHEN title ~* 'battlefield 6|bf6'                                   THEN 'Battlefield 6'
+          WHEN title ~* 'battlefield 2042|bf2042'                             THEN 'Battlefield 2042'
+          WHEN title ~* 'battlefield v|battlefield 5|bf5'                     THEN 'Battlefield V'
+          WHEN title ~* 'battlefield'                                         THEN 'Battlefield 6'
+          WHEN title ~* 'samurai.{0,40}stealth|stealth.{0,40}samurai'        THEN 'Assassin''s Creed Shadows'
+          WHEN title ~* 'parkour.{0,30}stealth|stealth.{0,30}parkour'        THEN 'Assassin''s Creed'
+          WHEN title ~* 'elden ring'                                          THEN 'Elden Ring'
+          WHEN title ~* 'god of war'                                          THEN 'God of War'
+          ELSE game_name
+        END,
+        metadata_opportunity_score = 20,
+        last_optimized_at          = NULL
+      WHERE (
+        game_name IS NULL
+        OR game_name = ''
+        OR lower(game_name) LIKE 'ai ps5%'
+        OR lower(game_name) LIKE 'ai gaming%'
+        OR lower(game_name) LIKE 'ai action%'
+        OR lower(game_name) LIKE 'ai combat%'
+        OR lower(game_name) LIKE 'epic%'
+        OR lower(game_name) LIKE 'etgaming%'
+        OR lower(game_name) LIKE '%ps5%'
+        OR lower(game_name) LIKE '%4k%'
+        OR lower(game_name) LIKE '%educational%'
+        OR lower(game_name) LIKE '%fast-paced%'
+        OR lower(game_name) LIKE '%highlights%'
+        OR lower(game_name) LIKE '%sequences%'
+        OR lower(game_name) LIKE '%techniques%'
+        OR lower(game_name) LIKE '%chaos%'
+        OR lower(game_name) LIKE '%cinematic%'
+        OR lower(game_name) LIKE '%boss fights%'
+        OR lower(game_name) LIKE '%player ps5%'
+      )
+    `);
+
+    const fixedRows = (fixResult as any)?.rowCount ?? (fixResult as any)?.count ?? "?";
+    log.info(`[Migration 003] Cleared ${fixedRows} fake/null game_name rows + reset their optimization flags`);
+
+    // Step B: Normalise variant spellings of legitimate game names.
+    const normResult = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET
+        game_name = CASE
+          WHEN lower(game_name) IN ('ac valhalla', 'assassins creed valhalla')  THEN 'Assassin''s Creed Valhalla'
+          WHEN lower(game_name) IN ('assassins creed', 'assassin')              THEN 'Assassin''s Creed'
+          WHEN lower(game_name) IN ('ac4 black flag')                            THEN 'Assassin''s Creed IV: Black Flag'
+          WHEN lower(game_name) IN ('ac shadows ps5 gameplay')                   THEN 'Assassin''s Creed Shadows'
+          WHEN lower(game_name) IN ('bright lord dlc')                           THEN 'Middle-earth: Shadow of War'
+          WHEN lower(game_name) IN ('bioware dragon age')                        THEN 'Dragon Age: The Veilguard'
+          WHEN lower(game_name) IN ('battlefield')                               THEN 'Battlefield 6'
+          ELSE game_name
+        END,
+        metadata_opportunity_score = GREATEST(COALESCE(metadata_opportunity_score, 0), 10),
+        last_optimized_at          = NULL
+      WHERE lower(game_name) IN (
+        'ac valhalla', 'assassins creed valhalla', 'assassins creed', 'assassin',
+        'ac4 black flag', 'ac shadows ps5 gameplay', 'bright lord dlc',
+        'bioware dragon age', 'battlefield'
+      )
+    `);
+
+    const normRows = (normResult as any)?.rowCount ?? (normResult as any)?.count ?? "?";
+    log.info(`[Migration 003] Normalised ${normRows} variant game name spellings`);
+
+    await setFlag(FLAG);
+    log.info("[Migration 003] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 003] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
   try {
     await migration001SetFocusGame();
     await migration002Bf6QueueReorder();
+    await migration003FixFakeGameNames();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

@@ -83,7 +83,35 @@ export class VODSEOOptimizer {
 
       logger.info(`[VODSEOOptimizer] Optimizing metadata for video ${videoId}: ${video.title}`);
 
-      const gameName = video.metadata?.gameName;
+      let gameName = video.metadata?.gameName as string | undefined;
+
+      // If game_name is missing or generic, try detecting from the video title
+      const GENERIC_GAME_VALUES = new Set([
+        "", "unknown", "gaming", "games", "ps5", "ps4", "xbox", "playstation",
+        "ai ps5", "ai gaming", "ai action sequences", "ai combat strategies",
+        "ai combat techniques", "ai gaming chaos", "epic", "etgaming247",
+        "ps5 action sequences", "4k ps5 gameplay", "best epic moments",
+        "cinematic gameplay",
+      ]);
+      if (!gameName || GENERIC_GAME_VALUES.has(gameName.toLowerCase())) {
+        const t = (video.title ?? "").toLowerCase();
+        if (/assassin.?s creed shadows|ac shadows/i.test(t))          gameName = "Assassin's Creed Shadows";
+        else if (/valhalla/i.test(t))                                  gameName = "Assassin's Creed Valhalla";
+        else if (/assassin.?s creed iv|black flag/i.test(t))          gameName = "Assassin's Creed IV: Black Flag";
+        else if (/adéwalé|adewale/i.test(t))                          gameName = "Assassin's Creed IV: Black Flag";
+        else if (/assassin.?s creed/i.test(t))                        gameName = "Assassin's Creed";
+        else if (/shadow of mordor/i.test(t))                          gameName = "Middle-earth: Shadow of Mordor";
+        else if (/shadow of war|nemesis/i.test(t))                     gameName = "Middle-earth: Shadow of War";
+        else if (/ratchet|ratchet.{0,5}clank/i.test(t))               gameName = "Ratchet & Clank";
+        else if (/space marine/i.test(t))                              gameName = "Warhammer 40,000: Space Marine 2";
+        else if (/dragon age/i.test(t))                                gameName = "Dragon Age: The Veilguard";
+        else if (/battlefield 6|bf6/i.test(t))                        gameName = "Battlefield 6";
+        else if (/battlefield 2042/i.test(t))                          gameName = "Battlefield 2042";
+        else if (/samurai.{0,40}stealth|stealth.{0,40}samurai/i.test(t)) gameName = "Assassin's Creed Shadows";
+        else if (/elden ring/i.test(t))                                gameName = "Elden Ring";
+        else if (/god of war/i.test(t))                                gameName = "God of War";
+      }
+
       const safeGameName = sanitizeForPrompt(gameName || "", 100);
       const gameContext = safeGameName && safeGameName !== "Unknown" && safeGameName !== "Gaming"
         ? `Game/Category: ${safeGameName}\n\nCRITICAL: The detected game is "${safeGameName}". The optimized title and description MUST reference "${safeGameName}" — do NOT substitute a different game name.`

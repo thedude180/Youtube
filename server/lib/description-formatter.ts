@@ -16,9 +16,9 @@
  *
  *   #hashtag1 #hashtag2 #hashtag3
  *
- *   Follow ET Gaming 247 ►
- *   📺 YouTube  ➜  https://youtube.com/@ETGaming247
- *   🎮 Twitch   ➜  https://twitch.tv/etgaming247
+ *   Follow ET Gaming 274 ►
+ *   📺 YouTube  ➜  https://youtube.com/@etgaming274
+ *   🎮 Twitch   ➜  https://twitch.tv/thedude180
  *   …
  *   🌐  https://etgaming247.com
  *
@@ -61,7 +61,7 @@ const PLATFORM_META: Record<string, { icon: string; label: string; order: number
 // ── Follow section builder ────────────────────────────────────────────────────
 
 function buildFollowSection(links: ChannelLinks): string {
-  const lines: string[] = ["Follow ET Gaming 247 ►"];
+  const lines: string[] = ["Follow ET Gaming 274 ►"];
 
   // Sort by defined order; unknown platforms go last
   const entries = Object.entries(links)
@@ -91,11 +91,11 @@ function buildFollowSection(links: ChannelLinks): string {
 
 // Fallback footer used when no channel links are available yet
 const FALLBACK_FOOTER = [
-  "Follow ET Gaming 247 ►",
-  "🎮  Twitch  ➜  https://twitch.tv/etgaming247",
-  "🟢  Kick  ➜  https://kick.com/etgaming247",
-  "🎵  TikTok  ➜  https://tiktok.com/@etgaming247",
-  "𝕏   X  ➜  https://x.com/etgaming247",
+  "Follow ET Gaming 274 ►",
+  "📺  YouTube  ➜  https://youtube.com/@etgaming274",
+  "🎮  Twitch  ➜  https://twitch.tv/thedude180",
+  "🟢  Kick  ➜  https://kick.com/",
+  "🎵  TikTok  ➜  https://tiktok.com/@etgaming274",
   "🌐  https://etgaming247.com",
   "Managed with CreatorOS.",
 ].join("\n");
@@ -176,7 +176,7 @@ export function reformatRawDescription(raw: string, links?: ChannelLinks): strin
     /Updates & hot takes on X.*$/ms,
     /Join the community on Discord.*$/ms,
     /Managed with CreatorOS\./,
-    /Follow ET Gaming 247 ►[\s\S]*/,
+    /Follow ET Gaming (?:247|274) ►[\s\S]*/,
   ];
   for (const pattern of genericFooterPatterns) {
     text = text.replace(pattern, "");

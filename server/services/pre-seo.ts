@@ -131,7 +131,7 @@ async function generateSeo(clip: {
     // session — titles should reflect live energy, not catalog compilation tone.
     let prompt: string;
     if (clip.isLiveStream && isShort) {
-      prompt = `You are writing YouTube Shorts metadata for the ETGaming247 channel.
+      prompt = `You are writing YouTube Shorts metadata for the ET Gaming 274 channel.
 Channel: No commentary. No facecam. Raw ${game} live stream highlights.
 
 Live session: "${srcTitle}"
@@ -143,11 +143,11 @@ Rules: honest description of what happened, compelling without being clickbait. 
 
 1. TITLE (40-60 chars) — describe the actual moment. Pattern: "[What happened] in ${game} #Shorts"
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Live ${game} moment — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
-3. TAGS (up to 12, total < 400 chars) — game, live, shorts, no commentary, gameplay, ETGaming247.
+3. TAGS (up to 12, total < 400 chars) — game, live, shorts, no commentary, gameplay, ETGaming274.
 
 JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
     } else if (clip.isLiveStream && !isShort) {
-      prompt = `You are writing YouTube long-form metadata for the ETGaming247 channel.
+      prompt = `You are writing YouTube long-form metadata for the ET Gaming 274 channel.
 Channel: No commentary. No facecam. Full live session replay of ${game}.
 
 Live session: "${srcTitle}"
@@ -159,11 +159,11 @@ Rules: honest description of the session, click-worthy without being clickbait. 
 
 1. TITLE (50-80 chars) — pattern: "${game} Live Session — ${durMin} Min | No Commentary"
 2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Full ${game} live session, ${durMin} min. No commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
-3. TAGS (up to 15, total < 500 chars) — game, live, full session, no commentary, ETGaming247, 3-4 game-specific tags.
+3. TAGS (up to 15, total < 500 chars) — game, live, full session, no commentary, ETGaming274, 3-4 game-specific tags.
 
 JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
     } else if (isShort) {
-      prompt = `You are writing YouTube Shorts metadata for the ETGaming247 channel.
+      prompt = `You are writing YouTube Shorts metadata for the ET Gaming 274 channel.
 Channel: No commentary. No facecam. Raw gameplay — steady pressure, clean action.
 
 Source video: "${srcTitle}"
@@ -173,11 +173,11 @@ Clip hint: ${hint || "(none)"}
 Write: NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 1. TITLE (40-60 chars) — punchy, sell the moment, game name included. Pattern: "Clutch ${game} Play — No Commentary #Shorts"
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — "Raw ${game} gameplay — no commentary, no facecam."${sourceLink ? ` Include: ${sourceLink}` : ""}
-3. TAGS (up to 12, total < 400 chars) — game, shorts, no commentary, gameplay, ETGaming247.
+3. TAGS (up to 12, total < 400 chars) — game, shorts, no commentary, gameplay, ETGaming274.
 
 JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
     } else {
-      prompt = `You are writing YouTube long-form gaming clip metadata for ETGaming247.
+      prompt = `You are writing YouTube long-form gaming clip metadata for ET Gaming 274.
 Channel: No commentary. No facecam. Raw ${game} gameplay.
 
 Source video: "${srcTitle}"
@@ -187,7 +187,7 @@ Duration: ~${durMin} min${sourceLink ? `\nSource: ${sourceLink}` : ""}
 Write: NEVER mention AI, AI-generated, AI-powered, artificial intelligence, or any AI tool in ANY field.
 1. TITLE (50-80 chars) — game + duration + "No Commentary". Pattern: "${game} — ${durMin} Min Gameplay | No Commentary"
 2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Raw ${game} gameplay, ${durMin} min."${sourceLink ? ` Include: ${sourceLink}` : ""}
-3. TAGS (up to 15, total < 500 chars) — game, gameplay, no commentary, ETGaming247, 3-4 game-specific tags.
+3. TAGS (up to 15, total < 500 chars) — game, gameplay, no commentary, ETGaming274, 3-4 game-specific tags.
 
 JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
     }
@@ -218,7 +218,7 @@ JSON only: {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
     }
     parts.push(
       "\n─────────────────────────────",
-      "ETGaming247 — No Commentary Gaming",
+      "ET Gaming 274 — No Commentary Gaming",
       "Raw gameplay. No facecam. No fake reactions.",
     );
     const description = parts.join("\n").trim().slice(0, 5000);

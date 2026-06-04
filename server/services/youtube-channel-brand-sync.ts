@@ -190,7 +190,7 @@ async function generateShortsSEO(
     const safeTitle = sanitizeForPrompt(title, 150);
     const safeGame  = sanitizeForPrompt(gameName || "Gaming", 60);
 
-    const prompt = `You are writing YouTube Shorts metadata for ETGaming247 — a PS5 no-commentary gaming channel. Respond with valid JSON only.
+    const prompt = `You are writing YouTube Shorts metadata for ET Gaming 274 — a PS5 no-commentary gaming channel. Respond with valid JSON only.
 
 Source clip title: "${safeTitle}"
 Game: ${safeGame}
@@ -264,7 +264,7 @@ async function generateReplaySEO(video: {
       : "";
     const typeWord  = durMin > 60 ? "Playthrough" : "Gameplay";
 
-    const prompt = `You are optimizing a YouTube livestream replay (archived VOD) for ETGaming247 — a PS5 no-commentary gaming channel. Respond with valid JSON only.
+    const prompt = `You are optimizing a YouTube livestream replay (archived VOD) for ET Gaming 274 — a PS5 no-commentary gaming channel. Respond with valid JSON only.
 
 Original title: "${safeTitle}"
 Game: ${safeGame}

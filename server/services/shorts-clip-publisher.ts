@@ -644,7 +644,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                     ? itemMeta.seoDescription
                     : null)
                   ?? (resolvedYoutubeId
-                    ? `${sourceTitle}\n\nFull video → https://youtu.be/${resolvedYoutubeId}\n\n#Shorts #Gaming #PS5 #ETGaming247`
+                    ? `${sourceTitle}\n\nFull video → https://youtu.be/${resolvedYoutubeId}\n\n#Shorts #Gaming #PS5 #ETGaming274`
                     : `${sourceTitle}\n\n#Shorts #Gaming #PS5`);
 
                 const preBuiltTags = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;

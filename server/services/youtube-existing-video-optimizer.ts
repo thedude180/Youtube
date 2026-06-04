@@ -112,11 +112,42 @@ async function generateOptimizedMetadata(video: {
 
     const safeTitle = sanitizeForPrompt(video.title, 200);
     const safeDesc  = sanitizeForPrompt(video.description ?? "", 400);
-    const game      = sanitizeForPrompt(video.gameName ?? "Gaming", 60);
     const durMin    = Math.round((video.durationSec ?? 0) / 60);
     const existing  = (video.tags ?? []).slice(0, 10).join(", ");
 
-    const prompt = `You are optimizing an existing YouTube gaming video's metadata for the ETGaming247 channel.
+    // Try to detect game from title when game_name is missing or generic-sounding
+    let rawGame = video.gameName ?? "";
+    const GENERIC_GAME_NAMES = new Set([
+      "", "gaming", "games", "ps5", "ps4", "xbox", "playstation", "ai ps5",
+      "ai gaming", "ai action sequences", "ai combat strategies", "ai combat techniques",
+      "ai gaming chaos", "epic", "etgaming247", "ps5 action sequences",
+      "4k ps5 gameplay", "64 player ps5 match", "best ps5 educational content",
+      "best epic moments", "cinematic gameplay", "ai action highlights ps5",
+      "ai action highlights", "ai ps5 strategies",
+    ]);
+    if (!rawGame || GENERIC_GAME_NAMES.has(rawGame.toLowerCase())) {
+      // Try title-based detection before falling back to "Gaming"
+      const t = (video.title ?? "").toLowerCase();
+      if (/assassin.?s creed shadows|ac shadows/i.test(t))       rawGame = "Assassin's Creed Shadows";
+      else if (/valhalla/i.test(t))                               rawGame = "Assassin's Creed Valhalla";
+      else if (/assassin.?s creed iv|black flag/i.test(t))       rawGame = "Assassin's Creed IV: Black Flag";
+      else if (/assassin.?s creed/i.test(t))                     rawGame = "Assassin's Creed";
+      else if (/shadow of war|nemesis/i.test(t))                  rawGame = "Middle-earth: Shadow of War";
+      else if (/shadow of mordor/i.test(t))                       rawGame = "Middle-earth: Shadow of Mordor";
+      else if (/ratchet|clank/i.test(t))                         rawGame = "Ratchet & Clank";
+      else if (/space marine/i.test(t))                           rawGame = "Warhammer 40,000: Space Marine 2";
+      else if (/dragon age/i.test(t))                             rawGame = "Dragon Age: The Veilguard";
+      else if (/battlefield 6|bf6/i.test(t))                     rawGame = "Battlefield 6";
+      else if (/battlefield 2042/i.test(t))                       rawGame = "Battlefield 2042";
+      else if (/samurai.{0,30}stealth|stealth.{0,30}samurai/i.test(t)) rawGame = "Assassin's Creed Shadows";
+      else if (/adéwalé|adewale/i.test(t))                       rawGame = "Assassin's Creed IV: Black Flag";
+      else if (/parkour.*stealth|stealth.*parkour/i.test(t))     rawGame = "Assassin's Creed";
+      else if (/elden ring/i.test(t))                             rawGame = "Elden Ring";
+      else if (/god of war/i.test(t))                             rawGame = "God of War";
+    }
+    const game = sanitizeForPrompt(rawGame || "Gaming", 60);
+
+    const prompt = `You are optimizing an existing YouTube gaming video's metadata for the ET Gaming 274 channel.
 Channel identity: No commentary. No facecam. No fake hype. Raw gameplay cut with 92 BPM cadence — steady pressure, clean action, controlled chaos.
 
 Video: "${safeTitle}"
@@ -130,7 +161,7 @@ Current tags: ${existing}
 Write:
 1. A new TITLE (40-70 chars) — sell the SITUATION, not just the game. No fake hype ("INSANE", "EPIC", "BEST EVER" unless clearly earned). No all-caps spam. Keep "No Commentary" visible when useful. Good pattern: "Final Objective Defense Got Brutal — ${game} No Commentary"
 2. A new DESCRIPTION INTRO (2 lines, 100-200 chars total) — follow the brand default: "Raw ${game} no-commentary gameplay cut with a 92 BPM cadence — steady pressure, clean action, objective fights, and no talking over the game."
-3. Up to 15 TAGS — CRITICAL: the full comma-separated tags string MUST be under 500 characters. Prioritize: game name, no commentary, gameplay, mode/type, platform, ETGaming247. No keyword stuffing.
+3. Up to 15 TAGS — CRITICAL: the full comma-separated tags string MUST be under 500 characters. Prioritize: game name, no commentary, gameplay, mode/type, platform, ETGaming274. No keyword stuffing.
 4. If VOD or long-form, add a short no-commentary framing sentence.
 
 Rules:

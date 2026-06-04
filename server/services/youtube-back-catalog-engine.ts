@@ -138,18 +138,38 @@ const GENERIC_CATEGORIES = new Set([
 
 function detectGameFromTitle(title: string): string | null {
   const t = (title ?? "").toLowerCase();
-  if (/battlefield\s*6|bf\s*6\b/.test(t))          return "Battlefield 6";
-  if (/battlefield\s*2042|bf\s*2042\b/.test(t))     return "Battlefield 2042";
-  if (/battlefield/.test(t))                         return "Battlefield";
-  if (/call of duty|warzone|cod\b/.test(t))          return "Call of Duty";
-  if (/fortnite/.test(t))                            return "Fortnite";
-  if (/minecraft/.test(t))                           return "Minecraft";
-  if (/apex legends?/.test(t))                       return "Apex Legends";
-  if (/gta\b|grand theft auto/.test(t))              return "GTA";
-  if (/valorant/.test(t))                            return "Valorant";
-  if (/overwatch/.test(t))                           return "Overwatch";
-  if (/elden ring/.test(t))                          return "Elden Ring";
-  if (/god of war/.test(t))                          return "God of War";
+  // Assassin's Creed family — most specific first
+  if (/assassin.?s creed shadows|ac shadows/i.test(t))      return "Assassin's Creed Shadows";
+  if (/valhalla/i.test(t))                                    return "Assassin's Creed Valhalla";
+  if (/assassin.?s creed iv|black flag/i.test(t))            return "Assassin's Creed IV: Black Flag";
+  if (/adéwalé|adewale/i.test(t))                            return "Assassin's Creed IV: Black Flag";
+  if (/assassin.?s creed origins/i.test(t))                  return "Assassin's Creed Origins";
+  if (/assassin.?s creed odyssey/i.test(t))                  return "Assassin's Creed Odyssey";
+  if (/assassin.?s creed/i.test(t))                          return "Assassin's Creed";
+  // Stealth/samurai hint → likely AC Shadows
+  if (/samurai.{0,40}stealth|stealth.{0,40}samurai/i.test(t)) return "Assassin's Creed Shadows";
+  // Middle-earth
+  if (/shadow of mordor/i.test(t))                            return "Middle-earth: Shadow of Mordor";
+  if (/shadow of war|nemesis phase/i.test(t))                 return "Middle-earth: Shadow of War";
+  // Battlefield family
+  if (/battlefield\s*6|bf\s*6\b/.test(t))                    return "Battlefield 6";
+  if (/battlefield\s*2042|bf\s*2042\b/.test(t))              return "Battlefield 2042";
+  if (/battlefield\s*v\b|battlefield\s*5\b/.test(t))         return "Battlefield V";
+  if (/battlefield/.test(t))                                  return "Battlefield 6";
+  // Other PS5 titles in catalog
+  if (/ratchet|ratchet.{0,5}clank/i.test(t))                 return "Ratchet & Clank";
+  if (/space marine/i.test(t))                                return "Warhammer 40,000: Space Marine 2";
+  if (/dragon age/i.test(t))                                  return "Dragon Age: The Veilguard";
+  if (/elden ring/i.test(t))                                  return "Elden Ring";
+  if (/god of war/i.test(t))                                  return "God of War";
+  // Other common games
+  if (/call of duty|warzone|cod\b/.test(t))                  return "Call of Duty";
+  if (/fortnite/.test(t))                                     return "Fortnite";
+  if (/minecraft/.test(t))                                    return "Minecraft";
+  if (/apex legends?/.test(t))                                return "Apex Legends";
+  if (/gta\b|grand theft auto/.test(t))                      return "GTA";
+  if (/valorant/.test(t))                                     return "Valorant";
+  if (/overwatch/.test(t))                                    return "Overwatch";
   return null;
 }
 

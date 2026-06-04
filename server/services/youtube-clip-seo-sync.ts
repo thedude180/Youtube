@@ -151,7 +151,7 @@ async function generateClipMetadata(clip: {
       : null;
 
     const prompt = isShort
-      ? `You are writing YouTube Shorts metadata for the ETGaming247 channel.
+      ? `You are writing YouTube Shorts metadata for the ET Gaming 274 channel.
 Channel identity: No commentary. No facecam. Raw gameplay, 92 BPM cadence — steady pressure, clean action.
 
 This Short clip was taken from source video: "${srcTitle}"
@@ -161,11 +161,11 @@ Clip hint / original caption: ${clipHint || "(none)"}
 Write:
 1. TITLE (40-60 chars) — punchy, sell the moment, include game name. No all-caps spam. No "INSANE" or "EPIC" unless earned. Pattern: "Clutch ${game} Play — No Commentary #Shorts"
 2. DESCRIPTION INTRO (1-2 lines, max 150 chars) — brand default: "Raw ${game} gameplay clip — no commentary, no facecam." Optionally include the source link if provided: ${sourceLink ?? "(no link)"}
-3. TAGS (up to 12 tags, total < 400 chars) — game name, shorts, no commentary, gameplay, ETGaming247, platform.
+3. TAGS (up to 12 tags, total < 400 chars) — game name, shorts, no commentary, gameplay, ETGaming274, platform.
 
 Respond in JSON only:
 {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`
-      : `You are writing YouTube long-form gaming clip metadata for ETGaming247.
+      : `You are writing YouTube long-form gaming clip metadata for ET Gaming 274.
 Channel identity: No commentary. No facecam. Raw gameplay cut with 92 BPM cadence.
 
 This clip was taken from source video: "${srcTitle}"
@@ -176,7 +176,7 @@ Source link: ${sourceLink ?? "(none)"}
 Write:
 1. TITLE (50-80 chars) — describe the situation/segment. Include game + "No Commentary". Pattern: "${game} — ${durMin} Min Gameplay | No Commentary"
 2. DESCRIPTION INTRO (2-3 lines, max 250 chars) — "Raw ${game} no-commentary gameplay. ${durMin} min of steady pressure and clean action." Include source link if provided.
-3. TAGS (up to 15 tags, total < 500 chars) — game name, gameplay, no commentary, ETGaming247, long form, and 3-4 game-specific tags.
+3. TAGS (up to 15 tags, total < 500 chars) — game name, gameplay, no commentary, ETGaming274, long form, and 3-4 game-specific tags.
 
 Respond in JSON only:
 {"title":"...","descriptionIntro":"...","tags":["tag1","tag2"]}`;
@@ -250,7 +250,7 @@ function buildClipDescription(
 
   parts.push(
     "\n─────────────────────────────",
-    "ETGaming247 — No Commentary Gaming",
+    "ET Gaming 274 — No Commentary Gaming",
     "Raw gameplay. No facecam. No fake reactions.",
   );
 

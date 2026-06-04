@@ -190,7 +190,7 @@ async function analysePatterns(userId: string, gameName: string): Promise<void> 
     `${i + 1}. "${s.title}" | views:${s.viewCount ?? 0} | dur:${s.durationSec ?? "?"}s | channel:${s.channelName ?? "?"} | isShort:${s.isShort}`
   ).join("\n");
 
-  const prompt = `You are analysing YouTube video data from the ${gameName} no-commentary gaming niche on behalf of ETGaming247 (a PS5 gaming channel). Extract patterns and produce ACTIONABLE insights the creator can implement TODAY.
+  const prompt = `You are analysing YouTube video data from the ${gameName} no-commentary gaming niche on behalf of ET Gaming 274 (a PS5 gaming channel). Extract patterns and produce ACTIONABLE insights the creator can implement TODAY.
 
 TOP ${top30.length} VIDEOS BY VIEW COUNT:
 ${sampleList}
@@ -204,10 +204,10 @@ Respond with a JSON object (no markdown) with this exact shape:
     { "finding": "what duration range wins in this niche", "detail": "specific numbers from data", "priority": "high|medium" }
   ],
   "contentStrategies": [
-    { "strategy": "specific actionable tactic for ETGaming247", "rationale": "why based on data", "priority": "high|medium|low" }
+    { "strategy": "specific actionable tactic for ET Gaming 274", "rationale": "why based on data", "priority": "high|medium|low" }
   ],
   "topOpportunities": [
-    "one sentence opportunity ETGaming247 can act on immediately"
+    "one sentence opportunity ET Gaming 274 can act on immediately"
   ],
   "nicheHealthScore": 0-100,
   "videoBlueprints": [
@@ -244,7 +244,7 @@ Respond with a JSON object (no markdown) with this exact shape:
 Rules:
 - Base EVERY finding on the actual data above, not general advice
 - Title formulas must use [BRACKETS] for variable parts (e.g. [MOMENT] [GAME] No Commentary PS5 #Shorts)
-- titleExample must be a title ETGaming247 could literally use tomorrow
+- titleExample must be a title ET Gaming 274 could literally use tomorrow
 - contentBeats must be specific and sequential — they are a production checklist
 - whyItWorks must cite something from the data (e.g. "3 of the top 5 videos do this")
 - topOpportunities: 3-5 items max, each under 20 words
