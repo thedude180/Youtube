@@ -284,6 +284,12 @@ function AdminSystemHealthTab() {
     refetchInterval: 60000,
   });
 
+  const { data: migrationData } = useQuery<any>({
+    queryKey: ["/api/admin/migration-health"],
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
+  });
+
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"] });
   const { toast } = useToast();
   const [pruneResults, setPruneResults] = useState<any>(null);
@@ -410,6 +416,50 @@ function AdminSystemHealthTab() {
           </CardContent>
         </Card>
       )}
+
+      <Card data-testid="card-migration-health">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Migration Health
+            {migrationData?.allConfirmed !== undefined && (
+              <Badge
+                variant="secondary"
+                className={`text-xs ml-auto no-default-hover-elevate ${migrationData.allConfirmed ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}
+                data-testid="badge-migration-status"
+              >
+                {migrationData.allConfirmed
+                  ? `All ${migrationData.total} confirmed`
+                  : `${migrationData.confirmed}/${migrationData.total} confirmed`}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!migrationData ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : migrationData.message ? (
+            <p className="text-sm text-muted-foreground">{migrationData.message}</p>
+          ) : migrationData.allConfirmed ? (
+            <p className="text-sm text-emerald-400/80">All {migrationData.total} boot migrations confirmed ✓</p>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-xs text-amber-400">{migrationData.missing?.length} migration(s) did not record their completion flag:</p>
+              {migrationData.missing?.map((m: any) => (
+                <div key={m.flag} className="flex items-center gap-2 text-xs text-muted-foreground pl-2" data-testid={`migration-missing-${m.flag}`}>
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                  {m.label}
+                </div>
+              ))}
+            </div>
+          )}
+          {migrationData?.checkedAt && (
+            <p className="text-[10px] text-muted-foreground/50 mt-2">
+              Last checked: {new Date(migrationData.checkedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card data-testid="card-database-health">
         <CardHeader className="pb-2">
@@ -800,11 +850,12 @@ function AdminHourlyCapsTab() {
   const [editingModule, setEditingModule] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [showBulkResetConfirm, setShowBulkResetConfirm] = useState(false);
+  const [resetTargetModule, setResetTargetModule] = useState<string | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<HourlyCapsResponse>({
     queryKey: ["/api/admin/hourly-caps"],
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   const { data: statusData } = useQuery<any>({
@@ -985,6 +1036,37 @@ function AdminHourlyCapsTab() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={resetTargetModule !== null} onOpenChange={(open) => { if (!open) setResetTargetModule(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset {resetTargetModule} to default?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the DB override for{" "}
+              <span className="font-mono text-foreground">{resetTargetModule}</span> and
+              restores the code default
+              {resetTargetModule && data?.caps?.[resetTargetModule]
+                ? ` (${data.caps[resetTargetModule].codeDefault.toLocaleString()} tokens/hr)`
+                : ""}. Takes effect immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-single-reset-cancel" onClick={() => setResetTargetModule(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (resetTargetModule) {
+                  resetMutation.mutate(resetTargetModule);
+                  setResetTargetModule(null);
+                }
+              }}
+              className="bg-red-500 hover:bg-red-600 text-white"
+              data-testid="button-single-reset-confirm"
+            >
+              Reset to Default
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card data-testid="card-hourly-caps">
         <CardContent className="pt-4">
           {entries.length === 0 ? (
@@ -1062,7 +1144,7 @@ function AdminHourlyCapsTab() {
                         )}
                         {!isEditing && hasOverride && (
                           <button
-                            onClick={() => resetMutation.mutate(module)}
+                            onClick={() => setResetTargetModule(module)}
                             disabled={resetMutation.isPending}
                             className="text-muted-foreground hover:text-red-400 transition-colors"
                             title="Reset to code default"
@@ -1088,6 +1170,12 @@ function AdminHourlyCapsTab() {
                             data-testid={`bar-live-usage-${module}`}
                           />
                         </div>
+                      </div>
+                    )}
+                    {/* No live data note */}
+                    {!liveHourly[module] && !isEditing && (
+                      <div className="mt-1.5 text-[9px] text-muted-foreground/45 italic pl-0.5" data-testid={`text-no-live-data-${module}`}>
+                        no activity this hour
                       </div>
                     )}
 

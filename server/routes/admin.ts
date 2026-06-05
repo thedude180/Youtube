@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS, getHourlyCapStatus, resetDailyTokenCounter } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, getHourlyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
@@ -668,6 +668,11 @@ export function registerAdminRoutes(app: Express) {
     if (!userId) return;
     try {
       const result = await upsertSystemSetting(req, res, userId);
+      // Reset hourly hit counter when admin raises a cap override (#249)
+      const patchKey = (req.body as any)?.key;
+      if (typeof patchKey === "string" && patchKey.startsWith("hourly_cap:")) {
+        resetHourlyHitCount(patchKey.replace(/^hourly_cap:/, ""));
+      }
       res.json({ ok: true, ...result });
     } catch (err: any) {
       if (err?.name === "ZodError") {

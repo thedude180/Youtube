@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePageTitle } from "@/hooks/use-page-title";
+import { useTabMemory } from "@/hooks/use-tab-memory";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -428,7 +429,7 @@ function VideoEditor({
   const [endScreenElements, setEndScreenElements] = useState<EndScreenElement[]>(
     studioVideo.metadata?.endScreen?.elements || []
   );
-  const [activeTab, setActiveTab] = useState("metadata");
+  const [activeTab, setActiveTab] = useTabMemory("videostudio-editor", "metadata", ["metadata", "endscreen", "thumbnail"]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -595,7 +596,7 @@ function VideoEditor({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "metadata" | "endscreen" | "thumbnail")}>
             <TabsList className="w-full grid grid-cols-3">
               <TabsTrigger value="metadata" data-testid="tab-metadata">
                 <LayoutGrid className="h-3.5 w-3.5 mr-1.5" /> Metadata

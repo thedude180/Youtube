@@ -246,6 +246,12 @@ function getHitSlot(module: string): HitSlot {
   return fresh;
 }
 
+/** Clears the hit counter for `module` in the current hour (call after admin raises the cap). */
+export function resetHourlyHitCount(module: string): void {
+  const slot = hourlyHitCounts.get(module);
+  if (slot) slot.count = 0;
+}
+
 // Snapshot format stored in system_settings under "hourly_tokens:snapshot"
 interface HourlySnapshot {
   hourKey: number;

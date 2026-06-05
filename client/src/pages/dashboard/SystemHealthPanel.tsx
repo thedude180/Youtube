@@ -75,7 +75,7 @@ interface SystemStatus {
     semaphore: { active: number; max: number };
     queues?: Record<string, number>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
-    hourly?: Record<string, { used: number; limit: number; pct: number }>;
+    hourly?: Record<string, { used: number; limit: number; pct: number; hitsThisHour?: number }>;
     daily?:  Record<string, { usedToday: number; dateKey: string; limit?: number; pct?: number }>;
   };
   memory: {
@@ -207,7 +207,7 @@ function youtubeConnectionTextColor(status: string): string {
 
 interface HourlyCapRowProps {
   engine: string;
-  stat: { used: number; limit: number; pct: number };
+  stat: { used: number; limit: number; pct: number; hitsThisHour?: number };
   isAdmin: boolean;
   editingEngine: string | null;
   engineCapInput: string;
@@ -255,6 +255,18 @@ function HourlyCapRow({
               <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
                 {stat.pct}%
               </span>
+              <span className="text-[9px] text-muted-foreground/55 font-mono" title="Resets at the top of the next hour" data-testid={`text-reset-in-${engine}`}>
+                resets {formatResetIn(nowMs)}
+              </span>
+              {(stat.hitsThisHour ?? 0) > 0 && (
+                <span
+                  className="text-[9px] font-mono px-1 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-500/25"
+                  title={`Blocked by hourly cap ${stat.hitsThisHour} time${stat.hitsThisHour !== 1 ? "s" : ""} this hour`}
+                  data-testid={`badge-hits-${engine}`}
+                >
+                  hit ×{stat.hitsThisHour}
+                </span>
+              )}
             </>
           )}
           {isAdmin && editingEngine !== engine && (
@@ -731,6 +743,8 @@ export default function SystemHealthPanel() {
                           ? "border-red-500/30 bg-red-500/5"
                           : pctDay !== null && pctDay >= 70
                           ? "border-amber-500/25 bg-amber-500/5"
+                          : pctDay !== null && pctDay >= 60
+                          ? "border-amber-500/15 bg-amber-500/3"
                           : "border-border/20 bg-muted/5"
                       }`}
                       data-testid={`daily-usage-${engine}`}
@@ -744,7 +758,7 @@ export default function SystemHealthPanel() {
                           {pctDay !== null && (
                             <span
                               className={`text-[10px] font-mono font-semibold ${
-                                pctDay >= 90 ? "text-red-400" : pctDay >= 70 ? "text-amber-400" : "text-blue-400"
+                                pctDay >= 90 ? "text-red-400" : pctDay >= 70 ? "text-amber-400" : pctDay >= 60 ? "text-amber-300" : "text-blue-400"
                               }`}
                               title={`Daily cap: ${stat.limit?.toLocaleString()} tokens`}
                               data-testid={`text-daily-pct-${engine}`}
@@ -775,7 +789,7 @@ export default function SystemHealthPanel() {
                         <div className="mt-1 h-1 rounded-full bg-muted/30 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${
-                              pctDay >= 90 ? "bg-red-500" : pctDay >= 70 ? "bg-amber-500" : "bg-blue-500"
+                              pctDay >= 90 ? "bg-red-500" : pctDay >= 70 ? "bg-amber-500" : pctDay >= 60 ? "bg-amber-400" : "bg-blue-500"
                             }`}
                             style={{ width: `${Math.min(pctDay, 100)}%` }}
                             data-testid={`bar-daily-${engine}`}
