@@ -9870,6 +9870,7 @@ export const capabilityGaps = pgTable("capability_gaps", {
   index("cg_user_idx").on(t.userId),
   index("cg_status_idx").on(t.status),
   index("cg_domain_idx").on(t.domain),
+  uniqueIndex("cg_user_title_uniq").on(t.userId, t.title),
 ]);
 
 export const insertCapabilityGapSchema = createInsertSchema(capabilityGaps).omit({ id: true, createdAt: true, filledAt: true, lastAttemptAt: true });

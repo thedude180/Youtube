@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "cg_user_title_uniq" ON "capability_gaps" USING btree ("user_id","title");

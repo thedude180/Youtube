@@ -138,7 +138,7 @@ async function expandCapabilitiesForUser(userId: string): Promise<void> {
         priority: g.priority,
         identifiedBy: "autonomous-capability-engine",
       }))
-    );
+    ).onConflictDoNothing();
     logger.info(`Logged ${newGaps.length} new gap(s) for user ${userId.slice(0, 8)}`);
   }
 

@@ -294,6 +294,36 @@ async function migration004PurgeDemoReviewer(): Promise<void> {
   }
 }
 
+// ── Migration 005: deduplicate capability_gaps ────────────────────────────────
+
+async function migration005DeduplicateCapabilityGaps(): Promise<void> {
+  const FLAG = "migration:005:capability_gaps_deduped";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // For each (user_id, title) pair keep only the row with the best
+    // lastAttemptAt (most recent non-null, or else most recent createdAt).
+    // All other duplicate rows are deleted.
+    const result = await db.execute(sql`
+      DELETE FROM capability_gaps
+      WHERE id NOT IN (
+        SELECT DISTINCT ON (user_id, title) id
+        FROM capability_gaps
+        ORDER BY
+          user_id,
+          title,
+          last_attempt_at DESC NULLS LAST,
+          created_at DESC NULLS LAST
+      )
+    `);
+    const deleted = (result as any)?.rowCount ?? 0;
+    log.info(`[Migration 005] Deduped capability_gaps — deleted ${deleted} duplicate row(s)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 005] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -302,6 +332,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration002Bf6QueueReorder();
     await migration003FixFakeGameNames();
     await migration004PurgeDemoReviewer();
+    await migration005DeduplicateCapabilityGaps();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }
