@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   Activity, Shield, Cpu, Zap, HardDrive, Wrench,
   CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw,
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Wifi, WifiOff, Users,
+  Gauge,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ interface SystemStatus {
     semaphore: { active: number; max: number };
     queues?: Record<string, number>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
+    hourly?: Record<string, { used: number; limit: number; pct: number }>;
   };
   memory: {
     usedMB: number;
@@ -144,6 +146,26 @@ function formatIntervalMs(ms: number): string {
   return `${Math.round(ms / 1000)}s`;
 }
 
+function hourlyBarColor(pct: number): string {
+  if (pct >= 90) return "bg-red-500";
+  if (pct >= 70) return "bg-amber-500";
+  return "bg-blue-500";
+}
+
+function hourlyPctColor(pct: number): string {
+  if (pct >= 90) return "text-red-400";
+  if (pct >= 70) return "text-amber-400";
+  return "text-blue-400";
+}
+
+function formatResetIn(nowMs: number): string {
+  const msIntoHour = nowMs % (60 * 60 * 1000);
+  const msLeft = 60 * 60 * 1000 - msIntoHour;
+  const m = Math.floor(msLeft / 60_000);
+  const s = Math.floor((msLeft % 60_000) / 1000);
+  return `${m}m ${s}s`;
+}
+
 function youtubeConnectionColor(status: string): string {
   switch (status) {
     case "connected":    return "border-emerald-500/30 bg-emerald-500/5";
@@ -181,6 +203,12 @@ export default function SystemHealthPanel() {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [workersExpanded, setWorkersExpanded] = useState(false);
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const { data, isLoading, error, dataUpdatedAt } = useQuery<SystemStatus>({
     queryKey: ["/api/system/status"],
@@ -236,6 +264,9 @@ export default function SystemHealthPanel() {
   }
 
   const { startup, youtube, ai, memory, killSwitches, selfHealing, workers } = data;
+  const hourlyEntries = Object.entries(ai?.hourly ?? {})
+    .filter(([, v]) => v.pct > 0)
+    .sort((a, b) => b[1].pct - a[1].pct);
   const activeStages    = startup.stages ?? [];
   const okCount         = activeStages.filter(s => s.status === "ok").length;
   const failCount       = activeStages.filter(s => s.status === "failed").length;
@@ -339,6 +370,49 @@ export default function SystemHealthPanel() {
               {youtube.quotaResetTime && (
                 <span className="text-[10px] text-red-400/70 ml-2">Resets {youtube.quotaResetTime}</span>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Hourly Token Caps ────────────────────────────────────────────── */}
+        {hourlyEntries.length > 0 && (
+          <div data-testid="section-hourly-caps">
+            <SectionHeader
+              icon={<Gauge className="h-3.5 w-3.5" />}
+              title="Hourly Token Usage"
+              badge={
+                <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
+                  resets in {formatResetIn(nowMs)}
+                </Badge>
+              }
+            />
+            <div className="space-y-1.5">
+              {hourlyEntries.map(([engine, stat]) => (
+                <div
+                  key={engine}
+                  className="rounded-md border border-border/20 bg-muted/5 px-2.5 py-2"
+                  data-testid={`hourly-cap-${engine}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
+                      </span>
+                      <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
+                        {stat.pct}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
+                      style={{ width: `${Math.min(stat.pct, 100)}%` }}
+                      data-testid={`bar-hourly-${engine}`}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
