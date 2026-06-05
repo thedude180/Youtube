@@ -23,6 +23,13 @@
  * "hourly_tokens:snapshot".  On boot, restore from that snapshot if its
  * hourKey matches the current hour.  Flush every 60 s (and after every
  * recordHourlyTokenUsage call via a dirty-flag debounce).
+ *
+ * Fix #3 — Hourly Caps Are Hardcoded (Require Code Deploy to Change)
+ *
+ * SOLUTION: A generic DB-backed cap helper reads any module's cap from
+ * system_settings under key "hourly_cap:<module-name>".  The result is
+ * cached for the current hour.  HOURLY_CAPS remains as a compile-time
+ * fallback for any module that has no DB entry.
  */
 import { createLogger } from "./logger";
 import { db } from "../db";
@@ -31,7 +38,7 @@ import { eq } from "drizzle-orm";
 
 const log = createLogger("token-hourly-cap");
 
-// ─── Per-module hourly caps ───────────────────────────────────────────────────
+// ─── Per-module hourly caps (compile-time fallbacks) ──────────────────────────
 export const HOURLY_CAPS: Record<string, number> = {
   "content-grinder":        50_000,  // daily 500k ÷ 24h × 2.4 buffer
   "shorts-pipeline":        12_000,  // daily 150k ÷ 24h × 1.9 buffer
@@ -52,36 +59,67 @@ export const HOURLY_CAPS: Record<string, number> = {
   "default":                 5_000,  // fallback for unlisted modules
 };
 
-// ─── Viral-optimizer cap: DB-backed, cached per hour ─────────────────────────
-const VIRAL_OPTIMIZER_DEFAULT_CAP = 8_000;
-let _viralOptimizerCap    = VIRAL_OPTIMIZER_DEFAULT_CAP;
-let _viralOptimizerHourKey = -1;
-let _viralOptimizerLoading = false;
+// ─── Generic DB-backed cap cache ──────────────────────────────────────────────
+// Key: module name  →  { hourKey, cap }
+// cap === -1 means "no DB entry found this hour; use HOURLY_CAPS fallback"
+interface DbCapEntry {
+  hourKey: number;
+  cap:     number;
+}
 
-function refreshViralOptimizerCapIfStale(currentHour: number): void {
-  if (_viralOptimizerHourKey === currentHour || _viralOptimizerLoading) return;
-  _viralOptimizerLoading = true;
+const _dbCapCache  = new Map<string, DbCapEntry>();
+const _dbCapLoading = new Set<string>();
+
+/**
+ * Fire-and-forget: refresh a module's cap from system_settings if the cached
+ * entry belongs to a previous hour.  The DB key is "hourly_cap:<module>".
+ * While the async fetch is in-flight the cached (or fallback) value is used.
+ */
+function refreshModuleCapIfStale(module: string, currentHour: number): void {
+  const cached = _dbCapCache.get(module);
+  if (cached?.hourKey === currentHour) return; // already fresh for this hour
+  if (_dbCapLoading.has(module)) return;        // fetch already in-flight
+
+  _dbCapLoading.add(module);
 
   db.select({ value: systemSettings.value })
     .from(systemSettings)
-    .where(eq(systemSettings.key, "viral_optimizer_hourly_tokens"))
+    .where(eq(systemSettings.key, `hourly_cap:${module}`))
     .limit(1)
     .then((rows) => {
       const raw    = rows[0]?.value;
       const parsed = parseInt(raw ?? "", 10);
       if (!isNaN(parsed) && parsed > 0) {
-        _viralOptimizerCap = parsed;
-        log.debug(`[HourlyCap] viral-optimizer cap refreshed from DB: ${parsed}`);
+        _dbCapCache.set(module, { hourKey: currentHour, cap: parsed });
+        log.debug(`[HourlyCap] ${module} cap refreshed from DB: ${parsed}`);
+      } else {
+        // No DB entry — record as checked so we stop querying until next hour
+        _dbCapCache.set(module, { hourKey: currentHour, cap: -1 });
       }
-      _viralOptimizerHourKey = currentHour;
     })
     .catch((err: any) => {
-      log.warn(`[HourlyCap] Could not refresh viral_optimizer_hourly_tokens: ${err?.message}`);
-      _viralOptimizerHourKey = currentHour;
+      log.warn(`[HourlyCap] Could not refresh hourly_cap:${module}: ${err?.message}`);
+      // Mark checked for this hour to avoid per-call DB storms on transient errors
+      if (!_dbCapCache.get(module) || _dbCapCache.get(module)!.hourKey !== currentHour) {
+        _dbCapCache.set(module, { hourKey: currentHour, cap: -1 });
+      }
     })
     .finally(() => {
-      _viralOptimizerLoading = false;
+      _dbCapLoading.delete(module);
     });
+}
+
+/**
+ * Return the effective hourly cap for a module.
+ * Checks DB cache first; falls back to HOURLY_CAPS compile-time constant.
+ */
+function getModuleCap(module: string, currentHour: number): number {
+  refreshModuleCapIfStale(module, currentHour);
+  const cached = _dbCapCache.get(module);
+  if (cached && cached.hourKey === currentHour && cached.cap > 0) {
+    return cached.cap;
+  }
+  return HOURLY_CAPS[module] ?? HOURLY_CAPS["default"];
 }
 
 // ─── In-memory hourly tracking ────────────────────────────────────────────────
@@ -216,18 +254,18 @@ export interface TokenCapResult {
 /**
  * Check if a module can make an AI call without exceeding its hourly cap.
  * Call BEFORE every AI call in a module.
+ *
+ * Cap resolution order:
+ *   1. system_settings key "hourly_cap:<module>"  (DB-backed, cached per hour)
+ *   2. HOURLY_CAPS compile-time record             (code fallback)
+ *   3. HOURLY_CAPS["default"]                      (catch-all)
  */
 export function checkHourlyTokenBudget(
   module: string,
   estimatedTokens: number = 1000,
 ): TokenCapResult {
   const currentHour = getCurrentHourKey();
-  if (module === "viral-optimizer") {
-    refreshViralOptimizerCapIfStale(currentHour);
-  }
-  const cap  = module === "viral-optimizer"
-    ? _viralOptimizerCap
-    : (HOURLY_CAPS[module] ?? HOURLY_CAPS["default"]);
+  const cap  = getModuleCap(module, currentHour);
   const slot = getSlot(module);
   const after = slot.usedTokens + estimatedTokens;
 
@@ -267,12 +305,20 @@ export function recordHourlyTokenUsage(module: string, tokensUsed: number): void
 
 /**
  * Snapshot of all module hourly usage for diagnostics.
+ * Includes every module in HOURLY_CAPS plus any active module tracked in memory.
  */
 export function getHourlyCapStatus(): Record<string, { used: number; limit: number; pct: number }> {
   const result: Record<string, { used: number; limit: number; pct: number }> = {};
   const currentHour = getCurrentHourKey();
-  for (const [module, staticCap] of Object.entries(HOURLY_CAPS)) {
-    const cap  = module === "viral-optimizer" ? _viralOptimizerCap : staticCap;
+
+  // Collect all known modules: static caps + anything currently tracked in memory
+  const modules = new Set([
+    ...Object.keys(HOURLY_CAPS),
+    ...Array.from(hourlyUsage.keys()),
+  ]);
+
+  for (const module of modules) {
+    const cap  = getModuleCap(module, currentHour);
     const slot = hourlyUsage.get(module);
     const used = (slot && slot.hourKey === currentHour) ? slot.usedTokens : 0;
     result[module] = { used, limit: cap, pct: Math.round((used / cap) * 100) };

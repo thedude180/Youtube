@@ -353,6 +353,46 @@ async function migration006SeedViralOptimizerCap(): Promise<void> {
   }
 }
 
+// ── Migration 007: seed hourly_cap:<module> defaults for high-volume modules ──
+// Seeds system_settings keys using the new "hourly_cap:<module>" pattern for
+// the three highest-volume modules (content-grinder, shorts-pipeline,
+// thumbnail-intelligence) and the viral-optimizer (previously seeded under a
+// legacy key).  All values match the HOURLY_CAPS compile-time constants so
+// operators can tune them via system_settings without a code deploy.
+
+async function migration007SeedModuleHourlyCaps(): Promise<void> {
+  const FLAG = "migration:007:module_hourly_caps_seeded";
+  if (await getFlag(FLAG)) return;
+
+  const defaults: Array<{ key: string; value: string; label: string }> = [
+    { key: "hourly_cap:content-grinder",        value: "50000", label: "content-grinder" },
+    { key: "hourly_cap:shorts-pipeline",         value: "12000", label: "shorts-pipeline" },
+    { key: "hourly_cap:thumbnail-intelligence",  value: "6000",  label: "thumbnail-intelligence" },
+    { key: "hourly_cap:viral-optimizer",         value: "8000",  label: "viral-optimizer" },
+  ];
+
+  try {
+    for (const { key, value, label } of defaults) {
+      const [existing] = await db
+        .select({ value: systemSettings.value })
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+
+      if (!existing) {
+        await setFlag(key, value);
+        log.info(`[Migration 007] Seeded ${key} = ${value}`);
+      } else {
+        log.info(`[Migration 007] ${label} cap already set to "${existing.value}" — skipping`);
+      }
+    }
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 007] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -363,6 +403,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration004PurgeDemoReviewer();
     await migration005DeduplicateCapabilityGaps();
     await migration006SeedViralOptimizerCap();
+    await migration007SeedModuleHourlyCaps();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }
