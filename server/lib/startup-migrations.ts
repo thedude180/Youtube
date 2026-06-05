@@ -583,6 +583,81 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
   }
 }
 
+// ── Migration 011: full purge of google_api_demo_reviewer ────────────────────
+// Migration 004 set its flag and won't re-run, but the account regrew or had
+// rows in tables added after 004 ran.  This migration queries information_schema
+// to find every table in the public schema that has a user_id column and deletes
+// ALL rows bound to this phantom user, then deletes the users row itself.
+
+async function migration011PurgeDemoReviewerFull(): Promise<void> {
+  const FLAG = "migration:011:purge_demo_reviewer_full";
+  if (await getFlag(FLAG)) return;
+
+  const DEMO_ID = "google_api_demo_reviewer";
+
+  try {
+    log.info("[Migration 011] Full purge of google_api_demo_reviewer starting");
+
+    // 1) Find every table in the public schema that has a user_id column
+    const tablesResult = await db.execute<{ table_name: string }>(sql`
+      SELECT DISTINCT table_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND column_name  = 'user_id'
+      ORDER BY table_name
+    `);
+
+    let total = 0;
+    for (const row of tablesResult.rows) {
+      const t = row.table_name;
+      try {
+        const r = await db.execute(
+          sql.raw(`DELETE FROM "${t}" WHERE user_id = '${DEMO_ID}'`),
+        );
+        const n = (r as any)?.rowCount ?? 0;
+        if (n > 0) {
+          log.info(`[Migration 011]  → deleted ${n} row(s) from ${t}`);
+          total += n;
+        }
+      } catch {
+        // Table may have FK constraints or no matching rows — skip silently
+      }
+    }
+
+    // 2) Delete users row (keyed on id, not user_id)
+    try {
+      const r = await db.execute(
+        sql.raw(`DELETE FROM users WHERE id = '${DEMO_ID}'`),
+      );
+      const n = (r as any)?.rowCount ?? 0;
+      if (n > 0) {
+        log.info(`[Migration 011]  → deleted ${n} row(s) from users`);
+        total += n;
+      }
+    } catch { /* users may not exist */ }
+
+    // 3) Delete any channels whose youtube_channel_id is the demo placeholder
+    try {
+      const r = await db.execute(sql`
+        DELETE FROM channels
+        WHERE channel_id ILIKE 'UCdemo%'
+           OR channel_id ILIKE 'UCtest%'
+           OR channel_id = 'UC_test123'
+      `);
+      const n = (r as any)?.rowCount ?? 0;
+      if (n > 0) {
+        log.info(`[Migration 011]  → deleted ${n} placeholder channel row(s)`);
+        total += n;
+      }
+    } catch { /* non-fatal */ }
+
+    log.info(`[Migration 011] Complete — ${total} total rows purged`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 011] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -599,6 +674,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:008:all_engine_hourly_caps_seeded",    label: "008 — seed all engine hourly caps" },
   { flag: "migration:009:schema_history_fixes",             label: "009 — schema history fixes (autopilot_queue, channels, dlq, security_ip_allowlist)" },
   { flag: "migration:010:purge_bad_video_ids",              label: "010 — purge permanently-dead video IDs from all queue tables" },
+  { flag: "migration:011:purge_demo_reviewer_full",         label: "011 — full purge of google_api_demo_reviewer across all tables" },
 ];
 
 export interface MigrationHealth {
@@ -662,6 +738,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration008SeedAllEngineHourlyCaps();
     await migration009SchemaHistoryFixes();
     await migration010PurgeBadVideoIds();
+    await migration011PurgeDemoReviewerFull();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
