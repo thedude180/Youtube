@@ -38,6 +38,8 @@ import {
   getWindowRankings,
   refreshStaleVideoMetrics,
 } from "./youtube-performance-learner";
+import { refreshSuccessDNA } from "../lib/success-dna";
+import { recordEngineKnowledge } from "./knowledge-mesh";
 
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
@@ -230,6 +232,41 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
     };
 
     logger.info(`[Brain] Daily cycle complete for ${userId.slice(0, 8)}: ${insights.length} insights, best=${bestBucket}`);
+
+    // 9. Compound the feedback loop — extract winning patterns from real metrics
+    //    and write them into masterKnowledgeBank so every AI generator gets smarter.
+    try {
+      await refreshSuccessDNA(userId);
+    } catch (dnaErr: any) {
+      logger.warn(`[Brain] refreshSuccessDNA failed (non-fatal): ${dnaErr.message?.slice(0, 120)}`);
+    }
+
+    // 10. Write key findings to engineKnowledge so cross-pollination picks them up
+    if (buckets.length >= 2) {
+      const bestLong = longFormBuckets[0];
+      if (bestLong) {
+        await recordEngineKnowledge(
+          "learning-brain", userId,
+          "performance", `best_duration_bucket`,
+          `${bestLong.bucket} long-form videos score ${bestLong.avgScore.toFixed(1)} avg — the top-performing duration on this channel`,
+          `${bestLong.sampleCount} videos measured`,
+          Math.min(90, 50 + bestLong.sampleCount * 5),
+        ).catch(() => {});
+      }
+    }
+    if (windows.length >= 1) {
+      const bestWin = windows[0];
+      if (bestWin) {
+        await recordEngineKnowledge(
+          "learning-brain", userId,
+          "performance", `best_posting_window`,
+          `Posting in the ${bestWin.window} window achieves the highest performance score (${bestWin.avgScore.toFixed(1)})`,
+          `${bestWin.sampleCount} videos measured`,
+          Math.min(88, 50 + bestWin.sampleCount * 5),
+        ).catch(() => {});
+      }
+    }
+
     return report;
   } catch (err: any) {
     logger.warn(`[Brain] Daily cycle failed for ${userId.slice(0, 8)}: ${err.message?.slice(0, 200)}`);

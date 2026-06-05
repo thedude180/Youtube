@@ -10489,3 +10489,26 @@ export type GrowthExperiment = typeof growthExperiments.$inferSelect;
 export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ createdAt: true });
 export type InsertGrowthExperiment = typeof insertGrowthExperimentSchema._type;
 
+// ── Channel Success DNA ───────────────────────────────────────────────────────
+// Stores structured winning patterns extracted from real YouTube performance data.
+// confidenceScore compounds over time: each confirming video increases it (Bayesian).
+// patternType: "game_focus" | "duration_bucket" | "posting_window" |
+//              "content_type" | "thumbnail_style" | "hook_retention"
+export const channelSuccessDna = pgTable("channel_success_dna", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  patternType: text("pattern_type").notNull(),
+  pattern: text("pattern").notNull(),
+  confidenceScore: real("confidence_score").notNull().default(0.5),
+  sampleCount: integer("sample_count").notNull().default(0),
+  winCount: integer("win_count").notNull().default(0),
+  avgPerformanceScore: real("avg_performance_score").notNull().default(0),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("csd_user_pattern_uniq").on(t.userId, t.patternType, t.pattern),
+  index("csd_user_type_idx").on(t.userId, t.patternType),
+  index("csd_confidence_idx").on(t.confidenceScore),
+]);
+export type ChannelSuccessDna = typeof channelSuccessDna.$inferSelect;
+

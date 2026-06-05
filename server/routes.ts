@@ -652,6 +652,41 @@ export async function registerRoutes(
     }
   });
 
+  // ── Success DNA ──────────────────────────────────────────────────────────────
+  app.get("/api/youtube/success-dna", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getSuccessDNA } = await import("./lib/success-dna");
+      const { youtubeOutputMetrics } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq, sql: sqlOp } = await import("drizzle-orm");
+      const dna = await getSuccessDNA(userId);
+      const [{ total }] = await db
+        .select({ total: sqlOp<number>`count(*)::int` })
+        .from(youtubeOutputMetrics)
+        .where(eq(youtubeOutputMetrics.userId, userId));
+      const lastEntry = dna[0]?.lastUpdatedAt ?? null;
+      res.json({ dna, totalVideos: total ?? 0, lastRefreshed: lastEntry });
+    } catch (err: any) {
+      logger.error(`[SuccessDNA] GET error: ${err.message}`);
+      res.status(500).json({ error: "Failed to get success DNA" });
+    }
+  });
+
+  app.post("/api/youtube/success-dna/refresh", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { refreshSuccessDNA } = await import("./lib/success-dna");
+      await refreshSuccessDNA(userId);
+      res.json({ ok: true });
+    } catch (err: any) {
+      logger.error(`[SuccessDNA] Refresh error: ${err.message}`);
+      res.status(500).json({ error: "Failed to refresh success DNA" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.
