@@ -950,6 +950,8 @@ function AdminHourlyCapsTab() {
 
       <p className="text-xs text-muted-foreground -mt-2">
         Each row shows the compile-time code default and the active DB override (if any).
+        The <span className="text-emerald-400 font-medium">live usage bar</span> shows
+        tokens consumed this hour versus the enforced cap — updated every 30 s.
         Changes take effect at the start of the next hour. The{" "}
         <span className="text-sky-400 font-medium">cap column</span> is what the engine
         actually enforces right now.
@@ -995,12 +997,12 @@ function AdminHourlyCapsTab() {
                             className={`text-[11px] font-mono font-semibold ${
                               liveHourly[module].pct >= 90 ? "text-red-400"
                               : liveHourly[module].pct >= 70 ? "text-amber-400"
-                              : "text-blue-400"
+                              : "text-emerald-400"
                             }`}
                             title={`Live: ${liveHourly[module].used.toLocaleString()} / ${liveHourly[module].limit.toLocaleString()} tokens used this hour`}
                             data-testid={`text-live-usage-${module}`}
                           >
-                            {liveHourly[module].pct}% now
+                            {liveHourly[module].used.toLocaleString()} / {liveHourly[module].limit.toLocaleString()} ({liveHourly[module].pct}%)
                           </span>
                         )}
                         <span className="text-[11px] text-muted-foreground font-mono" data-testid={`text-code-default-${module}`}>
@@ -1034,6 +1036,23 @@ function AdminHourlyCapsTab() {
                         )}
                       </div>
                     </div>
+
+                    {/* Live usage progress bar */}
+                    {liveHourly[module] && !isEditing && (
+                      <div className="mt-2" data-testid={`usage-bar-container-${module}`}>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              liveHourly[module].pct >= 90 ? "bg-red-500"
+                              : liveHourly[module].pct >= 70 ? "bg-amber-400"
+                              : "bg-emerald-400"
+                            }`}
+                            style={{ width: `${Math.min(100, liveHourly[module].pct)}%` }}
+                            data-testid={`bar-live-usage-${module}`}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Inline editor */}
                     {isEditing && (
