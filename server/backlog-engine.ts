@@ -2,7 +2,7 @@ import { storage } from "./storage";
 import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectContentContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
 import { tokenBudget } from "./lib/ai-attack-shield";
-import { checkHourlyTokenBudget, recordHourlyTokenUsage } from "./lib/token-hourly-cap";
+import { checkTokenBudgets, recordHourlyTokenUsage } from "./lib/token-hourly-cap";
 import { CommandCenter } from "./lib/command-center";
 
 // ── Viral-optimization concurrency semaphore ─────────────────────────────────
@@ -211,9 +211,9 @@ async function processBacklogAsync(
     return;
   }
   {
-    const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
-    if (!hourly.allowed) {
-      logger.warn(`[BacklogEngine] viral-optimizer hourly cap reached (${hourly.usedThisHour}/${hourly.hourlyLimit} tokens) — pausing ${videos.length}-video batch until next hour`);
+    const cap = checkTokenBudgets("viral-optimizer", 3000);
+    if (!cap.allowed) {
+      logger.warn(`[BacklogEngine] viral-optimizer cap reached (${cap.reason}) — pausing ${videos.length}-video batch`);
       if (session) {
         session.state = "idle";
         session.currentVideoId = null;
@@ -241,12 +241,12 @@ async function processBacklogAsync(
       if (!resumedSession || resumedSession.state === "paused") break;
     }
 
-    // Per-video hourly cap check — stops the batch gracefully when this hour's
-    // budget is exhausted rather than running until the daily cap is hit.
+    // Per-video combined cap check — stops the batch when hourly OR daily budget
+    // is exhausted rather than continuing until the next gate fires.
     {
-      const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
-      if (!hourly.allowed) {
-        logger.warn(`[BacklogEngine] viral-optimizer hourly cap reached mid-batch — stopping at ${completed}/${videos.length}, will resume next hour`);
+      const cap = checkTokenBudgets("viral-optimizer", 3000);
+      if (!cap.allowed) {
+        logger.warn(`[BacklogEngine] viral-optimizer cap reached mid-batch (${cap.reason}) — stopping at ${completed}/${videos.length}`);
         break;
       }
     }
@@ -887,9 +887,9 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
     return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Daily viral-optimizer budget exhausted" };
   }
-  const hourlyCheck = checkHourlyTokenBudget("viral-optimizer", 3000);
-  if (!hourlyCheck.allowed) {
-    return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: `Hourly viral-optimizer cap reached (${hourlyCheck.usedThisHour}/${hourlyCheck.hourlyLimit} tokens used this hour) — will resume next hour` };
+  const capCheck = checkTokenBudgets("viral-optimizer", 3000);
+  if (!capCheck.allowed) {
+    return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: capCheck.reason ?? `viral-optimizer token cap reached` };
   }
 
   const video = await storage.getVideo(videoId);
@@ -948,14 +948,14 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   }
 
   await _acquireViralOpt();
-  // Re-check hourly cap after semaphore acquire — concurrent callers may have
+  // Re-check combined cap after semaphore acquire — concurrent callers may have
   // all passed the pre-check before any usage was recorded.  Release immediately
-  // if the cap was hit while we were waiting in the semaphore queue.
+  // if hourly or daily cap was hit while we were waiting in the semaphore queue.
   {
-    const postAcquireHourly = checkHourlyTokenBudget("viral-optimizer", 3000);
-    if (!postAcquireHourly.allowed) {
+    const postAcquireCap = checkTokenBudgets("viral-optimizer", 3000);
+    if (!postAcquireCap.allowed) {
       _releaseViralOpt();
-      return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: `Hourly viral-optimizer cap reached post-acquire (${postAcquireHourly.usedThisHour}/${postAcquireHourly.hourlyLimit} tokens used this hour) — will resume next hour` };
+      return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: postAcquireCap.reason ?? `viral-optimizer token cap reached post-acquire` };
     }
   }
   let suggestions: any;
@@ -1155,9 +1155,9 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
     return;
   }
   {
-    const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
-    if (!hourly.allowed) {
-      logger.warn(`[BackCatalog] viral-optimizer hourly cap reached (${hourly.usedThisHour}/${hourly.hourlyLimit} tokens) — pausing ${videoList.length}-video batch until next hour`);
+    const cap = checkTokenBudgets("viral-optimizer", 3000);
+    if (!cap.allowed) {
+      logger.warn(`[BackCatalog] viral-optimizer cap reached (${cap.reason}) — pausing ${videoList.length}-video batch`);
       const session = sessions.get(userId);
       if (session) session.state = "idle";
       return;
@@ -1165,16 +1165,16 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
   }
 
   for (const video of videoList) {
-    // Per-iteration budget checks — breaks immediately when daily OR hourly budget
-    // is depleted mid-batch so we don't burn 2s delays + DB writes for remaining videos.
+    // Per-iteration combined cap check — breaks immediately when daily OR hourly
+    // budget is depleted mid-batch so we don't burn delays for remaining videos.
     if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
       logger.warn(`[BackCatalog] viral-optimizer daily budget depleted mid-batch — stopping at ${completed}/${videoList.length}`);
       break;
     }
     {
-      const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
-      if (!hourly.allowed) {
-        logger.warn(`[BackCatalog] viral-optimizer hourly cap reached mid-batch — stopping at ${completed}/${videoList.length}, will resume next hour`);
+      const cap = checkTokenBudgets("viral-optimizer", 3000);
+      if (!cap.allowed) {
+        logger.warn(`[BackCatalog] viral-optimizer cap reached mid-batch (${cap.reason}) — stopping at ${completed}/${videoList.length}`);
         break;
       }
     }

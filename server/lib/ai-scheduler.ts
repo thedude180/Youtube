@@ -27,7 +27,7 @@ import {
   getAiSemaphore,
 } from "./ai-semaphore";
 import {
-  checkHourlyTokenBudget,
+  checkTokenBudgets,
   recordHourlyTokenUsage,
   getHourlyCapStatus,
 } from "./token-hourly-cap";
@@ -86,12 +86,12 @@ export const AIScheduler = {
     const isBackground = task.priority >= 5;
     const estimatedTokens = task.estimatedTokens ?? 1000;
 
-    // Gate 1: hourly token budget
-    const budgetCheck = checkHourlyTokenBudget(task.module, estimatedTokens);
+    // Gate 1: hourly + daily token budget
+    const budgetCheck = checkTokenBudgets(task.module, estimatedTokens);
     if (!budgetCheck.allowed) {
       return {
         queued: false,
-        reason: `hourly token cap reached for module ${task.module} (${budgetCheck.usedThisHour}/${budgetCheck.hourlyLimit})`,
+        reason: budgetCheck.reason ?? `token cap reached for module ${task.module} (${budgetCheck.usedThisHour}/${budgetCheck.hourlyLimit} this hour)`,
         retryAfterMs: 60 * 60_000,
       };
     }
@@ -172,10 +172,10 @@ export const AIScheduler = {
   ): Promise<T> {
     const isBackground = tier === "background";
 
-    const budgetCheck = checkHourlyTokenBudget(module, estimatedTokens);
+    const budgetCheck = checkTokenBudgets(module, estimatedTokens);
     if (!budgetCheck.allowed) {
       throw new Error(
-        `[AIScheduler] hourly cap reached for ${module} (${budgetCheck.usedThisHour}/${budgetCheck.hourlyLimit})`,
+        `[AIScheduler] ${budgetCheck.reason ?? `token cap reached for ${module} (${budgetCheck.usedThisHour}/${budgetCheck.hourlyLimit} this hour)`}`,
       );
     }
 
@@ -215,7 +215,7 @@ export const AIScheduler = {
   canRunBackground(module: string, estimatedTokens = 1000): boolean {
     if (_backgroundActive >= BACKGROUND_CONCURRENCY_CAP) return false;
     if (!isMemoryOk(true)) return false;
-    return checkHourlyTokenBudget(module, estimatedTokens).allowed;
+    return checkTokenBudgets(module, estimatedTokens).allowed;
   },
 };
 
