@@ -76,7 +76,7 @@ interface SystemStatus {
     queues?: Record<string, number>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
     hourly?: Record<string, { used: number; limit: number; pct: number }>;
-    daily?:  Record<string, { usedToday: number; dateKey: string; dailyCap?: number }>;
+    daily?:  Record<string, { usedToday: number; dateKey: string; limit?: number; pct?: number }>;
   };
   memory: {
     usedMB: number;
@@ -160,12 +160,14 @@ function formatIntervalMs(ms: number): string {
 function hourlyBarColor(pct: number): string {
   if (pct >= 90) return "bg-red-500";
   if (pct >= 70) return "bg-amber-500";
+  if (pct >= 60) return "bg-amber-400/70";
   return "bg-blue-500";
 }
 
 function hourlyPctColor(pct: number): string {
   if (pct >= 90) return "text-red-400";
   if (pct >= 70) return "text-amber-400";
+  if (pct >= 60) return "text-amber-300/80";
   return "text-blue-400";
 }
 
@@ -502,6 +504,8 @@ export default function SystemHealthPanel() {
                         ? "border-red-500/40 bg-red-500/8"
                         : stat.pct >= 70
                         ? "border-amber-500/35 bg-amber-500/6"
+                        : stat.pct >= 60
+                        ? "border-amber-500/20 bg-amber-500/4"
                         : "border-border/20 bg-muted/5"
                     }`}
                     data-testid={`hourly-cap-${engine}`}
@@ -635,8 +639,10 @@ export default function SystemHealthPanel() {
               </div>
               <div className="space-y-1.5">
                 {dailyEntries.map(([engine, stat]) => {
-                  const pctDay = stat.dailyCap && stat.dailyCap > 0
-                    ? Math.round((stat.usedToday / stat.dailyCap) * 100)
+                  const pctDay = stat.pct !== undefined
+                    ? stat.pct
+                    : stat.limit && stat.limit > 0
+                    ? Math.round((stat.usedToday / stat.limit) * 100)
                     : null;
                   return (
                     <div
@@ -661,7 +667,7 @@ export default function SystemHealthPanel() {
                               className={`text-[10px] font-mono font-semibold ${
                                 pctDay >= 90 ? "text-red-400" : pctDay >= 70 ? "text-amber-400" : "text-blue-400"
                               }`}
-                              title={`Daily cap: ${stat.dailyCap?.toLocaleString()} tokens`}
+                              title={`Daily cap: ${stat.limit?.toLocaleString()} tokens`}
                               data-testid={`text-daily-pct-${engine}`}
                             >
                               {pctDay}%
@@ -686,7 +692,7 @@ export default function SystemHealthPanel() {
                           )}
                         </div>
                       </div>
-                      {pctDay !== null && stat.dailyCap && (
+                      {pctDay !== null && stat.limit && (
                         <div className="mt-1 h-1 rounded-full bg-muted/30 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${

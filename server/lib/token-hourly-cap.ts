@@ -715,25 +715,6 @@ export function getHourlyCapStatus(): Record<string, { used: number; limit: numb
 }
 
 /**
-<<<<<<< HEAD
- * Snapshot of all module daily (calendar-day) token totals for diagnostics.
- * Returns every module currently tracked in the daily accumulator.
- * Includes dailyCap so callers can compute usage%.
- * Resets automatically at UTC midnight when a new dateKey is generated.
- */
-export function getDailyCapStatus(): Record<string, { usedToday: number; dateKey: string; dailyCap: number }> {
-  const result: Record<string, { usedToday: number; dateKey: string; dailyCap: number }> = {};
-  const currentDate = getCurrentDateKey();
-
-  for (const [module, slot] of dailyUsage) {
-    if (slot.dateKey === currentDate) {
-      result[module] = {
-        usedToday: slot.usedTokens,
-        dateKey:   currentDate,
-        dailyCap:  DAILY_TOKEN_CAPS[module] ?? DAILY_TOKEN_CAPS["default"],
-      };
-    }
-=======
  * Snapshot of all module daily (calendar-day) token totals and caps for diagnostics.
  * Includes every module in DAILY_CAPS plus any module currently tracked in memory.
  * Resets automatically at UTC midnight when a new dateKey is generated.
@@ -753,7 +734,6 @@ export function getDailyCapStatus(): Record<string, { usedToday: number; limit: 
     const slot = dailyUsage.get(module);
     const used = (slot && slot.dateKey === currentDate) ? slot.usedTokens : 0;
     result[module] = { usedToday: used, limit: cap, pct: Math.round((used / cap) * 100), dateKey: currentDate };
->>>>>>> 81e7be8 (Add daily hard-cap enforcement to token budget system)
   }
   return result;
 }
