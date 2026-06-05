@@ -187,6 +187,8 @@ function getSlot(module: string): HourlySlot {
 let _dirty      = false;
 let _flushTimer: ReturnType<typeof setInterval> | null = null;
 let _lastFlushAt: Date | null = null;
+let _consecutiveFlushFailures = 0;
+let _lastFlushError: string | null = null;
 
 async function flushHourlyUsageToDB(): Promise<void> {
   if (!_dirty) return;
@@ -234,12 +236,16 @@ async function flushHourlyUsageToDB(): Promise<void> {
       });
 
     _lastFlushAt = now;
+    _consecutiveFlushFailures = 0;
+    _lastFlushError = null;
     log.debug(
       `[HourlyCap] Flushed hourly (hour ${currentHour}, ${Object.keys(hourlyUsageMap).length} modules) ` +
       `+ daily (${currentDate}, ${Object.keys(dailyUsageMap).length} modules)`
     );
   } catch (err: any) {
-    log.warn(`[HourlyCap] Failed to flush snapshots: ${err?.message}`);
+    _consecutiveFlushFailures++;
+    _lastFlushError = err?.message ?? "Unknown error";
+    log.warn(`[HourlyCap] Failed to flush snapshots (failure #${_consecutiveFlushFailures}): ${_lastFlushError}`);
     _dirty = true; // retry next cycle
   }
 }
@@ -259,6 +265,8 @@ export async function getFlushHealth(): Promise<{
   lastFlushAt: string | null;
   snapshotAgeSecs: number;
   isStale: boolean;
+  consecutiveFailures: number;
+  lastErrorMsg: string | null;
 }> {
   let flushTime: Date | null = _lastFlushAt;
 
@@ -281,13 +289,21 @@ export async function getFlushHealth(): Promise<{
   }
 
   if (!flushTime) {
-    return { lastFlushAt: null, snapshotAgeSecs: -1, isStale: true };
+    return {
+      lastFlushAt: null,
+      snapshotAgeSecs: -1,
+      isStale: true,
+      consecutiveFailures: _consecutiveFlushFailures,
+      lastErrorMsg: _lastFlushError,
+    };
   }
   const ageSecs = Math.floor((Date.now() - flushTime.getTime()) / 1000);
   return {
     lastFlushAt: flushTime.toISOString(),
     snapshotAgeSecs: ageSecs,
     isStale: ageSecs > 120,
+    consecutiveFailures: _consecutiveFlushFailures,
+    lastErrorMsg: _lastFlushError,
   };
 }
 

@@ -45,6 +45,8 @@ interface FlushHealth {
   lastFlushAt: string | null;
   snapshotAgeSecs: number;
   isStale: boolean;
+  consecutiveFailures: number;
+  lastErrorMsg: string | null;
 }
 
 interface SystemStatus {
@@ -585,7 +587,9 @@ export default function SystemHealthPanel() {
           const flushAgeSecs = flushHealth.lastFlushAt
             ? Math.floor((nowMs - new Date(flushHealth.lastFlushAt).getTime()) / 1000)
             : -1;
-          const flushIsStale = flushAgeSecs > 120;
+          const flushIsStale = flushAgeSecs > 120 || flushAgeSecs === -1;
+          const hasFailures  = (flushHealth.consecutiveFailures ?? 0) > 0;
+          const isError      = flushIsStale && hasFailures;
           return (
             <div data-testid="section-token-flush-health">
               <SectionHeader
@@ -594,7 +598,9 @@ export default function SystemHealthPanel() {
               />
               <div
                 className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
-                  flushIsStale
+                  isError
+                    ? "border-red-500/30 bg-red-500/5"
+                    : flushIsStale
                     ? "border-amber-500/30 bg-amber-500/5"
                     : "border-border/25 bg-card/30"
                 }`}
@@ -604,7 +610,7 @@ export default function SystemHealthPanel() {
                   <div className="text-[11px] text-muted-foreground">Last hourly-token flush</div>
                   <div
                     className={`text-sm font-mono font-semibold leading-snug ${
-                      flushIsStale ? "text-amber-400" : "text-foreground"
+                      isError ? "text-red-400" : flushIsStale ? "text-amber-400" : "text-foreground"
                     }`}
                     data-testid="text-flush-last-at"
                   >
@@ -616,12 +622,21 @@ export default function SystemHealthPanel() {
                         })
                       : "Never flushed this session"}
                   </div>
+                  {hasFailures && (
+                    <div
+                      className="text-[11px] text-red-400 mt-0.5 truncate"
+                      data-testid="text-flush-failure-detail"
+                    >
+                      {flushHealth.consecutiveFailures} flush failure{flushHealth.consecutiveFailures === 1 ? "" : "s"}
+                      {flushHealth.lastErrorMsg ? ` — ${flushHealth.lastErrorMsg}` : ""}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col items-end shrink-0 ml-3">
                   {flushAgeSecs >= 0 ? (
                     <span
                       className={`text-sm font-mono font-bold ${
-                        flushIsStale ? "text-amber-400" : "text-emerald-400"
+                        isError ? "text-red-400" : flushIsStale ? "text-amber-400" : "text-emerald-400"
                       }`}
                       data-testid="text-flush-age-secs"
                     >
@@ -632,7 +647,11 @@ export default function SystemHealthPanel() {
                       —
                     </span>
                   )}
-                  {flushIsStale ? (
+                  {isError ? (
+                    <Badge className="text-[9px] bg-red-500/15 text-red-400 border-red-500/30 mt-0.5" data-testid="badge-flush-error">
+                      {flushHealth.consecutiveFailures} Error{flushHealth.consecutiveFailures === 1 ? "" : "s"}
+                    </Badge>
+                  ) : flushIsStale ? (
                     <Badge className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30 mt-0.5" data-testid="badge-flush-stale">
                       Stale &gt;120s
                     </Badge>
