@@ -252,6 +252,16 @@ export function resetHourlyHitCount(module: string): void {
   if (slot) slot.count = 0;
 }
 
+/**
+ * Evict a module's hourly-cap cache entry so the next checkHourlyTokenBudget
+ * call re-reads the cap from the DB immediately instead of waiting for the
+ * next hour boundary.  Call this after writing a new hourly_cap:<module> row.
+ */
+export function invalidateModuleCapCache(module: string): void {
+  _dbCapCache.delete(module);
+  log.debug(`[HourlyCap] Cache invalidated for ${module} — next call will re-read from DB`);
+}
+
 // Snapshot format stored in system_settings under "hourly_tokens:snapshot"
 interface HourlySnapshot {
   hourKey: number;

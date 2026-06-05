@@ -896,16 +896,13 @@ function AdminHourlyCapsTab() {
   // ── Hourly mutations ──
   const saveMutation = useMutation({
     mutationFn: async ({ module, value }: { module: string; value: string }) => {
-      const res = await apiRequest("PATCH", "/api/admin/system-settings", {
-        key: `hourly_cap:${module}`,
-        value,
-      });
+      const res = await apiRequest("PUT", `/api/admin/hourly-caps/${module}`, { value });
       return res.json();
     },
     onSuccess: (_res, vars) => {
       toast({
         title: `${vars.module} cap updated`,
-        description: `New effective cap: ${Number(vars.value).toLocaleString()} tokens/hour. Takes effect next hour.`,
+        description: `New effective cap: ${Number(vars.value).toLocaleString()} tokens/hour. Takes effect immediately.`,
       });
       setEditingModule(null);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/hourly-caps"] });

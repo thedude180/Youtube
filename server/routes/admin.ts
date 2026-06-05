@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, getDailyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, getDailyCapStatus, resetDailyTokenCounter, resetHourlyHitCount, invalidateModuleCapCache } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
@@ -750,6 +750,38 @@ export function registerAdminRoutes(app: Express) {
       res.json({ ok: true, caps: result });
     } catch (err: any) {
       res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to read hourly caps" });
+    }
+  });
+
+  app.put("/api/admin/hourly-caps/:module", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const module = req.params.module;
+      const raw = (req.body as any)?.value;
+      const parsed = parseInt(String(raw ?? ""), 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        return res.status(400).json({ error: "value must be a positive integer" });
+      }
+      const now = new Date();
+      await db
+        .insert(systemSettings)
+        .values({ key: `hourly_cap:${module}`, value: String(parsed), createdAt: now, updatedAt: now } as any)
+        .onConflictDoUpdate({
+          target: systemSettings.key,
+          set: { value: String(parsed), updatedAt: now },
+        });
+      invalidateModuleCapCache(module);
+      resetHourlyHitCount(module);
+      await logSecurityEvent({
+        userId,
+        action: "admin.hourly_cap.update",
+        details: { module, value: parsed },
+      });
+      logger.info(`[HourlyCaps] Admin ${userId} set hourly_cap:${module} = ${parsed} (immediate)`);
+      res.json({ ok: true, module, cap: parsed });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to update cap" });
     }
   });
 
