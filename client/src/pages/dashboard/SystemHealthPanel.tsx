@@ -2,14 +2,16 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUserProfile } from "@/hooks/use-user-profile";
 import {
   Activity, Shield, Cpu, Zap, HardDrive, Wrench,
   CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw,
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Wifi, WifiOff, Users,
-  Gauge,
+  Gauge, Pencil, Check, X,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -200,11 +202,14 @@ function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: s
 
 export default function SystemHealthPanel() {
   const { toast } = useToast();
+  const { isAdmin } = useUserProfile();
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [workersExpanded, setWorkersExpanded] = useState(false);
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
   const [showAllEngines, setShowAllEngines] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [editingViralCap, setEditingViralCap] = useState(false);
+  const [viralCapInput, setViralCapInput] = useState("");
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
@@ -217,6 +222,39 @@ export default function SystemHealthPanel() {
     staleTime: 25_000,
     retry: 2,
   });
+
+  const viralCapMutation = useMutation({
+    mutationFn: async (newValue: string) => {
+      return apiRequest("POST", "/api/admin/system-settings", {
+        key: "viral_optimizer_hourly_tokens",
+        value: newValue,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Viral optimizer cap updated",
+        description: "Takes effect at the start of the next hour.",
+      });
+      setEditingViralCap(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update failed",
+        description: err?.message || "Admin access required",
+        variant: "destructive",
+      });
+    },
+  });
+
+  function handleViralCapSave() {
+    const n = parseInt(viralCapInput, 10);
+    if (isNaN(n) || n < 100 || n > 1_000_000) {
+      toast({ title: "Invalid value", description: "Enter a number between 100 and 1,000,000", variant: "destructive" });
+      return;
+    }
+    viralCapMutation.mutate(String(n));
+  }
 
   const toggleMutation = useMutation({
     mutationFn: async ({ key, enabled }: { key: KillSwitchKey; enabled: boolean }) => {
@@ -423,15 +461,60 @@ export default function SystemHealthPanel() {
                         <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
                           {stat.pct}%
                         </span>
+                        {isAdmin && engine === "viral-optimizer" && !editingViralCap && (
+                          <button
+                            onClick={() => { setViralCapInput(String(stat.limit)); setEditingViralCap(true); }}
+                            className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                            title="Edit token budget"
+                            data-testid="button-edit-viral-cap"
+                          >
+                            <Pencil className="h-2.5 w-2.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
-                        style={{ width: `${Math.min(stat.pct, 100)}%` }}
-                        data-testid={`bar-hourly-${engine}`}
-                      />
-                    </div>
+                    {isAdmin && engine === "viral-optimizer" && editingViralCap ? (
+                      <div className="flex items-center gap-1.5 mt-1.5" data-testid="inline-viral-cap-editor">
+                        <Input
+                          type="number"
+                          min={100}
+                          max={1000000}
+                          value={viralCapInput}
+                          onChange={(e) => setViralCapInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleViralCapSave(); if (e.key === "Escape") setEditingViralCap(false); }}
+                          className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
+                          data-testid="input-viral-cap"
+                          autoFocus
+                        />
+                        <button
+                          onClick={handleViralCapSave}
+                          disabled={viralCapMutation.isPending}
+                          className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+                          title="Save"
+                          data-testid="button-save-viral-cap"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setEditingViralCap(false)}
+                          disabled={viralCapMutation.isPending}
+                          className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                          title="Cancel"
+                          data-testid="button-cancel-viral-cap"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="text-[9px] text-muted-foreground">tokens/hr · next hour</span>
+                      </div>
+                    ) : (
+                      <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
+                          style={{ width: `${Math.min(stat.pct, 100)}%` }}
+                          data-testid={`bar-hourly-${engine}`}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

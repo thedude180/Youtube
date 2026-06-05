@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { ADMIN_EMAIL, users, channels, videos, managedPlaylists, playlistItems } from "@shared/schema";
+import { ADMIN_EMAIL, users, channels, videos, managedPlaylists, playlistItems, systemSettings } from "@shared/schema";
 import { storage } from "../storage";
 import { logSecurityEvent } from "../lib/audit";
 import { db, pool } from "../db";
@@ -593,6 +593,55 @@ export function registerAdminRoutes(app: Express) {
     } catch (err: any) {
       logger.error("[ContentReset] Reset failed", { error: err?.message });
       res.status(500).json({ error: "Content reset failed: " + err?.message?.slice(0, 200) });
+    }
+  });
+
+  // ── System Settings ──────────────────────────────────────────────────────────
+
+  app.get("/api/admin/system-settings/:key", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const key = req.params.key;
+      const [row] = await db
+        .select({ value: systemSettings.value })
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+      res.json({ ok: true, key, value: row?.value ?? null });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to read setting" });
+    }
+  });
+
+  app.post("/api/admin/system-settings", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const schema = z.object({
+        key:   z.string().min(1).max(200),
+        value: z.string().min(1).max(2000),
+      });
+      const { key, value } = schema.parse(req.body);
+      await db
+        .insert(systemSettings)
+        .values({ key, value, createdAt: new Date(), updatedAt: new Date() } as any)
+        .onConflictDoUpdate({
+          target: systemSettings.key,
+          set: { value, updatedAt: new Date() },
+        });
+      await logSecurityEvent({
+        userId,
+        action: "admin.system_settings.update",
+        details: { key, value },
+      });
+      logger.info(`[SystemSettings] Admin ${userId} updated "${key}" = "${value}"`);
+      res.json({ ok: true, key, value });
+    } catch (err: any) {
+      if (err?.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid request", details: err.errors });
+      }
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to update setting" });
     }
   });
 
