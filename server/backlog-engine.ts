@@ -190,6 +190,18 @@ async function processBacklogAsync(
   const session = sessions.get(userId);
   if (!session) return;
 
+  // Budget pre-check — one guard before touching any video.
+  // viralOptimizeVideo already checks per-call, but without this the loop
+  // emits 80+ individual "budget exhausted" warnings before stopping.
+  if (!tokenBudget.checkBudget("viral-optimizer", 1)) {
+    logger.warn(`[BacklogEngine] viral-optimizer budget exhausted — skipping ${videos.length}-video batch until tomorrow`);
+    if (session) {
+      session.state = "idle";
+      session.currentVideoId = null;
+    }
+    return;
+  }
+
   let completed = 0;
 
   for (const video of videos) {

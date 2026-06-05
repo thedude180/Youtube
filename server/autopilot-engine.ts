@@ -5,7 +5,7 @@ import { eq, and, desc, lte, sql, gte, inArray } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClientBackground } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
-import { sanitizeForPrompt } from "./lib/ai-attack-shield";
+import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import { jobQueue } from "./services/intelligent-job-queue";
@@ -288,6 +288,11 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
       return;
     }
     import("./backlog-engine").then(m => {
+      // Budget pre-check — one log line instead of cascading failures per video.
+      if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
+        logger.warn(`[Autopilot] Viral optimization deferred for video ${videoId} — viral-optimizer budget exhausted`);
+        return;
+      }
       m.viralOptimizeVideo(userId, videoId)
         .then(result => {
           if (result.optimized) {
