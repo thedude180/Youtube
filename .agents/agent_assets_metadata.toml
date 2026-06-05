@@ -48,3 +48,9 @@ id = "a2LiWY1Ulj5K_aq7anSJF"
 uri = "file://youtube-api-upload-documentation.pdf"
 type = "pdf"
 title = "YouTube API Upload Documentation — Google Review"
+
+[[outputs]]
+id = "Ko_m0FmXIgACAGWAS-gBp"
+uri = "file://exports/creatoros-issue-history.txt"
+type = "text"
+title = "CreatorOS Issue History — Full Production Record"
