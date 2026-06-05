@@ -268,6 +268,9 @@ async function processBacklogAsync(
         metadata: video.metadata,
         platform: video.platform || undefined,
       });
+      // Record hourly token consumption so the hourly cap advances correctly.
+      // Must happen immediately after the AI call — before any early-return path.
+      recordHourlyTokenUsage("viral-optimizer", 3000);
 
       const contentCtx = detectContentContext(video.title, video.description, video.metadata?.contentCategory, video.metadata);
       const newMetadata = {
@@ -933,6 +936,16 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   }
 
   await _acquireViralOpt();
+  // Re-check hourly cap after semaphore acquire — concurrent callers may have
+  // all passed the pre-check before any usage was recorded.  Release immediately
+  // if the cap was hit while we were waiting in the semaphore queue.
+  {
+    const postAcquireHourly = checkHourlyTokenBudget("viral-optimizer", 3000);
+    if (!postAcquireHourly.allowed) {
+      _releaseViralOpt();
+      return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: `Hourly viral-optimizer cap reached post-acquire (${postAcquireHourly.usedThisHour}/${postAcquireHourly.hourlyLimit} tokens used this hour) — will resume next hour` };
+    }
+  }
   let suggestions: any;
   try {
     suggestions = await generateVideoMetadata({
