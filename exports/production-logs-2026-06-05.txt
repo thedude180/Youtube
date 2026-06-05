@@ -1,0 +1,11 @@
+CreatorOS Production Logs Export
+Generated: 2026-06-05 (rolling window only — no historical archive available)
+Coverage: ~2026-06-05 12:32 UTC onwards (Replit deployment log retention limit)
+Note: Logs prior to this window are not retained by the platform.
+
+DOMINANT PATTERN IN THIS WINDOW:
+  module: consistency-agent
+  warning: AI queue full for background tasks (8/8 background callers waiting) — request dropped
+  affected videos: 67908, 67909, 67910, 67911, 67912 (repeating every ~5-7 seconds)
+
+---RAW LOG DATA BELOW---
