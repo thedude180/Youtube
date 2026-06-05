@@ -193,12 +193,12 @@ async function stage4YouTubeConnectionHealth(): Promise<StageResult> {
 
     // Find channels with no tokens
     const disconnectedChannels = await db
-      .select({ id: channels.id, youtubeChannelId: (channels as any).youtubeChannelId })
+      .select({ id: channels.id, channelId: channels.channelId })
       .from(channels)
       .where(
         or(
-          isNull((channels as any).accessToken),
-          isNull((channels as any).refreshToken),
+          isNull(channels.accessToken),
+          isNull(channels.refreshToken),
         ),
       );
 

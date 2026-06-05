@@ -94,14 +94,14 @@ export function registerSystemStatusRoutes(app: Express): void {
         const [connected, disconnected] = await Promise.all([
           db.select({ id: channels.id }).from(channels).where(
             and(
-              isNotNull((channels as any).accessToken),
-              isNotNull((channels as any).refreshToken),
+              isNotNull(channels.accessToken),
+              isNotNull(channels.refreshToken),
             )
           ),
           db.select({ id: channels.id }).from(channels).where(
             or(
-              isNull((channels as any).accessToken),
-              isNull((channels as any).refreshToken),
+              isNull(channels.accessToken),
+              isNull(channels.refreshToken),
             )
           ),
         ]);

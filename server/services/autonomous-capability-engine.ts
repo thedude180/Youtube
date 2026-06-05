@@ -142,14 +142,18 @@ async function expandCapabilitiesForUser(userId: string): Promise<void> {
     logger.info(`Logged ${newGaps.length} new gap(s) for user ${userId.slice(0, 8)}`);
   }
 
-  // Fill unfilled gaps — skip any gap attempted in the last 30 min to prevent
+  // Fill unfilled gaps — skip any gap attempted in the last 4 h to prevent
   // tight retry loops when AI returns invalid structure (5 gaps × every 30s = spam).
-  const cooldownCutoff = new Date(Date.now() - 30 * 60_000);
+  // Also skip gaps currently being filled (status="filling") to prevent concurrent
+  // duplicate processing.  Parse-failure handlers set lastAttemptAt 4h in the
+  // future so even duplicate gap rows are silenced for a meaningful window.
+  const cooldownCutoff = new Date(Date.now() - 4 * 60 * 60_000);
   const unfilled = await db.select()
     .from(capabilityGaps)
     .where(and(
       eq(capabilityGaps.userId, userId),
       ne(capabilityGaps.status, "filled"),
+      ne(capabilityGaps.status, "filling"),
       or(
         isNull(capabilityGaps.lastAttemptAt),
         lt(capabilityGaps.lastAttemptAt, cooldownCutoff),
@@ -163,7 +167,7 @@ async function expandCapabilitiesForUser(userId: string): Promise<void> {
       await fillGap(userId, gap);
     } catch (err) {
       await db.update(capabilityGaps)
-        .set({ status: "failed", attemptCount: (gap.attemptCount ?? 0) + 1, lastAttemptAt: new Date() })
+        .set({ status: "failed", attemptCount: (gap.attemptCount ?? 0) + 1, lastAttemptAt: new Date(Date.now() + 4 * 60 * 60_000) })
         .where(eq(capabilityGaps.id, gap.id));
       logger.warn(`Failed to fill gap "${gap.title}"`, { err: String(err).slice(0, 200) });
     }
@@ -340,7 +344,9 @@ The prompts must be specific to gaming content, YouTube best practices, and the 
 
   if (!parsed?.systemPrompt || !parsed?.userPromptTemplate) {
     logger.warn(`[CapabilityEngine] Prompt parse failed for "${promptKey}" — will retry after cooldown`);
-    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date() }).where(eq(capabilityGaps.id, gap.id));
+    // Set lastAttemptAt 4h in the future so even duplicate gap rows are silenced
+    // for the full cooldown window regardless of when they were last attempted.
+    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date(Date.now() + 4 * 60 * 60_000) }).where(eq(capabilityGaps.id, gap.id));
     return;
   }
 
@@ -416,7 +422,9 @@ Make this strategy specific enough that an AI engine can act on it without furth
 
   if (!parsed?.title || !parsed?.description) {
     logger.warn(`[CapabilityEngine] Strategy parse failed for "${domain}" — will retry after cooldown`);
-    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date() }).where(eq(capabilityGaps.id, gap.id));
+    // Set lastAttemptAt 4h in the future so even duplicate gap rows are silenced
+    // for the full cooldown window regardless of when they were last attempted.
+    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date(Date.now() + 4 * 60 * 60_000) }).where(eq(capabilityGaps.id, gap.id));
     return;
   }
 

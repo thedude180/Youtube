@@ -316,7 +316,25 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
             });
           }
         })
-        .catch(err => logger.warn("Viral optimization failed for new video", { videoId, error: String(err).substring(0, 200) }));
+        .catch(err => {
+          // Budget can deplete MID-batch (pre-check passed but subsequent calls
+          // exhaust it).  Apply the same once-per-hour dedup suppression rather
+          // than emitting a per-video warn line for every remaining video.
+          const msg = String(err);
+          if (
+            msg.includes("budget exhausted") ||
+            msg.includes("Will retry tomorrow") ||
+            msg.includes("viral-optimizer")
+          ) {
+            const now2 = Date.now();
+            if (now2 - _viralBudgetWarnedAt > 60 * 60_000) {
+              logger.warn(`[Autopilot] Viral optimization deferred mid-batch — viral-optimizer budget exhausted (per-video logs suppressed until reset)`);
+              _viralBudgetWarnedAt = now2;
+            }
+            return;
+          }
+          logger.warn("Viral optimization failed for new video", { videoId, error: msg.substring(0, 200) });
+        });
     }).catch(() => undefined);
   }).catch(() => undefined);
 }
