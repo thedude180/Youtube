@@ -142,11 +142,15 @@ async function expandCapabilitiesForUser(userId: string): Promise<void> {
     logger.info(`Logged ${newGaps.length} new gap(s) for user ${userId.slice(0, 8)}`);
   }
 
-  // Fill unfilled gaps — skip any gap attempted in the last 4 h to prevent
-  // tight retry loops when AI returns invalid structure (5 gaps × every 30s = spam).
+  // Fill unfilled gaps — skip any gap that was last attempted within the last 4h.
   // Also skip gaps currently being filled (status="filling") to prevent concurrent
-  // duplicate processing.  Parse-failure handlers set lastAttemptAt 4h in the
-  // future so even duplicate gap rows are silenced for a meaningful window.
+  // duplicate processing.
+  //
+  // Parse-failure handlers intentionally set lastAttemptAt = now + 4h (a future
+  // timestamp), making "lastAttemptAt < (now - 4h)" false for up to ~8h after
+  // failure.  This is deliberate: if there are duplicate gap rows (each with their
+  // own lastAttemptAt), a future-dated marker silences ALL duplicates for a full
+  // window rather than just the one that most recently failed.
   const cooldownCutoff = new Date(Date.now() - 4 * 60 * 60_000);
   const unfilled = await db.select()
     .from(capabilityGaps)
