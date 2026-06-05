@@ -205,6 +205,137 @@ function youtubeConnectionTextColor(status: string): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+interface HourlyCapRowProps {
+  engine: string;
+  stat: { used: number; limit: number; pct: number };
+  isAdmin: boolean;
+  editingEngine: string | null;
+  engineCapInput: string;
+  engineCapMutationPending: boolean;
+  nowMs: number;
+  setEngineCapInput: (v: string) => void;
+  setEditingEngine: (e: string | null) => void;
+  handleEngineCapSave: (engine: string) => void;
+}
+
+function HourlyCapRow({
+  engine, stat, isAdmin, editingEngine, engineCapInput,
+  engineCapMutationPending, nowMs,
+  setEngineCapInput, setEditingEngine, handleEngineCapSave,
+}: HourlyCapRowProps) {
+  return (
+    <div
+      className={`rounded-md border px-2.5 py-2 transition-colors ${
+        stat.pct >= 90
+          ? "border-red-500/40 bg-red-500/8"
+          : stat.pct >= 70
+          ? "border-amber-500/35 bg-amber-500/6"
+          : stat.pct >= 60
+          ? "border-amber-500/20 bg-amber-500/4"
+          : "border-border/20 bg-muted/5"
+      }`}
+      data-testid={`hourly-cap-${engine}`}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          {stat.pct === 0 ? (
+            <span
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground border border-border/20 cursor-help"
+              title={`Hourly cap: ${stat.limit.toLocaleString()} tokens — resets in ${formatResetIn(nowMs)}`}
+              data-testid={`badge-hourly-limit-${engine}`}
+            >
+              limit: {formatCompact(stat.limit)}/hr
+            </span>
+          ) : (
+            <>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
+              </span>
+              <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
+                {stat.pct}%
+              </span>
+            </>
+          )}
+          {isAdmin && editingEngine !== engine && (
+            <button
+              onClick={() => { setEngineCapInput(String(stat.limit)); setEditingEngine(engine); }}
+              className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              title="Edit token budget"
+              data-testid={`button-edit-cap-${engine}`}
+            >
+              <Pencil className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {isAdmin && editingEngine === engine ? (
+        <div className="mt-1.5 space-y-1.5" data-testid={`inline-cap-editor-${engine}`}>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="number"
+              min={100}
+              max={1000000}
+              value={engineCapInput}
+              onChange={(e) => setEngineCapInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleEngineCapSave(engine); if (e.key === "Escape") setEditingEngine(null); }}
+              className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
+              data-testid={`input-cap-${engine}`}
+              autoFocus
+            />
+            <button
+              onClick={() => handleEngineCapSave(engine)}
+              disabled={engineCapMutationPending}
+              className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+              title="Save"
+              data-testid={`button-save-cap-${engine}`}
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setEditingEngine(null)}
+              disabled={engineCapMutationPending}
+              className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+              title="Cancel"
+              data-testid={`button-cancel-cap-${engine}`}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-[9px] text-muted-foreground">tokens/hr · next hour</span>
+          </div>
+          {(() => {
+            const newCap = parseInt(engineCapInput, 10);
+            if (!isNaN(newCap) && newCap < stat.used) {
+              return (
+                <div
+                  className="flex items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/8 px-2 py-1.5"
+                  data-testid={`warning-throttle-${engine}`}
+                >
+                  <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                  <span className="text-[10px] text-amber-300/90 leading-snug">
+                    Engine has already used{" "}
+                    <span className="font-semibold font-mono">{stat.used.toLocaleString()}</span>{" "}
+                    tokens this hour. The new limit will take effect at the start of the next hour (in {formatResetIn(nowMs)}).
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      ) : (
+        <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
+            style={{ width: `${Math.min(stat.pct, 100)}%` }}
+            data-testid={`bar-hourly-${engine}`}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: string; badge?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-2">
@@ -542,116 +673,19 @@ export default function SystemHealthPanel() {
             ) : (
               <div className="space-y-1.5">
                 {hourlyEntries.map(([engine, stat]) => (
-                  <div
+                  <HourlyCapRow
                     key={engine}
-                    className={`rounded-md border px-2.5 py-2 transition-colors ${
-                      stat.pct >= 90
-                        ? "border-red-500/40 bg-red-500/8"
-                        : stat.pct >= 70
-                        ? "border-amber-500/35 bg-amber-500/6"
-                        : stat.pct >= 60
-                        ? "border-amber-500/20 bg-amber-500/4"
-                        : "border-border/20 bg-muted/5"
-                    }`}
-                    data-testid={`hourly-cap-${engine}`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        {stat.pct === 0 ? (
-                          <span
-                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground border border-border/20 cursor-help"
-                            title={`Hourly cap: ${stat.limit.toLocaleString()} tokens — resets in ${formatResetIn(nowMs)}`}
-                            data-testid={`badge-hourly-limit-${engine}`}
-                          >
-                            limit: {formatCompact(stat.limit)}/hr
-                          </span>
-                        ) : (
-                          <>
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
-                            </span>
-                            <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
-                              {stat.pct}%
-                            </span>
-                          </>
-                        )}
-                        {isAdmin && editingEngine !== engine && (
-                          <button
-                            onClick={() => { setEngineCapInput(String(stat.limit)); setEditingEngine(engine); }}
-                            className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
-                            title="Edit token budget"
-                            data-testid={`button-edit-cap-${engine}`}
-                          >
-                            <Pencil className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {isAdmin && editingEngine === engine ? (
-                      <div className="mt-1.5 space-y-1.5" data-testid={`inline-cap-editor-${engine}`}>
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            type="number"
-                            min={100}
-                            max={1000000}
-                            value={engineCapInput}
-                            onChange={(e) => setEngineCapInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") handleEngineCapSave(engine); if (e.key === "Escape") setEditingEngine(null); }}
-                            className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
-                            data-testid={`input-cap-${engine}`}
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleEngineCapSave(engine)}
-                            disabled={engineCapMutation.isPending}
-                            className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
-                            title="Save"
-                            data-testid={`button-save-cap-${engine}`}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setEditingEngine(null)}
-                            disabled={engineCapMutation.isPending}
-                            className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                            title="Cancel"
-                            data-testid={`button-cancel-cap-${engine}`}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="text-[9px] text-muted-foreground">tokens/hr · next hour</span>
-                        </div>
-                        {(() => {
-                          const newCap = parseInt(engineCapInput, 10);
-                          if (!isNaN(newCap) && newCap < stat.used) {
-                            return (
-                              <div
-                                className="flex items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/8 px-2 py-1.5"
-                                data-testid={`warning-throttle-${engine}`}
-                              >
-                                <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
-                                <span className="text-[10px] text-amber-300/90 leading-snug">
-                                  Engine has already used{" "}
-                                  <span className="font-semibold font-mono">{stat.used.toLocaleString()}</span>{" "}
-                                  tokens this hour. The new limit will take effect at the start of the next hour (in {formatResetIn(nowMs)}).
-                                </span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
-                          style={{ width: `${Math.min(stat.pct, 100)}%` }}
-                          data-testid={`bar-hourly-${engine}`}
-                        />
-                      </div>
-                    )}
-                  </div>
+                    engine={engine}
+                    stat={stat}
+                    isAdmin={isAdmin}
+                    editingEngine={editingEngine}
+                    engineCapInput={engineCapInput}
+                    engineCapMutationPending={engineCapMutation.isPending}
+                    nowMs={nowMs}
+                    setEngineCapInput={setEngineCapInput}
+                    setEditingEngine={setEditingEngine}
+                    handleEngineCapSave={handleEngineCapSave}
+                  />
                 ))}
               </div>
             )}
