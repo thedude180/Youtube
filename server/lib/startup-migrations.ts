@@ -324,6 +324,35 @@ async function migration005DeduplicateCapabilityGaps(): Promise<void> {
   }
 }
 
+// ── Migration 006: seed viral_optimizer_hourly_tokens default ────────────────
+// Seeds system_settings key "viral_optimizer_hourly_tokens" = "8000" if not
+// already present.  The token-hourly-cap module reads this at runtime so the
+// viral-optimizer hourly budget can be changed without a code deploy.
+
+async function migration006SeedViralOptimizerCap(): Promise<void> {
+  const FLAG = "migration:006:viral_optimizer_hourly_tokens_seeded";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const [existing] = await db
+      .select({ value: systemSettings.value })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, "viral_optimizer_hourly_tokens"))
+      .limit(1);
+
+    if (!existing) {
+      await setFlag("viral_optimizer_hourly_tokens", "8000");
+      log.info("[Migration 006] Seeded viral_optimizer_hourly_tokens = 8000");
+    } else {
+      log.info(`[Migration 006] viral_optimizer_hourly_tokens already set to "${existing.value}" — skipping`);
+    }
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 006] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -333,6 +362,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration003FixFakeGameNames();
     await migration004PurgeDemoReviewer();
     await migration005DeduplicateCapabilityGaps();
+    await migration006SeedViralOptimizerCap();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

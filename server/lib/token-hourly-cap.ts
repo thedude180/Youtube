@@ -14,6 +14,9 @@
  * exhaust the budget.
  */
 import { createLogger } from "./logger";
+import { db } from "../db";
+import { systemSettings } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("token-hourly-cap");
 
@@ -37,6 +40,44 @@ export const HOURLY_CAPS: Record<string, number> = {
   "consistency-agent":       3_000,
   "default":                 5_000,  // fallback for unlisted modules
 };
+
+// ─── Viral-optimizer cap: DB-backed, cached per hour ─────────────────────────
+// The cap for "viral-optimizer" is stored in system_settings under the key
+// "viral_optimizer_hourly_tokens" so it can be updated without a code deploy.
+// We cache the value for the current hour to avoid a DB hit on every video;
+// the function itself stays synchronous — DB refresh runs as fire-and-forget.
+
+const VIRAL_OPTIMIZER_DEFAULT_CAP = 8_000;
+let _viralOptimizerCap    = VIRAL_OPTIMIZER_DEFAULT_CAP;
+let _viralOptimizerHourKey = -1;   // -1 forces refresh on first call
+let _viralOptimizerLoading = false;
+
+function refreshViralOptimizerCapIfStale(currentHour: number): void {
+  if (_viralOptimizerHourKey === currentHour || _viralOptimizerLoading) return;
+  _viralOptimizerLoading = true;
+
+  db.select({ value: systemSettings.value })
+    .from(systemSettings)
+    .where(eq(systemSettings.key, "viral_optimizer_hourly_tokens"))
+    .limit(1)
+    .then((rows) => {
+      const raw    = rows[0]?.value;
+      const parsed = parseInt(raw ?? "", 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        _viralOptimizerCap = parsed;
+        log.debug(`[HourlyCap] viral-optimizer cap refreshed from DB: ${parsed}`);
+      }
+      _viralOptimizerHourKey = currentHour;
+    })
+    .catch((err: any) => {
+      // DB not yet ready or read failed — keep current cap, retry next hour
+      log.warn(`[HourlyCap] Could not refresh viral_optimizer_hourly_tokens: ${err?.message}`);
+      _viralOptimizerHourKey = currentHour;
+    })
+    .finally(() => {
+      _viralOptimizerLoading = false;
+    });
+}
 
 // ─── In-memory hourly tracking ────────────────────────────────────────────────
 interface HourlySlot {
@@ -75,7 +116,13 @@ export function checkHourlyTokenBudget(
   module: string,
   estimatedTokens: number = 1000,
 ): TokenCapResult {
-  const cap  = HOURLY_CAPS[module] ?? HOURLY_CAPS["default"];
+  const currentHour = getCurrentHourKey();
+  if (module === "viral-optimizer") {
+    refreshViralOptimizerCapIfStale(currentHour);
+  }
+  const cap  = module === "viral-optimizer"
+    ? _viralOptimizerCap
+    : (HOURLY_CAPS[module] ?? HOURLY_CAPS["default"]);
   const slot = getSlot(module);
   const after = slot.usedTokens + estimatedTokens;
 
@@ -115,7 +162,8 @@ export function recordHourlyTokenUsage(module: string, tokensUsed: number): void
 export function getHourlyCapStatus(): Record<string, { used: number; limit: number; pct: number }> {
   const result: Record<string, { used: number; limit: number; pct: number }> = {};
   const currentHour = getCurrentHourKey();
-  for (const [module, cap] of Object.entries(HOURLY_CAPS)) {
+  for (const [module, staticCap] of Object.entries(HOURLY_CAPS)) {
+    const cap  = module === "viral-optimizer" ? _viralOptimizerCap : staticCap;
     const slot = hourlyUsage.get(module);
     const used = (slot && slot.hourKey === currentHour) ? slot.usedTokens : 0;
     result[module] = { used, limit: cap, pct: Math.round((used / cap) * 100) };
