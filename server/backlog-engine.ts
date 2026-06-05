@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectContentContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
 import { tokenBudget } from "./lib/ai-attack-shield";
+import { checkHourlyTokenBudget, recordHourlyTokenUsage } from "./lib/token-hourly-cap";
 import { CommandCenter } from "./lib/command-center";
 
 // ── Viral-optimization concurrency semaphore ─────────────────────────────────
@@ -197,17 +198,28 @@ async function processBacklogAsync(
   const session = sessions.get(userId);
   if (!session) return;
 
-  // Budget pre-check — one guard before touching any video.
+  // Budget pre-checks — one guard before touching any video.
   // Cost must match per-video cost (3000) so partial budgets don't slip through:
   // checkBudget(cost=1) passes when e.g. 500 tokens remain, but every
-  // viralOptimizeVideo call needs 3000 → 70 iterations fire before stopping.
+  // generateVideoMetadata call needs ~3000 → many iterations fire before stopping.
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-    logger.warn(`[BacklogEngine] viral-optimizer budget exhausted — skipping ${videos.length}-video batch until tomorrow`);
+    logger.warn(`[BacklogEngine] viral-optimizer daily budget exhausted — skipping ${videos.length}-video batch until tomorrow`);
     if (session) {
       session.state = "idle";
       session.currentVideoId = null;
     }
     return;
+  }
+  {
+    const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
+    if (!hourly.allowed) {
+      logger.warn(`[BacklogEngine] viral-optimizer hourly cap reached (${hourly.usedThisHour}/${hourly.hourlyLimit} tokens) — pausing ${videos.length}-video batch until next hour`);
+      if (session) {
+        session.state = "idle";
+        session.currentVideoId = null;
+      }
+      return;
+    }
   }
 
   let completed = 0;
@@ -221,6 +233,16 @@ async function processBacklogAsync(
       await waitForStreamEnd(userId);
       const resumedSession = sessions.get(userId);
       if (!resumedSession || resumedSession.state === "paused") break;
+    }
+
+    // Per-video hourly cap check — stops the batch gracefully when this hour's
+    // budget is exhausted rather than running until the daily cap is hit.
+    {
+      const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
+      if (!hourly.allowed) {
+        logger.warn(`[BacklogEngine] viral-optimizer hourly cap reached mid-batch — stopping at ${completed}/${videos.length}, will resume next hour`);
+        break;
+      }
     }
 
     currentSession.currentVideoId = video.id;
@@ -846,9 +868,13 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   seoScore: number;
   error?: string;
 }> {
-  // Early budget check — reject immediately if daily cap exhausted (don't queue in semaphore)
+  // Early budget checks — reject immediately if daily or hourly cap exhausted (don't queue in semaphore)
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
     return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: "Daily viral-optimizer budget exhausted" };
+  }
+  const hourlyCheck = checkHourlyTokenBudget("viral-optimizer", 3000);
+  if (!hourlyCheck.allowed) {
+    return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: `Hourly viral-optimizer cap reached (${hourlyCheck.usedThisHour}/${hourlyCheck.hourlyLimit} tokens used this hour) — will resume next hour` };
   }
 
   const video = await storage.getVideo(videoId);
@@ -1024,6 +1050,9 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
     },
   });
 
+  // Record hourly token consumption so the hourly cap correctly throttles subsequent calls.
+  recordHourlyTokenUsage("viral-optimizer", 3000);
+
   return {
     optimized: true,
     youtubeUpdated,
@@ -1090,23 +1119,39 @@ export async function reprocessBackCatalog(userId: string): Promise<{
 async function viralReprocessAsync(userId: string, videoList: any[], jobId: number) {
   let completed = 0;
 
-  // Check viral-optimizer budget once before touching any video.
+  // Pre-batch budget checks — daily + hourly.
   // Cost must match per-video cost (3000) — cost=1 passes when e.g. 500 tokens
   // remain, letting 70 iterations run (each with a 2s delay = 140s execution +
   // 70 progress-update DB writes) before the per-call check finally stops them.
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-    logger.warn(`[BackCatalog] viral-optimizer budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
+    logger.warn(`[BackCatalog] viral-optimizer daily budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
     const session = sessions.get(userId);
     if (session) session.state = "idle";
     return;
   }
+  {
+    const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
+    if (!hourly.allowed) {
+      logger.warn(`[BackCatalog] viral-optimizer hourly cap reached (${hourly.usedThisHour}/${hourly.hourlyLimit} tokens) — pausing ${videoList.length}-video batch until next hour`);
+      const session = sessions.get(userId);
+      if (session) session.state = "idle";
+      return;
+    }
+  }
 
   for (const video of videoList) {
-    // Per-iteration budget check — breaks immediately when budget is depleted
-    // mid-batch so we don't burn 2s delays + DB writes for remaining videos.
+    // Per-iteration budget checks — breaks immediately when daily OR hourly budget
+    // is depleted mid-batch so we don't burn 2s delays + DB writes for remaining videos.
     if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-      logger.warn(`[BackCatalog] viral-optimizer budget depleted mid-batch — stopping at ${completed}/${videoList.length}`);
+      logger.warn(`[BackCatalog] viral-optimizer daily budget depleted mid-batch — stopping at ${completed}/${videoList.length}`);
       break;
+    }
+    {
+      const hourly = checkHourlyTokenBudget("viral-optimizer", 3000);
+      if (!hourly.allowed) {
+        logger.warn(`[BackCatalog] viral-optimizer hourly cap reached mid-batch — stopping at ${completed}/${videoList.length}, will resume next hour`);
+        break;
+      }
     }
 
     const currentSession = sessions.get(userId);
