@@ -71,6 +71,52 @@ export function registerSystemStatusRoutes(app: Express): void {
       const queues = getAiQueueStatus();
       const hourly = getHourlyCapStatus();
 
+      // Active workers from cron heartbeat registry.
+      let workers: { registeredJobs: number; heartbeats: Array<{ jobName: string; expectedIntervalMs: number }> } = {
+        registeredJobs: 0,
+        heartbeats: [],
+      };
+      try {
+        const { getCronHealthReport } = await import("../lib/cron-lock");
+        workers = getCronHealthReport();
+      } catch { /* non-fatal */ }
+
+      // YouTube connection status: check for channels with valid tokens.
+      let youtubeConnection: { status: "connected" | "disconnected" | "partial" | "unknown"; connectedCount: number; disconnectedCount: number } = {
+        status: "unknown",
+        connectedCount: 0,
+        disconnectedCount: 0,
+      };
+      try {
+        const { db } = await import("../db");
+        const { channels } = await import("@shared/schema");
+        const { isNull, isNotNull, and, or } = await import("drizzle-orm");
+        const [connected, disconnected] = await Promise.all([
+          db.select({ id: channels.id }).from(channels).where(
+            and(
+              isNotNull((channels as any).accessToken),
+              isNotNull((channels as any).refreshToken),
+            )
+          ),
+          db.select({ id: channels.id }).from(channels).where(
+            or(
+              isNull((channels as any).accessToken),
+              isNull((channels as any).refreshToken),
+            )
+          ),
+        ]);
+        const cc = connected.length;
+        const dc = disconnected.length;
+        youtubeConnection = {
+          connectedCount: cc,
+          disconnectedCount: dc,
+          status: cc === 0 && dc === 0 ? "unknown"
+                : cc > 0 && dc === 0 ? "connected"
+                : cc === 0 ? "disconnected"
+                : "partial",
+        };
+      } catch { /* non-fatal — channels table may not have token columns in all envs */ }
+
       const payload = {
         timestamp: new Date().toISOString(),
 
@@ -82,7 +128,10 @@ export function registerSystemStatusRoutes(app: Express): void {
         youtube: {
           quotaBreakerActive: quotaActive,
           quotaResetTime,
+          connection: youtubeConnection,
         },
+
+        workers,
 
         ai: {
           semaphore,
@@ -124,7 +173,7 @@ export function registerSystemStatusRoutes(app: Express): void {
    * POST /api/system/kill-switch/:name
    * Enable or disable a kill switch. Admin only.
    */
-  app.post("/api/system/kill-switch/:name", async (req: Request, res: Response) => {
+  app.patch("/api/system/kill-switch/:name", async (req: Request, res: Response) => {
     try {
       const adminUserId = requireAdmin(req, res);
       if (!adminUserId) return; // requireAdmin already sent 401/403

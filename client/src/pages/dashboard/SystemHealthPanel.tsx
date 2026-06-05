@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Activity, Shield, Cpu, Zap, HardDrive, Wrench,
   CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw,
-  ChevronDown, ChevronUp, ToggleLeft, ToggleRight,
+  ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Wifi, WifiOff, Users,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -31,7 +31,11 @@ interface SelfHealAction {
   module?: string;
   actionTaken?: string;
   status?: string;
-  createdAt?: string;
+}
+
+interface WorkerEntry {
+  jobName: string;
+  expectedIntervalMs: number;
 }
 
 interface SystemStatus {
@@ -46,11 +50,19 @@ interface SystemStatus {
   youtube: {
     quotaBreakerActive: boolean;
     quotaResetTime: string | null;
+    connection?: {
+      status: "connected" | "disconnected" | "partial" | "unknown";
+      connectedCount: number;
+      disconnectedCount: number;
+    };
+  };
+  workers?: {
+    registeredJobs: number;
+    heartbeats: WorkerEntry[];
   };
   ai: {
     semaphore: { active: number; max: number };
     queues?: Record<string, number>;
-    hourly?: Record<string, unknown>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
   };
   memory: {
@@ -62,10 +74,9 @@ interface SystemStatus {
   };
   killSwitches: Record<KillSwitchKey, { active: boolean; source: string }>;
   selfHealing: { recentActions: SelfHealAction[] };
-  growth?: unknown;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const KILL_SWITCH_LABELS: Record<KillSwitchKey, string> = {
   all_automation:    "All Automation",
@@ -79,6 +90,8 @@ const KILL_SWITCH_LABELS: Record<KillSwitchKey, string> = {
   self_healing:      "Self-Healing",
   growth_experiments:"Growth Experiments",
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function stageIcon(status: StageState["status"]) {
   switch (status) {
@@ -125,6 +138,30 @@ function formatStageName(name: string): string {
   return name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 
+function formatIntervalMs(ms: number): string {
+  if (ms >= 3_600_000) return `${Math.round(ms / 3_600_000)}h`;
+  if (ms >= 60_000)    return `${Math.round(ms / 60_000)}m`;
+  return `${Math.round(ms / 1000)}s`;
+}
+
+function youtubeConnectionColor(status: string): string {
+  switch (status) {
+    case "connected":    return "border-emerald-500/30 bg-emerald-500/5";
+    case "partial":      return "border-amber-500/30 bg-amber-500/5";
+    case "disconnected": return "border-red-500/30 bg-red-500/5";
+    default:             return "border-border/25 bg-card/30";
+  }
+}
+
+function youtubeConnectionTextColor(status: string): string {
+  switch (status) {
+    case "connected":    return "text-emerald-400";
+    case "partial":      return "text-amber-400";
+    case "disconnected": return "text-red-400";
+    default:             return "text-muted-foreground";
+  }
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: string; badge?: React.ReactNode }) {
@@ -142,6 +179,7 @@ function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: s
 export default function SystemHealthPanel() {
   const { toast } = useToast();
   const [stagesExpanded, setStagesExpanded] = useState(false);
+  const [workersExpanded, setWorkersExpanded] = useState(false);
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
 
   const { data, isLoading, error, dataUpdatedAt } = useQuery<SystemStatus>({
@@ -153,7 +191,7 @@ export default function SystemHealthPanel() {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ key, enabled }: { key: KillSwitchKey; enabled: boolean }) => {
-      return apiRequest("POST", `/api/system/kill-switch/${key}`, { enabled });
+      return apiRequest("PATCH", `/api/system/kill-switch/${key}`, { enabled });
     },
     onSuccess: (_res, vars) => {
       toast({
@@ -173,18 +211,13 @@ export default function SystemHealthPanel() {
 
   if (isLoading) {
     return (
-      <div
-        className="rounded-xl border border-border/30 bg-card/20 overflow-hidden"
-        data-testid="card-system-health-loading"
-      >
+      <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="card-system-health-loading">
         <div className="px-4 py-3 border-b border-border/20 flex items-center gap-2">
           <Activity className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold text-foreground">System Health</span>
         </div>
         <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
-          ))}
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
         </div>
       </div>
     );
@@ -192,10 +225,7 @@ export default function SystemHealthPanel() {
 
   if (error || !data) {
     return (
-      <div
-        className="rounded-xl border border-border/30 bg-card/20 p-4 flex items-center gap-3"
-        data-testid="card-system-health-error"
-      >
+      <div className="rounded-xl border border-border/30 bg-card/20 p-4 flex items-center gap-3" data-testid="card-system-health-error">
         <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
         <div>
           <div className="text-sm font-semibold text-foreground">System Health</div>
@@ -205,49 +235,43 @@ export default function SystemHealthPanel() {
     );
   }
 
-  const { startup, youtube, ai, memory, killSwitches, selfHealing } = data;
-  const activeStages = startup.stages ?? [];
-  const okCount    = activeStages.filter(s => s.status === "ok").length;
-  const failCount  = activeStages.filter(s => s.status === "failed").length;
-  const degradeCount = activeStages.filter(s => s.status === "degraded").length;
-  const overallHealthy = failCount === 0 && startup.criticalBootDone;
-
-  const activeSwitches = Object.entries(killSwitches ?? {}).filter(([, v]) => v.active);
-  const semMax   = ai?.semaphore?.max ?? 8;
-  const semUsed  = ai?.semaphore?.active ?? 0;
-  const selfActions = (selfHealing?.recentActions ?? []).slice(0, 5);
-  const lastRefreshed = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+  const { startup, youtube, ai, memory, killSwitches, selfHealing, workers } = data;
+  const activeStages    = startup.stages ?? [];
+  const okCount         = activeStages.filter(s => s.status === "ok").length;
+  const failCount       = activeStages.filter(s => s.status === "failed").length;
+  const degradeCount    = activeStages.filter(s => s.status === "degraded").length;
+  const overallHealthy  = failCount === 0 && startup.criticalBootDone;
+  const activeSwitches  = Object.entries(killSwitches ?? {}).filter(([, v]) => v.active);
+  const semMax          = ai?.semaphore?.max ?? 8;
+  const semUsed         = ai?.semaphore?.active ?? 0;
+  const selfActions     = (selfHealing?.recentActions ?? []).slice(0, 5);
+  const workerList      = workers?.heartbeats ?? [];
+  const ytConn          = youtube?.connection ?? { status: "unknown", connectedCount: 0, disconnectedCount: 0 };
+  const lastRefreshed   = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "—";
 
   return (
-    <div
-      className="rounded-xl border border-border/30 bg-card/20 overflow-hidden"
-      data-testid="card-system-health"
-    >
+    <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="card-system-health">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 border-b border-border/20 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-primary" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Activity className="h-4 w-4 text-primary shrink-0" />
           <span className="text-sm font-semibold text-foreground">System Health</span>
           {overallHealthy ? (
-            <Badge className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30" data-testid="badge-system-health-status">
-              Operational
-            </Badge>
+            <Badge className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30" data-testid="badge-system-health-status">Operational</Badge>
           ) : failCount > 0 ? (
-            <Badge className="text-[10px] bg-red-500/15 text-red-400 border-red-500/30" data-testid="badge-system-health-status">
-              {failCount} Stage{failCount > 1 ? "s" : ""} Failed
-            </Badge>
+            <Badge className="text-[10px] bg-red-500/15 text-red-400 border-red-500/30" data-testid="badge-system-health-status">{failCount} Stage{failCount > 1 ? "s" : ""} Failed</Badge>
           ) : (
-            <Badge className="text-[10px] bg-amber-500/15 text-amber-400 border-amber-500/30" data-testid="badge-system-health-status">
-              {degradeCount > 0 ? `${degradeCount} Degraded` : "Booting"}
-            </Badge>
+            <Badge className="text-[10px] bg-amber-500/15 text-amber-400 border-amber-500/30" data-testid="badge-system-health-status">{degradeCount > 0 ? `${degradeCount} Degraded` : "Booting"}</Badge>
           )}
           {activeSwitches.length > 0 && (
-            <Badge className="text-[10px] bg-red-500/15 text-red-400 border-red-500/30 ml-1" data-testid="badge-kill-switches-active">
+            <Badge className="text-[10px] bg-red-500/15 text-red-400 border-red-500/30" data-testid="badge-kill-switches-active">
               {activeSwitches.length} Kill Switch{activeSwitches.length > 1 ? "es" : ""} Active
             </Badge>
           )}
         </div>
-        <span className="text-[10px] text-muted-foreground" data-testid="text-health-last-refreshed">↻ {lastRefreshed}</span>
+        <span className="text-[10px] text-muted-foreground shrink-0" data-testid="text-health-last-refreshed">↻ {lastRefreshed}</span>
       </div>
 
       <div className="p-4 space-y-4">
@@ -260,25 +284,25 @@ export default function SystemHealthPanel() {
               <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Startup</span>
             </div>
-            <div className="text-sm font-bold font-mono text-foreground leading-none" data-testid="text-startup-stage">
-              {okCount}/{activeStages.length}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {startup.criticalBootDone ? "Critical boot done" : "Booting…"}
-            </div>
+            <div className="text-sm font-bold font-mono text-foreground leading-none" data-testid="text-startup-stage">{okCount}/{activeStages.length}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">{startup.criticalBootDone ? "Critical boot done" : "Booting…"}</div>
           </div>
 
-          {/* YouTube quota */}
-          <div className={`rounded-lg border p-3 ${youtube.quotaBreakerActive ? "border-red-500/30 bg-red-500/5" : "border-border/25 bg-card/30"}`} data-testid="stat-quota-breaker">
+          {/* YouTube connection — separate from quota */}
+          <div className={`rounded-lg border p-3 ${youtubeConnectionColor(ytConn.status)}`} data-testid="stat-youtube-connection">
             <div className="flex items-center gap-1.5 mb-1">
-              <Zap className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">YT Quota</span>
+              {ytConn.status === "connected"
+                ? <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
+                : <WifiOff className="h-3.5 w-3.5 text-muted-foreground" />
+              }
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">YT Connect</span>
             </div>
-            <div className={`text-sm font-bold font-mono leading-none ${youtube.quotaBreakerActive ? "text-red-400" : "text-emerald-400"}`} data-testid="text-quota-status">
-              {youtube.quotaBreakerActive ? "Tripped" : "OK"}
+            <div className={`text-sm font-bold font-mono leading-none capitalize ${youtubeConnectionTextColor(ytConn.status)}`} data-testid="text-youtube-connection-status">
+              {ytConn.status === "unknown" ? "—" : ytConn.status}
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              {youtube.quotaResetTime ? `Resets ${youtube.quotaResetTime}` : "Within limit"}
+              {ytConn.connectedCount > 0 ? `${ytConn.connectedCount} channel${ytConn.connectedCount > 1 ? "s" : ""}` : "No tokens"}
+              {ytConn.disconnectedCount > 0 ? ` · ${ytConn.disconnectedCount} need reconnect` : ""}
             </div>
           </div>
 
@@ -288,12 +312,8 @@ export default function SystemHealthPanel() {
               <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">AI Queue</span>
             </div>
-            <div className={`text-sm font-bold font-mono leading-none ${semUsed >= semMax ? "text-amber-400" : "text-foreground"}`} data-testid="text-ai-queue-depth">
-              {semUsed}/{semMax}
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-0.5">
-              {semUsed >= semMax ? "Saturated" : "Active callers"}
-            </div>
+            <div className={`text-sm font-bold font-mono leading-none ${semUsed >= semMax ? "text-amber-400" : "text-foreground"}`} data-testid="text-ai-queue-depth">{semUsed}/{semMax}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">{semUsed >= semMax ? "Saturated" : "Active callers"}</div>
           </div>
 
           {/* Memory */}
@@ -302,24 +322,73 @@ export default function SystemHealthPanel() {
               <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Memory</span>
             </div>
-            <div className={`text-sm font-bold font-mono leading-none ${memPressureColor(memory.usedPct)}`} data-testid="text-memory-pct">
-              {memory.usedPct}%
-            </div>
+            <div className={`text-sm font-bold font-mono leading-none ${memPressureColor(memory.usedPct)}`} data-testid="text-memory-pct">{memory.usedPct}%</div>
             <div className="mt-1.5 h-1 rounded-full bg-muted/30 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${memBarColor(memory.usedPct)}`}
-                style={{ width: `${Math.min(memory.usedPct, 100)}%` }}
-                data-testid="bar-memory-usage"
-              />
+              <div className={`h-full rounded-full transition-all ${memBarColor(memory.usedPct)}`} style={{ width: `${Math.min(memory.usedPct, 100)}%` }} data-testid="bar-memory-usage" />
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">{memory.usedMB}MB / {memory.limitMB}MB</div>
           </div>
         </div>
 
+        {/* ── YouTube quota (secondary row) ────────────────────────────────── */}
+        {youtube.quotaBreakerActive && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2" data-testid="alert-quota-breaker">
+            <Zap className="h-4 w-4 text-red-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-semibold text-red-400">YouTube Quota Breaker Active</span>
+              {youtube.quotaResetTime && (
+                <span className="text-[10px] text-red-400/70 ml-2">Resets {youtube.quotaResetTime}</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Active Workers ───────────────────────────────────────────────── */}
+        <div data-testid="section-active-workers">
+          <button
+            className="w-full flex items-center justify-between text-left mb-2"
+            onClick={() => setWorkersExpanded(p => !p)}
+            data-testid="button-toggle-workers"
+          >
+            <SectionHeader
+              icon={<Users className="h-3.5 w-3.5" />}
+              title="Active Workers"
+              badge={
+                <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
+                  {workers?.registeredJobs ?? 0} registered
+                </Badge>
+              }
+            />
+            {workersExpanded
+              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            }
+          </button>
+
+          {workersExpanded && (
+            workerList.length === 0 ? (
+              <div className="text-[11px] text-muted-foreground px-1">No workers registered yet</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {workerList.map((w, i) => (
+                  <div
+                    key={w.jobName}
+                    className="flex items-center justify-between rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5"
+                    data-testid={`worker-${i}`}
+                  >
+                    <span className="text-[11px] text-foreground/80 truncate flex-1">{w.jobName}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0 ml-2">{formatIntervalMs(w.expectedIntervalMs)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+
         {/* ── Startup Stages ───────────────────────────────────────────────── */}
         <div data-testid="section-startup-stages">
           <button
-            className="w-full flex items-center justify-between text-left mb-2 group"
+            className="w-full flex items-center justify-between text-left mb-2"
             onClick={() => setStagesExpanded(p => !p)}
             data-testid="button-toggle-stages"
           >
@@ -333,8 +402,8 @@ export default function SystemHealthPanel() {
               }
             />
             {stagesExpanded
-              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             }
           </button>
 
@@ -347,13 +416,9 @@ export default function SystemHealthPanel() {
                   data-testid={`stage-${stage.name}`}
                 >
                   {stageIcon(stage.status)}
-                  <span className="text-[11px] text-foreground/80 flex-1 truncate">
-                    {i + 1}. {formatStageName(stage.name)}
-                  </span>
+                  <span className="text-[11px] text-foreground/80 flex-1 truncate">{i + 1}. {formatStageName(stage.name)}</span>
                   {stage.reason && (
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[100px]" title={stage.reason}>
-                      {stage.reason}
-                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[100px]" title={stage.reason}>{stage.reason}</span>
                   )}
                 </div>
               ))}
@@ -367,11 +432,7 @@ export default function SystemHealthPanel() {
             <SectionHeader
               icon={<Wrench className="h-3.5 w-3.5" />}
               title="Recent Self-Healing"
-              badge={
-                <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
-                  last 5
-                </Badge>
-              }
+              badge={<Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">last 5</Badge>}
             />
             <div className="space-y-1.5">
               {selfActions.map((action, i) => (
@@ -380,21 +441,13 @@ export default function SystemHealthPanel() {
                   className="flex items-start gap-2 rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5"
                   data-testid={`heal-action-${i}`}
                 >
-                  <Badge className={`text-[9px] shrink-0 mt-0.5 ${healSeverityColor(action.severity)}`}>
-                    {action.severity ?? "?"}
-                  </Badge>
+                  <Badge className={`text-[9px] shrink-0 mt-0.5 ${healSeverityColor(action.severity)}`}>{action.severity ?? "?"}</Badge>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-foreground/80 truncate" data-testid={`text-heal-action-${i}`}>
-                      {action.actionTaken ?? "Action taken"}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground truncate">
-                      {action.module} · {action.errorCode}
-                    </div>
+                    <div className="text-[11px] text-foreground/80 truncate" data-testid={`text-heal-action-${i}`}>{action.actionTaken ?? "Action taken"}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{action.module} · {action.errorCode}</div>
                   </div>
                   {action.status && (
-                    <Badge className={`text-[9px] shrink-0 ${action.status === "applied" ? "bg-emerald-500/15 text-emerald-400" : "bg-muted/20 text-muted-foreground"}`}>
-                      {action.status}
-                    </Badge>
+                    <Badge className={`text-[9px] shrink-0 ${action.status === "applied" ? "bg-emerald-500/15 text-emerald-400" : "bg-muted/20 text-muted-foreground"}`}>{action.status}</Badge>
                   )}
                 </div>
               ))}
@@ -414,19 +467,15 @@ export default function SystemHealthPanel() {
               title="Kill Switches"
               badge={
                 activeSwitches.length > 0 ? (
-                  <Badge className="text-[9px] bg-red-500/15 text-red-400 border-red-500/30">
-                    {activeSwitches.length} active
-                  </Badge>
+                  <Badge className="text-[9px] bg-red-500/15 text-red-400 border-red-500/30">{activeSwitches.length} active</Badge>
                 ) : (
-                  <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
-                    all clear
-                  </Badge>
+                  <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">all clear</Badge>
                 )
               }
             />
             {killSwitchesExpanded
-              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             }
           </button>
 
@@ -438,16 +487,12 @@ export default function SystemHealthPanel() {
                 return (
                   <div
                     key={key}
-                    className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 transition-colors ${
-                      sw.active ? "border-red-500/30 bg-red-500/5" : "border-border/20 bg-muted/5"
-                    }`}
+                    className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 transition-colors ${sw.active ? "border-red-500/30 bg-red-500/5" : "border-border/20 bg-muted/5"}`}
                     data-testid={`kill-switch-${key}`}
                   >
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="text-[11px] text-foreground/80 truncate">{KILL_SWITCH_LABELS[key]}</div>
-                      {sw.active && (
-                        <div className="text-[10px] text-red-400/70">via {sw.source}</div>
-                      )}
+                      {sw.active && <div className="text-[10px] text-red-400/70">via {sw.source}</div>}
                     </div>
                     <Button
                       size="sm"
