@@ -531,7 +531,13 @@ export async function downloadSourceVideo(youtubeId: string, userId?: string): P
       const newCount = (prev?.count || 0) + 1;
       softFailCounts.set(youtubeId, { count: newCount, lastAttempt: Date.now() });
       if (newCount >= MAX_SOFT_RETRIES) {
-        logger.warn("Video download exhausted retries — entering 4-hour cooldown", { youtubeId, attempts: newCount });
+        // All clients × formats exhausted across MAX_SOFT_RETRIES cycles with no
+        // access token — the video is permanently inaccessible without auth.
+        // Permanently fail it now so it is never retried again.
+        const reason = `Video permanently inaccessible — exhausted all yt-dlp format/client combinations over ${newCount} retry cycles (${youtubeId})`;
+        logger.warn(`[clip-video-processor] Permanently failing video after ${newCount} exhausted cycles`, { youtubeId });
+        markPermanentlyFailed(youtubeId, reason);
+        throw new Error(reason);
       }
       throw new Error(`All download methods failed for ${youtubeId} (attempt ${newCount}/${MAX_SOFT_RETRIES}). Will retry after cooldown.`);
     } finally {

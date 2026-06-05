@@ -6,6 +6,7 @@ import { createLogger } from "../lib/logger";
 import { getAppUrl } from "../lib/app-url";
 import { trackQuotaUsage, getQuotaStatus, isQuotaBreakerTripped, canAffordOperation } from "./youtube-quota-tracker";
 import { fireAgentEvent } from "./agent-events";
+import { isProductionAutomationAllowed } from "../lib/production-guard";
 
 const logger = createLogger("catalog-sync");
 
@@ -860,6 +861,11 @@ async function runCatalogCycle(): Promise<void> {
     const eligible = allUsers;
 
     for (const user of eligible) {
+      const guard = isProductionAutomationAllowed(user.id);
+      if (!guard.allowed) {
+        logger.debug(`[catalog-sync] Skipping user ${user.id}: ${guard.reason}`);
+        continue;
+      }
       try {
         await syncAllPlatformCatalogs(user.id);
 

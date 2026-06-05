@@ -524,6 +524,65 @@ async function migration009SchemaHistoryFixes(): Promise<void> {
   }
 }
 
+// ── Migration 010: purge permanently-dead video IDs ──────────────────────────
+// Inserts known-bad/seed video IDs into content_vault_backups as 'failed' so
+// clip-video-processor pre-loads them on boot and never attempts yt-dlp again.
+// Also hard-fails any autopilot_queue / back_catalog_videos rows referencing them.
+
+const DEAD_VIDEO_IDS = [
+  "_jSoYBa4D_4", // dev seed video — unreachable, caused yt-dlp flood in prod
+];
+
+async function migration010PurgeBadVideoIds(): Promise<void> {
+  const FLAG = "migration:010:purge_bad_video_ids";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    for (const youtubeId of DEAD_VIDEO_IDS) {
+      // 1) Upsert into content_vault_backups so clip-video-processor boot-skips it
+      await db.execute(sql`
+        INSERT INTO content_vault_backups (user_id, youtube_id, platform, content_type, status, download_error, created_at)
+        VALUES ('system', ${youtubeId}, 'youtube', 'video', 'failed',
+                ${"Permanently purged by migration010 — dev seed video, unreachable"}, NOW())
+        ON CONFLICT (youtube_id) DO UPDATE
+          SET status         = 'failed',
+              download_error = EXCLUDED.download_error
+          WHERE content_vault_backups.status != 'downloaded'
+      `);
+
+      // 2) Hard-fail any autopilot_queue rows that reference this video in payload
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET status        = 'permanent_fail',
+            error_message = ${"Purged by migration010: dead seed video " + youtubeId},
+            updated_at    = NOW()
+        WHERE status NOT IN ('published', 'permanent_fail')
+          AND (
+            payload::text ILIKE ${"%" + youtubeId + "%"}
+            OR content::text ILIKE ${"%" + youtubeId + "%"}
+          )
+      `);
+
+      // 3) Mark back_catalog_videos row as excluded (won't be re-queued)
+      await db.execute(sql`
+        UPDATE back_catalog_videos
+        SET processing_status = 'excluded',
+            exclusion_reason  = ${"migration010: dead seed video"},
+            updated_at        = NOW()
+        WHERE youtube_id = ${youtubeId}
+          AND processing_status != 'excluded'
+      `);
+
+      log.info(`[Migration 010] Purged dead video: ${youtubeId}`);
+    }
+
+    await setFlag(FLAG);
+    log.info("[Migration 010] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 010] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -539,6 +598,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:007:module_hourly_caps_seeded",        label: "007 — seed module hourly caps" },
   { flag: "migration:008:all_engine_hourly_caps_seeded",    label: "008 — seed all engine hourly caps" },
   { flag: "migration:009:schema_history_fixes",             label: "009 — schema history fixes (autopilot_queue, channels, dlq, security_ip_allowlist)" },
+  { flag: "migration:010:purge_bad_video_ids",              label: "010 — purge permanently-dead video IDs from all queue tables" },
 ];
 
 export interface MigrationHealth {
@@ -601,6 +661,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration007SeedModuleHourlyCaps();
     await migration008SeedAllEngineHourlyCaps();
     await migration009SchemaHistoryFixes();
+    await migration010PurgeBadVideoIds();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
