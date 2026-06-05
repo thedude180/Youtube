@@ -29,7 +29,7 @@ export function registerSystemStatusRoutes(app: Express): void {
         { getContainerMemory },
         { ytdlpGateStatus },
         { getAISemaphoreStats, getAiQueueStatus },
-        { getHourlyCapStatus },
+        { getHourlyCapStatus, getDailyCapStatus },
       ] = await Promise.all([
         import("../lib/startup-orchestrator"),
         import("../lib/kill-switches"),
@@ -70,6 +70,7 @@ export function registerSystemStatusRoutes(app: Express): void {
       const semaphore = getAISemaphoreStats();
       const queues = getAiQueueStatus();
       const hourly = getHourlyCapStatus();
+      const daily  = getDailyCapStatus();
 
       // Active workers from cron heartbeat registry.
       let workers: { registeredJobs: number; heartbeats: Array<{ jobName: string; expectedIntervalMs: number }> } = {
@@ -137,6 +138,7 @@ export function registerSystemStatusRoutes(app: Express): void {
           semaphore,
           queues,
           hourly,
+          daily,
           scheduler: schedulerStatus,
         },
 

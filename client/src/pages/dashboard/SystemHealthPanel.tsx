@@ -76,6 +76,7 @@ interface SystemStatus {
     queues?: Record<string, number>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
     hourly?: Record<string, { used: number; limit: number; pct: number }>;
+    daily?:  Record<string, { usedToday: number; dateKey: string }>;
   };
   memory: {
     usedMB: number;
@@ -581,6 +582,48 @@ export default function SystemHealthPanel() {
             )}
           </div>
         )}
+
+        {/* ── Daily Token Usage ────────────────────────────────────────────── */}
+        {(() => {
+          const dailyEntries = Object.entries(ai?.daily ?? {})
+            .sort((a, b) => b[1].usedToday - a[1].usedToday);
+          if (dailyEntries.length === 0) return null;
+          const dateKey = dailyEntries[0]?.[1]?.dateKey ?? "";
+          const totalToday = dailyEntries.reduce((s, [, v]) => s + v.usedToday, 0);
+          return (
+            <div data-testid="section-daily-token-usage">
+              <SectionHeader
+                icon={<Gauge className="h-3.5 w-3.5" />}
+                title="Daily Token Usage"
+                badge={
+                  <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
+                    {dateKey}
+                  </Badge>
+                }
+              />
+              <div className="rounded-lg border border-border/25 bg-card/30 px-3 py-2 mb-2 flex items-center justify-between" data-testid="stat-daily-total">
+                <span className="text-[11px] text-muted-foreground">Total today</span>
+                <span className="text-sm font-mono font-bold text-foreground" data-testid="text-daily-total">
+                  {totalToday.toLocaleString()}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {dailyEntries.map(([engine, stat]) => (
+                  <div
+                    key={engine}
+                    className="flex items-center justify-between rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5"
+                    data-testid={`daily-usage-${engine}`}
+                  >
+                    <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
+                    <span className="text-[11px] font-mono text-muted-foreground shrink-0 ml-2" data-testid={`text-daily-used-${engine}`}>
+                      {stat.usedToday.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── Token Flush Health (admin only) ─────────────────────────────── */}
         {isAdmin && flushHealth !== undefined && (() => {
