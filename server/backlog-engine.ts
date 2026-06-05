@@ -191,9 +191,10 @@ async function processBacklogAsync(
   if (!session) return;
 
   // Budget pre-check — one guard before touching any video.
-  // viralOptimizeVideo already checks per-call, but without this the loop
-  // emits 80+ individual "budget exhausted" warnings before stopping.
-  if (!tokenBudget.checkBudget("viral-optimizer", 1)) {
+  // Cost must match per-video cost (3000) so partial budgets don't slip through:
+  // checkBudget(cost=1) passes when e.g. 500 tokens remain, but every
+  // viralOptimizeVideo call needs 3000 → 70 iterations fire before stopping.
+  if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
     logger.warn(`[BacklogEngine] viral-optimizer budget exhausted — skipping ${videos.length}-video batch until tomorrow`);
     if (session) {
       session.state = "idle";
@@ -1083,16 +1084,24 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
   let completed = 0;
 
   // Check viral-optimizer budget once before touching any video.
-  // Each per-video call also checks, but without this gate a 40-video batch
-  // generates 40 identical "budget exhausted" log entries at the same instant.
-  if (!tokenBudget.checkBudget("viral-optimizer", 1)) {
-    logger.warn(`[BackCatalog] viral-optimizer daily budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
+  // Cost must match per-video cost (3000) — cost=1 passes when e.g. 500 tokens
+  // remain, letting 70 iterations run (each with a 2s delay = 140s execution +
+  // 70 progress-update DB writes) before the per-call check finally stops them.
+  if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
+    logger.warn(`[BackCatalog] viral-optimizer budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
     const session = sessions.get(userId);
     if (session) session.state = "idle";
     return;
   }
 
   for (const video of videoList) {
+    // Per-iteration budget check — breaks immediately when budget is depleted
+    // mid-batch so we don't burn 2s delays + DB writes for remaining videos.
+    if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
+      logger.warn(`[BackCatalog] viral-optimizer budget depleted mid-batch — stopping at ${completed}/${videoList.length}`);
+      break;
+    }
+
     const currentSession = sessions.get(userId);
     if (!currentSession || currentSession.state === "paused") break;
     if (currentSession.state === "stream_active") {

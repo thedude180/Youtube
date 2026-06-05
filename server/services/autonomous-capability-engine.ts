@@ -19,7 +19,7 @@ import {
   users, capabilityGaps, promptVersions, discoveredStrategies,
   curiosityQueue, selfReflectionJournal, improvementGoals, engineKnowledge,
 } from "@shared/schema";
-import { eq, and, desc, gte, ne, count, sql } from "drizzle-orm";
+import { eq, and, desc, gte, ne, count, sql, or, isNull, lt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
@@ -119,12 +119,18 @@ async function expandCapabilitiesForUser(userId: string): Promise<void> {
     logger.info(`Logged ${newGaps.length} new gap(s) for user ${userId.slice(0, 8)}`);
   }
 
-  // Fill all unfilled gaps (new + previously failed with < 3 attempts)
+  // Fill unfilled gaps — skip any gap attempted in the last 30 min to prevent
+  // tight retry loops when AI returns invalid structure (5 gaps × every 30s = spam).
+  const cooldownCutoff = new Date(Date.now() - 30 * 60_000);
   const unfilled = await db.select()
     .from(capabilityGaps)
     .where(and(
       eq(capabilityGaps.userId, userId),
       ne(capabilityGaps.status, "filled"),
+      or(
+        isNull(capabilityGaps.lastAttemptAt),
+        lt(capabilityGaps.lastAttemptAt, cooldownCutoff),
+      ),
     ))
     .orderBy(desc(capabilityGaps.priority))
     .limit(10);
@@ -310,7 +316,9 @@ The prompts must be specific to gaming content, YouTube best practices, and the 
   const parsed = safeParseJSON<Record<string, any>>(result.content, {});
 
   if (!parsed?.systemPrompt || !parsed?.userPromptTemplate) {
-    throw new Error("AI returned invalid prompt structure");
+    logger.warn(`[CapabilityEngine] Prompt parse failed for "${promptKey}" — will retry after cooldown`);
+    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date() }).where(eq(capabilityGaps.id, gap.id));
+    return;
   }
 
   const existing = await db.select({ version: promptVersions.version })
@@ -384,7 +392,9 @@ Make this strategy specific enough that an AI engine can act on it without furth
   const parsed = safeParseJSON<Record<string, any>>(result.content, {});
 
   if (!parsed?.title || !parsed?.description) {
-    throw new Error("AI returned invalid strategy structure");
+    logger.warn(`[CapabilityEngine] Strategy parse failed for "${domain}" — will retry after cooldown`);
+    await db.update(capabilityGaps).set({ status: "failed", lastAttemptAt: new Date() }).where(eq(capabilityGaps.id, gap.id));
+    return;
   }
 
   const existing = await db.select({ id: discoveredStrategies.id })
