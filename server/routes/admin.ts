@@ -335,6 +335,17 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/token-budget-health", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const { getFlushHealth } = await import("../lib/token-hourly-cap");
+      res.json(await getFlushHealth());
+    } catch (e: any) {
+      res.status(500).json({ error: "An internal error occurred. Please try again." });
+    }
+  });
+
   app.get("/api/user/export", async (req: any, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;

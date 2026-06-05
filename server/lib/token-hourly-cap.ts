@@ -154,6 +154,7 @@ function getSlot(module: string): HourlySlot {
 // ─── Persistence: flush to DB ─────────────────────────────────────────────────
 let _dirty      = false;
 let _flushTimer: ReturnType<typeof setInterval> | null = null;
+let _lastFlushAt: Date | null = null;
 
 async function flushHourlyUsageToDB(): Promise<void> {
   if (!_dirty) return;
@@ -178,11 +179,59 @@ async function flushHourlyUsageToDB(): Promise<void> {
         target: systemSettings.key,
         set: { value, updatedAt: new Date() },
       });
+    _lastFlushAt = new Date();
     log.debug(`[HourlyCap] Flushed snapshot for hour ${currentHour} (${Object.keys(usage).length} modules)`);
   } catch (err: any) {
     log.warn(`[HourlyCap] Failed to flush hourly snapshot: ${err?.message}`);
     _dirty = true; // retry next cycle
   }
+}
+
+/**
+ * Returns the health of the hourly-token flush mechanism.
+ *
+ * Source of truth is the DB — reads the `updated_at` column of the
+ * `hourly_tokens:snapshot` row so the answer survives process restarts.
+ * Falls back to the in-memory `_lastFlushAt` if the DB read fails.
+ *
+ * lastFlushAt    — ISO timestamp of the last successful flush (null = never)
+ * snapshotAgeSecs — seconds since last flush (-1 = never flushed)
+ * isStale        — true when age > 120 s or no flush has ever succeeded
+ */
+export async function getFlushHealth(): Promise<{
+  lastFlushAt: string | null;
+  snapshotAgeSecs: number;
+  isStale: boolean;
+}> {
+  let flushTime: Date | null = _lastFlushAt;
+
+  try {
+    const [row] = await db
+      .select({ updatedAt: systemSettings.updatedAt })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, SNAPSHOT_KEY))
+      .limit(1);
+
+    if (row?.updatedAt) {
+      const dbTime = new Date(row.updatedAt);
+      // Use whichever timestamp is more recent
+      if (!flushTime || dbTime > flushTime) {
+        flushTime = dbTime;
+      }
+    }
+  } catch (err: any) {
+    log.warn(`[HourlyCap] getFlushHealth DB read failed (using in-memory fallback): ${err?.message}`);
+  }
+
+  if (!flushTime) {
+    return { lastFlushAt: null, snapshotAgeSecs: -1, isStale: true };
+  }
+  const ageSecs = Math.floor((Date.now() - flushTime.getTime()) / 1000);
+  return {
+    lastFlushAt: flushTime.toISOString(),
+    snapshotAgeSecs: ageSecs,
+    isStale: ageSecs > 120,
+  };
 }
 
 // ─── Persistence: restore from DB on boot ────────────────────────────────────
@@ -195,7 +244,7 @@ async function flushHourlyUsageToDB(): Promise<void> {
 export async function restoreHourlyUsageFromDB(): Promise<void> {
   try {
     const [row] = await db
-      .select({ value: systemSettings.value })
+      .select({ value: systemSettings.value, updatedAt: systemSettings.updatedAt })
       .from(systemSettings)
       .where(eq(systemSettings.key, SNAPSHOT_KEY))
       .limit(1);
@@ -207,6 +256,11 @@ export async function restoreHourlyUsageFromDB(): Promise<void> {
 
     const snapshot: HourlySnapshot = JSON.parse(row.value);
     const currentHour = getCurrentHourKey();
+
+    // Initialize _lastFlushAt from the DB row so health survives restarts
+    if (row.updatedAt) {
+      _lastFlushAt = new Date(row.updatedAt);
+    }
 
     if (snapshot.hourKey !== currentHour) {
       log.info(

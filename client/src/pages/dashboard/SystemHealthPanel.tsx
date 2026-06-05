@@ -11,7 +11,7 @@ import {
   Activity, Shield, Cpu, Zap, HardDrive, Wrench,
   CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw,
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Wifi, WifiOff, Users,
-  Gauge, Pencil, Check, X,
+  Gauge, Pencil, Check, X, DatabaseZap,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,6 +39,12 @@ interface SelfHealAction {
 interface WorkerEntry {
   jobName: string;
   expectedIntervalMs: number;
+}
+
+interface FlushHealth {
+  lastFlushAt: string | null;
+  snapshotAgeSecs: number;
+  isStale: boolean;
 }
 
 interface SystemStatus {
@@ -221,6 +227,14 @@ export default function SystemHealthPanel() {
     refetchInterval: 30_000,
     staleTime: 25_000,
     retry: 2,
+  });
+
+  const { data: flushHealth } = useQuery<FlushHealth>({
+    queryKey: ["/api/admin/token-budget-health"],
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    retry: 1,
+    enabled: isAdmin,
   });
 
   const viralCapMutation = useMutation({
@@ -519,6 +533,67 @@ export default function SystemHealthPanel() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Token Flush Health (admin only) ─────────────────────────────── */}
+        {isAdmin && flushHealth !== undefined && (
+          <div data-testid="section-token-flush-health">
+            <SectionHeader
+              icon={<DatabaseZap className="h-3.5 w-3.5" />}
+              title="Token Flush Health"
+            />
+            <div
+              className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                flushHealth.isStale
+                  ? "border-amber-500/30 bg-amber-500/5"
+                  : "border-border/25 bg-card/30"
+              }`}
+              data-testid="card-token-flush-health"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] text-muted-foreground">Last hourly-token flush</div>
+                <div
+                  className={`text-sm font-mono font-semibold leading-snug ${
+                    flushHealth.isStale ? "text-amber-400" : "text-foreground"
+                  }`}
+                  data-testid="text-flush-last-at"
+                >
+                  {flushHealth.lastFlushAt
+                    ? new Date(flushHealth.lastFlushAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })
+                    : "Never flushed this session"}
+                </div>
+              </div>
+              <div className="flex flex-col items-end shrink-0 ml-3">
+                {flushHealth.snapshotAgeSecs >= 0 ? (
+                  <span
+                    className={`text-sm font-mono font-bold ${
+                      flushHealth.isStale ? "text-amber-400" : "text-emerald-400"
+                    }`}
+                    data-testid="text-flush-age-secs"
+                  >
+                    {flushHealth.snapshotAgeSecs}s ago
+                  </span>
+                ) : (
+                  <span className="text-sm font-mono font-bold text-amber-400" data-testid="text-flush-age-secs">
+                    —
+                  </span>
+                )}
+                {flushHealth.isStale ? (
+                  <Badge className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30 mt-0.5" data-testid="badge-flush-stale">
+                    Stale &gt;120s
+                  </Badge>
+                ) : (
+                  <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30 mt-0.5" data-testid="badge-flush-ok">
+                    Fresh
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
