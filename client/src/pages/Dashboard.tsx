@@ -26,6 +26,7 @@ import DailyBriefingSection from "./dashboard/DailyBriefingSection";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
+import SystemHealthPanel from "./dashboard/SystemHealthPanel";
 import ChannelBrandSyncStatus from "./dashboard/ChannelBrandSyncStatus";
 import UpcomingSchedule from "./dashboard/UpcomingSchedule";
 import BackCatalogReviver from "./dashboard/BackCatalogReviver";
@@ -1051,6 +1052,8 @@ export default function TeamDashboard() {
         )}
 
         <YouTubeAutopilotStatus />
+
+        <SystemHealthPanel />
 
         <ChannelBrandSyncStatus />
 
