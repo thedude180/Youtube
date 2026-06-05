@@ -6,7 +6,7 @@ import { Shield, AlertTriangle, LogOut, Link2, Bell,
   Trash2, Zap, Sun, Moon, Clock,
   Globe, CheckCircle,
   TrendingUp, Download, Loader2, Settings2, Crown, KeyRound, UsersRound, Coins,
-  CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText, Save,
+  CreditCard, Receipt, ExternalLink, XCircle, RefreshCw, FileText, Save, Gauge,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { QualitySettingsPanel } from "@/components/resolution-intelligence";
@@ -55,13 +55,14 @@ const AdminCodesTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").
 const AdminUsersTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminUsersTab }))));
 const AdminSystemHealthTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminSystemHealthTab }))));
 const AdminTokenBudgetTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminTokenBudgetTab }))));
+const AdminHourlyCapsTab = lazy(() => lazyRetry(() => import("./settings/AdminTabs").then(m => ({ default: m.AdminHourlyCapsTab }))));
 const SecurityTab = lazy(() => lazyRetry(() => import("./settings/SecurityTab")));
 
 const TabFallback = () => <Skeleton className="h-96 w-full rounded-lg" />;
 
-type TabKey = "general" | "security" | "subscription" | "billing" | "admin-codes" | "admin-users" | "admin-health" | "admin-tokens";
+type TabKey = "general" | "security" | "subscription" | "billing" | "admin-codes" | "admin-users" | "admin-health" | "admin-tokens" | "admin-hourly-caps";
 
-const VALID_TABS: TabKey[] = ["general", "security", "subscription", "billing", "admin-codes", "admin-users", "admin-health", "admin-tokens"];
+const VALID_TABS: TabKey[] = ["general", "security", "subscription", "billing", "admin-codes", "admin-users", "admin-health", "admin-tokens", "admin-hourly-caps"];
 
 const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "general", label: "General" },
@@ -72,6 +73,7 @@ const baseTabs: { key: TabKey; label: string; adminOnly?: boolean }[] = [
   { key: "admin-users", label: "Users", adminOnly: true },
   { key: "admin-health", label: "System Health", adminOnly: true },
   { key: "admin-tokens", label: "Token Budget", adminOnly: true },
+  { key: "admin-hourly-caps", label: "Hourly Caps", adminOnly: true },
 ];
 
 interface NotificationPrefs {
@@ -1240,6 +1242,7 @@ export default function Settings() {
     "admin-users": UsersRound,
     "admin-health": Shield,
     "admin-tokens": Coins,
+    "admin-hourly-caps": Gauge,
   };
 
   return (
@@ -1283,6 +1286,7 @@ export default function Settings() {
           {isAdmin && <TabsContent value="admin-users" className="mt-4"><SectionErrorBoundary fallbackTitle="Admin users failed to load"><AdminUsersTab /></SectionErrorBoundary></TabsContent>}
           {isAdmin && <TabsContent value="admin-health" className="mt-4"><SectionErrorBoundary fallbackTitle="System health failed to load"><AdminSystemHealthTab /></SectionErrorBoundary></TabsContent>}
           {isAdmin && <TabsContent value="admin-tokens" className="mt-4"><SectionErrorBoundary fallbackTitle="Token budget failed to load"><AdminTokenBudgetTab /></SectionErrorBoundary></TabsContent>}
+          {isAdmin && <TabsContent value="admin-hourly-caps" className="mt-4"><SectionErrorBoundary fallbackTitle="Hourly caps failed to load"><AdminHourlyCapsTab /></SectionErrorBoundary></TabsContent>}
         </Suspense>
       </Tabs>
       )}

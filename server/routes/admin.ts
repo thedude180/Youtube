@@ -4,13 +4,14 @@ import { ADMIN_EMAIL, users, channels, videos, managedPlaylists, playlistItems, 
 import { storage } from "../storage";
 import { logSecurityEvent } from "../lib/audit";
 import { db, pool } from "../db";
-import { desc, sql, eq, and, inArray } from "drizzle-orm";
+import { desc, sql, eq, and, inArray, like } from "drizzle-orm";
 import { requireAuth, requireAdmin, parseNumericId, rateLimitEndpoint, getUserEmail } from "./helpers";
 import { cached } from "../lib/cache";
 import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
+import { HOURLY_CAPS } from "../lib/token-hourly-cap";
 
 const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
@@ -625,34 +626,119 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  async function upsertSystemSetting(req: any, res: any, userId: string) {
+    const schema = z.object({
+      key:   z.string().min(1).max(200),
+      value: z.string().min(1).max(2000),
+    });
+    const { key, value } = schema.parse(req.body);
+    await db
+      .insert(systemSettings)
+      .values({ key, value, createdAt: new Date(), updatedAt: new Date() } as any)
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value, updatedAt: new Date() },
+      });
+    await logSecurityEvent({
+      userId,
+      action: "admin.system_settings.update",
+      details: { key, value },
+    });
+    logger.info(`[SystemSettings] Admin ${userId} updated "${key}" = "${value}"`);
+    return { key, value };
+  }
+
   app.post("/api/admin/system-settings", adminRateLimit, async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
-      const schema = z.object({
-        key:   z.string().min(1).max(200),
-        value: z.string().min(1).max(2000),
-      });
-      const { key, value } = schema.parse(req.body);
-      await db
-        .insert(systemSettings)
-        .values({ key, value, createdAt: new Date(), updatedAt: new Date() } as any)
-        .onConflictDoUpdate({
-          target: systemSettings.key,
-          set: { value, updatedAt: new Date() },
-        });
-      await logSecurityEvent({
-        userId,
-        action: "admin.system_settings.update",
-        details: { key, value },
-      });
-      logger.info(`[SystemSettings] Admin ${userId} updated "${key}" = "${value}"`);
-      res.json({ ok: true, key, value });
+      const result = await upsertSystemSetting(req, res, userId);
+      res.json({ ok: true, ...result });
     } catch (err: any) {
       if (err?.name === "ZodError") {
         return res.status(400).json({ error: "Invalid request", details: err.errors });
       }
       res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to update setting" });
+    }
+  });
+
+  app.patch("/api/admin/system-settings", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const result = await upsertSystemSetting(req, res, userId);
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      if (err?.name === "ZodError") {
+        return res.status(400).json({ error: "Invalid request", details: err.errors });
+      }
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to update setting" });
+    }
+  });
+
+  // ── Hourly cap management ─────────────────────────────────────────────────────
+
+  app.get("/api/admin/hourly-caps", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      // Fetch all hourly_cap:* rows from DB
+      const dbRows = await db
+        .select({ key: systemSettings.key, value: systemSettings.value, updatedAt: systemSettings.updatedAt })
+        .from(systemSettings)
+        .where(like(systemSettings.key, "hourly_cap:%"));
+
+      const dbMap: Record<string, { value: string; updatedAt: Date | null }> = {};
+      for (const row of dbRows) {
+        const module = row.key.replace(/^hourly_cap:/, "");
+        dbMap[module] = { value: row.value, updatedAt: row.updatedAt as Date | null };
+      }
+
+      // Merge code defaults + DB entries
+      const allModules = new Set([...Object.keys(HOURLY_CAPS), ...Object.keys(dbMap)]);
+      const result: Record<string, {
+        codeDefault: number;
+        dbValue: number | null;
+        effectiveCap: number;
+        dbUpdatedAt: string | null;
+      }> = {};
+
+      for (const module of allModules) {
+        const codeDefault = HOURLY_CAPS[module] ?? HOURLY_CAPS["default"] ?? 5000;
+        const dbEntry = dbMap[module];
+        const dbValue = dbEntry ? parseInt(dbEntry.value, 10) : null;
+        const validDbValue = (dbValue !== null && !isNaN(dbValue) && dbValue > 0) ? dbValue : null;
+        result[module] = {
+          codeDefault,
+          dbValue: validDbValue,
+          effectiveCap: validDbValue ?? codeDefault,
+          dbUpdatedAt: dbEntry?.updatedAt ? new Date(dbEntry.updatedAt).toISOString() : null,
+        };
+      }
+
+      res.json({ ok: true, caps: result });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to read hourly caps" });
+    }
+  });
+
+  app.delete("/api/admin/hourly-caps/:module", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const module = req.params.module;
+      await db
+        .delete(systemSettings)
+        .where(eq(systemSettings.key, `hourly_cap:${module}`));
+      await logSecurityEvent({
+        userId,
+        action: "admin.hourly_cap.reset",
+        details: { module },
+      });
+      logger.info(`[HourlyCaps] Admin ${userId} reset hourly_cap:${module} to code default`);
+      res.json({ ok: true, module });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to reset cap" });
     }
   });
 

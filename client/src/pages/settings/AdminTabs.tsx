@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw, Gauge, Pencil, Check, X } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
@@ -773,5 +773,286 @@ function AdminTokenBudgetTab() {
   );
 }
 
-export { AdminCodesTab, AdminUsersTab, AdminSystemHealthTab, AdminTokenBudgetTab };
+// ── AdminHourlyCapsTab ────────────────────────────────────────────────────────
+
+interface HourlyCapInfo {
+  codeDefault: number;
+  dbValue: number | null;
+  effectiveCap: number;
+  dbUpdatedAt: string | null;
+}
+
+interface HourlyCapsResponse {
+  ok: boolean;
+  caps: Record<string, HourlyCapInfo>;
+}
+
+function formatCompactK(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+  return String(n);
+}
+
+function AdminHourlyCapsTab() {
+  const { toast } = useToast();
+  const [editingModule, setEditingModule] = useState<string | null>(null);
+  const [inputValue, setInputValue] = useState("");
+
+  const { data, isLoading, refetch, isFetching } = useQuery<HourlyCapsResponse>({
+    queryKey: ["/api/admin/hourly-caps"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ module, value }: { module: string; value: string }) => {
+      const res = await apiRequest("PATCH", "/api/admin/system-settings", {
+        key: `hourly_cap:${module}`,
+        value,
+      });
+      return res.json();
+    },
+    onSuccess: (_res, vars) => {
+      toast({
+        title: `${vars.module} cap updated`,
+        description: `New effective cap: ${Number(vars.value).toLocaleString()} tokens/hour. Takes effect next hour.`,
+      });
+      setEditingModule(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/hourly-caps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update failed",
+        description: err?.message || "Could not save cap",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: async (module: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/hourly-caps/${module}`);
+      return res.json();
+    },
+    onSuccess: (_res, module) => {
+      toast({ title: `${module} reset to code default` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/hourly-caps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Reset failed", description: err?.message, variant: "destructive" });
+    },
+  });
+
+  function handleSave(module: string) {
+    const n = parseInt(inputValue, 10);
+    if (isNaN(n) || n < 100 || n > 1_000_000) {
+      toast({
+        title: "Invalid value",
+        description: "Enter a number between 100 and 1,000,000",
+        variant: "destructive",
+      });
+      return;
+    }
+    saveMutation.mutate({ module, value: String(n) });
+  }
+
+  function handleEdit(module: string, current: number) {
+    setInputValue(String(current));
+    setEditingModule(module);
+  }
+
+  function handleCancel() {
+    setEditingModule(null);
+    setInputValue("");
+  }
+
+  const entries = data?.caps ? Object.entries(data.caps).sort((a, b) => {
+    // Sort: DB overrides first, then by name
+    const aHasDb = a[1].dbValue !== null ? 1 : 0;
+    const bHasDb = b[1].dbValue !== null ? 1 : 0;
+    if (bHasDb !== aHasDb) return bHasDb - aHasDb;
+    return a[0].localeCompare(b[0]);
+  }) : [];
+
+  const overrideCount = entries.filter(([, v]) => v.dbValue !== null).length;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-64 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="admin-hourly-caps">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Gauge className="w-5 h-5" />
+          Hourly Token Caps
+          {overrideCount > 0 && (
+            <Badge variant="secondary" className="text-xs bg-sky-500/15 text-sky-400 border-sky-500/30" data-testid="badge-override-count">
+              {overrideCount} DB override{overrideCount !== 1 ? "s" : ""}
+            </Badge>
+          )}
+        </h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          data-testid="button-refresh-hourly-caps"
+        >
+          <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground -mt-2">
+        Each row shows the compile-time code default and the active DB override (if any).
+        Changes take effect at the start of the next hour. The{" "}
+        <span className="text-sky-400 font-medium">cap column</span> is what the engine
+        actually enforces right now.
+      </p>
+
+      <Card data-testid="card-hourly-caps">
+        <CardContent className="pt-4">
+          {entries.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No cap data available.</p>
+          ) : (
+            <div className="space-y-2">
+              {entries.map(([module, info]) => {
+                const isEditing  = editingModule === module;
+                const hasOverride = info.dbValue !== null;
+                const previewN   = isEditing ? parseInt(inputValue, 10) : NaN;
+                const previewValid = !isNaN(previewN) && previewN >= 100 && previewN <= 1_000_000;
+
+                return (
+                  <div
+                    key={module}
+                    className={`rounded-md border p-3 ${hasOverride ? "border-sky-500/25 bg-sky-500/5" : "border-border/25 bg-muted/20"}`}
+                    data-testid={`hourly-cap-row-${module}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      {/* Module name + badge */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-mono font-medium truncate" data-testid={`text-module-name-${module}`}>{module}</span>
+                        {hasOverride ? (
+                          <Badge className="text-[9px] bg-sky-500/15 text-sky-400 border-sky-500/30 shrink-0" data-testid={`badge-db-override-${module}`}>
+                            DB override
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[9px] text-muted-foreground shrink-0" data-testid={`badge-code-default-${module}`}>
+                            code default
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Cap values + controls */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-muted-foreground font-mono" data-testid={`text-code-default-${module}`}>
+                          default: {formatCompactK(info.codeDefault)}
+                        </span>
+                        {hasOverride && (
+                          <span className="text-[11px] text-sky-400 font-mono font-semibold" data-testid={`text-effective-cap-${module}`}>
+                            cap: {formatCompactK(info.effectiveCap)}
+                          </span>
+                        )}
+                        {!isEditing && (
+                          <button
+                            onClick={() => handleEdit(module, info.effectiveCap)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title="Edit cap"
+                            data-testid={`button-edit-cap-${module}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        )}
+                        {!isEditing && hasOverride && (
+                          <button
+                            onClick={() => resetMutation.mutate(module)}
+                            disabled={resetMutation.isPending}
+                            className="text-muted-foreground hover:text-red-400 transition-colors"
+                            title="Reset to code default"
+                            data-testid={`button-reset-cap-${module}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inline editor */}
+                    {isEditing && (
+                      <div className="mt-2.5 space-y-2" data-testid={`editor-${module}`}>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={100}
+                            max={1_000_000}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            className="h-7 text-xs font-mono w-36"
+                            placeholder="tokens / hour"
+                            data-testid={`input-cap-${module}`}
+                          />
+                          <span className="text-[10px] text-muted-foreground">tokens/hour</span>
+                          <button
+                            onClick={() => handleSave(module)}
+                            disabled={saveMutation.isPending}
+                            className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                            title="Save"
+                            data-testid={`button-save-cap-${module}`}
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={handleCancel}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title="Cancel"
+                            data-testid={`button-cancel-cap-${module}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {/* Real-time preview */}
+                        {previewValid && (
+                          <div className="text-[10px] text-sky-400/80 font-mono pl-0.5" data-testid={`preview-cap-${module}`}>
+                            New effective cap: {previewN.toLocaleString()} tokens/hr
+                            {previewN !== info.codeDefault && (
+                              <span className="text-muted-foreground ml-1">
+                                ({previewN > info.codeDefault ? "+" : ""}{(previewN - info.codeDefault).toLocaleString()} vs code default)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {inputValue && !previewValid && (
+                          <div className="text-[10px] text-red-400/80 pl-0.5" data-testid={`preview-error-${module}`}>
+                            Must be between 100 and 1,000,000
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* DB override timestamp */}
+                    {hasOverride && info.dbUpdatedAt && !isEditing && (
+                      <div className="mt-1 text-[10px] text-muted-foreground/60 font-mono pl-0.5" data-testid={`text-updated-at-${module}`}>
+                        last updated {new Date(info.dbUpdatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export { AdminCodesTab, AdminUsersTab, AdminSystemHealthTab, AdminTokenBudgetTab, AdminHourlyCapsTab };
 export default SubscriptionTab;
