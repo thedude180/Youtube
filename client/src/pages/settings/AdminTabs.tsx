@@ -844,6 +844,8 @@ interface DailyCapInfo {
   dbValue: number | null;
   effectiveCap: number;
   dbUpdatedAt: string | null;
+  usedToday: number;
+  pct: number;
 }
 
 interface DailyCapsResponse {
@@ -1406,9 +1408,11 @@ function AdminHourlyCapsTab() {
         </div>
 
         <p className="text-xs text-muted-foreground -mt-2">
-          Each module's total daily budget in tokens. Overrides are stored in DB under{" "}
-          <span className="font-mono text-foreground/70">daily_cap:&lt;module&gt;</span> and expire
-          naturally at UTC midnight — no restart needed.
+          Each module's total daily budget in tokens. The{" "}
+          <span className="text-violet-400 font-medium">usage bar</span> shows tokens consumed
+          today versus the daily cap — resets at UTC midnight automatically. Overrides are stored
+          in DB under <span className="font-mono text-foreground/70">daily_cap:&lt;module&gt;</span>{" "}
+          and expire naturally at UTC midnight — no restart needed.
         </p>
 
         <AlertDialog open={showDailyBulkResetConfirm} onOpenChange={setShowDailyBulkResetConfirm}>
@@ -1504,6 +1508,20 @@ function AdminHourlyCapsTab() {
 
                         {/* Cap values + controls */}
                         <div className="flex items-center gap-2 shrink-0">
+                          {info.usedToday > 0 && (
+                            <span
+                              className={`text-[11px] font-mono font-semibold ${
+                                info.pct >= 90 ? "text-red-400"
+                                : info.pct >= 70 ? "text-amber-400"
+                                : info.pct >= 60 ? "text-amber-500/80"
+                                : "text-violet-400"
+                              }`}
+                              title={`Daily usage: ${info.usedToday.toLocaleString()} / ${info.effectiveCap.toLocaleString()} tokens used today`}
+                              data-testid={`text-daily-live-usage-${module}`}
+                            >
+                              {formatCompactK(info.usedToday)} / {formatCompactK(info.effectiveCap)} ({info.pct}%)
+                            </span>
+                          )}
                           <span className="text-[11px] text-muted-foreground font-mono" data-testid={`text-daily-code-default-${module}`}>
                             default: {formatCompactK(info.codeDefault)}
                           </span>
@@ -1587,10 +1605,27 @@ function AdminHourlyCapsTab() {
                         </div>
                       )}
 
+                      {/* Daily usage progress bar */}
+                      {info.usedToday > 0 && !isEditing && (
+                        <div className="mt-2" data-testid={`daily-usage-bar-container-${module}`}>
+                          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                info.pct >= 90 ? "bg-red-500"
+                                : info.pct >= 70 ? "bg-amber-400"
+                                : info.pct >= 60 ? "bg-amber-500/70"
+                                : "bg-violet-400"
+                              }`}
+                              style={{ width: `${Math.min(100, info.pct)}%` }}
+                              data-testid={`bar-daily-usage-${module}`}
+                            />
+                          </div>
+                        </div>
+                      )}
                       {/* No activity note */}
-                      {!isEditing && !hasOverride && (
-                        <div className="mt-1.5 text-[9px] text-muted-foreground/45 italic pl-0.5" data-testid={`text-daily-no-override-${module}`}>
-                          using code default
+                      {info.usedToday === 0 && !isEditing && (
+                        <div className="mt-1.5 text-[9px] text-muted-foreground/45 italic pl-0.5" data-testid={`text-daily-no-activity-${module}`}>
+                          no usage today
                         </div>
                       )}
 

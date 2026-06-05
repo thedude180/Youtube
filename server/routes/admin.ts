@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, getDailyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
@@ -813,11 +813,14 @@ export function registerAdminRoutes(app: Express) {
       }
 
       const allModules = new Set([...Object.keys(DAILY_CAPS), ...Object.keys(dbMap)]);
+      const dailyStatus = getDailyCapStatus();
       const result: Record<string, {
         codeDefault: number;
         dbValue: number | null;
         effectiveCap: number;
         dbUpdatedAt: string | null;
+        usedToday: number;
+        pct: number;
       }> = {};
 
       for (const module of allModules) {
@@ -825,11 +828,14 @@ export function registerAdminRoutes(app: Express) {
         const dbEntry = dbMap[module];
         const dbValue = dbEntry ? parseInt(dbEntry.value, 10) : null;
         const validDbValue = (dbValue !== null && !isNaN(dbValue) && dbValue > 0) ? dbValue : null;
+        const usage = dailyStatus[module];
         result[module] = {
           codeDefault,
           dbValue: validDbValue,
           effectiveCap: validDbValue ?? codeDefault,
           dbUpdatedAt: dbEntry?.updatedAt ? new Date(dbEntry.updatedAt).toISOString() : null,
+          usedToday: usage?.usedToday ?? 0,
+          pct: usage?.pct ?? 0,
         };
       }
 
