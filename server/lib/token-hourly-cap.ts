@@ -136,10 +136,42 @@ interface HourlySnapshot {
   usage:   Record<string, number>;
 }
 
-const SNAPSHOT_KEY = "hourly_tokens:snapshot";
+const SNAPSHOT_KEY       = "hourly_tokens:snapshot";
+const DAILY_SNAPSHOT_KEY = "daily_tokens:snapshot";
 
 function getCurrentHourKey(): number {
   return Math.floor(Date.now() / (60 * 60 * 1000));
+}
+
+function getCurrentDateKey(): string {
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm   = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd   = String(now.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// ─── In-memory daily tracking ─────────────────────────────────────────────────
+interface DailySlot {
+  dateKey:    string;
+  usedTokens: number;
+}
+
+// Snapshot format stored in system_settings under "daily_tokens:snapshot"
+interface DailySnapshot {
+  dateKey: string;
+  usage:   Record<string, number>;
+}
+
+const dailyUsage = new Map<string, DailySlot>();
+
+function getDailySlot(module: string): DailySlot {
+  const currentDate = getCurrentDateKey();
+  const existing = dailyUsage.get(module);
+  if (existing && existing.dateKey === currentDate) return existing;
+  const fresh: DailySlot = { dateKey: currentDate, usedTokens: 0 };
+  dailyUsage.set(module, fresh);
+  return fresh;
 }
 
 function getSlot(module: string): HourlySlot {
@@ -161,28 +193,53 @@ async function flushHourlyUsageToDB(): Promise<void> {
   _dirty = false;
 
   const currentHour = getCurrentHourKey();
-  const usage: Record<string, number> = {};
+  const currentDate = getCurrentDateKey();
+  const now         = new Date();
+
+  // ── Hourly snapshot ──────────────────────────────────────────────────────
+  const hourlyUsageMap: Record<string, number> = {};
   for (const [module, slot] of hourlyUsage) {
     if (slot.hourKey === currentHour) {
-      usage[module] = slot.usedTokens;
+      hourlyUsageMap[module] = slot.usedTokens;
     }
   }
+  const hourlySnapshot: HourlySnapshot = { hourKey: currentHour, usage: hourlyUsageMap };
+  const hourlyValue = JSON.stringify(hourlySnapshot);
 
-  const snapshot: HourlySnapshot = { hourKey: currentHour, usage };
-  const value = JSON.stringify(snapshot);
+  // ── Daily snapshot ───────────────────────────────────────────────────────
+  const dailyUsageMap: Record<string, number> = {};
+  for (const [module, slot] of dailyUsage) {
+    if (slot.dateKey === currentDate) {
+      dailyUsageMap[module] = slot.usedTokens;
+    }
+  }
+  const dailySnapshot: DailySnapshot = { dateKey: currentDate, usage: dailyUsageMap };
+  const dailyValue = JSON.stringify(dailySnapshot);
 
   try {
     await db
       .insert(systemSettings)
-      .values({ key: SNAPSHOT_KEY, value, createdAt: new Date(), updatedAt: new Date() } as any)
+      .values({ key: SNAPSHOT_KEY, value: hourlyValue, createdAt: now, updatedAt: now } as any)
       .onConflictDoUpdate({
         target: systemSettings.key,
-        set: { value, updatedAt: new Date() },
+        set: { value: hourlyValue, updatedAt: now },
       });
-    _lastFlushAt = new Date();
-    log.debug(`[HourlyCap] Flushed snapshot for hour ${currentHour} (${Object.keys(usage).length} modules)`);
+
+    await db
+      .insert(systemSettings)
+      .values({ key: DAILY_SNAPSHOT_KEY, value: dailyValue, createdAt: now, updatedAt: now } as any)
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value: dailyValue, updatedAt: now },
+      });
+
+    _lastFlushAt = now;
+    log.debug(
+      `[HourlyCap] Flushed hourly (hour ${currentHour}, ${Object.keys(hourlyUsageMap).length} modules) ` +
+      `+ daily (${currentDate}, ${Object.keys(dailyUsageMap).length} modules)`
+    );
   } catch (err: any) {
-    log.warn(`[HourlyCap] Failed to flush hourly snapshot: ${err?.message}`);
+    log.warn(`[HourlyCap] Failed to flush snapshots: ${err?.message}`);
     _dirty = true; // retry next cycle
   }
 }
@@ -242,6 +299,10 @@ export async function getFlushHealth(): Promise<{
  * (different hour) it is ignored and the maps stay at zero.
  */
 export async function restoreHourlyUsageFromDB(): Promise<void> {
+  const currentHour = getCurrentHourKey();
+  const currentDate = getCurrentDateKey();
+
+  // ── Restore hourly snapshot ──────────────────────────────────────────────
   try {
     const [row] = await db
       .select({ value: systemSettings.value, updatedAt: systemSettings.updatedAt })
@@ -251,21 +312,56 @@ export async function restoreHourlyUsageFromDB(): Promise<void> {
 
     if (!row?.value) {
       log.info("[HourlyCap] No hourly snapshot found — starting fresh");
+    } else {
+      const snapshot: HourlySnapshot = JSON.parse(row.value);
+
+      // Initialize _lastFlushAt from the DB row so health survives restarts
+      if (row.updatedAt) {
+        _lastFlushAt = new Date(row.updatedAt);
+      }
+
+      if (snapshot.hourKey !== currentHour) {
+        log.info(
+          `[HourlyCap] Stored hourly snapshot is from hour ${snapshot.hourKey}, ` +
+          `current hour is ${currentHour} — discarding stale hourly snapshot`
+        );
+      } else {
+        let restored = 0;
+        for (const [module, used] of Object.entries(snapshot.usage)) {
+          if (typeof used === "number" && used > 0) {
+            hourlyUsage.set(module, { hourKey: currentHour, usedTokens: used });
+            restored++;
+          }
+        }
+        log.info(
+          `[HourlyCap] Restored hourly snapshot for hour ${currentHour}: ` +
+          `${restored} module(s) loaded`
+        );
+      }
+    }
+  } catch (err: any) {
+    log.warn(`[HourlyCap] Could not restore hourly snapshot (non-fatal): ${err?.message}`);
+  }
+
+  // ── Restore daily snapshot ───────────────────────────────────────────────
+  try {
+    const [row] = await db
+      .select({ value: systemSettings.value })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, DAILY_SNAPSHOT_KEY))
+      .limit(1);
+
+    if (!row?.value) {
+      log.info("[HourlyCap] No daily snapshot found — daily totals start at zero");
       return;
     }
 
-    const snapshot: HourlySnapshot = JSON.parse(row.value);
-    const currentHour = getCurrentHourKey();
+    const snapshot: DailySnapshot = JSON.parse(row.value);
 
-    // Initialize _lastFlushAt from the DB row so health survives restarts
-    if (row.updatedAt) {
-      _lastFlushAt = new Date(row.updatedAt);
-    }
-
-    if (snapshot.hourKey !== currentHour) {
+    if (snapshot.dateKey !== currentDate) {
       log.info(
-        `[HourlyCap] Stored snapshot is from hour ${snapshot.hourKey}, ` +
-        `current hour is ${currentHour} — discarding stale snapshot`
+        `[HourlyCap] Stored daily snapshot is from ${snapshot.dateKey}, ` +
+        `today is ${currentDate} — discarding stale daily snapshot`
       );
       return;
     }
@@ -273,16 +369,16 @@ export async function restoreHourlyUsageFromDB(): Promise<void> {
     let restored = 0;
     for (const [module, used] of Object.entries(snapshot.usage)) {
       if (typeof used === "number" && used > 0) {
-        hourlyUsage.set(module, { hourKey: currentHour, usedTokens: used });
+        dailyUsage.set(module, { dateKey: currentDate, usedTokens: used });
         restored++;
       }
     }
     log.info(
-      `[HourlyCap] Restored hourly snapshot for hour ${currentHour}: ` +
+      `[HourlyCap] Restored daily snapshot for ${currentDate}: ` +
       `${restored} module(s) loaded`
     );
   } catch (err: any) {
-    log.warn(`[HourlyCap] Could not restore hourly snapshot (non-fatal): ${err?.message}`);
+    log.warn(`[HourlyCap] Could not restore daily snapshot (non-fatal): ${err?.message}`);
   }
 }
 
@@ -346,11 +442,17 @@ export function checkHourlyTokenBudget(
 
 /**
  * Record tokens actually used after a successful AI call.
+ * Updates both the hourly slot (for the current-hour cap) and the daily
+ * accumulator (so daily totals survive outages longer than one hour).
  * Call AFTER every AI call completes.
  */
 export function recordHourlyTokenUsage(module: string, tokensUsed: number): void {
   const slot = getSlot(module);
   slot.usedTokens += tokensUsed;
+
+  const daySlot = getDailySlot(module);
+  daySlot.usedTokens += tokensUsed;
+
   _dirty = true;
   // Fire-and-forget immediate persist so a crash between 60-s intervals
   // loses at most the tokens recorded since the last flush.
@@ -376,6 +478,23 @@ export function getHourlyCapStatus(): Record<string, { used: number; limit: numb
     const slot = hourlyUsage.get(module);
     const used = (slot && slot.hourKey === currentHour) ? slot.usedTokens : 0;
     result[module] = { used, limit: cap, pct: Math.round((used / cap) * 100) };
+  }
+  return result;
+}
+
+/**
+ * Snapshot of all module daily (calendar-day) token totals for diagnostics.
+ * Returns every module currently tracked in the daily accumulator.
+ * Resets automatically at UTC midnight when a new dateKey is generated.
+ */
+export function getDailyCapStatus(): Record<string, { usedToday: number; dateKey: string }> {
+  const result: Record<string, { usedToday: number; dateKey: string }> = {};
+  const currentDate = getCurrentDateKey();
+
+  for (const [module, slot] of dailyUsage) {
+    if (slot.dateKey === currentDate) {
+      result[module] = { usedToday: slot.usedTokens, dateKey: currentDate };
+    }
   }
   return result;
 }
