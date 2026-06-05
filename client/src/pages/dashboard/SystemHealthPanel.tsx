@@ -203,6 +203,7 @@ export default function SystemHealthPanel() {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [workersExpanded, setWorkersExpanded] = useState(false);
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
+  const [showAllEngines, setShowAllEngines] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -264,9 +265,11 @@ export default function SystemHealthPanel() {
   }
 
   const { startup, youtube, ai, memory, killSwitches, selfHealing, workers } = data;
-  const hourlyEntries = Object.entries(ai?.hourly ?? {})
-    .filter(([, v]) => v.pct > 0)
+  const allHourlyEntries = Object.entries(ai?.hourly ?? {})
     .sort((a, b) => b[1].pct - a[1].pct);
+  const hourlyEntries = showAllEngines
+    ? allHourlyEntries
+    : allHourlyEntries.filter(([, v]) => v.pct > 0);
   const activeStages    = startup.stages ?? [];
   const okCount         = activeStages.filter(s => s.status === "ok").length;
   const failCount       = activeStages.filter(s => s.status === "failed").length;
@@ -375,45 +378,64 @@ export default function SystemHealthPanel() {
         )}
 
         {/* ── Hourly Token Caps ────────────────────────────────────────────── */}
-        {hourlyEntries.length > 0 && (
+        {allHourlyEntries.length > 0 && (
           <div data-testid="section-hourly-caps">
-            <SectionHeader
-              icon={<Gauge className="h-3.5 w-3.5" />}
-              title="Hourly Token Usage"
-              badge={
-                <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
-                  resets in {formatResetIn(nowMs)}
-                </Badge>
-              }
-            />
-            <div className="space-y-1.5">
-              {hourlyEntries.map(([engine, stat]) => (
-                <div
-                  key={engine}
-                  className="rounded-md border border-border/20 bg-muted/5 px-2.5 py-2"
-                  data-testid={`hourly-cap-${engine}`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
-                      </span>
-                      <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
-                        {stat.pct}%
-                      </span>
+            <button
+              className="w-full flex items-center justify-between text-left mb-2"
+              onClick={() => setShowAllEngines(p => !p)}
+              data-testid="button-toggle-all-engines"
+            >
+              <SectionHeader
+                icon={<Gauge className="h-3.5 w-3.5" />}
+                title="Hourly Token Usage"
+                badge={
+                  <Badge className="text-[9px] bg-muted/20 text-muted-foreground border-border/30">
+                    resets in {formatResetIn(nowMs)}
+                  </Badge>
+                }
+              />
+              <span className="text-[10px] text-muted-foreground shrink-0 ml-2 flex items-center gap-0.5">
+                {showAllEngines ? "active only" : `all ${allHourlyEntries.length}`}
+                {showAllEngines
+                  ? <ChevronUp className="h-3 w-3" />
+                  : <ChevronDown className="h-3 w-3" />
+                }
+              </span>
+            </button>
+            {hourlyEntries.length === 0 ? (
+              <div className="text-[11px] text-muted-foreground px-1" data-testid="text-hourly-no-active">
+                No active usage this hour — toggle to see all engines
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {hourlyEntries.map(([engine, stat]) => (
+                  <div
+                    key={engine}
+                    className="rounded-md border border-border/20 bg-muted/5 px-2.5 py-2"
+                    data-testid={`hourly-cap-${engine}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
+                        </span>
+                        <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
+                          {stat.pct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
+                        style={{ width: `${Math.min(stat.pct, 100)}%` }}
+                        data-testid={`bar-hourly-${engine}`}
+                      />
                     </div>
                   </div>
-                  <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${hourlyBarColor(stat.pct)}`}
-                      style={{ width: `${Math.min(stat.pct, 100)}%` }}
-                      data-testid={`bar-hourly-${engine}`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
