@@ -839,6 +839,18 @@ interface HourlyCapsResponse {
   caps: Record<string, HourlyCapInfo>;
 }
 
+interface DailyCapInfo {
+  codeDefault: number;
+  dbValue: number | null;
+  effectiveCap: number;
+  dbUpdatedAt: string | null;
+}
+
+interface DailyCapsResponse {
+  ok: boolean;
+  caps: Record<string, DailyCapInfo>;
+}
+
 function formatCompactK(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
@@ -847,15 +859,29 @@ function formatCompactK(n: number): string {
 
 function AdminHourlyCapsTab() {
   const { toast } = useToast();
+
+  // ── Hourly state ──
   const [editingModule, setEditingModule] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [showBulkResetConfirm, setShowBulkResetConfirm] = useState(false);
   const [resetTargetModule, setResetTargetModule] = useState<string | null>(null);
 
+  // ── Daily state ──
+  const [dailyEditingModule, setDailyEditingModule] = useState<string | null>(null);
+  const [dailyInputValue, setDailyInputValue] = useState("");
+  const [showDailyBulkResetConfirm, setShowDailyBulkResetConfirm] = useState(false);
+  const [dailyResetTargetModule, setDailyResetTargetModule] = useState<string | null>(null);
+
   const { data, isLoading, refetch, isFetching } = useQuery<HourlyCapsResponse>({
     queryKey: ["/api/admin/hourly-caps"],
     refetchInterval: 30_000,
     staleTime: 15_000,
+  });
+
+  const { data: dailyData, isLoading: dailyIsLoading, refetch: dailyRefetch, isFetching: dailyIsFetching } = useQuery<DailyCapsResponse>({
+    queryKey: ["/api/admin/daily-caps"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const { data: statusData } = useQuery<any>({
@@ -865,6 +891,7 @@ function AdminHourlyCapsTab() {
   });
   const liveHourly: Record<string, { used: number; limit: number; pct: number }> = statusData?.ai?.hourly ?? {};
 
+  // ── Hourly mutations ──
   const saveMutation = useMutation({
     mutationFn: async ({ module, value }: { module: string; value: string }) => {
       const res = await apiRequest("PATCH", "/api/admin/system-settings", {
@@ -925,6 +952,65 @@ function AdminHourlyCapsTab() {
     },
   });
 
+  // ── Daily mutations ──
+  const dailySaveMutation = useMutation({
+    mutationFn: async ({ module, value }: { module: string; value: string }) => {
+      const res = await apiRequest("PATCH", "/api/admin/system-settings", {
+        key: `daily_cap:${module}`,
+        value,
+      });
+      return res.json();
+    },
+    onSuccess: (_res, vars) => {
+      toast({
+        title: `${vars.module} daily cap updated`,
+        description: `New daily cap: ${Number(vars.value).toLocaleString()} tokens/day. Expires at next UTC midnight.`,
+      });
+      setDailyEditingModule(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/daily-caps"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Update failed",
+        description: err?.message || "Could not save daily cap",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const dailyResetMutation = useMutation({
+    mutationFn: async (module: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/daily-caps/${module}`);
+      return res.json();
+    },
+    onSuccess: (_res, module) => {
+      toast({ title: `${module} daily cap reset to code default` });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/daily-caps"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Reset failed", description: err?.message, variant: "destructive" });
+    },
+  });
+
+  const dailyBulkResetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/admin/daily-caps");
+      return res.json();
+    },
+    onSuccess: (data: { ok: boolean; cleared: number }) => {
+      const n = data?.cleared ?? 0;
+      toast({
+        title: "All daily caps reset",
+        description: `${n} override${n !== 1 ? "s" : ""} removed — code defaults are now active.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/daily-caps"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Bulk reset failed", description: err?.message, variant: "destructive" });
+    },
+  });
+
+  // ── Hourly helpers ──
   function handleSave(module: string) {
     const n = parseInt(inputValue, 10);
     if (isNaN(n) || n < 100 || n > 1_000_000) {
@@ -948,6 +1034,30 @@ function AdminHourlyCapsTab() {
     setInputValue("");
   }
 
+  // ── Daily helpers ──
+  function handleDailySave(module: string) {
+    const n = parseInt(dailyInputValue, 10);
+    if (isNaN(n) || n < 1000 || n > 10_000_000) {
+      toast({
+        title: "Invalid value",
+        description: "Enter a number between 1,000 and 10,000,000",
+        variant: "destructive",
+      });
+      return;
+    }
+    dailySaveMutation.mutate({ module, value: String(n) });
+  }
+
+  function handleDailyEdit(module: string, current: number) {
+    setDailyInputValue(String(current));
+    setDailyEditingModule(module);
+  }
+
+  function handleDailyCancel() {
+    setDailyEditingModule(null);
+    setDailyInputValue("");
+  }
+
   const entries = data?.caps ? Object.entries(data.caps).sort((a, b) => {
     // Sort: DB overrides first, then by name
     const aHasDb = a[1].dbValue !== null ? 1 : 0;
@@ -958,17 +1068,28 @@ function AdminHourlyCapsTab() {
 
   const overrideCount = entries.filter(([, v]) => v.dbValue !== null).length;
 
+  const dailyEntries = dailyData?.caps ? Object.entries(dailyData.caps).sort((a, b) => {
+    const aHasDb = a[1].dbValue !== null ? 1 : 0;
+    const bHasDb = b[1].dbValue !== null ? 1 : 0;
+    if (bHasDb !== aHasDb) return bHasDb - aHasDb;
+    return a[0].localeCompare(b[0]);
+  }) : [];
+
+  const dailyOverrideCount = dailyEntries.filter(([, v]) => v.dbValue !== null).length;
+
   if (isLoading) {
     return (
       <div className="space-y-3">
         <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-64 w-full rounded-md" />
+        <Skeleton className="h-8 w-56 mt-4" />
         <Skeleton className="h-64 w-full rounded-md" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4" data-testid="admin-hourly-caps">
+    <div className="space-y-6" data-testid="admin-hourly-caps">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <Gauge className="w-5 h-5" />
@@ -1244,6 +1365,249 @@ function AdminHourlyCapsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Daily Token Caps ────────────────────────────────────── */}
+      <div className="space-y-4" data-testid="admin-daily-caps">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Gauge className="w-5 h-5 text-violet-400" />
+            Daily Token Caps
+            {dailyOverrideCount > 0 && (
+              <Badge variant="secondary" className="text-xs bg-violet-500/15 text-violet-400 border-violet-500/30" data-testid="badge-daily-override-count">
+                {dailyOverrideCount} DB override{dailyOverrideCount !== 1 ? "s" : ""}
+              </Badge>
+            )}
+          </h3>
+          <div className="flex items-center gap-2">
+            {dailyOverrideCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDailyBulkResetConfirm(true)}
+                disabled={dailyBulkResetMutation.isPending}
+                className="text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                data-testid="button-daily-bulk-reset-caps"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 mr-1 ${dailyBulkResetMutation.isPending ? "animate-spin" : ""}`} />
+                Reset All to Defaults
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => dailyRefetch()}
+              disabled={dailyIsFetching}
+              data-testid="button-refresh-daily-caps"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${dailyIsFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground -mt-2">
+          Each module's total daily budget in tokens. Overrides are stored in DB under{" "}
+          <span className="font-mono text-foreground/70">daily_cap:&lt;module&gt;</span> and expire
+          naturally at UTC midnight — no restart needed.
+        </p>
+
+        <AlertDialog open={showDailyBulkResetConfirm} onOpenChange={setShowDailyBulkResetConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset all daily cap overrides?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove all {dailyOverrideCount} DB override{dailyOverrideCount !== 1 ? "s" : ""} and restore every module to its code default immediately. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-daily-bulk-reset-cancel">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => dailyBulkResetMutation.mutate()}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+                data-testid="button-daily-bulk-reset-confirm"
+              >
+                Reset All to Defaults
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={dailyResetTargetModule !== null} onOpenChange={(open) => { if (!open) setDailyResetTargetModule(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset {dailyResetTargetModule} daily cap?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the DB override for{" "}
+                <span className="font-mono text-foreground">{dailyResetTargetModule}</span> and
+                restores the code default
+                {dailyResetTargetModule && dailyData?.caps?.[dailyResetTargetModule]
+                  ? ` (${dailyData.caps[dailyResetTargetModule].codeDefault.toLocaleString()} tokens/day)`
+                  : ""}. Takes effect immediately.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-daily-single-reset-cancel" onClick={() => setDailyResetTargetModule(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (dailyResetTargetModule) {
+                    dailyResetMutation.mutate(dailyResetTargetModule);
+                    setDailyResetTargetModule(null);
+                  }
+                }}
+                className="bg-red-500 hover:bg-red-600 text-white"
+                data-testid="button-daily-single-reset-confirm"
+              >
+                Reset to Default
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <Card data-testid="card-daily-caps">
+          <CardContent className="pt-4">
+            {dailyIsLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-12 w-full rounded-md" />
+                <Skeleton className="h-12 w-full rounded-md" />
+                <Skeleton className="h-12 w-full rounded-md" />
+              </div>
+            ) : dailyEntries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No daily cap data available.</p>
+            ) : (
+              <div className="space-y-2">
+                {dailyEntries.map(([module, info]) => {
+                  const isEditing   = dailyEditingModule === module;
+                  const hasOverride = info.dbValue !== null;
+                  const previewN    = isEditing ? parseInt(dailyInputValue, 10) : NaN;
+                  const previewValid = !isNaN(previewN) && previewN >= 1000 && previewN <= 10_000_000;
+
+                  return (
+                    <div
+                      key={module}
+                      className={`rounded-md border p-3 ${hasOverride ? "border-violet-500/25 bg-violet-500/5" : "border-border/25 bg-muted/20"}`}
+                      data-testid={`daily-cap-row-${module}`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        {/* Module name + badge */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-mono font-medium truncate" data-testid={`text-daily-module-name-${module}`}>{module}</span>
+                          {hasOverride ? (
+                            <Badge className="text-[9px] bg-violet-500/15 text-violet-400 border-violet-500/30 shrink-0" data-testid={`badge-daily-db-override-${module}`}>
+                              DB override
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] text-muted-foreground shrink-0" data-testid={`badge-daily-code-default-${module}`}>
+                              code default
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Cap values + controls */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-muted-foreground font-mono" data-testid={`text-daily-code-default-${module}`}>
+                            default: {formatCompactK(info.codeDefault)}
+                          </span>
+                          {hasOverride && (
+                            <span className="text-[11px] text-violet-400 font-mono font-semibold" data-testid={`text-daily-effective-cap-${module}`}>
+                              cap: {formatCompactK(info.effectiveCap)}
+                            </span>
+                          )}
+                          {!isEditing && (
+                            <button
+                              onClick={() => handleDailyEdit(module, info.effectiveCap)}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              title="Edit daily cap"
+                              data-testid={`button-daily-edit-cap-${module}`}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          )}
+                          {!isEditing && hasOverride && (
+                            <button
+                              onClick={() => setDailyResetTargetModule(module)}
+                              disabled={dailyResetMutation.isPending}
+                              className="text-muted-foreground hover:text-red-400 transition-colors"
+                              title="Reset to code default"
+                              data-testid={`button-daily-reset-cap-${module}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Inline editor */}
+                      {isEditing && (
+                        <div className="mt-2.5 space-y-2" data-testid={`daily-editor-${module}`}>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              min={1000}
+                              max={10_000_000}
+                              value={dailyInputValue}
+                              onChange={(e) => setDailyInputValue(e.target.value)}
+                              className="h-7 text-xs font-mono w-36"
+                              placeholder="tokens / day"
+                              data-testid={`input-daily-cap-${module}`}
+                            />
+                            <span className="text-[10px] text-muted-foreground">tokens/day</span>
+                            <button
+                              onClick={() => handleDailySave(module)}
+                              disabled={dailySaveMutation.isPending}
+                              className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                              title="Save"
+                              data-testid={`button-daily-save-cap-${module}`}
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={handleDailyCancel}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              title="Cancel"
+                              data-testid={`button-daily-cancel-cap-${module}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          {previewValid && (
+                            <div className="text-[10px] text-violet-400/80 font-mono pl-0.5" data-testid={`daily-preview-cap-${module}`}>
+                              New daily cap: {previewN.toLocaleString()} tokens/day
+                              {previewN !== info.codeDefault && (
+                                <span className="text-muted-foreground ml-1">
+                                  ({previewN > info.codeDefault ? "+" : ""}{(previewN - info.codeDefault).toLocaleString()} vs code default)
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {dailyInputValue && !previewValid && (
+                            <div className="text-[10px] text-red-400/80 pl-0.5" data-testid={`daily-preview-error-${module}`}>
+                              Must be between 1,000 and 10,000,000
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* No activity note */}
+                      {!isEditing && !hasOverride && (
+                        <div className="mt-1.5 text-[9px] text-muted-foreground/45 italic pl-0.5" data-testid={`text-daily-no-override-${module}`}>
+                          using code default
+                        </div>
+                      )}
+
+                      {/* DB override timestamp */}
+                      {hasOverride && info.dbUpdatedAt && !isEditing && (
+                        <div className="mt-1 text-[10px] text-muted-foreground/60 font-mono pl-0.5" data-testid={`text-daily-updated-at-${module}`}>
+                          last updated {new Date(info.dbUpdatedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

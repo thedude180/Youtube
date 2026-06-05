@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS, getHourlyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, resetDailyTokenCounter, resetHourlyHitCount } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
@@ -770,6 +770,92 @@ export function registerAdminRoutes(app: Express) {
       res.json({ ok: true, module });
     } catch (err: any) {
       res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to reset cap" });
+    }
+  });
+
+  // ── Daily cap management ──────────────────────────────────────────────────────
+
+  // Bulk reset: DELETE /api/admin/daily-caps  (wipes all daily_cap:* overrides)
+  app.delete("/api/admin/daily-caps", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const deleted = await db
+        .delete(systemSettings)
+        .where(like(systemSettings.key, "daily_cap:%"))
+        .returning({ key: systemSettings.key });
+      const count = deleted.length;
+      await logSecurityEvent({
+        userId,
+        action: "admin.daily_cap.bulk_reset",
+        details: { scope: "all", count },
+      });
+      logger.warn(`[DailyCaps] Admin ${userId} bulk-reset ALL daily cap overrides (${count} removed)`);
+      res.json({ ok: true, cleared: count });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to bulk-reset daily caps" });
+    }
+  });
+
+  app.get("/api/admin/daily-caps", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const dbRows = await db
+        .select({ key: systemSettings.key, value: systemSettings.value, updatedAt: systemSettings.updatedAt })
+        .from(systemSettings)
+        .where(like(systemSettings.key, "daily_cap:%"));
+
+      const dbMap: Record<string, { value: string; updatedAt: Date | null }> = {};
+      for (const row of dbRows) {
+        const module = row.key.replace(/^daily_cap:/, "");
+        dbMap[module] = { value: row.value, updatedAt: row.updatedAt as Date | null };
+      }
+
+      const allModules = new Set([...Object.keys(DAILY_CAPS), ...Object.keys(dbMap)]);
+      const result: Record<string, {
+        codeDefault: number;
+        dbValue: number | null;
+        effectiveCap: number;
+        dbUpdatedAt: string | null;
+      }> = {};
+
+      for (const module of allModules) {
+        const codeDefault = DAILY_CAPS[module] ?? DAILY_CAPS["default"] ?? 80_000;
+        const dbEntry = dbMap[module];
+        const dbValue = dbEntry ? parseInt(dbEntry.value, 10) : null;
+        const validDbValue = (dbValue !== null && !isNaN(dbValue) && dbValue > 0) ? dbValue : null;
+        result[module] = {
+          codeDefault,
+          dbValue: validDbValue,
+          effectiveCap: validDbValue ?? codeDefault,
+          dbUpdatedAt: dbEntry?.updatedAt ? new Date(dbEntry.updatedAt).toISOString() : null,
+        };
+      }
+
+      res.json({ ok: true, caps: result });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to read daily caps" });
+    }
+  });
+
+  app.delete("/api/admin/daily-caps/:module", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const module = req.params.module;
+      await db
+        .delete(systemSettings)
+        .where(eq(systemSettings.key, `daily_cap:${module}`));
+      await logSecurityEvent({
+        userId,
+        action: "admin.daily_cap.reset",
+        details: { module },
+      });
+      logger.info(`[DailyCaps] Admin ${userId} reset daily_cap:${module} to code default`);
+      res.json({ ok: true, module });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to reset daily cap" });
     }
   });
 
