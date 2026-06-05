@@ -515,7 +515,7 @@ export default function SystemHealthPanel() {
                             title={`Hourly cap: ${stat.limit.toLocaleString()} tokens — resets in ${formatResetIn(nowMs)}`}
                             data-testid={`badge-hourly-limit-${engine}`}
                           >
-                            limit: {formatCompact(stat.limit)}
+                            limit: {formatCompact(stat.limit)}/hr
                           </span>
                         ) : (
                           <>
