@@ -26,6 +26,7 @@ import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { runBackCatalogMonetizationCycle } from "./youtube-back-catalog-engine";
 import { runClipSeoSync } from "./youtube-clip-seo-sync";
 import { getContainerMemory } from "../lib/container-memory";
+import { CommandCenter } from "../lib/command-center";
 
 const logger = createLogger("back-catalog-runner");
 
@@ -157,6 +158,19 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
       logger.warn("[BackCatalogRunner] Quota breaker tripped mid-run — stopping remaining users");
       break;
     }
+
+    const gate = await CommandCenter.canRun({
+      module: "back-catalog-runner",
+      userId,
+      platform: "youtube",
+      jobType: "backlog",
+      requiresYouTubeApi: true,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[BackCatalogRunner] Skipping user ${userId.slice(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
       logger.info(`[BackCatalogRunner] Running cycle for user ${userId.slice(0, 8)}…`);
       const result = await runBackCatalogMonetizationCycle(userId);

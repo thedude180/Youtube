@@ -25,6 +25,8 @@ import { executeRoutedAICall } from "./ai-model-router";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { safeParseJSON } from "../lib/safe-json";
+import { CommandCenter } from "../lib/command-center";
+import { AIScheduler } from "../lib/ai-scheduler";
 
 const logger = createLogger("autonomous-capability-engine");
 
@@ -77,8 +79,29 @@ export function initAutonomousCapabilityEngine(): ReturnType<typeof setInterval>
 export async function runCapabilityExpansionCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
   for (const user of allUsers) {
+    const gate = await CommandCenter.canRun({
+      module: "autonomous-capability-engine",
+      userId: user.id,
+      requiresAI: true,
+      priority: 7,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[CapabilityEngine] Skipping user ${user.id.slice(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
-      await expandCapabilitiesForUser(user.id);
+      const result = await AIScheduler.enqueue({
+        taskType: "capability-expansion",
+        userId: user.id,
+        priority: 7,
+        module: "autonomous-capability-engine",
+        estimatedTokens: 3000,
+        fn: () => expandCapabilitiesForUser(user.id),
+      });
+      if (!result.queued) {
+        logger.debug(`[CapabilityEngine] Deferred for ${user.id.slice(0, 8)}: ${result.reason}`);
+      }
     } catch (err) {
       logger.error(`Capability expansion failed for user ${user.id.slice(0, 8)}`, { err: String(err).slice(0, 200) });
     }

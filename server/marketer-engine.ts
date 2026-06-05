@@ -6,6 +6,8 @@ import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "./lib/a
 import { createLogger } from "./lib/logger";
 import { sendSSEEvent } from "./routes/events";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
+import { CommandCenter } from "./lib/command-center";
+import { AIScheduler } from "./lib/ai-scheduler";
 
 const logger = createLogger("marketer-engine");
 const openai = getOpenAIClientBackground();
@@ -516,9 +518,33 @@ export async function runMarketingCycleForAllUsers(): Promise<number> {
   let processed = 0;
   for (const { userId } of userRows) {
     if (!userId) continue;
+
+    const gate = await CommandCenter.canRun({
+      module: "marketer-engine",
+      userId,
+      platform: "youtube",
+      requiresAI: true,
+      priority: 7,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[MarketerEngine] Skipping user ${userId.substring(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
-      await runMarketingCycle(userId);
-      processed++;
+      const result = await AIScheduler.enqueue({
+        taskType: "marketing-cycle",
+        userId,
+        priority: 7,
+        module: "marketer-engine",
+        estimatedTokens: 2000,
+        fn: () => runMarketingCycle(userId),
+      });
+      if (result.queued) {
+        processed++;
+      } else {
+        logger.debug(`[MarketerEngine] Deferred for ${userId.substring(0, 8)}: ${result.reason}`);
+      }
     } catch (err) {
       logger.error("Marketing cycle failed for user", { userId, error: String(err) });
     }

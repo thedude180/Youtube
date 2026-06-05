@@ -5,6 +5,8 @@ import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 import { executeRoutedAICall } from "./ai-model-router";
+import { CommandCenter } from "../lib/command-center";
+import { AIScheduler } from "../lib/ai-scheduler";
 
 const logger = createLogger("revenue-optimizer");
 
@@ -49,8 +51,29 @@ export function initRevenueOptimizerEngine(): ReturnType<typeof setInterval> {
 export async function runRevenueOptimizationCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
   for (const user of allUsers) {
+    const gate = await CommandCenter.canRun({
+      module: "revenue-optimizer",
+      userId: user.id,
+      requiresAI: true,
+      priority: 7,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[RevenueOptimizer] Skipping user ${user.id.substring(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
-      await optimizeRevenueForUser(user.id);
+      const result = await AIScheduler.enqueue({
+        taskType: "revenue-optimization",
+        userId: user.id,
+        priority: 7,
+        module: "revenue-optimizer",
+        estimatedTokens: 2500,
+        fn: () => optimizeRevenueForUser(user.id),
+      });
+      if (!result.queued) {
+        logger.debug(`[RevenueOptimizer] Deferred for ${user.id.substring(0, 8)}: ${result.reason}`);
+      }
     } catch (err) {
       logger.error(`Revenue optimization failed for user ${user.id.substring(0, 8)}`, { err: String(err) });
     }

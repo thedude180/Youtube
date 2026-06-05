@@ -7,6 +7,7 @@ import { tokenBudget, sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/a
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import cron from "node-cron";
+import { CommandCenter } from "./lib/command-center";
 
 const logger = createLogger("ai-team-engine");
 
@@ -1781,6 +1782,16 @@ export function initAiTeamScheduler() {
         .where(and(eq(teamMembers.isAi, true), eq(teamMembers.status, "active")));
 
       for (const { ownerId } of owners) {
+        const gate = await CommandCenter.canRun({
+          module: "ai-team-engine",
+          userId: ownerId,
+          requiresAI: true,
+          priority: 8,
+        });
+        if (!gate.allowed) {
+          logger.debug(`[AITeam] Skipping owner ${ownerId.substring(0, 8)}: ${gate.reason}`);
+          continue;
+        }
         try {
           await runTeamCycle(ownerId);
           logger.info("AI Team cycle complete", { ownerId });

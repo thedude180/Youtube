@@ -29,6 +29,7 @@ import { channels, autopilotQueue } from "@shared/schema";
 import { eq, and, isNotNull, inArray, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
+import { CommandCenter } from "../lib/command-center";
 
 import {
   runBackCatalogImport,
@@ -474,6 +475,24 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
       completedAt: new Date().toISOString(), tasksRun: [], tasksSkipped: ["all — already running"],
       tasksApprovalRequired: [], shortsQueued: 0, longFormQueued: 0, metadataUpdated: 0,
       learningComplete: false, errors: ["Already running"],
+    };
+  }
+
+  const gate = await CommandCenter.canRun({
+    module: "youtube-ai-orchestrator",
+    userId,
+    platform: "youtube",
+    requiresYouTubeApi: true,
+    requiresAI: true,
+    priority: 5,
+  });
+  if (!gate.allowed) {
+    logger.debug(`[YouTubeAI] Skipping cycle for ${userId.slice(0, 8)}: ${gate.reason}`);
+    return {
+      userId, cycleId: "gate-blocked", startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(), tasksRun: [], tasksSkipped: [`all — ${gate.reason}`],
+      tasksApprovalRequired: [], shortsQueued: 0, longFormQueued: 0, metadataUpdated: 0,
+      learningComplete: false, errors: [],
     };
   }
 

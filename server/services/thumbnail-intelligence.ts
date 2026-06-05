@@ -5,6 +5,7 @@ import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/o
 import { createLogger } from "../lib/logger";
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { getIntelligenceContext, formatThumbnailIntelligenceBlock } from "./intelligence-context";
+import { CommandCenter } from "../lib/command-center";
 
 const logger = createLogger("thumbnail-intelligence");
 
@@ -106,7 +107,18 @@ async function searchWebForThumbnailArticles(query: string): Promise<string> {
   }
 }
 
-export async function researchThumbnailsForGame(userId: string, gameName: string): Promise<{
+export async function researchThumbnailsForGame(userId: string, gameName: string): Promise<
+// CommandCenter gate: block thumbnail AI research for invalid/demo users
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+any> {
+  if (!CommandCenter.canRunSync({ module: "thumbnail-intelligence", userId })) {
+    logger.debug(`[ThumbnailIntelligence] Skipping research for user ${userId.substring(0, 8)} — blocked by production guard`);
+    return { references: [], patterns: {}, bestPractices: "", gamingInsights: "", ctrTactics: "", antiClickbait: "" };
+  }
+  return _researchThumbnailsForGame(userId, gameName);
+}
+
+async function _researchThumbnailsForGame(userId: string, gameName: string): Promise<{
   references: Array<{ url: string; title: string; source: string }>;
   patterns: any;
   bestPractices: string;

@@ -5,6 +5,8 @@ import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge } from "./knowledge-mesh";
 import { executeRoutedAICall } from "./ai-model-router";
+import { CommandCenter } from "../lib/command-center";
+import { AIScheduler } from "../lib/ai-scheduler";
 
 const logger = createLogger("memory-architect");
 
@@ -56,8 +58,29 @@ export function initMemoryArchitect(): ReturnType<typeof setInterval> {
 export async function runCompressionCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
   for (const user of allUsers) {
+    const gate = await CommandCenter.canRun({
+      module: "memory-architect",
+      userId: user.id,
+      requiresAI: true,
+      priority: 8,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[MemoryArchitect] Skipping user ${user.id.substring(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
-      await compressMemoryForUser(user.id);
+      const result = await AIScheduler.enqueue({
+        taskType: "memory-compression",
+        userId: user.id,
+        priority: 8,
+        module: "memory-architect",
+        estimatedTokens: 2000,
+        fn: () => compressMemoryForUser(user.id),
+      });
+      if (!result.queued) {
+        logger.debug(`[MemoryArchitect] Deferred for ${user.id.substring(0, 8)}: ${result.reason}`);
+      }
     } catch (err) {
       logger.error(`Memory compression failed for user ${user.id.substring(0, 8)}`, { err: String(err) });
     }

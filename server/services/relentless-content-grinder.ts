@@ -7,6 +7,7 @@ import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { CommandCenter } from "../lib/command-center";
 import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
@@ -190,6 +191,18 @@ export async function runGrindCycle(): Promise<{ clipsQueued: number; longFormQu
     const eligible = allUsers.filter((u: any) => u.tier && u.tier !== "free");
 
     for (const user of eligible) {
+      const gate = await CommandCenter.canRun({
+        module: "relentless-content-grinder",
+        userId: user.id,
+        platform: "youtube",
+        requiresAI: true,
+        priority: 6,
+      });
+      if (!gate.allowed) {
+        logger.debug(`[ContentGrinder] Skipping user ${user.id.substring(0, 8)}: ${gate.reason}`);
+        continue;
+      }
+
       try {
         const autonomous = await isAutonomousMode(user.id);
         if (!autonomous) continue;

@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { generateVideoMetadata, runAgentTask, generateCommunityPost, detectContentContext } from "./ai-engine";
 import { AI_AGENTS } from "@shared/schema";
 import { tokenBudget } from "./lib/ai-attack-shield";
+import { CommandCenter } from "./lib/command-center";
 
 // ── Viral-optimization concurrency semaphore ─────────────────────────────────
 // Prevents concurrent AI hammering when autopilot processes many videos at once.
@@ -135,6 +136,12 @@ export async function startBacklogProcessing(
   const existing = sessions.get(userId);
   if (existing && existing.state === "processing") {
     return { jobId: existing.jobId!, totalVideos: existing.totalVideos, alreadyRunning: true };
+  }
+
+  if (!CommandCenter.canRunSync({ module: "backlog-engine", userId })) {
+    logger.debug(`[BacklogEngine] Skipping backlog processing for user ${userId.substring(0, 8)} — blocked by CommandCenter`);
+    const job = await storage.createJob({ type: "auto_backlog_processing", status: "failed", priority: 2, payload: { userId, blocked: true } });
+    return { jobId: job.id, totalVideos: 0, alreadyRunning: false };
   }
 
   const allVideos = await storage.getVideosByUser(userId);

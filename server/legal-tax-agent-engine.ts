@@ -5,6 +5,7 @@ import { createLogger } from "./lib/logger";
 import { db } from "./db";
 import { aiAgentActivities } from "@shared/schema";
 import { and, eq, gt } from "drizzle-orm";
+import { CommandCenter } from "./lib/command-center";
 
 const logger = createLogger("legal-tax-agents");
 const MIN_LEGAL_TAX_CYCLE_GAP_MINUTES = 180;
@@ -300,6 +301,17 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof LEGAL_AGEN
 }
 
 export async function runLegalTaxAgentCycle(userId: string, type?: "legal" | "tax" | "all"): Promise<void> {
+  const gate = await CommandCenter.canRun({
+    module: "legal-tax-agent",
+    userId,
+    requiresAI: true,
+    priority: 9,
+  });
+  if (!gate.allowed) {
+    logger.debug(`[LegalTaxAgent] Skipping user ${userId.substring(0, 8)}: ${gate.reason}`);
+    return;
+  }
+
   try {
     const cutoff = new Date(Date.now() - MIN_LEGAL_TAX_CYCLE_GAP_MINUTES * 60 * 1000);
     const [recent] = await db

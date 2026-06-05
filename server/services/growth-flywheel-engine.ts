@@ -8,6 +8,8 @@ import { eq, and, desc, gte, gt, sql, lt, ne, inArray, asc } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
+import { CommandCenter } from "../lib/command-center";
+import { AIScheduler } from "../lib/ai-scheduler";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
@@ -140,8 +142,31 @@ async function runFlywheelCycle(): Promise<void> {
       logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
       continue;
     }
+
+    const gate = await CommandCenter.canRun({
+      module: "growth-flywheel",
+      userId: user.id,
+      platform: "youtube",
+      requiresAI: true,
+      priority: 6,
+    });
+    if (!gate.allowed) {
+      logger.debug(`[GrowthFlywheel] Skipping user ${user.id.substring(0, 8)}: ${gate.reason}`);
+      continue;
+    }
+
     try {
-      await spinFlywheelForUser(user.id);
+      const result = await AIScheduler.enqueue({
+        taskType: "flywheel-spin",
+        userId: user.id,
+        priority: 6,
+        module: "growth-flywheel",
+        estimatedTokens: 2500,
+        fn: () => spinFlywheelForUser(user.id),
+      });
+      if (!result.queued) {
+        logger.debug(`[GrowthFlywheel] Deferred for ${user.id.substring(0, 8)}: ${result.reason}`);
+      }
     } catch (err) {
       logger.error("Flywheel failed for user", { userId: user.id, error: String(err).slice(0, 200) });
     }

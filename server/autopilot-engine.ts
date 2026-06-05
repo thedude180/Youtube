@@ -9,6 +9,7 @@ import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import { jobQueue } from "./services/intelligent-job-queue";
+import { CommandCenter } from "./lib/command-center";
 
 const logger = createLogger("autopilot");
 
@@ -1511,9 +1512,22 @@ export async function processScheduledPosts() {
   // Track users whose YouTube budget is exhausted so we can skip the rest of their
   // posts in this batch without running copyright/compliance/trust checks per-item.
   const ytBudgetExhaustedUsers = new Set<string>();
+  // Track users blocked by CommandCenter to avoid re-checking on every post.
+  const commandCenterBlockedUsers = new Set<string>();
 
   for (const post of duePosts) {
     try {
+      // CommandCenter gate — block demo/invalid users before any processing.
+      if (!commandCenterBlockedUsers.has(post.userId) && !connectedByUser.has(post.userId)) {
+        if (!CommandCenter.canRunSync({ module: "autopilot-engine", userId: post.userId, platform: post.targetPlatform === "youtube" || post.targetPlatform === "youtubeshorts" ? "youtube" : post.targetPlatform })) {
+          commandCenterBlockedUsers.add(post.userId);
+        }
+      }
+      if (commandCenterBlockedUsers.has(post.userId)) {
+        logger.debug(`[Autopilot] Skipping post ${post.id} — user ${post.userId.substring(0, 8)} blocked by CommandCenter`);
+        continue;
+      }
+
       if (!connectedByUser.has(post.userId)) {
         connectedByUser.set(post.userId, await getUserConnectedPlatforms(post.userId));
       }
