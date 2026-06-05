@@ -511,37 +511,58 @@ export default function SystemHealthPanel() {
                       </div>
                     </div>
                     {isAdmin && editingEngine === engine ? (
-                      <div className="flex items-center gap-1.5 mt-1.5" data-testid={`inline-cap-editor-${engine}`}>
-                        <Input
-                          type="number"
-                          min={100}
-                          max={1000000}
-                          value={engineCapInput}
-                          onChange={(e) => setEngineCapInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleEngineCapSave(engine); if (e.key === "Escape") setEditingEngine(null); }}
-                          className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
-                          data-testid={`input-cap-${engine}`}
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleEngineCapSave(engine)}
-                          disabled={engineCapMutation.isPending}
-                          className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
-                          title="Save"
-                          data-testid={`button-save-cap-${engine}`}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setEditingEngine(null)}
-                          disabled={engineCapMutation.isPending}
-                          className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                          title="Cancel"
-                          data-testid={`button-cancel-cap-${engine}`}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                        <span className="text-[9px] text-muted-foreground">tokens/hr · next hour</span>
+                      <div className="mt-1.5 space-y-1.5" data-testid={`inline-cap-editor-${engine}`}>
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            min={100}
+                            max={1000000}
+                            value={engineCapInput}
+                            onChange={(e) => setEngineCapInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleEngineCapSave(engine); if (e.key === "Escape") setEditingEngine(null); }}
+                            className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
+                            data-testid={`input-cap-${engine}`}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleEngineCapSave(engine)}
+                            disabled={engineCapMutation.isPending}
+                            className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
+                            title="Save"
+                            data-testid={`button-save-cap-${engine}`}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingEngine(null)}
+                            disabled={engineCapMutation.isPending}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                            title="Cancel"
+                            data-testid={`button-cancel-cap-${engine}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="text-[9px] text-muted-foreground">tokens/hr · next hour</span>
+                        </div>
+                        {(() => {
+                          const newCap = parseInt(engineCapInput, 10);
+                          if (!isNaN(newCap) && newCap < stat.used) {
+                            return (
+                              <div
+                                className="flex items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/8 px-2 py-1.5"
+                                data-testid={`warning-throttle-${engine}`}
+                              >
+                                <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+                                <span className="text-[10px] text-amber-300/90 leading-snug">
+                                  Engine has already used{" "}
+                                  <span className="font-semibold font-mono">{stat.used.toLocaleString()}</span>{" "}
+                                  tokens this hour. The new limit will take effect at the start of the next hour (in {formatResetIn(nowMs)}).
+                                </span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     ) : (
                       <div className="h-1 rounded-full bg-muted/30 overflow-hidden">
