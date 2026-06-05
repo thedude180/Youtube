@@ -288,6 +288,13 @@
       "when": 1779580306982,
       "tag": "0040_talented_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1780639097343,
+      "tag": "0041_far_dracula",
+      "breakpoints": true
     }
   ]
 }

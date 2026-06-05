@@ -10,6 +10,7 @@
 
 import type { Express, Request, Response } from "express";
 import { createLogger } from "../lib/logger";
+import { requireAdmin } from "./helpers";
 
 const log = createLogger("system-status");
 
@@ -125,10 +126,8 @@ export function registerSystemStatusRoutes(app: Express): void {
    */
   app.post("/api/system/kill-switch/:name", async (req: Request, res: Response) => {
     try {
-      // Basic auth check (non-admin endpoint guard)
-      if (!req.user) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
+      const adminUserId = requireAdmin(req, res);
+      if (!adminUserId) return; // requireAdmin already sent 401/403
 
       const { KillSwitches } = await import("../lib/kill-switches");
       const name = req.params.name;
@@ -139,6 +138,7 @@ export function registerSystemStatusRoutes(app: Express): void {
       }
 
       await KillSwitches.set(name as any, enabled);
+      log.warn(`[KillSwitch] ${name} set to ${enabled} by admin ${adminUserId}`);
       return res.json({ ok: true, switch: name, enabled });
     } catch (err: any) {
       return res.status(500).json({ error: err?.message });

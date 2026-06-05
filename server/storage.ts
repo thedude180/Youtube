@@ -542,6 +542,14 @@ export class DatabaseStorage implements IStorage {
         WHERE user_id IN (SELECT user_id FROM channels WHERE id = ${id})
       `);
 
+      // Tables added in the autonomous OS upgrade (2026-06-05).
+      // decision_journal and growth_experiments use text channel_id — cast.
+      await tx.execute(sql`DELETE FROM decision_journal WHERE channel_id = ${id}::text`);
+      await tx.execute(sql`DELETE FROM growth_experiments WHERE channel_id = ${id}::text`);
+      // playlist_funnels and watch_next_links use integer channel_id (FK → channels.id).
+      await tx.execute(sql`DELETE FROM playlist_funnels WHERE channel_id = ${id}`);
+      await tx.execute(sql`DELETE FROM watch_next_links WHERE channel_id = ${id}`);
+
       // Null out channel_id in token_vault (no FK so rows survive — vault
       // tokens stay accessible by user_id+platform as recovery backups).
       await tx.execute(sql`UPDATE token_vault SET channel_id = NULL WHERE channel_id = ${id}`);
