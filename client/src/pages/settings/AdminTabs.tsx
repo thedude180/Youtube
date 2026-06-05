@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw, Gauge, Pencil, Check, X } from "lucide-react";
@@ -797,6 +798,7 @@ function AdminHourlyCapsTab() {
   const { toast } = useToast();
   const [editingModule, setEditingModule] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
+  const [showBulkResetConfirm, setShowBulkResetConfirm] = useState(false);
 
   const { data, isLoading, refetch, isFetching } = useQuery<HourlyCapsResponse>({
     queryKey: ["/api/admin/hourly-caps"],
@@ -857,8 +859,12 @@ function AdminHourlyCapsTab() {
       const res = await apiRequest("DELETE", "/api/admin/hourly-caps");
       return res.json();
     },
-    onSuccess: () => {
-      toast({ title: "All caps reset", description: "All hourly cap DB overrides removed — code defaults are now active." });
+    onSuccess: (data: { ok: boolean; cleared: number }) => {
+      const n = data?.cleared ?? 0;
+      toast({
+        title: "All caps reset",
+        description: `${n} override${n !== 1 ? "s" : ""} removed — code defaults are now active.`,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/hourly-caps"] });
       queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
     },
@@ -926,7 +932,7 @@ function AdminHourlyCapsTab() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => bulkResetMutation.mutate()}
+              onClick={() => setShowBulkResetConfirm(true)}
               disabled={bulkResetMutation.isPending}
               className="text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
               data-testid="button-bulk-reset-caps"
@@ -956,6 +962,27 @@ function AdminHourlyCapsTab() {
         <span className="text-sky-400 font-medium">cap column</span> is what the engine
         actually enforces right now.
       </p>
+
+      <AlertDialog open={showBulkResetConfirm} onOpenChange={setShowBulkResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset all hourly cap overrides?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all {overrideCount} DB override{overrideCount !== 1 ? "s" : ""} and restore every module to its code default immediately. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-reset-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkResetMutation.mutate()}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+              data-testid="button-bulk-reset-confirm"
+            >
+              Reset All to Defaults
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card data-testid="card-hourly-caps">
         <CardContent className="pt-4">

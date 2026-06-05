@@ -684,16 +684,18 @@ export function registerAdminRoutes(app: Express) {
     const userId = requireAdmin(req, res);
     if (!userId) return;
     try {
-      await db
+      const deleted = await db
         .delete(systemSettings)
-        .where(like(systemSettings.key, "hourly_cap:%"));
+        .where(like(systemSettings.key, "hourly_cap:%"))
+        .returning({ key: systemSettings.key });
+      const count = deleted.length;
       await logSecurityEvent({
         userId,
         action: "admin.hourly_cap.bulk_reset",
-        details: { scope: "all" },
+        details: { scope: "all", count },
       });
-      logger.warn(`[HourlyCaps] Admin ${userId} bulk-reset ALL hourly cap overrides`);
-      res.json({ ok: true, cleared: "all" });
+      logger.warn(`[HourlyCaps] Admin ${userId} bulk-reset ALL hourly cap overrides (${count} removed)`);
+      res.json({ ok: true, cleared: count });
     } catch (err: any) {
       res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to bulk-reset caps" });
     }
