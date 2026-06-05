@@ -12,6 +12,17 @@
  * at most MAX_TOKENS_PER_HOUR tokens per hour, regardless of daily remaining.
  * This spreads consumption across the full day so no single boot burst can
  * exhaust the budget.
+ *
+ * Fix #2 — Hourly Counts Reset on Server Restart
+ *
+ * PROBLEM: The in-memory hourlyUsage map is lost on every restart. During the
+ * first minutes after a reboot the counters show 0%, and engines that already
+ * spent tokens earlier in the same hour have no guard against over-spending.
+ *
+ * SOLUTION: Persist the snapshot to system_settings under the key
+ * "hourly_tokens:snapshot".  On boot, restore from that snapshot if its
+ * hourKey matches the current hour.  Flush every 60 s (and after every
+ * recordHourlyTokenUsage call via a dirty-flag debounce).
  */
 import { createLogger } from "./logger";
 import { db } from "../db";
@@ -42,14 +53,9 @@ export const HOURLY_CAPS: Record<string, number> = {
 };
 
 // ─── Viral-optimizer cap: DB-backed, cached per hour ─────────────────────────
-// The cap for "viral-optimizer" is stored in system_settings under the key
-// "viral_optimizer_hourly_tokens" so it can be updated without a code deploy.
-// We cache the value for the current hour to avoid a DB hit on every video;
-// the function itself stays synchronous — DB refresh runs as fire-and-forget.
-
 const VIRAL_OPTIMIZER_DEFAULT_CAP = 8_000;
 let _viralOptimizerCap    = VIRAL_OPTIMIZER_DEFAULT_CAP;
-let _viralOptimizerHourKey = -1;   // -1 forces refresh on first call
+let _viralOptimizerHourKey = -1;
 let _viralOptimizerLoading = false;
 
 function refreshViralOptimizerCapIfStale(currentHour: number): void {
@@ -70,7 +76,6 @@ function refreshViralOptimizerCapIfStale(currentHour: number): void {
       _viralOptimizerHourKey = currentHour;
     })
     .catch((err: any) => {
-      // DB not yet ready or read failed — keep current cap, retry next hour
       log.warn(`[HourlyCap] Could not refresh viral_optimizer_hourly_tokens: ${err?.message}`);
       _viralOptimizerHourKey = currentHour;
     })
@@ -87,6 +92,14 @@ interface HourlySlot {
 
 const hourlyUsage = new Map<string, HourlySlot>();
 
+// Snapshot format stored in system_settings under "hourly_tokens:snapshot"
+interface HourlySnapshot {
+  hourKey: number;
+  usage:   Record<string, number>;
+}
+
+const SNAPSHOT_KEY = "hourly_tokens:snapshot";
+
 function getCurrentHourKey(): number {
   return Math.floor(Date.now() / (60 * 60 * 1000));
 }
@@ -98,6 +111,98 @@ function getSlot(module: string): HourlySlot {
   const fresh: HourlySlot = { hourKey: currentHour, usedTokens: 0 };
   hourlyUsage.set(module, fresh);
   return fresh;
+}
+
+// ─── Persistence: flush to DB ─────────────────────────────────────────────────
+let _dirty      = false;
+let _flushTimer: ReturnType<typeof setInterval> | null = null;
+
+async function flushHourlyUsageToDB(): Promise<void> {
+  if (!_dirty) return;
+  _dirty = false;
+
+  const currentHour = getCurrentHourKey();
+  const usage: Record<string, number> = {};
+  for (const [module, slot] of hourlyUsage) {
+    if (slot.hourKey === currentHour) {
+      usage[module] = slot.usedTokens;
+    }
+  }
+
+  const snapshot: HourlySnapshot = { hourKey: currentHour, usage };
+  const value = JSON.stringify(snapshot);
+
+  try {
+    await db
+      .insert(systemSettings)
+      .values({ key: SNAPSHOT_KEY, value, createdAt: new Date(), updatedAt: new Date() } as any)
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: { value, updatedAt: new Date() },
+      });
+    log.debug(`[HourlyCap] Flushed snapshot for hour ${currentHour} (${Object.keys(usage).length} modules)`);
+  } catch (err: any) {
+    log.warn(`[HourlyCap] Failed to flush hourly snapshot: ${err?.message}`);
+    _dirty = true; // retry next cycle
+  }
+}
+
+// ─── Persistence: restore from DB on boot ────────────────────────────────────
+/**
+ * Call once at server startup (after DB is ready) to restore hourly token
+ * counts from the last flush.  If the stored snapshot belongs to the current
+ * hour the counters are loaded into memory.  If the stored snapshot is stale
+ * (different hour) it is ignored and the maps stay at zero.
+ */
+export async function restoreHourlyUsageFromDB(): Promise<void> {
+  try {
+    const [row] = await db
+      .select({ value: systemSettings.value })
+      .from(systemSettings)
+      .where(eq(systemSettings.key, SNAPSHOT_KEY))
+      .limit(1);
+
+    if (!row?.value) {
+      log.info("[HourlyCap] No hourly snapshot found — starting fresh");
+      return;
+    }
+
+    const snapshot: HourlySnapshot = JSON.parse(row.value);
+    const currentHour = getCurrentHourKey();
+
+    if (snapshot.hourKey !== currentHour) {
+      log.info(
+        `[HourlyCap] Stored snapshot is from hour ${snapshot.hourKey}, ` +
+        `current hour is ${currentHour} — discarding stale snapshot`
+      );
+      return;
+    }
+
+    let restored = 0;
+    for (const [module, used] of Object.entries(snapshot.usage)) {
+      if (typeof used === "number" && used > 0) {
+        hourlyUsage.set(module, { hourKey: currentHour, usedTokens: used });
+        restored++;
+      }
+    }
+    log.info(
+      `[HourlyCap] Restored hourly snapshot for hour ${currentHour}: ` +
+      `${restored} module(s) loaded`
+    );
+  } catch (err: any) {
+    log.warn(`[HourlyCap] Could not restore hourly snapshot (non-fatal): ${err?.message}`);
+  }
+}
+
+/**
+ * Start the 60-second periodic flush.  Call once after restoreHourlyUsageFromDB.
+ */
+export function startHourlyCapFlusher(): void {
+  if (_flushTimer) return; // already running
+  _flushTimer = setInterval(() => {
+    flushHourlyUsageToDB().catch(() => {/* errors already logged inside */});
+  }, 60_000);
+  log.info("[HourlyCap] Periodic flush started (every 60 s)");
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -154,6 +259,10 @@ export function checkHourlyTokenBudget(
 export function recordHourlyTokenUsage(module: string, tokensUsed: number): void {
   const slot = getSlot(module);
   slot.usedTokens += tokensUsed;
+  _dirty = true;
+  // Fire-and-forget immediate persist so a crash between 60-s intervals
+  // loses at most the tokens recorded since the last flush.
+  flushHourlyUsageToDB().catch(() => {/* errors logged inside */});
 }
 
 /**

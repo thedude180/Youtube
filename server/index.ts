@@ -2418,6 +2418,16 @@ httpServer.listen(
       );
     });
 
+    // ── WAVE 0.55: Restore hourly token counters from DB ─────────────────────
+    // Must run before engines start so post-reboot bursts respect the cap on
+    // tokens already consumed earlier in the same hour.
+    wave(async () => {
+      await import("./lib/token-hourly-cap").then(async m => {
+        await m.restoreHourlyUsageFromDB();
+        m.startHourlyCapFlusher();
+      }).catch(err => logger.warn("[Boot] hourly-token-cap restore failed (non-fatal):", err?.message));
+    });
+
     // ── WAVE 0.6: Staged startup orchestrator ─────────────────────────────────
     // Runs environment validation, DB readiness, account cleanup, channel health,
     // quota recovery, queue repair, and resource health checks before all engines.
