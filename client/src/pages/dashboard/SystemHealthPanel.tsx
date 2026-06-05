@@ -212,7 +212,13 @@ export default function SystemHealthPanel() {
   const [stagesExpanded, setStagesExpanded] = useState(false);
   const [workersExpanded, setWorkersExpanded] = useState(false);
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
-  const [showAllEngines, setShowAllEngines] = useState(false);
+  const [showAllEngines, setShowAllEngines] = useState(() => {
+    try { return localStorage.getItem("showAllEngines") === "true"; } catch { return false; }
+  });
+  const toggleShowAllEngines = (val: boolean) => {
+    try { localStorage.setItem("showAllEngines", String(val)); } catch {}
+    setShowAllEngines(val);
+  };
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [editingViralCap, setEditingViralCap] = useState(false);
   const [viralCapInput, setViralCapInput] = useState("");
@@ -434,7 +440,7 @@ export default function SystemHealthPanel() {
           <div data-testid="section-hourly-caps">
             <button
               className="w-full flex items-center justify-between text-left mb-2"
-              onClick={() => setShowAllEngines(p => !p)}
+              onClick={() => toggleShowAllEngines(!showAllEngines)}
               data-testid="button-toggle-all-engines"
             >
               <SectionHeader
