@@ -25,7 +25,7 @@ import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { runBackCatalogMonetizationCycle } from "./youtube-back-catalog-engine";
 import { runClipSeoSync } from "./youtube-clip-seo-sync";
-import { runGrindCycle } from "./relentless-content-grinder";
+import { getContainerMemory } from "../lib/container-memory";
 
 const logger = createLogger("back-catalog-runner");
 
@@ -128,6 +128,18 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
     return { usersRun: 0, errors: 0 };
   }
 
+  // Container memory gate — skip this cycle if the container is already under
+  // pressure.  The back-catalog runner fires at T+10-15 min and coincides with
+  // the publisher sweep (T+15 min) and content grinder (T+20 min).  Running a
+  // heavy AI-scoring cycle when free memory is already low has caused OOM
+  // container kills (silent — no logs).  This gate breaks that crash loop.
+  const mem = getContainerMemory();
+  const freeMB = Math.round(mem.freeBytes / 1024 / 1024);
+  if (mem.freeBytes < 300 * 1024 * 1024) {
+    logger.warn(`[BackCatalogRunner] Deferred — only ${freeMB}MB container memory free (need 300MB). Will retry on next scheduled run.`);
+    return { usersRun: 0, errors: 0 };
+  }
+
   const userIds = await getEligibleUserIds();
 
   if (userIds.length === 0) {
@@ -170,14 +182,16 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
         logger.warn(`[BackCatalogRunner] Clip SEO sync failed for ${userId.slice(0, 8)}: ${seoErr?.message?.slice(0, 150)}`);
       }
 
-      // If new content was queued, immediately kick a grind cycle so the
-      // schedule gaps are filled without waiting for the next 45-min tick.
+      // Note: We intentionally do NOT fire a direct runGrindCycle() here.
+      // The adaptive grinder scheduler runs every 20-60 min and will pick up
+      // newly queued content on its next tick.  A direct fire-and-forget call
+      // bypasses the grinderRunning guard and can cause two concurrent grind
+      // cycles when the scheduler also fires within the same minute window
+      // (T+10-20 min convergence), doubling AI call load and contributing
+      // to container OOM crashes.
       const newContent = result.queueResult.shortsQueued + result.queueResult.longFormQueued;
       if (newContent > 0) {
-        logger.info(`[BackCatalogRunner] ${newContent} new clips queued — triggering immediate grind cycle for ${userId.slice(0, 8)}`);
-        runGrindCycle().catch(gErr => {
-          logger.warn(`[BackCatalogRunner] Post-catalog grind failed: ${gErr?.message?.slice(0, 150)}`);
-        });
+        logger.info(`[BackCatalogRunner] ${newContent} new clips queued for ${userId.slice(0, 8)} — adaptive grinder will pick up on next tick`);
       }
 
       usersRun++;

@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { getContainerMemory } from "../lib/container-memory";
 import { videos, channels, autopilotQueue, videoCatalogLinks, contentExperiments } from "@shared/schema";
 import { eq, and, desc, gte, ne, sql, count, or, inArray } from "drizzle-orm";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
@@ -30,7 +31,7 @@ const GRINDER_INTER_VIDEO_DELAY_MS = 15_000; // 15s between videos (was 30s — 
 function grindJitter(baseMs: number, jitterMs = baseMs * 0.1): number {
   return baseMs + Math.floor(Math.random() * jitterMs);
 }
-const GRIND_INTERVAL_URGENT_MS   = grindJitter(10 * 60_000, 2 * 60_000);  // ~10-12 min  — queue < 7
+const GRIND_INTERVAL_URGENT_MS   = grindJitter(20 * 60_000, 2 * 60_000);  // ~20-22 min  — queue < 7 (raised from 10 to prevent T+14min OOM convergence with back-catalog runner)
 const GRIND_INTERVAL_LOW_MS      = grindJitter(20 * 60_000, 5 * 60_000);  // ~20-25 min  — queue 7-20
 const GRIND_INTERVAL_MODERATE_MS = grindJitter(35 * 60_000, 5 * 60_000);  // ~35-40 min  — queue 20-42
 const GRIND_INTERVAL_HEALTHY_MS  = grindJitter(60 * 60_000, 10 * 60_000); // ~60-70 min  — queue ≥ 42
@@ -169,6 +170,17 @@ interface GrindState {
 }
 
 export async function runGrindCycle(): Promise<{ clipsQueued: number; longFormQueued: number }> {
+  // Container memory gate — if free memory is below 250 MB, defer this cycle.
+  // The back-catalog runner, publisher sweep, and this grinder all converge at
+  // T+10-20 min after boot; this guard prevents that convergence from OOM-killing
+  // the container.
+  const mem = getContainerMemory();
+  const freeMB = Math.round(mem.freeBytes / 1024 / 1024);
+  if (mem.freeBytes < 250 * 1024 * 1024) {
+    logger.warn(`[ContentGrinder] Deferred — only ${freeMB}MB container memory free (need 250MB). Will retry next cycle.`);
+    return { clipsQueued: 0, longFormQueued: 0 };
+  }
+
   logger.info("Relentless content grinder cycle starting");
   let totalClips = 0;
   let totalLongForm = 0;
