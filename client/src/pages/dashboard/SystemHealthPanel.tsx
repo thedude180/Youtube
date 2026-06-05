@@ -166,6 +166,12 @@ function hourlyPctColor(pct: number): string {
   return "text-blue-400";
 }
 
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}k`;
+  return String(n);
+}
+
 function formatResetIn(nowMs: number): string {
   const msIntoHour = nowMs % (60 * 60 * 1000);
   const msLeft = 60 * 60 * 1000 - msIntoHour;
@@ -475,12 +481,23 @@ export default function SystemHealthPanel() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
                       <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
-                        </span>
-                        <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
-                          {stat.pct}%
-                        </span>
+                        {stat.pct === 0 ? (
+                          <span
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground border border-border/20"
+                            data-testid={`badge-hourly-limit-${engine}`}
+                          >
+                            limit: {formatCompact(stat.limit)}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {stat.used.toLocaleString()}/{stat.limit.toLocaleString()}
+                            </span>
+                            <span className={`text-[10px] font-semibold font-mono ${hourlyPctColor(stat.pct)}`} data-testid={`text-hourly-pct-${engine}`}>
+                              {stat.pct}%
+                            </span>
+                          </>
+                        )}
                         {isAdmin && engine === "viral-optimizer" && !editingViralCap && (
                           <button
                             onClick={() => { setViralCapInput(String(stat.limit)); setEditingViralCap(true); }}
