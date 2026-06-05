@@ -3289,12 +3289,17 @@ httpServer.listen(
     // ── WAVE 5: Intelligence engines batch 1 ─────────────────────────────────
     if (!LITE_MODE) wave(() => {
       tokenBudget.ready.then(() => {
+        // Non-AI lightweight guards fire immediately
         startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
         import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
         try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
-        import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine"));
-        import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine"));
-        import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine"));
+        // AI-intensive engines deferred 5 min — prevents these from joining the boot AI-storm
+        // that fills the 8-slot semaphore within the first 2 minutes of startup.
+        setTimeout(() => {
+          import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine"));
+          import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine"));
+          import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine"));
+        }, 5 * 60_000);
       }).catch(slog("wave5-ready-gate"));
     });
 
@@ -3478,11 +3483,12 @@ httpServer.listen(
           logger.warn("[HourlySweep] Failed:", { error: e?.message });
         }
       };
-      // First sweep: 2 min after boot — gives DB pool time to stabilise after
-      // the wave 7/8 thundering herd before hitting YouTube API + DB together.
-      const hourlySweepInitTimer = setTimeout(runPublisherSweep, 2 * 60_000);
-      // 15-minute sweep: uploads are priority-one when not live — check 4× more often
-      const hourlySweepInterval = setInterval(runPublisherSweep, jitter(15 * 60_000));
+      // First sweep: 40 min after boot — back-catalog runner starts at T+10-15 min and
+      // runs for ~30-50 min processing videos. Firing the publisher sweep before T+40 min
+      // causes a T+17 min OOM convergence (both try to download/encode concurrently).
+      // Subsequent sweeps at ~30-min intervals avoid overlap with the 22-24h back-catalog cycle.
+      const hourlySweepInitTimer = setTimeout(runPublisherSweep, 40 * 60_000);
+      const hourlySweepInterval = setInterval(runPublisherSweep, jitter(30 * 60_000));
       backgroundIntervals.push(hourlySweepInterval);
 
       // ── BF6 Prioritisation — one-time boot migration ─────────────────────────

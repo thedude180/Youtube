@@ -13,19 +13,11 @@ import { AIScheduler } from "../lib/ai-scheduler";
 import { recordLearningEvent } from "../learning-engine";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
+import { isActiveYouTubeUser } from "../lib/active-user-guard";
 
 const logger = createLogger("growth-flywheel");
 
 const FLYWHEEL_CYCLE_MS = 30 * 60_000;
-
-/** Fix #7 — guard against phantom non-YouTube platform users in AI loops */
-function isYouTubeUser(userId: string): boolean {
-  if (userId.startsWith("tiktok_"))  return false;
-  if (userId.startsWith("rumble_"))  return false;
-  if (userId.startsWith("kick_"))    return false;
-  if (userId.startsWith("twitch_"))  return false;
-  return true;
-}
 const MEMORY_CONSOLIDATION_MS = 2 * 60 * 60_000;
 const COMPETITIVE_SCAN_MS = 60 * 60_000;
 const AUTO_APPROVE_THRESHOLD = 85;
@@ -95,7 +87,7 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runFlywheelCycle().catch(err =>
       logger.error("Initial flywheel cycle failed", { error: String(err).slice(0, 200) })
     );
-  }, 300_000);
+  }, 8 * 60_000);
 
   flywheelTimer = setInterval(() => {
     runFlywheelCycle().catch(err =>
@@ -119,7 +111,7 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runCompetitiveIntelScan().catch(err =>
       logger.error("Competitive intel scan failed", { error: String(err).slice(0, 200) })
     );
-  }, 120_000);
+  }, 12 * 60_000);
 
   competitiveTimer = setInterval(() => {
     runCompetitiveIntelScan().catch(err =>
@@ -137,9 +129,8 @@ async function runFlywheelCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
-    // Fix #7 — skip phantom non-YouTube users (tiktok_, rumble_, kick_, twitch_)
-    if (!isYouTubeUser(user.id)) {
-      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+    if (!isActiveYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-production user: ${user.id.substring(0, 20)}`);
       continue;
     }
 
@@ -425,8 +416,8 @@ async function runMemoryConsolidation(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
-    if (!isYouTubeUser(user.id)) {
-      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+    if (!isActiveYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-production user: ${user.id.substring(0, 20)}`);
       continue;
     }
     try {
@@ -577,8 +568,8 @@ async function runCompetitiveIntelScan(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
 
   for (const user of allUsers) {
-    if (!isYouTubeUser(user.id)) {
-      logger.debug(`[GrowthFlywheel] Skipping non-YouTube user: ${user.id.substring(0, 20)}`);
+    if (!isActiveYouTubeUser(user.id)) {
+      logger.debug(`[GrowthFlywheel] Skipping non-production user: ${user.id.substring(0, 20)}`);
       continue;
     }
     try {

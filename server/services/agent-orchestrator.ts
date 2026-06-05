@@ -200,17 +200,20 @@ export async function startUserAgentSession(userId: string, initialDelayMs = 0):
     agentsStarted.push(agentName);
   };
 
+  // Boot delays stagger heavy AI agents across the 5-12 min window so they don't
+  // join the boot AI storm that fills the 8-slot semaphore within the first 2 minutes.
+  // All four were firing at T+20s/40s/60s/90s, saturating the queue and causing crashes.
   if (caps.runAITeam && caps.aiTeamIntervalMs > 0)
-    schedule("ai_team", () => runAITeam(userId), caps.aiTeamIntervalMs, 20_000);
+    schedule("ai_team", () => runAITeam(userId), caps.aiTeamIntervalMs, 5 * 60_000);
 
   if (caps.runBusinessAgents && caps.businessAgentIntervalMs > 0)
-    schedule("business_agents", () => runBusinessAgents(userId), caps.businessAgentIntervalMs, 40_000);
+    schedule("business_agents", () => runBusinessAgents(userId), caps.businessAgentIntervalMs, 7 * 60_000);
 
   if (caps.runLegalTaxAgents && caps.legalTaxIntervalMs > 0)
-    schedule("legal_tax", () => runLegalTax(userId), caps.legalTaxIntervalMs, 60_000);
+    schedule("legal_tax", () => runLegalTax(userId), caps.legalTaxIntervalMs, 10 * 60_000);
 
   if (caps.runTeamOps && caps.teamOpsIntervalMs > 0)
-    schedule("team_ops", () => runTeamOps(userId), caps.teamOpsIntervalMs, 90_000);
+    schedule("team_ops", () => runTeamOps(userId), caps.teamOpsIntervalMs, 12 * 60_000);
 
   if (agentsStarted.length > 0) {
     logger.info(`[${userId}] Session armed — tier: ${tier}, agents: [${agentsStarted.join(", ")}]`);
