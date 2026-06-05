@@ -57,7 +57,7 @@ export const PLATFORM_FIRST_POLL_OFFSET_MS: Record<string, number> = {
 
 export interface BootItem {
   label: string;
-  fn: () => void;
+  fn: () => void | Promise<unknown>;
 }
 
 /**
@@ -82,4 +82,35 @@ export function staggeredBoot(items: BootItem[], gapMs: number = 1_500): void {
       }
     }, offsetMs);
   });
+}
+
+/**
+ * Starts `items` truly sequentially: awaits each item's fn() before launching
+ * the next, then waits `gapMs` before starting the next item.
+ *
+ * Returns a Promise — if awaited inside a wave() callback the whole wave waits
+ * until all items have started. If NOT awaited, items start sequentially in the
+ * background while subsequent waves proceed immediately.
+ *
+ * Use for quick-init services (those that set up an interval and return fast).
+ * For services with long internal delays avoid awaiting this or they will block
+ * subsequent items from starting.
+ *
+ * @example
+ * wave(() => {
+ *   // background sequential — wave completes immediately, items start one-by-one
+ *   sequentialBoot([...items], 3_000).catch(err => logger.error(...));
+ * });
+ */
+export async function sequentialBoot(items: BootItem[], gapMs: number = 1_500): Promise<void> {
+  for (const { label, fn } of items) {
+    try {
+      logger.info(`[BootSeq] ▶ ${label} (sequential)`);
+      const result = fn();
+      if (result instanceof Promise) await result;
+    } catch (err: any) {
+      logger.error(`[BootSeq] ${label} threw on init`, { error: String(err) });
+    }
+    if (gapMs > 0) await new Promise<void>(r => setTimeout(r, gapMs));
+  }
 }

@@ -35,9 +35,11 @@ import { getContainerMemory } from "./container-memory";
 
 const log = createLogger("ai-scheduler");
 
-// Background tier is capped at 4 concurrent (not 8) to leave headroom for
-// foreground callers. Priority ≥ 5 = background.
-const BACKGROUND_CONCURRENCY_CAP = 4;
+// Background tier is capped at 2 concurrent to enforce sequential-like
+// processing. With 50+ engines, 4 was still enough to cause thundering-herd
+// bursts. 2 means at most 2 background AI tasks run simultaneously, forcing
+// a queue drain pattern that's much gentler on memory and API rate limits.
+const BACKGROUND_CONCURRENCY_CAP = 2;
 let _backgroundActive = 0;
 
 export interface AITask {

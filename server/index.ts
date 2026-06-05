@@ -1745,7 +1745,7 @@ const GLOBAL_RATE_WINDOW = 60_000;
 const backgroundIntervals: ReturnType<typeof setInterval>[] = [];
 
 import { registerCleanup } from "./services/cleanup-coordinator";
-import { staggeredBoot } from "./services/boot-sequencer";
+import { staggeredBoot, sequentialBoot } from "./services/boot-sequencer";
 import { awaitDbReady } from "./lib/db-boot-ready";
 registerCleanup("globalRateLimit", () => {
   const now = Date.now();
@@ -3660,24 +3660,30 @@ httpServer.listen(
     });
 
     // ── WAVE 9: Advanced engines — feedback, edits, detection, AI ────────────
+    // 5s stagger (was all-at-once): engines start one at a time, 5s apart.
     if (!LITE_MODE) wave(() => {
-      import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {});
-      import("./smart-edit-engine").then(async m => {
-        await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
-        const { db: database } = await import("./db");
-        const { users } = await import("@shared/schema");
-        const allUsers = await database.select({ id: users.id }).from(users).limit(50);
-        for (const u of allUsers) {
-          m.initSmartEditForAllLongVideos(u.id).catch(slog(`smartEdit(${u.id})`));
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-      }).catch(slog("smart-edit-engine import"));
-      import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine"));
-      import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine"));
-      import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine"));
+      staggeredBoot([
+        { label: "performance-feedback-engine", fn: () => import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {}) },
+        { label: "smart-edit-engine",           fn: () => import("./smart-edit-engine").then(async m => {
+            await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
+            const { db: database } = await import("./db");
+            const { users } = await import("@shared/schema");
+            const allUsers = await database.select({ id: users.id }).from(users).limit(50);
+            for (const u of allUsers) {
+              m.initSmartEditForAllLongVideos(u.id).catch(slog(`smartEdit(${u.id})`));
+              await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+          }).catch(slog("smart-edit-engine import")) },
+        { label: "game-detection-engine",       fn: () => import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine")) },
+        { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
+        { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
+      ], 5_000);
     });
 
-    // ── WAVE 10: Autonomous command engines + publishers — 1.5s stagger ──────
+    // ── WAVE 10: Autonomous command engines + publishers — 5s stagger ────────
+    // Gap raised from 1.5s → 5s: 12 services now spread over 60s instead of 16.5s.
+    // Publishers (shorts, long-form, scheduler) are last in the list so non-critical
+    // intelligence engines warm up first and don't race with critical publishing.
     if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "tos-compliance-monitor",    fn: () => import("./services/tos-compliance-monitor").then(m => m.startTOSComplianceMonitor()).catch(slog("startTOSComplianceMonitor")) },
@@ -3692,10 +3698,11 @@ httpServer.listen(
         { label: "shorts-clip-publisher",     fn: () => import("./services/shorts-clip-publisher").then(m => m.initShortsClipPublisher()).catch(slog("initShortsClipPublisher")) },
         { label: "long-form-clip-publisher",  fn: () => import("./services/long-form-clip-publisher").then(m => m.initLongFormClipPublisher()).catch(slog("initLongFormClipPublisher")) },
         { label: "youtube-output-scheduler",  fn: () => import("./services/youtube-output-scheduler").then(m => { backgroundIntervals.push(m.initYouTubeOutputScheduler()); }).catch(slog("initYouTubeOutputScheduler")) },
-      ], 1_500);
+      ], 5_000);
     });
 
-    // ── WAVE 10.5: Autonomous meta-intelligence engines — 1s stagger ─────────
+    // ── WAVE 10.5: Autonomous meta-intelligence engines — 4s stagger ─────────
+    // Gap raised from 1s → 4s: 14 services now spread over 56s instead of 14s.
     if (!LITE_MODE) wave(() => {
       staggeredBoot([
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
@@ -3712,7 +3719,7 @@ httpServer.listen(
         { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
-      ], 1_000);
+      ], 4_000);
     });
 
     // ── WAVE 11: Self-healing, webhook pipeline, health brain ────────────────

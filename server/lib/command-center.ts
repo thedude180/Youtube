@@ -25,6 +25,7 @@ import { KillSwitches, type KillSwitchKey } from "./kill-switches";
 import { LogSuppressor } from "./log-suppressor";
 import { AIScheduler } from "./ai-scheduler";
 import { getContainerMemory } from "./container-memory";
+import { tryAcquireEngineCycle } from "./engine-queue";
 
 type AllowAction = "allow" | "defer" | "block" | "skip" | "needs_human" | "cancelled";
 
@@ -46,6 +47,8 @@ export interface CanRunResult {
   action: AllowAction;
   reason?: string;
   retryAfterMs?: number;
+  /** Call when the engine cycle completes to free the engine slot early. Omitting is safe — the slot auto-releases after 5 min. */
+  releaseEngineCycle?: () => void;
 }
 
 // ── Recent failure cooldown ───────────────────────────────────────────────────
@@ -89,6 +92,7 @@ async function getQuotaBreakerActive(): Promise<boolean> {
 export const CommandCenter = {
   async canRun(req: CanRunRequest): Promise<CanRunResult> {
     const { module, userId, channelId, platform, jobType } = req;
+    let engineSlotRelease: (() => void) | undefined;
 
     // ── 1. Kill switches ────────────────────────────────────────────────────
     const switchesToCheck: KillSwitchKey[] = ["all_automation"];
@@ -186,6 +190,30 @@ export const CommandCenter = {
           retryAfterMs: 5 * 60_000,
         };
       }
+
+      // ── 5.5. Engine cycle gate ──────────────────────────────────────────
+      // Limits the total number of background engine cycles running at once.
+      // Only applies to background work (priority ≥ 5). Critical-path jobs
+      // (publishers, live-chat replies, pre-flight checks — priority < 5) are
+      // never gated here so publishing is never blocked by background engines.
+      if (priority >= 5) {
+        const release = tryAcquireEngineCycle(module, userId);
+        if (!release) {
+          LogSuppressor.warn(
+            `${module}:ENGINE_QUEUE_FULL:cycle`,
+            `[CommandCenter] ${module}: engine cycle queue full — job deferred`,
+            {},
+            module,
+          );
+          return {
+            allowed: false,
+            action: "defer",
+            reason: "engine cycle queue full — too many background cycles running concurrently",
+            retryAfterMs: 2 * 60_000,
+          };
+        }
+        engineSlotRelease = release;
+      }
       void priority;
     }
 
@@ -230,7 +258,7 @@ export const CommandCenter = {
       };
     }
 
-    return { allowed: true, action: "allow" };
+    return { allowed: true, action: "allow", releaseEngineCycle: engineSlotRelease };
   },
 
   /** Record a failure for the given target so cooldown kicks in. */
