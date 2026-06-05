@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { videos, channels, autopilotQueue, videoCatalogLinks, contentExperiments } from "@shared/schema";
-import { eq, and, desc, gte, ne, sql, count, or } from "drizzle-orm";
+import { eq, and, desc, gte, ne, sql, count, or, inArray } from "drizzle-orm";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
@@ -18,14 +18,22 @@ import { chooseBestLongFormDuration, getBucketRankings } from "./youtube-perform
 
 const logger = createLogger("content-grinder");
 
-const GRIND_INTERVAL_MS = 45 * 60_000;
-
 // Throughput constants — grinder uses these in normal mode.
 // Burst mode (triggered when queue is thin) overrides these at runtime.
 // Fix #4 — spread token budget across the day instead of burning it in 3 hours.
 const GRINDER_MAX_PER_CYCLE_NORMAL = 20;  // max videos processed per cycle (normal)
 const GRINDER_MAX_PER_CYCLE_BURST  = 50;  // max videos per cycle in burst mode
 const GRINDER_INTER_VIDEO_DELAY_MS = 15_000; // 15s between videos (was 30s — AI semaphore provides backpressure)
+
+// Adaptive grind intervals — match the back-catalog runner thresholds so both
+// systems breathe in tandem: thin queue → both run fast; full queue → both ease back.
+function grindJitter(baseMs: number, jitterMs = baseMs * 0.1): number {
+  return baseMs + Math.floor(Math.random() * jitterMs);
+}
+const GRIND_INTERVAL_URGENT_MS   = grindJitter(10 * 60_000, 2 * 60_000);  // ~10-12 min  — queue < 7
+const GRIND_INTERVAL_LOW_MS      = grindJitter(20 * 60_000, 5 * 60_000);  // ~20-25 min  — queue 7-20
+const GRIND_INTERVAL_MODERATE_MS = grindJitter(35 * 60_000, 5 * 60_000);  // ~35-40 min  — queue 20-42
+const GRIND_INTERVAL_HEALTHY_MS  = grindJitter(60 * 60_000, 10 * 60_000); // ~60-70 min  — queue ≥ 42
 
 /**
  * Strip markdown code fences and parse JSON from an AI response.
@@ -118,7 +126,37 @@ function extractJsonFromResponse(raw: string): any {
 import { LRUMap } from "../lib/lru-map";
 const thumbnailBudgetExhaustedAt: Map<string, number> = new LRUMap(5_000);
 
-let grindInterval: ReturnType<typeof setInterval> | null = null;
+// ── Perpetual scheduler state ─────────────────────────────────────────────────
+let grindTimer:          ReturnType<typeof setTimeout> | null = null;
+let grinderRunning       = false;
+let grinderNextRunAt:    Date | null = null;
+let lastGrindIntervalMs: number = GRIND_INTERVAL_MODERATE_MS;
+let lastGrindTotals:     { clipsQueued: number; longFormQueued: number } = { clipsQueued: 0, longFormQueued: 0 };
+
+/** Probe current YouTube queue depth without touching the YouTube API. */
+async function getGrindQueueDepth(): Promise<number> {
+  try {
+    const now = new Date();
+    const r = await db.select({ n: count() })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.targetPlatform, "youtube"),
+        inArray(autopilotQueue.status, ["scheduled", "pending"]),
+        gte(autopilotQueue.scheduledAt, now),
+      ));
+    return Number(r[0]?.n ?? 0);
+  } catch {
+    return 99; // assume healthy on error — avoid spurious extra runs
+  }
+}
+
+/** Pick the next grind interval based on queue depth. */
+function grindAdaptiveIntervalMs(queueDepth: number): number {
+  if (queueDepth <  7) return GRIND_INTERVAL_URGENT_MS;
+  if (queueDepth < 20) return GRIND_INTERVAL_LOW_MS;
+  if (queueDepth < 42) return GRIND_INTERVAL_MODERATE_MS;
+  return GRIND_INTERVAL_HEALTHY_MS;
+}
 
 interface GrindState {
   videosExhausted: number;
@@ -130,8 +168,10 @@ interface GrindState {
   pacingEnhanced: number;
 }
 
-export async function runGrindCycle(): Promise<void> {
+export async function runGrindCycle(): Promise<{ clipsQueued: number; longFormQueued: number }> {
   logger.info("Relentless content grinder cycle starting");
+  let totalClips = 0;
+  let totalLongForm = 0;
 
   try {
     const allUsers = await storage.getAllUsers();
@@ -143,6 +183,8 @@ export async function runGrindCycle(): Promise<void> {
         if (!autonomous) continue;
 
         const state = await grindUserContent(user.id);
+        totalClips    += state.clipsQueued;
+        totalLongForm += state.longFormClipsQueued;
         if (state.clipsQueued > 0 || state.longFormClipsQueued > 0 || state.seoRefreshed > 0) {
           logger.info(`[${user.id.substring(0, 8)}] Grind cycle: ${state.clipsQueued} Shorts queued, ${state.longFormClipsQueued} long-form clips queued, ${state.seoRefreshed} SEO refreshed, ${state.thumbnailsRedesigned} thumbnails redesigned, ${state.pacingEnhanced} pacing enhanced. ${state.videosExhausted} fully exhausted, ${state.videosWithRemaining} still have content.`);
         }
@@ -153,6 +195,8 @@ export async function runGrindCycle(): Promise<void> {
   } catch (err: any) {
     logger.error(`Content grinder cycle error: ${err.message?.substring(0, 300)}`);
   }
+
+  return { clipsQueued: totalClips, longFormQueued: totalLongForm };
 }
 
 async function grindUserContent(userId: string): Promise<GrindState> {
@@ -1152,26 +1196,81 @@ export async function getGrinderStatus(userId: string): Promise<{
 }
 
 export function startContentGrinder(): void {
-  if (grindInterval) return;
+  if (grindTimer) return; // already running
 
-  setTimeout(() => {
-    runGrindCycle().catch(err =>
-      logger.warn("Initial grind cycle failed", { error: String(err).substring(0, 200) })
-    );
+  // Recursive adaptive scheduler: after each cycle the grinder measures queue
+  // depth and picks the shortest safe interval to stay in tandem with the
+  // back-catalog runner.  If a cycle produces meaningful new content, it
+  // schedules an immediate follow-up (5 min) to keep filling gaps fast.
+  function scheduleNextGrind(overrideMs?: number): void {
+    getGrindQueueDepth().then(depth => {
+      const intervalMs = overrideMs ?? grindAdaptiveIntervalMs(depth);
+      lastGrindIntervalMs = intervalMs;
+      grinderNextRunAt    = new Date(Date.now() + intervalMs);
+      logger.info(
+        `[ContentGrinder] Adaptive schedule: queue=${depth} items → next run in ${Math.round(intervalMs / 60_000)} min`
+      );
+      grindTimer = setTimeout(async () => {
+        if (grinderRunning) {
+          logger.warn("[ContentGrinder] Previous cycle still running — rescheduling");
+          scheduleNextGrind();
+          return;
+        }
+        grinderRunning = true;
+        try {
+          const result = await runGrindCycle();
+          lastGrindTotals = { clipsQueued: result.clipsQueued, longFormQueued: result.longFormQueued };
+          // If this cycle generated significant content, re-run soon so the
+          // publishing pipeline always has fresh material queued up.
+          const madeProgress = result.clipsQueued + result.longFormQueued > 5;
+          scheduleNextGrind(madeProgress ? grindJitter(5 * 60_000, 60_000) : undefined);
+        } finally {
+          grinderRunning = false;
+        }
+      }, intervalMs);
+    }).catch(err => {
+      logger.warn(`[ContentGrinder] Queue depth check failed — defaulting to moderate: ${err?.message}`);
+      lastGrindIntervalMs = GRIND_INTERVAL_MODERATE_MS;
+      grinderNextRunAt    = new Date(Date.now() + GRIND_INTERVAL_MODERATE_MS);
+      grindTimer = setTimeout(async () => {
+        if (!grinderRunning) {
+          grinderRunning = true;
+          try { await runGrindCycle(); } finally { grinderRunning = false; }
+        }
+        scheduleNextGrind();
+      }, GRIND_INTERVAL_MODERATE_MS);
+    });
+  }
+
+  // Initial run after 4 min (preserve existing startup delay — lets boot
+  // migrations and queue purge finish before first grind).
+  grindTimer = setTimeout(() => {
+    grinderRunning = true;
+    runGrindCycle()
+      .then(result => { lastGrindTotals = { clipsQueued: result.clipsQueued, longFormQueued: result.longFormQueued }; })
+      .catch(err => logger.warn("Initial grind cycle failed", { error: String(err).substring(0, 200) }))
+      .finally(() => {
+        grinderRunning = false;
+        scheduleNextGrind();
+      });
   }, 240_000);
 
-  grindInterval = setInterval(() => {
-    runGrindCycle().catch(err =>
-      logger.warn("Periodic grind cycle failed", { error: String(err).substring(0, 200) })
-    );
-  }, GRIND_INTERVAL_MS);
-
-  logger.info("Relentless Content Grinder started (3h cycle)");
+  logger.info("Relentless Content Grinder started — adaptive perpetual mode (10 min–60 min based on queue depth)");
 }
 
 export function stopContentGrinder(): void {
-  if (grindInterval) {
-    clearInterval(grindInterval);
-    grindInterval = null;
+  if (grindTimer) {
+    clearTimeout(grindTimer);
+    grindTimer = null;
   }
+}
+
+/** Expose the grinder's adaptive schedule state to routes/dashboard. */
+export function getGrinderSchedulerStatus() {
+  return {
+    running:        grinderRunning,
+    nextRunEta:     grinderNextRunAt?.toISOString() ?? null,
+    lastIntervalMs: lastGrindIntervalMs,
+    lastTotals:     lastGrindTotals,
+  };
 }
