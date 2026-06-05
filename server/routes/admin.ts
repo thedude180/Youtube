@@ -12,6 +12,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
 import { HOURLY_CAPS, resetDailyTokenCounter } from "../lib/token-hourly-cap";
+import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
@@ -805,5 +806,15 @@ export function registerAdminRoutes(app: Express) {
     if (!userId) return;
     const report = getLastHygieneReport();
     res.json({ ok: true, report });
+  });
+
+  app.get("/api/admin/migration-health", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const health = getMigrationHealth();
+    if (!health) {
+      return res.json({ ok: true, status: "pending", message: "Migration check has not run yet — server may still be booting." });
+    }
+    res.json({ ok: true, ...health });
   });
 }

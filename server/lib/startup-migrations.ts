@@ -441,6 +441,69 @@ async function migration008SeedAllEngineHourlyCaps(): Promise<void> {
   }
 }
 
+// ── Migration flag registry ───────────────────────────────────────────────────
+// Every migration that sets a completion flag must be listed here.
+// verifyAllMigrationFlags() compares this list against system_settings after
+// all migrations have run so silently-stuck migrations are caught on every boot.
+
+const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> = [
+  { flag: "migration:001:focus_game_set",                   label: "001 — set focus game" },
+  { flag: "migration:002:bf6_queue_reorder",                label: "002 — BF6 queue reorder" },
+  { flag: "migration:003:fix_fake_game_names_v2",           label: "003 — fix fake game names" },
+  { flag: "migration_004_purge_demo_reviewer_done",         label: "004 — purge demo reviewer" },
+  { flag: "migration:005:capability_gaps_deduped",          label: "005 — deduplicate capability gaps" },
+  { flag: "migration:006:viral_optimizer_hourly_tokens_seeded", label: "006 — seed viral optimizer cap" },
+  { flag: "migration:007:module_hourly_caps_seeded",        label: "007 — seed module hourly caps" },
+  { flag: "migration:008:all_engine_hourly_caps_seeded",    label: "008 — seed all engine hourly caps" },
+];
+
+export interface MigrationHealth {
+  checkedAt: string;
+  total: number;
+  confirmed: number;
+  missing: Array<{ flag: string; label: string }>;
+  allConfirmed: boolean;
+}
+
+let _migrationHealth: MigrationHealth | null = null;
+
+/** Returns the last migration health snapshot recorded at boot (or null if not yet run). */
+export function getMigrationHealth(): MigrationHealth | null {
+  return _migrationHealth;
+}
+
+async function verifyAllMigrationFlags(): Promise<void> {
+  try {
+    const keys = EXPECTED_MIGRATION_FLAGS.map(e => e.flag);
+    const rows = await db
+      .select({ key: systemSettings.key })
+      .from(systemSettings)
+      .where(sql`${systemSettings.key} = ANY(ARRAY[${sql.join(keys.map(k => sql`${k}`), sql`, `)}])`);
+
+    const foundKeys = new Set(rows.map(r => r.key));
+    const missing = EXPECTED_MIGRATION_FLAGS.filter(e => !foundKeys.has(e.flag));
+
+    _migrationHealth = {
+      checkedAt: new Date().toISOString(),
+      total: EXPECTED_MIGRATION_FLAGS.length,
+      confirmed: EXPECTED_MIGRATION_FLAGS.length - missing.length,
+      missing,
+      allConfirmed: missing.length === 0,
+    };
+
+    if (missing.length === 0) {
+      log.info(`[StartupMigrations] All ${EXPECTED_MIGRATION_FLAGS.length} migration flags confirmed ✓`);
+    } else {
+      log.warn(
+        `[StartupMigrations] WARNING: ${missing.length} migration flag(s) did not set their flag — ` +
+        `check logs: ${missing.map(e => e.label).join(", ")}`
+      );
+    }
+  } catch (err: any) {
+    log.warn(`[StartupMigrations] verifyAllMigrationFlags failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -453,6 +516,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration006SeedViralOptimizerCap();
     await migration007SeedModuleHourlyCaps();
     await migration008SeedAllEngineHourlyCaps();
+    await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

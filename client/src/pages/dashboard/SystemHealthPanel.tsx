@@ -260,6 +260,25 @@ export default function SystemHealthPanel() {
     enabled: isAdmin,
   });
 
+  interface MigrationHealthData {
+    ok: boolean;
+    status?: string;
+    message?: string;
+    total?: number;
+    confirmed?: number;
+    allConfirmed?: boolean;
+    missing?: Array<{ flag: string; label: string }>;
+    checkedAt?: string;
+  }
+
+  const { data: migrationHealth } = useQuery<MigrationHealthData>({
+    queryKey: ["/api/admin/migration-health"],
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+    retry: 1,
+    enabled: isAdmin,
+  });
+
   const prevFlushFailuresRef = useRef(0);
   useEffect(() => {
     const failures = flushHealth?.consecutiveFailures ?? 0;
@@ -395,6 +414,32 @@ export default function SystemHealthPanel() {
         </div>
         <span className="text-[10px] text-muted-foreground shrink-0" data-testid="text-health-last-refreshed">↻ {lastRefreshed}</span>
       </div>
+
+      {/* ── Migration health banner (admin only, shown when flags are missing) ── */}
+      {isAdmin && migrationHealth && !migrationHealth.allConfirmed && migrationHealth.missing && migrationHealth.missing.length > 0 && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 bg-amber-500/10 border-b border-amber-500/25 text-amber-300"
+          data-testid="banner-migration-health-warning"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+          <div className="min-w-0">
+            <span className="text-xs font-semibold text-amber-300">
+              Migration warning: {migrationHealth.missing.length} flag{migrationHealth.missing.length > 1 ? "s" : ""} missing after boot
+            </span>
+            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              {migrationHealth.missing.map(m => (
+                <span key={m.flag} className="text-[10px] text-amber-400/80 font-mono" data-testid={`text-missing-migration-${m.flag}`}>
+                  {m.label}
+                </span>
+              ))}
+            </div>
+            <div className="text-[10px] text-amber-400/60 mt-0.5">
+              Check server logs — migrations {migrationHealth.confirmed}/{migrationHealth.total} confirmed
+              {migrationHealth.checkedAt ? ` · verified ${new Date(migrationHealth.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="p-4 space-y-4">
         {/* ── Top stats row ────────────────────────────────────────────────── */}
