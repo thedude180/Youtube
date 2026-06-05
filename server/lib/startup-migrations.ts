@@ -441,6 +441,89 @@ async function migration008SeedAllEngineHourlyCaps(): Promise<void> {
   }
 }
 
+// ── Migration 009: schema-history-fixes ──────────────────────────────────────
+// Adds new columns to autopilot_queue, channels, dead_letter_queue;
+// creates security_ip_allowlist table with trusted IP seed data.
+// All DDL uses IF NOT EXISTS — fully idempotent.
+
+async function migration009SchemaHistoryFixes(): Promise<void> {
+  const FLAG = "migration:009:schema_history_fixes";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // ── autopilot_queue additions ─────────────────────────────────────────────
+    await db.execute(sql`
+      ALTER TABLE autopilot_queue
+        ADD COLUMN IF NOT EXISTS miss_count              INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS recovered_at            TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS escalated_at            TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS deferred_until          TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS platform                TEXT,
+        ADD COLUMN IF NOT EXISTS source                  TEXT,
+        ADD COLUMN IF NOT EXISTS original_queue_item_id  INTEGER,
+        ADD COLUMN IF NOT EXISTS dead_letter_id          INTEGER,
+        ADD COLUMN IF NOT EXISTS updated_at              TIMESTAMPTZ
+    `);
+    log.info("[Migration 009] autopilot_queue columns added");
+
+    // ── channels additions ────────────────────────────────────────────────────
+    await db.execute(sql`
+      ALTER TABLE channels
+        ADD COLUMN IF NOT EXISTS access_token_backup   TEXT,
+        ADD COLUMN IF NOT EXISTS refresh_token_backup  TEXT,
+        ADD COLUMN IF NOT EXISTS token_expires_backup  TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS token_backed_up_at    TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS needs_reconnect        BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS reconnect_reason       TEXT,
+        ADD COLUMN IF NOT EXISTS token_recovery_note    TEXT,
+        ADD COLUMN IF NOT EXISTS last_token_refresh     TIMESTAMPTZ
+    `);
+    log.info("[Migration 009] channels columns added");
+
+    // ── dead_letter_queue additions ───────────────────────────────────────────
+    await db.execute(sql`
+      ALTER TABLE dead_letter_queue
+        ADD COLUMN IF NOT EXISTS content_type            TEXT,
+        ADD COLUMN IF NOT EXISTS platform                TEXT,
+        ADD COLUMN IF NOT EXISTS original_queue_item_id  INTEGER,
+        ADD COLUMN IF NOT EXISTS requeue_count           INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS expired_at              TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS requeued_at             TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS error_message           TEXT,
+        ADD COLUMN IF NOT EXISTS updated_at              TIMESTAMPTZ
+    `);
+    log.info("[Migration 009] dead_letter_queue columns added");
+
+    // ── security_ip_allowlist table ───────────────────────────────────────────
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS security_ip_allowlist (
+        id          SERIAL PRIMARY KEY,
+        ip_prefix   TEXT NOT NULL UNIQUE,
+        description TEXT,
+        added_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      INSERT INTO security_ip_allowlist (ip_prefix, description) VALUES
+        ('35.191.',   'Google Cloud Load Balancer health checks'),
+        ('130.211.',  'Google Cloud Load Balancer health checks'),
+        ('209.85.',   'Google crawlers'),
+        ('66.249.',   'Googlebot'),
+        ('127.',      'localhost'),
+        ('10.',       'Private network RFC 1918'),
+        ('192.168.',  'Private network RFC 1918'),
+        ('::1',       'IPv6 localhost')
+      ON CONFLICT (ip_prefix) DO NOTHING
+    `);
+    log.info("[Migration 009] security_ip_allowlist created and seeded");
+
+    await setFlag(FLAG);
+    log.info("[Migration 009] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 009] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -455,6 +538,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:006:viral_optimizer_hourly_tokens_seeded", label: "006 — seed viral optimizer cap" },
   { flag: "migration:007:module_hourly_caps_seeded",        label: "007 — seed module hourly caps" },
   { flag: "migration:008:all_engine_hourly_caps_seeded",    label: "008 — seed all engine hourly caps" },
+  { flag: "migration:009:schema_history_fixes",             label: "009 — schema history fixes (autopilot_queue, channels, dlq, security_ip_allowlist)" },
 ];
 
 export interface MigrationHealth {
@@ -516,6 +600,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration006SeedViralOptimizerCap();
     await migration007SeedModuleHourlyCaps();
     await migration008SeedAllEngineHourlyCaps();
+    await migration009SchemaHistoryFixes();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);

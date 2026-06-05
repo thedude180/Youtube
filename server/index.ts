@@ -45,6 +45,8 @@ import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
 import { startResurrectionEngine, stopResurrectionEngine } from "./services/resurrection-engine";
 import { startChannelHygieneService, stopChannelHygieneService } from "./services/channel-hygiene";
+import { startStuckSchedulerRecovery, stopStuckSchedulerRecovery } from "./services/stuck-scheduler-recovery";
+import { startDeadLetterDrain, stopDeadLetterDrain } from "./services/dead-letter-drain";
 import { getAiQueueStatus } from "./lib/ai-semaphore";
 import { initQuotaResetCron } from "./services/youtube-quota-tracker";
 import { initPreEncoder } from "./services/pre-encoder";
@@ -1634,6 +1636,22 @@ app.use(requestIdEnforcement());
 app.use("/api", highEntropyPayloadBlock());
 app.use("/api", replayAttackGuard());
 app.use("/api", promptInjectionGuard());
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const clientIp = req.ip ?? (req.socket?.remoteAddress ?? "");
+    const sqlInput = [
+      req.path,
+      JSON.stringify(req.query ?? {}).slice(0, 2_000),
+      JSON.stringify(req.body ?? {}).slice(0, 5_000),
+    ].join(" ");
+    const { checkSqlInjection } = await import("./lib/prompt-injection-guard");
+    const sqlCheck = await checkSqlInjection(sqlInput, clientIp);
+    if (sqlCheck.blocked) {
+      return res.status(400).end();
+    }
+  } catch { /* non-fatal */ }
+  next();
+});
 app.use("/api", tokenFloodGuard(50_000));
 app.use("/api", timingAttackMitigation());
 app.use("/api", sensitiveRouteHardening());
@@ -3407,6 +3425,24 @@ httpServer.listen(
         }
       }, 60_000);
 
+      // ── Stuck Scheduler Recovery (T+90s) ─────────────────────────────────────
+      // Scans autopilot_queue for items stuck in 'scheduled' > 3 hours.
+      // Defers when quota/token blocked, escalates at miss >= 5. Runs every ~15 min.
+      setTimeout(() => {
+        try { startStuckSchedulerRecovery(); } catch (e: any) {
+          logger.error("[Boot] startStuckSchedulerRecovery threw", { error: e?.message });
+        }
+      }, 90_000);
+
+      // ── Dead Letter Drain (T+120s) ────────────────────────────────────────────
+      // Drains 1 dead_letter_queue item per ~12-min cycle (max 5/hr).
+      // Per-item channel health + budget check before requeue. Runs perpetually.
+      setTimeout(() => {
+        try { startDeadLetterDrain(); } catch (e: any) {
+          logger.error("[Boot] startDeadLetterDrain threw", { error: e?.message });
+        }
+      }, 120_000);
+
       // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
       // Fires once at the precise moment the YouTube API quota resets (midnight
       // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory
@@ -4114,6 +4150,8 @@ httpServer.listen(
     stopQuotaAwarePublisher();
     stopResurrectionEngine();
     stopChannelHygieneService();
+    stopStuckSchedulerRecovery();
+    stopDeadLetterDrain();
     stopPipelineTracer();
     stopPushCleanup();
     stopAutoFixCleanup();

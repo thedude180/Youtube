@@ -223,6 +223,24 @@ async function stage4YouTubeConnectionHealth(): Promise<StageResult> {
     log.warn(`[Stage 4] YouTube connection check error (non-fatal): ${err?.message}`);
   }
 
+  // Audit token health on boot — recover from backup if null, mark needs_reconnect if unrecoverable
+  try {
+    const { auditTokensOnBoot } = await import("../services/token-guardian-hardened");
+    const reports = await auditTokensOnBoot();
+    for (const report of reports) {
+      if (report.status === "null_no_backup") {
+        log.error(`[Stage 4] ⛔ ${report.channelName}: ${report.action}`);
+        warnings.push(`Channel ${report.channelName} needs reconnect: ${report.action}`);
+      } else if (report.status === "null_recovered") {
+        log.warn(`[Stage 4] ⚠ ${report.channelName}: ${report.action}`);
+      } else {
+        log.info(`[Stage 4] ${report.channelName}: ${report.status} — ${report.action}`);
+      }
+    }
+  } catch (err: any) {
+    log.warn(`[Stage 4] auditTokensOnBoot failed (non-fatal): ${err?.message}`);
+  }
+
   return {
     ok: true,
     degraded: warnings.length > 0,

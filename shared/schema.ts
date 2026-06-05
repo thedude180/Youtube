@@ -332,6 +332,14 @@ export const channels = pgTable("channels", {
   videoCount: integer("video_count"),
   viewCount: bigint("view_count", { mode: "number" }),
   lastSyncAt: timestamp("last_sync_at"),
+  accessTokenBackup: text("access_token_backup"),
+  refreshTokenBackup: text("refresh_token_backup"),
+  tokenExpiresBackup: timestamp("token_expires_backup"),
+  tokenBackedUpAt: timestamp("token_backed_up_at"),
+  needsReconnect: boolean("needs_reconnect").default(false),
+  reconnectReason: text("reconnect_reason"),
+  tokenRecoveryNote: text("token_recovery_note"),
+  lastTokenRefresh: timestamp("last_token_refresh"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("channels_user_id_idx").on(table.userId),
@@ -2692,6 +2700,15 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     publishImmediately?: boolean;
   }>(),
   errorMessage: text("error_message"),
+  missCount: integer("miss_count").default(0),
+  recoveredAt: timestamp("recovered_at"),
+  escalatedAt: timestamp("escalated_at"),
+  deferredUntil: timestamp("deferred_until"),
+  platform: text("platform"),
+  source: text("source"),
+  originalQueueItemId: integer("original_queue_item_id"),
+  deadLetterId: integer("dead_letter_id"),
+  updatedAt: timestamp("updated_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("autopilot_queue_user_id_idx").on(table.userId),
@@ -4080,6 +4097,14 @@ export const deadLetterQueue = pgTable("dead_letter_queue", {
   priority: integer("priority").default(5),
   createdAt: timestamp("created_at").defaultNow(),
   resolvedAt: timestamp("resolved_at"),
+  contentType: text("content_type"),
+  platform: text("platform"),
+  originalQueueItemId: integer("original_queue_item_id"),
+  requeueCount: integer("requeue_count").default(0),
+  expiredAt: timestamp("expired_at"),
+  requeuedAt: timestamp("requeued_at"),
+  errorMessage: text("error_message"),
+  updatedAt: timestamp("updated_at"),
 }, (table) => ({
   statusIdx: index("dlq_status_idx").on(table.status),
   userIdx: index("dlq_user_idx").on(table.userId),
@@ -4087,6 +4112,13 @@ export const deadLetterQueue = pgTable("dead_letter_queue", {
 }));
 
 export type DeadLetterItem = typeof deadLetterQueue.$inferSelect;
+
+export const securityIpAllowlist = pgTable("security_ip_allowlist", {
+  id: serial("id").primaryKey(),
+  ipPrefix: text("ip_prefix").notNull().unique(),
+  description: text("description"),
+  addedAt: timestamp("added_at").defaultNow(),
+});
 
 // === NOTIFICATION PREFERENCES ===
 export const notificationPreferences = pgTable("notification_preferences", {
