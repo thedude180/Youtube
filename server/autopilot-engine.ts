@@ -15,6 +15,12 @@ const logger = createLogger("autopilot");
 const COMMENT_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const commentQuotaCooldown = new Map<string, number>();
 
+// Dedup flag — log the viral-optimizer budget-exhaustion warn at most once per
+// hour.  Without this, a bulk catalog import (70+ videos) fires the same warn
+// 70+ times in ~2 minutes, drowning out real errors in the log stream and
+// making the AI queue saturation harder to diagnose.
+let _viralBudgetWarnedAt = 0;
+
 function isCommentQuotaOnCooldown(userId: string): boolean {
   const hitAt = commentQuotaCooldown.get(userId);
   if (!hitAt) return false;
@@ -288,9 +294,14 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
       return;
     }
     import("./backlog-engine").then(m => {
-      // Budget pre-check — one log line instead of cascading failures per video.
+      // Budget pre-check — deduplicated log so a 70-video batch import doesn't
+      // emit 70 identical warn lines.  Log at most once per hour.
       if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-        logger.warn(`[Autopilot] Viral optimization deferred for video ${videoId} — viral-optimizer budget exhausted`);
+        const now = Date.now();
+        if (now - _viralBudgetWarnedAt > 60 * 60_000) {
+          logger.warn(`[Autopilot] Viral optimization deferred — viral-optimizer budget exhausted (per-video logs suppressed until reset)`);
+          _viralBudgetWarnedAt = now;
+        }
         return;
       }
       m.viralOptimizeVideo(userId, videoId)

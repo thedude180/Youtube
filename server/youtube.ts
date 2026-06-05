@@ -1449,12 +1449,25 @@ async function _legacyApiSync(channelId: number, userId: string): Promise<{ sync
 
     try {
       const { processNewVideoUpload } = await import("./autopilot-engine");
-      for (const video of newVideos) {
-        processNewVideoUpload(userId, video.id).catch(err =>
-          ytLogger.error("Autopilot pipeline failed", { videoId: video.id, error: err?.message || String(err) })
-        );
+      // Cap at 20 and stagger by 6 s/video — prevents AI queue saturation.
+      // On a first-time catalog import, firing all N videos simultaneously
+      // queues N × 3+ AI calls against the 8-slot semaphore, dropping every
+      // other background service (marketer-engine, revenue-optimizer, etc.).
+      // 20 videos × 6 s = max 2 min spread; remaining catalog is caught up
+      // by the back-catalog engine on its next adaptive cycle.
+      const batchVideos = newVideos.slice(0, 20);
+      batchVideos.forEach((video, idx) => {
+        setTimeout(() => {
+          processNewVideoUpload(userId, video.id).catch(err =>
+            ytLogger.error("Autopilot pipeline failed", { videoId: video.id, error: err?.message || String(err) })
+          );
+        }, idx * 6000);
+      });
+      if (newVideos.length > 20) {
+        ytLogger.info("Triggered autopilot pipeline for new videos (capped batch)", { count: batchVideos.length, skipped: newVideos.length - 20 });
+      } else {
+        ytLogger.info("Triggered autopilot pipeline for new videos", { count: newVideos.length });
       }
-      ytLogger.info("Triggered autopilot pipeline for new videos", { count: newVideos.length });
     } catch (err) {
       ytLogger.error("Failed to trigger autopilot pipeline for new videos", { error: String(err) });
     }
