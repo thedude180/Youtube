@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, resetDailyTokenCounter } from "../lib/token-hourly-cap";
 
 const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
@@ -678,6 +678,26 @@ export function registerAdminRoutes(app: Express) {
 
   // ── Hourly cap management ─────────────────────────────────────────────────────
 
+  // ─ Bulk reset: DELETE /api/admin/hourly-caps  (no :module — wipes all overrides)
+  app.delete("/api/admin/hourly-caps", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      await db
+        .delete(systemSettings)
+        .where(like(systemSettings.key, "hourly_cap:%"));
+      await logSecurityEvent({
+        userId,
+        action: "admin.hourly_cap.bulk_reset",
+        details: { scope: "all" },
+      });
+      logger.warn(`[HourlyCaps] Admin ${userId} bulk-reset ALL hourly cap overrides`);
+      res.json({ ok: true, cleared: "all" });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to bulk-reset caps" });
+    }
+  });
+
   app.get("/api/admin/hourly-caps", async (req, res) => {
     const userId = requireAdmin(req, res);
     if (!userId) return;
@@ -739,6 +759,29 @@ export function registerAdminRoutes(app: Express) {
       res.json({ ok: true, module });
     } catch (err: any) {
       res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to reset cap" });
+    }
+  });
+
+  // ── Daily token counter reset ────────────────────────────────────────────────
+
+  app.delete("/api/admin/daily-tokens/:module", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const module = req.params.module;
+      if (!module || module.length > 100) {
+        return res.status(400).json({ error: "Invalid module name" });
+      }
+      resetDailyTokenCounter(module);
+      await logSecurityEvent({
+        userId,
+        action: "admin.daily_tokens.reset",
+        details: { module },
+      });
+      logger.warn(`[DailyTokens] Admin ${userId} reset daily counter for: ${module}`);
+      return res.json({ ok: true, module });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message?.slice(0, 200) || "Failed to reset daily counter" });
     }
   });
 

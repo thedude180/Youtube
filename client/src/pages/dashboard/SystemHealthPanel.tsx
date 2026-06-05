@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,7 +76,7 @@ interface SystemStatus {
     queues?: Record<string, number>;
     scheduler?: { enqueuedToday: number; droppedToday: number };
     hourly?: Record<string, { used: number; limit: number; pct: number }>;
-    daily?:  Record<string, { usedToday: number; dateKey: string }>;
+    daily?:  Record<string, { usedToday: number; dateKey: string; dailyCap?: number }>;
   };
   memory: {
     usedMB: number;
@@ -218,9 +218,15 @@ function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: s
 export default function SystemHealthPanel() {
   const { toast } = useToast();
   const { isAdmin } = useUserProfile();
-  const [stagesExpanded, setStagesExpanded] = useState(false);
-  const [workersExpanded, setWorkersExpanded] = useState(false);
-  const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(false);
+  const [stagesExpanded, setStagesExpanded] = useState(() => {
+    try { return localStorage.getItem("healthStagesExpanded") === "true"; } catch { return false; }
+  });
+  const [workersExpanded, setWorkersExpanded] = useState(() => {
+    try { return localStorage.getItem("healthWorkersExpanded") === "true"; } catch { return false; }
+  });
+  const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(() => {
+    try { return localStorage.getItem("healthKillSwitchesExpanded") === "true"; } catch { return false; }
+  });
   const [showAllEngines, setShowAllEngines] = useState(() => {
     try { return localStorage.getItem("showAllEngines") === "true"; } catch { return false; }
   });
@@ -251,6 +257,19 @@ export default function SystemHealthPanel() {
     retry: 1,
     enabled: isAdmin,
   });
+
+  const prevFlushFailuresRef = useRef(0);
+  useEffect(() => {
+    const failures = flushHealth?.consecutiveFailures ?? 0;
+    if (failures >= 3 && prevFlushFailuresRef.current < 3) {
+      toast({
+        title: "Token flush failures",
+        description: `${failures} consecutive DB flush failure${failures === 1 ? "" : "s"} — hourly token counts may be inaccurate. Check server logs.`,
+        variant: "destructive",
+      });
+    }
+    prevFlushFailuresRef.current = failures;
+  }, [flushHealth?.consecutiveFailures]);
 
   const engineCapMutation = useMutation({
     mutationFn: async ({ engine, value }: { engine: string; value: string }) => {
@@ -478,7 +497,13 @@ export default function SystemHealthPanel() {
                 {hourlyEntries.map(([engine, stat]) => (
                   <div
                     key={engine}
-                    className="rounded-md border border-border/20 bg-muted/5 px-2.5 py-2"
+                    className={`rounded-md border px-2.5 py-2 transition-colors ${
+                      stat.pct >= 90
+                        ? "border-red-500/40 bg-red-500/8"
+                        : stat.pct >= 70
+                        ? "border-amber-500/35 bg-amber-500/6"
+                        : "border-border/20 bg-muted/5"
+                    }`}
                     data-testid={`hourly-cap-${engine}`}
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -486,7 +511,8 @@ export default function SystemHealthPanel() {
                       <div className="flex items-center gap-1.5 shrink-0 ml-2">
                         {stat.pct === 0 ? (
                           <span
-                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground border border-border/20"
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground border border-border/20 cursor-help"
+                            title={`Hourly cap: ${stat.limit.toLocaleString()} tokens — resets in ${formatResetIn(nowMs)}`}
                             data-testid={`badge-hourly-limit-${engine}`}
                           >
                             limit: {formatCompact(stat.limit)}
@@ -588,7 +614,7 @@ export default function SystemHealthPanel() {
           const dailyEntries = Object.entries(ai?.daily ?? {})
             .sort((a, b) => b[1].usedToday - a[1].usedToday);
           if (dailyEntries.length === 0) return null;
-          const dateKey = dailyEntries[0]?.[1]?.dateKey ?? "";
+          const dateKey   = dailyEntries[0]?.[1]?.dateKey ?? "";
           const totalToday = dailyEntries.reduce((s, [, v]) => s + v.usedToday, 0);
           return (
             <div data-testid="section-daily-token-usage">
@@ -608,18 +634,72 @@ export default function SystemHealthPanel() {
                 </span>
               </div>
               <div className="space-y-1.5">
-                {dailyEntries.map(([engine, stat]) => (
-                  <div
-                    key={engine}
-                    className="flex items-center justify-between rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5"
-                    data-testid={`daily-usage-${engine}`}
-                  >
-                    <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
-                    <span className="text-[11px] font-mono text-muted-foreground shrink-0 ml-2" data-testid={`text-daily-used-${engine}`}>
-                      {stat.usedToday.toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+                {dailyEntries.map(([engine, stat]) => {
+                  const pctDay = stat.dailyCap && stat.dailyCap > 0
+                    ? Math.round((stat.usedToday / stat.dailyCap) * 100)
+                    : null;
+                  return (
+                    <div
+                      key={engine}
+                      className={`rounded-md border px-2.5 py-1.5 ${
+                        pctDay !== null && pctDay >= 90
+                          ? "border-red-500/30 bg-red-500/5"
+                          : pctDay !== null && pctDay >= 70
+                          ? "border-amber-500/25 bg-amber-500/5"
+                          : "border-border/20 bg-muted/5"
+                      }`}
+                      data-testid={`daily-usage-${engine}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{engine}</span>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <span className="text-[11px] font-mono text-muted-foreground" data-testid={`text-daily-used-${engine}`}>
+                            {stat.usedToday.toLocaleString()}
+                          </span>
+                          {pctDay !== null && (
+                            <span
+                              className={`text-[10px] font-mono font-semibold ${
+                                pctDay >= 90 ? "text-red-400" : pctDay >= 70 ? "text-amber-400" : "text-blue-400"
+                              }`}
+                              title={`Daily cap: ${stat.dailyCap?.toLocaleString()} tokens`}
+                              data-testid={`text-daily-pct-${engine}`}
+                            >
+                              {pctDay}%
+                            </span>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => {
+                                apiRequest("DELETE", `/api/admin/daily-tokens/${encodeURIComponent(engine)}`)
+                                  .then(() => {
+                                    toast({ title: `${engine} daily counter reset`, description: "Resets to 0 immediately." });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+                                  })
+                                  .catch((e: any) => toast({ title: "Reset failed", description: e?.message, variant: "destructive" }));
+                              }}
+                              className="text-muted-foreground hover:text-foreground transition-colors"
+                              title={`Reset daily counter for ${engine}`}
+                              data-testid={`button-reset-daily-${engine}`}
+                            >
+                              <RefreshCw className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {pctDay !== null && stat.dailyCap && (
+                        <div className="mt-1 h-1 rounded-full bg-muted/30 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              pctDay >= 90 ? "bg-red-500" : pctDay >= 70 ? "bg-amber-500" : "bg-blue-500"
+                            }`}
+                            style={{ width: `${Math.min(pctDay, 100)}%` }}
+                            data-testid={`bar-daily-${engine}`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -713,7 +793,7 @@ export default function SystemHealthPanel() {
         <div data-testid="section-active-workers">
           <button
             className="w-full flex items-center justify-between text-left mb-2"
-            onClick={() => setWorkersExpanded(p => !p)}
+            onClick={() => { const v = !workersExpanded; setWorkersExpanded(v); try { localStorage.setItem("healthWorkersExpanded", String(v)); } catch {} }}
             data-testid="button-toggle-workers"
           >
             <SectionHeader
@@ -755,7 +835,7 @@ export default function SystemHealthPanel() {
         <div data-testid="section-startup-stages">
           <button
             className="w-full flex items-center justify-between text-left mb-2"
-            onClick={() => setStagesExpanded(p => !p)}
+            onClick={() => { const v = !stagesExpanded; setStagesExpanded(v); try { localStorage.setItem("healthStagesExpanded", String(v)); } catch {} }}
             data-testid="button-toggle-stages"
           >
             <SectionHeader
@@ -825,7 +905,7 @@ export default function SystemHealthPanel() {
         <div data-testid="section-kill-switches">
           <button
             className="w-full flex items-center justify-between text-left mb-2"
-            onClick={() => setKillSwitchesExpanded(p => !p)}
+            onClick={() => { const v = !killSwitchesExpanded; setKillSwitchesExpanded(v); try { localStorage.setItem("healthKillSwitchesExpanded", String(v)); } catch {} }}
             data-testid="button-toggle-kill-switches"
           >
             <SectionHeader

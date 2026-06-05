@@ -59,6 +59,39 @@ export const HOURLY_CAPS: Record<string, number> = {
   "default":                 5_000,  // fallback for unlisted modules
 };
 
+// ─── Per-module daily caps (compile-time fallbacks) ───────────────────────────
+// Mirrors ai-attack-shield DAILY_CAPS — used to gate engines that have burned
+// too much of their daily budget (Fix #4: daily-cap gate in hourly check).
+export const DAILY_TOKEN_CAPS: Record<string, number> = {
+  "content-grinder":           100_000,
+  "ai-team-engine":            100_000,
+  "vod-optimizer":             100_000,
+  "content-consistency-agent":  75_000,
+  "shorts-pipeline":           150_000,
+  "thumbnail-intelligence":    100_000,
+  "repurpose-engine":           75_000,
+  "viral-optimizer":           150_000,
+  "autopilot":                 150_000,
+  "tos-monitor":               100_000,
+  "marketer-engine":           100_000,
+  "auto-thumbnail":            100_000,
+  "smart-scheduler":            50_000,
+  "upload-seo":                150_000,
+  "trend-rider":                40_000,
+  "vod-seo-optimizer":          60_000,
+  "infinite-evolution":         40_000,
+  "knowledge-mesh":             30_000,
+  "self-improvement-engine":    30_000,
+  "autonomous-capability":      40_000,
+  "memory-architect":           30_000,
+  "business-agents":            20_000,
+  "legal-tax-agents":           20_000,
+  "team-orchestration":         30_000,
+  "growth-flywheel":            30_000,
+  "consistency-agent":          30_000,
+  "default":                    50_000,  // fallback for unlisted modules
+};
+
 // ─── Generic DB-backed cap cache ──────────────────────────────────────────────
 // Key: module name  →  { hourKey, cap }
 // cap === -1 means "no DB entry found this hour; use HOURLY_CAPS fallback"
@@ -418,13 +451,17 @@ export interface TokenCapResult {
 }
 
 /**
- * Check if a module can make an AI call without exceeding its hourly cap.
- * Call BEFORE every AI call in a module.
+ * Check if a module can make an AI call without exceeding its hourly cap
+ * OR its daily cap.  Call BEFORE every AI call in a module.
  *
- * Cap resolution order:
+ * Cap resolution order (hourly):
  *   1. system_settings key "hourly_cap:<module>"  (DB-backed, cached per hour)
  *   2. HOURLY_CAPS compile-time record             (code fallback)
  *   3. HOURLY_CAPS["default"]                      (catch-all)
+ *
+ * Daily gate (#215): if the module has already used >= its DAILY_TOKEN_CAPS
+ * allowance for the current UTC day the call is rejected so engines slow down
+ * naturally rather than burning tomorrow's budget.
  */
 export function checkHourlyTokenBudget(
   module: string,
@@ -435,10 +472,31 @@ export function checkHourlyTokenBudget(
   const slot = getSlot(module);
   const after = slot.usedTokens + estimatedTokens;
 
+  // ── Daily cap gate ────────────────────────────────────────────────────────
+  const dailyCap = DAILY_TOKEN_CAPS[module] ?? DAILY_TOKEN_CAPS["default"];
+  const daySlot  = dailyUsage.get(module);
+  if (daySlot && daySlot.dateKey === getCurrentDateKey()) {
+    if (daySlot.usedTokens + estimatedTokens > dailyCap) {
+      log.warn(
+        `[HourlyCap] ${module} daily cap reached: ` +
+        `${daySlot.usedTokens}+${estimatedTokens} > ${dailyCap} ` +
+        `— slowing engine until tomorrow UTC`
+      );
+      return {
+        allowed:      false,
+        usedThisHour: slot.usedTokens,
+        hourlyLimit:  cap,
+        remaining:    Math.max(0, cap - slot.usedTokens),
+      };
+    }
+  }
+
+  // ── Hourly cap gate ───────────────────────────────────────────────────────
   if (after > cap) {
-    log.debug(
-      `[HourlyCap] ${module} would exceed hourly cap: ` +
-      `${slot.usedTokens}+${estimatedTokens}=${after} > ${cap}`
+    log.warn(
+      `[HourlyCap] ${module} hourly cap hit: ` +
+      `${slot.usedTokens}+${estimatedTokens}=${after} > ${cap} ` +
+      `— resets in ${Math.round((60 * 60 * 1000 - (Date.now() % (60 * 60 * 1000))) / 60_000)}m`
     );
     return {
       allowed:      false,
@@ -501,16 +559,34 @@ export function getHourlyCapStatus(): Record<string, { used: number; limit: numb
 /**
  * Snapshot of all module daily (calendar-day) token totals for diagnostics.
  * Returns every module currently tracked in the daily accumulator.
+ * Includes dailyCap so callers can compute usage%.
  * Resets automatically at UTC midnight when a new dateKey is generated.
  */
-export function getDailyCapStatus(): Record<string, { usedToday: number; dateKey: string }> {
-  const result: Record<string, { usedToday: number; dateKey: string }> = {};
+export function getDailyCapStatus(): Record<string, { usedToday: number; dateKey: string; dailyCap: number }> {
+  const result: Record<string, { usedToday: number; dateKey: string; dailyCap: number }> = {};
   const currentDate = getCurrentDateKey();
 
   for (const [module, slot] of dailyUsage) {
     if (slot.dateKey === currentDate) {
-      result[module] = { usedToday: slot.usedTokens, dateKey: currentDate };
+      result[module] = {
+        usedToday: slot.usedTokens,
+        dateKey:   currentDate,
+        dailyCap:  DAILY_TOKEN_CAPS[module] ?? DAILY_TOKEN_CAPS["default"],
+      };
     }
   }
   return result;
+}
+
+/**
+ * Reset the daily token counter for a specific module.
+ * Admin-only: wipes the in-memory slot AND schedules an immediate flush so the
+ * DB snapshot reflects the reset before the next scheduled 60-second flush.
+ */
+export function resetDailyTokenCounter(module: string): void {
+  const currentDate = getCurrentDateKey();
+  dailyUsage.set(module, { dateKey: currentDate, usedTokens: 0 });
+  _dirty = true;
+  flushHourlyUsageToDB().catch(() => {});
+  log.info(`[HourlyCap] Admin reset daily token counter for: ${module}`);
 }

@@ -804,6 +804,13 @@ function AdminHourlyCapsTab() {
     staleTime: 30_000,
   });
 
+  const { data: statusData } = useQuery<any>({
+    queryKey: ["/api/system/status"],
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+  });
+  const liveHourly: Record<string, { used: number; limit: number; pct: number }> = statusData?.ai?.hourly ?? {};
+
   const saveMutation = useMutation({
     mutationFn: async ({ module, value }: { module: string; value: string }) => {
       const res = await apiRequest("PATCH", "/api/admin/system-settings", {
@@ -842,6 +849,21 @@ function AdminHourlyCapsTab() {
     },
     onError: (err: any) => {
       toast({ title: "Reset failed", description: err?.message, variant: "destructive" });
+    },
+  });
+
+  const bulkResetMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/admin/hourly-caps");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "All caps reset", description: "All hourly cap DB overrides removed — code defaults are now active." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/hourly-caps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Bulk reset failed", description: err?.message, variant: "destructive" });
     },
   });
 
@@ -899,16 +921,31 @@ function AdminHourlyCapsTab() {
             </Badge>
           )}
         </h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          data-testid="button-refresh-hourly-caps"
-        >
-          <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {overrideCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => bulkResetMutation.mutate()}
+              disabled={bulkResetMutation.isPending}
+              className="text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+              data-testid="button-bulk-reset-caps"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 mr-1 ${bulkResetMutation.isPending ? "animate-spin" : ""}`} />
+              Reset All to Defaults
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            data-testid="button-refresh-hourly-caps"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground -mt-2">
@@ -953,6 +990,19 @@ function AdminHourlyCapsTab() {
 
                       {/* Cap values + controls */}
                       <div className="flex items-center gap-2 shrink-0">
+                        {liveHourly[module] && (
+                          <span
+                            className={`text-[11px] font-mono font-semibold ${
+                              liveHourly[module].pct >= 90 ? "text-red-400"
+                              : liveHourly[module].pct >= 70 ? "text-amber-400"
+                              : "text-blue-400"
+                            }`}
+                            title={`Live: ${liveHourly[module].used.toLocaleString()} / ${liveHourly[module].limit.toLocaleString()} tokens used this hour`}
+                            data-testid={`text-live-usage-${module}`}
+                          >
+                            {liveHourly[module].pct}% now
+                          </span>
+                        )}
                         <span className="text-[11px] text-muted-foreground font-mono" data-testid={`text-code-default-${module}`}>
                           default: {formatCompactK(info.codeDefault)}
                         </span>
