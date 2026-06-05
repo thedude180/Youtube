@@ -781,6 +781,7 @@ interface HourlyCapInfo {
   dbValue: number | null;
   effectiveCap: number;
   dbUpdatedAt: string | null;
+  hitsThisHour: number;
 }
 
 interface HourlyCapsResponse {
@@ -1013,6 +1014,15 @@ function AdminHourlyCapsTab() {
                         ) : (
                           <Badge variant="outline" className="text-[9px] text-muted-foreground shrink-0" data-testid={`badge-code-default-${module}`}>
                             code default
+                          </Badge>
+                        )}
+                        {info.hitsThisHour > 0 && (
+                          <Badge
+                            className="text-[9px] bg-orange-500/15 text-orange-400 border-orange-500/30 shrink-0"
+                            title={`This engine was blocked by its hourly cap ${info.hitsThisHour} time${info.hitsThisHour !== 1 ? "s" : ""} this hour`}
+                            data-testid={`badge-cap-hits-${module}`}
+                          >
+                            hit ×{info.hitsThisHour}
                           </Badge>
                         )}
                       </div>

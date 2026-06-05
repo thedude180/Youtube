@@ -11,7 +11,7 @@ import { deleteYouTubePlaylist } from "../playlist-manager";
 
 import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
-import { HOURLY_CAPS, resetDailyTokenCounter } from "../lib/token-hourly-cap";
+import { HOURLY_CAPS, getHourlyCapStatus, resetDailyTokenCounter } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
 
 const logger = createLogger("admin");
@@ -717,13 +717,15 @@ export function registerAdminRoutes(app: Express) {
         dbMap[module] = { value: row.value, updatedAt: row.updatedAt as Date | null };
       }
 
-      // Merge code defaults + DB entries
-      const allModules = new Set([...Object.keys(HOURLY_CAPS), ...Object.keys(dbMap)]);
+      // Merge code defaults + DB entries + live hit counts
+      const liveStatus = getHourlyCapStatus();
+      const allModules = new Set([...Object.keys(HOURLY_CAPS), ...Object.keys(dbMap), ...Object.keys(liveStatus)]);
       const result: Record<string, {
         codeDefault: number;
         dbValue: number | null;
         effectiveCap: number;
         dbUpdatedAt: string | null;
+        hitsThisHour: number;
       }> = {};
 
       for (const module of allModules) {
@@ -736,6 +738,7 @@ export function registerAdminRoutes(app: Express) {
           dbValue: validDbValue,
           effectiveCap: validDbValue ?? codeDefault,
           dbUpdatedAt: dbEntry?.updatedAt ? new Date(dbEntry.updatedAt).toISOString() : null,
+          hitsThisHour: liveStatus[module]?.hitsThisHour ?? 0,
         };
       }
 

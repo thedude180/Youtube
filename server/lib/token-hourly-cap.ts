@@ -228,10 +228,29 @@ interface HourlySlot {
 
 const hourlyUsage = new Map<string, HourlySlot>();
 
+// ─── Per-module hourly cap hit counters ──────────────────────────────────────
+// Tracks how many times each module was rejected by its hourly cap this hour.
+interface HitSlot {
+  hourKey: number;
+  count:   number;
+}
+
+const hourlyHitCounts = new Map<string, HitSlot>();
+
+function getHitSlot(module: string): HitSlot {
+  const currentHour = getCurrentHourKey();
+  const existing = hourlyHitCounts.get(module);
+  if (existing && existing.hourKey === currentHour) return existing;
+  const fresh: HitSlot = { hourKey: currentHour, count: 0 };
+  hourlyHitCounts.set(module, fresh);
+  return fresh;
+}
+
 // Snapshot format stored in system_settings under "hourly_tokens:snapshot"
 interface HourlySnapshot {
   hourKey: number;
   usage:   Record<string, number>;
+  hits?:   Record<string, number>;
 }
 
 const SNAPSHOT_KEY       = "hourly_tokens:snapshot";
@@ -303,7 +322,13 @@ async function flushHourlyUsageToDB(): Promise<void> {
       hourlyUsageMap[module] = slot.usedTokens;
     }
   }
-  const hourlySnapshot: HourlySnapshot = { hourKey: currentHour, usage: hourlyUsageMap };
+  const hourlyHitsMap: Record<string, number> = {};
+  for (const [module, hitSlot] of hourlyHitCounts) {
+    if (hitSlot.hourKey === currentHour && hitSlot.count > 0) {
+      hourlyHitsMap[module] = hitSlot.count;
+    }
+  }
+  const hourlySnapshot: HourlySnapshot = { hourKey: currentHour, usage: hourlyUsageMap, hits: hourlyHitsMap };
   const hourlyValue = JSON.stringify(hourlySnapshot);
 
   // ── Daily snapshot ───────────────────────────────────────────────────────
@@ -447,6 +472,14 @@ export async function restoreHourlyUsageFromDB(): Promise<void> {
             restored++;
           }
         }
+        // Restore hit counts from snapshot
+        if (snapshot.hits) {
+          for (const [module, count] of Object.entries(snapshot.hits)) {
+            if (typeof count === "number" && count > 0) {
+              hourlyHitCounts.set(module, { hourKey: currentHour, count });
+            }
+          }
+        }
         log.info(
           `[HourlyCap] Restored hourly snapshot for hour ${currentHour}: ` +
           `${restored} module(s) loaded`
@@ -564,10 +597,16 @@ export function checkHourlyTokenBudget(
 
   // ── Hourly cap gate ───────────────────────────────────────────────────────
   if (after > cap) {
+    const minsLeft = Math.round((60 * 60 * 1000 - (Date.now() % (60 * 60 * 1000))) / 60_000);
+    // Increment the per-module hit counter so operators can see how often each
+    // engine is being throttled from the admin Hourly Caps dashboard.
+    const hitSlot = getHitSlot(module);
+    hitSlot.count += 1;
+    _dirty = true;
     log.warn(
-      `[HourlyCap] ${module} hourly cap hit: ` +
+      `[HourlyCap] ${module} hourly cap hit (×${hitSlot.count} this hour): ` +
       `${slot.usedTokens}+${estimatedTokens}=${after} > ${cap} ` +
-      `— resets in ${Math.round((60 * 60 * 1000 - (Date.now() % (60 * 60 * 1000))) / 60_000)}m`
+      `— resets in ${minsLeft}m`
     );
     return {
       allowed:      false,
@@ -694,22 +733,27 @@ export function recordHourlyTokenUsage(module: string, tokensUsed: number): void
 /**
  * Snapshot of all module hourly usage for diagnostics.
  * Includes every module in HOURLY_CAPS plus any active module tracked in memory.
+ * `hitsThisHour` is the number of times the module was rejected by its hourly cap
+ * this hour — operators can use this to identify which engines are throttling.
  */
-export function getHourlyCapStatus(): Record<string, { used: number; limit: number; pct: number }> {
-  const result: Record<string, { used: number; limit: number; pct: number }> = {};
+export function getHourlyCapStatus(): Record<string, { used: number; limit: number; pct: number; hitsThisHour: number }> {
+  const result: Record<string, { used: number; limit: number; pct: number; hitsThisHour: number }> = {};
   const currentHour = getCurrentHourKey();
 
   // Collect all known modules: static caps + anything currently tracked in memory
   const modules = new Set([
     ...Object.keys(HOURLY_CAPS),
     ...Array.from(hourlyUsage.keys()),
+    ...Array.from(hourlyHitCounts.keys()),
   ]);
 
   for (const module of modules) {
-    const cap  = getModuleCap(module, currentHour);
-    const slot = hourlyUsage.get(module);
-    const used = (slot && slot.hourKey === currentHour) ? slot.usedTokens : 0;
-    result[module] = { used, limit: cap, pct: Math.round((used / cap) * 100) };
+    const cap      = getModuleCap(module, currentHour);
+    const slot     = hourlyUsage.get(module);
+    const hitSlot  = hourlyHitCounts.get(module);
+    const used     = (slot    && slot.hourKey    === currentHour) ? slot.usedTokens : 0;
+    const hits     = (hitSlot && hitSlot.hourKey === currentHour) ? hitSlot.count   : 0;
+    result[module] = { used, limit: cap, pct: Math.round((used / cap) * 100), hitsThisHour: hits };
   }
   return result;
 }
