@@ -393,6 +393,54 @@ async function migration007SeedModuleHourlyCaps(): Promise<void> {
   }
 }
 
+// ── Migration 008: seed hourly_cap:<module> defaults for all remaining engines ─
+// Extends migration 007 to cover every engine listed in HOURLY_CAPS that was
+// not seeded previously.  Values match the compile-time fallbacks so existing
+// behaviour is preserved while allowing DB-level overrides going forward.
+
+async function migration008SeedAllEngineHourlyCaps(): Promise<void> {
+  const FLAG = "migration:008:all_engine_hourly_caps_seeded";
+  if (await getFlag(FLAG)) return;
+
+  const defaults: Array<{ key: string; value: string }> = [
+    { key: "hourly_cap:repurpose-engine",        value: "8000" },
+    { key: "hourly_cap:vod-seo-optimizer",        value: "6000" },
+    { key: "hourly_cap:infinite-evolution",       value: "4000" },
+    { key: "hourly_cap:knowledge-mesh",           value: "3000" },
+    { key: "hourly_cap:self-improvement-engine",  value: "3000" },
+    { key: "hourly_cap:autonomous-capability",    value: "4000" },
+    { key: "hourly_cap:memory-architect",         value: "3000" },
+    { key: "hourly_cap:business-agents",          value: "2000" },
+    { key: "hourly_cap:legal-tax-agents",         value: "2000" },
+    { key: "hourly_cap:team-orchestration",       value: "3000" },
+    { key: "hourly_cap:growth-flywheel",          value: "3000" },
+    { key: "hourly_cap:consistency-agent",        value: "3000" },
+    { key: "hourly_cap:default",                  value: "5000" },
+  ];
+
+  try {
+    for (const { key, value } of defaults) {
+      const [existing] = await db
+        .select({ value: systemSettings.value })
+        .from(systemSettings)
+        .where(eq(systemSettings.key, key))
+        .limit(1);
+
+      if (!existing) {
+        await setFlag(key, value);
+        log.info(`[Migration 008] Seeded ${key} = ${value}`);
+      } else {
+        log.info(`[Migration 008] ${key} already set to "${existing.value}" — skipping`);
+      }
+    }
+
+    await setFlag(FLAG);
+    log.info("[Migration 008] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 008] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -404,6 +452,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration005DeduplicateCapabilityGaps();
     await migration006SeedViralOptimizerCap();
     await migration007SeedModuleHourlyCaps();
+    await migration008SeedAllEngineHourlyCaps();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

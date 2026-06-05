@@ -226,8 +226,8 @@ export default function SystemHealthPanel() {
     setShowAllEngines(val);
   };
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [editingViralCap, setEditingViralCap] = useState(false);
-  const [viralCapInput, setViralCapInput] = useState("");
+  const [editingEngine, setEditingEngine] = useState<string | null>(null);
+  const [engineCapInput, setEngineCapInput] = useState("");
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
@@ -249,19 +249,19 @@ export default function SystemHealthPanel() {
     enabled: isAdmin,
   });
 
-  const viralCapMutation = useMutation({
-    mutationFn: async (newValue: string) => {
+  const engineCapMutation = useMutation({
+    mutationFn: async ({ engine, value }: { engine: string; value: string }) => {
       return apiRequest("POST", "/api/admin/system-settings", {
-        key: "viral_optimizer_hourly_tokens",
-        value: newValue,
+        key: `hourly_cap:${engine}`,
+        value,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_res, vars) => {
       toast({
-        title: "Viral optimizer cap updated",
+        title: `${vars.engine} cap updated`,
         description: "Takes effect at the start of the next hour.",
       });
-      setEditingViralCap(false);
+      setEditingEngine(null);
       queryClient.invalidateQueries({ queryKey: ["/api/system/status"] });
     },
     onError: (err: any) => {
@@ -273,13 +273,13 @@ export default function SystemHealthPanel() {
     },
   });
 
-  function handleViralCapSave() {
-    const n = parseInt(viralCapInput, 10);
+  function handleEngineCapSave(engine: string) {
+    const n = parseInt(engineCapInput, 10);
     if (isNaN(n) || n < 100 || n > 1_000_000) {
       toast({ title: "Invalid value", description: "Enter a number between 100 and 1,000,000", variant: "destructive" });
       return;
     }
-    viralCapMutation.mutate(String(n));
+    engineCapMutation.mutate({ engine, value: String(n) });
   }
 
   const toggleMutation = useMutation({
@@ -498,46 +498,46 @@ export default function SystemHealthPanel() {
                             </span>
                           </>
                         )}
-                        {isAdmin && engine === "viral-optimizer" && !editingViralCap && (
+                        {isAdmin && editingEngine !== engine && (
                           <button
-                            onClick={() => { setViralCapInput(String(stat.limit)); setEditingViralCap(true); }}
+                            onClick={() => { setEngineCapInput(String(stat.limit)); setEditingEngine(engine); }}
                             className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors"
                             title="Edit token budget"
-                            data-testid="button-edit-viral-cap"
+                            data-testid={`button-edit-cap-${engine}`}
                           >
                             <Pencil className="h-2.5 w-2.5" />
                           </button>
                         )}
                       </div>
                     </div>
-                    {isAdmin && engine === "viral-optimizer" && editingViralCap ? (
-                      <div className="flex items-center gap-1.5 mt-1.5" data-testid="inline-viral-cap-editor">
+                    {isAdmin && editingEngine === engine ? (
+                      <div className="flex items-center gap-1.5 mt-1.5" data-testid={`inline-cap-editor-${engine}`}>
                         <Input
                           type="number"
                           min={100}
                           max={1000000}
-                          value={viralCapInput}
-                          onChange={(e) => setViralCapInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleViralCapSave(); if (e.key === "Escape") setEditingViralCap(false); }}
+                          value={engineCapInput}
+                          onChange={(e) => setEngineCapInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleEngineCapSave(engine); if (e.key === "Escape") setEditingEngine(null); }}
                           className="h-6 text-[11px] font-mono px-1.5 py-0 w-28"
-                          data-testid="input-viral-cap"
+                          data-testid={`input-cap-${engine}`}
                           autoFocus
                         />
                         <button
-                          onClick={handleViralCapSave}
-                          disabled={viralCapMutation.isPending}
+                          onClick={() => handleEngineCapSave(engine)}
+                          disabled={engineCapMutation.isPending}
                           className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors"
                           title="Save"
-                          data-testid="button-save-viral-cap"
+                          data-testid={`button-save-cap-${engine}`}
                         >
                           <Check className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => setEditingViralCap(false)}
-                          disabled={viralCapMutation.isPending}
+                          onClick={() => setEditingEngine(null)}
+                          disabled={engineCapMutation.isPending}
                           className="text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
                           title="Cancel"
-                          data-testid="button-cancel-viral-cap"
+                          data-testid={`button-cancel-cap-${engine}`}
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
