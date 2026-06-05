@@ -2418,6 +2418,15 @@ httpServer.listen(
       );
     });
 
+    // ── WAVE 0.6: Staged startup orchestrator ─────────────────────────────────
+    // Runs environment validation, DB readiness, account cleanup, channel health,
+    // quota recovery, queue repair, and resource health checks before all engines.
+    wave(async () => {
+      await import("./lib/startup-orchestrator").then(m => m.StartupOrchestrator.run()).catch(
+        err => logger.warn("[Boot] startup-orchestrator failed (non-fatal):", err?.message),
+      );
+    });
+
     // ── WAVE 1: Core pipeline — seeds, autopilot, event wiring ──────────────
     wave(() => {
       // Mirror youtube channel tokens to the paired youtubeshorts row immediately on every boot.

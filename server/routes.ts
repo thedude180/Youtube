@@ -36,6 +36,7 @@ import { registerStreamAgentRoutes } from "./routes/stream-agent";
 import { registerCopyrightGuardianRoutes } from "./routes/copyright-guardian";
 // import { registerMultistreamRoutes } from "./routes/multistream"; // disabled — multistream is YouTube-only now; 410 catch handles all /api/multistream/* requests
 import { registerCommandCenterRoutes } from "./routes/command-center";
+import { registerSystemStatusRoutes } from "./routes/system-status";
 import liveCrewRoutes from "./routes/live-crew";
 import { registerKernelRoutes } from "./routes/kernel";
 import { registerContentCoreRoutes } from "./routes/content-core";
@@ -436,6 +437,7 @@ export async function registerRoutes(
   registerCopyrightGuardianRoutes(app);
   // registerMultistreamRoutes(app); // disabled — multistream routes return 410 via catch-all below
   registerCommandCenterRoutes(app);
+  registerSystemStatusRoutes(app);
   app.use("/api/live-crew", liveCrewRoutes);
   registerKernelOpsRoutes(app);
   registerKernelRoutes(app);

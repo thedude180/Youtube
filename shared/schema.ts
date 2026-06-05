@@ -10362,3 +10362,97 @@ export const watchNextLinks = pgTable("watch_next_links", {
   uniqueIndex("wnl_short_user_idx").on(t.userId, t.shortYoutubeId),
 ]);
 export type WatchNextLink = typeof watchNextLinks.$inferSelect;
+
+// ── Self-Healing Actions ──────────────────────────────────────────────────────
+// Records every auto-repair action taken by the self-healing engine.
+// Level 1/2 actions are status="applied"; Level 3 actions are status="staged".
+export const selfHealingActions = pgTable("self_healing_actions", {
+  id:          serial("id").primaryKey(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  severity:    text("severity").notNull(),   // "level1" | "level2" | "level3"
+  errorCode:   text("error_code").notNull(),
+  module:      text("module").notNull(),
+  actionTaken: text("action_taken").notNull(),
+  confidence:  real("confidence"),
+  riskLevel:   text("risk_level").notNull(),
+  status:      text("status").notNull(),     // "applied" | "staged" | "failed" | "skipped"
+  result:      text("result"),
+  notes:       text("notes"),
+}, (t) => [
+  index("sha_created_idx").on(t.createdAt),
+  index("sha_module_idx").on(t.module),
+  index("sha_error_code_idx").on(t.errorCode),
+  index("sha_status_idx").on(t.status),
+]);
+export type SelfHealingAction = typeof selfHealingActions.$inferSelect;
+export const insertSelfHealingActionSchema = createInsertSchema(selfHealingActions).omit({ id: true, createdAt: true });
+export type InsertSelfHealingAction = typeof insertSelfHealingActionSchema._type;
+
+// ── Decision Journal ──────────────────────────────────────────────────────────
+// Logs every important automated decision for audit + learning.
+export const decisionJournal = pgTable("decision_journal", {
+  id:               serial("id").primaryKey(),
+  timestamp:        timestamp("timestamp").defaultNow().notNull(),
+  module:           text("module").notNull(),
+  userId:           text("user_id"),
+  channelId:        text("channel_id"),
+  jobId:            text("job_id"),
+  decision:         text("decision").notNull(),
+  reason:           text("reason").notNull(),
+  inputs:           jsonb("inputs").$type<Record<string, unknown>>().default({}),
+  confidence:       real("confidence"),
+  expectedOutcome:  text("expected_outcome"),
+  actionTaken:      text("action_taken"),
+  result:           text("result"),
+  rollbackAvailable: boolean("rollback_available").default(false),
+}, (t) => [
+  index("dj_timestamp_idx").on(t.timestamp),
+  index("dj_module_idx").on(t.module),
+  index("dj_user_idx").on(t.userId),
+  index("dj_decision_idx").on(t.decision),
+]);
+export type DecisionJournalEntry = typeof decisionJournal.$inferSelect;
+export const insertDecisionJournalSchema = createInsertSchema(decisionJournal).omit({ id: true, timestamp: true });
+export type InsertDecisionJournal = typeof insertDecisionJournalSchema._type;
+
+// ── Channel Performance Memory ────────────────────────────────────────────────
+// Persists per-user/channel learned performance patterns.
+export const channelPerformanceMemory = pgTable("channel_performance_memory", {
+  id:        serial("id").primaryKey(),
+  userId:    text("user_id").notNull().unique(),
+  data:      jsonb("data").$type<Record<string, unknown>>().default({}),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  index("cpm_user_idx").on(t.userId),
+]);
+export type ChannelPerformanceMemory = typeof channelPerformanceMemory.$inferSelect;
+
+// ── Growth Experiments ────────────────────────────────────────────────────────
+// Controlled A/B experiments for title, thumbnail, description, upload-time changes.
+export const growthExperiments = pgTable("growth_experiments", {
+  id:              text("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  channelId:       text("channel_id"),
+  hypothesis:      text("hypothesis").notNull(),
+  targetMetric:    text("target_metric").notNull(),  // "ctr" | "retention" | "views" | "watch_time"
+  targetVideoId:   text("target_video_id"),
+  changeType:      text("change_type").notNull(),    // "title" | "thumbnail" | "description" | "tags" | "upload_time"
+  changeOriginal:  text("change_original").notNull(),
+  changeProposed:  text("change_proposed").notNull(),
+  startDate:       timestamp("start_date").notNull(),
+  endDate:         timestamp("end_date"),
+  confidenceScore: real("confidence_score").default(0),
+  result:          text("result"),    // "win" | "loss" | "neutral" | "inconclusive"
+  decision:        text("decision"),  // "keep" | "rollback" | "extend"
+  rollbackPlan:    text("rollback_plan").default(""),
+  status:          text("status").notNull().default("staged"),  // "running" | "completed" | "rolled_back" | "staged"
+  createdAt:       timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("ge_user_idx").on(t.userId),
+  index("ge_status_idx").on(t.status),
+  index("ge_created_idx").on(t.createdAt),
+]);
+export type GrowthExperiment = typeof growthExperiments.$inferSelect;
+export const insertGrowthExperimentSchema = createInsertSchema(growthExperiments).omit({ createdAt: true });
+export type InsertGrowthExperiment = typeof insertGrowthExperimentSchema._type;
+
