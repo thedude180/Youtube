@@ -224,6 +224,12 @@ async function processBacklogAsync(
 
   let completed = 0;
 
+  // Minimum inter-video delay: spreads token consumption so no single boot
+  // can exhaust the daily budget in under a minute.  At 4 s/video a 40-video
+  // batch takes ~2.7 min instead of ~7 s, keeping the AI queue from saturating
+  // and preventing the token-stampede that burned 121 K / 150 K tokens on boot.
+  const INTER_VIDEO_DELAY_MS = 4_000;
+
   for (const video of videos) {
     const currentSession = sessions.get(userId);
     if (!currentSession || currentSession.state === "paused") {
@@ -243,6 +249,12 @@ async function processBacklogAsync(
         logger.warn(`[BacklogEngine] viral-optimizer hourly cap reached mid-batch — stopping at ${completed}/${videos.length}, will resume next hour`);
         break;
       }
+    }
+
+    // Pacing delay — enforced AFTER the cap check so a budget-exhausted batch
+    // exits immediately instead of sleeping then exiting.
+    if (completed > 0) {
+      await new Promise<void>(resolve => setTimeout(resolve, INTER_VIDEO_DELAY_MS));
     }
 
     currentSession.currentVideoId = video.id;

@@ -10,6 +10,7 @@ import { videos, channels, contentVaultBackups } from "@shared/schema";
 import { eq, and, or, ne } from "drizzle-orm";
 import { createLogger } from "./lib/logger";
 import { isFfmpegAvailable, isYtdlpAvailable, getYtdlpBin } from "./lib/dependency-check";
+import { getContainerMemory, hasSpawnHeadroom, MIN_SPAWN_HEADROOM_BYTES } from "./lib/container-memory";
 
 const logger = createLogger("clip-video-processor");
 
@@ -78,14 +79,29 @@ export function markPermanentlyFailed(youtubeId: string, reason: string): void {
       if (v.failedAt < cutoff) permanentlyFailedIds.delete(k);
     }
   }
-  // Persist to DB so server restarts don't retry this video
+  // Persist to DB so server restarts don't retry this video.
+  // First try to UPDATE an existing row; if no row exists (the video was never in
+  // contentVaultBackups) fall back to INSERT so the failure survives reboots.
   db.update(contentVaultBackups)
     .set({ status: "failed", downloadError: reason.substring(0, 500) })
     .where(and(
       eq(contentVaultBackups.youtubeId, youtubeId),
       ne(contentVaultBackups.status, "downloaded"),
     ))
-    .execute()
+    .returning({ id: contentVaultBackups.id })
+    .then((rows: { id: number }[]) => {
+      if (rows.length === 0) {
+        // No existing row — insert a sentinel failure record so restarts skip it.
+        return db.insert(contentVaultBackups).values({
+          userId: "system",
+          youtubeId,
+          platform: "youtube",
+          contentType: "video",
+          status: "failed",
+          downloadError: reason.substring(0, 500),
+        }).onConflictDoNothing().execute();
+      }
+    })
     .catch((err: any) => logger.warn("Failed to persist permanent fail to DB", { youtubeId, err: err?.message }));
 }
 
@@ -284,6 +300,19 @@ async function downloadWithYtDlp(youtubeId: string, outputPath: string, accessTo
 
   for (const clientArgs of clientStrategies) {
     for (const format of YT_DLP_FORMAT_STRATEGIES) {
+      // Gate every yt-dlp spawn behind a memory headroom check.
+      // yt-dlp (Python) consumes 150-300 MB on startup; spawning it when the
+      // container is already near its limit causes silent OOM kills.
+      const mem = getContainerMemory();
+      if (!hasSpawnHeadroom(mem)) {
+        logger.warn("Insufficient container memory for yt-dlp spawn — aborting download", {
+          youtubeId,
+          freeMB: Math.round(mem.freeBytes / 1024 / 1024),
+          neededMB: Math.round(MIN_SPAWN_HEADROOM_BYTES / 1024 / 1024),
+        });
+        return false;
+      }
+
       try {
         if (fs.existsSync(outputPath)) {
           try { fs.unlinkSync(outputPath); } catch {}

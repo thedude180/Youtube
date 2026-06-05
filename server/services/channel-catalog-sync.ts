@@ -496,6 +496,10 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
   let processed = 0;
   let scheduled = 0;
   let errors = 0;
+  // Stagger index for fire-and-forget SEO calls: each video's SEO optimization
+  // starts 8 s later than the previous one so a 50-video batch doesn't launch
+  // 50 concurrent AI calls and saturate the 8/8 background queue.
+  let seoStaggerIndex = 0;
 
   for (const link of unprocessed) {
     try {
@@ -585,7 +589,10 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
 
       try {
         const { vodSEOOptimizer } = await import("./vod-seo-optimizer");
-        vodSEOOptimizer.optimize(userId, dbVideo.id).catch(() => undefined);
+        // Stagger each SEO call 8 s apart so a large catalog sync doesn't
+        // launch dozens of concurrent AI calls and saturate the 8/8 queue.
+        const seoDelay = seoStaggerIndex++ * 8_000;
+        setTimeout(() => vodSEOOptimizer.optimize(userId, dbVideo.id).catch(() => undefined), seoDelay);
         editingResult.seoOptimized = true;
       } catch (err: any) {
         logger.warn(`[${userId}] SEO optimize failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);

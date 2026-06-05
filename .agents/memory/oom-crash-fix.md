@@ -3,6 +3,23 @@ name: OOM crash loop root causes and fixes
 description: Why production crashes every ~24 min and what was done to fix it
 ---
 
+## Jun 5 Follow-up: clip-video-processor.ts Memory Gate + AI Queue Stampede Fixes
+
+### Cause 4: clip-video-processor bypassed ytdlp-gate memory check (FIXED)
+- `downloadWithYtDlp` in `clip-video-processor.ts` called `execFileAsync(YT_DLP_BIN())` directly, bypassing `ytdlp-gate.ts`
+- Added `hasSpawnHeadroom()` check inside `downloadWithYtDlp` before every `execFileAsync` call
+
+### Cause 5: Permanent fail sentinel row missing on first failure (FIXED)
+- `markPermanentlyFailed` only ran UPDATE; if no vault row existed the update was a silent no-op
+- On next restart the same video would retry, fail, and crash the container
+- **Fix**: Changed to upsert: tries UPDATE first (.returning()), falls back to INSERT sentinel row
+
+### Cause 6: AI queue stampede from batch callers (FIXED)
+- `channel-catalog-sync.ts` fired fire-and-forget `vodSEOOptimizer.optimize()` for every video in a batch with no delay → 50+ concurrent AI calls
+- `routes/content.ts` SEO reset batch loop had no inter-call delay
+- **Fix**: Added `seoStaggerIndex * 8000 ms` setTimeout stagger in catalog-sync; added `4000 ms` await between videos in content.ts batch loop
+- `backlog-engine.ts` viral optimizer had no inter-video delay → added `INTER_VIDEO_DELAY_MS = 4000`
+
 ## Root Causes of 24-Minute OOM Crash Loop
 
 ### Cause 1: Live Gate False Positive (FIXED — confirmed in production)

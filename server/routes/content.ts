@@ -237,13 +237,15 @@ export function registerContentRoutes(app: Express) {
         }
       }
 
-      // Kick off background re-optimization using the improved prompts
+      // Kick off background re-optimization using the improved prompts.
+      // 4-second inter-video delay prevents AI queue saturation (8/8 callers).
       const { vodSEOOptimizer } = await import("../services/vod-seo-optimizer");
       const toRun = allVideos.slice(0, 30); // batch first 30 to avoid rate limits
       (async () => {
-        for (const v of toRun) {
+        for (let i = 0; i < toRun.length; i++) {
+          if (i > 0) await new Promise<void>(r => setTimeout(r, 4_000));
           try {
-            await vodSEOOptimizer.optimize(userId, v.id);
+            await vodSEOOptimizer.optimize(userId, toRun[i].id);
           } catch {}
         }
       })().catch(() => undefined);
