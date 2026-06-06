@@ -30,7 +30,7 @@ import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
-import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPublishTime } from "./youtube-output-schedule";
+import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPublishTime, isLongFormScheduleSaturated, clearLongFormScheduleSaturation } from "./youtube-output-schedule";
 
 const logger = createLogger("long-form-publisher");
 
@@ -279,7 +279,9 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       let effectiveScheduledAt: Date | null = item.scheduledAt ? new Date(item.scheduledAt) : null;
       if (!effectiveScheduledAt || effectiveScheduledAt.getTime() <= Date.now() + 60_000) {
         try {
-          const newSlot = await getNextLongFormPublishTime(item.userId);
+          const newSlot = isLongFormScheduleSaturated(item.userId)
+            ? new Date(Date.now() + 24 * 3_600_000)
+            : await getNextLongFormPublishTime(item.userId);
           await db.update(autopilotQueue)
             .set({ scheduledAt: newSlot })
             .where(eq(autopilotQueue.id, item.id));
@@ -521,6 +523,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           userId: item.userId.substring(0, 8),
         });
         published++;
+        // Clear the long-form saturation cache — a slot just opened up.
+        clearLongFormScheduleSaturation(item.userId);
 
         // Seed the metrics row immediately so the learning model has a record
         // even before YouTube processes analytics (which takes 24-48 h).

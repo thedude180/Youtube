@@ -28,7 +28,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
-import { getNextLongFormPublishTime } from "./youtube-output-schedule";
+import { getNextLongFormPublishTime, isLongFormScheduleSaturated } from "./youtube-output-schedule";
 
 const logger = createLogger("yt-segmenter");
 
@@ -256,6 +256,11 @@ export async function queueLongFormSegments(
 
   let queued = 0;
   for (const seg of deduplicated) {
+    // Bail early if all 14-day long-form slots are already booked.
+    if (isLongFormScheduleSaturated(userId)) {
+      logger.debug(`[LongFormSegmenter] Long-form schedule saturated for ${userId.slice(0, 8)} — stopping segment queue`);
+      break;
+    }
     try {
       const scheduledAt = await getNextLongFormPublishTime(userId);
 

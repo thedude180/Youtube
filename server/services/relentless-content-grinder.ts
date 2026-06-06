@@ -16,6 +16,7 @@ import {
   MAX_SHORTS_PER_DAY,
   MAX_LONGFORM_PER_DAY,
   isShortScheduleSaturated,
+  isLongFormScheduleSaturated,
 } from "./youtube-output-schedule";
 import { chooseBestLongFormDuration, getBucketRankings } from "./youtube-performance-learner";
 
@@ -837,6 +838,10 @@ Return raw JSON only (no markdown):
       return 0;
     }
 
+    if (isLongFormScheduleSaturated(userId)) {
+      logger.debug(`[ContentGrinder] Long-form schedule saturated for ${userId.slice(0, 8)} — skipping long-form clip queue`);
+      return 0;
+    }
     const scheduledAt = await getNextLongFormPublishTime(userId);
     const title = String(parsed.title).substring(0, 90);
     const description = String(parsed.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`).substring(0, 5000);

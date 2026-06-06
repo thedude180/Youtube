@@ -63,6 +63,7 @@ import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
   isShortScheduleSaturated,
+  isLongFormScheduleSaturated,
 } from "./youtube-output-schedule";
 import {
   autoSwitchFocusGameIfNeeded,
@@ -970,6 +971,10 @@ async function queueLongFormFromBackCatalog(
     const rawStart = Math.floor(i * intervalSec);
     const segmentStartSec = Math.min(rawStart, Math.max(0, dur - experimentSec));
 
+    if (isLongFormScheduleSaturated(userId)) {
+      logger.debug(`[BackCatalog] Long-form schedule saturated for ${userId.slice(0, 8)} — stopping bucket queue`);
+      break;
+    }
     const scheduledAt = await getNextLongFormPublishTime(userId, MIN_CATALOG_START_DAYS);
 
     if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
@@ -1391,6 +1396,10 @@ export async function queuePastStreamContent(userId: string): Promise<{
         // Start past the opening dead zone (game-aware) to skip pre-game
         // lobby / first loading screen.  Long-form runs to end of stream.
         if (streamDurationSec > 1800 && !(vodYoutubeId && _failedVaultIds.has(vodYoutubeId))) {
+          // Skip if the long-form schedule is already saturated — avoids 28 DB queries per call.
+          if (isLongFormScheduleSaturated(userId)) {
+            logger.debug(`[BackCatalog/PastStreams] Long-form schedule saturated for ${userId.slice(0, 8)} — skipping stream long-form`);
+          } else
           try {
             const scheduledAt = await getNextLongFormPublishTime(userId, minDaysAhead);
             const lfStartSec = gameOpenSkipSec(gameName);  // game-aware open skip

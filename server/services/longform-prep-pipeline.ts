@@ -23,7 +23,7 @@ import { createLogger } from "../lib/logger";
 import { setJitteredInterval } from "../lib/timer-utils";
 import { assertTierCapacity } from "../lib/ai-semaphore";
 import { storage } from "../storage";
-import { getNextLongFormPublishTime } from "./youtube-output-schedule";
+import { getNextLongFormPublishTime, isLongFormScheduleSaturated, clearLongFormScheduleSaturation } from "./youtube-output-schedule";
 
 const log = createLogger("longform-prep-pipeline");
 
@@ -320,6 +320,10 @@ export async function prepareLongformForUpload(
 
   // Step 8 — Claim a long-form publish slot
   let scheduledAt: Date;
+  if (isLongFormScheduleSaturated(video.userId)) {
+    log.debug(`[LongformPrepPipeline] Long-form schedule saturated for ${video.userId.slice(0, 8)} — using +24h fallback`);
+    scheduledAt = new Date(Date.now() + 24 * 3_600_000);
+  } else
   try {
     scheduledAt = await getNextLongFormPublishTime(video.userId);
     log.info(`[LongformPrepPipeline] Video ${video.id} scheduled → ${scheduledAt.toISOString()}`);

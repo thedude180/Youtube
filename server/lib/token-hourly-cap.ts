@@ -322,6 +322,8 @@ let _flushTimer: ReturnType<typeof setInterval> | null = null;
 let _lastFlushAt: Date | null = null;
 let _consecutiveFlushFailures = 0;
 let _lastFlushError: string | null = null;
+// Per-module last-warn timestamps for log-spam debounce (key = "warn:<module>")
+const _capWarnedAt = new Map<string, number>();
 
 async function flushHourlyUsageToDB(): Promise<void> {
   if (!_dirty) return;
@@ -619,11 +621,19 @@ export function checkHourlyTokenBudget(
     const hitSlot = getHitSlot(module);
     hitSlot.count += 1;
     _dirty = true;
-    log.warn(
-      `[HourlyCap] ${module} hourly cap hit (×${hitSlot.count} this hour): ` +
-      `${slot.usedTokens}+${estimatedTokens}=${after} > ${cap} ` +
-      `— resets in ${minsLeft}m`
-    );
+    // Log at most once every 5 minutes per module to prevent tight-loop spam
+    // when many engines check the cap simultaneously (×100+ per hour is noise).
+    const now = Date.now();
+    const lastWarnKey = `warn:${module}`;
+    const lastWarn = (_capWarnedAt.get(lastWarnKey) ?? 0);
+    if (now - lastWarn >= 5 * 60_000) {
+      _capWarnedAt.set(lastWarnKey, now);
+      log.warn(
+        `[HourlyCap] ${module} hourly cap hit (×${hitSlot.count} this hour): ` +
+        `${slot.usedTokens}+${estimatedTokens}=${after} > ${cap} ` +
+        `— resets in ${minsLeft}m`
+      );
+    }
     return {
       allowed:      false,
       usedThisHour: slot.usedTokens,

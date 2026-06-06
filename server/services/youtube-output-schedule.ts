@@ -425,7 +425,8 @@ async function getLastScheduledLongFormTime(userId: string): Promise<Date | null
 const SATURATION_CACHE_TTL_MS = 30 * 60_000; // 30 minutes
 
 interface SaturationEntry { expiresAt: number; fallback: Date; }
-const shortScheduleSaturationCache = new Map<string, SaturationEntry>();
+const shortScheduleSaturationCache   = new Map<string, SaturationEntry>();
+const longFormScheduleSaturationCache = new Map<string, SaturationEntry>();
 
 /**
  * Returns true when the in-process saturation cache indicates all Short windows
@@ -451,6 +452,32 @@ export function isShortScheduleSaturated(userId: string): boolean {
  */
 export function clearShortScheduleSaturation(userId: string): void {
   shortScheduleSaturationCache.delete(userId);
+}
+
+/**
+ * Returns true when the in-process saturation cache indicates the long-form
+ * window for the next MAX_DAYS_AHEAD days is already fully claimed.
+ *
+ * Callers that batch-queue long-form content should check this BEFORE calling
+ * getNextLongFormPublishTime to avoid 28 DB queries per exhausted call.
+ */
+export function isLongFormScheduleSaturated(userId: string): boolean {
+  const entry = longFormScheduleSaturationCache.get(userId);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    longFormScheduleSaturationCache.delete(userId);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Clear the long-form saturation cache for a user.
+ * Call this after a long-form video is successfully published so the next
+ * scheduling attempt scans for genuinely available windows.
+ */
+export function clearLongFormScheduleSaturation(userId: string): void {
+  longFormScheduleSaturationCache.delete(userId);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -590,6 +617,17 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
  * Prefers the 17:30–19:30 evening window with ≥ 20 h gap enforcement.
  */
 export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
+  // Fast-path: if the schedule is known to be saturated (the 14-day long-form
+  // window is fully booked), return the cached fallback immediately without
+  // touching the DB.  Only applies to the default minDaysAhead=0 case.
+  if (minDaysAhead === 0) {
+    const cached = longFormScheduleSaturationCache.get(userId);
+    if (cached && Date.now() < cached.expiresAt) {
+      logger.debug(`[YouTubeSchedule] Long-form saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
+      return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
+    }
+  }
+
   const tz     = await getUserTz(userId);
   const now    = new Date();
   const today  = getLocalDay(tz, now);
@@ -625,6 +663,16 @@ export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 
   logger.warn(`[YouTubeSchedule] No long-form window found for ${userId.slice(0, 8)} — using +24h`);
   const fallback = new Date(now.getTime() + 24 * 3_600_000);
   fallback.setUTCHours(18, 30, 0, 0);
+
+  // Cache the saturation state so subsequent callers skip the 28-query DB scan.
+  // Only cache for the default minDaysAhead=0 case.
+  if (minDaysAhead === 0) {
+    longFormScheduleSaturationCache.set(userId, {
+      expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
+      fallback,
+    });
+  }
+
   return fallback;
 }
 
