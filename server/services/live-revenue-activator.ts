@@ -332,7 +332,7 @@ export function initLiveRevenueActivator(): void {
       } catch (err: any) {
         logger.warn(`[${userId}] Revenue activator start failed: ${sanitizeForPrompt(err.message)}`);
       }
-    }, 25_000);
+    }, 3 * 60_000);
   });
 
   onAgentEvent("stream.ended", (event) => {

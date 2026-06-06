@@ -475,26 +475,31 @@ export async function getConfiguredDestinations(userId: string): Promise<{ platf
 
 export function wireMultistreamEvents(): void {
   import("./agent-events").then(({ onAgentEvent }) => {
-    onAgentEvent("stream.started", async (event) => {
+    onAgentEvent("stream.started", (event) => {
       const { userId, payload } = event;
       const videoId = payload?.videoId || payload?.broadcastId;
       if (!videoId || videoId.startsWith("rss_live") || videoId.startsWith("live_")) {
         logger.info(`stream.started — no valid videoId, skipping auto-relay`, { userId: userId.slice(0, 8) });
         return;
       }
-      const existing = relayStates.get(userId);
-      if (existing?.relaying) return;
-
-      logger.info(`stream.started → auto-starting multistream relay`, {
-        userId: userId.slice(0, 8),
-        videoId,
-      });
-      const result = await startMultistream(userId, videoId, true);
-      if (result.started) {
-        logger.info(`Auto-relay live → ${result.destinations?.join(", ")}`, { userId: userId.slice(0, 8) });
-      } else {
-        logger.info(`Auto-relay skipped: ${result.message}`, { userId: userId.slice(0, 8) });
-      }
+      setTimeout(async () => {
+        const existing = relayStates.get(userId);
+        if (existing?.relaying) return;
+        logger.info(`stream.started → auto-starting multistream relay`, {
+          userId: userId.slice(0, 8),
+          videoId,
+        });
+        try {
+          const result = await startMultistream(userId, videoId, true);
+          if (result.started) {
+            logger.info(`Auto-relay live → ${result.destinations?.join(", ")}`, { userId: userId.slice(0, 8) });
+          } else {
+            logger.info(`Auto-relay skipped: ${result.message}`, { userId: userId.slice(0, 8) });
+          }
+        } catch (err: any) {
+          logger.warn(`Auto-relay start failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+        }
+      }, 4 * 60_000);
     });
 
     onAgentEvent("stream.ended", (event) => {

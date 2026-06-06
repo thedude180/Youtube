@@ -382,7 +382,7 @@ export function initLivestreamGrowthAgent(): void {
       } catch (err: any) {
         logger.warn(`[${userId}] Failed to start live growth session: ${sanitizeForPrompt(err.message)}`);
       }
-    }, 10_000);
+    }, 5 * 60_000);
   });
 
   onAgentEvent("stream.ended", async (event) => {

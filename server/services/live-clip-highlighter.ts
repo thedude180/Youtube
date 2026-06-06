@@ -209,7 +209,7 @@ export function initLiveClipHighlighter(): void {
       } catch (err: any) {
         logger.warn(`[${userId}] Clip highlighter start failed: ${err.message}`);
       }
-    }, 15_000);
+    }, 2 * 60_000);
   });
 
   onAgentEvent("stream.ended", (event) => {

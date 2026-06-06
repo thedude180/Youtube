@@ -618,7 +618,7 @@ export function initIdleEngagement(): void {
       } catch (err: any) {
         logger.warn(`[${userId}] Idle engagement start failed: ${sanitizeForPrompt(err.message)}`);
       }
-    }, 60_000);
+    }, 90_000);
   });
 
   onAgentEvent("stream.ended", (event) => {

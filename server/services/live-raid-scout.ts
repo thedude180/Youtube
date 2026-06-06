@@ -217,7 +217,7 @@ export function initLiveRaidScout(): void {
       } catch (err: any) {
         logger.warn(`[${userId}] Raid scout start failed: ${sanitizeForPrompt(err.message)}`);
       }
-    }, 20_000);
+    }, 6 * 60_000);
   });
 
   onAgentEvent("stream.ended", async (event) => {
