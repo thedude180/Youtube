@@ -84,6 +84,7 @@ interface DirectorSession {
   viewerHistory: ViewerSample[];
   titleRefreshCount: number;
   lastAnalyticsAt: number;
+  lastTitleRefreshAt: number;
   currentTitle: string;
   peakViewers: number;
   // Lifecycle
@@ -91,14 +92,15 @@ interface DirectorSession {
   afterStreamFired: boolean;
 }
 
-const DIRECTOR_CYCLE_MS       = 5 * 60 * 1000;   // 5 min cycle
-const BEAT_GAP_MIN_MS         = 25 * 60 * 1000;  // 25 min min between beats
-const BEAT_GAP_MAX_MS         = 35 * 60 * 1000;  // 35 min max
-const INITIAL_BEAT_OFFSET_MS  = 20 * 60 * 1000;  // silent first 20 min
-const ANALYTICS_INTERVAL_MS   = 20 * 60 * 1000;  // viewer check every 20 min
-const MAX_TITLE_REFRESHES      = 3;               // never more than 3 title changes per stream
-const VIEWER_DROP_THRESHOLD    = 0.80;            // >20% drop triggers a title refresh
-const MIN_STREAM_AGE_FOR_REFRESH_MS = 30 * 60 * 1000; // no refresh in first 30 min
+const DIRECTOR_CYCLE_MS              = 5 * 60 * 1000;   // 5 min cycle
+const BEAT_GAP_MIN_MS                = 25 * 60 * 1000;  // 25 min min between beats
+const BEAT_GAP_MAX_MS                = 35 * 60 * 1000;  // 35 min max
+const INITIAL_BEAT_OFFSET_MS         = 20 * 60 * 1000;  // silent first 20 min
+const ANALYTICS_INTERVAL_MS          = 20 * 60 * 1000;  // viewer check every 20 min
+const MIN_TITLE_REFRESH_INTERVAL_MS  = 60 * 60 * 1000;  // min 1 h between title refreshes (no hard cap — works for 12h+ streams)
+const VIEWER_HISTORY_MAX_SAMPLES     = 72;               // 72 × 20 min = 24 h ring buffer
+const VIEWER_DROP_THRESHOLD          = 0.80;             // >20% drop triggers a title refresh
+const MIN_STREAM_AGE_FOR_REFRESH_MS  = 30 * 60 * 1000;  // no refresh in first 30 min
 
 const activeSessions = new Map<string, DirectorSession>();
 let eventsRegistered = false;
@@ -254,15 +256,18 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
   // Track peak viewers
   if (viewers > session.peakViewers) session.peakViewers = viewers;
 
-  // Record sample
+  // Record sample (ring buffer — VIEWER_HISTORY_MAX_SAMPLES × 20 min = 24 h capacity)
   session.viewerHistory.push({ ts: now, count: viewers });
-  if (session.viewerHistory.length > 12) session.viewerHistory.shift(); // 12 samples = ~4h
+  if (session.viewerHistory.length > VIEWER_HISTORY_MAX_SAMPLES) session.viewerHistory.shift();
 
   const prevSample = session.viewerHistory[session.viewerHistory.length - 3]; // ~40 min ago
   const prevViewers = prevSample?.count ?? viewers;
 
+  const sinceLastRefresh = now - session.lastTitleRefreshAt;
+  const cooldownRemainMin = Math.max(0, Math.round((MIN_TITLE_REFRESH_INTERVAL_MS - sinceLastRefresh) / 60_000));
   logger.info(
-    `[Director] Viewer check — ${viewers} live (prev: ${prevViewers}, peak: ${session.peakViewers}, refreshes: ${session.titleRefreshCount}/${MAX_TITLE_REFRESHES})`,
+    `[Director] Viewer check — ${viewers} live (prev: ${prevViewers}, peak: ${session.peakViewers}, ` +
+    `refreshes: ${session.titleRefreshCount}, cooldown: ${cooldownRemainMin}min)`,
   );
 
   sendSSEEvent(session.userId, "director_heartbeat", {
@@ -276,12 +281,12 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
 
   // Title refresh — only if:
   //   • stream has been live > 30 min
+  //   • at least 1 h since the last refresh (no hard cap — works for 12h+ streams)
   //   • viewers are declining (>20% drop vs 40 min ago)
-  //   • we haven't hit the per-stream limit
   //   • quota is healthy
   if (
     streamAge >= MIN_STREAM_AGE_FOR_REFRESH_MS &&
-    session.titleRefreshCount < MAX_TITLE_REFRESHES &&
+    sinceLastRefresh >= MIN_TITLE_REFRESH_INTERVAL_MS &&
     session.broadcastId &&
     prevViewers > 5 &&
     viewers < prevViewers * VIEWER_DROP_THRESHOLD
@@ -320,6 +325,7 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
 
         if (updated) {
           session.titleRefreshCount++;
+          session.lastTitleRefreshAt = Date.now(); // reset 1h cooldown
           const oldTitle = session.currentTitle;
           session.currentTitle = newTitle;
           logger.info(
@@ -657,7 +663,8 @@ async function onStreamStarted(
     nextBeatGapMs: BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS)),
     viewerHistory: [],
     titleRefreshCount: 0,
-    lastAnalyticsAt: 0, // 0 = run on first cycle that passes the 20-min gate
+    lastAnalyticsAt: 0,    // 0 = triggers on first cycle that passes the 20-min gate
+    lastTitleRefreshAt: 0, // 0 = no cooldown on first eligible refresh
     currentTitle: liveTitle,
     peakViewers: 0,
     cycleTimer: null,
@@ -761,6 +768,10 @@ export function getDirectorStatus(userId: string) {
     nextAnalyticsInMin: Math.max(
       0,
       Math.round((session.lastAnalyticsAt + ANALYTICS_INTERVAL_MS - Date.now()) / 60_000),
+    ),
+    titleRefreshCooldownMin: Math.max(
+      0,
+      Math.round((session.lastTitleRefreshAt + MIN_TITLE_REFRESH_INTERVAL_MS - Date.now()) / 60_000),
     ),
     liveChatId: session.liveChatId ? "present" : "absent",
     broadcastId: session.broadcastId ? "present" : "absent",
