@@ -8,7 +8,7 @@
 
 import { db } from "../db";
 import { autopilotQueue, systemSettings } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { createLogger } from "./logger";
 
 const log = createLogger("startup-migrations");
@@ -912,7 +912,12 @@ async function cleanupStuckPendingItems(): Promise<void> {
         status: "scheduled",
         errorMessage: "Reset from stuck pending on boot — will retry",
       } as any)
-      .where(eq(autopilotQueue.status, "pending"));
+      .where(and(
+        eq(autopilotQueue.status, "pending"),
+        // Only reset YouTube-targeted items — non-YouTube items are permanently
+        // cancelled by migration 015 and must not be re-activated on every boot.
+        inArray(autopilotQueue.targetPlatform, ["youtube", "youtubeshorts"]),
+      ));
 
     // Drizzle returns rowCount on pg driver
     const count = (result as any)?.rowCount ?? (result as any)?.length ?? "?";
