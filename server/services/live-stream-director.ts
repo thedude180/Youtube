@@ -7,27 +7,35 @@
  *
  * WHAT THE DIRECTOR DOES:
  *
- * ON STREAM START (fires ~30 s after live detection, so liveChatId is ready):
+ * ON STREAM START (fires 45 s after live detection, so liveChatId is cached):
  *   1. Calls prepareLiveStream() → gets AI-generated title, description, pinned
  *      message, FAQ answers, and moderation rules
  *   2. Applies the generated title + description to the YouTube broadcast via
- *      liveBroadcasts.update (fixes the single biggest gap: metadata never applied)
+ *      liveBroadcasts.update (1 time, 50 quota units)
  *   3. Posts the opening pinned message to YouTube Live Chat
  *   4. Starts the 5-minute director cycle
  *
  * DIRECTOR CYCLE (every 5 min while live):
- *   • Every 25–35 min (randomized per session): posts a "broadcast beat" — a
- *     short, on-brand message to keep viewers engaged (subscribe CTA, clip tease,
- *     hype check, schedule reminder). Complements stream-idle-engagement which
- *     only fires when chat goes quiet.
- *   • Emits a "director_heartbeat" SSE event so the dashboard always shows a
- *     live session summary without polling.
+ *   a) VIEWER ANALYTICS (every 20 min) — fetches concurrentViewers via
+ *      videos.list/liveStreamingDetails (1 quota unit — very cheap).
+ *      If viewership is declining (>20% drop) or stagnant AND stream has been
+ *      live >30 min → generates a fresher, more clickable title via AI and
+ *      updates the broadcast via liveBroadcasts.update. Max 3 refreshes/stream.
+ *   b) BROADCAST BEATS (every 25–35 min, randomized) — posts short on-brand
+ *      messages to chat: subscribe CTAs, clip teasers, hype checks, schedule
+ *      reminders. Complements stream-idle-engagement (which fires on silence).
+ *   c) SSE HEARTBEAT — emits director_heartbeat so the dashboard always shows
+ *      live session stats (viewer count, title version, beats posted).
  *
  * ON STREAM END:
- *   • Stops the director cycle
- *   • Calls afterStreamCopilot() → queues Shorts from clip moments, queues the
- *     long-form replay, triggers the stream hype wave on the content schedule
- *   • Emits a final session summary SSE
+ *   1. Stops the director cycle
+ *   2. Calls afterStreamCopilot() → queues Shorts from clip moments, queues
+ *      the long-form replay, triggers the stream hype wave
+ *   3. Runs post-stream VOD optimization:
+ *      - Fetches channel CTR benchmark
+ *      - Generates analytics-driven VOD title + description via AI
+ *      - Generates optimized thumbnail concept and stores it in the DB
+ *   4. Emits a final session summary SSE
  */
 
 import { google } from "googleapis";
@@ -41,6 +49,7 @@ import { sendSSEEvent } from "../routes/events";
 import { isLiveActive } from "../lib/live-gate";
 import { getOpenAIClient } from "../lib/openai";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { storage } from "../storage";
 import {
   isQuotaBreakerTripped,
   canAffordOperation,
@@ -53,6 +62,11 @@ const openai = getOpenAIClient();
 
 // ── Session state ─────────────────────────────────────────────────────────────
 
+interface ViewerSample {
+  ts: number;
+  count: number;
+}
+
 interface DirectorSession {
   userId: string;
   streamId: number;
@@ -62,18 +76,29 @@ interface DirectorSession {
   liveChatId: string | null;
   broadcastId: string | null;
   startedAt: Date;
+  // Broadcast beats
   beatsPosted: number;
   lastBeatAt: number;
   nextBeatGapMs: number;
+  // Viewer analytics + title refresh
+  viewerHistory: ViewerSample[];
+  titleRefreshCount: number;
+  lastAnalyticsAt: number;
+  currentTitle: string;
+  peakViewers: number;
+  // Lifecycle
   cycleTimer: ReturnType<typeof setInterval> | null;
   afterStreamFired: boolean;
 }
 
-const DIRECTOR_CYCLE_MS = 5 * 60 * 1000;
-const BEAT_GAP_MIN_MS = 25 * 60 * 1000;
-const BEAT_GAP_MAX_MS = 35 * 60 * 1000;
-// Initial beat offset — don't post anything in first 20 min of stream
-const INITIAL_BEAT_OFFSET_MS = 20 * 60 * 1000;
+const DIRECTOR_CYCLE_MS       = 5 * 60 * 1000;   // 5 min cycle
+const BEAT_GAP_MIN_MS         = 25 * 60 * 1000;  // 25 min min between beats
+const BEAT_GAP_MAX_MS         = 35 * 60 * 1000;  // 35 min max
+const INITIAL_BEAT_OFFSET_MS  = 20 * 60 * 1000;  // silent first 20 min
+const ANALYTICS_INTERVAL_MS   = 20 * 60 * 1000;  // viewer check every 20 min
+const MAX_TITLE_REFRESHES      = 3;               // never more than 3 title changes per stream
+const VIEWER_DROP_THRESHOLD    = 0.80;            // >20% drop triggers a title refresh
+const MIN_STREAM_AGE_FOR_REFRESH_MS = 30 * 60 * 1000; // no refresh in first 30 min
 
 const activeSessions = new Map<string, DirectorSession>();
 let eventsRegistered = false;
@@ -98,7 +123,6 @@ async function applyBroadcastMetadata(
     return false;
   }
   try {
-    // liveBroadcasts.update costs 50 quota units — only done once per stream start
     await yt.liveBroadcasts.update({
       part: ["snippet"],
       requestBody: {
@@ -110,7 +134,6 @@ async function applyBroadcastMetadata(
         },
       },
     });
-    // Track as a broadcast operation (50 units — same tier as liveBroadcasts.list/insert)
     await trackQuotaUsage(userId, "broadcast").catch(() => {});
     logger.info(`[Director] Broadcast metadata updated — title="${title.slice(0, 60)}"`);
     return true;
@@ -149,10 +172,303 @@ async function postChatMessage(
   }
 }
 
+// ── Viewer analytics + mid-stream title refresh ───────────────────────────────
+
+async function fetchConcurrentViewers(
+  yt: any,
+  userId: string,
+  broadcastId: string,
+): Promise<number> {
+  if (isQuotaBreakerTripped()) return 0;
+  try {
+    // videos.list with liveStreamingDetails costs only 1 quota unit (vs 50 for liveBroadcasts.list)
+    const res = await yt.videos.list({
+      part: ["liveStreamingDetails"],
+      id: [broadcastId],
+    });
+    await trackQuotaUsage(userId, "read").catch(() => {});
+    const details = res.data.items?.[0]?.liveStreamingDetails;
+    return parseInt(details?.concurrentViewers || "0", 10) || 0;
+  } catch (err: any) {
+    markQuotaErrorFromResponse(err);
+    return 0;
+  }
+}
+
+async function generateOptimizedTitle(
+  gameName: string,
+  originalTitle: string,
+  currentViewers: number,
+  durMin: number,
+  prevViewers: number,
+): Promise<string | null> {
+  try {
+    const trend = prevViewers > 0
+      ? currentViewers >= prevViewers ? "growing" : "declining"
+      : "stable";
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 80,
+      temperature: 0.85,
+      messages: [{
+        role: "user",
+        content: `You manage a YouTube live stream title for a no-commentary PS5 ${sanitizeForPrompt(gameName, 50)} channel.
+
+Current stream title: "${sanitizeForPrompt(originalTitle, 120)}"
+Stream duration: ${durMin} minutes live
+Viewer trend: ${trend} (${currentViewers} viewers now, was ${prevViewers})
+
+Rewrite the title to attract more clicks and viewers. Rules:
+- Under 100 characters
+- Include the game name (${sanitizeForPrompt(gameName, 30)})
+- Add something that creates curiosity or urgency (e.g. "INSANE match", "comeback", "ranked grind", a score/stat if relevant, "can't stop", "going for X")
+- Keep it authentic — no clickbait that misrepresents the stream
+- Do NOT include "LIVE" at the start — YouTube already shows that badge
+- Output ONLY the new title, nothing else`,
+      }],
+    });
+
+    const title = resp.choices[0]?.message?.content?.trim();
+    if (title && title.length > 5 && title.length <= 100) return title;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function checkViewerMetrics(session: DirectorSession): Promise<void> {
+  const now = Date.now();
+  if (now - session.lastAnalyticsAt < ANALYTICS_INTERVAL_MS) return;
+  if (!session.broadcastId || session.channelDbId === 0) return;
+
+  const streamAge = now - session.startedAt.getTime();
+  session.lastAnalyticsAt = now;
+
+  let viewers = 0;
+  try {
+    const yt = await getYouTubeClient(session.channelDbId);
+    viewers = await fetchConcurrentViewers(yt, session.userId, session.broadcastId);
+  } catch { return; }
+
+  // Track peak viewers
+  if (viewers > session.peakViewers) session.peakViewers = viewers;
+
+  // Record sample
+  session.viewerHistory.push({ ts: now, count: viewers });
+  if (session.viewerHistory.length > 12) session.viewerHistory.shift(); // 12 samples = ~4h
+
+  const prevSample = session.viewerHistory[session.viewerHistory.length - 3]; // ~40 min ago
+  const prevViewers = prevSample?.count ?? viewers;
+
+  logger.info(
+    `[Director] Viewer check — ${viewers} live (prev: ${prevViewers}, peak: ${session.peakViewers}, refreshes: ${session.titleRefreshCount}/${MAX_TITLE_REFRESHES})`,
+  );
+
+  sendSSEEvent(session.userId, "director_heartbeat", {
+    type: "viewer_update",
+    streamId: session.streamId,
+    concurrentViewers: viewers,
+    peakViewers: session.peakViewers,
+    viewerTrend: prevViewers > 0 && viewers < prevViewers * VIEWER_DROP_THRESHOLD ? "declining" : "stable",
+    titleRefreshCount: session.titleRefreshCount,
+  });
+
+  // Title refresh — only if:
+  //   • stream has been live > 30 min
+  //   • viewers are declining (>20% drop vs 40 min ago)
+  //   • we haven't hit the per-stream limit
+  //   • quota is healthy
+  if (
+    streamAge >= MIN_STREAM_AGE_FOR_REFRESH_MS &&
+    session.titleRefreshCount < MAX_TITLE_REFRESHES &&
+    session.broadcastId &&
+    prevViewers > 5 &&
+    viewers < prevViewers * VIEWER_DROP_THRESHOLD
+  ) {
+    const durMin = Math.round(streamAge / 60_000);
+    const newTitle = await generateOptimizedTitle(
+      session.gameName,
+      session.currentTitle,
+      viewers,
+      durMin,
+      prevViewers,
+    );
+
+    if (newTitle && newTitle !== session.currentTitle) {
+      try {
+        const yt = await getYouTubeClient(session.channelDbId);
+
+        // Get current description to keep it — only title changes
+        let currentDescription = "";
+        try {
+          const videoRes = await yt.videos.list({
+            part: ["snippet"],
+            id: [session.broadcastId],
+          });
+          await trackQuotaUsage(session.userId, "read").catch(() => {});
+          currentDescription = videoRes.data.items?.[0]?.snippet?.description ?? "";
+        } catch { /* non-fatal */ }
+
+        const updated = await applyBroadcastMetadata(
+          yt,
+          session.userId,
+          session.broadcastId,
+          newTitle,
+          currentDescription,
+        );
+
+        if (updated) {
+          session.titleRefreshCount++;
+          const oldTitle = session.currentTitle;
+          session.currentTitle = newTitle;
+          logger.info(
+            `[Director] Title refresh #${session.titleRefreshCount}: "${oldTitle.slice(0, 50)}" → "${newTitle.slice(0, 50)}"`,
+          );
+          sendSSEEvent(session.userId, "director_heartbeat", {
+            type: "title_refreshed",
+            streamId: session.streamId,
+            newTitle,
+            refreshCount: session.titleRefreshCount,
+            triggerViewers: viewers,
+            prevViewers,
+          });
+        }
+      } catch (err: any) {
+        logger.warn(`[Director] Title refresh failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+      }
+    }
+  }
+}
+
+// ── Post-stream VOD optimization ──────────────────────────────────────────────
+
+async function runPostStreamVodOptimization(
+  userId: string,
+  streamId: number,
+  session: DirectorSession | undefined,
+): Promise<void> {
+  const durMin = session
+    ? Math.round((Date.now() - session.startedAt.getTime()) / 60_000)
+    : 0;
+  const gameName = session?.gameName ?? "Gaming";
+  const streamTitle = session?.streamTitle ?? "Live Stream";
+  const peakViewers = session?.peakViewers ?? 0;
+
+  logger.info(`[Director] Running post-stream VOD optimization — game=${gameName} dur=${durMin}min peak=${peakViewers}`);
+
+  // ── Fetch channel CTR benchmark ────────────────────────────────────────────
+  let channelCtr: number | null = null;
+  try {
+    const { fetchChannelCTR } = await import("./youtube-analytics");
+    const ctrData = await fetchChannelCTR(userId);
+    channelCtr = ctrData.ctr;
+    logger.info(`[Director] Channel CTR benchmark: ${channelCtr ?? "unavailable"}%`);
+  } catch { /* non-fatal */ }
+
+  // ── Generate analytics-optimized VOD title + description via AI ────────────
+  let vodTitle = streamTitle;
+  let vodDescription = "";
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 300,
+      temperature: 0.8,
+      messages: [{
+        role: "user",
+        content: `You are optimizing the YouTube VOD (replay) metadata for a no-commentary PS5 ${sanitizeForPrompt(gameName, 50)} live stream.
+
+Stream details:
+- Original title: "${sanitizeForPrompt(streamTitle, 120)}"
+- Duration: ${durMin} minutes
+- Peak concurrent viewers: ${peakViewers}
+${channelCtr !== null ? `- Channel average CTR: ${channelCtr}% (optimize to beat this)` : ""}
+
+Write the VOD metadata to maximize clicks and views:
+
+Return ONLY valid JSON:
+{
+  "title": "<under 100 chars, curiosity-driven, includes game name, implies something worth watching>",
+  "description": "<150-200 words: engaging description, what happened, why to watch, includes relevant hashtags at the end>"
+}
+
+Title examples that work:
+- "Battlefield 6 Ranked Grind — Back-to-Back Wins (PS5)"
+- "7 Kill Streak in One Match — BF6 PS5 Gameplay"
+- "Battlefield 6 Close Game Goes to the Wire — Full Session"
+
+The description should read naturally, not like SEO spam.`,
+      }],
+    });
+
+    const raw = resp.choices[0]?.message?.content?.trim() ?? "";
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.title && parsed.title.length > 5) vodTitle = parsed.title.slice(0, 100);
+      if (parsed.description) vodDescription = parsed.description.slice(0, 5000);
+    }
+    logger.info(`[Director] VOD title generated: "${vodTitle.slice(0, 60)}"`);
+  } catch (err: any) {
+    logger.warn(`[Director] VOD title generation failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+  }
+
+  // ── Generate optimized thumbnail concept ───────────────────────────────────
+  try {
+    const { generateThumbnailPrompt } = await import("../ai-engine");
+    const thumbData = await generateThumbnailPrompt({
+      title: vodTitle,
+      description: vodDescription || undefined,
+      platform: "youtube",
+      type: "vod_replay",
+      gameName,
+    }, userId);
+
+    await storage.createThumbnail({
+      videoId: null,
+      streamId,
+      prompt: thumbData.prompt,
+      platform: "youtube",
+      resolution: "1280x720",
+      status: "generated",
+    });
+
+    logger.info(`[Director] VOD thumbnail concept generated and stored`);
+  } catch (err: any) {
+    logger.warn(`[Director] Thumbnail generation failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+  }
+
+  // ── Store VOD metadata as stream seoData for publishers to pick up ─────────
+  if (vodTitle !== streamTitle || vodDescription) {
+    try {
+      await storage.updateStream(streamId, {
+        seoData: {
+          vodTitle,
+          vodDescription,
+          optimizedAt: new Date().toISOString(),
+          channelCtr: channelCtr ?? undefined,
+          peakViewers,
+          streamDurationMin: durMin,
+        } as any,
+      });
+      logger.info(`[Director] VOD SEO data saved to stream record`);
+    } catch (err: any) {
+      logger.warn(`[Director] SEO data save failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+    }
+  }
+
+  sendSSEEvent(userId, "director_heartbeat", {
+    type: "vod_optimized",
+    streamId,
+    vodTitle,
+    hasDescription: !!vodDescription,
+    hasThumbnailConcept: true,
+    channelCtr,
+    peakViewers,
+  });
+}
+
 // ── Broadcast beats ───────────────────────────────────────────────────────────
-// Scheduled production messages — on-brand, casual, never spammy.
-// These complement stream-idle-engagement (which fires on chat silence)
-// with proactive milestone-based posts the idle engine doesn't cover.
 
 const BEAT_TEMPLATES: Array<(game: string, durMin: number) => string> = [
   (game, _d) => `enjoying the stream? subscribe so you don't miss the clips from today's session`,
@@ -170,7 +486,6 @@ async function generateBroadcastBeat(
   durMin: number,
   beatIndex: number,
 ): Promise<string> {
-  // Every 3rd beat, use AI for variety; otherwise rotate deterministic templates
   if (beatIndex % 3 === 2) {
     try {
       const resp = await openai.chat.completions.create({
@@ -184,9 +499,7 @@ async function generateBroadcastBeat(
       });
       const ai = resp.choices[0]?.message?.content?.trim();
       if (ai && ai.length > 10 && ai.length < 200) return ai;
-    } catch {
-      // fall through to template
-    }
+    } catch { /* fall through */ }
   }
 
   const template = BEAT_TEMPLATES[beatIndex % BEAT_TEMPLATES.length];
@@ -205,17 +518,23 @@ async function runDirectorCycle(session: DirectorSession): Promise<void> {
   const durMs = now - session.startedAt.getTime();
   const durMin = Math.round(durMs / 60_000);
 
-  // Emit session heartbeat via SSE (dashboard stays live without polling)
+  // a) Viewer analytics + title refresh (every 20 min)
+  await checkViewerMetrics(session).catch(() => {});
+
+  // b) Session heartbeat SSE
   sendSSEEvent(session.userId, "director_heartbeat", {
+    type: "cycle",
     streamId: session.streamId,
-    streamTitle: session.streamTitle,
+    streamTitle: session.currentTitle,
     gameName: session.gameName,
     durationMin: durMin,
     beatsPosted: session.beatsPosted,
+    peakViewers: session.peakViewers,
+    titleRefreshCount: session.titleRefreshCount,
     isActive: true,
   });
 
-  // Broadcast beat — rate-limited, initial 20-min silence respected
+  // c) Broadcast beat — rate-limited, initial 20-min silence respected
   const sinceStart = now - session.startedAt.getTime();
   const sinceLastBeat = now - session.lastBeatAt;
 
@@ -232,7 +551,6 @@ async function runDirectorCycle(session: DirectorSession): Promise<void> {
       if (posted) {
         session.beatsPosted++;
         session.lastBeatAt = now;
-        // Randomize next beat gap: 25–35 min
         session.nextBeatGapMs =
           BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS));
         logger.info(
@@ -262,7 +580,6 @@ async function onStreamStarted(
     return;
   }
 
-  // Resolve the live stream DB record
   const [stream] = await db
     .select()
     .from(streams)
@@ -271,7 +588,6 @@ async function onStreamStarted(
     .limit(1)
     .catch(() => [] as typeof streams.$inferSelect[]);
 
-  // Resolve the YouTube channel DB record
   const [ch] = await db
     .select()
     .from(channels)
@@ -291,21 +607,20 @@ async function onStreamStarted(
     `liveChatId=${liveChatId ? "✅" : "❌"} broadcastId=${broadcastId ? "✅" : "❌"}`,
   );
 
-  // ── Step 1: Generate pre-stream preparation package ───────────────────────
+  // ── Step 1: Generate pre-stream prep package ──────────────────────────────
   let prep: any = null;
   if (streamId > 0) {
     try {
       const { prepareLiveStream } = await import("./youtube-live-copilot");
       prep = await prepareLiveStream(userId, streamId);
-      logger.info(
-        `[Director] Pre-stream prep complete — title="${String(prep?.title || "").slice(0, 60)}"`,
-      );
+      logger.info(`[Director] Pre-stream prep complete — title="${String(prep?.title || "").slice(0, 60)}"`);
     } catch (err: any) {
       logger.warn(`[Director] prepareLiveStream failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
     }
   }
 
   // ── Step 2: Apply title + description to the YouTube broadcast ────────────
+  const liveTitle = prep?.title ?? streamTitle;
   if (broadcastId && channelDbId > 0 && prep?.title && prep?.description) {
     try {
       const yt = await getYouTubeClient(channelDbId);
@@ -315,15 +630,13 @@ async function onStreamStarted(
     }
   }
 
-  // ── Step 3: Post opening pinned message to live chat ─────────────────────
+  // ── Step 3: Post opening pinned message ───────────────────────────────────
   let pinnedPosted = false;
   if (liveChatId && channelDbId > 0 && prep?.pinnedMessage) {
     try {
       const yt = await getYouTubeClient(channelDbId);
       pinnedPosted = await postChatMessage(yt, userId, liveChatId, prep.pinnedMessage);
-      if (pinnedPosted) {
-        logger.info(`[Director] Opening pinned message posted to live chat`);
-      }
+      if (pinnedPosted) logger.info(`[Director] Opening pinned message posted to live chat`);
     } catch (err: any) {
       logger.warn(`[Director] Pinned message post failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
     }
@@ -340,9 +653,13 @@ async function onStreamStarted(
     broadcastId,
     startedAt: new Date(),
     beatsPosted: 0,
-    lastBeatAt: Date.now(), // reset after INITIAL_BEAT_OFFSET_MS guard
-    nextBeatGapMs:
-      BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS)),
+    lastBeatAt: Date.now(),
+    nextBeatGapMs: BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS)),
+    viewerHistory: [],
+    titleRefreshCount: 0,
+    lastAnalyticsAt: 0, // 0 = run on first cycle that passes the 20-min gate
+    currentTitle: liveTitle,
+    peakViewers: 0,
     cycleTimer: null,
     afterStreamFired: false,
   };
@@ -357,16 +674,14 @@ async function onStreamStarted(
   sendSSEEvent(userId, "director_heartbeat", {
     type: "session_started",
     streamId,
-    streamTitle,
+    streamTitle: liveTitle,
     gameName,
     prepGenerated: !!prep,
     metadataApplied: !!(broadcastId && prep?.title),
     pinnedMessagePosted: pinnedPosted,
   });
 
-  logger.info(
-    `[Director] Production session started — beats every ~30 min, heartbeat every 5 min`,
-  );
+  logger.info(`[Director] Production session started — analytics every 20 min, beats every ~30 min`);
 }
 
 async function onStreamEnded(userId: string, streamId?: number): Promise<void> {
@@ -380,7 +695,8 @@ async function onStreamEnded(userId: string, streamId?: number): Promise<void> {
     activeSessions.delete(userId);
 
     logger.info(
-      `[Director] Session ended — duration=${durMin}min beats=${session.beatsPosted} streamId=${session.streamId}`,
+      `[Director] Session ended — duration=${durMin}min beats=${session.beatsPosted} ` +
+      `titleRefreshes=${session.titleRefreshCount} peakViewers=${session.peakViewers} streamId=${session.streamId}`,
     );
 
     sendSSEEvent(userId, "director_heartbeat", {
@@ -388,16 +704,19 @@ async function onStreamEnded(userId: string, streamId?: number): Promise<void> {
       streamId: session.streamId,
       durationMin: durMin,
       beatsPosted: session.beatsPosted,
+      titleRefreshCount: session.titleRefreshCount,
+      peakViewers: session.peakViewers,
       isActive: false,
     });
   }
 
-  // Fire afterStreamCopilot — queues Shorts from clip moments, long-form, hype wave
   const resolvedStreamId = streamId ?? session?.streamId ?? 0;
   const alreadyFired = session?.afterStreamFired ?? false;
 
   if (resolvedStreamId > 0 && !alreadyFired) {
     if (session) session.afterStreamFired = true;
+
+    // ── afterStreamCopilot — queues Shorts, long-form, fires hype wave ──────
     try {
       const { afterStreamCopilot } = await import("./youtube-live-copilot");
       const result: any = await afterStreamCopilot(userId, resolvedStreamId);
@@ -406,10 +725,16 @@ async function onStreamEnded(userId: string, streamId?: number): Promise<void> {
         `shorts=${result?.shortsQueued ?? "?"} lf=${result?.longFormQueued ?? "?"} moments=${result?.clipMomentsFound ?? "?"}`,
       );
     } catch (err: any) {
-      logger.warn(
-        `[Director] afterStreamCopilot failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`,
-      );
+      logger.warn(`[Director] afterStreamCopilot failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
     }
+
+    // ── Post-stream VOD optimization — thumbnail + analytics-driven title ────
+    // Fire after a short delay to avoid competing with afterStreamCopilot's AI calls
+    setTimeout(() => {
+      runPostStreamVodOptimization(userId, resolvedStreamId, session).catch((err: any) => {
+        logger.warn(`[Director] VOD optimization failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+      });
+    }, 90_000); // 90 s delay
   }
 }
 
@@ -422,15 +747,20 @@ export function getDirectorStatus(userId: string) {
   return {
     isActive: true,
     streamId: session.streamId,
-    streamTitle: session.streamTitle,
+    streamTitle: session.currentTitle,
     gameName: session.gameName,
     durationMin: Math.round(durMs / 60_000),
     beatsPosted: session.beatsPosted,
+    titleRefreshCount: session.titleRefreshCount,
+    peakViewers: session.peakViewers,
+    viewerHistoryLength: session.viewerHistory.length,
     nextBeatInMin: Math.max(
       0,
-      Math.round(
-        (session.lastBeatAt + session.nextBeatGapMs - Date.now()) / 60_000,
-      ),
+      Math.round((session.lastBeatAt + session.nextBeatGapMs - Date.now()) / 60_000),
+    ),
+    nextAnalyticsInMin: Math.max(
+      0,
+      Math.round((session.lastAnalyticsAt + ANALYTICS_INTERVAL_MS - Date.now()) / 60_000),
     ),
     liveChatId: session.liveChatId ? "present" : "absent",
     broadcastId: session.broadcastId ? "present" : "absent",
@@ -442,13 +772,9 @@ export function initLiveStreamDirector(): void {
   eventsRegistered = true;
 
   onAgentEvent("stream.started", (event) => {
-    // Small delay — let the live detection system finish caching the liveChatId
-    // before we try to post to it (live-chat-agent uses 30s delay too).
     setTimeout(() => {
       onStreamStarted(event.userId, event.payload ?? {}).catch((err: any) => {
-        logger.error(
-          `[Director] onStreamStarted error: ${String(err?.message || err).slice(0, 100)}`,
-        );
+        logger.error(`[Director] onStreamStarted error: ${String(err?.message || err).slice(0, 100)}`);
       });
     }, 45_000);
   });
@@ -456,11 +782,9 @@ export function initLiveStreamDirector(): void {
   onAgentEvent("stream.ended", (event) => {
     const streamId = (event.payload as any)?.streamId ?? undefined;
     onStreamEnded(event.userId, streamId).catch((err: any) => {
-      logger.error(
-        `[Director] onStreamEnded error: ${String(err?.message || err).slice(0, 100)}`,
-      );
+      logger.error(`[Director] onStreamEnded error: ${String(err?.message || err).slice(0, 100)}`);
     });
   });
 
-  logger.info("[Director] Live stream director initialized — watching for stream events");
+  logger.info("[Director] Live stream director initialized — analytics + title refresh + VOD optimization active");
 }
