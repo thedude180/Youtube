@@ -75,7 +75,9 @@ export function initSelfImprovementEngine(): ReturnType<typeof setInterval> {
     runImprovementCycle().catch(err =>
       logger.error("Initial improvement cycle failed", { error: String(err).slice(0, 200) })
     );
-  }, 10 * 60_000);
+  // Pushed from 10 min → 22 min: back-catalog + orchestrator converge at T+10-20 min
+  // and flood the 4-slot AI queue; wait until that window clears before first run.
+  }, 22 * 60_000);
 
   improvementTimer = setInterval(() => {
     runImprovementCycle().catch(err =>

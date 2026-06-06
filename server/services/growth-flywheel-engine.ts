@@ -87,7 +87,8 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runFlywheelCycle().catch(err =>
       logger.error("Initial flywheel cycle failed", { error: String(err).slice(0, 200) })
     );
-  }, 8 * 60_000);
+  // Pushed from 8 min → 22 min: avoids T+10-20 min AI queue saturation window
+  }, 22 * 60_000);
 
   flywheelTimer = setInterval(() => {
     runFlywheelCycle().catch(err =>
@@ -99,7 +100,8 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runMemoryConsolidation().catch(err =>
       logger.error("Memory consolidation failed", { error: String(err).slice(0, 200) })
     );
-  }, 900_000);
+  // 15 min → 27 min: keep well clear of the T+10-20 min AI queue saturation window
+  }, 27 * 60_000);
 
   memoryTimer = setInterval(() => {
     runMemoryConsolidation().catch(err =>
@@ -111,7 +113,8 @@ export function initGrowthFlywheelEngine(): ReturnType<typeof setInterval>[] {
     runCompetitiveIntelScan().catch(err =>
       logger.error("Competitive intel scan failed", { error: String(err).slice(0, 200) })
     );
-  }, 12 * 60_000);
+  // 12 min → 25 min: keeps competitive-intel scan out of the crowded boot window
+  }, 25 * 60_000);
 
   competitiveTimer = setInterval(() => {
     runCompetitiveIntelScan().catch(err =>

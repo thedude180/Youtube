@@ -531,6 +531,10 @@ Return ONLY valid JSON:
 
     return plan;
   } catch (err: any) {
+    // Re-throw queue-full so the caller can back off without consuming stream minutes
+    if (err?.message?.includes("AI queue full") || err?.message?.includes("queue full")) {
+      throw err;
+    }
     logger.error("Failed to generate batch plan", { error: err.message, batchNumber });
     return null;
   }
@@ -1074,7 +1078,22 @@ export async function runDailyContentGeneration(): Promise<void> {
             }
           }
 
-          const plan = await generateBatchPlan(currentStreamData, batchNumber, userId);
+          let plan: ContentPlan | null = null;
+          try {
+            plan = await generateBatchPlan(currentStreamData, batchNumber, userId);
+          } catch (planErr: any) {
+            if (planErr?.message?.includes("AI queue full") || planErr?.message?.includes("queue full")) {
+              // Queue is saturated — pause and retry the same segment without consuming minutes
+              logger.warn("AI queue full during stream exhaust — backing off 30s", {
+                userId,
+                streamId: streamData.stream.id,
+              });
+              await new Promise(r => setTimeout(r, 30_000));
+              continue;
+            }
+            // Unexpected error — treat same as a null plan
+            logger.error("Batch plan threw unexpectedly", { userId, error: planErr?.message });
+          }
           if (!plan) {
             consecutiveFailures++;
             if (consecutiveFailures >= 3) {
