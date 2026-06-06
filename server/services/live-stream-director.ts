@@ -99,7 +99,8 @@ const INITIAL_BEAT_OFFSET_MS         = 20 * 60 * 1000;  // silent first 20 min
 const ANALYTICS_INTERVAL_MS          = 20 * 60 * 1000;  // viewer check every 20 min
 const MIN_TITLE_REFRESH_INTERVAL_MS  = 60 * 60 * 1000;  // min 1 h between title refreshes (no hard cap — works for 12h+ streams)
 const VIEWER_HISTORY_MAX_SAMPLES     = 72;               // 72 × 20 min = 24 h ring buffer
-const VIEWER_DROP_THRESHOLD          = 0.80;             // >20% drop triggers a title refresh
+const VIEWER_DROP_THRESHOLD          = 0.80;             // >20% drop triggers a recovery refresh
+const VIRAL_SURGE_THRESHOLD          = 1.50;             // ≥50% growth vs 40 min ago = riding the wave
 const MIN_STREAM_AGE_FOR_REFRESH_MS  = 30 * 60 * 1000;  // no refresh in first 30 min
 
 const activeSessions = new Map<string, DirectorSession>();
@@ -239,6 +240,44 @@ Rewrite the title to attract more clicks and viewers. Rules:
   }
 }
 
+async function generateViralSurgeTitle(
+  gameName: string,
+  currentTitle: string,
+  currentViewers: number,
+  prevViewers: number,
+  durMin: number,
+): Promise<string | null> {
+  try {
+    const growthPct = Math.round(((currentViewers - prevViewers) / Math.max(prevViewers, 1)) * 100);
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 80,
+      temperature: 0.9,
+      messages: [{
+        role: "user",
+        content: `You manage a YouTube live stream title for a no-commentary PS5 ${sanitizeForPrompt(gameName, 50)} channel.
+
+The stream is SURGING right now — viewership just jumped +${growthPct}% in 40 minutes (${prevViewers} → ${currentViewers} viewers).
+Current title: "${sanitizeForPrompt(currentTitle, 120)}"
+Stream has been live ${durMin} minutes.
+
+Rewrite the title to ride this momentum and convert the algorithm's push into new subscribers. Rules:
+- Under 100 characters
+- Include the game name (${sanitizeForPrompt(gameName, 30)})
+- Convey that something exciting is happening RIGHT NOW (e.g. "this session is going crazy", "momentum building", "on a run", "can't stop", "insane form", a specific hype stat if relevant)
+- Energy should feel genuine, not manufactured — this is real growth happening live
+- Do NOT start with "LIVE" — YouTube already shows that badge
+- Output ONLY the new title, nothing else`,
+      }],
+    });
+    const title = resp.choices[0]?.message?.content?.trim();
+    if (title && title.length > 5 && title.length <= 100) return title;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function checkViewerMetrics(session: DirectorSession): Promise<void> {
   const now = Date.now();
   if (now - session.lastAnalyticsAt < ANALYTICS_INTERVAL_MS) return;
@@ -270,79 +309,98 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
     `refreshes: ${session.titleRefreshCount}, cooldown: ${cooldownRemainMin}min)`,
   );
 
+  const isSurging  = prevViewers > 5 && viewers >= prevViewers * VIRAL_SURGE_THRESHOLD;
+  const isDeclining = prevViewers > 5 && viewers < prevViewers * VIEWER_DROP_THRESHOLD;
+
   sendSSEEvent(session.userId, "director_heartbeat", {
     type: "viewer_update",
     streamId: session.streamId,
     concurrentViewers: viewers,
     peakViewers: session.peakViewers,
-    viewerTrend: prevViewers > 0 && viewers < prevViewers * VIEWER_DROP_THRESHOLD ? "declining" : "stable",
+    viewerTrend: isSurging ? "surging" : isDeclining ? "declining" : "stable",
     titleRefreshCount: session.titleRefreshCount,
+    cooldownRemainMin,
   });
 
-  // Title refresh — only if:
-  //   • stream has been live > 30 min
-  //   • at least 1 h since the last refresh (no hard cap — works for 12h+ streams)
-  //   • viewers are declining (>20% drop vs 40 min ago)
-  //   • quota is healthy
-  if (
+  // Bail out if either shared gate is not met
+  const canRefresh =
     streamAge >= MIN_STREAM_AGE_FOR_REFRESH_MS &&
     sinceLastRefresh >= MIN_TITLE_REFRESH_INTERVAL_MS &&
-    session.broadcastId &&
-    prevViewers > 5 &&
-    viewers < prevViewers * VIEWER_DROP_THRESHOLD
-  ) {
-    const durMin = Math.round(streamAge / 60_000);
-    const newTitle = await generateOptimizedTitle(
+    !!session.broadcastId;
+
+  if (!canRefresh) return;
+
+  const durMin = Math.round(streamAge / 60_000);
+  let newTitle: string | null = null;
+  let trigger: "viral_surge" | "viewer_decline" | null = null;
+
+  if (isSurging) {
+    // Ride the wave — generate a momentum-amplifying title
+    newTitle = await generateViralSurgeTitle(
+      session.gameName,
+      session.currentTitle,
+      viewers,
+      prevViewers,
+      durMin,
+    );
+    if (newTitle) trigger = "viral_surge";
+  } else if (isDeclining) {
+    // Recovery — generate a curiosity/urgency title to pull viewers back
+    newTitle = await generateOptimizedTitle(
       session.gameName,
       session.currentTitle,
       viewers,
       durMin,
       prevViewers,
     );
+    if (newTitle) trigger = "viewer_decline";
+  }
 
-    if (newTitle && newTitle !== session.currentTitle) {
+  if (newTitle && trigger && newTitle !== session.currentTitle) {
+    try {
+      const yt = await getYouTubeClient(session.channelDbId);
+
+      // Fetch current description — only title changes, description is preserved
+      let currentDescription = "";
       try {
-        const yt = await getYouTubeClient(session.channelDbId);
+        const videoRes = await yt.videos.list({
+          part: ["snippet"],
+          id: [session.broadcastId!],
+        });
+        await trackQuotaUsage(session.userId, "read").catch(() => {});
+        currentDescription = videoRes.data.items?.[0]?.snippet?.description ?? "";
+      } catch { /* non-fatal */ }
 
-        // Get current description to keep it — only title changes
-        let currentDescription = "";
-        try {
-          const videoRes = await yt.videos.list({
-            part: ["snippet"],
-            id: [session.broadcastId],
-          });
-          await trackQuotaUsage(session.userId, "read").catch(() => {});
-          currentDescription = videoRes.data.items?.[0]?.snippet?.description ?? "";
-        } catch { /* non-fatal */ }
+      const updated = await applyBroadcastMetadata(
+        yt,
+        session.userId,
+        session.broadcastId!,
+        newTitle,
+        currentDescription,
+      );
 
-        const updated = await applyBroadcastMetadata(
-          yt,
-          session.userId,
-          session.broadcastId,
-          newTitle,
-          currentDescription,
+      if (updated) {
+        session.titleRefreshCount++;
+        session.lastTitleRefreshAt = Date.now();
+        const oldTitle = session.currentTitle;
+        session.currentTitle = newTitle;
+        logger.info(
+          `[Director] Title refresh #${session.titleRefreshCount} [${trigger}]: ` +
+          `"${oldTitle.slice(0, 50)}" → "${newTitle.slice(0, 50)}"`,
         );
-
-        if (updated) {
-          session.titleRefreshCount++;
-          session.lastTitleRefreshAt = Date.now(); // reset 1h cooldown
-          const oldTitle = session.currentTitle;
-          session.currentTitle = newTitle;
-          logger.info(
-            `[Director] Title refresh #${session.titleRefreshCount}: "${oldTitle.slice(0, 50)}" → "${newTitle.slice(0, 50)}"`,
-          );
-          sendSSEEvent(session.userId, "director_heartbeat", {
-            type: "title_refreshed",
-            streamId: session.streamId,
-            newTitle,
-            refreshCount: session.titleRefreshCount,
-            triggerViewers: viewers,
-            prevViewers,
-          });
-        }
-      } catch (err: any) {
-        logger.warn(`[Director] Title refresh failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+        sendSSEEvent(session.userId, "director_heartbeat", {
+          type: "title_refreshed",
+          streamId: session.streamId,
+          trigger,
+          newTitle,
+          oldTitle,
+          refreshCount: session.titleRefreshCount,
+          currentViewers: viewers,
+          prevViewers,
+        });
       }
+    } catch (err: any) {
+      logger.warn(`[Director] Title refresh failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
     }
   }
 }
