@@ -72,7 +72,26 @@ async function recordSEOKnowledge(userId: string, videoId: number, originalTitle
 }
 
 export class VODSEOOptimizer {
+  // Concurrency guard: only one optimize() runs at a time.
+  // Each call uses 2 AI background slots (primary generation + critiqueAndRefine).
+  // Without this lock, 2 concurrent calls permanently hold all 4 background
+  // AI slots, starving every other service in the system.
+  private _running = false;
+
   async optimize(userId: string, videoId: number): Promise<void> {
+    if (this._running) {
+      logger.debug(`[VODSEOOptimizer] Skipping video ${videoId} — another optimization is already in-flight`);
+      return;
+    }
+    this._running = true;
+    try {
+      await this._doOptimize(userId, videoId);
+    } finally {
+      this._running = false;
+    }
+  }
+
+  private async _doOptimize(userId: string, videoId: number): Promise<void> {
     const autonomous = await isAutonomousMode(userId);
     if (!autonomous) return;
 

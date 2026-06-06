@@ -140,13 +140,15 @@ let lastGrindTotals:     { clipsQueued: number; longFormQueued: number } = { cli
 /** Probe current YouTube queue depth without touching the YouTube API. */
 async function getGrindQueueDepth(): Promise<number> {
   try {
-    const now = new Date();
+    // Count ALL pending/scheduled items (including past-due ones).
+    // Previously filtered scheduledAt >= now, which excluded overdue items and
+    // made the grinder see an empty queue even when 350+ items were waiting —
+    // triggering URGENT mode (20-22 min) instead of HEALTHY (60-70 min).
     const r = await db.select({ n: count() })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.targetPlatform, "youtube"),
         inArray(autopilotQueue.status, ["scheduled", "pending"]),
-        gte(autopilotQueue.scheduledAt, now),
       ));
     return Number(r[0]?.n ?? 0);
   } catch {
@@ -1257,10 +1259,12 @@ export function startContentGrinder(): void {
         try {
           const result = await runGrindCycle();
           lastGrindTotals = { clipsQueued: result.clipsQueued, longFormQueued: result.longFormQueued };
-          // If this cycle generated significant content, re-run soon so the
-          // publishing pipeline always has fresh material queued up.
-          const madeProgress = result.clipsQueued + result.longFormQueued > 5;
-          scheduleNextGrind(madeProgress ? grindJitter(5 * 60_000, 60_000) : undefined);
+          // Always use the adaptive interval based on queue depth.
+          // The former 5-min immediate follow-up (when >5 clips were produced)
+          // caused the grinder to re-fire at T+9min, converging with the catalog
+          // sync at T+10min and the back-catalog runner at T+10-20min — this
+          // convergence was the root cause of the repeated OOM crashes.
+          scheduleNextGrind();
         } finally {
           grinderRunning = false;
         }

@@ -888,7 +888,7 @@ export function startCatalogSync(): void {
     runCatalogCycle().catch(err =>
       logger.warn("Initial catalog cycle failed", { error: String(err).substring(0, 200) })
     );
-  }, 600_000); // 10 minutes: let all engines stabilize before first heavy sync
+  }, 2_400_000); // 40 minutes: clear of grinder first run (T+4min), back-catalog runner (T+10-20min), and grinder adaptive follow-up (T+24-26min) to prevent OOM convergence
 
   syncInterval = setInterval(() => {
     runCatalogCycle().catch(err =>
