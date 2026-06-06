@@ -55,8 +55,9 @@ const INTERVAL_HEALTHY_MS  = jitter(22 * 60 * 60_000,  2 * 60 * 60_000); // ~22-
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-let startupTimer: ReturnType<typeof setTimeout> | null = null;
-let repeatTimer:  ReturnType<typeof setTimeout> | null = null;
+let startupTimer:   ReturnType<typeof setTimeout>  | null = null;
+let repeatTimer:    ReturnType<typeof setTimeout>  | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 let paused = false;
 let lastRunAt:      Date | null = null;
@@ -294,6 +295,16 @@ export function initBackCatalogRunner(): void {
 
     scheduleNextRun(); // kick off adaptive repeat
   }, STARTUP_DELAY_MS);
+
+  // Safety-net setInterval — guarantees the daily cycle fires even if the adaptive
+  // recursive setTimeout ever stalls (e.g. an uncaught rejection escapes the finally block).
+  // Fires every 24 h and forces a re-arm if nextRunAt is already in the past.
+  heartbeatTimer = setInterval(async () => {
+    if (paused || running) return;
+    if (nextRunAt && nextRunAt.getTime() > Date.now()) return; // adaptive timer is ahead — nothing to do
+    logger.warn("[BackCatalogRunner] Daily heartbeat: adaptive timer appears stalled — re-arming scheduleNextRun");
+    scheduleNextRun();
+  }, 24 * 60 * 60_000);
 }
 
 export function stopBackCatalogRunner(): void {
@@ -304,6 +315,10 @@ export function stopBackCatalogRunner(): void {
   if (repeatTimer) {
     clearTimeout(repeatTimer);
     repeatTimer = null;
+  }
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
   }
   logger.info("[BackCatalogRunner] Stopped");
 }

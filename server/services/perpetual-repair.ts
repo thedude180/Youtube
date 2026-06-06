@@ -106,6 +106,8 @@ async function runRepairCycle(): Promise<void> {
     // auto-fix-engine sets permanent_fail after repeated failures, but the
     // underlying cause (bad token, missing connection, rate limit) usually
     // resolves within hours. Reset them once per day so they get another chance.
+    // EXCEPTION: items that failed due to a permanently missing source (stream not
+    // found, no channel connected) are truly unrecoverable — skip those.
     const permanentFailCutoff = new Date(Date.now() - 24 * 60 * 60_000);
     const permanentFailIds = await db
       .select({ id: autopilotQueue.id })
@@ -113,6 +115,9 @@ async function runRepairCycle(): Promise<void> {
       .where(and(
         eq(autopilotQueue.status, "permanent_fail" as any),
         lt(autopilotQueue.createdAt, permanentFailCutoff),
+        sql`(${autopilotQueue.errorMessage} IS NULL
+          OR (${autopilotQueue.errorMessage} NOT LIKE '%Source stream not found%'
+          AND ${autopilotQueue.errorMessage} NOT LIKE '%No YouTube channel connected%'))`,
       ))
       .limit(50);
     if (permanentFailIds.length > 0) {

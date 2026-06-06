@@ -189,16 +189,17 @@ async function stage4YouTubeConnectionHealth(): Promise<StageResult> {
   try {
     const { db } = await import("../db");
     const { channels } = await import("@shared/schema");
-    const { isNull, or } = await import("drizzle-orm");
-
-    // Find channels with no tokens
+    const { isNull, or, and: andOp, eq: eqOp } = await import("drizzle-orm");
     const disconnectedChannels = await db
       .select({ id: channels.id, channelId: channels.channelId })
       .from(channels)
       .where(
-        or(
-          isNull(channels.accessToken),
-          isNull(channels.refreshToken),
+        andOp(
+          eqOp(channels.platform, "youtube"),
+          or(
+            isNull(channels.accessToken),
+            isNull(channels.refreshToken),
+          ),
         ),
       );
 
@@ -207,17 +208,13 @@ async function stage4YouTubeConnectionHealth(): Promise<StageResult> {
       warnings.push(`Channels without OAuth tokens: ${ids} — automation paused for these`);
       log.warn(`[Stage 4] ${disconnectedChannels.length} disconnected channel(s): ${ids}`);
 
-      // Update their status
+      // Mark them needs_reconnect so automation skips them
       try {
         const { eq } = await import("drizzle-orm");
         for (const ch of disconnectedChannels) {
-          await db.execute(
-            (await import("drizzle-orm")).sql.raw(
-              `UPDATE channels SET status='needs_reconnect', automation_paused=true WHERE id=${ch.id}`,
-            ),
-          );
+          await db.update(channels).set({ needsReconnect: true }).where(eq(channels.id, ch.id));
         }
-      } catch { /* column may not exist */ }
+      } catch { /* non-fatal — best-effort flag */ }
     }
   } catch (err: any) {
     log.warn(`[Stage 4] YouTube connection check error (non-fatal): ${err?.message}`);

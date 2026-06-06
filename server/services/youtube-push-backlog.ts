@@ -198,7 +198,12 @@ export async function processBacklog(): Promise<{
         const beforeMeta = (beforeVideo?.metadata as any) || {};
 
         const { updateYouTubeVideo } = await import("../youtube");
+        const { sanitizeYouTubeTags } = await import("../lib/youtube-keyword-sanitizer");
         const updates = item.pendingUpdates as any;
+        // Sanitize tags before every API call — prevents "invalid video keywords" permanent failures
+        if (Array.isArray(updates.tags) && updates.tags.length > 0) {
+          updates.tags = sanitizeYouTubeTags(updates.tags);
+        }
         // opType="backlogWrite" → uses the backlog daily cap bucket; internal tracking handles it
         await updateYouTubeVideo(item.channelId, item.youtubeVideoId, updates, "backlogWrite");
 

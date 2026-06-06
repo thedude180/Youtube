@@ -103,7 +103,7 @@ export default function DemoLanding() {
           CreatorOS automates the complete YouTube publishing workflow — from catalog
           ingestion and AI clip creation to scheduled uploads, playlist management,
           performance learning, and live stream monitoring. All API calls serve a
-          single verified channel owner (ET Gaming 247).
+          single verified channel owner (ET Gaming 274).
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">

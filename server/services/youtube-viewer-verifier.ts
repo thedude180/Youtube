@@ -10,7 +10,7 @@
 
 import { db } from "../db";
 import { autopilotQueue, channels as channelsTable, systemSettings } from "@shared/schema";
-import { eq, and, gte, desc } from "drizzle-orm";
+import { eq, and, gte, desc, isNotNull } from "drizzle-orm";
 import { fetchChannelVideosViaRss, getAuthenticatedClient } from "../youtube";
 import { google } from "googleapis";
 import { isQuotaBreakerTripped, canAffordOperation, trackQuotaUsage } from "./youtube-quota-tracker";
@@ -58,7 +58,11 @@ export async function runViewerVerification(userId: string): Promise<ViewerVerif
   const [channel] = await db
     .select()
     .from(channelsTable)
-    .where(and(eq(channelsTable.userId, userId), eq(channelsTable.platform, "youtube")))
+    .where(and(
+      eq(channelsTable.userId, userId),
+      eq(channelsTable.platform, "youtube"),
+      isNotNull(channelsTable.accessToken),   // skip disconnected/demo channels
+    ))
     .limit(1);
 
   const youtubeChannelId: string = (channel as any)?.channelId ?? "";

@@ -215,6 +215,18 @@ export async function auditTokensOnBoot(): Promise<TokenHealthReport[]> {
     const reports: TokenHealthReport[] = [];
 
     for (const ch of channels.rows) {
+      // Skip channels already permanently flagged with zero tokens — nothing to recover.
+      // The flag clears automatically via writeTokensAtomic when the user reconnects via OAuth.
+      if (ch.needs_reconnect && !ch.access_token && !ch.refresh_token) {
+        reports.push({
+          channelId: ch.id,
+          channelName: ch.channel_name,
+          status: "null_no_backup",
+          action: "Already marked needs_reconnect — no primary tokens, skipping redundant re-check",
+        });
+        continue;
+      }
+
       const isNull = !ch.access_token || !ch.refresh_token;
       const expiresAt = ch.token_expires_at ? new Date(ch.token_expires_at) : null;
       const expiresInH = expiresAt

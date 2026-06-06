@@ -227,7 +227,7 @@ async function _researchThumbnailsForGame(userId: string, gameName: string): Pro
 If any reference image title or source appears to be about a DIFFERENT game, IGNORE IT COMPLETELY — do not let it influence your patterns, colour schemes, or recommendations.
 Only extract patterns that authentically apply to "${sanitizeForPrompt(gameName)}"'s art style, characters, and environments.
 
-CHANNEL CONTEXT — ET Gaming 247:
+CHANNEL CONTEXT — ET Gaming 274:
 - PS5 gameplay, no face cam, no commentary
 - Brand aesthetic: cinematic dark backgrounds, vivid warm/neon accent colours (navy/charcoal base + orange, electric blue, or gold highlights)
 - Thumbnails rely entirely on in-game visuals — no creator face

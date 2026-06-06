@@ -903,6 +903,22 @@ async function runJobInBackground(jobId: number): Promise<void> {
       });
     }
 
+    // Permanently cancel jobs where every listed platform is unsupported
+    // (e.g. old TikTok/Rumble jobs created before YouTube-only mode). These will
+    // always produce zero segments — no point retrying indefinitely.
+    if (jobSegments.length === 0 && platforms.length > 0) {
+      const unknownPlatforms = platforms.filter(p => !(PLATFORM_PROFILES as Record<string, unknown>)[p]);
+      logger.warn(
+        `[StreamEditor] Job ${jobId}: all ${platforms.length} platform(s) unknown ` +
+        `(${unknownPlatforms.join(", ")}) — permanently cancelling`,
+      );
+      await db.update(streamEditJobs).set({
+        status: "cancelled",
+        currentStage: `Cancelled — all platforms unsupported: ${unknownPlatforms.join(", ")}`,
+      }).where(eq(streamEditJobs.id, jobId));
+      return;
+    }
+
     const totalTasks     = jobSegments.length;
     let completedTasks   = 0;
     const outputFiles: Array<{
