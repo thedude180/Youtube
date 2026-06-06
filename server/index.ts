@@ -40,6 +40,7 @@ import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
 import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
 import { initChannelIntelligenceEngine, stopChannelIntelligenceEngine } from "./services/channel-intelligence-engine";
+import { startQueueRescheduler, stopQueueRescheduler } from "./services/autopilot-queue-rescheduler";
 import { startShortsPrepPipeline, stopShortsPrepPipeline } from "./services/shorts-prep-pipeline";
 import { startLongformPrepPipeline, stopLongformPrepPipeline } from "./services/longform-prep-pipeline";
 import { startQuotaAwarePublisher, stopQuotaAwarePublisher } from "./services/quota-aware-publisher";
@@ -3416,6 +3417,14 @@ httpServer.listen(
         logger.error("[Boot] initChannelIntelligenceEngine threw — intelligence engine will not run", { error: e?.message });
       }
 
+      // ── Autopilot Queue Rescheduler ───────────────────────────────────────────
+      // Runs every 30 min. Finds past-due `scheduled` items, groups them by
+      // game name (focus game first), and assigns new future slots so the
+      // schedule stays game-coherent instead of randomly scattered.
+      try { startQueueRescheduler(); } catch (e: any) {
+        logger.error("[Boot] startQueueRescheduler threw — rescheduler will not run", { error: e?.message });
+      }
+
       // ── Resurrection Engine (T+35s) ──────────────────────────────────────────
       // Scans for permanently_failed items across all pipeline tables and gives
       // them another chance after their cooldown window. Safe to start early.
@@ -4166,6 +4175,7 @@ httpServer.listen(
     stopYouTubeAIOrchestrator();
     stopPublishingWatchdog();
     stopChannelIntelligenceEngine();
+    stopQueueRescheduler();
     stopShortsPrepPipeline();
     stopLongformPrepPipeline();
     stopQuotaAwarePublisher();
