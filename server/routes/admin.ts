@@ -13,6 +13,7 @@ import { createLogger } from "../lib/logger";
 import { runChannelHygiene, getLastHygieneReport } from "../services/channel-hygiene";
 import { HOURLY_CAPS, DAILY_CAPS, getHourlyCapStatus, getDailyCapStatus, resetDailyTokenCounter, resetHourlyHitCount, invalidateModuleCapCache } from "../lib/token-hourly-cap";
 import { getMigrationHealth } from "../lib/startup-migrations";
+import { runMetadataCorrections, getMetadataCorrectionStatus } from "../services/youtube-metadata-corrector";
 
 const logger = createLogger("admin");
 export function registerAdminRoutes(app: Express) {
@@ -950,5 +951,32 @@ export function registerAdminRoutes(app: Express) {
       return res.json({ ok: true, status: "pending", message: "Migration check has not run yet — server may still be booting." });
     }
     res.json({ ok: true, ...health });
+  });
+
+  // ── Game metadata correction ──────────────────────────────────────────────────
+
+  app.get("/api/admin/youtube/game-correction-status", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const corrections = await getMetadataCorrectionStatus();
+      res.json({ ok: true, corrections });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+    }
+  });
+
+  app.post("/api/admin/youtube/correct-game-metadata", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const results = await runMetadataCorrections(userId);
+      const corrected = results.filter(r => r.status === "corrected").length;
+      const already   = results.filter(r => r.status === "already_done").length;
+      const errors    = results.filter(r => r.status === "error").length;
+      res.json({ ok: true, corrected, already_done: already, errors, results });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+    }
   });
 }

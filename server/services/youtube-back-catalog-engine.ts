@@ -31,6 +31,7 @@ import {
   streams,
   contentVaultBackups,
 } from "@shared/schema";
+import { extractGameForBackCatalog } from "./game-detection";
 import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not } from "drizzle-orm";
 
 // ── Permanently-failed vault ID cache ────────────────────────────────────────
@@ -285,8 +286,9 @@ export async function runBackCatalogImport(userId: string): Promise<{
             const isOver60Min = durationSec > LONG_FORM_MIN_SOURCE_SEC;
             const isVod = !!(ytv.title?.toLowerCase().match(/\bvod\b|stream replay|full stream|live replay/));
 
-            // Detect game name from title (best effort)
-            const gameName = extractGameName(ytv.title, ytv.tags ?? []);
+            // Detect game name using multi-signal detection (title + description + tags)
+            const gameName = extractGameForBackCatalog(ytv.title, ytv.description, ytv.tags)
+              ?? extractGameName(ytv.title, ytv.tags ?? []);
 
             // Check if already exists
             const [existing] = await db.select({ id: backCatalogVideos.id, viewCount: backCatalogVideos.viewCount })
@@ -386,22 +388,10 @@ function extractGameName(title: string, tags: string[]): string | null {
     }
   }
 
-  // Fall back to first tag only if it is clearly a game name (not a platform
-  // catch-all like "PS5", "Xbox", "Gaming", "gameplay").
-  const PLATFORM_GENERIC = new Set([
-    "ps5", "ps4", "xbox", "playstation", "gaming", "gameplay", "games",
-    "live", "stream", "shorts", "no commentary", "raw gameplay",
-  ]);
-  if (tags.length > 0) {
-    const firstTag = tags[0].trim();
-    if (
-      firstTag.length > 2 &&
-      firstTag.length < 50 &&
-      !PLATFORM_GENERIC.has(firstTag.toLowerCase())
-    ) {
-      return firstTag;
-    }
-  }
+  // No generic tag-based fallback — returning null is better than returning
+  // a wrong game name.  The multi-signal detector (extractGameForBackCatalog)
+  // runs first in importFromYouTube and only falls through to this function
+  // for additional keyword hints, not for a raw first-tag guess.
 
   return null;
 }
