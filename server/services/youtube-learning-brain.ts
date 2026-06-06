@@ -40,6 +40,7 @@ import {
 } from "./youtube-performance-learner";
 import { refreshSuccessDNA } from "../lib/success-dna";
 import { recordEngineKnowledge } from "./knowledge-mesh";
+import { runCohortAnalysis } from "./generation-cohort-tracker";
 
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
@@ -239,6 +240,18 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       await refreshSuccessDNA(userId);
     } catch (dnaErr: any) {
       logger.warn(`[Brain] refreshSuccessDNA failed (non-fatal): ${dnaErr.message?.slice(0, 120)}`);
+    }
+
+    // 9b. Measure generation-over-generation improvement velocity.
+    //     Groups content by ISO week and writes a velocity signal to masterKnowledgeBank
+    //     so the orchestrator knows if recent changes are actually helping or hurting.
+    try {
+      const velocity = await runCohortAnalysis(userId);
+      if (velocity.trend !== "insufficient_data") {
+        logger.info(`[Brain] Improvement velocity: ${velocity.trend} (${velocity.velocityPct != null ? (velocity.velocityPct > 0 ? "+" : "") + velocity.velocityPct + "%" : "no prev cohort"})`);
+      }
+    } catch (cohortErr: any) {
+      logger.debug(`[Brain] Cohort analysis skipped (non-fatal): ${cohortErr.message?.slice(0, 80)}`);
     }
 
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up

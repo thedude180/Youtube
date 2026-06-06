@@ -7,6 +7,7 @@ import { getOpenAIClientBackground } from "../lib/openai";
 import { storage } from "../storage";
 import { sendSSEEvent } from "../routes/events";
 import { recordHeartbeat } from "./engine-heartbeat";
+import { loadActivePrompt } from "../lib/prompt-loader";
 
 const logger = createLogger("catalog-content-engine");
 const openai = getOpenAIClientBackground();
@@ -76,7 +77,7 @@ Analyze the provided catalog and return ONLY valid JSON in this exact format:
   ]
 }`;
 
-async function aiAnalyzeCatalog(videos: any[]): Promise<CatalogOpportunity[]> {
+async function aiAnalyzeCatalog(videos: any[], evolvedSystemPrompt?: string | null): Promise<CatalogOpportunity[]> {
   try {
     const videoSummary = videos.map(v => ({
       title: v.title,
@@ -88,11 +89,15 @@ async function aiAnalyzeCatalog(videos: any[]): Promise<CatalogOpportunity[]> {
         : null,
     }));
 
+    // Use evolved system prompt from prompt-evolution-engine if available,
+    // otherwise fall back to the hardcoded JAMIE_SYSTEM_PROMPT.
+    const systemContent = evolvedSystemPrompt ?? JAMIE_SYSTEM_PROMPT;
+
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       max_completion_tokens: 4000,
       messages: [
-        { role: "system", content: JAMIE_SYSTEM_PROMPT },
+        { role: "system", content: systemContent },
         {
           role: "user",
           content: `Analyze this YouTube catalog and identify the top ${MAX_OPPORTUNITIES_PER_CYCLE} repurposing opportunities. Return valid JSON matching your output format.\n\nCATALOG:\n${JSON.stringify(sanitizeObjectForPrompt(videoSummary), null, 2)}`,
@@ -186,7 +191,13 @@ export async function runCatalogCycle(userId: string): Promise<void> {
     logger.info(`[${userId}] Analyzing catalog of ${allVideos.length} videos for repurposing opportunities`);
     sendSSEEvent(userId, "catalog-engine", { status: "analyzing", videoCount: allVideos.length });
 
-    const opportunities = await aiAnalyzeCatalog(allVideos);
+    // Load evolved "content_strategy" prompt if the prompt-evolution-engine has
+    // improved it. Falls back to the hardcoded JAMIE_SYSTEM_PROMPT if not yet evolved.
+    const evolvedPrompt = await loadActivePrompt("content_strategy", {})
+      .then(p => p.systemPrompt)
+      .catch(() => null);
+
+    const opportunities = await aiAnalyzeCatalog(allVideos, evolvedPrompt);
     if (opportunities.length === 0) {
       logger.info(`[${userId}] No opportunities identified this cycle`);
       return;

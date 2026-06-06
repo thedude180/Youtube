@@ -7,6 +7,8 @@ import { executeRoutedAICall } from "./ai-model-router";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { buildDescription, reformatRawDescription, type DescriptionParts } from "../lib/description-formatter";
 import { getUserChannelLinks } from "../content-variation-engine";
+import { loadActivePrompt } from "../lib/prompt-loader";
+import { critiqueAndRefine } from "./recursive-critique-loop";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -145,13 +147,36 @@ RULES:
 
       const prompt = await withCreatorVoice(userId, basePrompt);
 
+      // Load evolved system prompt (written by prompt-evolution-engine every 90 min).
+      // Falls back to hardcoded string if no evolved version exists yet.
+      const evolvedSys = await loadActivePrompt("seo_optimization", {
+        systemPrompt: "You are an SEO expert for YouTube. Respond with valid JSON only.",
+      });
+      const systemMsg = evolvedSys.systemPrompt ?? "You are an SEO expert for YouTube. Respond with valid JSON only.";
+
       const aiResult = await executeRoutedAICall(
         { taskType: "vod_seo", userId, priority: "medium" },
-        "You are an SEO expert for YouTube. Respond with valid JSON only.",
+        systemMsg,
         prompt
       );
 
       const optimized = safeParseJSON(aiResult.content, {} as any);
+
+      // Recursive self-critique: the AI reviews its own generated title and improves it
+      // before we write it to the DB. Non-fatal — original is used if critique fails.
+      if (optimized.optimizedTitle) {
+        try {
+          const refined = await critiqueAndRefine(
+            { title: optimized.optimizedTitle, description: null, tags: optimized.tags },
+            `${safeGameName || "gaming"} YouTube SEO`,
+            userId,
+          );
+          if (refined.improved) {
+            logger.info(`[VODSEOOptimizer] Title refined by self-critique: "${refined.title.slice(0, 60)}"`);
+            optimized.optimizedTitle = refined.title;
+          }
+        } catch {}
+      }
 
       // Fetch actual social links from the DB so the footer has real URLs
       const channelLinks = await getUserChannelLinks(userId).catch(() => undefined);

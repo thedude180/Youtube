@@ -3722,6 +3722,7 @@ httpServer.listen(
         { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
+        { label: "generation-cohort-tracker",   fn: () => import("./services/generation-cohort-tracker").then(m => { backgroundIntervals.push(m.initCohortTracker()); }).catch(slog("initCohortTracker")) },
       ], 4_000);
     });
 
