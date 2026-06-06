@@ -129,10 +129,10 @@ async function evolveAllSystems(userId: string): Promise<void> {
   const systemHealth = await auditAllSystems(userId);
   const weakest = systemHealth.sort((a, b) => a.score - b.score);
 
-  for (const system of weakest.slice(0, 4)) {
+  for (const system of weakest.slice(0, 2)) {
     try {
       await improveSystem(userId, system);
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 8000));
     } catch (err: any) {
       logger.warn(`[${userId.substring(0, 8)}] Failed to improve ${sanitizeForPrompt(system.domain)}: ${err.message?.substring(0, 200)}`);
     }

@@ -585,6 +585,7 @@ export async function runThumbnailBackfillSweep(userId: string): Promise<{ proce
         eq(channels.platform, "youtube"),
         eq(channels.userId, userId),
         sql`${channels.accessToken} IS NOT NULL`,
+        sql`COALESCE(${channels.needsReconnect}, false) = false`,
       ));
 
     if (ytChannels.length === 0) return { processed, remaining: 0, quotaExhausted: false };
@@ -679,6 +680,13 @@ export async function generateThumbnailForNewVideo(userId: string, videoDbId: nu
 
     const youtubeId = meta.youtubeId;
     if (!youtubeId || !video.channelId) return false;
+
+    const [channelRow] = await db.select({ needsReconnect: channels.needsReconnect })
+      .from(channels).where(eq(channels.id, video.channelId)).limit(1);
+    if (channelRow?.needsReconnect) {
+      logger.info("Thumbnail generation skipped — channel needs reconnect", { channelId: video.channelId, videoDbId });
+      return false;
+    }
 
     let enrichedTitle = video.title;
     let enrichedDescription = video.description || "";

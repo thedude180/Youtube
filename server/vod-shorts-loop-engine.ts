@@ -141,7 +141,9 @@ async function runTitleOptimization(userId: string): Promise<any> {
   const underperformers = allVideos.filter(v => ((v.metadata as any)?.viewCount || 0) < avgViews * 0.7);
 
   let optimized = 0;
-  for (const video of underperformers.slice(0, 5)) {
+  for (let i = 0; i < underperformers.slice(0, 2).length; i++) {
+    const video = underperformers[i];
+    if (i > 0) await new Promise(r => setTimeout(r, 6000));
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -178,12 +180,16 @@ async function runTitleOptimization(userId: string): Promise<any> {
 }
 
 async function runDescriptionSeo(userId: string): Promise<any> {
-  const recentVideos = await getUserVideos(userId, desc(videos.createdAt), 5);
+  const recentVideos = await getUserVideos(userId, desc(videos.createdAt), 3);
 
   let optimized = 0;
+  let callIndex = 0;
   for (const video of recentVideos) {
     const meta = (video.metadata as any) || {};
     if (meta.descriptionSeoOptimized) continue;
+
+    if (callIndex > 0) await new Promise(r => setTimeout(r, 6000));
+    callIndex++;
 
     try {
       const response = await openai.chat.completions.create({

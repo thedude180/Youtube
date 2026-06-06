@@ -539,16 +539,26 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
 
   try {
     for (const youtubeId of DEAD_VIDEO_IDS) {
-      // 1) Upsert into content_vault_backups so clip-video-processor boot-skips it
-      await db.execute(sql`
-        INSERT INTO content_vault_backups (user_id, youtube_id, platform, content_type, status, download_error, created_at)
-        VALUES ('system', ${youtubeId}, 'youtube', 'video', 'failed',
-                ${"Permanently purged by migration010 — dev seed video, unreachable"}, NOW())
-        ON CONFLICT (youtube_id) DO UPDATE
-          SET status         = 'failed',
-              download_error = EXCLUDED.download_error
-          WHERE content_vault_backups.status != 'downloaded'
+      // 1) Upsert into content_vault_backups so clip-video-processor boot-skips it.
+      //    content_vault_backups.youtube_id has no unique constraint — use SELECT + conditional INSERT/UPDATE.
+      const existingVault = await db.execute(sql`
+        SELECT id FROM content_vault_backups WHERE youtube_id = ${youtubeId} LIMIT 1
       `);
+      if (existingVault.rows.length === 0) {
+        await db.execute(sql`
+          INSERT INTO content_vault_backups (user_id, youtube_id, platform, content_type, status, download_error, created_at)
+          VALUES ('system', ${youtubeId}, 'youtube', 'video', 'failed',
+                  ${"Permanently purged by migration010 — dev seed video, unreachable"}, NOW())
+        `);
+      } else {
+        await db.execute(sql`
+          UPDATE content_vault_backups
+          SET status         = 'failed',
+              download_error = ${"Permanently purged by migration010 — dev seed video, unreachable"}
+          WHERE youtube_id = ${youtubeId}
+            AND status != 'downloaded'
+        `);
+      }
 
       // 2) Hard-fail any autopilot_queue rows that reference this video in payload
       await db.execute(sql`

@@ -1834,9 +1834,15 @@ export async function processScheduledPosts() {
         const { classifyFailure, getAutoFixSummary } = await import("./auto-fix-engine");
         const failureCategory = classifyFailure(errorMsg, post.targetPlatform);
 
+        // Errors that indicate the source data is permanently gone — no point retrying
+        const isPermanentFailure =
+          errorMsg.includes("Source stream not found") ||
+          errorMsg.includes("source_stream_missing") ||
+          errorMsg.includes("No YouTube channel connected");
+
         await db.update(autopilotQueue)
           .set({
-            status: "failed",
+            status: isPermanentFailure ? "permanent_fail" : "failed",
             errorMessage: errorMsg,
             metadata: { ...((post.metadata as any) || {}), failureCategory },
           })
