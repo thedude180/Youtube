@@ -417,8 +417,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       //   0 — live stream clips (highlights, replays, copilot-generated) — always first
       //   1 — new gameplay Shorts (youtube_short, platform_short, vod-short) — current content
       //   2 — back-catalog auto-clips — after new content is cleared
-      // Within each tier, earliest scheduled_at wins.
-      // Within the same scheduledAt slot, highest viralScore (0–100) wins.
+      // Within each content-type tier, BF6 items come before all other games.
+      // Within the same game+tier, earliest scheduled_at wins.
+      // Within the same slot, highest viralScore (0–100) wins.
       .orderBy(
         sql`CASE
           WHEN ${autopilotQueue.metadata}->>'isStreamHighlight' = 'true'
@@ -428,6 +429,12 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           WHEN ${autopilotQueue.type} IN ('youtube_short', 'platform_short', 'vod-short')
           THEN 1
           ELSE 2
+        END`,
+        sql`CASE
+          WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%battlefield 6%'
+            OR LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%bf6%'
+          THEN 0
+          ELSE 1
         END`,
         autopilotQueue.scheduledAt,
         sql`COALESCE((${autopilotQueue.metadata}->>'viralScore')::float, 50) DESC`,

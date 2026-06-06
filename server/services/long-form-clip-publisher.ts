@@ -176,10 +176,17 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       // Priority order:
       //   0 — recent live-stream VOD uploads (vod-long-form) — new content first
       //   1 — back-catalog segmented clips (auto-clip long-form) — after new content
-      // Within each tier, earliest scheduled_at wins.
+      // Within each content-type tier, BF6 items come before all other games.
+      // Within the same game+tier, earliest scheduled_at wins.
       .orderBy(
         sql`CASE
           WHEN ${autopilotQueue.type} = 'vod-long-form' THEN 0
+          ELSE 1
+        END`,
+        sql`CASE
+          WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%battlefield 6%'
+            OR LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%bf6%'
+          THEN 0
           ELSE 1
         END`,
         autopilotQueue.scheduledAt,
