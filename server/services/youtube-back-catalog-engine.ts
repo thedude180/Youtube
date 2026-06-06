@@ -140,14 +140,21 @@ const GENERIC_CATEGORIES = new Set([
 
 function detectGameFromTitle(title: string): string | null {
   const t = (title ?? "").toLowerCase();
-  // Assassin's Creed family — most specific first
-  if (/assassin.?s creed shadows|ac shadows/i.test(t))      return "Assassin's Creed Shadows";
-  if (/valhalla/i.test(t))                                    return "Assassin's Creed Valhalla";
-  if (/assassin.?s creed iv|black flag/i.test(t))            return "Assassin's Creed IV: Black Flag";
-  if (/adéwalé|adewale/i.test(t))                            return "Assassin's Creed IV: Black Flag";
-  if (/assassin.?s creed origins/i.test(t))                  return "Assassin's Creed Origins";
-  if (/assassin.?s creed odyssey/i.test(t))                  return "Assassin's Creed Odyssey";
-  if (/assassin.?s creed/i.test(t))                          return "Assassin's Creed";
+  // Assassin's Creed family — most specific first, generic catch-all last
+  if (/assassin.?s creed shadows|ac shadows/i.test(t))                               return "Assassin's Creed Shadows";
+  if (/valhalla/i.test(t))                                                            return "Assassin's Creed Valhalla";
+  if (/assassin.?s creed iv|black flag|adéwalé|adewale/i.test(t))                    return "Assassin's Creed IV: Black Flag";
+  if (/assassin.?s creed iii|assassin.?s creed 3\b|ac3\b|connor kenway/i.test(t))    return "Assassin's Creed 3";
+  if (/liberation|aveline\b/i.test(t))                                                return "Assassin's Creed Liberation";
+  if (/assassin.?s creed origins/i.test(t))                                           return "Assassin's Creed Origins";
+  if (/assassin.?s creed odyssey/i.test(t))                                           return "Assassin's Creed Odyssey";
+  if (/assassin.?s creed mirage|ac mirage|basim ibn/i.test(t))                        return "Assassin's Creed Mirage";
+  if (/assassin.?s creed syndicate|ac syndicate|jacob frye|evie frye/i.test(t))       return "Assassin's Creed Syndicate";
+  if (/assassin.?s creed unity|ac unity|arno dorian/i.test(t))                        return "Assassin's Creed Unity";
+  if (/assassin.?s creed rogue|ac rogue|shay cormac/i.test(t))                        return "Assassin's Creed Rogue";
+  if (/assassin.?s creed brotherhood|ac brotherhood/i.test(t))                        return "Assassin's Creed Brotherhood";
+  if (/assassin.?s creed revelations|ac revelations/i.test(t))                        return "Assassin's Creed Revelations";
+  if (/assassin.?s creed/i.test(t))                                                   return "Assassin's Creed";
   // Stealth/samurai hint → likely AC Shadows
   if (/samurai.{0,40}stealth|stealth.{0,40}samurai/i.test(t)) return "Assassin's Creed Shadows";
   // Middle-earth

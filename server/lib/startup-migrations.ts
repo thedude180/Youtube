@@ -701,6 +701,145 @@ async function migration012DeletePlaceholderChannels(): Promise<void> {
   }
 }
 
+// ── Migration 013: Re-audit back catalog game names ───────────────────────────
+// Fixes misclassified source videos (e.g. AC3 footage tagged as Battlefield 6)
+// and upgrades generic "Assassin's Creed" labels to specific sub-titles where
+// the video title contains enough signal.  Resets mined_for_shorts /
+// mined_for_long_form for every row that gets a corrected game_name so the back
+// catalog engine re-queues those videos under the right label.
+
+async function migration013GameNameReaudit(): Promise<void> {
+  const FLAG = "migration:013:game_name_reaudit_v1";
+  if (await getFlag(FLAG)) {
+    log.info("[Migration 013] Game-name re-audit already done — skipping");
+    return;
+  }
+
+  try {
+    // Step A — Force-correct known misclassified videos where title/description
+    // say the wrong game but the footage is confirmed to be different.
+    const knownBad: Array<{ youtubeVideoId: string; correctGame: string; reason: string }> = [
+      {
+        youtubeVideoId: "3NKTCjsIgAY",
+        correctGame: "Assassin's Creed 3",
+        reason: "footage is AC3 (confirmed screenshot 2026-06-06); title says BF6 due to AI generation error",
+      },
+    ];
+
+    let forcedCount = 0;
+    for (const { youtubeVideoId, correctGame } of knownBad) {
+      const r = await db.execute(sql`
+        UPDATE back_catalog_videos
+        SET
+          game_name          = ${correctGame},
+          mined_for_shorts   = false,
+          mined_for_long_form = false,
+          last_optimized_at  = NULL
+        WHERE youtube_video_id = ${youtubeVideoId}
+          AND game_name != ${correctGame}
+      `);
+      const n = (r as any)?.rowCount ?? 0;
+      if (n > 0) {
+        forcedCount += n;
+        log.info(`[Migration 013] Force-corrected ${youtubeVideoId} → "${correctGame}"`);
+      }
+    }
+    log.info(`[Migration 013] Step A: ${forcedCount} known-bad video(s) corrected`);
+
+    // Step B — Upgrade generic or incorrect game_names using improved title regex
+    // (all specific AC sub-titles that were missing from the original detector).
+    // Only updates rows where the new detection differs from the current value.
+    const upgradeResult = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET
+        game_name = CASE
+          WHEN title ~* 'assassin.?s creed iii|assassin.?s creed 3\b|ac3\b|connor kenway'
+               THEN 'Assassin''s Creed 3'
+          WHEN title ~* 'liberation|aveline\b'
+               THEN 'Assassin''s Creed Liberation'
+          WHEN title ~* 'assassin.?s creed mirage|ac mirage|basim ibn'
+               THEN 'Assassin''s Creed Mirage'
+          WHEN title ~* 'assassin.?s creed syndicate|ac syndicate|jacob frye|evie frye'
+               THEN 'Assassin''s Creed Syndicate'
+          WHEN title ~* 'assassin.?s creed unity|ac unity|arno dorian'
+               THEN 'Assassin''s Creed Unity'
+          WHEN title ~* 'assassin.?s creed rogue|ac rogue|shay cormac'
+               THEN 'Assassin''s Creed Rogue'
+          WHEN title ~* 'assassin.?s creed brotherhood|ac brotherhood'
+               THEN 'Assassin''s Creed Brotherhood'
+          WHEN title ~* 'assassin.?s creed revelations|ac revelations'
+               THEN 'Assassin''s Creed Revelations'
+          ELSE game_name
+        END,
+        mined_for_shorts    = false,
+        mined_for_long_form = false,
+        last_optimized_at   = NULL
+      WHERE (
+        (title ~* 'assassin.?s creed iii|assassin.?s creed 3\b|ac3\b|connor kenway'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed 3')))
+        OR (title ~* 'liberation|aveline\b'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Liberation')))
+        OR (title ~* 'assassin.?s creed mirage|ac mirage|basim ibn'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Mirage')))
+        OR (title ~* 'assassin.?s creed syndicate|ac syndicate|jacob frye|evie frye'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Syndicate')))
+        OR (title ~* 'assassin.?s creed unity|ac unity|arno dorian'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Unity')))
+        OR (title ~* 'assassin.?s creed rogue|ac rogue|shay cormac'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Rogue')))
+        OR (title ~* 'assassin.?s creed brotherhood|ac brotherhood'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Brotherhood')))
+        OR (title ~* 'assassin.?s creed revelations|ac revelations'
+         AND (game_name IS NULL OR game_name NOT IN ('Assassin''s Creed Revelations')))
+      )
+    `);
+
+    const upgraded = (upgradeResult as any)?.rowCount ?? 0;
+    log.info(`[Migration 013] Step B: ${upgraded} generic game_name(s) upgraded to specific sub-title`);
+
+    // Step C — Normalise variant spellings of the new sub-title names.
+    const normResult = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET game_name = CASE
+        WHEN lower(game_name) IN ('ac3', 'assassins creed 3', 'assassins creed iii')
+             THEN 'Assassin''s Creed 3'
+        WHEN lower(game_name) IN ('assassins creed liberation', 'ac liberation')
+             THEN 'Assassin''s Creed Liberation'
+        WHEN lower(game_name) IN ('assassins creed mirage', 'ac mirage')
+             THEN 'Assassin''s Creed Mirage'
+        WHEN lower(game_name) IN ('assassins creed syndicate', 'ac syndicate')
+             THEN 'Assassin''s Creed Syndicate'
+        WHEN lower(game_name) IN ('assassins creed unity', 'ac unity')
+             THEN 'Assassin''s Creed Unity'
+        WHEN lower(game_name) IN ('assassins creed rogue', 'ac rogue')
+             THEN 'Assassin''s Creed Rogue'
+        WHEN lower(game_name) IN ('assassins creed brotherhood', 'ac brotherhood')
+             THEN 'Assassin''s Creed Brotherhood'
+        WHEN lower(game_name) IN ('assassins creed revelations', 'ac revelations')
+             THEN 'Assassin''s Creed Revelations'
+        ELSE game_name
+      END
+      WHERE lower(game_name) IN (
+        'ac3','assassins creed 3','assassins creed iii',
+        'assassins creed liberation','ac liberation',
+        'assassins creed mirage','ac mirage',
+        'assassins creed syndicate','ac syndicate',
+        'assassins creed unity','ac unity',
+        'assassins creed rogue','ac rogue',
+        'assassins creed brotherhood','ac brotherhood',
+        'assassins creed revelations','ac revelations'
+      )
+    `);
+    const normed = (normResult as any)?.rowCount ?? 0;
+    log.info(`[Migration 013] Step C: ${normed} variant spelling(s) normalised`);
+
+    await setFlag(FLAG);
+    log.info("[Migration 013] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 013] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -719,6 +858,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:010:purge_bad_video_ids",              label: "010 — purge permanently-dead video IDs from all queue tables" },
   { flag: "migration:011:purge_demo_reviewer_full",         label: "011 — full purge of google_api_demo_reviewer across all tables" },
   { flag: "migration:012:delete_placeholder_channels",      label: "012 — delete stale placeholder/dev channel rows" },
+  { flag: "migration:013:game_name_reaudit_v1",             label: "013 — re-audit back catalog game names; correct misclassified AC/BF videos" },
 ];
 
 export interface MigrationHealth {
@@ -784,6 +924,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration010PurgeBadVideoIds();
     await migration011PurgeDemoReviewerFull();
     await migration012DeletePlaceholderChannels();
+    await migration013GameNameReaudit();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
