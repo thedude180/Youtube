@@ -441,7 +441,13 @@ export async function rankBackCatalogOpportunities(userId: string, limit = 50): 
   try {
     const videos = await db.select()
       .from(backCatalogVideos)
-      .where(eq(backCatalogVideos.userId, userId))
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        or(
+          isNull(backCatalogVideos.privacyStatus),
+          sql`${backCatalogVideos.privacyStatus} = 'public'`,
+        ),
+      ))
       .limit(500);
 
     if (!videos.length) return [];
@@ -508,7 +514,13 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
   try {
     const allVideos = await db.select()
       .from(backCatalogVideos)
-      .where(eq(backCatalogVideos.userId, userId))
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        or(
+          isNull(backCatalogVideos.privacyStatus),
+          sql`${backCatalogVideos.privacyStatus} = 'public'`,
+        ),
+      ))
       .limit(500);
 
     if (!allVideos.length) {

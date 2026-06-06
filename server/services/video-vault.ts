@@ -900,7 +900,7 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
   for (let i = 0; i < videoIds.length; i += 50) {
     const batch = videoIds.slice(i, i + 50);
     const detailUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
-    detailUrl.searchParams.set("part", "contentDetails,statistics");
+    detailUrl.searchParams.set("part", "contentDetails,statistics,status");
     detailUrl.searchParams.set("id", batch.join(","));
 
     const detailRes = await fetch(detailUrl.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -915,9 +915,23 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
     }
   }
 
+  let skippedPrivate = 0;
+  let skippedUnlisted = 0;
   for (const videoId of videoIds) {
     const snippet = snippetMap.get(videoId) ?? {};
     const detail = detailMap.get(videoId);
+
+    // Privacy gate: only index public videos or scheduled ones (private + publishAt)
+    const privacyStatus = detail?.status?.privacyStatus as string | undefined;
+    const scheduledPublishAt = detail?.status?.publishAt as string | undefined;
+    if (privacyStatus === "private" && !scheduledPublishAt) {
+      skippedPrivate++;
+      continue;
+    }
+    if (privacyStatus === "unlisted") {
+      skippedUnlisted++;
+      continue;
+    }
 
     const iso = (detail?.contentDetails?.duration as string) ?? "PT0S";
     const durationSec = (() => {
@@ -948,10 +962,13 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
     });
   }
 
+  const skippedMsg = skippedPrivate + skippedUnlisted > 0
+    ? ` (skipped ${skippedPrivate} private, ${skippedUnlisted} unlisted)`
+    : "";
   if (detailsFailed) {
-    logger.info(`[Vault] YouTube API indexed ${videos.length} videos using snippet metadata (detail fetch blocked by API)`);
+    logger.info(`[Vault] YouTube API indexed ${videos.length} videos using snippet metadata (detail fetch blocked by API)${skippedMsg}`);
   } else {
-    logger.info(`[Vault] YouTube API indexed ${videos.length} videos with full metadata`);
+    logger.info(`[Vault] YouTube API indexed ${videos.length} videos with full metadata${skippedMsg}`);
   }
   return videos;
 }
