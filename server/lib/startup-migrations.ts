@@ -840,6 +840,42 @@ async function migration013GameNameReaudit(): Promise<void> {
   }
 }
 
+// ── Boot cleanup: reset stuck pending items ───────────────────────────────────
+// Runs on EVERY boot (no flag guard) — safe because no publishers are running
+// at T+3s when migrations fire.  Resets all items stuck in "pending" status
+// back to "scheduled" so the publisher can pick them up again.
+//
+// Why items get stuck:
+//   • Download / encode timed out mid-batch
+//   • Server crashed or OOM-killed while processing
+//   • Publisher crashed before the DB update that marks the item done/failed
+//
+// The publisher has reschedule-past-due logic: any item whose scheduledAt is
+// in the past will be bumped to the next valid future slot automatically,
+// so this reset cannot cause a burst of simultaneous uploads.
+
+async function cleanupStuckPendingItems(): Promise<void> {
+  try {
+    const result = await db
+      .update(autopilotQueue)
+      .set({
+        status: "scheduled",
+        errorMessage: "Reset from stuck pending on boot — will retry",
+      } as any)
+      .where(eq(autopilotQueue.status, "pending"));
+
+    // Drizzle returns rowCount on pg driver
+    const count = (result as any)?.rowCount ?? (result as any)?.length ?? "?";
+    if (typeof count === "number" && count > 0) {
+      log.info(`[BootCleanup] Reset ${count} stuck pending item(s) → scheduled`);
+    } else {
+      log.info("[BootCleanup] No stuck pending items found");
+    }
+  } catch (err: any) {
+    log.warn(`[BootCleanup] Could not reset stuck pending items (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -925,6 +961,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration011PurgeDemoReviewerFull();
     await migration012DeletePlaceholderChannels();
     await migration013GameNameReaudit();
+    // Non-flagged boot cleanup — runs every restart, resets stuck pending items
+    await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);

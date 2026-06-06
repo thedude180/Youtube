@@ -505,16 +505,39 @@ export function isQuotaBreakerTripped(): boolean {
 export function markQuotaErrorFromResponse(err: any): boolean {
   const msg = String(err?.message || err || "").toLowerCase();
   const code = err?.code;
-  // Per-second rate limits (rateLimitExceeded, userRateLimitExceeded) are
-  // temporary throttles — NOT daily quota exhaustion.  Never trip the circuit
+  const status = err?.status ?? err?.statusCode;
+  const reason = String(err?.errors?.[0]?.reason || "").toLowerCase();
+
+  // ── 401 Unauthorized ─────────────────────────────────────────────────────
+  // Auth failures (missing/expired/revoked OAuth token) are NOT quota errors.
+  // Never trip the breaker for 401 — the fix is reconnecting the channel, not
+  // waiting until midnight.
+  if (code === 401 || status === 401 || msg.includes("unauthorized") || msg.includes("invalid_grant") || msg.includes("token has been expired")) {
+    return false;
+  }
+
+  // ── Per-second rate limits ────────────────────────────────────────────────
+  // Temporary throttles — NOT daily quota exhaustion.  Never trip the circuit
   // breaker for these: doing so would lock out all publishing for the rest of
   // the day when only a momentary burst caused the 403.
-  const reason = String(err?.errors?.[0]?.reason || "").toLowerCase();
   const isRateLimit =
     reason === "ratelimitexceeded" ||
     reason === "userratelimitexceeded" ||
     (msg.includes("ratelimitexceeded") && !msg.includes("daily") && !msg.includes("quotaexceeded"));
   if (isRateLimit) return false;
+
+  // ── Auth-flavoured 403 (forbidden without quota context) ─────────────────
+  // Google returns 403 "forbidden" for auth issues when the token lacks the
+  // required scope or the channel is not accessible — these are NOT quota
+  // exhaustion.  Only trip the breaker when the 403 is explicitly quota-related.
+  const isAuthForbidden =
+    reason === "forbidden" ||
+    reason === "accessNotConfigured" ||
+    reason === "insufficientPermissions" ||
+    msg.includes("access denied") ||
+    msg.includes("insufficient permissions") ||
+    msg.includes("forbidden") && !msg.includes("quota") && !msg.includes("dailylimit");
+  if (code === 403 && isAuthForbidden) return false;
 
   if (code === 403 || code === "QUOTA_EXCEEDED" || msg.includes("quota") || msg.includes("dailylimitexceeded")) {
     tripGlobalQuotaBreaker();

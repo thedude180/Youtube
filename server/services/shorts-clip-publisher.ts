@@ -619,8 +619,26 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             ));
           const ytChannel = userChannels.find(c => c.platform === "youtube") || userChannels[0];
 
+          // Pre-flight token check — bail immediately with a clear log rather
+          // than attempting an upload that will 401/403 and potentially trip
+          // the quota breaker for the rest of the day.
+          const hasToken = ytChannel?.accessToken || ytChannel?.refreshToken;
+          const isDevSentinel = ytChannel?.accessToken === "dev_api_key_mode";
+
           if (!ytChannel) {
             result = { success: false, error: "No YouTube channel found" };
+          } else if (!hasToken && !isDevSentinel) {
+            logger.warn(
+              `[ShortsPublisher] Channel ${ytChannel.id} has no OAuth token — skipping item ${item.id}. ` +
+              `User must reconnect YouTube to resume publishing.`
+            );
+            // Reset to scheduled so it will be retried after reconnect,
+            // rather than marking it permanently failed.
+            await db.update(autopilotQueue)
+              .set({ status: "scheduled", errorMessage: "Skipped — no YouTube OAuth token. Reconnect in Settings." })
+              .where(eq(autopilotQueue.id, item.id));
+            skipped++;
+            continue;
           } else {
             const runId = `${item.id}_${Date.now()}`;
             let encodedPath: string | null = null;

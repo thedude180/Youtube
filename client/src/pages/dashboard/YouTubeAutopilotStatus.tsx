@@ -453,6 +453,12 @@ export default function YouTubeAutopilotStatus() {
     enabled: !!user,
   });
 
+  const { data: reconnectData } = useQuery<{ needsReconnect: boolean; platforms: string[] }>({
+    queryKey: ["/api/oauth/needs-reconnect"],
+    refetchInterval: 5 * 60_000,
+    enabled: !!user,
+  });
+
   const quotaCountdown = useQuotaCountdown(quotaData?.resetsAt);
 
   const cycleMutation = useMutation({
@@ -502,6 +508,28 @@ export default function YouTubeAutopilotStatus() {
   const lfAtCap = today.longFormScheduled >= today.longFormMax;
 
   return (
+    <div className="space-y-3">
+    {/* ── Channel disconnected banner ───────────────────────────────────────── */}
+    {reconnectData?.needsReconnect && (
+      <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 flex items-start gap-3" data-testid="banner-reconnect">
+        <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-red-300">YouTube channel disconnected — no videos can publish</p>
+          <p className="text-xs text-red-400/80 mt-0.5">
+            The OAuth token is missing or expired. All autopilot publishing is paused until you reconnect.
+          </p>
+          <a
+            href="/api/youtube/reconnect"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 rounded-md px-3 py-1.5 transition-colors"
+            data-testid="link-reconnect-youtube"
+          >
+            <Zap className="h-3 w-3" />
+            Reconnect YouTube now
+          </a>
+        </div>
+      </div>
+    )}
+
     <div className="rounded-xl border border-border/30 bg-card/20 p-4 space-y-4" data-testid="card-yt-autopilot">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -789,6 +817,7 @@ export default function YouTubeAutopilotStatus() {
 
       {/* 7-day schedule calendar */}
       <QueueCalendar maxShorts={today.shortsMax ?? 3} maxLongForm={today.longFormMax ?? 1} />
+    </div>
     </div>
   );
 }
