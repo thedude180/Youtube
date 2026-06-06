@@ -915,6 +915,18 @@ export function startPerpetualShortsLoop(): void {
             const idleWaitMs = isLiveActive() ? 5 * 60_000 : 90_000;
             await new Promise(r => setTimeout(r, idleWaitMs));
           }
+        } else if (result.published === 0 && result.failed === 0) {
+          // All pending items were skipped (no OAuth token / reentrancy guard).
+          // CRITICAL: do NOT treat this as "work done" — that creates a 2-second
+          // hot-spin loop hammering the DB until the channel reconnects.
+          // Back off the same as an idle queue and wait for the token to return.
+          logger.info(
+            `[ShortsPublisher] ${result.skipped} item(s) skipped (no OAuth token) — ` +
+            `backing off to wait for channel reconnect`,
+          );
+          const { isLiveActive } = await import("../lib/live-gate");
+          const idleWaitMs = isLiveActive() ? 5 * 60_000 : 90_000;
+          await new Promise(r => setTimeout(r, idleWaitMs));
         } else {
           // Work was done — restart immediately to pick up the next batch
           await new Promise(r => setTimeout(r, 2_000)); // 2 s breathing room

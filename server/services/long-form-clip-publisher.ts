@@ -659,6 +659,18 @@ export function startPerpetualLongFormLoop(): void {
             const idleWaitMs = isLiveActive() ? 10 * 60_000 : 2 * 60_000;
             await new Promise(r => setTimeout(r, idleWaitMs));
           }
+        } else if (result.published === 0 && result.failed === 0) {
+          // All pending items were skipped (no OAuth token / already-running guard).
+          // CRITICAL: do NOT treat this as "work done" — that creates a 5-second
+          // hot-spin loop hammering the DB until the channel reconnects.
+          // Back off the same as an idle queue and wait for the token to return.
+          logger.info(
+            `[LongFormPublisher] ${result.skipped} item(s) skipped (no OAuth token or already running) — ` +
+            `backing off to wait for channel reconnect`,
+          );
+          const { isLiveActive } = await import("../lib/live-gate");
+          const idleWaitMs = isLiveActive() ? 10 * 60_000 : 2 * 60_000;
+          await new Promise(r => setTimeout(r, idleWaitMs));
         } else {
           // Work was done — short pause then immediately check for more
           await new Promise(r => setTimeout(r, 5_000)); // 5 s breathing room
