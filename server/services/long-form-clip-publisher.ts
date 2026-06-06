@@ -25,7 +25,7 @@ import { spawn } from "child_process";
 import cron from "node-cron";
 import { db } from "../db";
 import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
-import { eq, and, lte, sql } from "drizzle-orm";
+import { eq, and, lte, sql, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
@@ -158,7 +158,18 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       .where(and(
         // auto-clip = grinder/segmenter long-form; vod-long-form = full-VOD upload path
         sql`${autopilotQueue.type} IN ('auto-clip','vod-long-form')`,
-        eq(autopilotQueue.status, "scheduled"),
+        // Accept 'scheduled' for all types.
+        // Also accept 'pending' for auto-clip items that have a sourceYoutubeId —
+        // these were created without 'scheduled' status due to a distributor sequencing
+        // issue or an older production binary that used 'pending' as the default.
+        or(
+          eq(autopilotQueue.status, "scheduled"),
+          and(
+            eq(autopilotQueue.type, "auto-clip"),
+            eq(autopilotQueue.status, "pending"),
+            sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
+          ),
+        ),
         lte(autopilotQueue.scheduledAt, batchWindow),
         sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form')`,
       ))

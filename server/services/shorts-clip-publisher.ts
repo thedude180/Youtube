@@ -399,13 +399,14 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           ),
         ),
         // Accept 'scheduled' for all types.
-        // Also accept 'pending' for platform_short / vod-short that have a sourceYoutubeId
+        // Also accept 'pending' for back-catalog Shorts that have a sourceYoutubeId
         // in their metadata — these are fully ready to upload but got created without the
-        // 'scheduled' status due to a distributor sequencing issue.
+        // 'scheduled' status due to a distributor sequencing issue or an old production
+        // binary that used 'pending' as the default status.
         or(
           eq(autopilotQueue.status, "scheduled"),
           and(
-            inArray(autopilotQueue.type, ["platform_short", "vod-short"]),
+            inArray(autopilotQueue.type, ["platform_short", "vod-short", "youtube_short"]),
             eq(autopilotQueue.status, "pending"),
             sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
           ),

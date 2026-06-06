@@ -487,7 +487,14 @@ export function initQuotaResetCron(): void {
 export function tripGlobalQuotaBreaker(): void {
   const today = getPacificDate();
   if (_globalQuotaTripDate !== today) {
-    logger.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`);
+    // Capture the call stack so we can identify which service triggered the trip.
+    // Only the first 6 frames are useful — everything above that is node internals.
+    const callerStack = new Error().stack
+      ?.split("\n")
+      .slice(1, 7)
+      .map(l => l.trim().replace(/^\s*at\s*/, ""))
+      .join(" | ") ?? "unknown";
+    logger.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`, { callerStack });
   }
   _globalQuotaTripDate = today;
 }

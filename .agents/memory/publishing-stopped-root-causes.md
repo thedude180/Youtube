@@ -3,7 +3,7 @@ name: Publishing stopped — root causes diagnosed 2026-06-06
 description: Why new videos stopped appearing in YouTube Studio after 12-15 days; all root causes found and fixed.
 ---
 
-## The three stacked blockers
+## Session 1 fixes
 
 ### 1. Null OAuth token (primary blocker)
 - `[TokenGuardian] No backup token anywhere for channel 52 — user must reconnect`
@@ -21,20 +21,39 @@ description: Why new videos stopped appearing in YouTube Studio after 12-15 days
 ### 3. Quota breaker tripping from auth errors
 - `markQuotaErrorFromResponse` was tripping the breaker on ANY 403, including auth-flavoured ones
 - When tokens are null, the first YouTube API call returns 403/401 → breaker trips → ALL publishing blocked for the rest of the day
-- This is why the channel published nothing despite the quota reset cron running publishers at midnight Pacific
-- Fix: improved `markQuotaErrorFromResponse` to exclude 401, rate-limit 403s, and auth-flavoured 403s (forbidden, insufficientPermissions, invalid_grant, access denied)
+- Fix: improved `markQuotaErrorFromResponse` to exclude 401, rate-limit 403s, and auth-flavoured 403s
 
-## Dashboard
-- Added reconnect banner to `YouTubeAutopilotStatus.tsx` — polls `/api/oauth/needs-reconnect` every 5 min; shows big red alert with link to `/api/youtube/reconnect` when token is null
+## Session 2 deeper investigation (June 6 2026)
 
-## What the user must do
-- Go to dashboard → click "Reconnect YouTube now" in the red banner
-- After reconnect, publishing resumes at next midnight Pacific reset (publisher runs first after quota reset)
+### Confirmed: zero uploads ever
+- `upload_ops: 0` in quota table — no YouTube video has EVER been successfully uploaded
+- 376 queue items all stuck in "pending"; both publishers needed "scheduled"
+- Back-catalog engine creates as "scheduled" in current code but production binary was older
+
+### s0D2BLHmiTU — permanent queue blocker
+- Source video `s0D2BLHmiTU` times out at exactly 480s on every yt-dlp attempt
+- 21+ items reference it; publisher repeatedly picks them up and times out
+- NOT in content_vault_backups — perpetual-repair couldn't auto-cancel
+- Fix: Migration 014 permanently fails all items referencing this video
+
+### Quota breaker trips daily at T+17min after boot
+- Only 857 units tracked (well below 10,000) when breaker trips at 09:57 UTC
+- Something makes an untracked YouTube API call around T+17min → gets 403 → trips breaker
+- Fix: callerStack capture added to `tripGlobalQuotaBreaker()` — next boot log reveals exact caller
+- Publishers still run at midnight Pacific via quota reset cron regardless of breaker
+
+### Session 2 publisher expansion
+- Long-form publisher: now also picks up pending auto-clip items with sourceYoutubeId
+- Shorts publisher: expanded pending pickup to include youtube_short type
 
 ## Quota reset timing
-- Quota resets at midnight Pacific = ~07:00-08:00 UTC (PDT offset)
-- Quota reset cron (`initQuotaResetCron`) runs publishers FIRST after reset
+- Quota resets at midnight Pacific = 07:00 UTC
+- Quota reset cron runs both publishers FIRST immediately after reset
 - Items that are past-due get rescheduled to future slots automatically by publisher
 
-**Why:**
-These root causes compounded each other: null token → auth 403 → quota breaker trips → all services blocked. The stuck pending items meant the queue appeared empty anyway.
+## Expected upload sequence after Session 2 deploy
+1. Boot → migration 014 cancels ~21 s0D2BLHmiTU items
+2. cleanupStuckPendingItems converts ~353 remaining pending → scheduled
+3. At midnight Pacific (07:00 UTC), quota reset fires both publishers
+4. Publishers find scheduled items → first actual YouTube uploads begin
+5. callerStack log identifies quota breaker root cause for follow-up fix

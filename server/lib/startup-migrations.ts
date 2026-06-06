@@ -840,6 +840,32 @@ async function migration013GameNameReaudit(): Promise<void> {
   }
 }
 
+// ── Migration 014: cancel queue items referencing permanently-blocked videos ──
+
+async function migration014CancelBlockedSourceVideos(): Promise<void> {
+  const FLAG = "migration:014:cancel_blocked_source_videos";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // s0D2BLHmiTU consistently times out at 480 s on every yt-dlp download
+    // attempt. 21+ pending/scheduled queue items reference it as sourceYoutubeId,
+    // causing the publisher to spin-lock retrying an undownloadable video.
+    // Permanently fail all such items so they stop blocking the queue.
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'permanent_fail',
+          error_message = 'Cancelled by migration 014: source video s0D2BLHmiTU permanently inaccessible (480 s yt-dlp timeout on every attempt)'
+      WHERE metadata->>'sourceYoutubeId' = 's0D2BLHmiTU'
+        AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+    `);
+    const rows = (result as any)?.rowCount ?? "?";
+    log.info(`[Migration014] Cancelled ${rows} queue item(s) referencing s0D2BLHmiTU`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration014] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Boot cleanup: reset stuck pending items ───────────────────────────────────
 // Runs on EVERY boot (no flag guard) — safe because no publishers are running
 // at T+3s when migrations fire.  Resets all items stuck in "pending" status
@@ -895,6 +921,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:011:purge_demo_reviewer_full",         label: "011 — full purge of google_api_demo_reviewer across all tables" },
   { flag: "migration:012:delete_placeholder_channels",      label: "012 — delete stale placeholder/dev channel rows" },
   { flag: "migration:013:game_name_reaudit_v1",             label: "013 — re-audit back catalog game names; correct misclassified AC/BF videos" },
+  { flag: "migration:014:cancel_blocked_source_videos",     label: "014 — cancel queue items referencing permanently-blocked source video s0D2BLHmiTU" },
 ];
 
 export interface MigrationHealth {
@@ -961,6 +988,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration011PurgeDemoReviewerFull();
     await migration012DeletePlaceholderChannels();
     await migration013GameNameReaudit();
+    await migration014CancelBlockedSourceVideos();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
