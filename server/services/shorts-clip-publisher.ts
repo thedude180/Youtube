@@ -417,6 +417,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       //   1 — new gameplay Shorts (youtube_short, platform_short, vod-short) — current content
       //   2 — back-catalog auto-clips — after new content is cleared
       // Within each tier, earliest scheduled_at wins.
+      // Within the same scheduledAt slot, highest viralScore (0–100) wins.
       .orderBy(
         sql`CASE
           WHEN ${autopilotQueue.metadata}->>'isStreamHighlight' = 'true'
@@ -428,6 +429,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           ELSE 2
         END`,
         autopilotQueue.scheduledAt,
+        sql`COALESCE((${autopilotQueue.metadata}->>'viralScore')::float, 50) DESC`,
       )
       .limit(MAX_PER_RUN * 4);
 

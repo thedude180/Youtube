@@ -3723,6 +3723,9 @@ httpServer.listen(
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
         { label: "generation-cohort-tracker",   fn: () => import("./services/generation-cohort-tracker").then(m => { backgroundIntervals.push(m.initCohortTracker()); }).catch(slog("initCohortTracker")) },
+        { label: "viral-prediction-engine",     fn: () => import("./services/viral-prediction-engine").then(m => { backgroundIntervals.push(...m.initViralPredictionEngine()); }).catch(slog("initViralPredictionEngine")) },
+        { label: "trend-wave-interceptor",      fn: () => import("./services/trend-wave-interceptor").then(m => { backgroundIntervals.push(...m.initTrendWaveInterceptor()); }).catch(slog("initTrendWaveInterceptor")) },
+        { label: "competitor-gap-scanner",      fn: () => import("./services/competitor-gap-scanner").then(m => { backgroundIntervals.push(...m.initCompetitorGapScanner()); }).catch(slog("initCompetitorGapScanner")) },
       ], 4_000);
     });
 
