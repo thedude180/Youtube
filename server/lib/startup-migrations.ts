@@ -560,7 +560,8 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
         `);
       }
 
-      // 2) Hard-fail any autopilot_queue rows that reference this video in payload
+      // 2) Hard-fail any autopilot_queue rows that reference this video.
+      // autopilot_queue has no `payload` column — search `content` (text) and `metadata` (jsonb).
       await db.execute(sql`
         UPDATE autopilot_queue
         SET status        = 'permanent_fail',
@@ -568,8 +569,8 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
             updated_at    = NOW()
         WHERE status NOT IN ('published', 'permanent_fail')
           AND (
-            payload::text ILIKE ${"%" + youtubeId + "%"}
-            OR content::text ILIKE ${"%" + youtubeId + "%"}
+            content::text  ILIKE ${"%" + youtubeId + "%"}
+            OR metadata::text ILIKE ${"%" + youtubeId + "%"}
           )
       `);
 
@@ -668,6 +669,38 @@ async function migration011PurgeDemoReviewerFull(): Promise<void> {
   }
 }
 
+// ── Migration 012: delete stale placeholder channels ─────────────────────────
+// Migration 011 deleted channels with UCdemo*/UCtest* IDs but its flag may have
+// been set before new placeholder channels were added.  This migration re-runs
+// the same cleanup unconditionally on the channels table and marks itself done.
+
+async function migration012DeletePlaceholderChannels(): Promise<void> {
+  const FLAG = "migration:012:delete_placeholder_channels";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // Delete channels whose channel_id is a known dev placeholder pattern
+    // (real YouTube IDs are always "UC" + exactly 22 base64 chars = 24 chars total)
+    const r = await db.execute(sql`
+      DELETE FROM channels
+      WHERE (
+        channel_id ILIKE 'UCdemo%'
+        OR channel_id ILIKE 'UCtest%'
+        OR channel_id = 'UC_test123'
+        OR (channel_id LIKE 'UC%' AND LENGTH(channel_id) < 24)
+      )
+        AND (access_token IS NULL OR access_token = '')
+        AND (refresh_token IS NULL OR refresh_token = '')
+    `);
+    const n = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 012] Deleted ${n} placeholder/stub channel row(s)`);
+    await setFlag(FLAG);
+    log.info("[Migration 012] Complete");
+  } catch (err: any) {
+    log.warn(`[Migration 012] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Migration flag registry ───────────────────────────────────────────────────
 // Every migration that sets a completion flag must be listed here.
 // verifyAllMigrationFlags() compares this list against system_settings after
@@ -685,6 +718,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:009:schema_history_fixes",             label: "009 — schema history fixes (autopilot_queue, channels, dlq, security_ip_allowlist)" },
   { flag: "migration:010:purge_bad_video_ids",              label: "010 — purge permanently-dead video IDs from all queue tables" },
   { flag: "migration:011:purge_demo_reviewer_full",         label: "011 — full purge of google_api_demo_reviewer across all tables" },
+  { flag: "migration:012:delete_placeholder_channels",      label: "012 — delete stale placeholder/dev channel rows" },
 ];
 
 export interface MigrationHealth {
@@ -749,6 +783,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration009SchemaHistoryFixes();
     await migration010PurgeBadVideoIds();
     await migration011PurgeDemoReviewerFull();
+    await migration012DeletePlaceholderChannels();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
