@@ -412,6 +412,47 @@ async function getLastScheduledLongFormTime(userId: string): Promise<Date | null
   return row?.scheduledAt ? new Date(row.scheduledAt) : null;
 }
 
+// ── Saturation cache ─────────────────────────────────────────────────────────
+// When all available windows for the next MAX_DAYS_AHEAD days are claimed, the
+// full day-by-day scan (14 days × 3 DB round-trips = 42 queries) fires for
+// every caller before giving up.  With 9+ concurrent callers this saturates the
+// DB connection pool, stalls the event loop, and causes health-check timeouts.
+//
+// Solution: when getNextShortPublishTime exhausts all 14 days, cache the
+// "saturated" state per user for SATURATION_CACHE_TTL_MS.  Subsequent callers
+// skip the DB scan entirely and return the cached fallback.  The cache is cleared
+// automatically when a Short is published (openning new windows).
+const SATURATION_CACHE_TTL_MS = 30 * 60_000; // 30 minutes
+
+interface SaturationEntry { expiresAt: number; fallback: Date; }
+const shortScheduleSaturationCache = new Map<string, SaturationEntry>();
+
+/**
+ * Returns true when the in-process saturation cache indicates all Short windows
+ * for the next MAX_DAYS_AHEAD days are already claimed.
+ *
+ * Callers that batch-queue many Shorts should check this BEFORE entering a loop
+ * to avoid hammering getNextShortPublishTime when the schedule is already full.
+ */
+export function isShortScheduleSaturated(userId: string): boolean {
+  const entry = shortScheduleSaturationCache.get(userId);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    shortScheduleSaturationCache.delete(userId);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Clear the saturation cache for a user.
+ * Call this after a Short is successfully published to let new scheduling attempts
+ * scan for genuinely available windows again.
+ */
+export function clearShortScheduleSaturation(userId: string): void {
+  shortScheduleSaturationCache.delete(userId);
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -428,6 +469,20 @@ async function getLastScheduledLongFormTime(userId: string): Promise<Date | null
  *   4. Reservation map — defense-in-depth for the autopilotQueue insert gap
  */
 export async function getNextShortPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
+  // Fast-path: if the schedule is known to be saturated (all windows for the
+  // next MAX_DAYS_AHEAD days already claimed), return the cached fallback immediately
+  // without touching the DB.  Only applies to the default minDaysAhead=0 case;
+  // catalog callers with a non-zero start day bypass the cache since they look
+  // further out and may find slots that the default window does not.
+  if (minDaysAhead === 0) {
+    const cached = shortScheduleSaturationCache.get(userId);
+    if (cached && Date.now() < cached.expiresAt) {
+      logger.debug(`[YouTubeSchedule] Saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
+      // Small jitter so concurrent fallback callers don't all land at the same time.
+      return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
+    }
+  }
+
   return withShortScheduleMutex(userId, () =>
     withShortAdvisoryLock(userId, async () => {
       const tz     = await getUserTz(userId);
@@ -515,6 +570,16 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
       logger.warn(`[YouTubeSchedule] No Short window found for ${userId.slice(0, 8)} in ${MAX_DAYS_AHEAD} days — using +6h`);
       const fallback = new Date(now.getTime() + 6 * 3_600_000);
       reserveShortSlot(userId, fallback);
+
+      // Cache the saturation state so subsequent callers skip the 42-query DB scan.
+      // Only cache for the default minDaysAhead=0 — non-zero callers look further out.
+      if (minDaysAhead === 0) {
+        shortScheduleSaturationCache.set(userId, {
+          expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
+          fallback,
+        });
+      }
+
       return fallback;
     }),
   );

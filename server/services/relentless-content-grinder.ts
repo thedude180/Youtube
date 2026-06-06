@@ -15,6 +15,7 @@ import {
   canQueueLongFormToday,
   MAX_SHORTS_PER_DAY,
   MAX_LONGFORM_PER_DAY,
+  isShortScheduleSaturated,
 } from "./youtube-output-schedule";
 import { chooseBestLongFormDuration, getBucketRankings } from "./youtube-performance-learner";
 
@@ -675,6 +676,12 @@ Return raw JSON only (no markdown code blocks):
       // don't collide with each other.
       coveredRanges.push({ start: moment.startSec, end: moment.endSec });
 
+      // Bail out early if the Short schedule is known to be saturated — calling
+      // getNextShortPublishTime would just do 42 DB queries and return +6h each time.
+      if (isShortScheduleSaturated(userId)) {
+        logger.debug(`[ContentGrinder] Short schedule saturated for ${userId.slice(0, 8)} — skipping remaining moments`);
+        break;
+      }
       const scheduleTime = await getNextShortPublishTime(userId);
       const title = String(moment.title || `${gameName} Moment`).substring(0, 90) + " #Shorts";
       const description = `${moment.hookDescription || ""}\n\n${moment.retentionStrategy || ""}\n\nPure PS5 gameplay — no commentary.\n\n#Shorts #PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`;

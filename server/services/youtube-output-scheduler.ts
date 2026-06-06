@@ -18,7 +18,7 @@ import { db } from "../db";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { getNextShortPublishTime } from "./youtube-output-schedule";
+import { getNextShortPublishTime, isShortScheduleSaturated } from "./youtube-output-schedule";
 
 const logger = createLogger("yt-output-scheduler");
 
@@ -301,11 +301,29 @@ async function runForUser(userId: string): Promise<void> {
 
   // ── Shorts gap fill ────────────────────────────────────────────────────────
   if (shortsGap > 0) {
+    // Pre-flight saturation check: if all Short windows for the next 14 days are
+    // already claimed, skip the entire loop — every getNextShortPublishTime call
+    // would do 42 DB queries, return +6h, and add nothing useful to the queue.
+    if (isShortScheduleSaturated(userId)) {
+      logger.info("Output scheduler: Short schedule saturated — skipping Shorts gap fill", {
+        userId: userId.slice(0, 8),
+        shortsGap,
+      });
+    } else {
     const eligible = await getEligibleShortsVideos(userId, shortsGap * 2);
     let queued = 0;
 
     for (const video of eligible) {
       if (queued >= shortsGap) break;
+
+      // Mid-loop saturation check: stop immediately if the first call set the cache
+      if (isShortScheduleSaturated(userId)) {
+        logger.info("Output scheduler: Short schedule saturated mid-loop — stopping gap fill", {
+          userId: userId.slice(0, 8),
+          queued,
+        });
+        break;
+      }
 
       const meta = (video.metadata as any) || {};
       const youtubeId: string | undefined = meta.youtubeId || meta.youtubeVideoId;
@@ -374,6 +392,7 @@ async function runForUser(userId: string): Promise<void> {
         { userId: userId.slice(0, 8), gap: shortsGap },
       );
     }
+    } // end else (not saturated)
   }
 }
 

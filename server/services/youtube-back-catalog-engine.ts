@@ -62,6 +62,7 @@ import {
 import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
+  isShortScheduleSaturated,
 } from "./youtube-output-schedule";
 import {
   autoSwitchFocusGameIfNeeded,
@@ -710,6 +711,12 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
           for (let clipIdx = 0; clipIdx < targetCount; clipIdx++) {
             if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
+            // Stop queuing if the schedule is known to be saturated — avoids 39 DB
+            // queries per call only to get the +6h fallback every iteration.
+            if (isShortScheduleSaturated(userId)) {
+              logger.debug(`[BackCatalog] Short schedule saturated for ${userId.slice(0, 8)} — stopping clip queue`);
+              break;
+            }
 
             const startSec = clipIdx * intervalSec;
             const scheduledAt = await getNextShortPublishTime(userId, MIN_CATALOG_START_DAYS);
@@ -1338,6 +1345,11 @@ export async function queuePastStreamContent(userId: string): Promise<{
         let streamShortsQueued = 0;
         for (const win of clipWindows) {
           if (vodYoutubeId && _failedVaultIds.has(vodYoutubeId)) break;
+          // Stop queuing if the schedule is known to be saturated.
+          if (isShortScheduleSaturated(userId)) {
+            logger.debug(`[BackCatalog/PastStreams] Short schedule saturated for ${userId.slice(0, 8)} — stopping stream clip queue`);
+            break;
+          }
           try {
             const scheduledAt = await getNextShortPublishTime(userId, minDaysAhead);
             await db.insert(autopilotQueue).values({

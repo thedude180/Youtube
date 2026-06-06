@@ -40,7 +40,7 @@ import { uploadVideoToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
-import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, countUploadedLongFormForDate, getNextShortPublishTime } from "./youtube-output-schedule";
+import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, countUploadedLongFormForDate, getNextShortPublishTime, clearShortScheduleSaturation } from "./youtube-output-schedule";
 
 const logger = createLogger("shorts-publisher");
 
@@ -784,6 +784,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           })
           .where(eq(autopilotQueue.id, item.id));
         published++;
+        // A Short just published — clear the saturation cache so the next
+        // getNextShortPublishTime scan sees the newly freed window.
+        clearShortScheduleSaturation(item.userId);
 
         // Seed the metrics row immediately so the learning model has a record
         // even before YouTube processes analytics (which takes 24-48 h).
