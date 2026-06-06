@@ -26,6 +26,7 @@ import {
   learningInsights,
   autopilotQueue,
   channels,
+  masterKnowledgeBank,
 } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -280,6 +281,14 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       }
     }
 
+    // 11. Generate overnight intelligence digest for the dashboard card (fire-and-forget)
+    generateAndStoreDigest(userId, {
+      bestDurationBucket: bestBucket,
+      bestPostingWindow: bestWindow,
+      avgPerformanceScore: +avgScore.toFixed(2),
+      insightCount: insights.length,
+    }).catch((e: any) => logger.debug(`[Brain] digest non-fatal: ${e?.message?.slice(0, 80)}`));
+
     return report;
   } catch (err: any) {
     logger.warn(`[Brain] Daily cycle failed for ${userId.slice(0, 8)}: ${err.message?.slice(0, 200)}`);
@@ -522,5 +531,97 @@ export async function getLearningSummary(userId: string): Promise<{
     };
   } catch {
     return { summary: "Learning system active.", lastCycleAt: null, totalEvents: 0, topInsight: null };
+  }
+}
+
+// ── Daily intelligence digest ──────────────────────────────────────────────────
+// 2-sentence overnight summary of every intelligence engine's last 24h activity.
+// Stored in masterKnowledgeBank (category="daily_digest") and served to the
+// dashboard "Overnight Intelligence" card. Called fire-and-forget from runDailyCycle.
+
+async function generateAndStoreDigest(
+  userId: string,
+  summary: {
+    bestDurationBucket: string;
+    bestPostingWindow: string;
+    avgPerformanceScore: number;
+    insightCount: number;
+  },
+): Promise<void> {
+  const since = new Date(Date.now() - 24 * 3_600_000);
+
+  const [trendCount, gapCount, scoredCount] = await Promise.all([
+    db.select({ cnt: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        gte(autopilotQueue.createdAt, since),
+        sql`metadata->>'trendQueued' = 'true'`,
+      ))
+      .then(r => r[0]?.cnt ?? 0),
+    db.select({ cnt: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        gte(autopilotQueue.createdAt, since),
+        sql`metadata->>'competitorGapQueued' = 'true'`,
+      ))
+      .then(r => r[0]?.cnt ?? 0),
+    db.select({ cnt: sql<number>`count(*)::int` })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        gte(autopilotQueue.createdAt, since),
+        sql`(metadata->>'viralScore')::numeric > 0`,
+      ))
+      .then(r => r[0]?.cnt ?? 0),
+  ]);
+
+  const slot = tryAcquireAISlotNow();
+  if (!slot) return;
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_tokens: 160,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are CreatorOS, an autonomous AI media OS. Write exactly 2 punchy sentences summarising what your intelligence engines did for this YouTube channel in the last 24h. Be specific and data-driven. No filler words.",
+        },
+        {
+          role: "user",
+          content: `Last 24h: ${trendCount} rising trends intercepted and queued, ${gapCount} competitor content gaps filled, ${scoredCount} queue items viral-scored, ${summary.insightCount} learning insights recorded. Best duration bucket: ${summary.bestDurationBucket || "still calibrating"}. Best posting window: ${summary.bestPostingWindow}. Avg performance score: ${summary.avgPerformanceScore}. Write the 2-sentence digest now.`,
+        },
+      ],
+    });
+
+    const digestText = resp.choices[0]?.message?.content?.trim() ?? "";
+    if (!digestText) return;
+
+    await db.insert(masterKnowledgeBank).values({
+      userId,
+      category: "daily_digest",
+      principle: digestText,
+      sourceEngines: ["learning-brain", "viral-prediction-engine", "trend-wave-interceptor", "competitor-gap-scanner"],
+      evidenceCount: trendCount + gapCount + scoredCount + summary.insightCount,
+      confidenceScore: 80,
+      isActive: true,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        trendCount,
+        gapCount,
+        scoredCount,
+        insightCount: summary.insightCount,
+        bestDurationBucket: summary.bestDurationBucket,
+        bestPostingWindow: summary.bestPostingWindow,
+        avgPerformanceScore: summary.avgPerformanceScore,
+      },
+    } as any);
+
+    logger.info(`[Brain] Overnight digest stored (${digestText.length} chars, trend=${trendCount} gap=${gapCount} scored=${scoredCount})`);
+  } finally {
+    releaseAISlot();
   }
 }

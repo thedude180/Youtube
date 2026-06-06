@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { FirstLiveMission } from "@/components/FirstLiveMission";
 import { AgentUIPayloadCard } from "@/components/AgentUIPayloadCard";
 import DailyBriefingSection from "./dashboard/DailyBriefingSection";
+import IntelligenceDigest from "./dashboard/IntelligenceDigest";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
@@ -1051,6 +1052,8 @@ export default function TeamDashboard() {
         ) : (
           <DailyBriefingSection briefing={operatorBrief} />
         )}
+
+        <IntelligenceDigest />
 
         <YouTubeAutopilotStatus />
 

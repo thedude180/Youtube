@@ -1349,6 +1349,24 @@ export function registerStreamRoutes(app: Express) {
     res.json(report ?? { message: "Cycle already ran recently — no action needed" });
   }));
 
+  // ── Daily intelligence digest ─────────────────────────────────────────────────
+  app.get("/api/youtube/daily-digest", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { db } = await import("../db");
+    const { masterKnowledgeBank } = await import("@shared/schema");
+    const { desc, eq, and } = await import("drizzle-orm");
+    const [digest] = await db.select()
+      .from(masterKnowledgeBank)
+      .where(and(
+        eq(masterKnowledgeBank.userId, userId),
+        eq(masterKnowledgeBank.category, "daily_digest"),
+      ))
+      .orderBy(desc(masterKnowledgeBank.updatedAt))
+      .limit(1);
+    res.json(digest ?? null);
+  }));
+
   // ── Back Catalog Monetization Engine ─────────────────────────────────────────
 
   app.get("/api/youtube/back-catalog/status", asyncHandler(async (req: any, res) => {

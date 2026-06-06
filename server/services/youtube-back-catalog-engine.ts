@@ -30,9 +30,52 @@ import {
   autopilotQueue,
   streams,
   contentVaultBackups,
+  discoveredStrategies,
 } from "@shared/schema";
 import { extractGameForBackCatalog } from "./game-detection";
 import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not } from "drizzle-orm";
+
+// ── Viral DNA scorer ──────────────────────────────────────────────────────────
+// Scores a back-catalog video 0-100 from the channel's viral DNA patterns.
+// Used to sort source candidates so highest-potential content queues first.
+// Returns 30 (neutral) when no DNA patterns exist yet.
+function computeViralScore(
+  v: { gameName?: string | null; viewCount?: number | null; durationSec?: number | null },
+  patterns: Array<{ metadata: Record<string, any> | null }>,
+  channelAvgViews: number,
+): number {
+  let score = 30;
+  if (patterns.length === 0) return score;
+
+  const winningGames: string[] = patterns.flatMap(p => {
+    const g = (p.metadata as any)?.winningGames;
+    return Array.isArray(g) ? g : [];
+  });
+  const optimalDurations: number[] = patterns.flatMap(p => {
+    const d = (p.metadata as any)?.optimalDurationSec;
+    return typeof d === "number" ? [d] : [];
+  });
+
+  if (v.gameName && winningGames.some(g =>
+    g && (g.toLowerCase().includes(v.gameName!.toLowerCase()) ||
+          v.gameName!.toLowerCase().includes(g.toLowerCase()))
+  )) {
+    score += 30;
+  }
+
+  if (v.viewCount != null && channelAvgViews > 0 && v.viewCount > channelAvgViews) {
+    score += Math.min(20, Math.round(((v.viewCount - channelAvgViews) / channelAvgViews) * 10));
+  }
+
+  if (optimalDurations.length > 0 && v.durationSec != null) {
+    const nearest = optimalDurations.reduce((prev, curr) =>
+      Math.abs(curr - v.durationSec!) < Math.abs(prev - v.durationSec!) ? curr : prev
+    );
+    if (Math.abs(nearest - v.durationSec) < 180) score += 20;
+  }
+
+  return Math.min(100, score);
+}
 
 // ── Permanently-failed vault ID cache ────────────────────────────────────────
 // Refreshed at the start of every runBackCatalogMonetizationCycle call.
@@ -538,6 +581,32 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
     const ranked = rankVideos(allVideos, channelAvg, focusGame);
 
+    // ── Viral DNA — score every candidate before queuing ─────────────────────
+    // Loads channel viral DNA patterns (written by viral-prediction-engine every 6h).
+    // Builds a score Map so sorting is O(n), not O(n²) per candidate.
+    let _viralDna: Array<{ metadata: Record<string, any> | null }> = [];
+    try {
+      _viralDna = await db.select({ metadata: discoveredStrategies.metadata })
+        .from(discoveredStrategies)
+        .where(and(
+          eq(discoveredStrategies.userId, userId),
+          eq(discoveredStrategies.strategyType, "viral_dna_pattern"),
+          eq(discoveredStrategies.isActive, true),
+        ))
+        .orderBy(desc(discoveredStrategies.effectiveness))
+        .limit(3);
+    } catch { /* non-critical — continue without viral scoring */ }
+    const _channelAvgViews = allVideos.length
+      ? allVideos.reduce((s, v) => s + (v.viewCount ?? 0), 0) / allVideos.length
+      : 0;
+    const _viralScores = new Map<string, number>();
+    for (const v of ranked) {
+      _viralScores.set(v.youtubeVideoId, computeViralScore(v, _viralDna, _channelAvgViews));
+    }
+    if (_viralDna.length > 0) {
+      logger.debug(`[BackCatalog] Viral DNA loaded (${_viralDna.length} patterns); scored ${_viralScores.size} candidates`);
+    }
+
     // ── Hard game-priority gate with 30-day depth check ──────────────────────
     // Gate stays ACTIVE (focus-game-only) while EITHER:
     //   (a) unmined focus-game source videos still exist, OR
@@ -648,8 +717,10 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           v.shortsOpportunityScore >= SHORTS_OPPORTUNITY_THRESHOLD &&
           !v.minedForShorts &&
           (!gameFilter || gameFilter(v)),
-        );
+        )
+        .sort((a, b) => (_viralScores.get(b.youtubeVideoId) ?? 30) - (_viralScores.get(a.youtubeVideoId) ?? 30));
       // No .slice() — process every eligible clip so the queue fills to exhaustion.
+      // Sorted highest predicted viral score first so the best content ships earliest.
 
       for (const v of shortCandidates) {
         if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
@@ -756,6 +827,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
                 backCatalogGenerated: true,
                 autoQueued: true,
                 grinderGenerated: false,
+                predictedViralScore: _viralScores.get(v.youtubeVideoId),
               } as any,
             });
 

@@ -136,6 +136,15 @@ interface QueueItem {
     endSec?: number;
     targetDurationSec?: number;
     actualDurationSec?: number;
+    viralScore?: number;
+    trendTopic?: string;
+    trendVelocity?: number;
+    trendQueued?: boolean;
+    gapTopic?: string;
+    gapCompetitorChannel?: string;
+    gapCompetitorViews?: number;
+    competitorGapQueued?: boolean;
+    predictedViralScore?: number;
   } | null;
 }
 
@@ -280,6 +289,15 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
                               · {durSec}s
                             </span>
                           )}
+                          {(meta.viralScore ?? meta.predictedViralScore ?? 0) >= 70 && (
+                            <span title={`Viral score: ${meta.viralScore ?? meta.predictedViralScore}`} data-testid={`short-viral-badge-${i}-${si}`}>🔥</span>
+                          )}
+                          {meta.trendQueued && (
+                            <span title={meta.trendTopic ?? "Trend-intercepted"} data-testid={`short-trend-badge-${i}-${si}`}>⚡</span>
+                          )}
+                          {meta.competitorGapQueued && (
+                            <span title={meta.gapTopic ?? "Competitor gap"} data-testid={`short-gap-badge-${i}-${si}`}>🎯</span>
+                          )}
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -314,6 +332,37 @@ function QueueCalendar({ maxShorts, maxLongForm }: QueueCalendarProps) {
                             <div className="flex items-start gap-1.5">
                               <span className="text-muted-foreground/60 shrink-0 w-14">Source</span>
                               <span className="text-muted-foreground leading-tight line-clamp-2" data-testid={`short-popover-source-${i}-${si}`}>{srcTitle}</span>
+                            </div>
+                          )}
+                          {(meta.viralScore != null || meta.predictedViralScore != null) && (
+                            <div className="flex items-start gap-1.5 pt-0.5 border-t border-border/20 mt-0.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Viral</span>
+                              <span className={`font-semibold ${
+                                (meta.viralScore ?? meta.predictedViralScore ?? 0) >= 70
+                                  ? "text-orange-400"
+                                  : (meta.viralScore ?? meta.predictedViralScore ?? 0) >= 50
+                                  ? "text-yellow-400"
+                                  : "text-muted-foreground"
+                              }`} data-testid={`short-popover-viral-${i}-${si}`}>
+                                {meta.viralScore ?? meta.predictedViralScore}/100
+                                {(meta.viralScore ?? meta.predictedViralScore ?? 0) >= 70 && " 🔥"}
+                              </span>
+                            </div>
+                          )}
+                          {meta.trendTopic && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Trend</span>
+                              <span className="text-yellow-400 leading-tight line-clamp-2" data-testid={`short-popover-trend-${i}-${si}`}>
+                                ⚡ {meta.trendTopic}{meta.trendVelocity != null ? ` (v=${meta.trendVelocity.toFixed(2)})` : ""}
+                              </span>
+                            </div>
+                          )}
+                          {meta.gapTopic && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-muted-foreground/60 shrink-0 w-14">Gap</span>
+                              <span className="text-blue-400 leading-tight line-clamp-2" data-testid={`short-popover-gap-${i}-${si}`}>
+                                🎯 {meta.gapTopic}{meta.gapCompetitorChannel ? ` vs ${meta.gapCompetitorChannel}` : ""}
+                              </span>
                             </div>
                           )}
                         </div>
