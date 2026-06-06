@@ -1318,6 +1318,14 @@ export function registerStreamRoutes(app: Express) {
     res.json({ success: true, mode });
   }));
 
+  // ── Live stream director status ───────────────────────────────────────────────
+  app.get("/api/youtube/stream/director-status", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { getDirectorStatus } = await import("../services/live-stream-director");
+    res.json(getDirectorStatus(userId));
+  }));
+
   // ── Pre-live stream preparation ──────────────────────────────────────────────
   app.post("/api/youtube/copilot/prepare/:streamId", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;

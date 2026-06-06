@@ -3312,6 +3312,7 @@ httpServer.listen(
         { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
         { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
         { label: "livestream-growth-agent",       fn: () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(slog("initLivestreamGrowthAgent")) },
+        { label: "live-stream-director",           fn: () => import("./services/live-stream-director").then(m => m.initLiveStreamDirector()).catch(slog("initLiveStreamDirector")) },
         { label: "live-chat-agent",               fn: () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(slog("initLiveChatAgent")) },
         { label: "chat-bridge",                   fn: () => import("./services/chat-bridge").then(m => m.initChatBridge()).catch(slog("initChatBridge")) },
         { label: "stream-idle-engagement",        fn: () => import("./services/stream-idle-engagement").then(m => m.initIdleEngagement()).catch(slog("initIdleEngagement")) },
