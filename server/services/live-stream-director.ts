@@ -87,6 +87,11 @@ interface DirectorSession {
   lastTitleRefreshAt: number;
   currentTitle: string;
   peakViewers: number;
+  // Run watcher — detects sustained momentum and amplifies it
+  consecutiveGrowthSamples: number;
+  runActive: boolean;
+  lastRunDeclaredAt: number;
+  runStartViewers: number;
   // Lifecycle
   cycleTimer: ReturnType<typeof setInterval> | null;
   afterStreamFired: boolean;
@@ -100,8 +105,13 @@ const ANALYTICS_INTERVAL_MS          = 20 * 60 * 1000;  // viewer check every 20
 const MIN_TITLE_REFRESH_INTERVAL_MS  = 60 * 60 * 1000;  // min 1 h between title refreshes (no hard cap — works for 12h+ streams)
 const VIEWER_HISTORY_MAX_SAMPLES     = 72;               // 72 × 20 min = 24 h ring buffer
 const VIEWER_DROP_THRESHOLD          = 0.80;             // >20% drop triggers a recovery refresh
-const VIRAL_SURGE_THRESHOLD          = 1.50;             // ≥50% growth vs 40 min ago = riding the wave
+const VIRAL_SURGE_THRESHOLD          = 1.50;             // ≥50% growth vs 40 min ago = already viral
 const MIN_STREAM_AGE_FOR_REFRESH_MS  = 30 * 60 * 1000;  // no refresh in first 30 min
+// Run watcher
+const RUN_CONSECUTIVE_SAMPLES        = 3;                // 3 positive samples = 60 min of sustained growth
+const RUN_MIN_SAMPLE_GROWTH          = 1.05;             // each sample must show ≥5% growth to count
+const RUN_COOLDOWN_MS                = 2 * 60 * 60 * 1000; // 2h before next run can be declared
+const RUN_BEAT_GAP_MS                = 15 * 60 * 1000;  // tighter beats (15 min) while on a run
 
 const activeSessions = new Map<string, DirectorSession>();
 let eventsRegistered = false;
@@ -356,6 +366,37 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
     if (newTitle) trigger = "viewer_decline";
   }
 
+  // ── Run watcher — track consecutive 20-min growth samples ─────────────────
+  // Uses the previous step (20 min ago) rather than prevViewers (40 min ago)
+  // so the streak counter reflects true consecutive momentum.
+  const prevStep = session.viewerHistory.length >= 2
+    ? session.viewerHistory[session.viewerHistory.length - 2]
+    : null;
+  const isStepGrowing = prevStep && prevStep.count > 0
+    ? viewers >= prevStep.count * RUN_MIN_SAMPLE_GROWTH
+    : false;
+
+  if (isStepGrowing) {
+    session.consecutiveGrowthSamples++;
+  } else {
+    // Soft decay — one flat/down sample doesn't reset a long run instantly
+    session.consecutiveGrowthSamples = Math.max(0, session.consecutiveGrowthSamples - 1);
+    if (session.consecutiveGrowthSamples === 0) session.runActive = false;
+  }
+
+  const sinceLastRun = now - session.lastRunDeclaredAt;
+  if (
+    session.consecutiveGrowthSamples >= RUN_CONSECUTIVE_SAMPLES &&
+    !session.runActive &&
+    sinceLastRun >= RUN_COOLDOWN_MS
+  ) {
+    session.runActive = true;
+    session.lastRunDeclaredAt = now;
+    session.runStartViewers = viewers;
+    await amplifyRun(session, viewers).catch(() => {});
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   if (newTitle && trigger && newTitle !== session.currentTitle) {
     try {
       const yt = await getYouTubeClient(session.channelDbId);
@@ -401,6 +442,105 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
       }
     } catch (err: any) {
       logger.warn(`[Director] Title refresh failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
+    }
+  }
+}
+
+// ── Run watcher amplification ─────────────────────────────────────────────────
+// Called the moment 3 consecutive positive-growth samples are detected.
+// Fires a chat message to encourage sharing, tightens the beat cadence,
+// and triggers an immediate title update if the cooldown allows.
+
+async function amplifyRun(session: DirectorSession, viewers: number): Promise<void> {
+  const durMs = Date.now() - session.startedAt.getTime();
+  const durMin = Math.round(durMs / 60_000);
+
+  logger.info(
+    `[Director] 🔥 Run detected — ${viewers} viewers, ` +
+    `${session.consecutiveGrowthSamples} consecutive growth samples (${durMin}min in)`,
+  );
+
+  sendSSEEvent(session.userId, "director_heartbeat", {
+    type: "run_detected",
+    streamId: session.streamId,
+    currentViewers: viewers,
+    runStartViewers: viewers,
+    consecutiveGrowthSamples: session.consecutiveGrowthSamples,
+    durationMin: durMin,
+  });
+
+  // Tighten beat cadence for the next posting cycle
+  session.nextBeatGapMs = RUN_BEAT_GAP_MS;
+
+  // Post an amplification message to chat — urge sharing while momentum is live
+  if (session.liveChatId && session.channelDbId > 0) {
+    try {
+      const yt = await getYouTubeClient(session.channelDbId);
+      const runMessages = [
+        `viewers keep building 🔥 share the stream if you're enjoying it`,
+        `something's happening here — share if you want more people to see this`,
+        `on a run right now — appreciate everyone joining 🙏 share the stream`,
+        `viewers climbing every check — share the ${session.gameName} stream if you're feeling it`,
+        `growing fast right now 🔥 subscribe so you don't miss the clips from this session`,
+      ];
+      const msg = runMessages[Math.floor(Math.random() * runMessages.length)];
+      await postChatMessage(yt, session.userId, session.liveChatId, msg);
+      logger.info(`[Director] Run amplification chat message posted`);
+    } catch { /* non-fatal */ }
+  }
+
+  // Title update — ride the early momentum before it becomes a full surge
+  const sinceLastRefresh = Date.now() - session.lastTitleRefreshAt;
+  if (
+    sinceLastRefresh >= MIN_TITLE_REFRESH_INTERVAL_MS &&
+    session.broadcastId &&
+    session.channelDbId > 0
+  ) {
+    const prevStepViewers = session.viewerHistory.length >= 2
+      ? session.viewerHistory[session.viewerHistory.length - 2].count
+      : viewers;
+
+    const newTitle = await generateViralSurgeTitle(
+      session.gameName,
+      session.currentTitle,
+      viewers,
+      prevStepViewers,
+      durMin,
+    ).catch(() => null);
+
+    if (newTitle && newTitle !== session.currentTitle) {
+      try {
+        const yt = await getYouTubeClient(session.channelDbId);
+        let currentDescription = "";
+        try {
+          const vr = await yt.videos.list({ part: ["snippet"], id: [session.broadcastId] });
+          await trackQuotaUsage(session.userId, "read").catch(() => {});
+          currentDescription = vr.data.items?.[0]?.snippet?.description ?? "";
+        } catch { /* non-fatal */ }
+
+        const updated = await applyBroadcastMetadata(
+          yt, session.userId, session.broadcastId, newTitle, currentDescription,
+        );
+        if (updated) {
+          session.titleRefreshCount++;
+          session.lastTitleRefreshAt = Date.now();
+          const oldTitle = session.currentTitle;
+          session.currentTitle = newTitle;
+          logger.info(
+            `[Director] Run title update #${session.titleRefreshCount}: ` +
+            `"${oldTitle.slice(0, 50)}" → "${newTitle.slice(0, 50)}"`,
+          );
+          sendSSEEvent(session.userId, "director_heartbeat", {
+            type: "title_refreshed",
+            streamId: session.streamId,
+            trigger: "run_start",
+            newTitle,
+            oldTitle,
+            refreshCount: session.titleRefreshCount,
+            currentViewers: viewers,
+          });
+        }
+      } catch { /* non-fatal */ }
     }
   }
 }
@@ -615,10 +755,13 @@ async function runDirectorCycle(session: DirectorSession): Promise<void> {
       if (posted) {
         session.beatsPosted++;
         session.lastBeatAt = now;
-        session.nextBeatGapMs =
-          BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS));
+        // Tighter cadence during a run — beats every 15 min instead of 25–35
+        session.nextBeatGapMs = session.runActive
+          ? RUN_BEAT_GAP_MS
+          : BEAT_GAP_MIN_MS + Math.floor(Math.random() * (BEAT_GAP_MAX_MS - BEAT_GAP_MIN_MS));
         logger.info(
-          `[Director] Broadcast beat #${session.beatsPosted} posted — next in ~${Math.round(session.nextBeatGapMs / 60_000)} min`,
+          `[Director] Broadcast beat #${session.beatsPosted} posted — next in ~${Math.round(session.nextBeatGapMs / 60_000)} min` +
+          (session.runActive ? " [run mode]" : ""),
         );
       }
     } catch (err: any) {
@@ -725,6 +868,10 @@ async function onStreamStarted(
     lastTitleRefreshAt: 0, // 0 = no cooldown on first eligible refresh
     currentTitle: liveTitle,
     peakViewers: 0,
+    consecutiveGrowthSamples: 0,
+    runActive: false,
+    lastRunDeclaredAt: 0,
+    runStartViewers: 0,
     cycleTimer: null,
     afterStreamFired: false,
   };
@@ -831,6 +978,9 @@ export function getDirectorStatus(userId: string) {
       0,
       Math.round((session.lastTitleRefreshAt + MIN_TITLE_REFRESH_INTERVAL_MS - Date.now()) / 60_000),
     ),
+    runActive: session.runActive,
+    consecutiveGrowthSamples: session.consecutiveGrowthSamples,
+    runStartViewers: session.runStartViewers,
     liveChatId: session.liveChatId ? "present" : "absent",
     broadcastId: session.broadcastId ? "present" : "absent",
   };
