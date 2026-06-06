@@ -529,9 +529,14 @@ export async function afterStreamCopilot(
   const state = getStreamState(streamId);
   const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
 
-  // Shift catalog content back so live stream clips always win near-term slots.
-  // Non-fatal — schedule bump runs in the background while we continue queuing.
-  bumpScheduleForNewStream(userId, 3).catch(() => {});
+  // Stream hype wave: push non-focus-game content out by an analytics-driven
+  // window, then backfill freed slots with focus-game catalog clips.
+  // Supersedes the old uniform bumpScheduleForNewStream(3) call.
+  import("./stream-hype-wave").then(({ triggerStreamHypeWave }) => {
+    triggerStreamHypeWave(userId, streamId, stream?.category ?? "Battlefield 6").catch(
+      (err: any) => logger.warn(`[LiveCopilot] hypeWave non-fatal: ${err?.message?.slice(0, 100)}`),
+    );
+  }).catch(() => {});
 
   // Look up the VOD YouTube ID — needed so pre-seo.ts can link back to the
   // original full stream in the description and use it as the source context.

@@ -1340,6 +1340,30 @@ export function registerStreamRoutes(app: Express) {
     res.json(result);
   }));
 
+  // ── Stream Hype Wave — manual trigger ────────────────────────────────────────
+  // POST /api/youtube/hype-wave
+  // Body: { streamId?: number, gameName?: string }
+  // Fires the hype wave immediately for the given (or focus) game:
+  //   • pushes non-focus-game scheduled content out by the analytics window
+  //   • backfills freed slots with focus-game back-catalog clips
+  // Useful when you upload a fresh BF6 stream and want the schedule reshuffled
+  // before the next publisher run.
+  app.post("/api/youtube/hype-wave", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const streamId: number | null =
+      req.body?.streamId != null ? parseInt(String(req.body.streamId), 10) : null;
+    const gameName: string =
+      typeof req.body?.gameName === "string" && req.body.gameName.trim()
+        ? req.body.gameName.trim()
+        : "Battlefield 6";
+
+    const { triggerStreamHypeWave } = await import("../services/stream-hype-wave");
+    const result = await triggerStreamHypeWave(userId, streamId, gameName);
+    res.json(result);
+  }));
+
   // ── Trigger daily learning cycle ─────────────────────────────────────────────
   app.post("/api/youtube/learning/run-cycle", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
