@@ -3363,15 +3363,16 @@ httpServer.listen(
         const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("marketer-engine import"));
-      import("./daily-content-engine").then(async m => {
-        // Pushed to T+20-25 min: back-catalog runner + AI orchestrator both kick in at
-        // T+10-20 min; stream-exhaust (heavy AI caller) must not start until after them
-        // to avoid permanently saturating all 4 AI queue slots during the boot window.
-        await new Promise(r => setTimeout(r, 20 * 60_000 + stagger(5 * 60_000)));
-        await m.runDailyContentGeneration().catch(slog("runDailyContentGeneration"));
-        const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), jitter(3 * 60 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("daily-content-engine import"));
+      // CROSS-POSTING DISABLED — daily-content-engine generates multi-platform
+      // content groups (YouTube + TikTok etc.) and is disabled until cross-posting
+      // is re-enabled.  YouTube-only autopilot (back-catalog runner + AI orchestrator)
+      // continues to run unaffected.
+      // import("./daily-content-engine").then(async m => {
+      //   await new Promise(r => setTimeout(r, 20 * 60_000 + stagger(5 * 60_000)));
+      //   await m.runDailyContentGeneration().catch(slog("runDailyContentGeneration"));
+      //   const iv = setInterval(() => m.runDailyContentGeneration().catch(slog("runDailyContentGeneration")), jitter(3 * 60 * 60_000));
+      //   backgroundIntervals.push(iv);
+      // }).catch(slog("daily-content-engine import"));
       import("./playlist-manager").then(async m => {
         await new Promise(r => setTimeout(r, stagger(6 * 60_000)));
         await m.runPlaylistOrganizationForAllUsers().catch(slog("runPlaylistOrganization"));

@@ -866,6 +866,30 @@ async function migration014CancelBlockedSourceVideos(): Promise<void> {
   }
 }
 
+// ── Migration 015: purge all non-YouTube queue items ─────────────────────────
+// Cross-posting is disabled. Wipe every pending/scheduled item that targets a
+// platform other than YouTube or YouTube Shorts so they never get picked up.
+
+async function migration015PurgeNonYoutubeQueueItems(): Promise<void> {
+  const FLAG = "migration:015:purge_non_youtube_queue_items";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'permanent_fail',
+          error_message = 'Cancelled by migration 015: cross-posting disabled — non-YouTube platform'
+      WHERE target_platform NOT IN ('youtube', 'youtubeshorts')
+        AND status NOT IN ('published', 'permanent_fail', 'cancelled')
+    `);
+    const rows = (result as any)?.rowCount ?? "?";
+    log.info(`[Migration015] Cancelled ${rows} non-YouTube queue item(s)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration015] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Boot cleanup: reset stuck pending items ───────────────────────────────────
 // Runs on EVERY boot (no flag guard) — safe because no publishers are running
 // at T+3s when migrations fire.  Resets all items stuck in "pending" status
@@ -922,6 +946,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:012:delete_placeholder_channels",      label: "012 — delete stale placeholder/dev channel rows" },
   { flag: "migration:013:game_name_reaudit_v1",             label: "013 — re-audit back catalog game names; correct misclassified AC/BF videos" },
   { flag: "migration:014:cancel_blocked_source_videos",     label: "014 — cancel queue items referencing permanently-blocked source video s0D2BLHmiTU" },
+  { flag: "migration:015:purge_non_youtube_queue_items",    label: "015 — purge all non-YouTube pending/scheduled queue items (cross-posting disabled)" },
 ];
 
 export interface MigrationHealth {
@@ -989,6 +1014,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration012DeletePlaceholderChannels();
     await migration013GameNameReaudit();
     await migration014CancelBlockedSourceVideos();
+    await migration015PurgeNonYoutubeQueueItems();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
