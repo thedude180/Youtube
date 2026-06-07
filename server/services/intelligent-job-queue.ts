@@ -161,14 +161,19 @@ class IntelligentJobQueue {
           logger.error(`[JobQueue] Job ${job.id} exceeded max retries and failed`);
         }
       } finally {
-        this.processNext(type).catch((err: any) => {
-          logger.error(`[JobQueue] Chain-trigger failure for ${type}: ${err?.message} — scheduling recovery retry in 5s`);
-          setTimeout(() => {
-            this.processNext(type).catch((retryErr: any) => {
-              logger.error(`[JobQueue] Recovery retry also failed for ${type}: ${retryErr?.message}`);
-            });
-          }, 5_000);
-        });
+        // 5-second gap between jobs prevents rapid-fire background AI slot consumption.
+        // Without this, chains spin immediately and fill all 4 background slots
+        // permanently, starving every other AI-dependent service.
+        setTimeout(() => {
+          this.processNext(type).catch((err: any) => {
+            logger.error(`[JobQueue] Chain-trigger failure for ${type}: ${err?.message} — scheduling recovery retry in 30s`);
+            setTimeout(() => {
+              this.processNext(type).catch((retryErr: any) => {
+                logger.error(`[JobQueue] Recovery retry also failed for ${type}: ${retryErr?.message}`);
+              });
+            }, 30_000);
+          });
+        }, 5_000);
       }
     } catch (err: any) {
       logger.error(`[JobQueue] Fatal error in processNext for ${type}: ${err.message}`);
@@ -262,10 +267,48 @@ class IntelligentJobQueue {
 
   /**
    * startRecoveryPump — call once after all handlers are registered.
-   * Immediately sweeps all job types with status='queued' in DB and kicks off
-   * processing for each, then repeats every 5 minutes so no job sits forever.
+   * On boot, immediately fails stale AI-intensive queued jobs from crashed sessions
+   * so they don't thundering-herd the AI background queue on restart.
+   * Then sweeps surviving queued jobs every 5 minutes.
+   *
+   * IMPORTANT: The first sweep is intentionally deferred to the setInterval
+   * (5 minutes after this call) rather than running immediately at boot.
+   * This gives the server time to stabilise and prevents stale jobs that survived
+   * the crash from flooding the AI queue before real services have a chance to run.
    */
   async startRecoveryPump(): Promise<void> {
+    // ── Boot-time stale job cleanup ──────────────────────────────────────────
+    // AI-intensive job types that accumulate across crash cycles.  Failing stale
+    // ones (older than 10 min) prevents a thundering herd at each boot restart.
+    // New jobs created after boot start are not affected.
+    try {
+      const cleared = await db.execute(sql`
+        UPDATE intelligent_jobs
+        SET status      = 'failed',
+            error_message = 'Stale job cleared at boot (crash-loop recovery)',
+            completed_at  = NOW()
+        WHERE status = 'queued'
+          AND type IN (
+            'vod_seo_optimize', 'vod_wait_and_process', 'shorts_factory',
+            'multi_platform_clips', 'generate_content_idea', 'content_idea_generation',
+            'tiktok_publish', 'stream_performance_analysis', 'evergreen_recycler',
+            'mid_stream_highlight'
+          )
+          AND created_at < NOW() - INTERVAL '10 minutes'
+      `);
+      if ((cleared.rowCount ?? 0) > 0) {
+        logger.warn(`[JobQueue] Boot cleanup: failed ${cleared.rowCount} stale AI jobs from crashed sessions`);
+      } else {
+        logger.info(`[JobQueue] Boot cleanup: no stale AI jobs found`);
+      }
+    } catch (err: any) {
+      logger.warn(`[JobQueue] Boot cleanup failed (non-fatal): ${err.message}`);
+    }
+
+    // ── Periodic sweep ───────────────────────────────────────────────────────
+    // First sweep runs 5 minutes after boot (via setInterval), NOT immediately.
+    // This prevents the boot-time AI queue from being saturated before services
+    // have had time to initialise and the MemoryGuardian holdoff has elapsed.
     const sweep = async () => {
       try {
         const result = await db.execute(sql`
@@ -287,7 +330,6 @@ class IntelligentJobQueue {
         logger.error(`[JobQueue] Recovery pump error: ${err.message}`);
       }
     };
-    await sweep();
     setInterval(sweep, 5 * 60_000);
   }
 
