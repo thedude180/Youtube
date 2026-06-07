@@ -3303,9 +3303,9 @@ httpServer.listen(
         try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
         // AI-intensive engines staggered to T+22–26min so they never compete
         // with the publisher pipeline or Wave 6–8 services for AI slots.
-        // [YOUTUBE-ONLY] Non-YouTube engines disabled until YouTube publishing is stable:
-        // setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
-        // setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
+        setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
+        setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
+        // [YOUTUBE-ONLY] brand-partnerships-engine disabled — sponsor outreach, not YouTube learning:
         // setTimeout(() => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine")), 26 * 60_000);
       }).catch(slog("wave5-ready-gate"));
     });
@@ -3318,8 +3318,7 @@ httpServer.listen(
       await sleep(8 * 60_000); // sequential boot gate: T+8min
       staggeredBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
-        // [YOUTUBE-ONLY] compliance-legal-engine disabled — fires 15+ legal/tax AI agents per cycle:
-        // { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
+        { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
         { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
         // [YOUTUBE-ONLY] ai-team-scheduler disabled — fires business agent teams (CFO, CMO, strategy, etc.):
         // { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
@@ -3377,13 +3376,12 @@ httpServer.listen(
       //   const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
       //   backgroundIntervals.push(iv);
       // }).catch(slog("auto-thumbnail-engine import"));
-      // [YOUTUBE-ONLY] marketer-engine disabled — multi-platform marketing automation:
-      // import("./marketer-engine").then(async m => {
-      //   await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
-      //   await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
-      //   const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
-      //   backgroundIntervals.push(iv);
-      // }).catch(slog("marketer-engine import"));
+      import("./marketer-engine").then(async m => {
+        await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
+        await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
+        backgroundIntervals.push(iv);
+      }).catch(slog("marketer-engine import"));
       // CROSS-POSTING DISABLED — daily-content-engine generates multi-platform
       // content groups (YouTube + TikTok etc.) and is disabled until cross-posting
       // is re-enabled.  YouTube-only autopilot (back-catalog runner + AI orchestrator)
