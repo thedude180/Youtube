@@ -27,7 +27,7 @@ import { db } from "../db";
 import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
 import { eq, and, lte, sql, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { uploadVideoToYouTube } from "../youtube";
+import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPublishTime, isLongFormScheduleSaturated, clearLongFormScheduleSaturation } from "./youtube-output-schedule";
@@ -191,7 +191,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         END`,
         autopilotQueue.scheduledAt,
       )
-      .limit(MAX_PER_RUN * 4);
+      .limit(1); // One upload per cycle — the perpetual loop calls us again immediately for the next
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
@@ -494,6 +494,32 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         }
 
         if (!uploadResult?.youtubeId) throw new Error("Upload returned no YouTube ID");
+
+        // ── Verify the video is actually present on YouTube ───────────────────
+        // Polls videos.list up to 3× (6-second gaps) to confirm YouTube indexed
+        // the upload.  A "processing" uploadStatus is fine — video was accepted.
+        // Non-blocking: if YouTube doesn't respond in time we log a warning but
+        // still mark the item published (the insert API already confirmed it).
+        {
+          const verifyYtId = uploadResult.youtubeId;
+          try {
+            const verifyResult = await verifyUploadedToYouTube(ytChannel.id, verifyYtId);
+            if (verifyResult.verified) {
+              logger.info(
+                `[LongFormPublisher] ✓ Verified on YouTube — videoId=${verifyYtId}` +
+                ` uploadStatus=${verifyResult.uploadStatus ?? "unknown"}` +
+                ` privacy=${verifyResult.privacyStatus ?? "unknown"}`,
+              );
+            } else {
+              logger.warn(
+                `[LongFormPublisher] ⚠ Upload accepted by API but video not yet visible via videos.list — ` +
+                `videoId=${verifyYtId} (YouTube may still be processing — check Studio)`,
+              );
+            }
+          } catch (vErr: any) {
+            logger.warn(`[LongFormPublisher] verifyUploadedToYouTube threw: ${vErr?.message?.slice(0, 120)}`);
+          }
+        }
 
         // Add to game-specific long-form playlist immediately after upload.
         // Non-fatal — playlist failure never blocks the status update.

@@ -1042,6 +1042,71 @@ export async function uploadVideoToYouTube(
   }
 }
 
+/**
+ * Verify that a video uploaded to YouTube is actually accessible via the API.
+ * Called immediately after uploadVideoToYouTube() to confirm YouTube accepted and
+ * indexed the video before the queue item is marked published.
+ *
+ * YouTube may take a few seconds to make a freshly-uploaded video queryable,
+ * so this polls up to 3 times with a 6-second gap (max ~18 s total wait).
+ *
+ * Returns { verified: true } if the video appears in videos.list (even in
+ * "processing" state — that is normal and expected for a fresh upload).
+ * Returns { verified: false } if all attempts fail — the caller should log a
+ * warning but NOT fail the queue item (the upload API already confirmed receipt).
+ *
+ * Quota cost: 1 unit per poll attempt.
+ */
+export async function verifyUploadedToYouTube(
+  channelId: number,
+  youtubeVideoId: string,
+  { maxAttempts = 3, pollIntervalMs = 6_000 }: { maxAttempts?: number; pollIntervalMs?: number } = {},
+): Promise<{ verified: boolean; uploadStatus?: string; privacyStatus?: string }> {
+  // Resolve userId for quota tracking
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Give YouTube a moment to process the upload before first check
+    await new Promise(r => setTimeout(r, attempt === 1 ? pollIntervalMs : pollIntervalMs));
+
+    try {
+      const { oauth2Client } = await getAuthenticatedClient(channelId);
+      const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+      const resp = await yt.videos.list({
+        part: ["status"],
+        id: [youtubeVideoId],
+      });
+
+      if (resolvedUserId) await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
+
+      const item = resp.data.items?.[0];
+      if (item) {
+        return {
+          verified: true,
+          uploadStatus: (item.status as any)?.uploadStatus ?? undefined,
+          privacyStatus: item.status?.privacyStatus ?? undefined,
+        };
+      }
+
+      ytLogger.warn(
+        `[VerifyUpload] Attempt ${attempt}/${maxAttempts} — video ${youtubeVideoId} not yet visible via API`,
+      );
+    } catch (err: any) {
+      ytLogger.warn(
+        `[VerifyUpload] Attempt ${attempt}/${maxAttempts} error for ${youtubeVideoId}: ${err?.message?.slice(0, 120)}`,
+      );
+    }
+  }
+
+  return { verified: false };
+}
+
 export async function setYouTubeThumbnail(
   channelId: number,
   videoId: string,

@@ -36,7 +36,7 @@ import { db } from "../db";
 import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
 import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { uploadVideoToYouTube } from "../youtube";
+import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
@@ -443,7 +443,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         autopilotQueue.scheduledAt,
         sql`COALESCE((${autopilotQueue.metadata}->>'viralScore')::float, 50) DESC`,
       )
-      .limit(MAX_PER_RUN * 4);
+      .limit(1); // One upload per cycle — the perpetual loop calls us again immediately for the next
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
@@ -783,6 +783,33 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   } else {
                     logger.info("[YouTubeSchedule] Short published immediately as public");
                   }
+
+                  // ── Verify the Short is actually present on YouTube ─────────
+                  // Polls videos.list up to 3× (6-second gaps) to confirm YouTube
+                  // indexed the upload.  Non-blocking — logs warning on failure.
+                  {
+                    const verifyYtId = (result as any).youtubeId as string | undefined;
+                    if (verifyYtId) {
+                      try {
+                        const verifyResult = await verifyUploadedToYouTube(ytChannel.id, verifyYtId);
+                        if (verifyResult.verified) {
+                          logger.info(
+                            `[ShortsPublisher] ✓ Verified on YouTube — videoId=${verifyYtId}` +
+                            ` uploadStatus=${verifyResult.uploadStatus ?? "unknown"}` +
+                            ` privacy=${verifyResult.privacyStatus ?? "unknown"}`,
+                          );
+                        } else {
+                          logger.warn(
+                            `[ShortsPublisher] ⚠ Upload accepted by API but Short not yet visible via videos.list — ` +
+                            `videoId=${verifyYtId} (YouTube may still be processing — check Studio)`,
+                          );
+                        }
+                      } catch (vErr: any) {
+                        logger.warn(`[ShortsPublisher] verifyUploadedToYouTube threw: ${vErr?.message?.slice(0, 120)}`);
+                      }
+                    }
+                  }
+
                   // NOTE: Do NOT upload a pre-generated thumbnailPath here.
                   // Pre-generated thumbnails are produced for the landscape source
                   // video (16:9) and must not be applied to portrait Shorts (9:16).
