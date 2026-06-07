@@ -3711,10 +3711,8 @@ httpServer.listen(
             }
           }).catch(slog("smart-edit-engine import")) },
         { label: "game-detection-engine",       fn: () => import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine")) },
-        // [YOUTUBE-ONLY] self-improvement-engine disabled — general AI self-improvement:
-        // { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
-        // [YOUTUBE-ONLY] growth-flywheel-engine disabled — general growth automation:
-        // { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
+        { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
+        { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
       ], 5_000);
     });
 
@@ -3735,10 +3733,8 @@ httpServer.listen(
         { label: "channel-catalog-sync",      fn: () => import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync")) },
         { label: "platform-feature-detector", fn: () => import("./services/platform-feature-detector").then(m => m.startPlatformFeatureDetector()).catch(slog("startPlatformFeatureDetector")) },
         { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
-        // [YOUTUBE-ONLY] infinite-evolution-engine disabled — general AI evolution:
-        // { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
-        // [YOUTUBE-ONLY] knowledge-mesh disabled — general knowledge consolidation:
-        // { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
+        { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
+        { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
       ], 5_000);
     });
 
@@ -3752,17 +3748,14 @@ httpServer.listen(
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
         { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
         { label: "prompt-evolution-engine",     fn: () => import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine")) },
-        // [YOUTUBE-ONLY] revenue-optimizer-engine disabled — multi-platform revenue:
-        // { label: "revenue-optimizer-engine",    fn: () => import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine")) },
+        { label: "revenue-optimizer-engine",    fn: () => import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine")) },
         { label: "audience-intelligence-engine",fn: () => import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(slog("initAudienceIntelligenceEngine")) },
         { label: "predictive-guardian",         fn: () => import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(slog("initPredictiveGuardian")) },
         { label: "empire-intelligence-engine",  fn: () => import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(slog("initEmpireIntelligenceEngine")) },
-        // [YOUTUBE-ONLY] memory-architect disabled — general multi-platform memory:
-        // { label: "memory-architect",            fn: () => import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect")) },
+        { label: "memory-architect",            fn: () => import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect")) },
         { label: "autonomous-experimenter",     fn: () => import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter")) },
         { label: "decision-chronicler",         fn: () => import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler")) },
-        // [YOUTUBE-ONLY] autonomous-capability-engine disabled — general capability expansion:
-        // { label: "autonomous-capability-engine",fn: () => import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine")) },
+        { label: "autonomous-capability-engine",fn: () => import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine")) },
         { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
