@@ -21,14 +21,12 @@
 
 import path from "path";
 import fs from "fs";
-import { spawn } from "child_process";
 import cron from "node-cron";
 import { db } from "../db";
-import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
+import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, sql, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
-import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { MAX_LONGFORM_PER_DAY, countUploadedLongFormForDate, getNextLongFormPublishTime, isLongFormScheduleSaturated, clearLongFormScheduleSaturation } from "./youtube-output-schedule";
 
@@ -38,8 +36,6 @@ const MAX_PER_RUN = 50; // quota is the real gate; 50 works through a deep queue
 const BATCH_WINDOW_DAYS = 365; // 365-day window — shadow schedule is unlimited; quota + MAX_PER_RUN cap actual uploads per night
 const MAX_SEGMENT_SEC = 3600; // 60 min hard ceiling
 const MIN_LONG_FORM_SEC = 480; // 8 min — YouTube mid-roll monetization threshold
-const LONG_FORM_TEMP_DIR = path.join(process.cwd(), "data", "longform-tmp");
-
 // Duration experiment buckets (minutes).  Each upload is assigned one bucket
 // so we can correlate video length with audience retention / watch-time.
 const EXPERIMENT_DURATIONS_MIN = [8, 10, 15, 20, 30, 45, 60] as const;
@@ -64,69 +60,7 @@ function pickExperimentDurationSec(maxAvailableSec: number, existingMin?: number
   return chosen * 60;
 }
 
-if (!fs.existsSync(LONG_FORM_TEMP_DIR)) {
-  fs.mkdirSync(LONG_FORM_TEMP_DIR, { recursive: true });
-}
-
 let isRunning = false;
-
-// ---------------------------------------------------------------------------
-// FFmpeg / yt-dlp helpers (16:9 horizontal encoding — letterbox to landscape)
-// ---------------------------------------------------------------------------
-
-function runCmd(bin: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-    const errBufs: Buffer[] = [];
-    // No timeout — 4K encoding of a 60-minute video can take several hours.
-    // The process is allowed to run until ffmpeg signals completion naturally.
-    proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
-    proc.on("close", (code) => {
-      if (code === 0) return resolve();
-      reject(new Error(Buffer.concat(errBufs).toString("utf8").slice(-600)));
-    });
-    proc.on("error", reject);
-  });
-}
-
-async function extractSegment(
-  sourcePath: string,
-  startSec: number,
-  durationSec: number,
-  outputPath: string,
-): Promise<void> {
-  await runCmd("ffmpeg", [
-    "-y",
-    "-ss", String(startSec),
-    "-i", sourcePath,
-    "-t", String(durationSec),
-    // 16:9 horizontal — letterbox to 3840×2160 (4K), keep original aspect ratio (no crop)
-    "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
-    "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
-    "-c:v", "libx264",
-    "-profile:v", "high",
-    "-level:v", "5.1",
-    "-crf", "20",
-    "-preset", "fast",
-    "-movflags", "+faststart",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    "-ar", "48000",
-    "-ac", "2",
-    "-pix_fmt", "yuv420p",
-    "-threads", "2",
-    outputPath,
-  ]);
-}
-
-async function downloadSegmentFromYouTube(
-  youtubeId: string,
-  startSec: number,
-  endSec: number,
-  outputPath: string,
-): Promise<void> {
-  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
-}
 
 // ---------------------------------------------------------------------------
 // Main publish function
@@ -376,57 +310,38 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         continue;
       }
 
-      const runId = `lf_${item.id}_${Date.now()}`;
-      const tmpRaw = path.join(LONG_FORM_TEMP_DIR, `raw_${runId}.mp4`);
-      const tmpEncoded = path.join(LONG_FORM_TEMP_DIR, `enc_${runId}.mp4`);
-
       let encodedPath: string | null = null;
 
       try {
-        // Fast path: pre-encoder already built this file ahead of time.
-        // Skip download + encode entirely — just use the ready file.
+        // Pre-encoder has already built this file — just upload it.
+        // Publishers NEVER download or encode inline: all that heavy work is
+        // done by the pre-encoder running in the background so that restarts
+        // are upload-only with zero wait time.
         const preBuiltPath = typeof itemMeta.preEncodedPath === "string"
           ? (itemMeta.preEncodedPath as string) : null;
         if (preBuiltPath && fs.existsSync(preBuiltPath)) {
           encodedPath = preBuiltPath;
-          logger.info(`[LongFormPublisher] Pre-encoded file ready for item ${item.id} — skipping download+encode`);
-        } else {
-          // Prefer local vault file, fall back to yt-dlp
-          if (resolvedYoutubeId) {
-            const [vaultEntry] = await db.select()
-              .from(contentVaultBackups)
-              .where(and(
-                eq(contentVaultBackups.userId, item.userId),
-                eq(contentVaultBackups.youtubeId, resolvedYoutubeId),
-                eq(contentVaultBackups.status, "downloaded"),
-              ))
-              .limit(1);
+          logger.info(`[LongFormPublisher] Pre-encoded file ready for item ${item.id} — uploading`);
+        }
 
-            if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
-              await extractSegment(vaultEntry.filePath, startSec, durationSec, tmpEncoded);
-            } else {
-              // Source video not in vault — queue a full download in the background
-              // (same as downloading the whole video to your hard drive first, then
-              // cutting clips locally).  Reset this item to scheduled so the next
-              // publisher cycle can use the local file via the vault fast-path above.
-              const { queueVaultDownloadForSource } = await import("./video-vault");
-              const queueResult = await queueVaultDownloadForSource(resolvedYoutubeId, item.userId);
-              if (queueResult === "download_failed") {
-                // All vault download clients have exhausted their retry budget (3+ attempts).
-                // The video is fundamentally undownloadable (live stream never archived,
-                // age-restricted, HTTP 400, etc.).  Permanently fail so the item doesn't
-                // cycle between scheduled→processing→scheduled forever.
-                throw new Error(`__vault_source_unavailable__: ${resolvedYoutubeId} (all download clients failed after 3+ attempts)`);
-              }
-              logger.info(`[LongFormPublisher] Full-video download ${queueResult} for ${resolvedYoutubeId} — item will retry on next cycle`);
-              throw new Error(`__vault_download_pending__: ${resolvedYoutubeId} (${queueResult})`);
-            }
+        if (!encodedPath) {
+          // File not ready yet — skip and let the pre-encoder build it.
+          // If the path was set but the file is gone (purged after 7 days),
+          // clear the metadata so the pre-encoder will re-encode on its next cycle.
+          if (preBuiltPath) {
+            await db.update(autopilotQueue)
+              .set({ metadata: { ...itemMeta, preEncodedPath: null, preEncodedAt: null } as any })
+              .where(eq(autopilotQueue.id, item.id));
+            logger.info(`[LongFormPublisher] Pre-encoded file was purged for item ${item.id} — cleared, pre-encoder will rebuild`);
           } else {
-            throw new Error("No YouTube ID to download segment from");
+            logger.info(`[LongFormPublisher] Item ${item.id} not yet pre-encoded — skipping until pre-encoder processes it`);
           }
-
-          if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
-          encodedPath = tmpEncoded;
+          // Reset to scheduled so the next publisher cycle picks it up once pre-encoded
+          await db.update(autopilotQueue)
+            .set({ status: "scheduled", errorMessage: null })
+            .where(eq(autopilotQueue.id, item.id));
+          skipped++;
+          continue;
         }
 
         // Use pre-generated SEO from pre-seo service (runs at 8 PM Pacific)
@@ -604,32 +519,13 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         }
       } catch (err: any) {
         const errMsg = err?.message?.slice(0, 500) ?? "unknown error";
-
-        // Full-video download was queued — reset to scheduled so the next
-        // publisher cycle retries once the video is downloaded to disk.
-        if (errMsg.includes("__vault_download_pending__")) {
-          await db.update(autopilotQueue)
-            .set({ status: "scheduled", errorMessage: null })
-            .where(eq(autopilotQueue.id, item.id));
-          skipped++;
-        } else if (errMsg.includes("__vault_source_unavailable__")) {
-          // Source video is permanently undownloadable (HTTP 400, never-archived live stream,
-          // age-restricted, etc.) — all vault download clients exhausted after 3+ attempts.
-          // Permanently fail the queue item so it stops cycling scheduled→processing→scheduled.
-          logger.warn(`[LongFormPublisher] Source permanently unavailable — failing item ${item.id}`, { error: errMsg });
-          await db.update(autopilotQueue)
-            .set({ status: "failed", errorMessage: errMsg })
-            .where(eq(autopilotQueue.id, item.id));
-          failed++;
-        } else {
-          logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });
-          await db.update(autopilotQueue)
-            .set({ status: "failed", errorMessage: errMsg })
-            .where(eq(autopilotQueue.id, item.id));
-          failed++;
-        }
+        logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });
+        await db.update(autopilotQueue)
+          .set({ status: "failed", errorMessage: errMsg })
+          .where(eq(autopilotQueue.id, item.id));
+        failed++;
       } finally {
-        if (fs.existsSync(tmpRaw)) fs.unlinkSync(tmpRaw);
+        // Clean up the pre-encoded file after upload (success or failure)
         if (encodedPath && fs.existsSync(encodedPath)) fs.unlinkSync(encodedPath);
       }
     }

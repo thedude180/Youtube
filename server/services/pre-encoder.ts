@@ -1,23 +1,23 @@
 /**
  * pre-encoder.ts
  *
- * Nightly service that downloads and encodes queued clips BEFORE the midnight
- * quota reset so publishers can do a pure YouTube API upload (seconds) instead
- * of waiting 30–90 minutes for yt-dlp + ffmpeg at upload time.
+ * Perpetual background service that downloads and encodes ALL queued clips
+ * ahead of time so publishers only ever do a YouTube API upload — never
+ * a download or ffmpeg encode at publish time.
  *
  * Flow:
- *  1. Runs at 9 PM Pacific every night (3 hours before quota reset)
- *  2. Also runs on startup after a 15-minute delay (catches near-due items)
- *  3. Scans autopilotQueue for status="scheduled" items that:
- *       - Have metadata.sourceYoutubeId (back-catalog items, not vault clips)
+ *  1. Starts 15 minutes after server boot, then runs continuously:
+ *       scan → encode → 5-min pause → repeat
+ *  2. Scans the ENTIRE autopilotQueue for status="scheduled" items that:
+ *       - Have metadata.sourceYoutubeId (back-catalog items)
  *       - Do NOT yet have metadata.preEncodedPath
- *       - Are scheduled within the next LOOKAHEAD_HOURS
- *  4. For each: yt-dlp download → ffmpeg encode → save to PRE_ENCODE_DIR
- *  5. Atomically writes preEncodedPath into metadata (only if still "scheduled")
- *     so that if the publisher already claimed the item, the file is cleaned up
+ *       - Have not permanently failed (preEncoderFailCount < 3)
+ *  3. For each: yt-dlp download → ffmpeg encode → save to PRE_ENCODE_DIR
+ *  4. Atomically writes preEncodedPath into metadata (only if still "scheduled")
  *
- * Publishers check metadata.preEncodedPath first and skip encode entirely when
- * a pre-built file is present, making the midnight batch a pure API-call pass.
+ * Publishers check metadata.preEncodedPath first.  If the file is not yet
+ * ready they skip the item and wait for the pre-encoder to catch up.
+ * This means on server restart, everything is a pure upload — no waiting.
  */
 
 import path from "path";
@@ -25,7 +25,7 @@ import fs from "fs";
 import { spawn } from "child_process";
 import { db } from "../db";
 import { autopilotQueue } from "@shared/schema";
-import { eq, and, lte, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 
@@ -34,10 +34,9 @@ const logger = createLogger("pre-encoder");
 const PRE_ENCODE_DIR =
   process.env.PRE_ENCODE_DIR ?? path.join(process.cwd(), "data", "pre-encoded");
 
-const LOOKAHEAD_HOURS   = 36;   // pre-encode items due within the next 36 h
-const MAX_ITEMS_PER_RUN = 20;   // cap per cycle to avoid overwhelming disk / CPU
+const MAX_ITEMS_PER_RUN = 20;   // items per cycle (pipeline runs continuously)
 const MIN_FREE_DISK_GB  = 2;    // skip cycle if less than this much space free
-const MAX_FILE_AGE_MS   = 48 * 3_600_000; // delete stale pre-encoded files after 48 h
+const MAX_FILE_AGE_MS   = 7 * 24 * 3_600_000; // purge unused pre-encoded files after 7 days
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -187,20 +186,18 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     return { encoded, skipped: 1, errors };
   }
 
-  const now       = new Date();
-  const lookahead = new Date(now.getTime() + LOOKAHEAD_HOURS * 3_600_000);
-
+  // Process the ENTIRE queue — no time-window filter.
+  // Items are ordered by scheduledAt so the soonest-due ones are always built first.
   const items = await db
     .select()
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.status, "scheduled"),
-      lte(autopilotQueue.scheduledAt, lookahead),
-      // Only items that have a sourceYoutubeId (back-catalog / no local vault file)
+      // Only items that have a sourceYoutubeId (back-catalog items)
       sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
-      // Skip items already pre-encoded
+      // Skip items already pre-encoded (file written to disk, path in metadata)
       sql`${autopilotQueue.metadata}->>'preEncodedPath' IS NULL`,
-      // Skip items the pre-encoder has already failed on 3+ times (permanently blocked)
+      // Skip items the pre-encoder has permanently failed on (3+ attempts)
       sql`COALESCE((${autopilotQueue.metadata}->>'preEncoderFailCount')::int, 0) < 3`,
     ))
     .orderBy(autopilotQueue.scheduledAt)
@@ -380,73 +377,46 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
   return { encoded, skipped, errors };
 }
 
-// ── Scheduling ─────────────────────────────────────────────────────────────────
+// ── Perpetual loop ─────────────────────────────────────────────────────────────
+// The pre-encoder runs continuously: encode a batch, pause 5 minutes, repeat.
+// This ensures every queued item is processed as fast as the server allows,
+// so publishers always have a ready file to upload rather than encoding inline.
 
-/** Returns the next 9:05 PM Pacific time (handles PST/PDT automatically). */
-function getNextPreEncodeTime(): Date {
-  const tz  = "America/Los_Angeles";
-  const now  = new Date();
-
-  for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
-    const probe = new Date(now.getTime() + dayOffset * 86_400_000);
-    const localDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(probe);
-
-    // Try PDT (-07:00) first, then PST (-08:00)
-    for (const offset of ["-07:00", "-08:00"]) {
-      const candidate = new Date(`${localDate}T21:05:00${offset}`);
-      const check = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
-      }).format(candidate);
-      if ((check.includes("21:05") || check.includes("21:05")) && candidate.getTime() > now.getTime() + 60_000) {
-        return candidate;
-      }
-    }
-  }
-
-  // Hard fallback: 3 hours from now
-  return new Date(now.getTime() + 3 * 3_600_000);
-}
-
-let _preEncodeTimer: ReturnType<typeof setTimeout> | null = null;
+let _preEncodeActive = true;
 
 export function stopPreEncoder(): void {
-  if (_preEncodeTimer !== null) {
-    clearTimeout(_preEncodeTimer);
-    _preEncodeTimer = null;
-    logger.info("[PreEncoder] Stopped");
-  }
+  _preEncodeActive = false;
+  logger.info("[PreEncoder] Stopped");
 }
 
 export function initPreEncoder(): void {
-  function scheduleNextRun(): void {
-    const next    = getNextPreEncodeTime();
-    const msUntil = Math.max(next.getTime() - Date.now(), 1_000);
-    const hUntil  = Math.round(msUntil / 3_600_000 * 10) / 10;
-    logger.info(`[PreEncoder] Next run scheduled in ${hUntil} h (${next.toISOString()})`);
+  _preEncodeActive = true;
 
-    _preEncodeTimer = setTimeout(async () => {
-      _preEncodeTimer = null;
-      await runPreEncodeCycle().catch(err =>
-        logger.error("[PreEncoder] Nightly cycle error", { error: String(err) }),
-      );
-      scheduleNextRun();
-    }, msUntil);
+  async function loop(): Promise<void> {
+    while (_preEncodeActive) {
+      try {
+        await runPreEncodeCycle();
+      } catch (err) {
+        logger.error("[PreEncoder] Cycle error", { error: String(err) });
+      }
+      // Brief pause between cycles so the server stays responsive
+      if (_preEncodeActive) {
+        await new Promise<void>(resolve => setTimeout(resolve, 5 * 60_000)); // 5 min
+      }
+    }
+    logger.info("[PreEncoder] Loop exited");
   }
 
-  stopPreEncoder();
-
-  // Startup run after 15-minute delay — pre-encodes anything due in the next 36 h
+  // Start 15 minutes after server boot to let the rest of the system stabilise
   setTimeout(() => {
-    runPreEncodeCycle().catch(err =>
-      logger.warn("[PreEncoder] Startup run error", { error: String(err) }),
+    logger.info("[PreEncoder] Starting perpetual encode loop");
+    loop().catch(err =>
+      logger.error("[PreEncoder] Fatal loop crash", { error: String(err) }),
     );
   }, 15 * 60_000);
 
-  scheduleNextRun();
   logger.info(
-    "[PreEncoder] Initialised — nightly at 9 PM Pacific, " +
-    `pre-encodes up to ${MAX_ITEMS_PER_RUN} items due within ${LOOKAHEAD_HOURS} h`,
+    `[PreEncoder] Initialised — perpetual loop starts in 15 min, ` +
+    `${MAX_ITEMS_PER_RUN} items/batch, 5-min pause between batches`,
   );
 }

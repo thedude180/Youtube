@@ -30,14 +30,12 @@
 
 import path from "path";
 import fs from "fs";
-import { spawn } from "child_process";
 import cron from "node-cron";
 import { db } from "../db";
-import { autopilotQueue, videos, channels, contentVaultBackups } from "@shared/schema";
+import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
-import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, countUploadedLongFormForDate, getNextShortPublishTime, clearShortScheduleSaturation } from "./youtube-output-schedule";
@@ -55,75 +53,6 @@ if (!fs.existsSync(SHORT_TEMP_DIR)) {
 }
 
 let isRunning = false;
-
-// ---------------------------------------------------------------------------
-// FFmpeg / yt-dlp helpers
-// ---------------------------------------------------------------------------
-
-function runCmd(bin: string, args: string[], timeoutMs = 480_000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
-    const errBufs: Buffer[] = [];
-    // Kill the process after timeoutMs to prevent stuck encodes blocking the publisher
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error(`Process timed out after ${Math.round(timeoutMs / 1000)}s`));
-    }, timeoutMs);
-    proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) return resolve();
-      const msg = Buffer.concat(errBufs).toString("utf8").slice(-600);
-      const err = new Error(msg) as Error & { exitCode?: number };
-      err.exitCode = code ?? -1;
-      reject(err);
-    });
-    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
-  });
-}
-
-async function extractSegmentFromFile(
-  sourcePath: string,
-  startSec: number,
-  durationSec: number,
-  outputPath: string,
-): Promise<void> {
-  await runCmd("ffmpeg", [
-    "-y",
-    "-ss", String(startSec),
-    "-i", sourcePath,
-    "-t", String(durationSec),
-    "-vf", [
-      "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
-      "crop=2160:3840",
-      "pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black",
-      "setsar=1",
-    ].join(","),
-    "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
-    "-c:v", "libx264",
-    "-profile:v", "high",
-    "-level:v", "5.1",
-    "-crf", "22",
-    "-preset", "ultrafast",
-    "-movflags", "+faststart",
-    "-c:a", "aac",
-    "-b:a", "128k",
-    "-ar", "44100",
-    "-ac", "2",
-    "-pix_fmt", "yuv420p",
-    "-threads", "2",
-    outputPath,
-  ]);
-}
-
-async function downloadSegmentFromYouTube(
-  youtubeId: string,
-  startSec: number,
-  endSec: number,
-  outputPath: string,
-): Promise<void> {
-  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
-}
 
 // ---------------------------------------------------------------------------
 // AI caption generation — platform-native, cross-linked to original video
@@ -228,102 +157,6 @@ function buildFallbackCaption(
     .replace(/\bPS5\b/gi, "")
     .trim();
   return `${stripped.slice(0, 70)} #shorts #bf6 #ps5`;
-}
-
-// ---------------------------------------------------------------------------
-// Video extraction — vault-preferred, yt-dlp fallback
-// ---------------------------------------------------------------------------
-
-async function getEncodedSegment(opts: {
-  userId: string;
-  sourceVideoId: number | null | undefined;
-  youtubeId: string | undefined;
-  startSec: number;
-  endSec: number;
-  runId: string;
-}): Promise<string | null> {
-  const { userId, sourceVideoId, youtubeId, startSec, endSec, runId } = opts;
-  const durationSec = Math.min(endSec - startSec, MAX_DURATION_SEC);
-  if (durationSec < 3) return null;
-
-  const tmpRaw = path.join(SHORT_TEMP_DIR, `raw_${runId}.mp4`);
-  const tmpEncoded = path.join(SHORT_TEMP_DIR, `enc_${runId}.mp4`);
-
-  let rawSourcePath: string | null = null;
-
-  // Prefer downloaded vault file — only use it if the file is present and non-trivial
-  // (corrupt/truncated vault files trigger ffmpeg exit code 8: invalid data in input)
-  const MIN_VAULT_FILE_BYTES = 10 * 1024; // 10 KB
-  if (youtubeId) {
-    const [vaultEntry] = await db.select()
-      .from(contentVaultBackups)
-      .where(and(
-        eq(contentVaultBackups.userId, userId),
-        eq(contentVaultBackups.youtubeId, youtubeId),
-        eq(contentVaultBackups.status, "downloaded"),
-      ))
-      .limit(1);
-
-    if (vaultEntry?.filePath && fs.existsSync(vaultEntry.filePath)) {
-      const stat = fs.statSync(vaultEntry.filePath);
-      if (stat.size >= MIN_VAULT_FILE_BYTES) {
-        rawSourcePath = vaultEntry.filePath;
-      } else {
-        logger.warn(`[ShortsPublisher] Vault file too small (${stat.size}B) for ${youtubeId} — skipping vault, will download`);
-      }
-    }
-  }
-
-  try {
-    if (rawSourcePath) {
-      try {
-        await extractSegmentFromFile(rawSourcePath, startSec, durationSec, tmpEncoded);
-      } catch (vaultErr: any) {
-        // exit code 8 = invalid data in input — vault file is corrupt or not a valid video
-        if (vaultErr?.exitCode === 8) {
-          logger.warn(`[ShortsPublisher] Vault file corrupt for ${youtubeId} (ffmpeg exit 8) — falling back to yt-dlp download`);
-          rawSourcePath = null; // fall through to yt-dlp branch below
-        } else {
-          throw vaultErr;
-        }
-      }
-    }
-
-    if (!rawSourcePath && !fs.existsSync(tmpEncoded)) {
-      if (!youtubeId) return null;
-      // Source video is not in the vault yet.
-      // First, attempt a targeted section download (downloads only the needed clip —
-      // no waiting for full vault download to finish).  If that works we encode
-      // immediately and the upload proceeds.  If yt-dlp fails on the section download
-      // we fall back to queueing the full vault download for the next cycle.
-      try {
-        const sectionEndSec = startSec + durationSec;
-        await downloadYouTubeSection({ youtubeId, startSec, endSec: sectionEndSec, outputPath: tmpRaw });
-        await extractSegmentFromFile(tmpRaw, 0, durationSec, tmpEncoded);
-        logger.info(`[ShortsPublisher] Section download+encode succeeded for ${youtubeId} [${startSec}-${sectionEndSec}s]`);
-        // Also queue a full vault download in the background so future clips from
-        // this source use the faster local-file path instead of re-downloading.
-        import("../services/video-vault").then(({ queueVaultDownloadForSource }) =>
-          queueVaultDownloadForSource(youtubeId, userId)
-        ).catch(() => {});
-      } catch (sectionErr: any) {
-        // Section download failed — queue full vault download for future cycles
-        const { queueVaultDownloadForSource } = await import("../services/video-vault");
-        const queueResult = await queueVaultDownloadForSource(youtubeId, userId);
-        if (queueResult === "download_failed") {
-          // All vault download clients exhausted after 3+ attempts — permanently undownloadable.
-          throw new Error(`__vault_source_unavailable__: ${youtubeId} (all download clients failed after 3+ attempts)`);
-        }
-        logger.warn(`[ShortsPublisher] Section download failed for ${youtubeId}: ${String(sectionErr?.message ?? sectionErr).slice(0, 120)} — queued vault (${queueResult})`);
-        throw new Error(`__vault_download_pending__: ${youtubeId} (${queueResult})`);
-      }
-    }
-
-    if (!fs.existsSync(tmpEncoded)) throw new Error("FFmpeg produced no output");
-    return tmpEncoded;
-  } finally {
-    if (fs.existsSync(tmpRaw)) fs.unlinkSync(tmpRaw);
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -655,58 +488,31 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             const runId = `${item.id}_${Date.now()}`;
             let encodedPath: string | null = null;
 
-            // Fast path: pre-encoder already built this file ahead of time.
-            // Skip download + encode entirely — just use the ready file.
+            // Pre-encoder has already built this file — just upload it.
+            // Publishers NEVER download or encode inline: all that heavy work is
+            // done by the pre-encoder running in the background so that restarts
+            // are upload-only with zero wait time.
             const preBuiltPath = typeof itemMeta.preEncodedPath === "string"
               ? (itemMeta.preEncodedPath as string) : null;
             if (preBuiltPath && fs.existsSync(preBuiltPath)) {
               encodedPath = preBuiltPath;
-              logger.info(`[ShortsPublisher] Pre-encoded file ready for item ${item.id} — skipping download+encode`);
+              logger.info(`[ShortsPublisher] Pre-encoded file ready for item ${item.id} — uploading`);
             }
 
             if (!encodedPath) {
-              try {
-                encodedPath = await getEncodedSegment({
-                  userId,
-                  sourceVideoId: item.sourceVideoId,
-                  youtubeId: resolvedYoutubeId,
-                  startSec,
-                  endSec,
-                  runId,
-                });
-              } catch (downloadErr: any) {
-                const errMsg = String(downloadErr?.message ?? downloadErr);
-
-                // Full-video download was queued — reset to scheduled so the
-                // next publisher cycle retries once the video is on disk.
-                if (errMsg.includes("__vault_download_pending__")) {
-                  await db.update(autopilotQueue)
-                    .set({ status: "scheduled", errorMessage: null })
-                    .where(eq(autopilotQueue.id, item.id));
-                  skipped++;
-                  continue;
-                }
-
-                // Source permanently undownloadable — all vault clients exhausted
-                // after 3+ attempts (live stream never archived, HTTP 400, etc.).
-                if (errMsg.includes("__vault_source_unavailable__")) {
-                  logger.warn(`[ShortsPublisher] Source permanently unavailable — failing item ${item.id}`, { error: errMsg.slice(0, 200) });
-                  await db.update(autopilotQueue)
-                    .set({ status: "failed", errorMessage: errMsg.slice(0, 500) })
-                    .where(eq(autopilotQueue.id, item.id));
-                  failed++;
-                  continue;
-                }
-
-                // Only treat truly irrecoverable conditions as permanent.
-                const isPermanent = /this video is private|video has been removed|no longer available|video unavailable|account.*terminated|content.*not available in your country/i.test(errMsg);
-                logger.warn(`[ShortsPublisher] Source video download failed — ${isPermanent ? "permanent" : "transient"}`, { itemId: item.id, youtubeId: resolvedYoutubeId, error: errMsg.slice(0, 200) });
+              // File not ready yet — skip and let the pre-encoder build it.
+              // If the path was set but the file is gone (purged after 7 days),
+              // clear the metadata so the pre-encoder will re-encode on its next cycle.
+              if (preBuiltPath) {
                 await db.update(autopilotQueue)
-                  .set({ status: isPermanent ? "permanent_fail" : "failed", errorMessage: errMsg.slice(0, 500) })
+                  .set({ metadata: { ...itemMeta, preEncodedPath: null, preEncodedAt: null } as any })
                   .where(eq(autopilotQueue.id, item.id));
-                failed++;
-                continue;
+                logger.info(`[ShortsPublisher] Pre-encoded file was purged for item ${item.id} — cleared, pre-encoder will rebuild`);
+              } else {
+                logger.info(`[ShortsPublisher] Item ${item.id} not yet pre-encoded — skipping until pre-encoder processes it`);
               }
+              skipped++;
+              continue;
             }
 
             if (!encodedPath) {
