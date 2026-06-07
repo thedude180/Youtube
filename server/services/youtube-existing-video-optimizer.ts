@@ -66,7 +66,7 @@ async function pushToYouTube(
   updates: { title?: string; description?: string; tags?: string[]; categoryId?: string },
 ): Promise<boolean> {
   try {
-    const { isQuotaBreakerTripped } = await import("../services/youtube-quota-tracker");
+    const { isQuotaBreakerTripped, tripGlobalQuotaBreaker } = await import("../services/youtube-quota-tracker");
     if (isQuotaBreakerTripped()) {
       logger.warn(`[Optimizer] Quota breaker active — skipping YouTube push for ${youtubeVideoId}`);
       return false;
@@ -76,7 +76,11 @@ async function pushToYouTube(
     return true;
   } catch (err: any) {
     if (err.code === "QUOTA_EXCEEDED" || err.code === "QUOTA_CAP") {
-      logger.warn(`[Optimizer] Quota cap — metadata update deferred: ${youtubeVideoId}`);
+      logger.warn(`[Optimizer] Quota cap — tripping breaker and deferring: ${youtubeVideoId}`);
+      try {
+        const { tripGlobalQuotaBreaker } = await import("../services/youtube-quota-tracker");
+        tripGlobalQuotaBreaker();
+      } catch { /* ok */ }
     } else {
       logger.warn(`[Optimizer] YouTube push failed for ${youtubeVideoId}: ${err.message?.slice(0, 200)}`);
     }

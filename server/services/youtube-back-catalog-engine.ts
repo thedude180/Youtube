@@ -661,17 +661,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     }
 
     // ── Queue metadata refreshes (SEO + thumbnail concept) ───────────────────
-    // No per-day cap here — process ALL catalog videos that haven't been
-    // optimized yet.  queueMetadataUpdate() already checks the quota breaker
-    // and the MIN_HOURS_BETWEEN_UPDATES guard so we won't spam any one video.
-    // Metadata refresh (SEO + thumbnail) runs for ALL videos regardless of
-    // game — even non-BF6 catalog entries benefit from optimized titles and
-    // thumbnails.  The game-priority filter only gates new clip creation.
+    // Cap at 25 per cycle to prevent the loop from running for 10+ min on a
+    // large catalog.  queueMetadataUpdate() checks the quota breaker and the
+    // MIN_HOURS_BETWEEN_UPDATES guard so we won't spam any one video.
+    // Metadata refresh runs for ALL videos regardless of game — even non-BF6
+    // catalog entries benefit from optimized titles and thumbnails.
     const metaTargets = ranked
-      .filter(v => !v.isShort);
-    // No .slice() — exhaust the entire catalog over successive cycles.
+      .filter(v => !v.isShort)
+      .slice(0, 25);
 
+    const { isQuotaBreakerTripped: metaQuotaCheck } = await import("../services/youtube-quota-tracker");
     for (const v of metaTargets) {
+      if (metaQuotaCheck()) {
+        logger.warn("[BackCatalog] Quota breaker tripped mid-loop — stopping metadata refresh");
+        break;
+      }
       try {
         const { queueMetadataUpdate } = await import("./youtube-existing-video-optimizer");
         const res = await queueMetadataUpdate(userId, v.youtubeVideoId);

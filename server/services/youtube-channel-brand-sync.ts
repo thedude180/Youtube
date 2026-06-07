@@ -494,8 +494,13 @@ async function sweepBrandConsistency(
       .orderBy(desc(backCatalogVideos.viewCount))
       .limit(50);
 
+    const { isQuotaBreakerTripped: brandQuotaCheck } = await import("../services/youtube-quota-tracker");
     for (const video of allVideos) {
       if (budget.remaining <= 0) break;
+      if (brandQuotaCheck()) {
+        logger.warn("[BrandSync] Quota breaker tripped mid-sweep — stopping brand consistency");
+        break;
+      }
 
       const { score, issues } = checkBrandAlignment(
         { title: video.title, description: video.description ?? undefined, tags: video.tags ?? undefined },
