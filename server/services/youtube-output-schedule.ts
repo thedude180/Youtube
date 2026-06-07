@@ -516,16 +516,17 @@ export function clearLongFormScheduleSaturation(userId: string): void {
 export async function getNextShortPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
   // Fast-path: if the schedule is known to be saturated (all windows for the
   // next MAX_DAYS_AHEAD days already claimed), return the cached fallback immediately
-  // without touching the DB.  Only applies to the default minDaysAhead=0 case;
-  // catalog callers with a non-zero start day bypass the cache since they look
-  // further out and may find slots that the default window does not.
-  if (minDaysAhead === 0) {
-    const cached = shortScheduleSaturationCache.get(userId);
-    if (cached && Date.now() < cached.expiresAt) {
-      logger.debug(`[YouTubeSchedule] Saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
-      // Small jitter so concurrent fallback callers don't all land at the same time.
-      return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
-    }
+  // without touching the DB.
+  // The saturation cache is valid for ANY minDaysAhead value — if the entire
+  // 14-day horizon is booked from day 0, it is also booked from day 1 or 2.
+  // Removing the old minDaysAhead===0 gate prevents back-catalog / rescheduler
+  // callers with minDaysAhead=1 from bypassing the cache and firing 42 DB
+  // queries per video in a tight loop (the "No Short window found" hot-spin).
+  const cached = shortScheduleSaturationCache.get(userId);
+  if (cached && Date.now() < cached.expiresAt) {
+    logger.debug(`[YouTubeSchedule] Saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
+    // Small jitter so concurrent fallback callers don't all land at the same time.
+    return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
   }
 
   return withShortScheduleMutex(userId, async () => {
@@ -533,12 +534,11 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
     // fast-path check above before any one of them sets the saturation cache.
     // Without this re-check each queued caller would run the full 42-query DB
     // scan independently — causing a hot-spin of expensive sequential scans.
-    if (minDaysAhead === 0) {
-      const recheck = shortScheduleSaturationCache.get(userId);
-      if (recheck && Date.now() < recheck.expiresAt) {
-        logger.debug(`[YouTubeSchedule] Saturation cache hit (inner) for ${userId.slice(0, 8)} — skipping DB scan`);
-        return new Date(recheck.fallback.getTime() + Math.floor(Math.random() * 60_000));
-      }
+    // The cache is unconditional here too — same reasoning as the outer check.
+    const recheck = shortScheduleSaturationCache.get(userId);
+    if (recheck && Date.now() < recheck.expiresAt) {
+      logger.debug(`[YouTubeSchedule] Saturation cache hit (inner) for ${userId.slice(0, 8)} — skipping DB scan`);
+      return new Date(recheck.fallback.getTime() + Math.floor(Math.random() * 60_000));
     }
     return withShortAdvisoryLock(userId, async () => {
       const tz     = await getUserTz(userId);
@@ -628,13 +628,13 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
       reserveShortSlot(userId, fallback);
 
       // Cache the saturation state so subsequent callers skip the 42-query DB scan.
-      // Only cache for the default minDaysAhead=0 — non-zero callers look further out.
-      if (minDaysAhead === 0) {
-        shortScheduleSaturationCache.set(userId, {
-          expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
-          fallback,
-        });
-      }
+      // Always set the cache regardless of minDaysAhead — if no window was found
+      // from any starting day, the whole 14-day horizon is booked and all callers
+      // (publisher, back-catalog engine, rescheduler) should short-circuit.
+      shortScheduleSaturationCache.set(userId, {
+        expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
+        fallback,
+      });
 
       return fallback;
     });
