@@ -10,38 +10,48 @@ interface RetentionRule {
   retentionDays: number;
 }
 
+// ── Retention policy: 365-day rolling window for all operational data ─────────
+// Keeps a full year of history for every process — quota usage, AI decisions,
+// learning signals, audit trails, security events, etc. — so patterns and
+// maxout investigations are always resolvable without log reconstruction.
+const RETENTION_DAYS = 365;
+
 const RETENTION_RULES: RetentionRule[] = [
-  { table: "domain_events",               timestampCol: "emitted_at",   retentionDays: 14 },
-  { table: "ai_agent_activities",          timestampCol: "created_at",   retentionDays: 30 },
-  { table: "governance_audit_logs",        timestampCol: "created_at",   retentionDays: 30 },
-  { table: "competitor_snapshots",         timestampCol: "scanned_at",   retentionDays: 14 },
-  { table: "approval_decisions",           timestampCol: "decided_at",   retentionDays: 30 },
-  { table: "exception_desk_items",         timestampCol: "created_at",   retentionDays: 30 },
-  { table: "intelligent_jobs",             timestampCol: "created_at",   retentionDays: 14 },
-  { table: "webhook_events",              timestampCol: "created_at",   retentionDays: 14 },
-  { table: "trust_budget_periods",         timestampCol: "created_at",   retentionDays: 30 },
-  { table: "learning_signals",            timestampCol: "emitted_at",   retentionDays: 30 },
-  { table: "team_activity_log",           timestampCol: "created_at",   retentionDays: 30 },
-  { table: "signed_action_receipts",      timestampCol: "created_at",   retentionDays: 30 },
-  { table: "signal_contradictions",       timestampCol: "created_at",   retentionDays: 14 },
-  { table: "performance_benchmarks",      timestampCol: "generated_at", retentionDays: 30 },
-  { table: "algorithm_health",            timestampCol: "scanned_at",   retentionDays: 14 },
-  { table: "ai_agent_tasks",              timestampCol: "created_at",   retentionDays: 30 },
-  { table: "algorithm_signals",           timestampCol: "created_at",   retentionDays: 14 },
-  { table: "financial_audit_trail",       timestampCol: "created_at",   retentionDays: 90 },
-  { table: "compliance_checks",           timestampCol: "checked_at",   retentionDays: 60 },
-  { table: "autonomy_engine_runs",        timestampCol: "started_at",   retentionDays: 14 },
-  { table: "ai_decision_log",            timestampCol: "applied_at",   retentionDays: 30 },
-  { table: "security_events",            timestampCol: "created_at",   retentionDays: 60 },
-  { table: "trust_budget_records",        timestampCol: "created_at",   retentionDays: 30 },
-  { table: "security_scans",             timestampCol: "created_at",   retentionDays: 30 },
-  { table: "system_improvements",         timestampCol: "created_at",   retentionDays: 30 },
-  { table: "ai_model_routing_logs",       timestampCol: "created_at",   retentionDays: 14 },
-  { table: "live_command_center_panel_states", timestampCol: "updated_at", retentionDays: 7 },
-  { table: "media_kits",                  timestampCol: "generated_at", retentionDays: 30 },
-  { table: "discovered_strategies",       timestampCol: "created_at",   retentionDays: 30 },
-  { table: "traffic_strategies",          timestampCol: "created_at",   retentionDays: 30 },
-  { table: "stream_performance_logs",    timestampCol: "created_at",   retentionDays: 90 },
+  { table: "domain_events",                    timestampCol: "emitted_at",       retentionDays: RETENTION_DAYS },
+  { table: "ai_agent_activities",              timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "governance_audit_logs",            timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "competitor_snapshots",             timestampCol: "scanned_at",       retentionDays: RETENTION_DAYS },
+  { table: "approval_decisions",               timestampCol: "decided_at",       retentionDays: RETENTION_DAYS },
+  { table: "exception_desk_items",             timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "intelligent_jobs",                 timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "webhook_events",                   timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "trust_budget_periods",             timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "learning_signals",                 timestampCol: "emitted_at",       retentionDays: RETENTION_DAYS },
+  { table: "team_activity_log",                timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "signed_action_receipts",           timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "signal_contradictions",            timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "performance_benchmarks",           timestampCol: "generated_at",     retentionDays: RETENTION_DAYS },
+  { table: "algorithm_health",                 timestampCol: "scanned_at",       retentionDays: RETENTION_DAYS },
+  { table: "ai_agent_tasks",                   timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "algorithm_signals",                timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "financial_audit_trail",            timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "compliance_checks",                timestampCol: "checked_at",       retentionDays: RETENTION_DAYS },
+  { table: "autonomy_engine_runs",             timestampCol: "started_at",       retentionDays: RETENTION_DAYS },
+  { table: "ai_decision_log",                  timestampCol: "applied_at",       retentionDays: RETENTION_DAYS },
+  { table: "security_events",                  timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "trust_budget_records",             timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "security_scans",                   timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "system_improvements",              timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "ai_model_routing_logs",            timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "live_command_center_panel_states", timestampCol: "updated_at",       retentionDays: RETENTION_DAYS },
+  { table: "media_kits",                       timestampCol: "generated_at",     retentionDays: RETENTION_DAYS },
+  { table: "discovered_strategies",            timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "traffic_strategies",               timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  { table: "stream_performance_logs",          timestampCol: "created_at",       retentionDays: RETENTION_DAYS },
+  // YouTube quota usage — keeps a full year of daily quota records so maxout
+  // patterns, crash-restart correlation, and per-operation breakdowns are always
+  // queryable. Uses last_updated_at as the age anchor (rows are updated daily).
+  { table: "youtube_quota_usage",              timestampCol: "last_updated_at",  retentionDays: RETENTION_DAYS },
 ];
 
 const BATCH_SIZE = 1000;

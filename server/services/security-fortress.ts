@@ -75,10 +75,10 @@ const ALLOWED_RETENTION_TABLES = new Set([
 ]);
 
 const RETENTION_DEFAULTS = [
-  { tableName: "security_events", retentionDays: 90 },
-  { tableName: "login_attempts", retentionDays: 180 },
-  { tableName: "ai_usage_logs", retentionDays: 365 },
-  { tableName: "audit_logs", retentionDays: 730 },
+  { tableName: "security_events", retentionDays: 365 },
+  { tableName: "login_attempts",  retentionDays: 365 },
+  { tableName: "ai_usage_logs",   retentionDays: 365 },
+  { tableName: "audit_logs",      retentionDays: 365 },
 ];
 
 function detectNetwork(ip: string) {

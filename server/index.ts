@@ -459,9 +459,12 @@ async function healProductionPipeline(): Promise<void> {
       // the moment the quota window was only half-used.
       await db.execute(
         sql`DELETE FROM youtube_quota_usage
-            WHERE date < TO_CHAR(NOW() AT TIME ZONE 'America/Los_Angeles', 'YYYY-MM-DD')`
+            WHERE date < TO_CHAR(
+              (NOW() AT TIME ZONE 'America/Los_Angeles') - INTERVAL '365 days',
+              'YYYY-MM-DD'
+            )`
       );
-      process.stdout.write("[prod-heal] Previous-day quota records purged — today's record preserved for mid-day restart safety\n");
+      process.stdout.write("[prod-heal] Quota records older than 365 days purged — full year of history preserved\n");
     } catch (qErr: any) {
       process.stdout.write(`[prod-heal] Quota record purge skipped (non-fatal): ${qErr.message}\n`);
     }
