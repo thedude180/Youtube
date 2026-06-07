@@ -1947,7 +1947,7 @@ export async function downloadVaultEntry(userId: string, entryId: number): Promi
 export async function queueVaultDownloadForSource(
   youtubeId: string,
   userId: string,
-): Promise<"already_downloaded" | "in_progress" | "queued"> {
+): Promise<"already_downloaded" | "in_progress" | "queued" | "download_failed"> {
 
   // Check DB — is it already downloaded and the file is on disk?
   const [existing] = await db
@@ -1970,6 +1970,15 @@ export async function queueVaultDownloadForSource(
 
   // Already queued/downloading by the regular vault runner — let it finish
   if (existing?.status === "downloading") return "in_progress";
+
+  // Permanently failed — all download clients exhausted on multiple attempts.
+  // After 3+ failures we know this video is fundamentally undownloadable (live stream
+  // never archived, age-restricted, HTTP 400 from InnerTube, etc.).  Signal the caller
+  // so they can permanently fail their queue item instead of looping forever.
+  if (existing?.status === "failed") {
+    const failCount = ((existing.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
+    if (failCount >= 3) return "download_failed";
+  }
 
   // Create a vault entry if none exists so the regular vault runner can also pick it up
   let vaultEntry = existing;

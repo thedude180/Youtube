@@ -415,6 +415,13 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
               // publisher cycle can use the local file via the vault fast-path above.
               const { queueVaultDownloadForSource } = await import("./video-vault");
               const queueResult = await queueVaultDownloadForSource(resolvedYoutubeId, item.userId);
+              if (queueResult === "download_failed") {
+                // All vault download clients have exhausted their retry budget (3+ attempts).
+                // The video is fundamentally undownloadable (live stream never archived,
+                // age-restricted, HTTP 400, etc.).  Permanently fail so the item doesn't
+                // cycle between scheduled→processing→scheduled forever.
+                throw new Error(`__vault_source_unavailable__: ${resolvedYoutubeId} (all download clients failed after 3+ attempts)`);
+              }
               logger.info(`[LongFormPublisher] Full-video download ${queueResult} for ${resolvedYoutubeId} — item will retry on next cycle`);
               throw new Error(`__vault_download_pending__: ${resolvedYoutubeId} (${queueResult})`);
             }
@@ -583,6 +590,15 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
             .set({ status: "scheduled", errorMessage: null })
             .where(eq(autopilotQueue.id, item.id));
           skipped++;
+        } else if (errMsg.includes("__vault_source_unavailable__")) {
+          // Source video is permanently undownloadable (HTTP 400, never-archived live stream,
+          // age-restricted, etc.) — all vault download clients exhausted after 3+ attempts.
+          // Permanently fail the queue item so it stops cycling scheduled→processing→scheduled.
+          logger.warn(`[LongFormPublisher] Source permanently unavailable — failing item ${item.id}`, { error: errMsg });
+          await db.update(autopilotQueue)
+            .set({ status: "failed", errorMessage: errMsg })
+            .where(eq(autopilotQueue.id, item.id));
+          failed++;
         } else {
           logger.warn("Long-form clip publish failed", { queueId: item.id, error: errMsg });
           await db.update(autopilotQueue)

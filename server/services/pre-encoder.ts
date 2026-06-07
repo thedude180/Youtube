@@ -82,7 +82,12 @@ async function downloadSection(
   endSec: number,
   outputPath: string,
 ): Promise<void> {
-  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
+  // Scale timeout with section duration: 1.5s per second of footage, min 3 min, max 15 min.
+  // Long-form sections (8–60 min) from large source videos can require downloading several
+  // GB before yt-dlp seeks to the right position — the 3-minute default is too short.
+  const sectionDurationSec = Math.max(0, endSec - startSec);
+  const timeoutMs = Math.min(900_000, Math.max(180_000, sectionDurationSec * 1_500));
+  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath, timeoutMs });
 }
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
@@ -228,6 +233,31 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       skipped++;
       continue;
     }
+
+    // Skip items whose source video is permanently undownloadable in the vault
+    // (all clients exhausted after 3+ attempts — live stream never archived, HTTP 400, etc.)
+    // The publisher will permanently fail these on its next cycle via queueVaultDownloadForSource.
+    try {
+      const { db: vaultDb } = await import("../db");
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq: vEq, and: vAnd } = await import("drizzle-orm");
+      const [failedEntry] = await vaultDb
+        .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
+        .from(contentVaultBackups)
+        .where(vAnd(
+          vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+          vEq(contentVaultBackups.status, "failed"),
+        ))
+        .limit(1);
+      if (failedEntry) {
+        const failCount = ((failedEntry.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
+        if (failCount >= 3) {
+          logger.info(`[PreEncoder] Skipping item ${item.id} — source ${sourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
+          skipped++;
+          continue;
+        }
+      }
+    } catch { /* non-fatal — continue to attempt the download */ }
 
     const rawPath    = path.join(PRE_ENCODE_DIR, `raw_${item.id}.mp4`);
     const outputPath = path.join(PRE_ENCODE_DIR, `pre_${item.id}.mp4`);

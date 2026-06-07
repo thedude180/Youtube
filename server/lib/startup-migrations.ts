@@ -1051,6 +1051,9 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:014:cancel_blocked_source_videos",     label: "014 — cancel queue items referencing permanently-blocked source video s0D2BLHmiTU" },
   { flag: "migration:015:purge_non_youtube_queue_items",    label: "015 — purge all non-YouTube pending/scheduled queue items (cross-posting disabled)" },
   { flag: "migration:016:error_knowledge_base_tables",      label: "016 — create error_events + error_resolutions knowledge base tables" },
+  { flag: "migration:017:purge_stale_youtube_channels",     label: "017 — purge stale youtube/youtubeshorts channels with no token" },
+  { flag: "migration:018:recascade_stale_youtube_channels", label: "018 — re-cascade delete stale channels via storage.deleteChannel()" },
+  { flag: "migration:019:fail_deadlocked_queue_items",      label: "019 — fail queue items whose vault source is permanently undownloadable" },
 ];
 
 export interface MigrationHealth {
@@ -1203,6 +1206,41 @@ async function migration018RecascadeStaleYoutubeChannels(): Promise<void> {
   await setFlag(FLAG);
 }
 
+// ── Migration 019: fail queue items whose vault source is permanently failed ───
+// Items referencing a source video with vault status="failed" + failCount >= 3
+// will never publish — they loop forever consuming publisher slots.  Mark them
+// "failed" on boot so the publisher can move on to healthy items.
+
+async function migration019FailDeadlockedQueueItems(): Promise<void> {
+  const FLAG = "migration:019:fail_deadlocked_queue_items";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // Find autopilot_queue rows that are "scheduled" and reference a vault
+    // entry that has already permanently failed (failCount >= 3).
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue q
+      SET    status        = 'failed',
+             error_message = 'Source video permanently undownloadable — vault exhausted all download clients after 3+ attempts (migration 019)',
+             updated_at    = NOW()
+      WHERE  q.status = 'scheduled'
+        AND  q.metadata->>'sourceYoutubeId' IS NOT NULL
+        AND  EXISTS (
+               SELECT 1
+               FROM   content_vault_backups v
+               WHERE  v.youtube_id = q.metadata->>'sourceYoutubeId'
+                 AND  v.status     = 'failed'
+                 AND  COALESCE((v.metadata->>'failCount')::int, 0) >= 3
+             )
+    `);
+    const affected = (result as any).rowCount ?? 0;
+    log.info(`[Migration 019] Permanently failed ${affected} deadlocked queue item(s)`);
+  } catch (err: any) {
+    log.warn(`[Migration 019] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1225,6 +1263,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration016CreateErrorKnowledgeBase();
     await migration017PurgeStaleYoutubeChannels();
     await migration018RecascadeStaleYoutubeChannels();
+    await migration019FailDeadlockedQueueItems();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

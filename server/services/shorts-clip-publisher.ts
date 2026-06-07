@@ -310,6 +310,10 @@ async function getEncodedSegment(opts: {
         // Section download failed — queue full vault download for future cycles
         const { queueVaultDownloadForSource } = await import("../services/video-vault");
         const queueResult = await queueVaultDownloadForSource(youtubeId, userId);
+        if (queueResult === "download_failed") {
+          // All vault download clients exhausted after 3+ attempts — permanently undownloadable.
+          throw new Error(`__vault_source_unavailable__: ${youtubeId} (all download clients failed after 3+ attempts)`);
+        }
         logger.warn(`[ShortsPublisher] Section download failed for ${youtubeId}: ${String(sectionErr?.message ?? sectionErr).slice(0, 120)} — queued vault (${queueResult})`);
         throw new Error(`__vault_download_pending__: ${youtubeId} (${queueResult})`);
       }
@@ -680,6 +684,17 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                     .set({ status: "scheduled", errorMessage: null })
                     .where(eq(autopilotQueue.id, item.id));
                   skipped++;
+                  continue;
+                }
+
+                // Source permanently undownloadable — all vault clients exhausted
+                // after 3+ attempts (live stream never archived, HTTP 400, etc.).
+                if (errMsg.includes("__vault_source_unavailable__")) {
+                  logger.warn(`[ShortsPublisher] Source permanently unavailable — failing item ${item.id}`, { error: errMsg.slice(0, 200) });
+                  await db.update(autopilotQueue)
+                    .set({ status: "failed", errorMessage: errMsg.slice(0, 500) })
+                    .where(eq(autopilotQueue.id, item.id));
+                  failed++;
                   continue;
                 }
 

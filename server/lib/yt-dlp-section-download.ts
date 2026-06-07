@@ -77,9 +77,11 @@ export interface DownloadSectionOpts {
   /** Optional cookies file path — used when present and non-trivial. */
   cookiesPath?: string;
   /**
-   * Download timeout in ms per attempt (default 3 minutes).
-   * A 38-second clip downloads in seconds under normal conditions.
-   * 3 minutes gives plenty of headroom even on a throttled server IP.
+   * Download timeout in ms per attempt (default 10 minutes).
+   * Section downloads for long-form videos (8–60 min segments) can require
+   * downloading most of the source file before seeking to the right position.
+   * A 1080p 30-min source video can be 3–5 GB — 10 min gives the download
+   * enough time on a constrained server IP without blocking forever.
    */
   timeoutMs?: number;
 }
@@ -107,7 +109,7 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
     startSec,
     endSec,
     outputPath,
-    timeoutMs = 180_000, // 3 minutes — plenty for any section of a real video
+    timeoutMs = 600_000, // 10 minutes — section downloads for long-form source videos can be slow
   } = opts;
 
   const ytdlp = getYtdlpBin();
