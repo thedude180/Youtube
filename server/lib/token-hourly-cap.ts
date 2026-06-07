@@ -325,6 +325,27 @@ let _lastFlushError: string | null = null;
 // Per-module last-warn timestamps for log-spam debounce (key = "warn:<module>")
 const _capWarnedAt = new Map<string, number>();
 
+// ─── Daily cap exhaustion cache ───────────────────────────────────────────────
+// Key: "<module>:<dateKey>" → true once the daily cap is first detected as
+// exhausted.  All subsequent calls for the same module+day short-circuit here
+// with zero logging and zero DB round-trips, preventing the 2-4 second
+// hot-spin that saturates the event loop and kills health-check responses.
+// The cache is automatically cleared when the UTC date rolls over (checked on
+// every read) and can be force-cleared by clearDailyExhaustionCache() (used by
+// the midnight quota-reset cron).
+const _dailyExhaustedCache = new Map<string, string>(); // key → dateKey when set
+
+export function clearDailyExhaustionCache(module?: string): void {
+  if (module) {
+    // Clear a specific module (e.g. after manual budget reset)
+    for (const key of _dailyExhaustedCache.keys()) {
+      if (key.startsWith(module + ":")) _dailyExhaustedCache.delete(key);
+    }
+  } else {
+    _dailyExhaustedCache.clear();
+  }
+}
+
 async function flushHourlyUsageToDB(): Promise<void> {
   if (!_dirty) return;
   _dirty = false;
@@ -666,6 +687,30 @@ export function checkDailyTokenBudget(
 ): TokenCapResult {
   const currentDate = getCurrentDateKey();
   const currentHour = getCurrentHourKey();
+
+  // ── Fast-path: exhaustion already confirmed for today ────────────────────
+  // Once a module's daily cap is confirmed exhausted for the current UTC date,
+  // all subsequent calls return immediately — no logging, no slot reads, no DB.
+  // This is the fix for the [HourlyCap] hot-spin: without this cache, every
+  // caller in a 2-4 second polling loop logs the warning and does slot reads
+  // on EVERY iteration, saturating the event loop and killing health checks.
+  const cacheKey = `${module}:${currentDate}`;
+  if (_dailyExhaustedCache.get(cacheKey) === currentDate) {
+    // Cached exhaustion still valid — return blocked result with zero work
+    const hourlyCap = getModuleCap(module, currentHour);
+    const hourSlot  = getSlot(module);
+    return {
+      allowed:         false,
+      usedThisHour:    hourSlot.usedTokens,
+      hourlyLimit:     hourlyCap,
+      remaining:       0,
+      usedToday:       0,
+      dailyLimit:      0,
+      dailyRemaining:  0,
+      reason:          `Daily cap reached (cached — no more AI calls for ${module} until UTC midnight)`,
+    };
+  }
+
   const dailyCap    = getModuleDailyCap(module, currentDate);
   const daySlot     = getDailySlot(module);
   const afterDay    = daySlot.usedTokens + estimatedTokens;
@@ -675,9 +720,17 @@ export function checkDailyTokenBudget(
   const hourSlot   = getSlot(module);
 
   if (afterDay > dailyCap) {
+    // Set the exhaustion cache for this module+day so all future calls
+    // short-circuit at the fast-path above with zero logging/DB work.
+    _dailyExhaustedCache.set(cacheKey, currentDate);
+    // One-time stack trace so operators can identify which caller is spinning.
+    // Captured as a single warn — will not repeat until next UTC day.
+    const callerStack = new Error("daily cap first exhaustion — caller trace").stack
+      ?.split("\n").slice(2, 6).join(" → ") ?? "(no stack)";
     log.warn(
       `[HourlyCap] ${module} daily cap exhausted: ` +
-      `${daySlot.usedTokens}+${estimatedTokens}=${afterDay} > ${dailyCap} (${currentDate})`
+      `${daySlot.usedTokens}+${estimatedTokens}=${afterDay} > ${dailyCap} (${currentDate})` +
+      ` | caller: ${callerStack}`
     );
     return {
       allowed:         false,
