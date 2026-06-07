@@ -1099,6 +1099,59 @@ async function verifyAllMigrationFlags(): Promise<void> {
   }
 }
 
+// ── Migration 017: purge stale youtube/youtubeshorts channels ─────────────────
+// After each OAuth reconnect a new channel row can be created while old ones
+// with needs_reconnect=true are left behind.  This migration deletes every
+// youtube / youtubeshorts channel that has NO access_token, keeping only the
+// live connected row per user.  Future reconnects are handled in-code by
+// handleCallback in youtube.ts.
+
+async function migration017PurgeStaleYoutubeChannels(): Promise<void> {
+  const FLAG = "migration:017:purge_stale_youtube_channels";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // For each user, identify the best (highest-id, has token) youtube and
+    // youtubeshorts channel, then delete all others that have no access_token.
+    const staleRows = await db.execute(sql`
+      SELECT id, user_id, platform
+      FROM channels
+      WHERE platform IN ('youtube', 'youtubeshorts')
+        AND (access_token IS NULL OR access_token = '')
+    `);
+
+    let deleted = 0;
+    for (const row of (staleRows as any).rows ?? []) {
+      try {
+        // Safety: make sure the user still has at least one connected channel
+        // on this platform before deleting.
+        const remaining = await db.execute(sql`
+          SELECT COUNT(*) AS cnt
+          FROM channels
+          WHERE user_id  = ${row.user_id}
+            AND platform = ${row.platform}
+            AND access_token IS NOT NULL
+            AND access_token != ''
+        `);
+        const cnt = Number((remaining as any).rows?.[0]?.cnt ?? 0);
+        if (cnt === 0) {
+          // No connected replacement exists — leave this row alone.
+          continue;
+        }
+        await db.execute(sql`DELETE FROM channels WHERE id = ${row.id}`);
+        deleted++;
+        log.info(`[Migration 017] Deleted stale channel id=${row.id} platform=${row.platform}`);
+      } catch {
+        // FK constraint or other per-row error — skip, non-fatal
+      }
+    }
+    log.info(`[Migration 017] Complete — removed ${deleted} stale channel row(s)`);
+  } catch (err: any) {
+    log.warn(`[Migration 017] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1119,6 +1172,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration014CancelBlockedSourceVideos();
     await migration015PurgeNonYoutubeQueueItems();
     await migration016CreateErrorKnowledgeBase();
+    await migration017PurgeStaleYoutubeChannels();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

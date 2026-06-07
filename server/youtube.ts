@@ -266,6 +266,47 @@ export async function handleCallback(code: string, userId: string) {
     ytLogger.error("Failed to auto-enable autopilot", { userId, error: String(err) });
   }
 
+  // ─── Step 4: Purge stale youtube/youtubeshorts channels ───────────────────
+  // After a successful reconnect, delete every other youtube or youtubeshorts
+  // channel row for this user so only the freshly-connected ones remain.
+  // This prevents dead channels with needs_reconnect=true from accumulating
+  // across reconnect cycles (e.g. channels 50, 52 left over after channel 53
+  // was created on reconnect).
+  try {
+    const allChannelsNow = await storage.getChannelsByUser(userId);
+
+    // Identify the active youtube channel (the one we just saved).
+    const activeYoutubeId = channel?.id;
+
+    // The active shorts channel: prefer the one that already existed and was
+    // updated (existingShortsChannel), otherwise pick the newest one with a token.
+    const activeShortsId = existingShortsChannel?.id
+      ?? allChannelsNow
+           .filter(c => c.platform === "youtubeshorts" && c.accessToken)
+           .sort((a, b) => b.id - a.id)[0]?.id;
+
+    const activeIds = new Set<number>(
+      [activeYoutubeId, activeShortsId].filter((id): id is number => id != null)
+    );
+
+    const stale = allChannelsNow.filter(
+      c => (c.platform === "youtube" || c.platform === "youtubeshorts") && !activeIds.has(c.id)
+    );
+
+    for (const staleChannel of stale) {
+      ytLogger.info(
+        `[YouTube] Reconnect cleanup: deleting stale channel id=${staleChannel.id} ` +
+        `platform=${staleChannel.platform} needs_reconnect=${staleChannel.needsReconnect}`
+      );
+      await storage.deleteChannel(staleChannel.id);
+    }
+    if (stale.length > 0) {
+      ytLogger.info(`[YouTube] Reconnect cleanup complete — removed ${stale.length} stale channel(s)`);
+    }
+  } catch (cleanupErr: any) {
+    ytLogger.warn(`[YouTube] Reconnect channel cleanup failed (non-fatal): ${cleanupErr?.message}`);
+  }
+
   return {
     channel,
     ytChannel: ytChannel ? {
