@@ -574,14 +574,13 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
           )
       `);
 
-      // 3) Mark back_catalog_videos row as excluded (won't be re-queued)
+      // 3) Touch back_catalog_videos updated_at so it is re-evaluated next scan.
+      //    (processing_status / exclusion_reason columns do not exist on this table;
+      //     steps 1+2 above already prevent re-queueing via vault 'failed' status.)
       await db.execute(sql`
         UPDATE back_catalog_videos
-        SET processing_status = 'excluded',
-            exclusion_reason  = ${"migration010: dead seed video"},
-            updated_at        = NOW()
+        SET updated_at = NOW()
         WHERE youtube_video_id = ${youtubeId}
-          AND processing_status != 'excluded'
       `);
 
       log.info(`[Migration 010] Purged dead video: ${youtubeId}`);

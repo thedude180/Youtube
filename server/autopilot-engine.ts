@@ -515,9 +515,11 @@ async function generateFullThrottleDistribution(
     const microDelay = addHumanMicroDelay();
     const finalSchedule = new Date(scheduledAt.getTime() + microDelay);
 
-    await db.insert(autopilotQueue).values({
+    // sourceVideoId is a FK → videos.id. Null-safe guard: the video could be
+    // deleted between the SELECT above and this INSERT (FK constraint violation).
+    const insertPayload = {
       userId,
-      sourceVideoId: video.id,
+      sourceVideoId: (video.id ?? null) as number | null,
       type: effectiveQueueType,
       targetPlatform: platform,
       content: result.content,
@@ -537,7 +539,18 @@ async function generateFullThrottleDistribution(
         safetyGrade: safety.overallGrade,
         schedulingMethod: "audience-driven",
       },
-    });
+    };
+    try {
+      await db.insert(autopilotQueue).values(insertPayload);
+    } catch (fkErr: any) {
+      const errText = String(fkErr?.message ?? fkErr ?? "");
+      // Retry without source reference if the video FK no longer resolves
+      if (errText.includes("foreign key") || errText.includes("violates") || errText.includes("Failed query")) {
+        await db.insert(autopilotQueue).values({ ...insertPayload, sourceVideoId: null });
+      } else {
+        throw fkErr;
+      }
+    }
 
     if (isVideoDelivery) queuedVideo++; else queuedText++;
     logger.info("Queued content", { platform, deliveryType, isVideoDelivery, effectiveContentType, effectiveQueueType, scheduledAt: finalSchedule.toISOString() });
