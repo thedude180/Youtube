@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { autoAgeStalePatterns } from "./error-knowledge-base";
 
 const logger = createLogger("log-retention");
 
@@ -52,6 +53,10 @@ const RETENTION_RULES: RetentionRule[] = [
   // patterns, crash-restart correlation, and per-operation breakdowns are always
   // queryable. Uses last_updated_at as the age anchor (rows are updated daily).
   { table: "youtube_quota_usage",              timestampCol: "last_updated_at",  retentionDays: RETENTION_DAYS },
+  // Error events — raw per-occurrence stream feeding the knowledge base.
+  // 365-day retention keeps a full year of error history for pattern analysis.
+  // NOTE: error_resolutions is intentionally NOT here — it is never purged.
+  { table: "error_events",                     timestampCol: "occurred_at",      retentionDays: RETENTION_DAYS },
 ];
 
 const BATCH_SIZE = 1000;
@@ -96,6 +101,11 @@ async function runRetentionSweep(): Promise<void> {
   } else {
     logger.info("Retention sweep complete — nothing to prune");
   }
+
+  // Auto-age error patterns not seen in 7+ days → promote confidence
+  await autoAgeStalePatterns().catch(err =>
+    logger.warn(`autoAgeStalePatterns failed (non-fatal): ${err?.message}`)
+  );
 }
 
 export function getRetentionRules(): { table: string; retentionDays: number }[] {

@@ -890,6 +890,92 @@ async function migration015PurgeNonYoutubeQueueItems(): Promise<void> {
   }
 }
 
+// ── Migration 016: create error knowledge base tables ────────────────────────
+// Creates error_events and error_resolutions tables if they don't exist yet.
+// error_events: rolling 365-day log of every classified error occurrence.
+// error_resolutions: permanent institutional memory — never purged, grows forever.
+// Uses CREATE TABLE IF NOT EXISTS so it is safe to run on every boot when not
+// yet flagged (and then self-flags once both tables exist).
+
+async function migration016CreateErrorKnowledgeBase(): Promise<void> {
+  const FLAG = "migration:016:error_knowledge_base_tables";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS error_events (
+        id             SERIAL PRIMARY KEY,
+        fingerprint    TEXT NOT NULL,
+        occurred_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        module         TEXT NOT NULL,
+        error_code     TEXT NOT NULL,
+        severity       TEXT NOT NULL,
+        message        TEXT NOT NULL,
+        stack_sample   TEXT,
+        context        JSONB DEFAULT '{}',
+        classification JSONB DEFAULT '{}',
+        action_taken   TEXT,
+        resolved       BOOLEAN DEFAULT false
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ee_fingerprint_idx ON error_events (fingerprint)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ee_occurred_idx ON error_events (occurred_at)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ee_module_idx ON error_events (module)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ee_code_idx ON error_events (error_code)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS ee_severity_idx ON error_events (severity)
+    `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS error_resolutions (
+        id                SERIAL PRIMARY KEY,
+        fingerprint       TEXT NOT NULL,
+        error_code        TEXT NOT NULL,
+        module            TEXT NOT NULL,
+        first_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        occurrence_count  INTEGER NOT NULL DEFAULT 1,
+        resolved_count    INTEGER NOT NULL DEFAULT 0,
+        resolution_type   TEXT,
+        resolution_notes  TEXT,
+        successful_action TEXT,
+        confidence        REAL NOT NULL DEFAULT 0.0,
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS er_fingerprint_uniq ON error_resolutions (fingerprint)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS er_code_idx ON error_resolutions (error_code)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS er_module_idx ON error_resolutions (module)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS er_confidence_idx ON error_resolutions (confidence)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS er_last_seen_idx ON error_resolutions (last_seen_at)
+    `);
+
+    log.info("[Migration016] error_events + error_resolutions tables created ✓");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration016] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Boot cleanup: reset stuck pending items ───────────────────────────────────
 // Runs on EVERY boot (no flag guard) — safe because no publishers are running
 // at T+3s when migrations fire.  Resets all items stuck in "pending" status
@@ -952,6 +1038,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:013:game_name_reaudit_v1",             label: "013 — re-audit back catalog game names; correct misclassified AC/BF videos" },
   { flag: "migration:014:cancel_blocked_source_videos",     label: "014 — cancel queue items referencing permanently-blocked source video s0D2BLHmiTU" },
   { flag: "migration:015:purge_non_youtube_queue_items",    label: "015 — purge all non-YouTube pending/scheduled queue items (cross-posting disabled)" },
+  { flag: "migration:016:error_knowledge_base_tables",      label: "016 — create error_events + error_resolutions knowledge base tables" },
 ];
 
 export interface MigrationHealth {
@@ -1020,6 +1107,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration013GameNameReaudit();
     await migration014CancelBlockedSourceVideos();
     await migration015PurgeNonYoutubeQueueItems();
+    await migration016CreateErrorKnowledgeBase();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

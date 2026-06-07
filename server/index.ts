@@ -4291,6 +4291,10 @@ httpServer.listen(
       logger.warn("Transient rejection (suppressed)", { error: msg.substring(0, 120), count: unhandledRejectionCount });
     } else {
       logger.error("Unhandled promise rejection", { error: msg.substring(0, 300), count: unhandledRejectionCount });
+      // Capture to error knowledge base (fire-and-forget, never throws)
+      import("./services/error-knowledge-base").then(({ recordError }) => {
+        recordError(reason instanceof Error ? reason : new Error(msg), "process:unhandledRejection");
+      }).catch(() => {});
     }
   });
 
@@ -4302,6 +4306,10 @@ httpServer.listen(
       return;
     }
     logger.error("Uncaught exception", { error: msg.substring(0, 300), count: uncaughtExceptionCount });
+    // Capture to error knowledge base (fire-and-forget, never throws)
+    import("./services/error-knowledge-base").then(({ recordError }) => {
+      recordError(err, "process:uncaughtException");
+    }).catch(() => {});
   });
 
 process.on("warning", (warning) => {

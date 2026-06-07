@@ -10512,3 +10512,61 @@ export const channelSuccessDna = pgTable("channel_success_dna", {
 ]);
 export type ChannelSuccessDna = typeof channelSuccessDna.$inferSelect;
 
+// ── Error Events ──────────────────────────────────────────────────────────────
+// Every error occurrence captured from any service, classified + fingerprinted.
+// Retained for 365 days via log-retention sweep. The raw event stream that feeds
+// the knowledge base.
+export const errorEvents = pgTable("error_events", {
+  id:             serial("id").primaryKey(),
+  fingerprint:    text("fingerprint").notNull(),              // "{module}:{errorCode}"
+  occurredAt:     timestamp("occurred_at").defaultNow().notNull(),
+  module:         text("module").notNull(),
+  errorCode:      text("error_code").notNull(),
+  severity:       text("severity").notNull(),                 // critical|high|medium|low|unknown
+  message:        text("message").notNull(),
+  stackSample:    text("stack_sample"),                       // first 600 chars of stack
+  context:        jsonb("context").$type<Record<string, unknown>>().default({}),
+  classification: jsonb("classification").$type<Record<string, unknown>>().default({}),
+  actionTaken:    text("action_taken"),                       // repair action that was applied
+  resolved:       boolean("resolved").default(false),
+}, (t) => [
+  index("ee_fingerprint_idx").on(t.fingerprint),
+  index("ee_occurred_idx").on(t.occurredAt),
+  index("ee_module_idx").on(t.module),
+  index("ee_code_idx").on(t.errorCode),
+  index("ee_severity_idx").on(t.severity),
+]);
+export type ErrorEvent = typeof errorEvents.$inferSelect;
+
+// ── Error Resolutions (Institutional Knowledge Base) ──────────────────────────
+// One row per unique error fingerprint. Accumulates forever across all deployments.
+// NEVER purged — this is the ever-growing institutional memory of the system.
+// The self-heal engine queries this BEFORE applying its default repair policy,
+// so past experience directly improves future auto-repair decisions.
+export const errorResolutions = pgTable("error_resolutions", {
+  id:               serial("id").primaryKey(),
+  fingerprint:      text("fingerprint").notNull(),            // unique, "{module}:{errorCode}"
+  errorCode:        text("error_code").notNull(),
+  module:           text("module").notNull(),
+  firstSeenAt:      timestamp("first_seen_at").defaultNow().notNull(),
+  lastSeenAt:       timestamp("last_seen_at").defaultNow().notNull(),
+  occurrenceCount:  integer("occurrence_count").notNull().default(1),
+  resolvedCount:    integer("resolved_count").notNull().default(0),
+  // "auto_heal" = self-heal engine fixed it; "code_fix" = human deployed a fix;
+  // "transient" = resolved on its own (quota reset, token refresh, etc.);
+  // "suppressed" = classified as noise and suppressed; "unknown" = unclear
+  resolutionType:   text("resolution_type"),
+  resolutionNotes:  text("resolution_notes"),                 // free-text explanation of fix
+  successfulAction: text("successful_action"),                // which RepairAction worked
+  // Confidence 0.0–1.0: resolvedCount / occurrenceCount, clamped.
+  // Grows as the same fix keeps working. Self-heal prefers high-confidence patterns.
+  confidence:       real("confidence").notNull().default(0.0),
+  updatedAt:        timestamp("updated_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("er_fingerprint_uniq").on(t.fingerprint),
+  index("er_code_idx").on(t.errorCode),
+  index("er_module_idx").on(t.module),
+  index("er_confidence_idx").on(t.confidence),
+  index("er_last_seen_idx").on(t.lastSeenAt),
+]);
+export type ErrorResolution = typeof errorResolutions.$inferSelect;

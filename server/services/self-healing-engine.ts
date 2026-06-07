@@ -18,6 +18,7 @@ import { classifyError, type ErrorClassification, type ErrorCode } from "../lib/
 import { LogSuppressor } from "../lib/log-suppressor";
 import { logDecision } from "../lib/decision-journal";
 import { KillSwitches } from "../lib/kill-switches";
+import { recordError, recordResolution, lookupResolution } from "./error-knowledge-base";
 
 const log = createLogger("self-healing-engine");
 
@@ -272,19 +273,47 @@ export const SelfHealingEngine = {
       `[SelfHeal] ${module}: classified as ${classification.code} (severity=${classification.severity}, action=${classification.action})`,
     );
 
+    // ── Knowledge base: check for a proven fix before applying default policy ──
+    // If the KB has seen this exact module:errorCode pattern before and has a
+    // high-confidence resolution, log it so the repair decision is informed.
+    const knownFix = await lookupResolution(module, classification.code);
+    if (knownFix && knownFix.confidence >= 0.5 && knownFix.successfulAction) {
+      log.info(
+        `[SelfHeal] KB hit — ${knownFix.fingerprint}: seen ${knownFix.occurrenceCount}x, ` +
+        `confidence=${knownFix.confidence.toFixed(2)}, proven action="${knownFix.successfulAction}"`,
+      );
+    }
+
     // Level 1 — try first
     const l1 = await applyLevel1(classification, module, context);
-    if (l1) return l1;
+    if (l1) {
+      // Record the event + resolution to the knowledge base
+      await recordError(err, module, context, l1.actionTaken);
+      if (l1.status === "applied") {
+        await recordResolution(module, classification.code, "auto_heal", l1.actionTaken);
+      }
+      return l1;
+    }
 
     // Level 2 — medium risk
     const l2 = await applyLevel2(classification, module, context);
-    if (l2) return l2;
+    if (l2) {
+      await recordError(err, module, context, l2.actionTaken);
+      if (l2.status === "applied") {
+        await recordResolution(module, classification.code, "auto_heal", l2.actionTaken);
+      }
+      return l2;
+    }
 
     // Level 3 — stage for human review
     if (classification.human_required) {
-      return stageLevel3(classification, module, context);
+      const l3 = await stageLevel3(classification, module, context);
+      await recordError(err, module, context, l3?.actionTaken ?? "staged");
+      return l3;
     }
 
+    // No repair applied — still record the raw event so the pattern accumulates
+    await recordError(err, module, context);
     return null;
   },
 
