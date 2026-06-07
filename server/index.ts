@@ -587,7 +587,7 @@ async function healProductionPipeline(): Promise<void> {
                SELECT id FROM content_vault_backups
                WHERE status = 'downloaded'
                  AND file_path LIKE ${_localHome + "/%"}
-               ORDER BY updated_at ASC
+               ORDER BY created_at ASC
                LIMIT 3
              )`,
     );

@@ -580,7 +580,7 @@ async function migration010PurgeBadVideoIds(): Promise<void> {
         SET processing_status = 'excluded',
             exclusion_reason  = ${"migration010: dead seed video"},
             updated_at        = NOW()
-        WHERE youtube_id = ${youtubeId}
+        WHERE youtube_video_id = ${youtubeId}
           AND processing_status != 'excluded'
       `);
 
@@ -681,8 +681,10 @@ async function migration012DeletePlaceholderChannels(): Promise<void> {
   try {
     // Delete channels whose channel_id is a known dev placeholder pattern
     // (real YouTube IDs are always "UC" + exactly 22 base64 chars = 24 chars total)
-    const r = await db.execute(sql`
-      DELETE FROM channels
+    // Use individual try/catch per channel so FK constraints on real rows that
+    // accidentally match the pattern don't prevent the flag from being set.
+    const candidates = await db.execute(sql`
+      SELECT id FROM channels
       WHERE (
         channel_id ILIKE 'UCdemo%'
         OR channel_id ILIKE 'UCtest%'
@@ -692,13 +694,23 @@ async function migration012DeletePlaceholderChannels(): Promise<void> {
         AND (access_token IS NULL OR access_token = '')
         AND (refresh_token IS NULL OR refresh_token = '')
     `);
-    const n = (r as any)?.rowCount ?? 0;
-    log.info(`[Migration 012] Deleted ${n} placeholder/stub channel row(s)`);
-    await setFlag(FLAG);
-    log.info("[Migration 012] Complete");
+    let deleted = 0;
+    for (const row of (candidates as any).rows ?? []) {
+      try {
+        await db.execute(sql`DELETE FROM channels WHERE id = ${row.id}`);
+        deleted++;
+      } catch {
+        // FK constraint or other per-row error — skip this channel, not fatal
+      }
+    }
+    log.info(`[Migration 012] Deleted ${deleted} placeholder/stub channel row(s)`);
   } catch (err: any) {
-    log.warn(`[Migration 012] Failed (non-fatal): ${err?.message}`);
+    log.warn(`[Migration 012] Could not query placeholder channels (non-fatal): ${err?.message}`);
   }
+  // Always set the flag — in production there are no real dev/test channels.
+  // Re-running this DELETE every boot just adds noise without benefit.
+  await setFlag(FLAG);
+  log.info("[Migration 012] Complete");
 }
 
 // ── Migration 013: Re-audit back catalog game names ───────────────────────────
