@@ -1241,6 +1241,30 @@ async function migration019FailDeadlockedQueueItems(): Promise<void> {
   await setFlag(FLAG);
 }
 
+// ── Migration 020: Cancel leftover ai-team-engine tasks ───────────────────────
+// ai-team-scheduler is permanently disabled (multi-platform business ops, not
+// YouTube learning). Pre-existing pending/queued/running tasks in ai_agent_tasks
+// were still executing from before the disable, burning AI queue slots.
+// One-time flagged purge: mark all active tasks as cancelled on next boot.
+async function migration020CancelAiTeamTasks(): Promise<void> {
+  const FLAG = "migration_020_cancel_ai_team_tasks";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE ai_agent_tasks
+      SET    status       = 'cancelled',
+             completed_at = NOW(),
+             result       = '{"cancelled":"ai-team-scheduler permanently disabled"}'
+      WHERE  status IN ('pending', 'queued', 'running')
+    `);
+    const affected = (result as any).rowCount ?? 0;
+    log.info(`[Migration 020] Cancelled ${affected} stale ai-team-engine task(s)`);
+  } catch (err: any) {
+    log.warn(`[Migration 020] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1264,6 +1288,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration017PurgeStaleYoutubeChannels();
     await migration018RecascadeStaleYoutubeChannels();
     await migration019FailDeadlockedQueueItems();
+    await migration020CancelAiTeamTasks();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

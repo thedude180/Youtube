@@ -1134,7 +1134,14 @@ async function healProductionPipeline(): Promise<void> {
     // This means new pipelines added hours/days later are automatically picked up
     // within 2.5 minutes rather than waiting for a reboot.
     // Priority order: live > replay > vod > refresh — stream content always jumps the queue.
+    //
+    // Per-pipeline cooldown: when a pipeline resets to "pending" due to AI queue
+    // full, it would otherwise be kicked again every 2.5 min in a tight loop.
+    // This map tracks the last kick time per pipeline ID so we skip it for
+    // PIPELINE_COOLDOWN_MS before retrying, giving AI slots time to free up.
     const DRIP_INTERVAL_MS = 2.5 * 60_000; // 2.5 min = 24 pipelines/hour max
+    const PIPELINE_COOLDOWN_MS = 10 * 60_000; // 10 min cooldown after AI-queue-full reset
+    const pipelineLastKicked = new Map<number, number>(); // pipelineId → lastKickedAt
     setInterval(async () => {
       try {
         // Pause during live streams — all resources shift to the live event.
@@ -1150,14 +1157,28 @@ async function healProductionPipeline(): Promise<void> {
           .where(eq(contentPipeline.status, "processing"));
         if ((processingCount?.count ?? 0) >= 1) return; // already running one — wait
 
-        const [next] = await db.select().from(contentPipeline)
+        const pending = await db.select().from(contentPipeline)
           .where(eq(contentPipeline.status, "pending"))
           .orderBy(
             sql`CASE WHEN ${contentPipeline.mode} = 'live' THEN 0 WHEN ${contentPipeline.mode} = 'replay' THEN 1 WHEN ${contentPipeline.mode} = 'vod' THEN 2 ELSE 3 END`,
             contentPipeline.createdAt,
           )
-          .limit(1);
-        if (!next) return; // nothing pending — silently wait for next tick
+          .limit(20); // check up to 20 candidates so we can skip cooled-down ones
+        if (pending.length === 0) return; // nothing pending — silently wait for next tick
+
+        const now = Date.now();
+        const next = pending.find(p => {
+          const lastKick = pipelineLastKicked.get(p.id) ?? 0;
+          return (now - lastKick) >= PIPELINE_COOLDOWN_MS;
+        });
+        if (!next) return; // all pending pipelines are in cooldown — wait
+
+        pipelineLastKicked.set(next.id, now);
+        // Evict entries older than 1 hour to prevent unbounded map growth
+        for (const [pid, ts] of pipelineLastKicked) {
+          if (now - ts > 60 * 60_000) pipelineLastKicked.delete(pid);
+        }
+
         const { executePipelineInBackground } = await import("./routes/pipeline");
         executePipelineInBackground(
           next.id,
