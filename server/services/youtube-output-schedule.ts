@@ -103,7 +103,8 @@ function dedupDates(dates: Date[]): Date[] {
 
 // ── 1. Per-user in-process async mutex ───────────────────────────────────────
 
-const _shortMutexTails = new Map<string, Promise<void>>();
+const _shortMutexTails    = new Map<string, Promise<void>>();
+const _longFormMutexTails = new Map<string, Promise<void>>();
 
 async function withShortScheduleMutex<T>(
   userId: string,
@@ -119,6 +120,23 @@ async function withShortScheduleMutex<T>(
   } finally {
     myRelease();
     if (_shortMutexTails.get(userId) === myCompletion) _shortMutexTails.delete(userId);
+  }
+}
+
+async function withLongFormScheduleMutex<T>(
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prevTail = _longFormMutexTails.get(userId) ?? Promise.resolve();
+  let myRelease!: () => void;
+  const myCompletion = new Promise<void>(r => { myRelease = r; });
+  _longFormMutexTails.set(userId, myCompletion);
+  await prevTail;
+  try {
+    return await fn();
+  } finally {
+    myRelease();
+    if (_longFormMutexTails.get(userId) === myCompletion) _longFormMutexTails.delete(userId);
   }
 }
 
@@ -642,52 +660,68 @@ export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 
     return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
   }
 
-  const tz     = await getUserTz(userId);
-  const now    = new Date();
-  const today  = getLocalDay(tz, now);
-  const lastLf = await getLastScheduledLongFormTime(userId);
+  // Serialize concurrent callers behind a per-user mutex so only ONE runs the
+  // 28-query DB scan at a time.  Callers that were already queued when the first
+  // one completes will re-check the saturation cache (double-checked locking)
+  // and return immediately without re-running the expensive scan.
+  return withLongFormScheduleMutex(userId, async () => {
+    // Double-check inside the mutex: many concurrent callers can all pass the
+    // fast-path check above before any one of them sets the saturation cache.
+    // Without this re-check each queued caller would run the full 28-query DB
+    // scan independently — causing the "No long-form window" hot-spin loop.
+    const recheck = longFormScheduleSaturationCache.get(userId);
+    if (recheck && Date.now() < recheck.expiresAt) {
+      logger.debug(`[YouTubeSchedule] Long-form saturation cache hit (inner) for ${userId.slice(0, 8)} — skipping DB scan`);
+      return new Date(recheck.fallback.getTime() + Math.floor(Math.random() * 60_000));
+    }
 
-  for (let d = minDaysAhead; d < MAX_DAYS_AHEAD; d++) {
-    const day = d === 0 ? today : offsetDay(tz, today, d);
-    const [allUploads, lfToday] = await Promise.all([
-      getUploadsOnDay(userId, tz, day),
-      getLongFormOnDay(userId, tz, day),
-    ]);
+    const tz     = await getUserTz(userId);
+    const now    = new Date();
+    const today  = getLocalDay(tz, now);
+    const lastLf = await getLastScheduledLongFormTime(userId);
 
-    if (lfToday.length >= MAX_LONGFORM_PER_DAY) continue;
-    if (allUploads.length >= MAX_TOTAL_PER_DAY) continue;
+    for (let d = minDaysAhead; d < MAX_DAYS_AHEAD; d++) {
+      const day = d === 0 ? today : offsetDay(tz, today, d);
+      const [allUploads, lfToday] = await Promise.all([
+        getUploadsOnDay(userId, tz, day),
+        getLongFormOnDay(userId, tz, day),
+      ]);
 
-    const winStart  = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.startH,  LONGFORM_WINDOW.startM);
-    const winEnd    = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.endH,    LONGFORM_WINDOW.endM);
-    const winTarget = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.targetH, LONGFORM_WINDOW.targetM);
-    const candidate = withJitter(winTarget, winStart, winEnd);
+      if (lfToday.length >= MAX_LONGFORM_PER_DAY) continue;
+      if (allUploads.length >= MAX_TOTAL_PER_DAY) continue;
 
-    if (candidate.getTime() <= now.getTime() + 60_000) continue;
-    if (lastLf && candidate.getTime() - lastLf.getTime() < MIN_LONGFORM_GAP_MS) continue;
+      const winStart  = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.startH,  LONGFORM_WINDOW.startM);
+      const winEnd    = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.endH,    LONGFORM_WINDOW.endM);
+      const winTarget = localHmToUtc(tz, day.y, day.mo, day.dy, LONGFORM_WINDOW.targetH, LONGFORM_WINDOW.targetM);
+      const candidate = withJitter(winTarget, winStart, winEnd);
 
-    const tooClose = allUploads.some(
-      t => Math.abs(t.getTime() - candidate.getTime()) < MIN_ANY_GAP_MS,
-    );
-    if (tooClose) continue;
+      if (candidate.getTime() <= now.getTime() + 60_000) continue;
+      if (lastLf && candidate.getTime() - lastLf.getTime() < MIN_LONGFORM_GAP_MS) continue;
 
-    logger.debug(`[YouTubeSchedule] Long-form slot → ${LONGFORM_WINDOW.targetH}:${String(LONGFORM_WINDOW.targetM).padStart(2, "0")} local (${candidate.toISOString()})`);
-    return candidate;
-  }
+      const tooClose = allUploads.some(
+        t => Math.abs(t.getTime() - candidate.getTime()) < MIN_ANY_GAP_MS,
+      );
+      if (tooClose) continue;
 
-  logger.warn(`[YouTubeSchedule] No long-form window found for ${userId.slice(0, 8)} — using +24h`);
-  const fallback = new Date(now.getTime() + 24 * 3_600_000);
-  fallback.setUTCHours(18, 30, 0, 0);
+      logger.debug(`[YouTubeSchedule] Long-form slot → ${LONGFORM_WINDOW.targetH}:${String(LONGFORM_WINDOW.targetM).padStart(2, "0")} local (${candidate.toISOString()})`);
+      return candidate;
+    }
 
-  // Cache the saturation state so subsequent callers skip the 28-query DB scan.
-  // Always set the cache regardless of minDaysAhead — if no window was found
-  // from any starting day, the whole 14-day horizon is booked and all callers
-  // (publisher, back-catalog engine, rescheduler) should short-circuit.
-  longFormScheduleSaturationCache.set(userId, {
-    expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
-    fallback,
+    logger.warn(`[YouTubeSchedule] No long-form window found for ${userId.slice(0, 8)} — using +24h`);
+    const fallback = new Date(now.getTime() + 24 * 3_600_000);
+    fallback.setUTCHours(18, 30, 0, 0);
+
+    // Cache the saturation state so subsequent callers skip the 28-query DB scan.
+    // Always set the cache regardless of minDaysAhead — if no window was found
+    // from any starting day, the whole 14-day horizon is booked and all callers
+    // (publisher, back-catalog engine, rescheduler) should short-circuit.
+    longFormScheduleSaturationCache.set(userId, {
+      expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
+      fallback,
+    });
+
+    return fallback;
   });
-
-  return fallback;
 }
 
 /** Count today's scheduled/published Shorts and long-form for a user. */
