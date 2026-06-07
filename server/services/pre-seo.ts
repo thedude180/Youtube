@@ -289,8 +289,7 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
     .limit(MAX_ITEMS_PER_RUN);
 
   if (items.length === 0) {
-    logger.info("[PreSeo] All scheduled items already have SEO — nothing to do");
-    return { processed, seoGenerated, thumbsExtracted, errors };
+    logger.debug("[PreSeo] All scheduled items already have SEO — checking thumbnail backfill only");
   }
 
   logger.info(`[PreSeo] Pre-generating SEO for ${items.length} queued item(s)`);
@@ -426,9 +425,70 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
     await new Promise(r => setTimeout(r, 500));
   }
 
+  // ── Pass 2: Thumbnail backfill ───────────────────────────────────────────────
+  // Items that got SEO in a prior cycle but couldn't extract a thumbnail because
+  // the pre-encoder hadn't finished the file yet.  Now that the pre-encoder runs
+  // continuously, these files will exist by the time we reach this pass.
+  // Query: seoTitle set, thumbnailPath missing, preEncodedPath recorded in metadata.
+  let thumbBackfill = 0;
+  try {
+    const thumbOnlyItems = await db
+      .select()
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.status, "scheduled"),
+        sql`${autopilotQueue.metadata}->>'seoTitle' IS NOT NULL`,
+        sql`${autopilotQueue.metadata}->>'thumbnailPath' IS NULL`,
+        sql`${autopilotQueue.metadata}->>'preEncodedPath' IS NOT NULL`,
+      ))
+      .orderBy(autopilotQueue.scheduledAt)
+      .limit(200);
+
+    for (const tItem of thumbOnlyItems) {
+      const tMeta        = (tItem.metadata ?? {}) as Record<string, unknown>;
+      const tEncPath     = tMeta.preEncodedPath as string | undefined;
+      if (!tEncPath || !fs.existsSync(tEncPath)) continue;
+
+      const tIsLongForm =
+        (tMeta.contentType as string | undefined) === "long-form-clip" ||
+        (tMeta.contentType as string | undefined) === "vod_long_form" ||
+        tItem.type === "auto-clip" ||
+        tItem.type === "vod-long-form";
+
+      const tStartSec   = tIsLongForm ? Number(tMeta.segmentStartSec ?? 0) : Number(tMeta.startSec ?? 0);
+      const tEndSec     = tIsLongForm ? Number(tMeta.segmentEndSec   ?? 0) : Number(tMeta.endSec   ?? 60);
+      const tDurationSec = Math.max(5, tEndSec - tStartSec);
+
+      const thumbOut = path.join(THUMBNAIL_DIR, `thumb_${tItem.id}.jpg`);
+      try {
+        await extractThumbnailFrame(tEncPath, tDurationSec, thumbOut);
+        if (fs.existsSync(thumbOut) && fs.statSync(thumbOut).size > 1000) {
+          const claimed = await db
+            .update(autopilotQueue)
+            .set({ metadata: { ...tMeta, thumbnailPath: thumbOut } as any })
+            .where(and(
+              eq(autopilotQueue.id, tItem.id),
+              eq(autopilotQueue.status, "scheduled"),
+              sql`${autopilotQueue.metadata}->>'thumbnailPath' IS NULL`,
+            ))
+            .returning({ id: autopilotQueue.id });
+          if (claimed.length) {
+            thumbBackfill++;
+            thumbsExtracted++;
+            logger.debug(`[PreSeo] Thumbnail backfilled for item ${tItem.id}`);
+          }
+        }
+      } catch { /* skip — non-fatal */ }
+
+      await new Promise(r => setTimeout(r, 200));
+    }
+  } catch (bfErr: any) {
+    logger.debug(`[PreSeo] Thumbnail backfill pass error: ${bfErr.message?.slice(0, 100)}`);
+  }
+
   logger.info(
-    `[PreSeo] Cycle complete — processed: ${processed}, ` +
-    `seoGenerated: ${seoGenerated}, thumbsExtracted: ${thumbsExtracted}, errors: ${errors}`,
+    `[PreSeo] Cycle complete — seoGenerated: ${seoGenerated}, ` +
+    `thumbsExtracted: ${thumbsExtracted} (backfill: ${thumbBackfill}), errors: ${errors}`,
   );
   return { processed, seoGenerated, thumbsExtracted, errors };
 
@@ -437,51 +497,51 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
   }
 }
 
-// ── Scheduling: every 2 hours ─────────────────────────────────────────────────
-// Runs continuously so that as the back catalog fills the queue with thousands
-// of items, every one gets its SEO title/description/tags and thumbnail frame
-// well before its scheduled publish time.  The AI semaphore + token budget
-// inside runPreSeoCycle() prevent runaway Claude spend.
-// 2 h keeps SEO always ahead of uploads (publishers are priority-one when not live).
+// ── Scheduling: perpetual loop ────────────────────────────────────────────────
+// Runs cycle → 15-min pause → cycle → 15-min pause → …  forever.
+// There is no nightly gate — the goal is to have every queued item's SEO and
+// thumbnail ready the moment the pre-encoder finishes the file.
+// The AI semaphore (max 8 concurrent) + token budget inside runPreSeoCycle()
+// are the real rate limiters; this loop just keeps the work moving.
 
-const CYCLE_INTERVAL_MS = 2 * 3_600_000; // 2 hours
+const PAUSE_BETWEEN_CYCLES_MS = 15 * 60_000; // 15 minutes
 
-let _preSeoTimer: ReturnType<typeof setTimeout> | null = null;
+let _preSeoLoopActive = false;
 
 export function stopPreSeo(): void {
-  if (_preSeoTimer !== null) {
-    clearTimeout(_preSeoTimer);
-    _preSeoTimer = null;
-    logger.info("[PreSeo] Stopped");
-  }
+  _preSeoLoopActive = false;
+  logger.info("[PreSeo] Stopping — loop will exit after current cycle finishes");
 }
 
 export function initPreSeo(): void {
-  function scheduleNextRun(): void {
-    _preSeoTimer = setTimeout(async () => {
-      _preSeoTimer = null;
-      logger.info("[PreSeo] Starting 6-hour SEO + thumbnail cycle");
+  async function loop(): Promise<void> {
+    while (_preSeoLoopActive) {
+      logger.info("[PreSeo] Starting SEO + thumbnail cycle");
       await runPreSeoCycle().catch(err =>
         logger.error("[PreSeo] Cycle error", { error: String(err) }),
       );
-      scheduleNextRun();
-    }, CYCLE_INTERVAL_MS);
-    logger.info(`[PreSeo] Next SEO + thumbnail cycle in 6 h`);
+      if (!_preSeoLoopActive) break;
+      logger.info(`[PreSeo] Cycle done — next in 15 min`);
+      await new Promise(r => setTimeout(r, PAUSE_BETWEEN_CYCLES_MS));
+    }
+    logger.info("[PreSeo] Loop exited");
   }
 
-  stopPreSeo();
+  _preSeoLoopActive = false; // reset in case of re-init
 
-  // Startup run after 10-minute delay — preps anything queued near the top
+  // Startup: wait for pre-encoder to establish its first batch before running SEO.
+  // T+10 min is after the pre-encoder's T+15 min startup — adjusted: start at T+8 min
+  // so SEO is ready as files come in (pre-encoder works item by item, not all at once).
   setTimeout(() => {
-    logger.info("[PreSeo] Startup SEO + thumbnail cycle starting");
-    runPreSeoCycle().catch(err =>
-      logger.warn("[PreSeo] Startup cycle error", { error: String(err) }),
+    _preSeoLoopActive = true;
+    logger.info("[PreSeo] Perpetual loop starting (T+8 min)");
+    loop().catch(err =>
+      logger.error("[PreSeo] Loop crashed — will not restart automatically", { error: String(err) }),
     );
-  }, 10 * 60_000);
+  }, 8 * 60_000);
 
-  scheduleNextRun();
   logger.info(
-    "[PreSeo] Initialised — runs every 6 h, pre-generates SEO + thumbnails " +
-    "for every queued item that hasn't been prepped yet",
+    "[PreSeo] Initialised — perpetual loop starts at T+8 min, " +
+    "15-min pause between cycles, pre-generates SEO + thumbnails for every queued item",
   );
 }
