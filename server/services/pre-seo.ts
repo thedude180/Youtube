@@ -249,16 +249,30 @@ function purgeStaleThumbails(): void {
 
 // ── Main cycle ────────────────────────────────────────────────────────────────
 
+// Concurrency guard — only one cycle runs at a time.
+// Without this, the startup run (T+10 min) and the 2-hour timer can overlap,
+// causing two instances to race through the same items simultaneously.
+let _preSeoRunning = false;
+
 export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerated: number; thumbsExtracted: number; errors: number }> {
   let processed      = 0;
   let seoGenerated   = 0;
   let thumbsExtracted = 0;
   let errors         = 0;
 
+  if (_preSeoRunning) {
+    logger.debug("[PreSeo] Skipping — cycle already in progress");
+    return { processed, seoGenerated, thumbsExtracted, errors };
+  }
+
   if (process.env.NODE_ENV !== "production") {
     logger.debug("[PreSeo] Skipping — development environment");
     return { processed, seoGenerated, thumbsExtracted, errors };
   }
+
+  _preSeoRunning = true;
+
+  try {
 
   ensureDirs();
   purgeStaleThumbails();
@@ -408,8 +422,8 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
       logger.warn(`[PreSeo] Metadata write failed for item ${item.id}: ${err.message?.slice(0, 150)}`);
     }
 
-    // Small pause between AI calls to avoid rate limiting
-    await new Promise(r => setTimeout(r, 200));
+    // Pause between items — ensures strictly one item at a time, never batched.
+    await new Promise(r => setTimeout(r, 500));
   }
 
   logger.info(
@@ -417,6 +431,10 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
     `seoGenerated: ${seoGenerated}, thumbsExtracted: ${thumbsExtracted}, errors: ${errors}`,
   );
   return { processed, seoGenerated, thumbsExtracted, errors };
+
+  } finally {
+    _preSeoRunning = false;
+  }
 }
 
 // ── Scheduling: every 2 hours ─────────────────────────────────────────────────

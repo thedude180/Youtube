@@ -35,6 +35,10 @@ const THUMB_H = YT_4K_THUMBNAILS_ENABLED ? 2160 : 1152;
 const YOUTUBE_THUMBNAIL_UPLOAD_LIMIT_BYTES = 2_000_000;
 
 const MAX_THUMBNAILS_PER_RUN = 10;
+// Concurrency guard — only one generation run at a time.
+// Without this, the nightly cron and a manual trigger can overlap and process
+// the same video simultaneously, wasting quota and DALL-E credits.
+let _autoThumbnailRunning = false;
 const disconnectedChannels = new Set<number>();
 let disconnectedChannelsTTL = 0;
 
@@ -471,6 +475,12 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
   let generated = 0;
   let skipped = 0;
 
+  if (_autoThumbnailRunning) {
+    logger.debug("[AutoThumbnail] Skipping — generation already in progress");
+    return { generated, skipped };
+  }
+  _autoThumbnailRunning = true;
+
   try {
     // Upload-first policy: thumbnails burn 50 units each. Getting videos onto
     // YouTube as private/scheduled content is always higher priority. Defer
@@ -542,6 +552,9 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
         } else {
           skipped++;
         }
+
+        // Pause between items — one thumbnail at a time, never batched.
+        await new Promise(r => setTimeout(r, 500));
       }
     }
 
@@ -550,6 +563,8 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
     }
   } catch (err) {
     logger.error("Auto-thumbnail engine error", { error: String(err) });
+  } finally {
+    _autoThumbnailRunning = false;
   }
 
   return { generated, skipped };
