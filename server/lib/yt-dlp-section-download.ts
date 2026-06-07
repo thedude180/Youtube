@@ -34,16 +34,14 @@ import { acquireYtdlpSlot } from "./ytdlp-gate";
 const logger = createLogger("yt-dlp-section");
 
 // ---------------------------------------------------------------------------
-// Best available format — like a normal download.
-// Prefers a single combined MP4 file so there's no DASH merge step.
-// Falls back to video+audio DASH merge if the combined file isn't offered.
-// Height cap at 1080p keeps file sizes reasonable for short clips.
-// ---------------------------------------------------------------------------
+// Download format — best quality available, no height cap.
+// The ffmpeg encoder upscales whatever arrives to 4K output so there is no
+// benefit to capping the download resolution.
 const DOWNLOAD_FORMAT =
-  "best[ext=mp4][height<=1080]" +         // single-file MP4 up to 1080p (fastest)
-  "/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]" + // DASH merge
-  "/bestvideo[height<=1080]+bestaudio" +   // any container DASH merge
-  "/best";                                 // absolute fallback — whatever is available
+  "bestvideo[ext=mp4]+bestaudio[ext=m4a]" + // best quality DASH merge (4K/HDR if available)
+  "/bestvideo+bestaudio" +                   // best quality, any container
+  "/best[ext=mp4]" +                         // single-file MP4 (Shorts, merged-container videos)
+  "/best";                                   // absolute fallback
 
 // ---------------------------------------------------------------------------
 // Client strategies — only two, in order of reliability

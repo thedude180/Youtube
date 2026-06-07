@@ -74,22 +74,18 @@ let isRunning = false;
 // FFmpeg / yt-dlp helpers (16:9 horizontal encoding — letterbox to landscape)
 // ---------------------------------------------------------------------------
 
-function runCmd(bin: string, args: string[], timeoutMs = 5_400_000): Promise<void> {
+function runCmd(bin: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     const errBufs: Buffer[] = [];
-    // Kill the process after timeoutMs (default 90 min) to prevent stuck encodes
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error(`Process timed out after ${Math.round(timeoutMs / 60_000)}m`));
-    }, timeoutMs);
+    // No timeout — 4K encoding of a 60-minute video can take several hours.
+    // The process is allowed to run until ffmpeg signals completion naturally.
     proc.stderr.on("data", (d: Buffer) => errBufs.push(d));
     proc.on("close", (code) => {
-      clearTimeout(timer);
       if (code === 0) return resolve();
       reject(new Error(Buffer.concat(errBufs).toString("utf8").slice(-600)));
     });
-    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
+    proc.on("error", reject);
   });
 }
 

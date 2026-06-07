@@ -231,15 +231,15 @@ const PERMANENT_FAILURE_PATTERNS = [
   /content is not available in your country/i,
 ];
 
-// Format strings tried in order for every client, from most specific to most permissive.
-// Format 18 is first: it is a 360p combined video+audio non-DASH MP4.  yt-dlp
-// uses HTTP Range requests to seek directly — no DASH manifest to parse, so
-// downloads complete quickly even for 10-hour source videos.  Quality is
-// sufficient for Shorts and long-form clips after encoding.
+// Download the best quality available — no height cap.
+// The ffmpeg encoder upscales whatever arrives to 4K output.
+// Format preference order:
+//   1. Best quality DASH (4K/HDR if available) — separate video + audio merged
+//   2. Single-file MP4 at best quality (handles Shorts / merged containers)
+//   3. Best quality any container — last resort
 const VAULT_FORMAT_STRATEGIES = [
-  "18/best[ext=mp4][height<=480][protocol=https]/best[ext=mp4][height<=480]",
-  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-  "best",
+  "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio",
+  "best[ext=mp4]/best",
 ];
 const BOT_DETECTION_PATTERNS = [
   /sign in to confirm.*bot/i,

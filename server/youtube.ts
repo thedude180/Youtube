@@ -1009,17 +1009,24 @@ export async function uploadVideoToYouTube(
       if (cleanGame) snippetBody.gameTitle = cleanGame;
     }
 
-    const response = await youtube.videos.insert({
-      part: ["snippet", "status"],
-      requestBody: {
-        snippet: snippetBody,
-        status: statusBody,
+    const response = await youtube.videos.insert(
+      {
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: snippetBody,
+          status: statusBody,
+        },
+        media: {
+          mimeType: "video/mp4",
+          body: mediaBody,
+        },
       },
-      media: {
-        mimeType: "video/mp4",
-        body: mediaBody,
-      },
-    });
+      // Disable HTTP timeout — 4K video files can be several GB and take
+      // hours to upload on a constrained server connection.  googleapis
+      // uses the resumable upload protocol internally so the connection is
+      // kept alive chunk-by-chunk; a wall-clock timeout would kill it mid-upload.
+      { timeout: 0 },
+    );
 
     const youtubeId = response.data.id;
     if (!youtubeId) {
