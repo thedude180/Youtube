@@ -87,6 +87,31 @@ import { registerCleanup } from "./services/cleanup-coordinator";
 import { createLogger } from "./lib/logger";
 
 const logger = createLogger("backlog-engine");
+
+// ── Viral-optimizer cap-exhausted cache ───────────────────────────────────────
+// When the daily budget is exhausted, cache the fact until midnight UTC so all
+// subsequent calls in the same day return immediately without re-querying the
+// token-hourly-cap DB table.  Without this, services that call processBacklogAsync
+// or viralReprocessAsync after exhaustion trigger a [HourlyCap] log + DB round-
+// trip every 2-4 seconds — a hot-spin that saturates the event loop and stalls
+// health-check DB queries past their 3-second timeout → 500 → platform restart.
+let _viralCapExhaustedUntil = 0;  // epoch-ms; 0 = not cached / cache expired
+
+function isViralCapCachedExhausted(): boolean {
+  if (_viralCapExhaustedUntil > 0 && Date.now() < _viralCapExhaustedUntil) return true;
+  _viralCapExhaustedUntil = 0;  // cache expired, clear it
+  return false;
+}
+
+function markViralCapExhausted(reason: string): void {
+  if (_viralCapExhaustedUntil > 0) return;  // already cached
+  const utcMidnight = new Date();
+  utcMidnight.setUTCHours(24, 0, 0, 0);
+  _viralCapExhaustedUntil = utcMidnight.getTime();
+  const minutesLeft = Math.round((_viralCapExhaustedUntil - Date.now()) / 60_000);
+  logger.warn(`[BacklogEngine] viral-optimizer ${reason} — suppressing all retries for ${minutesLeft}min until midnight UTC`);
+}
+
 registerCleanup("backlogSessions", () => {
   const now = Date.now();
   for (const [userId, session] of sessions) {
@@ -202,8 +227,12 @@ async function processBacklogAsync(
   // Cost must match per-video cost (3000) so partial budgets don't slip through:
   // checkBudget(cost=1) passes when e.g. 500 tokens remain, but every
   // generateVideoMetadata call needs ~3000 → many iterations fire before stopping.
+  if (isViralCapCachedExhausted()) {
+    if (session) { session.state = "idle"; session.currentVideoId = null; }
+    return;
+  }
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-    logger.warn(`[BacklogEngine] viral-optimizer daily budget exhausted — skipping ${videos.length}-video batch until tomorrow`);
+    markViralCapExhausted("daily budget exhausted");
     if (session) {
       session.state = "idle";
       session.currentVideoId = null;
@@ -213,7 +242,7 @@ async function processBacklogAsync(
   {
     const cap = checkTokenBudgets("viral-optimizer", 3000);
     if (!cap.allowed) {
-      logger.warn(`[BacklogEngine] viral-optimizer cap reached (${cap.reason}) — pausing ${videos.length}-video batch`);
+      markViralCapExhausted(cap.reason ?? "cap reached");
       if (session) {
         session.state = "idle";
         session.currentVideoId = null;
@@ -243,10 +272,12 @@ async function processBacklogAsync(
 
     // Per-video combined cap check — stops the batch when hourly OR daily budget
     // is exhausted rather than continuing until the next gate fires.
+    if (isViralCapCachedExhausted()) break;
     {
       const cap = checkTokenBudgets("viral-optimizer", 3000);
       if (!cap.allowed) {
-        logger.warn(`[BacklogEngine] viral-optimizer cap reached mid-batch (${cap.reason}) — stopping at ${completed}/${videos.length}`);
+        markViralCapExhausted(cap.reason ?? "cap reached mid-batch");
+        logger.warn(`[BacklogEngine] viral-optimizer cap reached mid-batch — stopping at ${completed}/${videos.length}`);
         break;
       }
     }
@@ -1145,11 +1176,16 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
   let completed = 0;
 
   // Pre-batch budget checks — daily + hourly.
-  // Cost must match per-video cost (3000) — cost=1 passes when e.g. 500 tokens
-  // remain, letting 70 iterations run (each with a 2s delay = 140s execution +
-  // 70 progress-update DB writes) before the per-call check finally stops them.
+  // Use the module-level cap-exhausted cache to short-circuit immediately when
+  // the daily budget was already marked exhausted this UTC day — avoids the
+  // [HourlyCap] hot-spin that fires every 2-4 seconds and stalls health checks.
+  if (isViralCapCachedExhausted()) {
+    const session = sessions.get(userId);
+    if (session) session.state = "idle";
+    return;
+  }
   if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-    logger.warn(`[BackCatalog] viral-optimizer daily budget exhausted — skipping ${videoList.length}-video batch until tomorrow`);
+    markViralCapExhausted("daily budget exhausted");
     const session = sessions.get(userId);
     if (session) session.state = "idle";
     return;
@@ -1157,7 +1193,7 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
   {
     const cap = checkTokenBudgets("viral-optimizer", 3000);
     if (!cap.allowed) {
-      logger.warn(`[BackCatalog] viral-optimizer cap reached (${cap.reason}) — pausing ${videoList.length}-video batch`);
+      markViralCapExhausted(cap.reason ?? "cap reached");
       const session = sessions.get(userId);
       if (session) session.state = "idle";
       return;
@@ -1167,14 +1203,15 @@ async function viralReprocessAsync(userId: string, videoList: any[], jobId: numb
   for (const video of videoList) {
     // Per-iteration combined cap check — breaks immediately when daily OR hourly
     // budget is depleted mid-batch so we don't burn delays for remaining videos.
+    if (isViralCapCachedExhausted()) break;
     if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
-      logger.warn(`[BackCatalog] viral-optimizer daily budget depleted mid-batch — stopping at ${completed}/${videoList.length}`);
+      markViralCapExhausted("daily budget depleted mid-batch");
       break;
     }
     {
       const cap = checkTokenBudgets("viral-optimizer", 3000);
       if (!cap.allowed) {
-        logger.warn(`[BackCatalog] viral-optimizer cap reached mid-batch (${cap.reason}) — stopping at ${completed}/${videoList.length}`);
+        markViralCapExhausted(cap.reason ?? "cap reached mid-batch");
         break;
       }
     }

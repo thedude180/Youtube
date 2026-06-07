@@ -268,6 +268,13 @@ function resolveYtdlp(): string {
 let isVaultRunning = false;
 export function isVaultDownloading(): boolean { return isVaultRunning; }
 
+// Disk-full backoff cache — when disk drops below 0.5 GB the vault sets this
+// to prevent re-starting for 2 hours.  Without this, any caller that invokes
+// processVaultDownloads after a disk-full event immediately re-enters the loop,
+// does the disk check, logs "Low disk space", and exits — burning a DB query +
+// log write on each call (can be tens of times per minute from publisher loops).
+let _vaultDiskFullUntil = 0;  // epoch-ms; 0 = no active backoff
+
 const GAME_PATTERNS: Array<[RegExp, string]> = [
   [/assassin'?s?\s*creed\s*valhalla\s*(?:dawn\s*of\s*ragnar[öo]k)/i, "AC Valhalla: Dawn of Ragnarok"],
   [/assassin'?s?\s*creed\s*valhalla\s*(?:wrath\s*of\s*the\s*druids|wotd)/i, "AC Valhalla: Wrath of the Druids"],
@@ -1511,6 +1518,12 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
     logger.info("[Vault] Download processor already running — skipping");
     return;
   }
+  if (_vaultDiskFullUntil > 0 && Date.now() < _vaultDiskFullUntil) {
+    const minutesLeft = Math.round((_vaultDiskFullUntil - Date.now()) / 60_000);
+    logger.info(`[Vault] Disk-full backoff active — skipping downloads for ${minutesLeft}min more`);
+    return;
+  }
+  _vaultDiskFullUntil = 0;  // backoff expired, clear it
 
   isVaultRunning = true;
   const cycleLabel = maxDownloads === Infinity ? "unlimited" : `max ${maxDownloads}`;
@@ -1606,7 +1619,14 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
 
       const freeSpace = await getFreeSpaceGB();
       if (freeSpace < MIN_FREE_SPACE_GB) {
-        logger.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB) — pausing vault downloads`);
+        if (freeSpace < 0.5) {
+          // Critical: disk nearly full — set a 2-hour backoff so callers don't
+          // immediately re-invoke processVaultDownloads in a tight loop.
+          _vaultDiskFullUntil = Date.now() + 2 * 60 * 60 * 1000;
+          logger.warn(`[Vault] Critical disk space (${freeSpace.toFixed(1)}GB) — pausing downloads for 2h to prevent crash-loop`);
+        } else {
+          logger.warn(`[Vault] Low disk space (${freeSpace.toFixed(1)}GB) — pausing vault downloads`);
+        }
         break;
       }
 
