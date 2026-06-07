@@ -625,6 +625,8 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
             accessToken: rescued.accessToken,
             refreshToken: newRefresh,
             tokenExpiresAt: repairedExpiry,
+            needsReconnect: false,
+            reconnectReason: null,
             platformData: {
               ...pd,
               _connectionStatus: "active",
