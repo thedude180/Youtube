@@ -549,13 +549,18 @@ export class DatabaseStorage implements IStorage {
       await tx.execute(sql`DELETE FROM playlist_funnels WHERE channel_id = ${id}`);
       await tx.execute(sql`DELETE FROM watch_next_links WHERE channel_id = ${id}`);
 
-      // Null out channel_id in token_vault (no FK so rows survive — vault
-      // tokens stay accessible by user_id+platform as recovery backups).
-      await tx.execute(sql`UPDATE token_vault SET channel_id = NULL WHERE channel_id = ${id}`);
-
       await tx.delete(videos).where(eq(videos.channelId, id));
       await tx.delete(channels).where(eq(channels.id, id));
     });
+
+    // Null out channel_id in token_vault outside the transaction — intentionally
+    // non-atomic because there is no FK and the table may not exist in all
+    // environments.  Rows stay accessible by user_id+platform as recovery backups.
+    try {
+      await db.execute(sql`UPDATE token_vault SET channel_id = NULL WHERE channel_id = ${id}`);
+    } catch {
+      // token_vault table absent or column mismatch — non-fatal, safe to ignore
+    }
   }
 
   async getVideos(): Promise<Video[]> {
