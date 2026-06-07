@@ -12,6 +12,14 @@
  *   1. Default yt-dlp client (android_vr) — works for most videos
  *   2. iOS client fallback — handles videos that block the default client
  *
+ * Timeout strategy — stall detection, not wall-clock time:
+ *   The download continues as long as bytes are being written to the output
+ *   file.  It is only killed if the file has not grown for `stallTimeoutMs`
+ *   (default 60 s).  This is correct because a 20-minute clip can be 150 MB
+ *   or 3 GB depending on quality and source format — duration-based timeouts
+ *   always guess wrong in one direction or the other.
+ *   A hard cap (`hardTimeoutMs`, default 2 h) acts as an absolute safety net.
+ *
  * Usage:
  *   await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
  */
@@ -46,22 +54,82 @@ const CLIENT_STRATEGIES: Array<{ label: string; args: string[] }> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Internal: spawn yt-dlp and collect stderr for error messages
+// Stall-detecting yt-dlp runner
+//
+// Polls the output file size every POLL_INTERVAL_MS.  As long as the file
+// is growing the stall timer is reset.  If no new bytes appear for
+// stallTimeoutMs the process is killed.  A hard cap prevents indefinite runs.
 // ---------------------------------------------------------------------------
-function runYtdlp(bin: string, args: string[]): Promise<void> {
+const POLL_INTERVAL_MS = 5_000; // check file size every 5 s
+
+function runYtdlpWithStallDetection(
+  bin: string,
+  args: string[],
+  opts: {
+    outputPath: string;
+    stallTimeoutMs: number;
+    hardTimeoutMs: number;
+  },
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     const errBufs: Buffer[] = [];
     proc.stderr?.on("data", (d: Buffer) => errBufs.push(d));
     proc.stdout?.on("data", () => {}); // drain stdout
+
+    let lastSize = -1;   // -1 = file not yet created (startup / metadata phase)
+    let stalledMs = 0;
+
+    const stallWatcher = setInterval(() => {
+      try {
+        const exists = fs.existsSync(opts.outputPath);
+        const currentSize = exists ? fs.statSync(opts.outputPath).size : -1;
+
+        if (currentSize > lastSize) {
+          // Progress made — bytes written (or file just appeared)
+          lastSize = currentSize;
+          stalledMs = 0;
+        } else if (currentSize === -1) {
+          // File not created yet — yt-dlp is still in metadata/auth phase.
+          // Don't count this as a stall; the process is still starting up.
+          stalledMs = 0;
+        } else {
+          // File exists but hasn't grown
+          stalledMs += POLL_INTERVAL_MS;
+          if (stalledMs >= opts.stallTimeoutMs) {
+            clearInterval(stallWatcher);
+            clearTimeout(hardCap);
+            proc.kill("SIGKILL");
+            reject(new Error(
+              `yt-dlp download stalled — no new bytes written for ${opts.stallTimeoutMs / 1000}s ` +
+              `(file size at stall: ${currentSize >= 0 ? `${Math.round(currentSize / 1024)} KB` : "not yet created"})`,
+            ));
+          }
+        }
+      } catch { /* stat errors are non-fatal */ }
+    }, POLL_INTERVAL_MS);
+
+    // Absolute safety net — no download should ever run longer than hardTimeoutMs
+    const hardCap = setTimeout(() => {
+      clearInterval(stallWatcher);
+      proc.kill("SIGKILL");
+      reject(new Error(`yt-dlp hard timeout after ${opts.hardTimeoutMs / 1000}s`));
+    }, opts.hardTimeoutMs);
+
     proc.on("close", (code) => {
+      clearInterval(stallWatcher);
+      clearTimeout(hardCap);
       if (code === 0) return resolve();
       const msg = Buffer.concat(errBufs).toString("utf8").slice(-800);
       const err = new Error(msg) as Error & { exitCode?: number };
       err.exitCode = code ?? -1;
       reject(err);
     });
-    proc.on("error", reject);
+    proc.on("error", (err) => {
+      clearInterval(stallWatcher);
+      clearTimeout(hardCap);
+      reject(err);
+    });
   });
 }
 
@@ -77,11 +145,22 @@ export interface DownloadSectionOpts {
   /** Optional cookies file path — used when present and non-trivial. */
   cookiesPath?: string;
   /**
-   * Download timeout in ms per attempt (default 10 minutes).
-   * Section downloads for long-form videos (8–60 min segments) can require
-   * downloading most of the source file before seeking to the right position.
-   * A 1080p 30-min source video can be 3–5 GB — 10 min gives the download
-   * enough time on a constrained server IP without blocking forever.
+   * How long (ms) the output file is allowed to stop growing before the
+   * download is considered stalled and killed.  Default: 60 s.
+   *
+   * This replaces the old wall-clock `timeoutMs` — the download runs as long
+   * as bytes are flowing, regardless of video duration or file size.
+   */
+  stallTimeoutMs?: number;
+  /**
+   * Absolute maximum runtime (ms) regardless of progress.  Default: 2 hours.
+   * Acts as a safety net for edge cases (e.g. infinite-loop bugs in yt-dlp).
+   */
+  hardTimeoutMs?: number;
+  /**
+   * @deprecated Use stallTimeoutMs instead.  Ignored if stallTimeoutMs is set.
+   * Kept for backward compatibility — callers that still pass timeoutMs will
+   * have it treated as stallTimeoutMs automatically.
    */
   timeoutMs?: number;
 }
@@ -93,6 +172,9 @@ export interface DownloadSectionOpts {
  * available format automatically, downloads only the requested time window,
  * and returns the output file.  Tries the default client first, falls back
  * to the iOS client once if the default fails.
+ *
+ * The download continues as long as bytes are flowing.  It is killed only if
+ * the output file stops growing for stallTimeoutMs (default 60 s).
  */
 export async function downloadYouTubeSection(opts: DownloadSectionOpts): Promise<void> {
   const release = await acquireYtdlpSlot();
@@ -109,7 +191,10 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
     startSec,
     endSec,
     outputPath,
-    timeoutMs = 600_000, // 10 minutes — section downloads for long-form source videos can be slow
+    // Stall timeout: kill if no new bytes for this long (default 60 s)
+    stallTimeoutMs = opts.timeoutMs ?? 60_000,
+    // Hard cap: absolute maximum runtime (default 2 hours)
+    hardTimeoutMs = 2 * 60 * 60_000,
   } = opts;
 
   const ytdlp = getYtdlpBin();
@@ -155,23 +240,21 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
     args.push(url);
 
     try {
-      await Promise.race([
-        runYtdlp(ytdlp, args),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`yt-dlp timed out after ${timeoutMs / 1000}s`)),
-            timeoutMs,
-          ),
-        ),
-      ]);
+      await runYtdlpWithStallDetection(ytdlp, args, {
+        outputPath,
+        stallTimeoutMs,
+        hardTimeoutMs,
+      });
 
       // Verify the output file exists and has real content
       if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1000) {
+        const sizeKb = Math.round(fs.statSync(outputPath).size / 1024);
         logger.info("yt-dlp section download succeeded", {
           youtubeId,
           sectionStr,
           client: client.label,
-          sizeKb: Math.round(fs.statSync(outputPath).size / 1024),
+          sizeKb,
+          sizeMb: Math.round(sizeKb / 1024 * 10) / 10,
         });
         return; // Done
       }

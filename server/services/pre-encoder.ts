@@ -82,12 +82,11 @@ async function downloadSection(
   endSec: number,
   outputPath: string,
 ): Promise<void> {
-  // Scale timeout with section duration: 1.5s per second of footage, min 3 min, max 15 min.
-  // Long-form sections (8–60 min) from large source videos can require downloading several
-  // GB before yt-dlp seeks to the right position — the 3-minute default is too short.
-  const sectionDurationSec = Math.max(0, endSec - startSec);
-  const timeoutMs = Math.min(900_000, Math.max(180_000, sectionDurationSec * 1_500));
-  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath, timeoutMs });
+  // No timeout needed — yt-dlp-section-download uses stall detection:
+  // the download runs as long as bytes are flowing to the output file and is
+  // only killed if nothing new is written for 60 s.  File size varies too much
+  // by quality and source to use duration as a proxy.
+  await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
 }
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
