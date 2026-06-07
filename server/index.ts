@@ -3303,9 +3303,10 @@ httpServer.listen(
         try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
         // AI-intensive engines staggered to T+22–26min so they never compete
         // with the publisher pipeline or Wave 6–8 services for AI slots.
-        setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
-        setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
-        setTimeout(() => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine")), 26 * 60_000);
+        // [YOUTUBE-ONLY] Non-YouTube engines disabled until YouTube publishing is stable:
+        // setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
+        // setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
+        // setTimeout(() => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine")), 26 * 60_000);
       }).catch(slog("wave5-ready-gate"));
     });
 
@@ -3317,9 +3318,11 @@ httpServer.listen(
       await sleep(8 * 60_000); // sequential boot gate: T+8min
       staggeredBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
-        { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
+        // [YOUTUBE-ONLY] compliance-legal-engine disabled — fires 15+ legal/tax AI agents per cycle:
+        // { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
         { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
-        { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
+        // [YOUTUBE-ONLY] ai-team-scheduler disabled — fires business agent teams (CFO, CMO, strategy, etc.):
+        // { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
         { label: "livestream-growth-agent",       fn: () => import("./services/livestream-growth-agent").then(m => m.initLivestreamGrowthAgent()).catch(slog("initLivestreamGrowthAgent")) },
         { label: "live-stream-director",           fn: () => import("./services/live-stream-director").then(m => m.initLiveStreamDirector()).catch(slog("initLiveStreamDirector")) },
         { label: "live-chat-agent",               fn: () => import("./services/live-chat-agent").then(m => m.initLiveChatAgent()).catch(slog("initLiveChatAgent")) },
@@ -3374,12 +3377,13 @@ httpServer.listen(
       //   const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
       //   backgroundIntervals.push(iv);
       // }).catch(slog("auto-thumbnail-engine import"));
-      import("./marketer-engine").then(async m => {
-        await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
-        await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
-        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
-        backgroundIntervals.push(iv);
-      }).catch(slog("marketer-engine import"));
+      // [YOUTUBE-ONLY] marketer-engine disabled — multi-platform marketing automation:
+      // import("./marketer-engine").then(async m => {
+      //   await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
+      //   await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
+      //   const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
+      //   backgroundIntervals.push(iv);
+      // }).catch(slog("marketer-engine import"));
       // CROSS-POSTING DISABLED — daily-content-engine generates multi-platform
       // content groups (YouTube + TikTok etc.) and is disabled until cross-posting
       // is re-enabled.  YouTube-only autopilot (back-catalog runner + AI orchestrator)
@@ -3707,8 +3711,10 @@ httpServer.listen(
             }
           }).catch(slog("smart-edit-engine import")) },
         { label: "game-detection-engine",       fn: () => import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine")) },
-        { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
-        { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
+        // [YOUTUBE-ONLY] self-improvement-engine disabled — general AI self-improvement:
+        // { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
+        // [YOUTUBE-ONLY] growth-flywheel-engine disabled — general growth automation:
+        // { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
       ], 5_000);
     });
 
@@ -3729,8 +3735,10 @@ httpServer.listen(
         { label: "channel-catalog-sync",      fn: () => import("./services/channel-catalog-sync").then(m => m.startCatalogSync()).catch(slog("startCatalogSync")) },
         { label: "platform-feature-detector", fn: () => import("./services/platform-feature-detector").then(m => m.startPlatformFeatureDetector()).catch(slog("startPlatformFeatureDetector")) },
         { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
-        { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
-        { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
+        // [YOUTUBE-ONLY] infinite-evolution-engine disabled — general AI evolution:
+        // { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
+        // [YOUTUBE-ONLY] knowledge-mesh disabled — general knowledge consolidation:
+        // { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
       ], 5_000);
     });
 
@@ -3744,14 +3752,17 @@ httpServer.listen(
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
         { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
         { label: "prompt-evolution-engine",     fn: () => import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine")) },
-        { label: "revenue-optimizer-engine",    fn: () => import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine")) },
+        // [YOUTUBE-ONLY] revenue-optimizer-engine disabled — multi-platform revenue:
+        // { label: "revenue-optimizer-engine",    fn: () => import("./services/revenue-optimizer-engine").then(m => { backgroundIntervals.push(m.initRevenueOptimizerEngine()); }).catch(slog("initRevenueOptimizerEngine")) },
         { label: "audience-intelligence-engine",fn: () => import("./services/audience-intelligence-engine").then(m => { backgroundIntervals.push(m.initAudienceIntelligenceEngine()); }).catch(slog("initAudienceIntelligenceEngine")) },
         { label: "predictive-guardian",         fn: () => import("./services/predictive-guardian").then(m => { backgroundIntervals.push(m.initPredictiveGuardian()); }).catch(slog("initPredictiveGuardian")) },
         { label: "empire-intelligence-engine",  fn: () => import("./services/empire-intelligence-engine").then(m => { backgroundIntervals.push(m.initEmpireIntelligenceEngine()); }).catch(slog("initEmpireIntelligenceEngine")) },
-        { label: "memory-architect",            fn: () => import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect")) },
+        // [YOUTUBE-ONLY] memory-architect disabled — general multi-platform memory:
+        // { label: "memory-architect",            fn: () => import("./services/memory-architect").then(m => { backgroundIntervals.push(m.initMemoryArchitect()); }).catch(slog("initMemoryArchitect")) },
         { label: "autonomous-experimenter",     fn: () => import("./services/autonomous-experimenter").then(m => { backgroundIntervals.push(m.initAutonomousExperimenter()); }).catch(slog("initAutonomousExperimenter")) },
         { label: "decision-chronicler",         fn: () => import("./services/decision-chronicler").then(m => { backgroundIntervals.push(m.initDecisionChronicler()); }).catch(slog("initDecisionChronicler")) },
-        { label: "autonomous-capability-engine",fn: () => import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine")) },
+        // [YOUTUBE-ONLY] autonomous-capability-engine disabled — general capability expansion:
+        // { label: "autonomous-capability-engine",fn: () => import("./services/autonomous-capability-engine").then(m => { backgroundIntervals.push(m.initAutonomousCapabilityEngine()); }).catch(slog("initAutonomousCapabilityEngine")) },
         { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
