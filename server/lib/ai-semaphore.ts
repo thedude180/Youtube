@@ -25,11 +25,12 @@ export const MIN_INTER_CALL_DELAY_MS = 2_000;
 const STARTUP_HOLD_MS = 40_000;
 const MAX_QUEUE_DEPTH = 12;
 // Background callers fail-fast when this many are already queued.
-// Lowered from 8 → 4: with background AI concurrency reduced to 2, a queue
-// of 4 gives at most 6 background operations in-flight at once. Fail-fast
-// forces engines to back off and retry on their next natural interval rather
-// than piling up and exhausting memory. Critical-path callers bypass this.
-const BACKGROUND_MAX_QUEUE_DEPTH = 4;
+// Set to 2: only 2 background callers can queue at a time (1 active + 2 waiting
+// = 3 total). A 4th background caller arriving while 3 are active/queued is
+// dropped immediately and retries on its own natural interval (1–6 h).
+// This keeps 1 slot always free for critical-path callers (publishers, live chat)
+// and prevents learning engines from overwhelming the AI layer on boot.
+const BACKGROUND_MAX_QUEUE_DEPTH = 2;
 const _bootTime = Date.now();
 
 let _busy = false;
@@ -362,10 +363,11 @@ export type AiTier = "shorts_pipeline" | "longform_pipeline" | "background";
 export const TIER_LIMITS: Record<AiTier, number> = {
   shorts_pipeline: 3,
   longform_pipeline: 2,
-  // Reduced from 8 → 2: only 2 background AI calls run concurrently.
-  // Others queue in the pool. This enforces sequential-like processing
-  // so 50+ engines never simultaneously saturate the AI layer.
-  background: 2,
+  // Reduced from 2 → 1: only 1 background AI call runs at a time (fully
+  // sequential). Others queue in the pool behind it. This matches the user's
+  // intent: "only takes a new task when one finishes — won't fill the last
+  // slot till one is almost done." Critical pipeline tiers are unaffected.
+  background: 1,
 };
 
 // ── Minimal concurrency limiter (drop-in replacement for p-limit) ─────────────

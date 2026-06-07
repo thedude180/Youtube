@@ -3738,7 +3738,8 @@ httpServer.listen(
     // ── WAVE 10: Autonomous command engines + publishers — T+25min ───────────
     // Sleeps 5min after Wave 9 (T+20min): fires at T+25min.
     // Publishers listed FIRST so they're registered before heavy AI engines.
-    // grinder/evolution/knowledge-mesh follow at T+25:45–55 (5s gaps).
+    // 8s stagger (up from 5s): 12 engines spread over ~96s instead of 60s,
+    // preventing a thundering herd of first-cycle AI calls at T+25min.
     if (!LITE_MODE) wave(async () => {
       await sleep(5 * 60_000); // Wave 9 T+20min + 5min = T+25min
       staggeredBoot([
@@ -3754,13 +3755,16 @@ httpServer.listen(
         { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
         { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
-      ], 5_000);
+      ], 8_000);
     });
 
     // ── WAVE 10.5: Autonomous meta-intelligence engines — T+30min ────────────
     // Sleeps 5min after Wave 10 (T+25min): fires at T+30min.
     // These 18 deep-optimization engines run in background only; none are
     // required for uploads — they compound learning over hours/days.
+    // 15s stagger (up from 4s): 18 engines spread over ~4.5min instead of 72s.
+    // Combined with background AI tier=1 this means engines queue behind each
+    // other rather than all firing first-cycle AI calls at once.
     if (!LITE_MODE) wave(async () => {
       await sleep(5 * 60_000); // Wave 10 T+25min + 5min = T+30min
       staggeredBoot([
@@ -3782,7 +3786,7 @@ httpServer.listen(
         { label: "viral-prediction-engine",     fn: () => import("./services/viral-prediction-engine").then(m => { backgroundIntervals.push(...m.initViralPredictionEngine()); }).catch(slog("initViralPredictionEngine")) },
         { label: "trend-wave-interceptor",      fn: () => import("./services/trend-wave-interceptor").then(m => { backgroundIntervals.push(...m.initTrendWaveInterceptor()); }).catch(slog("initTrendWaveInterceptor")) },
         { label: "competitor-gap-scanner",      fn: () => import("./services/competitor-gap-scanner").then(m => { backgroundIntervals.push(...m.initCompetitorGapScanner()); }).catch(slog("initCompetitorGapScanner")) },
-      ], 4_000);
+      ], 15_000);
     });
 
     // ── WAVE 11: Self-healing, webhook pipeline, health brain — T+35min ──────
