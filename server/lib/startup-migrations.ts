@@ -10,6 +10,7 @@ import { db } from "../db";
 import { autopilotQueue, systemSettings } from "@shared/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { createLogger } from "./logger";
+import { storage } from "../storage";
 
 const log = createLogger("startup-migrations");
 
@@ -1138,16 +1139,66 @@ async function migration017PurgeStaleYoutubeChannels(): Promise<void> {
           // No connected replacement exists — leave this row alone.
           continue;
         }
-        await db.execute(sql`DELETE FROM channels WHERE id = ${row.id}`);
+        // Use storage.deleteChannel() — it performs the full FK cascade in the
+        // correct order.  A raw "DELETE FROM channels WHERE id=?" would fail
+        // silently here because autopilot_queue, back_catalog_videos, and other
+        // tables have FK references to channels.id.
+        await storage.deleteChannel(Number(row.id));
         deleted++;
         log.info(`[Migration 017] Deleted stale channel id=${row.id} platform=${row.platform}`);
-      } catch {
-        // FK constraint or other per-row error — skip, non-fatal
+      } catch (err: any) {
+        log.warn(`[Migration 017] Could not delete channel id=${row.id}: ${err?.message?.slice(0, 100)}`);
       }
     }
     log.info(`[Migration 017] Complete — removed ${deleted} stale channel row(s)`);
   } catch (err: any) {
     log.warn(`[Migration 017] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
+// ── Migration 018: re-run stale channel cleanup with proper cascade delete ────
+// Migration 017 set its flag even though the raw SQL DELETE silently failed
+// (FK constraints from autopilot_queue, back_catalog_videos, etc.).  This
+// migration re-runs the same logic but uses storage.deleteChannel() which
+// handles the full FK cascade in the correct order.
+
+async function migration018RecascadeStaleYoutubeChannels(): Promise<void> {
+  const FLAG = "migration:018:recascade_stale_youtube_channels";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const staleRows = await db.execute(sql`
+      SELECT id, user_id, platform
+      FROM channels
+      WHERE platform IN ('youtube', 'youtubeshorts')
+        AND (access_token IS NULL OR access_token = '')
+    `);
+
+    let deleted = 0;
+    for (const row of (staleRows as any).rows ?? []) {
+      try {
+        const remaining = await db.execute(sql`
+          SELECT COUNT(*) AS cnt
+          FROM channels
+          WHERE user_id  = ${row.user_id}
+            AND platform = ${row.platform}
+            AND access_token IS NOT NULL
+            AND access_token != ''
+        `);
+        const cnt = Number((remaining as any).rows?.[0]?.cnt ?? 0);
+        if (cnt === 0) continue;
+
+        await storage.deleteChannel(Number(row.id));
+        deleted++;
+        log.info(`[Migration 018] Deleted stale channel id=${row.id} platform=${row.platform}`);
+      } catch (err: any) {
+        log.warn(`[Migration 018] Could not delete channel id=${row.id}: ${err?.message?.slice(0, 100)}`);
+      }
+    }
+    log.info(`[Migration 018] Complete — removed ${deleted} stale channel row(s)`);
+  } catch (err: any) {
+    log.warn(`[Migration 018] Failed (non-fatal): ${err?.message}`);
   }
   await setFlag(FLAG);
 }
@@ -1173,6 +1224,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration015PurgeNonYoutubeQueueItems();
     await migration016CreateErrorKnowledgeBase();
     await migration017PurgeStaleYoutubeChannels();
+    await migration018RecascadeStaleYoutubeChannels();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

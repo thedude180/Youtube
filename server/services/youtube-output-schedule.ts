@@ -630,13 +630,16 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
 export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 0): Promise<Date> {
   // Fast-path: if the schedule is known to be saturated (the 14-day long-form
   // window is fully booked), return the cached fallback immediately without
-  // touching the DB.  Only applies to the default minDaysAhead=0 case.
-  if (minDaysAhead === 0) {
-    const cached = longFormScheduleSaturationCache.get(userId);
-    if (cached && Date.now() < cached.expiresAt) {
-      logger.debug(`[YouTubeSchedule] Long-form saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
-      return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
-    }
+  // touching the DB.
+  // The saturation cache is valid for ANY minDaysAhead value — if the entire
+  // 14-day horizon is booked from day 0, it's also booked from day 1 or 2.
+  // Removing the minDaysAhead===0 gate prevents the back-catalog engine's
+  // minDaysAhead=1 calls from bypassing the cache and firing 28 DB queries
+  // per video in a tight loop.
+  const cached = longFormScheduleSaturationCache.get(userId);
+  if (cached && Date.now() < cached.expiresAt) {
+    logger.debug(`[YouTubeSchedule] Long-form saturation cache hit for ${userId.slice(0, 8)} — skipping DB scan`);
+    return new Date(cached.fallback.getTime() + Math.floor(Math.random() * 60_000));
   }
 
   const tz     = await getUserTz(userId);
@@ -676,13 +679,13 @@ export async function getNextLongFormPublishTime(userId: string, minDaysAhead = 
   fallback.setUTCHours(18, 30, 0, 0);
 
   // Cache the saturation state so subsequent callers skip the 28-query DB scan.
-  // Only cache for the default minDaysAhead=0 case.
-  if (minDaysAhead === 0) {
-    longFormScheduleSaturationCache.set(userId, {
-      expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
-      fallback,
-    });
-  }
+  // Always set the cache regardless of minDaysAhead — if no window was found
+  // from any starting day, the whole 14-day horizon is booked and all callers
+  // (publisher, back-catalog engine, rescheduler) should short-circuit.
+  longFormScheduleSaturationCache.set(userId, {
+    expiresAt: Date.now() + SATURATION_CACHE_TTL_MS,
+    fallback,
+  });
 
   return fallback;
 }
