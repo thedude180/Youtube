@@ -12,7 +12,7 @@
 
 import { db } from "../db";
 import { autopilotQueue } from "@shared/schema";
-import { and, eq, inArray, lt, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, lt, isNull, or, gt } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isProductionAutomationAllowed } from "../lib/production-guard";
 import { storage } from "../storage";
@@ -180,11 +180,105 @@ async function rescheduleForUser(userId: string): Promise<{ rescheduled: number 
   return { rescheduled };
 }
 
+/**
+ * Reprioritize future-scheduled items so the focus-game's content occupies
+ * the earliest available slots.
+ *
+ * Called immediately when a stream ends and a new focus game is detected.
+ * Unlike rescheduleForUser (which only moves past-due items), this function
+ * operates on ALL future-scheduled items and swaps their dates so that
+ * focus-game content rises to the front of the calendar.
+ *
+ * No new slots are created and no cadence rules are violated — we redistribute
+ * the existing pool of already-valid scheduledAt values.
+ */
+export async function reprioritizeFutureQueue(
+  userId: string,
+  focusGame: string,
+): Promise<{ swapped: number }> {
+  if (!isProductionAutomationAllowed(userId).allowed) return { swapped: 0 };
+
+  const { matchesFocusGame } = await import("../lib/game-focus");
+  const now = new Date();
+  let swapped = 0;
+
+  async function reprioritizeBucket(types: string[]): Promise<number> {
+    const items = await db
+      .select()
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        eq(autopilotQueue.targetPlatform, "youtube"),
+        eq(autopilotQueue.status, "scheduled"),
+        gt(autopilotQueue.scheduledAt, now),
+        inArray(autopilotQueue.type, types),
+      ))
+      .orderBy(autopilotQueue.scheduledAt);
+
+    if (items.length < 2) return 0;
+
+    // Pool of existing scheduledAt dates (already in ascending order)
+    const dates = items.map(i => i.scheduledAt!);
+
+    // Split focus-game items from everything else
+    const focusItems = items.filter(i =>
+      matchesFocusGame(focusGame, { gameName: extractGameName(i.metadata) }),
+    );
+    const otherItems = items.filter(i =>
+      !matchesFocusGame(focusGame, { gameName: extractGameName(i.metadata) }),
+    );
+
+    // Nothing to reorder if one bucket is empty
+    if (focusItems.length === 0 || otherItems.length === 0) return 0;
+
+    // Focus items get the earliest dates; other games get the remainder
+    const reordered = [...focusItems, ...otherItems];
+    let count = 0;
+    for (let i = 0; i < reordered.length; i++) {
+      const item = reordered[i];
+      const newDate = dates[i];
+      if (!newDate || item.scheduledAt?.getTime() === newDate.getTime()) continue;
+      try {
+        await db
+          .update(autopilotQueue)
+          .set({ scheduledAt: newDate })
+          .where(and(
+            eq(autopilotQueue.id, item.id),
+            eq(autopilotQueue.status, "scheduled"),
+          ));
+        count++;
+      } catch { /* non-fatal */ }
+    }
+    return count;
+  }
+
+  swapped += await reprioritizeBucket(SHORT_TYPES);
+  swapped += await reprioritizeBucket(LONGFORM_TYPES);
+
+  if (swapped > 0) {
+    logger.info(
+      `[QueueRescheduler] Future queue reprioritized for "${focusGame}" — ` +
+      `${swapped} items moved to earlier slots`,
+    );
+  } else {
+    logger.debug(`[QueueRescheduler] Future queue already ordered correctly for "${focusGame}"`);
+  }
+
+  return { swapped };
+}
+
 /** Run one full rescheduling pass across all eligible users. */
 export async function runReschedulerCycle(): Promise<void> {
   try {
     const allUsers = await storage.getAllUsers();
     let totalRescheduled = 0;
+
+    // Resolve focus game once — same for all users on this deployment
+    let focusGame = "Battlefield 6";
+    try {
+      const { getFocusGame } = await import("../lib/game-focus");
+      focusGame = await getFocusGame();
+    } catch { /* non-fatal */ }
 
     for (const user of allUsers) {
       const guard = isProductionAutomationAllowed(user.id);
@@ -192,6 +286,11 @@ export async function runReschedulerCycle(): Promise<void> {
 
       const { rescheduled } = await rescheduleForUser(user.id);
       totalRescheduled += rescheduled;
+
+      // Always reprioritize the future queue so the focus-game's content
+      // stays at the front — catches manual focus changes (API/admin) that
+      // don't trigger a stream-end event.
+      await reprioritizeFutureQueue(user.id, focusGame).catch(() => undefined);
     }
 
     if (totalRescheduled > 0) {

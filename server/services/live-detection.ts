@@ -445,6 +445,29 @@ async function handleBroadcastEnded(userId: string, platform: string, channelId:
   const endedAt = new Date();
   await storage.updateStream(liveStream.id, { status: "ended", endedAt });
 
+  // ── Game focus: detect what was just played and reprioritize the queue ──────
+  // Immediately sets the focus game (no 2-stream threshold) and bumps all
+  // future-scheduled items for that game to the front of the calendar so
+  // the channel stays concurrent with whatever the user just streamed.
+  try {
+    const { setFocusGameFromStream } = await import("../lib/game-focus");
+    const { reprioritizeFutureQueue } = await import("./autopilot-queue-rescheduler");
+
+    const switched = await setFocusGameFromStream(liveStream.title, liveStream.category, userId);
+    if (switched) {
+      const { swapped } = await reprioritizeFutureQueue(userId, switched);
+      logger.info(
+        `[LiveDetection] Stream "${liveStream.title}" ended — ` +
+        `focus → "${switched}", ${swapped} queue items reprioritized to front`,
+      );
+    }
+  } catch (gameErr: any) {
+    logger.debug(
+      `[LiveDetection] Game focus update after stream end (non-fatal): ` +
+      `${gameErr?.message?.slice(0, 120)}`,
+    );
+  }
+
   try {
     const { resumeFromStream } = await import("../backlog-engine");
     const { processPostStreamHighlights } = await import("../autopilot-engine");

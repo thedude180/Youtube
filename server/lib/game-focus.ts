@@ -74,8 +74,8 @@ export function canonicalize(name: string): string {
   return ALIASES[lower] ?? name.trim();
 }
 
-/** Detect the canonical game name from a stream title string. */
-function detectGameFromStream(title: string): string | null {
+/** Detect the canonical game name from a stream title or category string. */
+export function detectGameFromStream(title: string): string | null {
   const t = (title ?? "").toLowerCase();
   if (/battlefield\s*6|bf\s*6\b/.test(t))         return "Battlefield 6";
   if (/battlefield\s*2042|bf\s*2042\b/.test(t))    return "Battlefield 2042";
@@ -202,6 +202,57 @@ export async function getFocusSwitchedToday(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ── Stream-end focus update ───────────────────────────────────────────────────
+
+/**
+ * Called immediately when a live stream ends.
+ *
+ * Uses the stream's category and title to detect the game being played,
+ * then sets it as the focus game right away — no 2-stream threshold required.
+ * If you just finished streaming it, that IS the current focus.
+ *
+ * Returns the canonical game name if the focus changed, or null if unchanged.
+ */
+export async function setFocusGameFromStream(
+  streamTitle: string | null | undefined,
+  streamCategory: string | null | undefined,
+  userId: string,
+): Promise<string | null> {
+  // Prefer category (explicit game tag the user set), fall back to title detection
+  let detected: string | null = null;
+  const cat = (streamCategory ?? "").trim();
+  if (cat && !GENERIC_CATEGORIES.has(cat.toLowerCase())) {
+    detected = canonicalize(cat);
+  }
+  if (!detected) {
+    detected = detectGameFromStream(`${streamTitle ?? ""} ${cat}`);
+  }
+  if (!detected) return null;
+
+  const canonical = canonicalize(detected);
+  const current = await getFocusGame();
+
+  // Always record the last-streamed game for audit / analytics
+  await storage.setSystemSetting("game_focus:last_stream_game", canonical).catch(() => {});
+
+  if (canonical.toLowerCase() === current.toLowerCase()) {
+    log.info(`[GameFocus] Stream ended — focus game confirmed "${canonical}" (no change)`);
+    return null;
+  }
+
+  log.info(
+    `[GameFocus] Stream ended with "${canonical}" — ` +
+    `immediately switching focus from "${current}" (no threshold wait)`,
+  );
+  await setFocusGame(canonical);
+
+  // Clear the same-day deferral guard so the rescheduler promotes this game NOW
+  // rather than waiting until tomorrow's midnight reset.
+  await storage.setSystemSetting("game_focus:switch_day", "").catch(() => {});
+
+  return canonical;
 }
 
 // ── Regex helpers ─────────────────────────────────────────────────────────────
