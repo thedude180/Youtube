@@ -510,8 +510,19 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
     }
   }
 
-  return withShortScheduleMutex(userId, () =>
-    withShortAdvisoryLock(userId, async () => {
+  return withShortScheduleMutex(userId, async () => {
+    // Double-check inside the mutex: many concurrent callers can all pass the
+    // fast-path check above before any one of them sets the saturation cache.
+    // Without this re-check each queued caller would run the full 42-query DB
+    // scan independently — causing a hot-spin of expensive sequential scans.
+    if (minDaysAhead === 0) {
+      const recheck = shortScheduleSaturationCache.get(userId);
+      if (recheck && Date.now() < recheck.expiresAt) {
+        logger.debug(`[YouTubeSchedule] Saturation cache hit (inner) for ${userId.slice(0, 8)} — skipping DB scan`);
+        return new Date(recheck.fallback.getTime() + Math.floor(Math.random() * 60_000));
+      }
+    }
+    return withShortAdvisoryLock(userId, async () => {
       const tz     = await getUserTz(userId);
       const now    = new Date();
       const today  = getLocalDay(tz, now);
@@ -608,8 +619,8 @@ export async function getNextShortPublishTime(userId: string, minDaysAhead = 0):
       }
 
       return fallback;
-    }),
-  );
+    });
+  });
 }
 
 /**

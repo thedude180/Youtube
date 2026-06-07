@@ -114,6 +114,11 @@ async function rescheduleForUser(userId: string): Promise<{ rescheduled: number 
       for (const item of items) {
         if (rescheduled >= MAX_PER_RUN) break;
         if (gameCount >= MAX_PER_GAME_PER_RUN) break;
+        // Re-check saturation inside the loop: the first getNextShortPublishTime
+        // call sets the cache; subsequent calls in the same loop should be fast
+        // cache-hits, but if saturation was already set before this loop started
+        // we can break early and avoid any DB scan at all.
+        if (isShortScheduleSaturated(userId)) break;
         try {
           const newSlot = await getNextShortPublishTime(userId);
           await db.update(autopilotQueue)
