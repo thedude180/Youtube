@@ -416,6 +416,15 @@ YouTube Shorts optimization:
 
     return createdClips;
   } catch (err: any) {
+    // Re-throw AI queue saturation errors so the batch loop can break and defer
+    // the rest of the batch rather than silently returning [] and letting the
+    // loop continue hammering the same saturated queue on every video.
+    if (
+      typeof err?.message === "string" &&
+      (err.message.includes("AI queue full") || err.message.includes("request dropped"))
+    ) {
+      throw err;
+    }
     logger.error(`Failed to extract clips from video ${videoId}:`, err.message);
     return [];
   }
