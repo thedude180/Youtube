@@ -332,14 +332,18 @@ Return as JSON:
   ]
 }
 
+CRITICAL — GAMING LIVE STREAM RULES (apply whenever the video is a stream or VOD):
+- The first 5–15 minutes of ANY gaming live stream is almost always pre-stream setup: the creator adjusting settings, waiting in lobby, testing audio, chatting before gameplay starts. NEVER select clips from this opening window unless the title/transcript makes it obvious gameplay started immediately.
+- Only pick moments with ACTIVE IN-GAME ACTION: gunfights, kills, clutch plays, objective captures, team coordination, intense firefights, comeback wins, highlight-reel moments, funny in-game reactions.
+- STRICTLY AVOID: pre-stream setup, lobby/menu screens, character customization, "brb" pauses, stream technical difficulties, idle standing, dead air, and any moment where the creator is not actively playing.
+- If the video is longer than 20 minutes, bias your timestamp picks toward the middle and later portions of the video where gameplay is in full swing.
+
 Focus on:
 - High-energy or emotional moments
 - Surprising or unexpected content
-- Educational "did you know" segments
-- Controversial or debate-worthy takes
 - Visually striking moments
-- Relatable or funny moments
-- Key takeaways or tips
+- Relatable or funny in-game moments
+- Clutch plays or key turning points
 
 YouTube Shorts optimization:
 - Keep clips 15-60 seconds (sweet spot: 30-50 seconds for algorithm)

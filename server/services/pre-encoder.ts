@@ -215,14 +215,32 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     const sourceYoutubeId = meta.sourceYoutubeId as string;
     const contentType     = (meta.contentType as string) ?? "";
 
-    const isLongForm =
+    // Short content types take priority — a back-catalog auto-clip tagged as
+    // "youtube-short" must be encoded 9:16 vertical, not 16:9 long-form.
+    // Previously item.type === "auto-clip" was an unconditional long-form signal
+    // which caused back-catalog Shorts to be encoded landscape and land on the
+    // regular video shelf instead of the YouTube Shorts shelf.
+    const isShortContent =
+      contentType === "youtube-short" ||
+      contentType === "platform_short" ||
+      contentType === "vod-short";
+
+    const isLongForm = !isShortContent && (
       contentType === "long-form-clip" ||
       contentType === "vod_long_form" ||
       item.type === "auto-clip" ||
-      item.type === "vod-long-form";
+      item.type === "vod-long-form"
+    );
 
-    const startSec  = isLongForm ? Number(meta.segmentStartSec ?? 0) : Number(meta.startSec ?? 0);
-    const endSec    = isLongForm ? Number(meta.segmentEndSec   ?? 0) : Number(meta.endSec   ?? 60);
+    // Back-catalog items store segment bounds as segmentStartSec/segmentEndSec;
+    // grinder Shorts use startSec/endSec.  Fall back across both field names so
+    // switching a back-catalog auto-clip to Short encoding doesn't zero the bounds.
+    const startSec = isLongForm
+      ? Number(meta.segmentStartSec ?? 0)
+      : Number(meta.startSec ?? meta.segmentStartSec ?? 0);
+    const endSec = isLongForm
+      ? Number(meta.segmentEndSec ?? 0)
+      : Number(meta.endSec ?? meta.segmentEndSec ?? 60);
     const durationSec = endSec - startSec;
 
     if (!sourceYoutubeId || durationSec <= 0) {
