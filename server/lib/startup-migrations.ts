@@ -1054,8 +1054,8 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:017:purge_stale_youtube_channels",     label: "017 — purge stale youtube/youtubeshorts channels with no token" },
   { flag: "migration:018:recascade_stale_youtube_channels", label: "018 — re-cascade delete stale channels via storage.deleteChannel()" },
   { flag: "migration:019:fail_deadlocked_queue_items",      label: "019 — fail queue items whose vault source is permanently undownloadable" },
-  { flag: "migration:020:cancel_ai_team_tasks",             label: "020 — cancel stale AI team tasks blocking queue" },
-  { flag: "migration:021:fail_permanently_dead_video",      label: "021 — permanently fail vault entry for sWCir3U6m_U" },
+  { flag: "migration_020_cancel_ai_team_tasks",              label: "020 — cancel stale AI team tasks blocking queue" },
+  { flag: "migration:021:fail_sWCir3U6m_U",                 label: "021 — permanently fail vault entry for sWCir3U6m_U" },
   { flag: "migration:022:fail_oNGsg4mqxT8",                 label: "022 — permanently fail vault entry for oNGsg4mqxT8 (yt-dlp storm)" },
   { flag: "migration:024:fix_vault_sweep_updated_at",       label: "024 — re-run vault sweep after fixing updated_at column bug in 022/023" },
 ];
