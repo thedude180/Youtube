@@ -246,7 +246,14 @@ RULES:
       });
 
     } catch (err: any) {
-      logger.error(`[VODSEOOptimizer] Error optimizing video ${videoId}: ${err.message}`);
+      const msg: string = err?.message ?? String(err);
+      if (msg.includes("AI queue full") || msg.includes("request dropped")) {
+        // Expected: background AI slots are busy — another engine is holding them.
+        // Downgrade to debug so the logs don't fill with error noise on every cycle.
+        logger.debug(`[VODSEOOptimizer] Skipped video ${videoId} — background AI slots busy, will retry next cycle`);
+      } else {
+        logger.error(`[VODSEOOptimizer] Error optimizing video ${videoId}: ${msg}`);
+      }
     }
   }
 }

@@ -1396,6 +1396,28 @@ app.get("/healthz", (_req: Request, res: Response) => {
   res.status(200).send("OK");
 });
 
+// ── ULTRA-EARLY GET / — registered BEFORE any app.use() middleware ────────────
+// serveStatic() (which normally handles GET /) is called ~35 seconds after the
+// port opens, inside the async registerRoutes IIFE.  During that window every
+// GET / request falls through to the error handler and returns 500 — causing
+// the Replit deployment health check to spam failures on every boot.
+// This handler serves the pre-built index.html immediately.  In dev, Vite
+// hasn't been set up yet either, so we call next() and let staggered boot finish.
+app.get("/", (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { existsSync } = require("fs") as typeof import("fs");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { resolve }     = require("path") as typeof import("path");
+    const indexPath = resolve(process.cwd(), "dist", "public", "index.html");
+    if (existsSync(indexPath)) {
+      res.setHeader("Cache-Control", "no-store");
+      return res.sendFile(indexPath);
+    }
+  } catch {}
+  next(); // dev: Vite picks this up once registered
+});
+
 app.get("/HXIOEgyve1eGFRZt65Eci7YOioELKqif.txt", (req: Request, res: Response) => {
   const ua = req.headers["user-agent"] || "(none)";
   const ip = req.ip || req.socket?.remoteAddress || "unknown";

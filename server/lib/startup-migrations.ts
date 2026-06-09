@@ -1298,6 +1298,40 @@ async function migration021FailPermanentlyDeadVideo(): Promise<void> {
   await setFlag(FLAG);
 }
 
+// ── Migration 022: permanently fail oNGsg4mqxT8 vault entry ──────────────────
+// This video ID returns HTTP 400 "Request contains an invalid argument" from
+// every InnerTube client (ANDROID, IOS) and fails all yt-dlp clients
+// (android_vr, web, android_testsuite, mediaconnect, ios, mweb).  Each full
+// extractor round takes ~30 min and blocks the event loop enough to cause
+// node-cron missed execution warnings.  Setting failCount=10 permanently
+// excludes it from the vault download queue.
+async function migration022FailONGsg4mqxT8(): Promise<void> {
+  const FLAG = "migration:022:fail_oNGsg4mqxT8";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed repeatedly — video undownloadable (migration 022)"}'::jsonb,
+             updated_at = NOW()
+      WHERE  youtube_id = 'oNGsg4mqxT8'
+    `);
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video oNGsg4mqxT8 permanently undownloadable (migration 022)',
+             updated_at    = NOW()
+      WHERE  status IN ('scheduled','pending','queued')
+        AND  metadata->>'sourceYoutubeId' = 'oNGsg4mqxT8'
+    `);
+    log.info("[Migration 022] Permanently failed vault entry + queue items for oNGsg4mqxT8");
+  } catch (err: any) {
+    log.warn(`[Migration 022] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1323,6 +1357,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration019FailDeadlockedQueueItems();
     await migration020CancelAiTeamTasks();
     await migration021FailPermanentlyDeadVideo();
+    await migration022FailONGsg4mqxT8();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

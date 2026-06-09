@@ -170,7 +170,12 @@ Design ONE high-impact experiment to run. Output JSON:
     logger.info(`Experiment launched: ${parsed.hypothesis}`, { userId: userId.substring(0, 8), type: parsed.experimentType });
     invalidateUserData(expStore, userId, "active_experiments");
   } catch (err) {
-    logger.error("Experiment design AI call failed", { err: String(err) });
+    const msg = String(err);
+    if (msg.includes("AI queue full") || msg.includes("request dropped")) {
+      logger.debug("Experiment design skipped — background AI slots busy, will retry next cycle");
+    } else {
+      logger.error("Experiment design AI call failed", { err: msg });
+    }
   }
 }
 
