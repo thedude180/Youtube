@@ -1332,6 +1332,36 @@ async function migration022FailONGsg4mqxT8(): Promise<void> {
   await setFlag(FLAG);
 }
 
+// ── Migration 023: general vault sweep — permanently fail high-failCount entries ──
+// Any vault entry that has accumulated failCount >= 5 across all yt-dlp clients
+// is permanently undownloadable.  If the server keeps crashing before a video
+// exhausts its extractor rounds, the failCount never reaches 5 naturally, so the
+// storm never ends.  This migration finds all such entries on boot and marks them
+// failed — preventing an indefinite crash loop for any video, not just named ones.
+async function migration023SweepHighFailCountVaultEntries(): Promise<void> {
+  const FLAG = "migration:023:sweep_high_failcount_vault";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status     = 'failed',
+             metadata   = COALESCE(metadata, '{}'::jsonb)
+                          || '{"permanentFail":true,"reason":"Auto-failed by migration 023: failCount >= 5 — video permanently undownloadable"}'::jsonb,
+             updated_at = NOW()
+      WHERE  status IN ('indexed','queued')
+        AND  (metadata->>'failCount') ~ '^[0-9]+$'
+        AND  (metadata->>'failCount')::int >= 5
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) {
+      log.info(`[Migration 023] Permanently failed ${count} vault entry/entries with failCount >= 5`);
+    }
+  } catch (err: any) {
+    log.warn(`[Migration 023] Failed (non-fatal): ${err?.message}`);
+  }
+  await setFlag(FLAG);
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1358,6 +1388,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration020CancelAiTeamTasks();
     await migration021FailPermanentlyDeadVideo();
     await migration022FailONGsg4mqxT8();
+    await migration023SweepHighFailCountVaultEntries();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

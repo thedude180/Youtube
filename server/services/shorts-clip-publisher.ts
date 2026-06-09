@@ -479,8 +479,16 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             );
             // Reset to scheduled so it will be retried after reconnect,
             // rather than marking it permanently failed.
+            // Push scheduledAt 4 hours forward so the publisher sweep doesn't
+            // hot-loop on this item every 90 seconds while the channel is
+            // disconnected.  Without this the item is immediately eligible
+            // for the next sweep and creates a tight retry storm.
             await db.update(autopilotQueue)
-              .set({ status: "scheduled", errorMessage: "Skipped — no YouTube OAuth token. Reconnect in Settings." })
+              .set({
+                status: "scheduled",
+                scheduledAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
+                errorMessage: "Skipped — no YouTube OAuth token. Reconnect in Settings.",
+              })
               .where(eq(autopilotQueue.id, item.id));
             skipped++;
             continue;

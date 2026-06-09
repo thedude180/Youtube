@@ -545,7 +545,9 @@ async function runBenchmarkForDomain(
     await db.update(internetBenchmarks)
       .set({ status: "failed", errorMessage: String(err).slice(0, 300) })
       .where(eq(internetBenchmarks.id, benchmarkId));
-    logger.error(`[InternetBenchmark] Domain ${domain.id} failed for user ${userId.slice(0, 8)}`, { err: String(err).slice(0, 200) });
+    // Downgrade to warn — AI queue full and web-search timeouts are expected
+    // during background saturation and do not need operator attention.
+    logger.warn(`[InternetBenchmark] Domain ${domain.id} failed for user ${userId.slice(0, 8)}`, { err: String(err).slice(0, 200) });
   }
 }
 
@@ -601,7 +603,7 @@ async function runBenchmarkForUser(userId: string): Promise<void> {
       // Small pause between domains to avoid hammering external APIs
       await new Promise(r => setTimeout(r, 3000));
     } catch (err) {
-      logger.error(`[InternetBenchmark] Error in domain ${domain.id}`, { err: String(err).slice(0, 150) });
+      logger.warn(`[InternetBenchmark] Error in domain ${domain.id}`, { err: String(err).slice(0, 150) });
     }
   }
 }
@@ -616,7 +618,7 @@ export async function runInternetBenchmarkCycle(): Promise<void> {
     try {
       await runBenchmarkForUser(user.id);
     } catch (err) {
-      logger.error(`[InternetBenchmark] User ${user.id.slice(0, 8)} cycle failed`, { err: String(err).slice(0, 150) });
+      logger.warn(`[InternetBenchmark] User ${user.id.slice(0, 8)} cycle failed`, { err: String(err).slice(0, 150) });
     }
   }
   logger.info("[InternetBenchmark] Cycle complete");
