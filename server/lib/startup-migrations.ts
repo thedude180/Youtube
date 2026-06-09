@@ -1610,6 +1610,49 @@ async function migration030FailPo4WNli5ZLY(): Promise<void> {
   }
 }
 
+// ── Migration 031: blacklist Lfupu2iliBw + general permanentFail sweep ────────
+// Lfupu2iliBw exhausted all 20 yt-dlp format/client combinations on its first
+// run.  Without this migration it burns a 4h cooldown cycle on every boot for
+// 3 rounds (MAX_SOFT_RETRIES) before the clip-video-processor writes
+// status=failed to the vault.  Blacklisting it here saves those wasted slots.
+//
+// The general sweep below catches any vault entry that clip-video-processor
+// already tagged permanentFail:true in metadata but never flushed to
+// status=failed (e.g. due to a crash mid-cycle).  This means we never need
+// another single-video migration for this class of problem.
+async function migration031FailLfupu2iliBw(): Promise<void> {
+  const FLAG = "migration:031:fail_Lfupu2iliBw";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // Blacklist the specific known-bad video
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"all 20 yt-dlp format/client combinations failed (migration 031)"}'::jsonb
+      WHERE  youtube_id = 'Lfupu2iliBw'
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+
+    // General sweep: any vault entry already tagged permanentFail:true in metadata
+    // but still showing a non-failed status.  clip-video-processor sets this flag
+    // when MAX_SOFT_RETRIES rounds are exhausted — flush it to status=failed so
+    // the boot preload skips these entries instantly on every future restart.
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status = 'failed'
+      WHERE  (metadata->>'permanentFail') = 'true'
+        AND  status <> 'failed'
+    `);
+
+    log.info("[Migration 031] Blacklisted Lfupu2iliBw + swept all permanentFail:true vault entries to status=failed");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 031] Vault update failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1644,6 +1687,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration028FailPermanentlyInaccessible();
     await migration029ResetGhostChannelDeferredClips();
     await migration030FailPo4WNli5ZLY();
+    await migration031FailLfupu2iliBw();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
