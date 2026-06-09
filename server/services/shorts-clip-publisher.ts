@@ -462,7 +462,13 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               eq(channels.userId, userId),
               inArray(channels.platform, ["youtube", "youtubeshorts"]),
             ));
-          const ytChannel = userChannels.find(c => c.platform === "youtube") || userChannels[0];
+          // Prefer the youtube channel that actually has a token — avoids picking
+          // a stale/disconnected channel (e.g. a ghost row with no token) over
+          // the live authenticated one when both exist for the same user.
+          const ytChannel =
+            userChannels.find(c => c.platform === "youtube" && (c.accessToken || c.refreshToken)) ||
+            userChannels.find(c => c.platform === "youtube") ||
+            userChannels[0];
 
           // Pre-flight token check — bail immediately with a clear log rather
           // than attempting an upload that will 401/403 and potentially trip

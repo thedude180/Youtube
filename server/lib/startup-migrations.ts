@@ -1537,6 +1537,34 @@ async function migration028FailPermanentlyInaccessible(): Promise<void> {
   }
 }
 
+// ── Migration 029: reset shorts clips deferred by ghost-channel no-token bug ──
+// Shorts publisher was picking channel 52 (ET Gaming 247, no token) over channel
+// 53 (ET Gaming 274, valid token) because it selected by platform without a token
+// preference.  Every pick of channel 52 pushed scheduledAt +4h.  After the fix
+// lands, these items are eligible to publish via channel 53 — reset their
+// scheduledAt to NOW() so they don't sit dormant for up to 4 more hours.
+async function migration029ResetGhostChannelDeferredClips(): Promise<void> {
+  const FLAG = "migration:029:reset_ghost_channel_deferred_clips";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    scheduled_at  = NOW(),
+             error_message = NULL,
+             updated_at    = NOW()
+      WHERE  status        = 'scheduled'
+        AND  target_platform IN ('youtube', 'youtubeshorts')
+        AND  error_message  LIKE '%no OAuth token%'
+        AND  scheduled_at   > NOW()
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 029] Reset ${count} clips deferred by ghost-channel no-token bug → scheduledAt=NOW()`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 029] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1569,6 +1597,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration026FixPermanentFailStatusLeak();
     await migration027FailLd07AcKauuI();
     await migration028FailPermanentlyInaccessible();
+    await migration029ResetGhostChannelDeferredClips();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
