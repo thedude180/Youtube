@@ -1059,6 +1059,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:022:fail_oNGsg4mqxT8",                 label: "022 — permanently fail vault entry for oNGsg4mqxT8 (yt-dlp storm)" },
   { flag: "migration:024:fix_vault_sweep_updated_at",       label: "024 — re-run vault sweep after fixing updated_at column bug in 022/023" },
   { flag: "migration:025:fail_Q0pj8SN6WyU",                label: "025 — permanently fail vault entry for Q0pj8SN6WyU (2-hour event loop stall)" },
+  { flag: "migration:026:fix_permanent_fail_status_leak",  label: "026 — reset indexed/downloading vault entries that have permanentFail:true to failed" },
 ];
 
 export interface MigrationHealth {
@@ -1442,6 +1443,33 @@ async function migration025FailQ0pj8SN6WyU(): Promise<void> {
   }
 }
 
+// ── Migration 026: fix permanentFail status leak ──────────────────────────────
+// After a migration sets metadata.permanentFail=true on a vault entry, the vault
+// downloader's SELECT only checked status (indexed/failed) — NOT the permanentFail
+// flag.  Any entry that was in status='indexed' or status='downloading' at the time
+// the migration ran kept its active status, so the downloader picked it up again on
+// every cycle.  This migration resets all such entries to status='failed' so they
+// are permanently excluded by the new permanentFail guard added to the SELECT query.
+async function migration026FixPermanentFailStatusLeak(): Promise<void> {
+  const FLAG = "migration:026:fix_permanent_fail_status_leak";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"reason":"Status leak fixed — was indexed/downloading despite permanentFail:true (migration 026)"}'::jsonb
+      WHERE  (metadata->>'permanentFail')::boolean = true
+        AND  status IN ('indexed', 'downloading', 'queued')
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 026] Fixed ${count} vault entries stuck in active state despite permanentFail:true`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 026] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1471,6 +1499,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration023SweepHighFailCountVaultEntries();
     await migration024FixVaultSweepAfterUpdatedAtBug();
     await migration025FailQ0pj8SN6WyU();
+    await migration026FixPermanentFailStatusLeak();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

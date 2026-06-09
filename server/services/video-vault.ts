@@ -1701,6 +1701,8 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
           eq(contentVaultBackups.userId, userId),
           sql`${contentVaultBackups.youtubeId} NOT LIKE 'local_%'`,
           sql`${contentVaultBackups.youtubeId} NOT LIKE 'clip_%'`,
+          // Never retry entries flagged permanently undownloadable (by migrations or failCount)
+          sql`COALESCE((${contentVaultBackups.metadata}->>'permanentFail')::boolean, false) = false`,
           sql`(
             ${contentVaultBackups.status} = 'indexed'
             OR (
@@ -2055,6 +2057,11 @@ export async function queueVaultDownloadForSource(
 
   // Already queued/downloading by the regular vault runner — let it finish
   if (existing?.status === "downloading") return "in_progress";
+
+  // Permanently blocked by migration or manual override — never retry regardless of status
+  if ((existing?.metadata as Record<string, unknown>)?.permanentFail === true) {
+    return "download_failed";
+  }
 
   // Permanently failed — all download clients exhausted on multiple attempts.
   // After 3+ failures we know this video is fundamentally undownloadable (live stream
