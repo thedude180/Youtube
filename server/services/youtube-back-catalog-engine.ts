@@ -783,8 +783,8 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           }
 
           // ── Full video exhaustion ───────────────────────────────────────────
-          // Compute how many evenly-spaced Short clips the video can yield and
-          // queue them ALL in one pass.  Every moment of the source is covered.
+          // Try AI-powered viral moment detection on the full transcript first.
+          // Falls back to evenly-spaced clips when no transcript is available.
           const dur = v.durationSec ?? 0;
           const targetCount = Math.min(
             MAX_SHORTS_PER_VIDEO,
@@ -794,7 +794,35 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           const localVideoId = v.localVideoId ?? null;
           let clipsQueued = 0;
 
-          for (let clipIdx = 0; clipIdx < targetCount; clipIdx++) {
+          // Build clip timestamps — AI viral moments when transcript is available,
+          // evenly-spaced as a fallback (e.g. for videos without auto-captions).
+          interface ClipStamp { startSec: number; endSec: number; title?: string }
+          let clipTimestamps: ClipStamp[] = [];
+
+          // Only attempt AI extraction for videos long enough to have multiple
+          // interesting moments (> 5 min). Very short clips are fine evenly-spaced.
+          if (dur > 300) {
+            try {
+              const { extractViralMomentsFromTranscript } = await import("../shorts-pipeline-engine");
+              const moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+              if (moments.length > 0) {
+                clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
+                logger.info(`[BackCatalog] AI found ${clipTimestamps.length} viral moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+              }
+            } catch (err: any) {
+              if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+              logger.debug(`[BackCatalog] Viral moment extraction unavailable for ${v.youtubeVideoId} — using evenly-spaced fallback`);
+            }
+          }
+
+          // Fallback: evenly-spaced timestamps
+          if (clipTimestamps.length === 0) {
+            for (let i = 0; i < targetCount; i++) {
+              clipTimestamps.push({ startSec: i * intervalSec, endSec: i * intervalSec + SHORT_TARGET_SEC });
+            }
+          }
+
+          for (let clipIdx = 0; clipIdx < clipTimestamps.length; clipIdx++) {
             if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
             // Stop queuing if the schedule is known to be saturated — avoids 39 DB
             // queries per call only to get the +6h fallback every iteration.
@@ -803,7 +831,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
               break;
             }
 
-            const startSec = clipIdx * intervalSec;
+            const stamp = clipTimestamps[clipIdx];
             const scheduledAt = await getNextShortPublishTime(userId, MIN_CATALOG_START_DAYS);
 
             if (scheduledAt.getTime() > Date.now() + MAX_BACK_CATALOG_DAYS_AHEAD * 86_400_000) {
@@ -811,33 +839,39 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
               break;
             }
 
+            const clipLabel = stamp.title ? stamp.title.slice(0, 80) : `Back catalog Short ${clipIdx + 1}/${clipTimestamps.length} from: ${v.title}`;
+            const clipCaption = stamp.title
+              ? `🎮 ${stamp.title.slice(0, 80)} #gaming #shorts #${(v.gameName ?? "gaming").replace(/\s+/g, "")}`
+              : `🎮 ${v.title.slice(0, 100)} #gaming #shorts`;
+
             await db.insert(autopilotQueue).values({
               userId,
               sourceVideoId: localVideoId,
               type: "platform_short",
               targetPlatform: "youtubeshorts",
-              content: `Back catalog Short ${clipIdx + 1}/${targetCount} from: ${v.title}`,
-              caption: `🎮 ${v.title.slice(0, 100)} #gaming #shorts`,
+              content: clipLabel,
+              caption: clipCaption,
               status: "scheduled",
               scheduledAt,
               metadata: {
                 contentType: "platform_short",
                 sourceYoutubeId: v.youtubeVideoId,
                 gameName: v.gameName ?? undefined,
-                startSec,
-                endSec: startSec + SHORT_TARGET_SEC,
+                startSec: stamp.startSec,
+                endSec: stamp.endSec,
                 clipIndex: clipIdx,
-                totalClipsFromSource: targetCount,
+                totalClipsFromSource: clipTimestamps.length,
                 backCatalogGenerated: true,
                 autoQueued: true,
                 grinderGenerated: false,
+                aiViralMoment: !!stamp.title,
                 predictedViralScore: _viralScores.get(v.youtubeVideoId),
               } as any,
             });
 
             clipsQueued++;
             result.shortsQueued++;
-            logger.debug(`[BackCatalog] Short ${clipIdx + 1}/${targetCount} queued from ${v.youtubeVideoId} startSec=${startSec} → ${scheduledAt.toISOString()}`);
+            logger.debug(`[BackCatalog] Short ${clipIdx + 1}/${clipTimestamps.length} queued from ${v.youtubeVideoId} startSec=${stamp.startSec} → ${scheduledAt.toISOString()}`);
           }
 
           // Update queued count with actual clips added

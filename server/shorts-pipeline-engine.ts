@@ -263,6 +263,167 @@ export async function resumeShortsPipeline(userId: string): Promise<boolean> {
   return true;
 }
 
+// ── Transcript helpers ───────────────────────────────────────────────────────
+
+/**
+ * Parse a transcript timestamp like "[1:23]" or "[65:04]" → seconds from start.
+ * The transcript format produced by fetchYouTubeTranscript is [M:SS].
+ */
+function parseTranscriptSec(line: string): number | null {
+  const m = line.match(/^\[(\d+):(\d{2})\]/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+const VIRAL_CHUNK_SEC = 1800;      // 30 minutes per analysis chunk
+const STREAM_SKIP_SEC = 600;       // skip first 10 min of any stream (pre-stream setup)
+const VIRAL_CHUNK_BUDGET  = 3000;  // tokens per chunk call
+const VIRAL_MIN_DUR_SEC   = 25;    // shortest acceptable Short
+const VIRAL_MAX_DUR_SEC   = 58;    // longest acceptable Short
+
+/**
+ * Splits a full timestamped transcript into ~30-minute chunks.
+ * Lines without a recognisable timestamp are attached to the current chunk.
+ */
+function chunkTranscriptByTime(transcript: string): Array<{ startSec: number; endSec: number; text: string }> {
+  const lines = transcript.split("\n").filter(l => l.trim());
+  const chunks: Array<{ startSec: number; endSec: number; lines: string[] }> = [];
+  let currentStart = 0;
+  let currentLines: string[] = [];
+  let lastSec = 0;
+
+  for (const line of lines) {
+    const ts = parseTranscriptSec(line);
+    if (ts !== null) lastSec = ts;
+
+    const chunkIdx = Math.floor(lastSec / VIRAL_CHUNK_SEC);
+    const chunkStart = chunkIdx * VIRAL_CHUNK_SEC;
+
+    if (chunkStart > currentStart && currentLines.length > 0) {
+      chunks.push({ startSec: currentStart, endSec: chunkStart, lines: currentLines });
+      currentStart = chunkStart;
+      currentLines = [];
+    }
+    currentLines.push(line);
+  }
+
+  if (currentLines.length > 0) {
+    chunks.push({ startSec: currentStart, endSec: lastSec + 120, lines: currentLines });
+  }
+
+  return chunks.map(c => ({ startSec: c.startSec, endSec: c.endSec, text: c.lines.join("\n") }));
+}
+
+export interface ViralMoment {
+  startSec: number;
+  endSec: number;
+  viralScore: number;
+  title: string;
+  reason: string;
+}
+
+/**
+ * Analyzes the ENTIRE transcript of a YouTube video for viral clip moments.
+ *
+ * Breaks the full transcript into 30-minute chunks and runs AI on each one
+ * so no part of the stream is missed.  Returns moments sorted by viral score,
+ * deduplicated (no two clips within 30 s of each other), capped at maxMoments.
+ *
+ * Returns [] when no transcript is available — callers should fall back to
+ * evenly-spaced clips in that case.
+ */
+export async function extractViralMomentsFromTranscript(
+  youtubeId: string,
+  _durationSec: number,
+  maxMoments: number = 15,
+): Promise<ViralMoment[]> {
+  let transcript: string | null = null;
+  try {
+    transcript = await fetchYouTubeTranscript(youtubeId);
+  } catch { /* video has no captions */ }
+
+  if (!transcript || transcript.trim().length < 80) return [];
+
+  const chunks = chunkTranscriptByTime(transcript);
+  const allMoments: ViralMoment[] = [];
+
+  for (const chunk of chunks) {
+    if (chunk.endSec <= STREAM_SKIP_SEC) continue; // skip pure setup window
+
+    if (!tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
+      logger.debug("[ViralMoments] Budget exhausted — stopping chunk analysis early");
+      break;
+    }
+    tokenBudget.consumeBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET);
+
+    const startMin = Math.round(chunk.startSec / 60);
+    const endMin   = Math.round(chunk.endSec   / 60);
+
+    const chunkPrompt = `You are a viral gaming clip expert. Scan this ${endMin - startMin}-minute segment of a gaming stream transcript (video minutes ${startMin}–${endMin}) and find EVERY moment that could go viral as a YouTube Short.
+
+Transcript:
+${chunk.text.slice(0, 5500)}
+
+RULES:
+- Flag moments with ACTIVE GAMEPLAY ONLY: kills, clutch plays, epic wins, fails, funny reactions, intense firefights, jaw-dropping moments.
+- NEVER flag: lobby/menu screens, pre-game setup, "brb" pauses, idle chatting, technical issues, waiting.
+- Each clip must be ${VIRAL_MIN_DUR_SEC}–${VIRAL_MAX_DUR_SEC} seconds long.
+- startSec must be the exact second from the VIDEO START (not from this segment's start).
+- If this segment has no good moments return {"moments":[]}.
+
+Return JSON only:
+{"moments":[{"startSec":120,"endSec":158,"viralScore":88,"title":"Insane Triple Kill!","reason":"Triple kill + hype reaction"}]}`;
+
+    try {
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: chunkPrompt }],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 1800,
+      });
+
+      const raw = resp.choices[0]?.message?.content;
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      const moments: any[] = parsed.moments || [];
+
+      for (const m of moments) {
+        const rawStart = Number(m.startSec) || 0;
+        const rawEnd   = Number(m.endSec)   || rawStart + 38;
+        const startSec = Math.max(STREAM_SKIP_SEC, rawStart);
+        const endSec   = Math.min(startSec + VIRAL_MAX_DUR_SEC, Math.max(startSec + VIRAL_MIN_DUR_SEC, rawEnd));
+        if (endSec <= startSec) continue;
+        allMoments.push({
+          startSec,
+          endSec,
+          viralScore: Math.min(100, Math.max(0, Number(m.viralScore) || 50)),
+          title: String(m.title || "Gaming Moment").slice(0, 100),
+          reason: String(m.reason || "").slice(0, 200),
+        });
+      }
+    } catch (err: any) {
+      if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+      logger.warn(`[ViralMoments] Chunk ${startMin}–${endMin}min failed: ${err.message}`);
+    }
+
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  // Sort by viral score, then deduplicate clips within 30 s of each other
+  const sorted = allMoments.sort((a, b) => b.viralScore - a.viralScore);
+  const deduped: ViralMoment[] = [];
+  for (const m of sorted) {
+    if (!deduped.some(k => Math.abs(k.startSec - m.startSec) < 30)) deduped.push(m);
+    if (deduped.length >= maxMoments) break;
+  }
+
+  logger.info(`[ViralMoments] ${youtubeId}: ${allMoments.length} raw → ${deduped.length} after dedup (${chunks.length} chunks scanned)`);
+  return deduped;
+}
+
+// ── extractClipsFromVideo ────────────────────────────────────────────────────
+
 export async function extractClipsFromVideo(
   userId: string,
   videoId: number
@@ -276,15 +437,71 @@ export async function extractClipsFromVideo(
 
   const retentionContext = await getRetentionBeatsPromptContext();
 
-  let transcriptSection = "";
   const youtubeId = (video as any).youtubeId || (video.metadata as any)?.youtubeId;
+
+  // ── Fast path: full-stream chunked viral moment analysis ─────────────────
+  // When the video has a YouTube ID we can fetch its full transcript and scan
+  // EVERY 30-minute segment for viral moments instead of only looking at the
+  // first 300 lines.
+  if (youtubeId && tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
+    try {
+      const dur = (video.metadata as any)?.durationSec ?? (video.metadata as any)?.duration_sec ?? 7200;
+      const moments = await extractViralMomentsFromTranscript(youtubeId, Number(dur) || 7200, 15);
+      if (moments.length > 0) {
+        const createdClips: any[] = [];
+        for (const m of moments) {
+          const created = await storage.createContentClip({
+            userId,
+            sourceVideoId: videoId,
+            title: m.title,
+            description: m.reason,
+            startTime: m.startSec,
+            endTime: m.endSec,
+            targetPlatform: "youtube",
+            status: "ai_ready",
+            optimizationScore: m.viralScore,
+            metadata: {
+              tags: [],
+              thumbnailPrompt: "",
+              format: "vertical",
+              aspectRatio: "9:16",
+              hasTranscript: true,
+              viralReason: m.reason,
+            } as any,
+          });
+          if (m.viralScore) {
+            await db.insert(clipViralityScores).values({
+              userId,
+              clipId: created.id,
+              predictedScore: m.viralScore,
+              platform: "youtube",
+              factors: {
+                hookStrength:    Math.min(100, Math.round(m.viralScore * 0.9  + Math.random() * 10)),
+                trendAlignment:  Math.min(100, Math.round(m.viralScore * 0.8  + Math.random() * 15)),
+                audienceMatch:   Math.min(100, Math.round(m.viralScore * 0.85 + Math.random() * 12)),
+                platformFit:     Math.min(100, Math.round(m.viralScore * 0.95 + Math.random() * 5)),
+              },
+            }).catch(() => {});
+          }
+          createdClips.push({ ...created, hook: m.title });
+        }
+        return createdClips;
+      }
+    } catch (err: any) {
+      if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+      // Fall through to single-pass analysis below
+    }
+  }
+
+  // ── Fallback: single-pass analysis (no transcript / no YouTube ID) ────────
+  let transcriptSection = "";
   if (youtubeId) {
     try {
       const transcript = await fetchYouTubeTranscript(youtubeId);
       if (transcript) {
         const lines = transcript.split("\n");
-        const truncated = lines.length > 300 ? lines.slice(0, 300).join("\n") + "\n... [truncated]" : transcript;
-        transcriptSection = `\nTranscript (timestamped):\n${truncated}\n\nIMPORTANT: Use the transcript timestamps to identify EXACT clip start/end times. Pick moments where the spoken content is most engaging, surprising, or valuable.\n`;
+        const sample = lines.length > 800 ? lines.slice(0, 800).join("\n") + "\n... [truncated]" : transcript;
+        transcriptSection = `\nTranscript (timestamped):\n${sample}\n\nIMPORTANT: Use the transcript timestamps to identify EXACT clip start/end times. Pick moments where the spoken content is most engaging, surprising, or valuable.\n`;
       }
     } catch {}
   }
