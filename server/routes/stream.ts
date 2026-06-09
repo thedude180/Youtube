@@ -1326,6 +1326,131 @@ export function registerStreamRoutes(app: Express) {
     res.json(getDirectorStatus(userId));
   }));
 
+  // ── Live metadata — get current AI-generated title/description for the active stream ──
+  app.get("/api/youtube/stream/live-metadata", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { getActiveBroadcastData } = await import("../services/live-stream-director");
+    const session = getActiveBroadcastData(userId);
+
+    // Pull the active live stream from DB to get AI-prepared title/description
+    const { streams } = await import("@shared/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const [activeStream] = await db
+      .select()
+      .from(streams)
+      .where(eq(streams.status, "live"))
+      .orderBy(desc(streams.startedAt))
+      .limit(1);
+
+    res.json({
+      isLive: !!session,
+      broadcastId: session?.broadcastId ?? null,
+      channelDbId: session?.channelDbId ?? null,
+      streamId: session?.streamId ?? activeStream?.id ?? null,
+      currentTitle: session?.currentTitle ?? activeStream?.title ?? "",
+      aiTitle: activeStream?.seoData?.optimizedTitle ?? session?.currentTitle ?? activeStream?.title ?? "",
+      aiDescription: activeStream?.seoData?.optimizedDescription ?? "",
+      gameName: session?.gameName ?? "",
+    });
+  }));
+
+  // ── Apply metadata (title + description) to the active YouTube broadcast — manual ──
+  // This is a user-triggered action; bypasses the quota breaker (only 50 units).
+  app.post("/api/youtube/stream/apply-metadata", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { title, description } = req.body ?? {};
+    if (!title || typeof title !== "string") {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    const { getActiveBroadcastData } = await import("../services/live-stream-director");
+    const session = getActiveBroadcastData(userId);
+    if (!session?.broadcastId || !session?.channelDbId) {
+      return res.status(400).json({ error: "No active broadcast — start your stream first" });
+    }
+
+    const { getAuthenticatedClient } = await import("../youtube");
+    const { google } = await import("googleapis");
+    const { oauth2Client } = await getAuthenticatedClient(session.channelDbId);
+    const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+    try {
+      await yt.liveBroadcasts.update({
+        part: ["snippet"],
+        requestBody: {
+          id: session.broadcastId,
+          snippet: {
+            title: String(title).slice(0, 100),
+            description: String(description ?? "").slice(0, 5000),
+            scheduledStartTime: new Date().toISOString(),
+          },
+        },
+      });
+      const { trackQuotaUsage } = await import("../services/youtube-quota-tracker");
+      await trackQuotaUsage(userId, "broadcast").catch(() => {});
+      logger.info(`[StreamRoutes] Manual metadata push — title="${title.slice(0, 60)}"`);
+      res.json({ success: true, title: title.slice(0, 100) });
+    } catch (err: any) {
+      const { markQuotaErrorFromResponse } = await import("../services/youtube-quota-tracker");
+      markQuotaErrorFromResponse(err);
+      logger.warn(`[StreamRoutes] Manual metadata push failed: ${String(err?.message || err).slice(0, 150)}`);
+      res.status(500).json({ error: err?.message || "Failed to update broadcast metadata" });
+    }
+  }));
+
+  // ── Upload thumbnail to the active YouTube broadcast — manual ─────────────────
+  // Accepts { imageBase64: string, mimeType: string } — converts to Buffer and calls thumbnails.set
+  app.post("/api/youtube/stream/upload-thumbnail", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { imageBase64, mimeType, videoId: overrideVideoId } = req.body ?? {};
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      return res.status(400).json({ error: "imageBase64 is required" });
+    }
+    const mime = mimeType && typeof mimeType === "string" ? mimeType : "image/jpeg";
+
+    const { getActiveBroadcastData } = await import("../services/live-stream-director");
+    const session = getActiveBroadcastData(userId);
+    const videoId = overrideVideoId || session?.broadcastId;
+    const channelDbId = session?.channelDbId;
+
+    if (!videoId || !channelDbId) {
+      return res.status(400).json({ error: "No active broadcast — start your stream first or provide a videoId" });
+    }
+
+    const { getAuthenticatedClient } = await import("../youtube");
+    const { google } = await import("googleapis");
+    const { Readable } = await import("stream");
+
+    const { oauth2Client } = await getAuthenticatedClient(channelDbId);
+    const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+    try {
+      const imageBuffer = Buffer.from(imageBase64, "base64");
+      await yt.thumbnails.set({
+        videoId,
+        media: {
+          mimeType: mime,
+          body: Readable.from(imageBuffer),
+        },
+      });
+      const { trackQuotaUsage } = await import("../services/youtube-quota-tracker");
+      await trackQuotaUsage(userId, "upload").catch(() => {});
+      logger.info(`[StreamRoutes] Manual thumbnail uploaded — videoId=${videoId} size=${imageBuffer.length}B`);
+      res.json({ success: true, videoId });
+    } catch (err: any) {
+      const { markQuotaErrorFromResponse } = await import("../services/youtube-quota-tracker");
+      markQuotaErrorFromResponse(err);
+      logger.warn(`[StreamRoutes] Thumbnail upload failed: ${String(err?.message || err).slice(0, 150)}`);
+      res.status(500).json({ error: err?.message || "Failed to upload thumbnail" });
+    }
+  }));
+
   // ── Pre-live stream preparation ──────────────────────────────────────────────
   app.post("/api/youtube/copilot/prepare/:streamId", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;

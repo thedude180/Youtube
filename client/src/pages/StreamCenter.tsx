@@ -10,6 +10,7 @@ const LiveOpsIntelligenceTab = lazy(() => import("./stream/LiveOpsIntelligenceTa
 const DistributionIntelligenceTab = lazy(() => import("./stream/DistributionIntelligenceTab"));
 const LiveCommandCenter = lazy(() => import("./stream/LiveCommandCenter"));
 const StreamIdleView = lazy(() => import("./stream/StreamIdleView"));
+const LiveMetadataControls = lazy(() => import("./stream/LiveMetadataControls"));
 import { usePageTitle } from "@/hooks/use-page-title";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1866,6 +1867,12 @@ export default function StreamCenter() {
           )}
         </CardContent>
       </Card>
+      </CollapsibleToolbox>}
+
+      {streamMode === "live" && <CollapsibleToolbox title="Live Stream Controls — Metadata &amp; Thumbnail" toolCount={2} open>
+        <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+          <LiveMetadataControls />
+        </Suspense>
       </CollapsibleToolbox>}
 
       {streamMode === "live" && <CollapsibleToolbox title="Live Command Center" toolCount={9}>

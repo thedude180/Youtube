@@ -952,6 +952,24 @@ async function onStreamEnded(userId: string, streamId?: number): Promise<void> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+export function getActiveBroadcastData(userId: string): {
+  broadcastId: string | null;
+  channelDbId: number;
+  currentTitle: string;
+  gameName: string;
+  streamId: number;
+} | null {
+  const session = activeSessions.get(userId);
+  if (!session) return null;
+  return {
+    broadcastId: session.broadcastId,
+    channelDbId: session.channelDbId,
+    currentTitle: session.currentTitle,
+    gameName: session.gameName,
+    streamId: session.streamId,
+  };
+}
+
 export function getDirectorStatus(userId: string) {
   const session = activeSessions.get(userId);
   if (!session) return { isActive: false };
