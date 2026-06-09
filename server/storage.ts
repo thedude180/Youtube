@@ -468,6 +468,7 @@ export class DatabaseStorage implements IStorage {
         'creator_credibility_scores', 'channel_immune_events',
         'source_quality_profiles', 'archive_master_records',
         'channel_maturity_scores', 'live_capability_snapshots', 'multistream_destinations',
+        'short_source_links',
       ];
       for (const table of channelTables) {
         await tx.execute(sql`DELETE FROM ${sql.identifier(table)} WHERE channel_id = ${id}`);
