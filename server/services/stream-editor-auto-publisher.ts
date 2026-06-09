@@ -40,7 +40,11 @@ export async function scheduleClipsForAutoPublish(
 ): Promise<Map<number, string>> {
   const scheduled = new Map<number, string>();
   const channels = await storage.getChannelsByUser(userId);
-  const youtubeChannel = channels.find(c => c.platform === "youtube");
+  // Prefer the channel that has a valid token — avoids picking a ghost/disconnected
+  // row (lower DB id) over the live authenticated channel when both exist for the user.
+  const youtubeChannel =
+    channels.find(c => c.platform === "youtube" && (c.accessToken || c.refreshToken)) ||
+    channels.find(c => c.platform === "youtube");
 
   if (!youtubeChannel) {
     logger.warn(`[AutoPublisher] No YouTube channel found for user ${userId} — clips will not be auto-scheduled`);

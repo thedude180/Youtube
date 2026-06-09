@@ -145,7 +145,9 @@ export class CommunityAutoManager {
 
       // 3. Generate content with AI — enriched with game metadata
       const userChannels = await storage.getChannelsByUser(userId);
-      const ytChannel = userChannels.find(c => c.platform === "youtube");
+      const ytChannel =
+        userChannels.find(c => c.platform === "youtube" && (c.accessToken || c.refreshToken)) ||
+        userChannels.find(c => c.platform === "youtube");
       if (!ytChannel) return;
 
       const recentVideos = await storage.getVideosByUser(userId, 1, 5);

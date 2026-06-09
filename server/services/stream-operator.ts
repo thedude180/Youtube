@@ -131,7 +131,9 @@ export const streamOperator = {
   async processChat(state: StreamState) {
     const { userId, liveChatId } = state;
     const channels = await storage.getChannelsByUser(userId);
-    const ytChannel = channels.find(c => c.platform === "youtube");
+    const ytChannel =
+      channels.find(c => c.platform === "youtube" && (c.accessToken || c.refreshToken)) ||
+      channels.find(c => c.platform === "youtube");
     if (!ytChannel) return;
 
     const { oauth2Client } = await getAuthenticatedClient(ytChannel.id);
@@ -230,7 +232,9 @@ export const streamOperator = {
   async assessEngagement(state: StreamState) {
     const { userId, liveChatId } = state;
     const channels = await storage.getChannelsByUser(userId);
-    const ytChannel = channels.find(c => c.platform === "youtube");
+    const ytChannel =
+      channels.find(c => c.platform === "youtube" && (c.accessToken || c.refreshToken)) ||
+      channels.find(c => c.platform === "youtube");
     if (!ytChannel) return;
 
     const { oauth2Client } = await getAuthenticatedClient(ytChannel.id);
