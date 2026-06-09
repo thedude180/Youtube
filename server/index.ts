@@ -3395,7 +3395,9 @@ httpServer.listen(
         { label: "vod-continuous-engine",       fn: () => import("./vod-continuous-engine").then(m => m.initVodContinuousEngine()).catch(slog("initVodContinuousEngine")) },
         { label: "api-cache",                   fn: () => import("./lib/cache").then(m => registerCache("apiCache", () => m.apiCache.invalidate())).catch(slog("registerApiCache")) },
         { label: "cleanup-coordinator",         fn: () => { startCleanupCoordinator(); } },
-        { label: "resilience-watchdog",         fn: () => { startResilienceWatchdog(); } },
+        // resilience-watchdog is registered in Wave 11 via healthBrain (with restart
+        // management). Starting it here too created two concurrent instances that
+        // both polled every 30s — removed to fix the duplicate-registration bug.
       ], 3_000);
     });
 

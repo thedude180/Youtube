@@ -119,7 +119,12 @@ function jitter(baseMs: number, rangeMs = baseMs * 0.1): number {
   return baseMs + Math.floor(Math.random() * rangeMs);
 }
 
-const STARTUP_DELAY_MS = jitter(30_000, 10_000); // 30–40 s (start right after boot)
+// STARTUP_DELAY_MS: 20–25 min after Wave 8 fires (T+15min) = T+35–40min after boot.
+// This ensures the orchestrator's first AI cycle only fires AFTER all boot waves
+// (1–11) have settled, preventing the T+15.5min OOM convergence that crashed the
+// server 69 times: Wave 7 starts 8 services at T+15min; the old 30–40s delay let
+// the orchestrator fire its first cycle at T+15:30 before any wave had settled.
+const STARTUP_DELAY_MS = jitter(20 * 60_000, 5 * 60_000); // 20–25 min after Wave 8 (T+35–40min total)
 const LIGHT_CYCLE_MS = jitter(4 * 60 * 60_000, 30 * 60_000);  // ~4 h
 const FULL_CYCLE_MS  = jitter(22 * 60 * 60_000, 2 * 60 * 60_000); // 22–24 h
 

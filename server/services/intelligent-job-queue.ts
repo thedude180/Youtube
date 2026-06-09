@@ -292,7 +292,7 @@ class IntelligentJobQueue {
             'vod_seo_optimize', 'vod_wait_and_process', 'shorts_factory',
             'multi_platform_clips', 'generate_content_idea', 'content_idea_generation',
             'tiktok_publish', 'stream_performance_analysis', 'evergreen_recycler',
-            'mid_stream_highlight'
+            'mid_stream_highlight', 'post_upload_thumbnail'
           )
           AND created_at < NOW() - INTERVAL '10 minutes'
       `);
