@@ -276,7 +276,7 @@ function parseTranscriptSec(line: string): number | null {
 }
 
 const VIRAL_CHUNK_SEC = 1800;      // 30 minutes per analysis chunk
-const STREAM_SKIP_SEC = 600;       // skip first 10 min of any stream (pre-stream setup)
+const STREAM_SKIP_SEC = 30;        // tiny buffer for stream startup only — creator starts in-match
 const VIRAL_CHUNK_BUDGET  = 3000;  // tokens per chunk call
 const VIRAL_MIN_DUR_SEC   = 25;    // shortest acceptable Short
 const VIRAL_MAX_DUR_SEC   = 58;    // longest acceptable Short
@@ -365,8 +365,10 @@ Transcript:
 ${chunk.text.slice(0, 5500)}
 
 RULES:
-- Flag moments with ACTIVE GAMEPLAY ONLY: kills, clutch plays, epic wins, fails, funny reactions, intense firefights, jaw-dropping moments.
-- NEVER flag: lobby/menu screens, pre-game setup, "brb" pauses, idle chatting, technical issues, waiting.
+- Flag moments with ACTIVE GAMEPLAY ONLY: kills, clutch plays, epic wins, fails, funny reactions, intense firefights, jaw-dropping moments, highlight plays.
+- NOTE: The creator starts their stream ALREADY IN A MATCH — there is no pre-stream setup window. The very first seconds of the stream can contain real gameplay. Do NOT skip the beginning based on time alone.
+- SKIP moments that show NO MOVEMENT or inactivity: player standing still, not firing, waiting at a respawn screen, sitting in a menu, spectating, watching a killcam for more than a few seconds, idle lobby, "brb", or pure chat with zero gameplay happening. Detect this from the transcript — silence or filler words with no action callouts = no movement.
+- PICK moments where something is clearly HAPPENING: the player is talking about a shot they just made, reacting to a kill, calling out enemies, describing a clutch play, expressing hype/surprise/frustration mid-game.
 - Each clip must be ${VIRAL_MIN_DUR_SEC}–${VIRAL_MAX_DUR_SEC} seconds long.
 - startSec must be the exact second from the VIDEO START (not from this segment's start).
 - If this segment has no good moments return {"moments":[]}.
@@ -550,10 +552,10 @@ Return as JSON:
 }
 
 CRITICAL — GAMING LIVE STREAM RULES (apply whenever the video is a stream or VOD):
-- The first 5–15 minutes of ANY gaming live stream is almost always pre-stream setup: the creator adjusting settings, waiting in lobby, testing audio, chatting before gameplay starts. NEVER select clips from this opening window unless the title/transcript makes it obvious gameplay started immediately.
+- IMPORTANT: This creator starts their stream ALREADY IN A MATCH. There is NO pre-stream setup window — real gameplay can appear in the very first seconds. DO NOT skip the beginning of the video based on time alone.
 - Only pick moments with ACTIVE IN-GAME ACTION: gunfights, kills, clutch plays, objective captures, team coordination, intense firefights, comeback wins, highlight-reel moments, funny in-game reactions.
-- STRICTLY AVOID: pre-stream setup, lobby/menu screens, character customization, "brb" pauses, stream technical difficulties, idle standing, dead air, and any moment where the creator is not actively playing.
-- If the video is longer than 20 minutes, bias your timestamp picks toward the middle and later portions of the video where gameplay is in full swing.
+- SKIP any moment showing NO MOVEMENT or inactivity: player standing still without firing, respawn screens, menus, spectating, watching killcams, idle lobby, "brb" pauses, or segments where the creator is purely chatting with no gameplay happening. Use the transcript to detect this — no action callouts = no movement.
+- NEVER assume a timestamp is bad because it is early in the video. Judge every moment on its content, not its position.
 
 Focus on:
 - High-energy or emotional moments
