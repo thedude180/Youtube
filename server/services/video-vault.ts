@@ -1577,6 +1577,9 @@ async function recoverBotDetectedEntries(userId: string, accessToken: string): P
           eq(contentVaultBackups.userId, userId),
           sql`${contentVaultBackups.status} IN ('skipped', 'failed')`,
           sql`${contentVaultBackups.downloadError} LIKE '%bot detection%'`,
+          // Never re-queue entries flagged permanently undownloadable by migrations
+          sql`COALESCE((${contentVaultBackups.metadata}->>'permanentFail')::boolean, false) = false`,
+          sql`COALESCE((${contentVaultBackups.metadata}->>'permanentSkip')::boolean, false) = false`,
         ),
       );
     if (rowCount && rowCount > 0) {

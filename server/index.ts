@@ -546,6 +546,11 @@ async function healProductionPipeline(): Promise<void> {
       .where(
         and(
           eq(contentVaultBackups.status, "failed"),
+          // Never reset entries explicitly flagged as permanently undownloadable —
+          // migrations, yt-dlp storms, and InnerTube HTTP 400 sweeps set this flag
+          // and prod-heal must not undo their work on every restart.
+          sqlTag`COALESCE((${contentVaultBackups.metadata}->>'permanentFail')::boolean, false) = false`,
+          sqlTag`COALESCE((${contentVaultBackups.metadata}->>'permanentSkip')::boolean, false) = false`,
           or(
             like(contentVaultBackups.downloadError, "%Unable to download API page%"),
             like(contentVaultBackups.downloadError, "%HTTP Error 400%"),

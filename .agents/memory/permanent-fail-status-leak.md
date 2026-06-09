@@ -6,6 +6,11 @@ description: Vault downloader ignores permanentFail:true metadata flag when row 
 ## The rule
 Any vault row with `metadata.permanentFail = true` must also have `status = 'failed'`. If a migration sets `permanentFail:true` but the row was `indexed` or `downloading` at query time, the UPDATE skips it (e.g. `WHERE status != 'failed'` doesn't match `downloading` if the downloader already acquired it). The row then stays in an active status and the SELECT loop picks it up again on the next tick.
 
+## Second leak: prod-heal bot-detect reset (server/index.ts)
+The prod-heal runs on EVERY boot and resets `failed` vault entries with "HTTP Error 400" / "bot detection" patterns in `download_error` back to `indexed` with `failCount=0`. Migrations set `permanentFail:true` but left `download_error` intact (containing "HTTP Error 400"). So prod-heal undid migrations every single boot — an endless loop.
+
+Fix: prod-heal bot-detect reset and `recoverBotDetectedEntries()` (video-vault.ts) both now guard with `permanentFail = false AND permanentSkip = false` before resetting to `indexed`. Any migration-flagged entry is permanently excluded.
+
 **Why:** The `processVaultDownloads` SELECT historically only checked `status IN ('indexed'…)` — it did NOT check `permanentFail`. So `permanentFail:true` in metadata had no effect unless the status was simultaneously `failed`.
 
 **How to apply:**
