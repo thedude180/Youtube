@@ -1573,6 +1573,7 @@ async function migration029ResetGhostChannelDeferredClips(): Promise<void> {
 async function migration030FailPo4WNli5ZLY(): Promise<void> {
   const FLAG = "migration:030:fail_Po4WNli5ZLY";
   if (await getFlag(FLAG)) return;
+  // pre_encoder_queue is raw-SQL only (no Drizzle table) — wrap separately
   try {
     await db.execute(sql`
       UPDATE pre_encoder_queue
@@ -1581,6 +1582,10 @@ async function migration030FailPo4WNli5ZLY(): Promise<void> {
       WHERE  youtube_id    = 'Po4WNli5ZLY'
         AND  status NOT IN ('failed')
     `);
+  } catch { /* table may not exist in production — non-fatal */ }
+
+  // content_vault_backups is a Drizzle table — this must succeed
+  try {
     await db.execute(sql`
       UPDATE content_vault_backups
       SET    status   = 'failed',
@@ -1589,10 +1594,19 @@ async function migration030FailPo4WNli5ZLY(): Promise<void> {
       WHERE  youtube_id = 'Po4WNli5ZLY'
         AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
     `);
-    log.info("[Migration 030] Permanently failed Po4WNli5ZLY in pre-encoder + vault");
+    // Also blacklist bKi6jjwG7Ac — exhausted all 20 format/client combos on first run
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"all 20 yt-dlp format/client combinations failed (migration 030)"}'::jsonb
+      WHERE  youtube_id = 'bKi6jjwG7Ac'
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+    log.info("[Migration 030] Permanently failed Po4WNli5ZLY + bKi6jjwG7Ac in vault");
     await setFlag(FLAG);
   } catch (err: any) {
-    log.warn(`[Migration 030] Failed (non-fatal): ${err?.message}`);
+    log.warn(`[Migration 030] Vault update failed (non-fatal): ${err?.message}`);
   }
 }
 
