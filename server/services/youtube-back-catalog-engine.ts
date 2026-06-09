@@ -807,22 +807,37 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
                 extractViralMomentsFromRetentionCurve,
                 extractViralMomentsFromTranscript,
               } = await import("../shorts-pipeline-engine");
+              const {
+                getVaultVideoPath,
+                extractViralMomentsFromVisionAI,
+              } = await import("./vision-clip-detector");
 
-              // Priority 1: YouTube Analytics retention curve — the gold standard
-              // for NO-COMMENTARY gaming streams. Real viewer behaviour data,
-              // zero reliance on audio or captions.
-              let moments = await extractViralMomentsFromRetentionCurve(userId, v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+              // Priority 0: Vision AI — GPT-4o watches actual video frames.
+              // Works for any stream type. Only runs when vault file is present.
+              const vaultPath = await getVaultVideoPath(v.youtubeVideoId);
+              let moments = vaultPath
+                ? await extractViralMomentsFromVisionAI(vaultPath, dur, v.title ?? v.youtubeVideoId, MAX_SHORTS_PER_VIDEO)
+                : [];
 
               if (moments.length > 0) {
                 clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
-                logger.info(`[BackCatalog] Retention-curve: ${clipTimestamps.length} peaks found in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                logger.info(`[BackCatalog] Vision-AI: ${clipTimestamps.length} peaks in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
               } else {
-                // Priority 2: Full-transcript AI analysis — fallback for
-                // commentary streams or videos with no analytics data yet.
-                moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+                // Priority 1: YouTube Analytics retention curve — real viewer data.
+                // Gold standard for no-commentary streams once ≥48 h of analytics exist.
+                moments = await extractViralMomentsFromRetentionCurve(userId, v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+
                 if (moments.length > 0) {
                   clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
-                  logger.info(`[BackCatalog] Transcript-AI: ${clipTimestamps.length} viral moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                  logger.info(`[BackCatalog] Retention-curve: ${clipTimestamps.length} peaks in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                } else {
+                  // Priority 2: Full-transcript AI — fallback for commentary streams
+                  // or new videos without analytics history yet.
+                  moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+                  if (moments.length > 0) {
+                    clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
+                    logger.info(`[BackCatalog] Transcript-AI: ${clipTimestamps.length} moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                  }
                 }
               }
             } catch (err: any) {

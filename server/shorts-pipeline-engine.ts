@@ -6,6 +6,10 @@ import { eq, and, desc } from "drizzle-orm";
 import { getRetentionBeatsPromptContext } from "./retention-beats-engine";
 import { fetchYouTubeTranscript } from "./youtube";
 import { google } from "googleapis";
+import {
+  getVaultVideoPath,
+  extractViralMomentsFromVisionAI,
+} from "./services/vision-clip-detector";
 
 import { createLogger } from "./lib/logger";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "./lib/ai-attack-shield";
@@ -536,19 +540,28 @@ export async function extractClipsFromVideo(
 
   const youtubeId = (video as any).youtubeId || (video.metadata as any)?.youtubeId;
 
-  // ── Fast path: retention curve → transcript → single-pass fallback ───────
+  // ── Fast path: vision → retention curve → transcript → single-pass ───────
   // Priority:
-  //  1. YouTube Analytics retention curve — works for NO-COMMENTARY streams;
-  //     based on real viewer behaviour, not audio. Best signal available.
-  //  2. Full-transcript chunked analysis — works for commentary streams where
-  //     the creator speaks during gameplay.
-  //  3. Single-pass prompt (below) — last resort when neither is available.
+  //  0. Vision AI (GPT-4o watches actual frames) — works for ANY stream type.
+  //     Only available when the video is already downloaded in the vault.
+  //  1. YouTube Analytics retention curve — real viewer behaviour data.
+  //     Works for NO-COMMENTARY streams; requires ≥48 h of analytics history.
+  //  2. Full-transcript chunked analysis — commentary streams with captions.
+  //  3. Single-pass prompt (below) — last resort when nothing else works.
   if (youtubeId) {
     try {
       const dur = Number((video.metadata as any)?.durationSec ?? (video.metadata as any)?.duration_sec ?? 0) || 7200;
 
+      // Attempt 0: vision AI — GPT-4o actually watches the video frames
+      const vaultPath = await getVaultVideoPath(youtubeId);
+      let moments = vaultPath
+        ? await extractViralMomentsFromVisionAI(vaultPath, dur, String(video.title ?? youtubeId), 15)
+        : [];
+
       // Attempt 1: retention curve (no AI tokens, no transcript needed)
-      let moments = await extractViralMomentsFromRetentionCurve(userId, youtubeId, dur, 15);
+      if (moments.length === 0) {
+        moments = await extractViralMomentsFromRetentionCurve(userId, youtubeId, dur, 15);
+      }
 
       // Attempt 2: full-transcript chunked AI analysis (commentary streams)
       if (moments.length === 0 && tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
