@@ -43,6 +43,7 @@ import { auditBatchForUser } from "./youtube-monetization-readiness";
 import { buildInternalLinkingPlan } from "./youtube-internal-linking-engine";
 import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
 import { linkWatchNextForUser } from "./youtube-watch-next-linker";
+import { linkSourcesToPublishedShorts } from "./youtube-source-linker";
 
 const logger = createLogger("youtube-ai-orchestrator");
 
@@ -63,6 +64,7 @@ export type YouTubeAITaskName =
   | "build_internal_linking_plan"
   | "sync_playlist_funnels"
   | "link_watch_next"
+  | "link_source_videos"
   | "check_failed_jobs"
   | "retry_safe_failures"
   | "generate_daily_report";
@@ -240,6 +242,14 @@ async function buildExecutionPlan(userId: string, fullCycle: boolean): Promise<Y
       estimatedQuotaCost: 2,
     },
     {
+      name: "link_source_videos",
+      priority: 4,
+      allowedToRun: (catalogStatus?.totalVideos ?? 0) > 0,
+      requiresApproval: false,
+      reason: "Inject 'Full video →' source attribution links into published Short descriptions",
+      estimatedQuotaCost: 2,
+    },
+    {
       name: "check_failed_jobs",
       priority: 6,
       allowedToRun: true,
@@ -368,6 +378,13 @@ async function executeTask(
       case "link_watch_next": {
         const r = await linkWatchNextForUser(userId);
         log(`Watch-next links — ${r.linked} linked, ${r.failed} failed, ${r.skipped} skipped${r.errors.length ? ` (${r.errors.length} errors)` : ""}`);
+        result.tasksRun.push(taskName);
+        break;
+      }
+
+      case "link_source_videos": {
+        const r = await linkSourcesToPublishedShorts(userId);
+        log(`Source links — ${r.linked} injected, ${r.skipped} already-had-link, ${r.noSource} no-source, ${r.failed} api-failed${r.errors.length ? ` (${r.errors.length} errors)` : ""}`);
         result.tasksRun.push(taskName);
         break;
       }

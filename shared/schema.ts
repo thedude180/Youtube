@@ -10396,6 +10396,28 @@ export const watchNextLinks = pgTable("watch_next_links", {
 ]);
 export type WatchNextLink = typeof watchNextLinks.$inferSelect;
 
+// ── Short Source Links ────────────────────────────────────────────────────────
+// Tracks every published Short that has been matched back to its source VOD
+// and had the "Full video → ..." link injected into its description.
+// Used to avoid re-processing Shorts and to audit coverage.
+export const shortSourceLinks = pgTable("short_source_links", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  channelId: integer("channel_id").references(() => channels.id),
+  shortYoutubeId: text("short_youtube_id").notNull(),
+  sourceYoutubeId: text("source_youtube_id"),
+  matchType: text("match_type"), // 'queue_exact' | 'game_match' | 'already_had_link' | 'no_source_found'
+  updateSuccess: boolean("update_success").default(false),
+  failReason: text("fail_reason"),
+  linkedAt: timestamp("linked_at").defaultNow(),
+}, (t) => [
+  index("ssl_user_idx").on(t.userId),
+  index("ssl_short_idx").on(t.shortYoutubeId),
+  uniqueIndex("ssl_short_user_idx").on(t.userId, t.shortYoutubeId),
+]);
+export type ShortSourceLink = typeof shortSourceLinks.$inferSelect;
+export const insertShortSourceLinkSchema = createInsertSchema(shortSourceLinks).omit({ id: true, linkedAt: true });
+
 // ── Self-Healing Actions ──────────────────────────────────────────────────────
 // Records every auto-repair action taken by the self-healing engine.
 // Level 1/2 actions are status="applied"; Level 3 actions are status="staged".

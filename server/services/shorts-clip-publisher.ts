@@ -556,13 +556,24 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   }
                 }
 
-                const ytDesc =
+                const rawYtDesc =
                   (typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
                     ? itemMeta.seoDescription
                     : null)
                   ?? (resolvedYoutubeId
                     ? `${sourceTitle}\n\nFull video → https://youtu.be/${resolvedYoutubeId}\n\n#Shorts #Gaming #PS5 #ETGaming274`
                     : `${sourceTitle}\n\n#Shorts #Gaming #PS5`);
+
+                // Always guarantee the source-video link in the description,
+                // even when a pre-generated seoDescription didn't include it.
+                const hasSourceLink =
+                  rawYtDesc.includes("youtu.be/") ||
+                  rawYtDesc.includes("Full video") ||
+                  rawYtDesc.includes("youtube.com/watch");
+                const ytDesc =
+                  resolvedYoutubeId && !hasSourceLink
+                    ? `${rawYtDesc}\n\n📺 Full video → https://youtu.be/${resolvedYoutubeId}`
+                    : rawYtDesc;
 
                 const preBuiltTags = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
 
