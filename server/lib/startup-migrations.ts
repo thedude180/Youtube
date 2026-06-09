@@ -1060,6 +1060,8 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:024:fix_vault_sweep_updated_at",       label: "024 — re-run vault sweep after fixing updated_at column bug in 022/023" },
   { flag: "migration:025:fail_Q0pj8SN6WyU",                label: "025 — permanently fail vault entry for Q0pj8SN6WyU (2-hour event loop stall)" },
   { flag: "migration:026:fix_permanent_fail_status_leak",  label: "026 — reset indexed/downloading vault entries that have permanentFail:true to failed" },
+  { flag: "migration:027:fail_Ld07AcKauuI",               label: "027 — permanently fail vault entry for Ld07AcKauuI (InnerTube HTTP 400 storm)" },
+  { flag: "migration:028:fail_permanently_inaccessible",   label: "028 — permanently fail vault entries confirmed inaccessible by InnerTube" },
 ];
 
 export interface MigrationHealth {
@@ -1470,6 +1472,71 @@ async function migration026FixPermanentFailStatusLeak(): Promise<void> {
   }
 }
 
+// ── Migration 027: permanently fail Ld07AcKauuI ───────────────────────────────
+// Ld07AcKauuI returned InnerTube HTTP 400 from both ANDROID and IOS clients,
+// then yt-dlp also failed with "No video formats found".  The new structural fix
+// (PERM_UNAVAILABLE throw on all-clients-400) will prevent this for future videos,
+// but this entry is already mid-storm on the current boot — fail it immediately.
+async function migration027FailLd07AcKauuI(): Promise<void> {
+  const FLAG = "migration:027:fail_Ld07AcKauuI";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"All InnerTube clients returned HTTP 400 — video is private or deleted (migration 027)"}'::jsonb
+      WHERE  youtube_id = 'Ld07AcKauuI'
+        AND  status IN ('indexed', 'downloading', 'queued', 'failed')
+    `);
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video Ld07AcKauuI permanently undownloadable (migration 027)'
+      WHERE  status IN ('scheduled','pending','queued')
+        AND  metadata->>'sourceYoutubeId' = 'Ld07AcKauuI'
+    `);
+    log.info("[Migration 027] Permanently failed vault entry + queue items for Ld07AcKauuI");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 027] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 028: sweep confirmed-inaccessible vault entries ─────────────────
+// Vault entries whose download_error contains "permanently inaccessible" were
+// already confirmed by InnerTube as private/deleted/geo-blocked, but a code path
+// bug left their status as 'indexed' instead of 'skipped'/'failed'.  These will
+// be retried forever by the downloader loop.  Mark them permanently failed so
+// the new permanentFail SELECT guard excludes them.
+// Similarly, entries with "No video formats found" in the error are confirmed dead
+// by yt-dlp (all format strategies failed, video is unavailable).
+async function migration028FailPermanentlyInaccessible(): Promise<void> {
+  const FLAG = "migration:028:fail_permanently_inaccessible";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"Confirmed inaccessible by InnerTube or yt-dlp (migration 028 sweep)"}'::jsonb
+      WHERE  (
+               download_error ILIKE '%permanently inaccessible%'
+            OR download_error ILIKE '%No video formats found%'
+            OR download_error ILIKE '%video unavailable%'
+            OR download_error ILIKE '%HTTP_400_ALL_CLIENTS%'
+             )
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+        AND  (metadata->>'permanentSkip') IS DISTINCT FROM 'true'
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 028] Permanently failed ${count} vault entries with confirmed-inaccessible download errors`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 028] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1500,6 +1567,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration024FixVaultSweepAfterUpdatedAtBug();
     await migration025FailQ0pj8SN6WyU();
     await migration026FixPermanentFailStatusLeak();
+    await migration027FailLd07AcKauuI();
+    await migration028FailPermanentlyInaccessible();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

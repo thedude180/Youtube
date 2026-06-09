@@ -987,6 +987,11 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
  * that ffmpeg can download without any extra auth.
  */
 async function downloadViaInnerTube(youtubeId: string, outputPath: string, accessToken: string): Promise<boolean> {
+  // Track how many clients returned HTTP 400 (auth + unauth both rejected).
+  // If ALL clients 400, the video is definitively private/deleted/age-restricted —
+  // throw PERM_UNAVAILABLE so the caller skips yt-dlp entirely.
+  let http400FailCount = 0;
+
   for (const client of INNERTUBE_CLIENTS) {
     try {
       const body: Record<string, unknown> = {
@@ -1052,7 +1057,10 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
             }
           } catch {}
         }
-        if (!(playerRes as any)._unauthData) continue;
+        if (!(playerRes as any)._unauthData) {
+          http400FailCount++;
+          continue;
+        }
       }
 
       const playerData: Record<string, any> = (playerRes as any)._unauthData ?? await playerRes.json();
@@ -1147,6 +1155,13 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
       logger.warn(`[Vault] InnerTube ${client.name} failed for ${youtubeId}: ${errMsg.substring(0, 300)}`);
     }
   }
+
+  // All InnerTube clients rejected with HTTP 400 → video is private, deleted, or
+  // age-restricted. yt-dlp will also fail with "No video formats found" — skip it.
+  if (http400FailCount >= INNERTUBE_CLIENTS.length && INNERTUBE_CLIENTS.length > 0) {
+    throw new Error(`PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS:Video is private, deleted, or age-restricted — all InnerTube clients returned HTTP 400`);
+  }
+
   return false;
 }
 
