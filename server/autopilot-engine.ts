@@ -915,16 +915,16 @@ async function handleStreamClipPublish(post: any, meta: any): Promise<{ success:
     }
 
     if (!streamVideo) {
-      logger.info("No source video with YouTube ID found for stream clip, falling back to text publish", { streamId, postId: post.id });
-      const { publishToplatform } = await import("./platform-publisher");
-      return publishToplatform(post.userId, post.targetPlatform, post.content || "", { ...meta, sourceVideoId: post.sourceVideoId });
+      // No linked VOD video — cancel this slot so it can be reused rather than
+      // silently publishing a text post that wastes a long-form schedule slot.
+      logger.warn("[StreamClip] No source video with YouTube ID found for stream clip — cancelling (stream has no linked VOD)", { streamId, postId: post.id });
+      return { success: false, skipped: true, error: "Stream has no linked VOD with YouTube ID — slot released for reuse" };
     }
 
     const youtubeSourceId = (streamVideo.metadata as any)?.youtubeId;
     if (!youtubeSourceId) {
-      logger.info("Stream video has no YouTube ID, falling back to text publish", { videoId: streamVideo.id });
-      const { publishToplatform } = await import("./platform-publisher");
-      return publishToplatform(post.userId, post.targetPlatform, post.content || "", { ...meta, sourceVideoId: post.sourceVideoId });
+      logger.warn("[StreamClip] Stream VOD video has no YouTube ID — cancelling slot", { videoId: streamVideo.id, postId: post.id });
+      return { success: false, skipped: true, error: "Stream VOD has no YouTube ID — slot released for reuse" };
     }
 
     const ytChannels = await db.select().from(channels)
