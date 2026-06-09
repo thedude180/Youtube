@@ -1054,6 +1054,10 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:017:purge_stale_youtube_channels",     label: "017 — purge stale youtube/youtubeshorts channels with no token" },
   { flag: "migration:018:recascade_stale_youtube_channels", label: "018 — re-cascade delete stale channels via storage.deleteChannel()" },
   { flag: "migration:019:fail_deadlocked_queue_items",      label: "019 — fail queue items whose vault source is permanently undownloadable" },
+  { flag: "migration:020:cancel_ai_team_tasks",             label: "020 — cancel stale AI team tasks blocking queue" },
+  { flag: "migration:021:fail_permanently_dead_video",      label: "021 — permanently fail vault entry for sWCir3U6m_U" },
+  { flag: "migration:022:fail_oNGsg4mqxT8",                 label: "022 — permanently fail vault entry for oNGsg4mqxT8 (yt-dlp storm)" },
+  { flag: "migration:024:fix_vault_sweep_updated_at",       label: "024 — re-run vault sweep after fixing updated_at column bug in 022/023" },
 ];
 
 export interface MigrationHealth {
@@ -1313,23 +1317,21 @@ async function migration022FailONGsg4mqxT8(): Promise<void> {
       UPDATE content_vault_backups
       SET    status   = 'failed',
              metadata = COALESCE(metadata, '{}'::jsonb)
-                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed repeatedly — video undownloadable (migration 022)"}'::jsonb,
-             updated_at = NOW()
+                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed repeatedly — video undownloadable (migration 022)"}'::jsonb
       WHERE  youtube_id = 'oNGsg4mqxT8'
     `);
     await db.execute(sql`
       UPDATE autopilot_queue
       SET    status        = 'failed',
-             error_message = 'Source video oNGsg4mqxT8 permanently undownloadable (migration 022)',
-             updated_at    = NOW()
+             error_message = 'Source video oNGsg4mqxT8 permanently undownloadable (migration 022)'
       WHERE  status IN ('scheduled','pending','queued')
         AND  metadata->>'sourceYoutubeId' = 'oNGsg4mqxT8'
     `);
     log.info("[Migration 022] Permanently failed vault entry + queue items for oNGsg4mqxT8");
+    await setFlag(FLAG);
   } catch (err: any) {
     log.warn(`[Migration 022] Failed (non-fatal): ${err?.message}`);
   }
-  await setFlag(FLAG);
 }
 
 // ── Migration 023: general vault sweep — permanently fail high-failCount entries ──
@@ -1346,8 +1348,7 @@ async function migration023SweepHighFailCountVaultEntries(): Promise<void> {
       UPDATE content_vault_backups
       SET    status     = 'failed',
              metadata   = COALESCE(metadata, '{}'::jsonb)
-                          || '{"permanentFail":true,"reason":"Auto-failed by migration 023: failCount >= 5 — video permanently undownloadable"}'::jsonb,
-             updated_at = NOW()
+                          || '{"permanentFail":true,"reason":"Auto-failed by migration 023: failCount >= 5 — video permanently undownloadable"}'::jsonb
       WHERE  status IN ('indexed','queued')
         AND  (metadata->>'failCount') ~ '^[0-9]+$'
         AND  (metadata->>'failCount')::int >= 5
@@ -1356,10 +1357,55 @@ async function migration023SweepHighFailCountVaultEntries(): Promise<void> {
     if (count > 0) {
       log.info(`[Migration 023] Permanently failed ${count} vault entry/entries with failCount >= 5`);
     }
+    await setFlag(FLAG);
   } catch (err: any) {
     log.warn(`[Migration 023] Failed (non-fatal): ${err?.message}`);
   }
-  await setFlag(FLAG);
+}
+
+// ── Migration 024: re-run vault sweep after fixing updated_at bug ─────────────
+// Migrations 022 and 023 failed on first prod boot because content_vault_backups
+// has no updated_at column.  The flag for 023 was set anyway (old pattern where
+// setFlag was outside the try block), so 023 will never retry.  This migration
+// clears the stuck 023 flag and repeats both vault fixes with the corrected SQL.
+async function migration024FixVaultSweepAfterUpdatedAtBug(): Promise<void> {
+  const FLAG = "migration:024:fix_vault_sweep_updated_at";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Clear stuck 023 flag so that if someone rolls back, 023 re-runs cleanly
+    await db.execute(sql`
+      DELETE FROM system_settings WHERE key = 'migration:023:sweep_high_failcount_vault'
+    `);
+    // Re-run 022 work: permanently fail oNGsg4mqxT8 vault entry (no updated_at)
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed repeatedly — video undownloadable (migration 022/024)"}'::jsonb
+      WHERE  youtube_id = 'oNGsg4mqxT8'
+        AND  status != 'failed'
+    `);
+    // Re-run 023 work: sweep any vault entry with failCount >= 5
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"reason":"Auto-failed by migration 024: failCount >= 5 — video permanently undownloadable"}'::jsonb
+      WHERE  status IN ('indexed','queued')
+        AND  (metadata->>'failCount') ~ '^[0-9]+$'
+        AND  (metadata->>'failCount')::int >= 5
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 024] Vault sweep complete — oNGsg4mqxT8 blocked, ${count} other entry/entries with failCount >= 5 permanently failed`);
+    await setFlag(FLAG);
+    // Also set 023 flag so it doesn't double-run on next boot
+    await db.execute(sql`
+      INSERT INTO system_settings (key, value) VALUES ('migration:023:sweep_high_failcount_vault', 'true')
+      ON CONFLICT (key) DO NOTHING
+    `);
+  } catch (err: any) {
+    log.warn(`[Migration 024] Failed (non-fatal): ${err?.message}`);
+  }
 }
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -1389,6 +1435,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration021FailPermanentlyDeadVideo();
     await migration022FailONGsg4mqxT8();
     await migration023SweepHighFailCountVaultEntries();
+    await migration024FixVaultSweepAfterUpdatedAtBug();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
