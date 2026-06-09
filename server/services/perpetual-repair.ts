@@ -17,7 +17,8 @@
 
 import { db } from "../db";
 import { contentPipeline, autopilotQueue, users, backCatalogVideos, trustBudgetPeriods, contentVaultBackups } from "@shared/schema";
-import { eq, lt, and, or, ilike, sql, inArray, ne, isNull } from "drizzle-orm";
+import { eq, lt, and, or, ilike, sql, inArray, ne, isNull, gte } from "drizzle-orm";
+import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { recordHeartbeat } from "./engine-heartbeat";
 
@@ -274,6 +275,54 @@ async function runRepairCycle(): Promise<void> {
         .set({ endingBudget: 10000, startingBudget: 10000, deductionsCount: 0, totalDeducted: 0 })
         .where(inArray(trustBudgetPeriods.id, exhaustedBudgets.map(r => r.id)));
       summary.push(`${exhaustedBudgets.length} exhausted distribution:youtube trust budgets replenished`);
+    }
+
+    // 5e. Fix recent live-stream VODs with generic "PS5 Gameplay" in their YouTube title ─
+    // When game detection fails at stream-start the live director writes a title like
+    // "Replay: Epic PS5 Gameplay: Immersive No Commentary…".  Find videos published
+    // in the last 30 days still bearing that string and push a corrected title to YouTube.
+    // After the first successful push the back_catalog_videos.title is updated so this
+    // branch becomes a no-op on every subsequent cycle.
+    const vodCutoff = new Date(Date.now() - 30 * 24 * 3600_000);
+    const genericVods = await db
+      .select({
+        id: backCatalogVideos.id,
+        youtubeVideoId: backCatalogVideos.youtubeVideoId,
+        title: backCatalogVideos.title,
+        channelId: backCatalogVideos.channelId,
+      })
+      .from(backCatalogVideos)
+      .where(and(
+        gte(backCatalogVideos.publishedAt, vodCutoff),
+        or(
+          ilike(backCatalogVideos.title, "%PS5 Gameplay%"),
+          ilike(backCatalogVideos.title, "%Epic PS5%"),
+        ),
+      ))
+      .limit(5);
+
+    if (genericVods.length > 0) {
+      const focusGame = await getFocusGame();
+      for (const vod of genericVods) {
+        if (!vod.channelId) continue;
+        try {
+          const newTitle = vod.title
+            .replace(/Epic PS5 Gameplay/gi, `Epic ${focusGame} Gameplay`)
+            .replace(/PS5 Gameplay/gi, `${focusGame} Gameplay`)
+            .replace(/Epic PS5/gi, `Epic ${focusGame}`)
+            .substring(0, 100);
+          if (newTitle === vod.title) continue;
+          const { updateYouTubeVideo } = await import("../youtube");
+          await updateYouTubeVideo(vod.channelId, vod.youtubeVideoId, { title: newTitle }, "write");
+          await db.update(backCatalogVideos)
+            .set({ gameName: focusGame, title: newTitle })
+            .where(eq(backCatalogVideos.id, vod.id));
+          summary.push(`Fixed generic PS5 title → VOD ${vod.youtubeVideoId}`);
+          logger.info(`[perpetual-repair] Fixed title for VOD ${vod.youtubeVideoId}: "${newTitle.substring(0, 60)}"`);
+        } catch (err: any) {
+          logger.warn(`[perpetual-repair] Title fix failed for ${vod.youtubeVideoId}: ${err.message?.substring(0, 100)}`);
+        }
+      }
     }
 
     // 5. Empty autopilot queues → replenish ───────────────────────────────

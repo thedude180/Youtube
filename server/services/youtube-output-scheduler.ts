@@ -19,6 +19,7 @@ import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getNextShortPublishTime, isShortScheduleSaturated } from "./youtube-output-schedule";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("yt-output-scheduler");
 
@@ -244,7 +245,7 @@ async function runForUser(userId: string): Promise<void> {
 
       const scheduledAt = getOptimalScheduleTime(queued * 48 + 2);
       const tags: string[] = Array.isArray(meta.tags) ? meta.tags : [];
-      const gameName: string = meta.gameName || "PS5 Gameplay";
+      const gameName: string = meta.gameName || await getFocusGame();
 
       try {
         await db.insert(autopilotQueue).values({
@@ -264,7 +265,7 @@ async function runForUser(userId: string): Promise<void> {
             experimentDurationMin: Math.round(experimentDurationSec / 60),
             gameName,
             sourceYoutubeId: youtubeId,
-            tags: [...tags.slice(0, 8), "Gaming", "PS5", "NoCommentary"],
+            tags: [...tags.slice(0, 8), "Gaming", gameName.replace(/\s+/g, ""), "NoCommentary"],
             schedulerGenerated: true,
             noCommentary: true,
           } as any,
@@ -340,7 +341,7 @@ async function runForUser(userId: string): Promise<void> {
       // Use the window-aware scheduler so Shorts land in the correct
       // 08:00 / 14:30 / 21:30 slots instead of a naive +N-hour offset.
       const scheduledAt = await getNextShortPublishTime(userId);
-      const gameName: string = meta.gameName || "PS5 Gaming";
+      const gameName: string = meta.gameName || await getFocusGame();
       const tags: string[] = Array.isArray(meta.tags) ? meta.tags : [];
 
       try {
@@ -359,7 +360,7 @@ async function runForUser(userId: string): Promise<void> {
             endSec,
             sourceYoutubeId: youtubeId,
             gameName,
-            tags: [...tags.slice(0, 8), "Shorts", "Gaming", "PS5"],
+            tags: [...tags.slice(0, 8), "Shorts", "Gaming", gameName.replace(/\s+/g, "")],
             schedulerGenerated: true,
           } as any,
         });

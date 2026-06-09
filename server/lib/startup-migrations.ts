@@ -1653,6 +1653,53 @@ async function migration031FailLfupu2iliBw(): Promise<void> {
   }
 }
 
+// Migration 032 — Fix autopilot_queue items that have "PS5 Gameplay" / "PS5 Gaming"
+// baked into their caption or metadata.gameName due to the old hardcoded fallback.
+// The fallback is now getFocusGame() so all NEW items use the real game, but anything
+// already sitting in the queue with the old default needs a one-time scrub.
+async function migration032FixPs5GameFallbacks(): Promise<void> {
+  const FLAG = "migration:032:fix_ps5_game_fallbacks";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    // Fix metadata.gameName + captions in one pass
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        metadata = CASE
+          WHEN metadata->>'gameName' IN ('PS5 Gameplay', 'PS5 Gaming', 'PS5')
+          THEN jsonb_set(metadata, '{gameName}', '"Battlefield 6"', true)
+          ELSE metadata
+        END,
+        caption = regexp_replace(
+                    regexp_replace(caption, 'PS5 Gaming', 'Battlefield 6', 'gi'),
+                    'PS5 Gameplay', 'Battlefield 6', 'gi'
+                  )
+      WHERE status IN ('scheduled', 'pending')
+        AND (
+              metadata->>'gameName' IN ('PS5 Gameplay', 'PS5 Gaming', 'PS5')
+              OR caption ILIKE '%PS5 Gameplay%'
+              OR caption ILIKE '%PS5 Gaming%'
+            )
+    `);
+
+    // Also reset game_name in back_catalog_videos for items published in the last
+    // 30 days where the title contains the fallback string — these are almost
+    // certainly Battlefield 6 streams where detection failed.
+    await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET    game_name = 'Battlefield 6'
+      WHERE  published_at >= NOW() - INTERVAL '30 days'
+        AND  game_name IN ('PS5 Gameplay', 'PS5 Gaming', 'PS5')
+    `);
+
+    log.info("[Migration 032] Fixed PS5 game fallbacks in autopilot_queue + recent back_catalog_videos");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 032] Fix failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1688,6 +1735,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration029ResetGhostChannelDeferredClips();
     await migration030FailPo4WNli5ZLY();
     await migration031FailLfupu2iliBw();
+    await migration032FixPs5GameFallbacks();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();

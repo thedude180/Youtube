@@ -3,6 +3,7 @@
  * No AI-sounding responses. No emojis overload. Just genuine, knowledgeable conversation.
  */
 import { google } from "googleapis";
+import { getFocusGame } from "../lib/game-focus";
 import { db } from "../db";
 import { channels } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -390,7 +391,7 @@ async function startChatSession(userId: string, channelDbId: number, streamTitle
     liveChatId,
     channelDbId,
     streamTitle,
-    gameName: gameName || "PS5 Gameplay",
+    gameName: gameName || await getFocusGame(),
     respondedMessageIds: new Set(),
     messagesHandled: 0,
     timer: null,
@@ -437,7 +438,7 @@ export function initLiveChatAgent(): void {
     const { userId, payload } = event;
     if (!userId) return;
     const streamTitle = payload?.streamTitle || payload?.title || "Live Stream";
-    const gameName = payload?.gameTitle || payload?.gameName || "PS5 Gameplay";
+    const gameName = payload?.gameTitle || payload?.gameName || await getFocusGame();
 
     setTimeout(async () => {
       try {

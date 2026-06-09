@@ -215,7 +215,7 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
     });
   } catch {
     log.warn(`[ShortsPrepPipeline] Clip ${clip.id} tag parse failed — using fallback tags`);
-    tags = [clip.gameName, "Gaming", "PS5", "Shorts", "NoCommentary"];
+    tags = [clip.gameName, "Gaming", (clip.gameName || "").replace(/\s+/g, ""), "Shorts", "NoCommentary"];
   }
   log.info(`[ShortsPrepPipeline] Clip ${clip.id} tags: [${tags.join(", ")}]`);
 

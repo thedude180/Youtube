@@ -17,6 +17,7 @@
  * range is never queued twice, even across separate grinder cycles.
  */
 
+import { getFocusGame } from "../lib/game-focus";
 import { db } from "../db";
 import {
   longformExtractionSegments,
@@ -274,11 +275,11 @@ export async function queueLongFormSegments(
 
       const title = String(seg.title || `${gameName} Gameplay`).substring(0, 90);
       const description = String(
-        seg.description || `${gameName} gameplay — no commentary.\n\n#PS5 #NoCommentary #Gaming`,
+        seg.description || `${gameName} gameplay — no commentary.\n\n#${gameName.replace(/\s+/g, "")} #NoCommentary #Gaming`,
       ).substring(0, 5000);
       const tags = [
         ...(Array.isArray(seg.tags) ? seg.tags : []),
-        "no commentary", "PS5", gameName, "gaming",
+        "no commentary", gameName.replace(/\s+/g, ""), gameName, "gaming",
       ];
 
       // Record coverage BEFORE queuing to prevent race conditions

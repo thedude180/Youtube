@@ -114,8 +114,8 @@ Respond as strict JSON only:
     // AI is busy or timed out — use a clean fallback so packaging continues.
     return {
       title: `${sourceTitle}${partLabel} | ${platformLabel}`.slice(0, 200),
-      description: `${sourceTitle} — pure PS5 gameplay, no commentary.\n\n#Gaming #PS5 #NoCommentary`,
-      tags: [game, "gaming", "PS5", "no commentary", "gameplay"].slice(0, 20),
+      description: `${sourceTitle} — pure ${game} gameplay, no commentary.\n\n#Gaming #${game.replace(/\s+/g, "")} #NoCommentary`,
+      tags: [game, "gaming", game.replace(/\s+/g, ""), "no commentary", "gameplay"].slice(0, 20),
       seoScore: 70,
     };
   }

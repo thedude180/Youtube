@@ -1,4 +1,5 @@
 import { sanitizeForPrompt, tokenBudget } from "../lib/ai-attack-shield";
+import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { db } from "../db";
 import { videos } from "@shared/schema";
@@ -394,7 +395,7 @@ export async function wireAgentCoordination(): Promise<void> {
     if (videoId) {
       setTimeout(async () => {
         try {
-          await optimizeLiveStreamSEO(event.userId, videoId, gameTitle || "PS5 Gameplay", title || "");
+          await optimizeLiveStreamSEO(event.userId, videoId, gameTitle || await getFocusGame(), title || "");
           logger.info(`Live stream SEO optimized for ${event.userId.slice(0, 8)}`);
         } catch (err: any) {
           logger.warn(`Live stream SEO optimization failed: ${err.message}`);
@@ -427,7 +428,7 @@ export async function wireAgentCoordination(): Promise<void> {
           event.userId,
           streamId,
           title || gameTitle || "Live Stream",
-          `${gameTitle || "PS5 Gameplay"} — Live now on YouTube!`,
+          `${gameTitle || await getFocusGame()} — Live now on YouTube!`,
           []
         );
         logger.info(`Cross-platform go-live blast sent for ${event.userId.slice(0, 8)}`);
@@ -611,7 +612,7 @@ export async function wireAgentCoordination(): Promise<void> {
         try {
           try {
             const { researchThumbnailsForGame } = await import("./thumbnail-intelligence");
-            await researchThumbnailsForGame(event.userId, gameTitle || "PS5 Gameplay");
+            await researchThumbnailsForGame(event.userId, gameTitle || await getFocusGame());
           } catch {}
           const { generateThumbnailForNewVideo } = await import("../auto-thumbnail-engine");
           await generateThumbnailForNewVideo(event.userId, videoId);
@@ -852,7 +853,7 @@ export async function wireAgentCoordination(): Promise<void> {
   // When a new upload is detected → run consistency check + self-improvement + thumbnail intelligence + SEO
   onAgentEvent("upload.detected", async (event) => {
     logger.info(`New upload for ${event.userId.slice(0, 8)} — scheduling consistency audit + self-improvement`);
-    const gameTitle = event.payload?.gameTitle || "PS5 Gameplay";
+    const gameTitle = event.payload?.gameTitle || await getFocusGame();
 
     setTimeout(async () => {
       try {

@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
+import { getFocusGame } from "../lib/game-focus";
 import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
 import { eq, and, or, sql, inArray } from "drizzle-orm";
@@ -821,7 +822,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
         const { chooseBestLongFormDuration } = await import("./youtube-performance-learner");
         const targetSec = await chooseBestLongFormDuration(
           job.userId,
-          gameName ?? "PS5 Gameplay",
+          gameName ?? await getFocusGame(),
           probe.durationSecs,
         );
 

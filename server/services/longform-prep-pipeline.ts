@@ -218,7 +218,7 @@ export async function prepareLongformForUpload(
     });
   } catch {
     log.warn(`[LongformPrepPipeline] Video ${video.id} tag parse failed — using fallback`);
-    tags = [video.gameName, "Gaming", "PS5", "NoCommentary", "Gameplay"];
+    tags = [video.gameName, "Gaming", (video.gameName || "").replace(/\s+/g, ""), "NoCommentary", "Gameplay"];
   }
 
   // Step 5 — Chapter markers (if video is long enough)
