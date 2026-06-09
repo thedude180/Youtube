@@ -60,6 +60,11 @@ const CLIENT_STRATEGIES: Array<{ label: string; args: string[] }> = [
 // ---------------------------------------------------------------------------
 const POLL_INTERVAL_MS = 5_000; // check file size every 5 s
 
+// How long to wait for yt-dlp to create the output file before treating it
+// as a stuck startup (auth/metadata hang).  Most videos create the file within
+// 30-60 s; 3 minutes is very generous.
+const STARTUP_PHASE_TIMEOUT_MS = 3 * 60_000;
+
 function runYtdlpWithStallDetection(
   bin: string,
   args: string[],
@@ -77,6 +82,7 @@ function runYtdlpWithStallDetection(
 
     let lastSize = -1;   // -1 = file not yet created (startup / metadata phase)
     let stalledMs = 0;
+    let startupMs = 0;   // tracks how long we've been waiting for the file to appear
 
     const stallWatcher = setInterval(() => {
       try {
@@ -87,10 +93,22 @@ function runYtdlpWithStallDetection(
           // Progress made — bytes written (or file just appeared)
           lastSize = currentSize;
           stalledMs = 0;
+          startupMs = 0; // file appeared, reset startup counter
         } else if (currentSize === -1) {
-          // File not created yet — yt-dlp is still in metadata/auth phase.
-          // Don't count this as a stall; the process is still starting up.
-          stalledMs = 0;
+          // File not created yet — yt-dlp still in metadata/auth phase.
+          // Track how long we've been waiting; kill if startup takes too long.
+          // Without this guard, a hung yt-dlp that never creates the file
+          // would never trip the stall timeout and run for the full hardTimeoutMs.
+          startupMs += POLL_INTERVAL_MS;
+          if (startupMs >= STARTUP_PHASE_TIMEOUT_MS) {
+            clearInterval(stallWatcher);
+            clearTimeout(hardCap);
+            proc.kill("SIGKILL");
+            reject(new Error(
+              `yt-dlp stuck in startup — output file not created after ${STARTUP_PHASE_TIMEOUT_MS / 1000}s ` +
+              `(auth/metadata hang or unsupported video format)`,
+            ));
+          }
         } else {
           // File exists but hasn't grown
           stalledMs += POLL_INTERVAL_MS;
@@ -107,7 +125,10 @@ function runYtdlpWithStallDetection(
       } catch { /* stat errors are non-fatal */ }
     }, POLL_INTERVAL_MS);
 
-    // Absolute safety net — no download should ever run longer than hardTimeoutMs
+    // Absolute safety net — no section download should run longer than hardTimeoutMs.
+    // Reduced from 2 hours to 20 minutes: section downloads are time-bounded clips,
+    // not full videos.  The stall + startup detectors handle normal failure modes;
+    // this cap only fires if those somehow fail.
     const hardCap = setTimeout(() => {
       clearInterval(stallWatcher);
       proc.kill("SIGKILL");
@@ -191,8 +212,11 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
     outputPath,
     // Stall timeout: kill if no new bytes for this long (default 60 s)
     stallTimeoutMs = opts.timeoutMs ?? 60_000,
-    // Hard cap: absolute maximum runtime (default 2 hours)
-    hardTimeoutMs = 2 * 60 * 60_000,
+    // Hard cap: absolute maximum runtime (default 20 min).
+    // Section downloads are time-bounded clips — 20 min is ample for any real
+    // clip segment.  The stall (60 s) + startup (3 min) detectors handle normal
+    // failure modes; this cap only fires if those somehow fail.
+    hardTimeoutMs = 20 * 60_000,
   } = opts;
 
   const ytdlp = getYtdlpBin();

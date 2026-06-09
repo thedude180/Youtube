@@ -1565,6 +1565,37 @@ async function migration029ResetGhostChannelDeferredClips(): Promise<void> {
   }
 }
 
+// ── Migration 030: permanently fail Po4WNli5ZLY in pre-encoder queue ──────────
+// This video held a yt-dlp slot for 7200s (2 hours) because the section
+// downloader's startup-phase guard was missing.  It is confirmed undownloadable
+// (all formats unavailable after hard timeout + ios format error).  Permanently
+// blacklist it from the pre-encoder so it never burns a slot again.
+async function migration030FailPo4WNli5ZLY(): Promise<void> {
+  const FLAG = "migration:030:fail_Po4WNli5ZLY";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      UPDATE pre_encoder_queue
+      SET    status        = 'failed',
+             error_message = 'Po4WNli5ZLY permanently undownloadable — yt-dlp 2h timeout + all formats unavailable (migration 030)'
+      WHERE  youtube_id    = 'Po4WNli5ZLY'
+        AND  status NOT IN ('failed')
+    `);
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"2h section-download timeout + all formats unavailable (migration 030)"}'::jsonb
+      WHERE  youtube_id = 'Po4WNli5ZLY'
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+    log.info("[Migration 030] Permanently failed Po4WNli5ZLY in pre-encoder + vault");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 030] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1598,6 +1629,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration027FailLd07AcKauuI();
     await migration028FailPermanentlyInaccessible();
     await migration029ResetGhostChannelDeferredClips();
+    await migration030FailPo4WNli5ZLY();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
