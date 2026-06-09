@@ -323,6 +323,101 @@ export interface ViralMoment {
 }
 
 /**
+ * Finds peak viewer-retention moments in a video by reading the YouTube
+ * Analytics audience-retention curve.
+ *
+ * This is the primary detection method for NO-COMMENTARY gaming streams —
+ * it uses real viewer behaviour data, not audio/transcript, so it works
+ * regardless of whether the creator speaks on stream.
+ *
+ * Algorithm:
+ *  1. Fetch retention curve (up to 1 000 data points, one per ~0.1 % of video)
+ *  2. Apply 7-point rolling average to smooth noise
+ *  3. Compute "above-trend" score: how much each point exceeds the expected
+ *     linear-decay baseline (captures rewatch bumps and slow-drop moments)
+ *  4. Find local maxima in the score signal
+ *  5. Deduplicate (no two clips within 60 s), return top maxMoments sorted by score
+ *
+ * Returns [] when the video has no analytics data yet (too new, zero views).
+ * In that case callers fall back to transcript analysis or even-spacing.
+ */
+export async function extractViralMomentsFromRetentionCurve(
+  userId: string,
+  youtubeId: string,
+  durationSec: number,
+  maxMoments: number = 15,
+): Promise<ViralMoment[]> {
+  try {
+    const { fetchVideoRetentionCurve } = await import("./services/youtube-analytics");
+    const curve = await fetchVideoRetentionCurve(userId, youtubeId, durationSec);
+    if (curve.length < 15) return [];
+
+    // ── 1. 7-point rolling average ──────────────────────────────────────────
+    const W = 3; // half-window
+    const smoothed = curve.map((p, i) => {
+      const slice = curve.slice(Math.max(0, i - W), i + W + 1);
+      const avgWatch = slice.reduce((s, x) => s + x.watchRatio, 0) / slice.length;
+      const avgRel   = slice.reduce((s, x) => s + x.relativePerformance, 0) / slice.length;
+      return { timeSec: p.timeSec, watchRatio: avgWatch, relativePerformance: avgRel };
+    });
+
+    // ── 2. Linear-decay baseline & above-trend score ────────────────────────
+    const first = smoothed[0]?.watchRatio || 1;
+    const last  = smoothed[smoothed.length - 1]?.watchRatio || 0;
+    const scored = smoothed.map(p => {
+      const ratio   = p.timeSec / Math.max(durationSec, 1);
+      const baseline = first + (last - first) * ratio;  // expected linear decay
+      const aboveTrend = p.watchRatio - baseline;        // positive = viewers staying more than expected
+      // Combined score: above-trend weighted 60 %, relativePerformance 40 %
+      const score = aboveTrend * 0.6 + Math.max(0, p.relativePerformance) * 0.4;
+      return { timeSec: p.timeSec, watchRatio: p.watchRatio, score };
+    });
+
+    // ── 3. Find local maxima (peak must beat 7 neighbours on each side) ─────
+    const NEIGH = 7;
+    const peaks: Array<{ timeSec: number; score: number; watchRatio: number }> = [];
+    for (let i = NEIGH; i < scored.length - NEIGH; i++) {
+      const p = scored[i];
+      if (p.timeSec < STREAM_SKIP_SEC) continue;
+      const window = scored.slice(i - NEIGH, i + NEIGH + 1);
+      const isMax  = window.every((n, j) => j === NEIGH || n.score <= p.score);
+      if (isMax && p.score > 0) peaks.push({ timeSec: p.timeSec, score: p.score, watchRatio: p.watchRatio });
+    }
+
+    // ── 4. Sort, deduplicate, cap ───────────────────────────────────────────
+    peaks.sort((a, b) => b.score - a.score);
+    const deduped: typeof peaks = [];
+    for (const p of peaks) {
+      if (!deduped.some(k => Math.abs(k.timeSec - p.timeSec) < 60)) deduped.push(p);
+      if (deduped.length >= maxMoments) break;
+    }
+
+    // ── 5. Convert to ViralMoment — center ~40 s clip around the peak ───────
+    const TARGET_DUR = 40;
+    const moments: ViralMoment[] = deduped.map(p => {
+      const startSec = Math.max(STREAM_SKIP_SEC, Math.round(p.timeSec - TARGET_DUR * 0.4));
+      const endSec   = Math.min(durationSec - 5,  startSec + TARGET_DUR);
+      const minRetain = Math.round(p.watchRatio * 100);
+      const viralScore = Math.min(97, Math.max(50, 50 + Math.round(p.score * 200)));
+      return {
+        startSec,
+        endSec,
+        viralScore,
+        title: `Top Moment @${Math.floor(p.timeSec / 60)}:${String(Math.round(p.timeSec % 60)).padStart(2, "0")}`,
+        reason: `Viewer retention peak — ${minRetain}% still watching (above trend)`,
+      };
+    });
+
+    logger.info(`[RetentionCurve] ${youtubeId}: ${curve.length} pts → ${peaks.length} peaks → ${moments.length} clips`);
+    return moments;
+  } catch (err: any) {
+    if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
+    logger.debug(`[RetentionCurve] ${youtubeId}: unavailable (${err?.message?.slice(0, 60)})`);
+    return [];
+  }
+}
+
+/**
  * Analyzes the ENTIRE transcript of a YouTube video for viral clip moments.
  *
  * Breaks the full transcript into 30-minute chunks and runs AI on each one
@@ -441,14 +536,25 @@ export async function extractClipsFromVideo(
 
   const youtubeId = (video as any).youtubeId || (video.metadata as any)?.youtubeId;
 
-  // ── Fast path: full-stream chunked viral moment analysis ─────────────────
-  // When the video has a YouTube ID we can fetch its full transcript and scan
-  // EVERY 30-minute segment for viral moments instead of only looking at the
-  // first 300 lines.
-  if (youtubeId && tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
+  // ── Fast path: retention curve → transcript → single-pass fallback ───────
+  // Priority:
+  //  1. YouTube Analytics retention curve — works for NO-COMMENTARY streams;
+  //     based on real viewer behaviour, not audio. Best signal available.
+  //  2. Full-transcript chunked analysis — works for commentary streams where
+  //     the creator speaks during gameplay.
+  //  3. Single-pass prompt (below) — last resort when neither is available.
+  if (youtubeId) {
     try {
-      const dur = (video.metadata as any)?.durationSec ?? (video.metadata as any)?.duration_sec ?? 7200;
-      const moments = await extractViralMomentsFromTranscript(youtubeId, Number(dur) || 7200, 15);
+      const dur = Number((video.metadata as any)?.durationSec ?? (video.metadata as any)?.duration_sec ?? 0) || 7200;
+
+      // Attempt 1: retention curve (no AI tokens, no transcript needed)
+      let moments = await extractViralMomentsFromRetentionCurve(userId, youtubeId, dur, 15);
+
+      // Attempt 2: full-transcript chunked AI analysis (commentary streams)
+      if (moments.length === 0 && tokenBudget.checkBudget("shorts-pipeline", VIRAL_CHUNK_BUDGET)) {
+        moments = await extractViralMomentsFromTranscript(youtubeId, dur, 15);
+      }
+
       if (moments.length > 0) {
         const createdClips: any[] = [];
         for (const m of moments) {

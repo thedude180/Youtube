@@ -799,19 +799,35 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           interface ClipStamp { startSec: number; endSec: number; title?: string }
           let clipTimestamps: ClipStamp[] = [];
 
-          // Only attempt AI extraction for videos long enough to have multiple
+          // Only attempt smart extraction for videos long enough to have multiple
           // interesting moments (> 5 min). Very short clips are fine evenly-spaced.
           if (dur > 300) {
             try {
-              const { extractViralMomentsFromTranscript } = await import("../shorts-pipeline-engine");
-              const moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+              const {
+                extractViralMomentsFromRetentionCurve,
+                extractViralMomentsFromTranscript,
+              } = await import("../shorts-pipeline-engine");
+
+              // Priority 1: YouTube Analytics retention curve — the gold standard
+              // for NO-COMMENTARY gaming streams. Real viewer behaviour data,
+              // zero reliance on audio or captions.
+              let moments = await extractViralMomentsFromRetentionCurve(userId, v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+
               if (moments.length > 0) {
                 clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
-                logger.info(`[BackCatalog] AI found ${clipTimestamps.length} viral moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                logger.info(`[BackCatalog] Retention-curve: ${clipTimestamps.length} peaks found in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+              } else {
+                // Priority 2: Full-transcript AI analysis — fallback for
+                // commentary streams or videos with no analytics data yet.
+                moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+                if (moments.length > 0) {
+                  clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
+                  logger.info(`[BackCatalog] Transcript-AI: ${clipTimestamps.length} viral moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);
+                }
               }
             } catch (err: any) {
               if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) throw err;
-              logger.debug(`[BackCatalog] Viral moment extraction unavailable for ${v.youtubeVideoId} — using evenly-spaced fallback`);
+              logger.debug(`[BackCatalog] Smart extraction unavailable for ${v.youtubeVideoId} — using evenly-spaced fallback`);
             }
           }
 

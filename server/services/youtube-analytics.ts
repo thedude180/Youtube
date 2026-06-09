@@ -442,6 +442,57 @@ export async function fetchTopFans(userId: string): Promise<{
 }
 
 /**
+ * Fetch the per-second audience retention curve for a video from the YouTube
+ * Analytics API.  Returns up to 1 000 data points (one per ~0.1 % of video
+ * duration) describing what fraction of viewers were still watching at each
+ * point.
+ *
+ * This is the right signal for no-commentary gaming streams — it tells us
+ * exactly which moments viewers stayed for / rewatched, with zero reliance
+ * on spoken audio or auto-captions.
+ *
+ * Returns [] when the video has no analytics yet (< ~48 h old or 0 views),
+ * when the token is invalid, or when quota is exhausted.
+ */
+export async function fetchVideoRetentionCurve(
+  userId: string,
+  youtubeVideoId: string,
+  durationSec: number,
+): Promise<Array<{ timeSec: number; watchRatio: number; relativePerformance: number }>> {
+  try {
+    const ch = await getFirstChannelForUser(userId);
+    if (!ch || !ch.accessToken) return [];
+
+    const rows = await fetchAnalyticsReport(
+      ch.accessToken,
+      ch.channelId,
+      {
+        startDate: "2015-01-01",
+        endDate: new Date().toISOString().split("T")[0],
+        metrics: "audienceWatchRatio,relativeRetentionPerformance",
+        dimensions: "elapsedVideoTimeRatio",
+        filters: `video==${youtubeVideoId}`,
+        maxResults: "1000",
+        sort: "elapsedVideoTimeRatio",
+      },
+      userId,
+    );
+
+    if (!rows || rows.length < 10) return [];
+
+    return rows.map((row: any[]) => ({
+      // row[0] is the elapsed ratio 0.0 → 1.0 — multiply by duration for seconds
+      timeSec: Math.round((Number(row[0]) || 0) * durationSec),
+      watchRatio: Number(row[1]) || 0,
+      relativePerformance: Number(row[2]) || 0,
+    }));
+  } catch (err: any) {
+    logger.warn(`[analytics] fetchVideoRetentionCurve error for ${youtubeVideoId}: ${err?.message?.slice(0, 100)}`);
+    return [];
+  }
+}
+
+/**
  * Fetch per-video analytics stats from the YouTube Analytics API.
  * Used by the performance learner to populate and refresh youtubeOutputMetrics rows.
  *
