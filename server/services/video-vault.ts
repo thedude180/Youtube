@@ -3,7 +3,7 @@ import { contentVaultBackups, channels } from "@shared/schema";
 import { eq, and, ne, sql, isNull, inArray } from "drizzle-orm";
 import path from "path";
 import fs from "fs";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 
 import { createLogger } from "../lib/logger";
@@ -1150,6 +1150,67 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
   return false;
 }
 
+/**
+ * Spawn yt-dlp and kill the ENTIRE process group (yt-dlp + its --js-runtimes
+ * node child) if it hasn't exited within timeoutMs.
+ *
+ * Background: execFileAsync with timeout:N sends SIGTERM, but yt-dlp can
+ * ignore SIGTERM when stuck in a kernel I/O syscall or when its node child is
+ * spinning.  The process never exits, execFileAsync never resolves, and Node's
+ * event loop stalls — we've seen 2-hour stalls in production from this.
+ *
+ * Fix: spawn with detached:true (own process group), then SIGKILL the whole
+ * group on timeout so yt-dlp AND its children are wiped immediately.
+ */
+function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      detached: true,  // own process group — lets us kill all children
+    });
+
+    let stderr = "";
+    let done = false;
+
+    const timer = setTimeout(() => {
+      done = true;
+      try {
+        if (child.pid) process.kill(-child.pid, "SIGKILL"); // kill entire group
+      } catch {}
+      reject(new Error(`yt-dlp hard timeout after ${Math.round(timeoutMs / 1000)}s — process group killed`));
+    }, timeoutMs);
+
+    // Capture stderr for error messages (bounded to 8 KB)
+    child.stderr?.on("data", (d: Buffer) => {
+      if (stderr.length < 8192) stderr += d.toString("utf8");
+    });
+    // Drain stdout without buffering — video data goes to the output file,
+    // not stdout, but yt-dlp does write progress lines here.
+    child.stdout?.resume();
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (done) return; // timeout already rejected
+      done = true;
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`yt-dlp exited ${code}: ${stderr.slice(-400)}`));
+      }
+    });
+
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      if (done) return;
+      done = true;
+      reject(err);
+    });
+
+    // Don't keep Node alive just for this child
+    child.unref();
+  });
+}
+
 async function tryYtDlpDownload(url: string, outputPath: string, playerClient: string, authArgs: string[]): Promise<void> {
   // Pick a random user-agent from the pool so each download looks like a
   // different browser/device — no consistent fingerprint across requests.
@@ -1210,7 +1271,11 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
     try {
       const releaseDl = await acquireYtdlpSlot();
       try {
-        await execFileAsync(resolveYtdlp(), ["-f", formatStr, ...baseArgs], { timeout: 600_000 });
+        // Hard 8-minute wall-clock kill: SIGKILL the entire process group
+        // (yt-dlp + its --js-runtimes node child) so a hung download can never
+        // stall the Node event loop.  execFileAsync with SIGTERM didn't work —
+        // see spawnYtDlpWithHardTimeout() for the full explanation.
+        await spawnYtDlpWithHardTimeout(resolveYtdlp(), ["-f", formatStr, ...baseArgs], 480_000);
       } finally {
         releaseDl();
       }

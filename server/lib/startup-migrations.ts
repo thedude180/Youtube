@@ -1058,6 +1058,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:021:fail_sWCir3U6m_U",                 label: "021 — permanently fail vault entry for sWCir3U6m_U" },
   { flag: "migration:022:fail_oNGsg4mqxT8",                 label: "022 — permanently fail vault entry for oNGsg4mqxT8 (yt-dlp storm)" },
   { flag: "migration:024:fix_vault_sweep_updated_at",       label: "024 — re-run vault sweep after fixing updated_at column bug in 022/023" },
+  { flag: "migration:025:fail_Q0pj8SN6WyU",                label: "025 — permanently fail vault entry for Q0pj8SN6WyU (2-hour event loop stall)" },
 ];
 
 export interface MigrationHealth {
@@ -1408,6 +1409,39 @@ async function migration024FixVaultSweepAfterUpdatedAtBug(): Promise<void> {
   }
 }
 
+// ── Migration 025: permanently fail Q0pj8SN6WyU ──────────────────────────────
+// Q0pj8SN6WyU caused a 2-hour event loop stall on 2026-06-09: android_vr failed
+// at 05:41 UTC, then the next yt-dlp extractor (web) hung with no output until
+// 07:44 UTC when the resilience-core stall detector fired.  The --socket-timeout
+// flag only guards network sockets; a hung subprocess blocks the Node event loop
+// until the process exits or is killed.  This migration permanently fails the
+// vault entry so no further download attempts are made, eliminating the stall risk.
+async function migration025FailQ0pj8SN6WyU(): Promise<void> {
+  const FLAG = "migration:025:fail_Q0pj8SN6WyU";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed — video caused 2-hour event loop stall (migration 025)"}'::jsonb
+      WHERE  youtube_id = 'Q0pj8SN6WyU'
+        AND  status != 'failed'
+    `);
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video Q0pj8SN6WyU permanently undownloadable (migration 025)'
+      WHERE  status IN ('scheduled','pending','queued')
+        AND  metadata->>'sourceYoutubeId' = 'Q0pj8SN6WyU'
+    `);
+    log.info("[Migration 025] Permanently failed vault entry + queue items for Q0pj8SN6WyU");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 025] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1436,6 +1470,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration022FailONGsg4mqxT8();
     await migration023SweepHighFailCountVaultEntries();
     await migration024FixVaultSweepAfterUpdatedAtBug();
+    await migration025FailQ0pj8SN6WyU();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
