@@ -50,12 +50,8 @@ import { isLiveActive } from "../lib/live-gate";
 import { getOpenAIClient } from "../lib/openai";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { storage } from "../storage";
-import {
-  isQuotaBreakerTripped,
-  canAffordOperation,
-  trackQuotaUsage,
-  markQuotaErrorFromResponse,
-} from "./youtube-quota-tracker";
+// Quota tracker removed — all live stream writes now go through InnerTube
+// (innerTubeSendChat, innerTubeUpdateMetadata) which carry zero v3 quota cost.
 
 const logger = createLogger("live-director");
 const openai = getOpenAIClient();
@@ -123,87 +119,55 @@ async function getYouTubeClient(channelDbId: number) {
   return google.youtube({ version: "v3", auth: oauth2Client });
 }
 
-async function applyBroadcastMetadata(
-  yt: any,
-  userId: string,
-  broadcastId: string,
-  title: string,
-  description: string,
-): Promise<boolean> {
-  if (!broadcastId) return false;
-  if (isQuotaBreakerTripped()) {
-    logger.warn("[Director] Quota breaker tripped — skipping broadcast metadata update");
-    return false;
-  }
+/** Resolve the raw OAuth2 access token for a channel — used by InnerTube calls. */
+async function getChannelAccessToken(channelDbId: number): Promise<string | null> {
   try {
-    await yt.liveBroadcasts.update({
-      part: ["snippet"],
-      requestBody: {
-        id: broadcastId,
-        snippet: {
-          title: title.slice(0, 100),
-          description: description.slice(0, 5000),
-          scheduledStartTime: new Date().toISOString(),
-        },
-      },
-    });
-    await trackQuotaUsage(userId, "broadcast").catch(() => {});
-    logger.info(`[Director] Broadcast metadata updated — title="${title.slice(0, 60)}"`);
-    return true;
-  } catch (err: any) {
-    markQuotaErrorFromResponse(err);
-    logger.warn(`[Director] liveBroadcasts.update failed (non-fatal): ${String(err?.message || err).slice(0, 120)}`);
-    return false;
+    const { oauth2Client } = await getAuthenticatedClient(channelDbId);
+    return (oauth2Client.credentials as any).access_token as string | null;
+  } catch {
+    return null;
   }
 }
 
+async function applyBroadcastMetadata(
+  accessToken: string | null,
+  broadcastId: string,
+  title: string,
+  description?: string,
+): Promise<boolean> {
+  if (!broadcastId || !accessToken) return false;
+  // InnerTube: Studio API (0 quota) with v3 fallback that bypasses our breaker
+  const { innerTubeUpdateMetadata } = await import("../lib/innertube-live");
+  return innerTubeUpdateMetadata(accessToken, broadcastId, title, description);
+}
+
 async function postChatMessage(
-  yt: any,
-  userId: string,
+  accessToken: string | null,
   liveChatId: string,
   message: string,
 ): Promise<boolean> {
-  if (isQuotaBreakerTripped()) return false;
-  if (!await canAffordOperation(userId, "livechat").catch(() => false)) return false;
-  try {
-    await yt.liveChatMessages.insert({
-      part: ["snippet"],
-      requestBody: {
-        snippet: {
-          liveChatId,
-          type: "textMessageEvent",
-          textMessageDetails: { messageText: message.slice(0, 200) },
-        },
-      },
-    });
-    await trackQuotaUsage(userId, "livechat").catch(() => {});
-    return true;
-  } catch (err: any) {
-    markQuotaErrorFromResponse(err);
-    logger.warn(`[Director] Chat post failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
-    return false;
-  }
+  if (!accessToken || !liveChatId) return false;
+  // InnerTube: live_chat/send_message (0 quota — never blocked by quota breaker)
+  const { innerTubeSendChat } = await import("../lib/innertube-live");
+  return innerTubeSendChat(accessToken, liveChatId, message);
 }
 
 // ── Viewer analytics + mid-stream title refresh ───────────────────────────────
 
 async function fetchConcurrentViewers(
   yt: any,
-  userId: string,
   broadcastId: string,
 ): Promise<number> {
-  if (isQuotaBreakerTripped()) return 0;
+  // 1 v3 quota unit per call, every 20 min — never gated by quota breaker.
+  // Losing viewer telemetry during a live stream is unacceptable.
   try {
-    // videos.list with liveStreamingDetails costs only 1 quota unit (vs 50 for liveBroadcasts.list)
     const res = await yt.videos.list({
       part: ["liveStreamingDetails"],
       id: [broadcastId],
     });
-    await trackQuotaUsage(userId, "read").catch(() => {});
     const details = res.data.items?.[0]?.liveStreamingDetails;
     return parseInt(details?.concurrentViewers || "0", 10) || 0;
-  } catch (err: any) {
-    markQuotaErrorFromResponse(err);
+  } catch {
     return 0;
   }
 }
@@ -299,7 +263,7 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
   let viewers = 0;
   try {
     const yt = await getYouTubeClient(session.channelDbId);
-    viewers = await fetchConcurrentViewers(yt, session.userId, session.broadcastId);
+    viewers = await fetchConcurrentViewers(yt, session.broadcastId!);
   } catch { return; }
 
   // Track peak viewers
@@ -399,25 +363,12 @@ async function checkViewerMetrics(session: DirectorSession): Promise<void> {
 
   if (newTitle && trigger && newTitle !== session.currentTitle) {
     try {
-      const yt = await getYouTubeClient(session.channelDbId);
-
-      // Fetch current description — only title changes, description is preserved
-      let currentDescription = "";
-      try {
-        const videoRes = await yt.videos.list({
-          part: ["snippet"],
-          id: [session.broadcastId!],
-        });
-        await trackQuotaUsage(session.userId, "read").catch(() => {});
-        currentDescription = videoRes.data.items?.[0]?.snippet?.description ?? "";
-      } catch { /* non-fatal */ }
-
+      const accessToken = await getChannelAccessToken(session.channelDbId);
+      // InnerTube write-mask { title: true } preserves existing description server-side
       const updated = await applyBroadcastMetadata(
-        yt,
-        session.userId,
+        accessToken,
         session.broadcastId!,
         newTitle,
-        currentDescription,
       );
 
       if (updated) {
@@ -475,7 +426,7 @@ async function amplifyRun(session: DirectorSession, viewers: number): Promise<vo
   // Post an amplification message to chat — urge sharing while momentum is live
   if (session.liveChatId && session.channelDbId > 0) {
     try {
-      const yt = await getYouTubeClient(session.channelDbId);
+      const accessToken = await getChannelAccessToken(session.channelDbId);
       const runMessages = [
         `viewers keep building 🔥 share the stream if you're enjoying it`,
         `something's happening here — share if you want more people to see this`,
@@ -484,7 +435,7 @@ async function amplifyRun(session: DirectorSession, viewers: number): Promise<vo
         `growing fast right now 🔥 subscribe so you don't miss the clips from this session`,
       ];
       const msg = runMessages[Math.floor(Math.random() * runMessages.length)];
-      await postChatMessage(yt, session.userId, session.liveChatId, msg);
+      await postChatMessage(accessToken, session.liveChatId, msg);
       logger.info(`[Director] Run amplification chat message posted`);
     } catch { /* non-fatal */ }
   }
@@ -510,16 +461,10 @@ async function amplifyRun(session: DirectorSession, viewers: number): Promise<vo
 
     if (newTitle && newTitle !== session.currentTitle) {
       try {
-        const yt = await getYouTubeClient(session.channelDbId);
-        let currentDescription = "";
-        try {
-          const vr = await yt.videos.list({ part: ["snippet"], id: [session.broadcastId] });
-          await trackQuotaUsage(session.userId, "read").catch(() => {});
-          currentDescription = vr.data.items?.[0]?.snippet?.description ?? "";
-        } catch { /* non-fatal */ }
-
+        const accessToken = await getChannelAccessToken(session.channelDbId);
+        // InnerTube write-mask { title: true } preserves existing description server-side
         const updated = await applyBroadcastMetadata(
-          yt, session.userId, session.broadcastId, newTitle, currentDescription,
+          accessToken, session.broadcastId!, newTitle,
         );
         if (updated) {
           session.titleRefreshCount++;
@@ -749,9 +694,9 @@ async function runDirectorCycle(session: DirectorSession): Promise<void> {
     sinceLastBeat >= session.nextBeatGapMs
   ) {
     try {
-      const yt = await getYouTubeClient(session.channelDbId);
+      const accessToken = await getChannelAccessToken(session.channelDbId);
       const beat = await generateBroadcastBeat(session.gameName, durMin, session.beatsPosted);
-      const posted = await postChatMessage(yt, session.userId, session.liveChatId, beat);
+      const posted = await postChatMessage(accessToken, session.liveChatId!, beat);
       if (posted) {
         session.beatsPosted++;
         session.lastBeatAt = now;
@@ -830,8 +775,8 @@ async function onStreamStarted(
   const liveTitle = prep?.title ?? streamTitle;
   if (broadcastId && channelDbId > 0 && prep?.title && prep?.description) {
     try {
-      const yt = await getYouTubeClient(channelDbId);
-      await applyBroadcastMetadata(yt, userId, broadcastId, prep.title, prep.description);
+      const accessToken = await getChannelAccessToken(channelDbId);
+      await applyBroadcastMetadata(accessToken, broadcastId, prep.title, prep.description);
     } catch (err: any) {
       logger.warn(`[Director] Broadcast metadata apply failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
     }
@@ -841,8 +786,8 @@ async function onStreamStarted(
   let pinnedPosted = false;
   if (liveChatId && channelDbId > 0 && prep?.pinnedMessage) {
     try {
-      const yt = await getYouTubeClient(channelDbId);
-      pinnedPosted = await postChatMessage(yt, userId, liveChatId, prep.pinnedMessage);
+      const accessToken = await getChannelAccessToken(channelDbId);
+      pinnedPosted = await postChatMessage(accessToken, liveChatId, prep.pinnedMessage);
       if (pinnedPosted) logger.info(`[Director] Opening pinned message posted to live chat`);
     } catch (err: any) {
       logger.warn(`[Director] Pinned message post failed (non-fatal): ${String(err?.message || err).slice(0, 100)}`);
@@ -958,6 +903,7 @@ export function getActiveBroadcastData(userId: string): {
   currentTitle: string;
   gameName: string;
   streamId: number;
+  liveChatId: string | null;
 } | null {
   const session = activeSessions.get(userId);
   if (!session) return null;
@@ -967,6 +913,7 @@ export function getActiveBroadcastData(userId: string): {
     currentTitle: session.currentTitle,
     gameName: session.gameName,
     streamId: session.streamId,
+    liveChatId: session.liveChatId,
   };
 }
 

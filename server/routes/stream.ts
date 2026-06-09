@@ -1350,8 +1350,8 @@ export function registerStreamRoutes(app: Express) {
       channelDbId: session?.channelDbId ?? null,
       streamId: session?.streamId ?? activeStream?.id ?? null,
       currentTitle: session?.currentTitle ?? activeStream?.title ?? "",
-      aiTitle: activeStream?.seoData?.optimizedTitle ?? session?.currentTitle ?? activeStream?.title ?? "",
-      aiDescription: activeStream?.seoData?.optimizedDescription ?? "",
+      aiTitle: (activeStream?.seoData as any)?.optimizedTitle ?? session?.currentTitle ?? activeStream?.title ?? "",
+      aiDescription: (activeStream?.seoData as any)?.optimizedDescription ?? "",
       gameName: session?.gameName ?? "",
     });
   }));
@@ -1424,28 +1424,17 @@ export function registerStreamRoutes(app: Express) {
     }
 
     const { getAuthenticatedClient } = await import("../youtube");
-    const { google } = await import("googleapis");
-    const { Readable } = await import("stream");
-
     const { oauth2Client } = await getAuthenticatedClient(channelDbId);
-    const yt = google.youtube({ version: "v3", auth: oauth2Client });
+    const accessToken = (oauth2Client.credentials as any).access_token as string;
 
     try {
       const imageBuffer = Buffer.from(imageBase64, "base64");
-      await yt.thumbnails.set({
-        videoId,
-        media: {
-          mimeType: mime,
-          body: Readable.from(imageBuffer),
-        },
-      });
-      const { trackQuotaUsage } = await import("../services/youtube-quota-tracker");
-      await trackQuotaUsage(userId, "upload").catch(() => {});
-      logger.info(`[StreamRoutes] Manual thumbnail uploaded — videoId=${videoId} size=${imageBuffer.length}B`);
+      const { innerTubeUploadThumbnail } = await import("../lib/innertube-live");
+      const ok = await innerTubeUploadThumbnail(accessToken, videoId, imageBuffer, mime);
+      if (!ok) throw new Error("Thumbnail upload returned false — check server logs for details");
+      logger.info(`[StreamRoutes] Thumbnail uploaded — videoId=${videoId} size=${imageBuffer.length}B`);
       res.json({ success: true, videoId });
     } catch (err: any) {
-      const { markQuotaErrorFromResponse } = await import("../services/youtube-quota-tracker");
-      markQuotaErrorFromResponse(err);
       logger.warn(`[StreamRoutes] Thumbnail upload failed: ${String(err?.message || err).slice(0, 150)}`);
       res.status(500).json({ error: err?.message || "Failed to upload thumbnail" });
     }

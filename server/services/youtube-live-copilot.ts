@@ -318,6 +318,28 @@ function canReply(state: ReturnType<typeof getStreamState>): boolean {
   return true;
 }
 
+// ── InnerTube live chat poster (zero quota) ────────────────────────────────────
+// Posts AI-generated replies to YouTube live chat via InnerTube send_message.
+// Only called in auto-safe mode — never blocks; DB already has the reply.
+
+async function postReplyToYouTube(userId: string, reply: string): Promise<void> {
+  try {
+    const { getActiveBroadcastData } = await import("./live-stream-director");
+    const broadcast = getActiveBroadcastData(userId);
+    if (!broadcast?.liveChatId || !broadcast?.channelDbId) return;
+    const [ch] = await db
+      .select({ accessToken: channels.accessToken })
+      .from(channels)
+      .where(eq(channels.id, broadcast.channelDbId))
+      .limit(1);
+    if (!ch?.accessToken) return;
+    const { innerTubeSendChat } = await import("../lib/innertube-live");
+    await innerTubeSendChat(ch.accessToken, broadcast.liveChatId, reply);
+  } catch {
+    // Non-fatal: reply is already stored in DB and surfaced via SSE
+  }
+}
+
 // ── During-live message processor ────────────────────────────────────────────
 
 export async function processLiveCopilotMessage(
@@ -388,6 +410,7 @@ export async function processLiveCopilotMessage(
           isAiResponse: true, aiResponseTo: null, sentiment: "positive",
           priority: "normal", metadata: {} as any,
         });
+        await postReplyToYouTube(userId, answer).catch(() => {});
         return { classified: classified.messageClass, riskLevel: "low", action: "replied", reply: answer };
       }
     }
@@ -461,6 +484,7 @@ Never repeat what you've already said. Internet shorthand OK.${noRepeat}`,
       isAiResponse: true, aiResponseTo: null, sentiment: "positive",
       priority: "normal", metadata: {} as any,
     });
+    await postReplyToYouTube(userId, reply).catch(() => {});
 
     sendSSEEvent(userId, "copilot", { type: "auto_replied", streamId, author, message, reply });
     await db.insert(livestreamLearningEvents).values({
