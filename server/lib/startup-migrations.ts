@@ -1064,6 +1064,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:028:fail_permanently_inaccessible",   label: "028 — permanently fail vault entries confirmed inaccessible by InnerTube" },
   { flag: "migration:034:fail_MTG_cjkK8XQ",               label: "034 — permanently fail MTG_cjkK8XQ (yt-dlp all-clients storm causing 16-min crash loop)" },
   { flag: "migration:035:stamp_missing_permanent_fail",   label: "035 — stamp permanentFail:true on all failed vault entries + fail FGv-w4tvc0M/SGCq53XHces" },
+  { flag: "migration:036:fail_OG1_3Dw4_storm_videos",    label: "036 — permanently fail OG1-0dE1VPA + 3Dw4UB86S9g storm videos; fix dual-column orphan queue sweep" },
 ];
 
 export interface MigrationHealth {
@@ -1865,6 +1866,98 @@ async function migration035StampMissingPermanentFail(): Promise<void> {
   }
 }
 
+// ── Migration 036: permanently fail OG1-0dE1VPA + 3Dw4UB86S9g storm videos ──
+// OG1-0dE1VPA: new storm video — all 3 InnerTube clients (tv_embedded, ios, android)
+//   exhausted all formats at 21:39 UTC on 2026-06-10.  Multiple autopilot_queue items
+//   (posts 39415, 39434, 39436, 39438, 39439, 39441, 39442, 39443) failed to publish.
+//   Vault has 2 indexed rows with no failCount — per-boot sweep needs failCount >= 2 to
+//   auto-fail, so without this migration the storm repeats every boot.
+// 3Dw4UB86S9g: 3 correctly-failed entries exist, but back-catalog re-imported a fresh
+//   indexed row with no failCount after the previous per-boot sweep ran at T+3s.
+//   Post 39445 already failed against this new row.
+// Also cancels any queue items referencing ALL known permanently-failed storm videos
+// using BOTH the source_youtube_id column and metadata->>'sourceYoutubeId' to close
+// the orphan-sweep gap that existed in migrations 034/035.
+async function migration036FailOG1And3Dw4StormVideos(): Promise<void> {
+  const FLAG = "migration:036:fail_OG1_3Dw4_storm_videos";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Fail ALL vault entries for known storm videos
+    const stormVideoResult = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"yt-dlp all-clients storm — permanently undownloadable (migration 036)"}'::jsonb
+      WHERE  youtube_id IN (
+        'OG1-0dE1VPA',  -- 2026-06-10 21:39 UTC: all 3 clients failed (tv_embedded/ios/android)
+        'LgznaZ5uYJw'   -- 2026-06-10 21:40 UTC: all 4 clients failed (tv_embedded/ios/android/web)
+      )
+    `);
+    // Fail any remaining active vault entries for 3Dw4UB86S9g (the re-imported indexed row)
+    const dw4Result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"geo-blocked/DRM — permanently inaccessible 3Dw4UB86S9g (migration 036)"}'::jsonb
+      WHERE  youtube_id = '3Dw4UB86S9g'
+        AND  status != 'failed'
+    `);
+    // Broad general sweep: fail any indexed/queued/downloading entry with permanentFail:true
+    // or failCount >= 2 (belt-and-suspenders — catches any storm video the back-catalog
+    // engine re-imported after the previous per-boot sweep ran)
+    const sweepResult = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"reason":"Auto-failed by migration 036 general sweep: indexed+permanentFail:true or failCount>=2"}'::jsonb
+      WHERE  status IN ('indexed','queued','downloading')
+        AND  (
+          (metadata->>'permanentFail') = 'true'
+          OR (
+            (metadata->>'failCount') ~ '^[0-9]+$'
+            AND (metadata->>'failCount')::int >= 2
+          )
+        )
+    `);
+    const stormVideos = (stormVideoResult as any).rowCount ?? 0;
+    const dw4 = (dw4Result as any).rowCount ?? 0;
+    const swept = (sweepResult as any).rowCount ?? 0;
+    // Cancel ALL active autopilot_queue items referencing known permanently-failed source
+    // videos.  Checks BOTH the source_youtube_id column (Drizzle ORM inserts) AND the
+    // metadata->>'sourceYoutubeId' JSONB field (older queue items).
+    const queueResult = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video permanently undownloadable — cancelled by migration 036'
+      WHERE  status IN ('scheduled','pending','queued','deferred')
+        AND  (
+          (
+            source_youtube_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM content_vault_backups cvb
+              WHERE  cvb.youtube_id = autopilot_queue.source_youtube_id
+                AND  cvb.status = 'failed'
+            )
+          )
+          OR (
+            metadata->>'sourceYoutubeId' IS NOT NULL
+            AND metadata->>'sourceYoutubeId' != ''
+            AND EXISTS (
+              SELECT 1 FROM content_vault_backups cvb
+              WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+                AND  cvb.status = 'failed'
+            )
+          )
+        )
+    `);
+    const cancelled = (queueResult as any).rowCount ?? 0;
+    log.info(`[Migration 036] Failed ${stormVideos} storm-video rows (OG1-0dE1VPA+LgznaZ5uYJw), ${dw4} 3Dw4UB86S9g rows, swept ${swept} other active permanentFail/failCount>=2 entries, cancelled ${cancelled} orphaned queue items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 036] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Per-boot vault storm prevention sweep (non-flagged — runs every restart) ──
 // The flagged migrations only run once.  New storm videos emerge on every boot
 // as the back-catalog engine queues fresh items for videos that were healthy at
@@ -1902,17 +1995,33 @@ async function cleanupOrphanedQueueItems(): Promise<void> {
     `);
     const storms = (stormResult as any).rowCount ?? 0;
 
-    // Step 3: cancel active queue items whose source vault entry is permanently failed
+    // Step 3: cancel active queue items whose source vault entry is permanently failed.
+    // Checks BOTH the direct source_youtube_id column (used by back-catalog queue items
+    // inserted via Drizzle ORM) AND the metadata->>'sourceYoutubeId' field (used by
+    // older queue items that stored the source ID only in the JSONB metadata blob).
     const orphanResult = await db.execute(sql`
       UPDATE autopilot_queue
       SET    status        = 'failed',
              error_message = 'Source vault entry permanently failed — cancelled by per-boot orphan sweep'
       WHERE  status IN ('scheduled','pending','queued','deferred')
-        AND  metadata->>'sourceYoutubeId' IS NOT NULL
-        AND  EXISTS (
-          SELECT 1 FROM content_vault_backups cvb
-          WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
-            AND  cvb.status = 'failed'
+        AND  (
+          (
+            source_youtube_id IS NOT NULL
+            AND EXISTS (
+              SELECT 1 FROM content_vault_backups cvb
+              WHERE  cvb.youtube_id = autopilot_queue.source_youtube_id
+                AND  cvb.status = 'failed'
+            )
+          )
+          OR (
+            metadata->>'sourceYoutubeId' IS NOT NULL
+            AND metadata->>'sourceYoutubeId' != ''
+            AND EXISTS (
+              SELECT 1 FROM content_vault_backups cvb
+              WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+                AND  cvb.status = 'failed'
+            )
+          )
         )
     `);
     const orphans = (orphanResult as any).rowCount ?? 0;
@@ -1966,6 +2075,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration033RescheduleLongFormFromJune11();
     await migration034FailMTGcjkK8XQ();
     await migration035StampMissingPermanentFail();
+    await migration036FailOG1And3Dw4StormVideos();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     // Non-flagged per-boot vault storm prevention — runs every restart.

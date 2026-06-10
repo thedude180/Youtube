@@ -87,11 +87,18 @@ let _failedVaultIds: Set<string> = new Set();
 
 async function refreshFailedVaultIds(): Promise<void> {
   try {
-    const rows = await db
-      .selectDistinct({ youtubeId: contentVaultBackups.youtubeId })
-      .from(contentVaultBackups)
-      .where(eq(contentVaultBackups.status, "failed"));
-    _failedVaultIds = new Set(rows.map(r => r.youtubeId).filter(Boolean) as string[]);
+    // Include both status='failed' entries AND any entry with permanentFail:true in
+    // metadata (which covers indexed/queued entries that failed but status wasn't yet
+    // updated — e.g. after a crash before cleanup ran).  This prevents the back-catalog
+    // engine from re-queuing videos that have already been confirmed as undownloadable.
+    const rows = await db.execute(sql`
+      SELECT DISTINCT youtube_id
+      FROM content_vault_backups
+      WHERE status = 'failed'
+         OR (metadata->>'permanentFail') = 'true'
+    `);
+    const ids = (rows as any).rows?.map((r: any) => r.youtube_id).filter(Boolean) ?? [];
+    _failedVaultIds = new Set(ids as string[]);
   } catch {
     // Non-fatal — if the DB query fails, keep the previous cache
   }
