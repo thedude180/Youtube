@@ -1676,6 +1676,22 @@ export async function runBackCatalogMonetizationCycle(userId: string): Promise<{
     }, "success");
   } catch { /* ok */ }
 
+  // Growth engine — runs after the main cycle so queueing work always takes
+  // priority. Updates SEO, thumbnails, pinned comments, and playlist funnels
+  // for all published clips. Non-fatal — a failure here never blocks the cycle.
+  try {
+    const { runBackCatalogGrowthEngine } = await import("./youtube-back-catalog-growth-engine");
+    const growth = await runBackCatalogGrowthEngine(userId);
+    if (!growth.skipped) {
+      logger.info(
+        `[BackCatalog] Growth engine: SEO ${growth.seoUpdated}, thumbs ${growth.thumbnailsGenerated}, ` +
+        `comments ${growth.commentsPosted}, playlists +${growth.videosAddedToPlaylists} videos`,
+      );
+    }
+  } catch (gErr: any) {
+    logger.warn(`[BackCatalog] Growth engine non-fatal error: ${gErr?.message?.slice(0, 120)}`);
+  }
+
   logger.info(
     `[BackCatalog] Cycle complete: ${importResult.imported}/${importResult.updated} import/update, ` +
     `${queueResult.shortsQueued} Shorts, ${queueResult.longFormQueued} long-form, ` +
