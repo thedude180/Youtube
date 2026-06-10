@@ -27,6 +27,7 @@ import {
   autopilotQueue,
   channels,
   masterKnowledgeBank,
+  systemIncidentLog,
 } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -51,6 +52,10 @@ const openai = getRawOpenAIClientForDirectUse();
 
 const _lastCycleAt = new Map<string, number>();
 const CYCLE_INTERVAL_MS = 20 * 3_600_000; // run at most once per 20 hours
+
+// ── Track weekly synthesis per user ───────────────────────────────────────────
+const _lastWeeklyCycleAt = new Map<string, number>();
+const WEEKLY_CYCLE_INTERVAL_MS = 168 * 3_600_000; // once per 7 days
 
 // ── Public: record any learning event ────────────────────────────────────────
 
@@ -303,10 +308,171 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       insightCount: insights.length,
     }).catch((e: any) => logger.debug(`[Brain] digest non-fatal: ${e?.message?.slice(0, 80)}`));
 
+    // 12. Weekly deep synthesis — fire-and-forget, only when 7 days have elapsed
+    const lastWeekly = _lastWeeklyCycleAt.get(userId) ?? 0;
+    if (Date.now() - lastWeekly >= WEEKLY_CYCLE_INTERVAL_MS) {
+      runWeeklySynthesis(userId).catch((e: any) =>
+        logger.debug(`[Brain] weekly synthesis non-fatal: ${e?.message?.slice(0, 80)}`),
+      );
+    }
+
     return report;
   } catch (err: any) {
     logger.warn(`[Brain] Daily cycle failed for ${userId.slice(0, 8)}: ${err.message?.slice(0, 200)}`);
     return null;
+  }
+}
+
+// ── Weekly deep synthesis ────────────────────────────────────────────────────
+// Runs at most once per 7 days. Reads the full knowledge bank + recent insights
+// + incident log and produces a comprehensive "weekly strategy brief" that gets
+// written as a masterKnowledgeBank entry with category="weekly_strategy_brief".
+// This is the "step back and look at the big picture" pass that human creators
+// do every week.
+
+async function runWeeklySynthesis(userId: string): Promise<void> {
+  const lastWeekly = _lastWeeklyCycleAt.get(userId) ?? 0;
+  if (Date.now() - lastWeekly < WEEKLY_CYCLE_INTERVAL_MS) return;
+  _lastWeeklyCycleAt.set(userId, Date.now());
+
+  logger.info(`[Brain] Starting weekly synthesis for ${userId.slice(0, 8)}`);
+
+  try {
+    const now = new Date();
+    const last30d = new Date(now.getTime() - 30 * 86_400_000);
+    const last7d  = new Date(now.getTime() - 7  * 86_400_000);
+
+    // Gather all knowledge sources
+    const [allPrinciples, recentInsights, recentIncidents, topVideos, associationInsights] = await Promise.all([
+      // All active master knowledge (full picture)
+      db.select({
+        category:   masterKnowledgeBank.category,
+        principle:  masterKnowledgeBank.principle,
+        confidence: masterKnowledgeBank.confidenceScore,
+        evidence:   masterKnowledgeBank.evidenceCount,
+      })
+        .from(masterKnowledgeBank)
+        .where(and(eq(masterKnowledgeBank.userId, userId), eq(masterKnowledgeBank.isActive, true)))
+        .orderBy(desc(masterKnowledgeBank.confidenceScore))
+        .limit(30),
+
+      // Learning insights from last 30d
+      db.select({ pattern: learningInsights.pattern, confidence: learningInsights.confidence, data: learningInsights.data })
+        .from(learningInsights)
+        .where(and(eq(learningInsights.userId, userId), gte(learningInsights.createdAt, last30d)))
+        .orderBy(desc(learningInsights.confidence))
+        .limit(15),
+
+      // System incidents from last 30d (global log — no userId column)
+      db.select({ severity: systemIncidentLog.severity, rootCause: systemIncidentLog.rootCause, lesson: systemIncidentLog.lesson })
+        .from(systemIncidentLog)
+        .where(gte(systemIncidentLog.createdAt, last30d))
+        .orderBy(desc(systemIncidentLog.createdAt))
+        .limit(10),
+
+      // Top performing videos in last 30d
+      db.select({
+        videoId:  youtubeOutputMetrics.youtubeVideoId,
+        views:    youtubeOutputMetrics.views,
+        ctr:      youtubeOutputMetrics.ctr,
+        avgWatch: youtubeOutputMetrics.averageViewPercent,
+        duration: youtubeOutputMetrics.durationSec,
+      })
+        .from(youtubeOutputMetrics)
+        .where(and(eq(youtubeOutputMetrics.userId, userId), gte(youtubeOutputMetrics.measuredAt, last30d)))
+        .orderBy(desc(youtubeOutputMetrics.views))
+        .limit(10),
+
+      // Recent association insights from brain-association-engine (last 7d)
+      db.select({ principle: masterKnowledgeBank.principle })
+        .from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.isActive, true),
+          eq(masterKnowledgeBank.category, "association_insight"),
+          gte(masterKnowledgeBank.createdAt, last7d),
+        ))
+        .orderBy(desc(masterKnowledgeBank.confidenceScore))
+        .limit(8),
+    ]);
+
+    if (allPrinciples.length < 3 && recentInsights.length < 3) {
+      logger.debug(`[Brain] Not enough data for weekly synthesis — skipping`);
+      _lastWeeklyCycleAt.delete(userId); // allow retry next daily cycle
+      return;
+    }
+
+    const slot = tryAcquireAISlotNow();
+    if (!slot) {
+      logger.debug(`[Brain] Weekly synthesis deferred — no AI slot available`);
+      _lastWeeklyCycleAt.delete(userId); // allow retry next daily cycle
+      return;
+    }
+
+    try {
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 600,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are the strategic learning brain for an autonomous YouTube channel AI (ET Gaming 274, no-commentary gaming highlights). Write a weekly strategy brief — a comprehensive synthesis of what the system has learned and what the channel should focus on for the next 7 days. Be analytical, specific, and data-driven. Max 5-6 sentences.",
+          },
+          {
+            role: "user",
+            content: `WEEKLY SYNTHESIS — synthesize everything learned this week into a strategic brief.
+
+## Master Knowledge Principles (${allPrinciples.length} active, sorted by confidence):
+${allPrinciples.slice(0, 15).map(p => `[${p.confidence}%, ${p.evidence} evidence] ${p.principle?.slice(0, 120)}`).join("\n")}
+
+## Learning Insights This Month (${recentInsights.length}):
+${recentInsights.slice(0, 8).map(i => `- ${i.pattern}`).join("\n")}
+
+## Recent Association Signals (external world ↔ channel patterns, last 7d):
+${associationInsights.map(a => `- ${a.principle?.slice(0, 120)}`).join("\n") || "none yet"}
+
+## Top Performing Videos This Month:
+${topVideos.map(v => `- ytId:${v.videoId} | ${(v.views ?? 0).toLocaleString()} views | CTR ${v.ctr?.toFixed(1)}% | ${v.avgWatch?.toFixed(0)}% watch`).join("\n") || "none measured yet"}
+
+## System Incidents (last 30d, ${recentIncidents.length} total):
+${recentIncidents.slice(0, 5).map(i => `[${i.severity}] ${i.rootCause} → Lesson: ${i.lesson?.slice(0, 80)}`).join("\n") || "none"}
+
+Write the weekly strategy brief now. It should tell a future AI agent reading it: what the channel's biggest content opportunities are, what format/timing is working best right now, and what the top 2-3 focus areas should be for the next 7 days.`,
+          },
+        ],
+      });
+      releaseAISlot();
+
+      const briefText = resp.choices[0]?.message?.content?.trim() ?? "";
+      if (!briefText || briefText.length < 50) return;
+
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category: "weekly_strategy_brief",
+        principle: briefText,
+        sourceEngines: ["learning-brain", "memory-architect", "brain-association-engine", "analytics-intelligence"],
+        evidenceCount: allPrinciples.length + recentInsights.length + topVideos.length,
+        confidenceScore: 85,
+        isActive: true,
+        metadata: {
+          generatedAt: now.toISOString(),
+          principlesReviewed: allPrinciples.length,
+          insightsReviewed: recentInsights.length,
+          incidentsReviewed: recentIncidents.length,
+          topVideoCount: topVideos.length,
+          synthesisType: "weekly_deep",
+        },
+      } as any);
+
+      logger.info(`[Brain] Weekly synthesis complete for ${userId.slice(0, 8)} — ${briefText.length} char brief written to masterKnowledgeBank`);
+    } catch {
+      releaseAISlot();
+      throw new Error("weekly synthesis AI call failed");
+    }
+  } catch (err: any) {
+    logger.warn(`[Brain] Weekly synthesis failed (non-fatal): ${err.message?.slice(0, 120)}`);
+    _lastWeeklyCycleAt.delete(userId); // allow retry next daily cycle
   }
 }
 

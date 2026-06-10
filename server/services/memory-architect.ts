@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { users, engineKnowledge, masterKnowledgeBank, memoryConsolidation } from "@shared/schema";
-import { eq, and, desc, lt, gte, sql, lte } from "drizzle-orm";
+import { eq, and, desc, lt, gte, sql, lte, ne } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge } from "./knowledge-mesh";
@@ -217,20 +217,64 @@ Output JSON:
     }
   }
 
-  if (archived > 0 || compressed > 0 || forgotten > 0) {
+  // ── masterKnowledgeBank temporal decay ─────────────────────────────────────
+  // Human brains forget stale knowledge. Principles not reinforced in 30+ days
+  // decay in confidence (−3/cycle). At < 20 they are deactivated.
+  // Exception: "system_lesson" and "daily_digest" categories are exempt — they
+  // describe permanent operational rules and recent history respectively.
+  let decayed = 0;
+  let deactivated = 0;
+  try {
+    const staleCutoff = new Date(Date.now() - 30 * 86_400_000);
+    const stalePrinciples = await db.select({
+      id:             masterKnowledgeBank.id,
+      confidenceScore: masterKnowledgeBank.confidenceScore,
+      category:       masterKnowledgeBank.category,
+    })
+      .from(masterKnowledgeBank)
+      .where(and(
+        eq(masterKnowledgeBank.userId, userId),
+        eq(masterKnowledgeBank.isActive, true),
+        ne(masterKnowledgeBank.category, "system_lesson"),
+        ne(masterKnowledgeBank.category, "daily_digest"),
+        // Decay if neither updatedAt nor lastReinforcedAt has been touched in 30d
+        sql`COALESCE(${masterKnowledgeBank.lastReinforcedAt}, ${masterKnowledgeBank.updatedAt}, ${masterKnowledgeBank.createdAt}) < ${staleCutoff}`,
+      ))
+      .limit(50);
+
+    for (const p of stalePrinciples) {
+      const newScore = Math.max(0, (p.confidenceScore ?? 60) - 3);
+      if (newScore < 20) {
+        await db.update(masterKnowledgeBank)
+          .set({ isActive: false, metadata: { archivedReason: "temporal_decay", archivedAt: new Date().toISOString() } as any })
+          .where(eq(masterKnowledgeBank.id, p.id));
+        deactivated++;
+      } else {
+        await db.update(masterKnowledgeBank)
+          .set({ confidenceScore: newScore })
+          .where(eq(masterKnowledgeBank.id, p.id));
+        decayed++;
+      }
+    }
+  } catch (decayErr: any) {
+    logger.debug(`[MemoryArchitect] masterKnowledgeBank decay skipped: ${decayErr.message?.slice(0, 80)}`);
+  }
+
+  if (archived > 0 || compressed > 0 || forgotten > 0 || decayed > 0 || deactivated > 0) {
     await recordEngineKnowledge(
       "memory-architect", userId, "compression_result",
       "memory_maintenance",
-      `Memory maintenance: ${compressed} principles created, ${archived} insights archived, ${forgotten} contradicted knowledge forgotten. Active knowledge: ~${totalActive}`,
+      `Memory maintenance: ${compressed} principles created, ${archived} insights archived, ${forgotten} forgotten, ${decayed} principles decayed, ${deactivated} deactivated. Active knowledge: ~${totalActive}`,
       `Stale threshold: ${STALE_THRESHOLD_DAYS}d, max active: ${MAX_ACTIVE_KNOWLEDGE}, contradiction threshold: ${CONTRADICTION_THRESHOLD}`,
       70,
     );
 
-    logger.info(`Memory maintenance: +${compressed} principles, -${archived} archived, -${forgotten} forgotten`, { userId: userId.substring(0, 8) });
+    logger.info(`Memory maintenance: +${compressed} principles, -${archived} archived, -${forgotten} forgotten, ${decayed} decayed, ${deactivated} deactivated`, { userId: userId.substring(0, 8) });
   }
 
   invalidateUserData(memStore, userId, "old_knowledge");
   invalidateUserData(memStore, userId, "contradicted");
   invalidateUserData(memStore, userId, "total_active");
   invalidateUserData(memStore, userId, "consolidations");
+  invalidateUserData(memStore, userId, "master_bank");
 }

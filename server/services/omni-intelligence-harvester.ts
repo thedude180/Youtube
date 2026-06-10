@@ -27,6 +27,7 @@ import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
 import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("omni-intelligence");
 const execFileAsync = promisify(execFile);
@@ -45,11 +46,13 @@ function resolveYtdlp(): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // SOURCE 1: YouTube trending gaming via yt-dlp metadata scrape
 // ─────────────────────────────────────────────────────────────────────────────
-async function harvestYouTubeTrending(userId: string): Promise<number> {
+async function harvestYouTubeTrending(userId: string, focusGame: string): Promise<number> {
+  const year = new Date().getFullYear();
   const queries = [
-    `ytsearch${MAX_YT_RESULTS}:ps5 gaming highlights 2026`,
-    `ytsearch${MAX_YT_RESULTS}:youtube gaming viral trending 2026`,
-    `ytsearch15:best gaming youtube thumbnails 2026`,
+    `ytsearch${MAX_YT_RESULTS}:${focusGame} best moments ${year}`,
+    `ytsearch${MAX_YT_RESULTS}:${focusGame} highlights ${year}`,
+    `ytsearch${MAX_YT_RESULTS}:youtube gaming viral trending ${year}`,
+    `ytsearch15:best gaming youtube thumbnails ${year}`,
   ];
   let saved = 0;
   const ytdlp = resolveYtdlp();
@@ -109,14 +112,26 @@ async function harvestYouTubeTrending(userId: string): Promise<number> {
 // ─────────────────────────────────────────────────────────────────────────────
 // SOURCE 2: Reddit public JSON (no auth, just User-Agent)
 // ─────────────────────────────────────────────────────────────────────────────
-async function harvestReddit(userId: string): Promise<number> {
-  const subreddits = [
-    { sub: "gaming",     category: "community_pulse" },
-    { sub: "PS5",        category: "community_pulse" },
-    { sub: "gamingclips",category: "viral_video"     },
-    { sub: "NewTubers",  category: "strategy_article"},
-    { sub: "youtube",    category: "strategy_article"},
+async function harvestReddit(userId: string, focusGame: string): Promise<number> {
+  // Core gaming subs + game-specific subs derived from the focus game name
+  const gameSub = focusGame.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+  const gameSubVariants = [
+    { sub: gameSub,         category: "community_pulse" as const },
+    // Well-known BF-family alternates when focus is a Battlefield title
+    ...(focusGame.toLowerCase().includes("battlefield") ? [
+      { sub: "battlefield",       category: "community_pulse" as const },
+      { sub: "Battlefield",       category: "community_pulse" as const },
+      { sub: "battlefield2042",   category: "community_pulse" as const },
+    ] : []),
   ];
+
+  const subreddits = [
+    { sub: "gaming",      category: "community_pulse"  as const },
+    { sub: "gamingclips", category: "viral_video"      as const },
+    { sub: "NewTubers",   category: "strategy_article" as const },
+    { sub: "youtube",     category: "strategy_article" as const },
+    ...gameSubVariants,
+  ].filter((v, i, arr) => arr.findIndex(x => x.sub === v.sub) === i); // dedupe
   let saved = 0;
   const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
 
@@ -225,13 +240,15 @@ async function harvestRSSFeeds(userId: string): Promise<number> {
 // ─────────────────────────────────────────────────────────────────────────────
 // SOURCE 5: DuckDuckGo web search (strategy + YouTube algorithm queries)
 // ─────────────────────────────────────────────────────────────────────────────
-async function harvestWebSearch(userId: string): Promise<number> {
+async function harvestWebSearch(userId: string, focusGame: string): Promise<number> {
+  const year = new Date().getFullYear();
   const queries = [
-    "youtube gaming channel growth tips 2026",
-    "youtube algorithm changes gaming 2026",
-    "ps5 gaming content strategy youtube creators 2026",
-    "best youtube thumbnail strategies gaming 2026",
-    "youtube shorts vs long form gaming content 2026",
+    `youtube gaming channel growth tips ${year}`,
+    `youtube algorithm changes gaming ${year}`,
+    `${focusGame} youtube content strategy creators ${year}`,
+    `${focusGame} best clips highlights format youtube ${year}`,
+    "youtube shorts vs long form gaming content strategy",
+    `${focusGame} trending topics community ${year}`,
   ];
   let saved = 0;
   const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
@@ -295,7 +312,8 @@ async function synthesizeIntelligence(userId: string): Promise<void> {
   const newsItems   = signals.filter(s => s.source === "rss").slice(0, 10);
   const webItems    = signals.filter(s => s.source === "web_search").slice(0, 5);
 
-  const prompt = `You are the growth intelligence brain for a PS5 gaming YouTube channel (no commentary, gameplay highlights style).
+  const focusGame = await getFocusGame();
+  const prompt = `You are the growth intelligence brain for a "${focusGame}" gaming YouTube channel called "ET Gaming 274" (no commentary, gameplay highlights style). Focus game: ${focusGame}.
 
 LIVE DATA JUST HARVESTED FROM ${signals.length} SIGNALS:
 
@@ -478,11 +496,14 @@ export async function runIntelligenceCycle(): Promise<void> {
       try {
         logger.info("Running intelligence harvest", { userId: userId.slice(0, 8) });
 
+        const focusGame = await getFocusGame();
+        logger.info("Harvesting with focus game", { userId: userId.slice(0, 8), focusGame });
+
         const [yt, reddit, rss, web] = await Promise.allSettled([
-          harvestYouTubeTrending(userId),
-          harvestReddit(userId),
+          harvestYouTubeTrending(userId, focusGame),
+          harvestReddit(userId, focusGame),
           harvestRSSFeeds(userId),
-          harvestWebSearch(userId),
+          harvestWebSearch(userId, focusGame),
         ]);
 
         const counts = {
