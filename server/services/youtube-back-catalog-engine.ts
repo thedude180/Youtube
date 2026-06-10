@@ -965,6 +965,10 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           if (localVideoId) {
             const canMine = await hasUnminedFootage(userId, localVideoId, v.durationSec ?? 0);
             if (canMine) {
+              // queueLongFormSegments re-throws "AI queue full" — let it bubble up
+              // to the outer try/catch at line 1000 which will log + continue to
+              // the next video (back-catalog engine already re-throws AI errors at
+              // line 844, so this section already halts on AI saturation).
               const queued = await queueLongFormSegments(userId, localVideoId);
               if (queued > 0) {
                 await db.update(backCatalogVideos)

@@ -266,6 +266,7 @@ async function grindUserContent(userId: string): Promise<GrindState> {
   const maxThisCycle = burstMode ? GRINDER_MAX_PER_CYCLE_BURST : GRINDER_MAX_PER_CYCLE_NORMAL;
   if (burstMode) logger.info(`[ContentGrinder] Burst mode: ${longFormVideos.length} videos pending — processing up to ${maxThisCycle}`);
 
+  let _aiQueueFullStreak = 0;
   for (const video of longFormVideos.slice(0, maxThisCycle)) {
     try {
       const exhaustionLevel = await checkVideoExhaustion(userId, video);
@@ -295,6 +296,10 @@ async function grindUserContent(userId: string): Promise<GrindState> {
           const canMine = await hasUnminedFootage(userId, video.id, vDurSec);
           if (canMine) lfClips = await queueLongFormSegments(userId, video.id);
         } catch (segErr: any) {
+          // AI-saturation: propagate up so the outer catch can break the loop
+          if (segErr?.message?.includes("AI queue full") || segErr?.message?.includes("request dropped")) {
+            throw segErr;
+          }
           logger.warn(`[ContentGrinder] Segmenter failed for video ${video.id}: ${segErr.message?.slice(0, 200)}`);
           lfClips = await extractLongFormMoments(userId, video); // fallback to single-segment
         }
@@ -312,9 +317,20 @@ async function grindUserContent(userId: string): Promise<GrindState> {
       const pacingResult = await enhanceRetentionPacing(userId, video);
       if (pacingResult) state.pacingEnhanced++;
 
+      _aiQueueFullStreak = 0; // successful video — reset streak
       await new Promise(r => setTimeout(r, GRINDER_INTER_VIDEO_DELAY_MS));
     } catch (err: any) {
-      logger.warn(`[${userId.substring(0, 8)}] Failed to grind video ${video.id}: ${err.message?.substring(0, 200)}`);
+      if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) {
+        _aiQueueFullStreak++;
+        if (_aiQueueFullStreak >= 3) {
+          logger.warn(`[ContentGrinder] AI queue full ${_aiQueueFullStreak}× in a row — stopping grind cycle, will resume next run`);
+          break;
+        }
+        logger.warn(`[${userId.substring(0, 8)}] AI queue full for video ${video.id} (streak ${_aiQueueFullStreak}/3) — skipping`);
+      } else {
+        _aiQueueFullStreak = 0;
+        logger.warn(`[${userId.substring(0, 8)}] Failed to grind video ${video.id}: ${err.message?.substring(0, 200)}`);
+      }
     }
   }
 

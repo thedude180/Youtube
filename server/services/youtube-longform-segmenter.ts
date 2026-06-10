@@ -227,6 +227,11 @@ export async function queueLongFormSegments(
   try {
     aiSegments = await identifySegmentsWithAI(video, existing, durSec);
   } catch (err: any) {
+    // Re-throw transient AI-saturation errors so the caller's batch loop can
+    // detect them and break early instead of hammering 40+ videos in a row.
+    if (err?.message?.includes("AI queue full") || err?.message?.includes("request dropped")) {
+      throw err;
+    }
     logger.warn(`[Segmenter] AI call failed for video ${videoId}: ${err.message?.slice(0, 200)}`);
     return 0;
   }

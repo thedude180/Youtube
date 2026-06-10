@@ -366,11 +366,10 @@ export async function runBacklogRefresh(userId: string, batchSize = 10): Promise
       created.push(pipeline);
     }
 
-    for (const pipeline of created) {
-      executePipelineInBackground(pipeline.id, pipeline.videoTitle, "refresh", {}, []).catch(err => {
-        logger.error(`[Pipeline] Backlog refresh failed for pipeline ${pipeline.id}:`, err);
-      });
-    }
+    // Intentionally NOT kicking all pipelines simultaneously here — that would
+    // fire up to 25 concurrent Claude calls, saturate the 2-slot AI background
+    // semaphore, and cause all of them to immediately fail + reset to pending.
+    // The drip-feed (every 2.5 min, max 1 concurrent) handles execution safely.
 
     await storage.createAuditLog({
       userId,
