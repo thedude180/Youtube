@@ -1703,37 +1703,55 @@ async function migration032FixPs5GameFallbacks(): Promise<void> {
 // ── Migration 033: Reschedule long-form clips to daily cadence from June 11 ───
 
 async function migration033RescheduleLongFormFromJune11(): Promise<void> {
-  const FLAG = "migration_033_longform_daily_from_june11";
+  // Flag name includes "next_reset" — changed from the original "june11" version
+  // so this re-runs even if the previous hard-coded migration already fired.
+  const FLAG = "migration_033_longform_daily_from_next_reset";
   if (await getFlag(FLAG)) return;
   try {
-    // Items ordered by their original scheduled_at, reassigned to Jun 11+ (one per day).
-    // Time-of-day is preserved from the original schedule; only the date shifts.
-    const schedule: Array<{ id: number; newDate: string }> = [
-      { id: 39343, newDate: "2026-06-11 07:42:17" },
-      { id: 39370, newDate: "2026-06-12 09:50:51" },
-      { id: 39377, newDate: "2026-06-13 20:05:36" },
-      { id: 39378, newDate: "2026-06-14 20:38:27" },
-      { id: 39379, newDate: "2026-06-15 19:30:50" },
-      { id: 39380, newDate: "2026-06-16 20:23:35" },
-      { id: 34970, newDate: "2026-06-17 20:31:43" },
-      { id: 39320, newDate: "2026-06-18 19:03:28" },
-      { id: 39322, newDate: "2026-06-19 20:31:07" },
-      { id: 39323, newDate: "2026-06-20 20:13:53" },
-      { id: 39321, newDate: "2026-06-21 20:39:04" },
+    // YouTube quota resets at midnight Pacific Time (PDT = UTC-7 in summer).
+    // "Next reset day" = the upcoming midnight-Pacific boundary from now.
+    const PACIFIC_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const nowPacific = new Date(Date.now() - PACIFIC_OFFSET_MS);
+    // Advance to the next calendar day in Pacific time
+    const startPacific = new Date(nowPacific);
+    startPacific.setUTCDate(startPacific.getUTCDate() + 1);
+    startPacific.setUTCHours(0, 0, 0, 0);
+    // Convert back to UTC for DB storage
+    const startUTC = new Date(startPacific.getTime() + PACIFIC_OFFSET_MS);
+
+    // Items in original scheduled_at order (earliest first).
+    // Time-of-day from the original schedule is preserved; only the date shifts.
+    const items: Array<{ id: number; timeStr: string }> = [
+      { id: 39343, timeStr: "07:42:17" },
+      { id: 39370, timeStr: "09:50:51" },
+      { id: 39377, timeStr: "20:05:36" },
+      { id: 39378, timeStr: "20:38:27" },
+      { id: 39379, timeStr: "19:30:50" },
+      { id: 39380, timeStr: "20:23:35" },
+      { id: 34970, timeStr: "20:31:43" },
+      { id: 39320, timeStr: "19:03:28" },
+      { id: 39322, timeStr: "20:31:07" },
+      { id: 39323, timeStr: "20:13:53" },
+      { id: 39321, timeStr: "20:39:04" },
     ];
 
     let updated = 0;
-    for (const { id, newDate } of schedule) {
+    for (let i = 0; i < items.length; i++) {
+      const { id, timeStr } = items[i];
+      const itemDate = new Date(startUTC.getTime() + i * 86_400_000);
+      const dateStr = itemDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const newDateTime = `${dateStr} ${timeStr}`;
       await db.execute(sql`
         UPDATE autopilot_queue
-        SET    scheduled_at = ${newDate}::timestamptz
+        SET    scheduled_at = ${newDateTime}::timestamptz
         WHERE  id = ${id}
           AND  status IN ('scheduled','pending')
       `);
       updated++;
     }
 
-    log.info(`[Migration 033] Rescheduled ${updated} long-form items to daily cadence from 2026-06-11`);
+    const startLabel = startUTC.toISOString().slice(0, 10);
+    log.info(`[Migration 033] Rescheduled ${updated} long-form items to daily cadence from ${startLabel} (next quota reset)`);
     await setFlag(FLAG);
   } catch (err: any) {
     log.warn(`[Migration 033] Reschedule failed (non-fatal): ${err?.message}`);
