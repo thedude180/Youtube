@@ -1062,6 +1062,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:026:fix_permanent_fail_status_leak",  label: "026 — reset indexed/downloading vault entries that have permanentFail:true to failed" },
   { flag: "migration:027:fail_Ld07AcKauuI",               label: "027 — permanently fail vault entry for Ld07AcKauuI (InnerTube HTTP 400 storm)" },
   { flag: "migration:028:fail_permanently_inaccessible",   label: "028 — permanently fail vault entries confirmed inaccessible by InnerTube" },
+  { flag: "migration:034:fail_MTG_cjkK8XQ",               label: "034 — permanently fail MTG_cjkK8XQ (yt-dlp all-clients storm causing 16-min crash loop)" },
 ];
 
 export interface MigrationHealth {
@@ -1758,6 +1759,54 @@ async function migration033RescheduleLongFormFromJune11(): Promise<void> {
   }
 }
 
+// ── Migration 034: permanently fail MTG_cjkK8XQ + general low-failCount sweep ──
+// MTG_cjkK8XQ fails every yt-dlp client (tv_embedded + ios) across every format
+// combination on every boot.  The clip-video-processor starts processing it at
+// ~T+14min, and by T+16min the concurrent yt-dlp attempts + Wave 7 startup load
+// cause OOM, crashing the server every 16 minutes (~70 outages/day).
+//
+// Root cause why migration 023 didn't catch it: 023 sweeps failCount >= 5, but
+// the server crashes before any single video exhausts 5 yt-dlp rounds, so the
+// failCount never reaches 5 naturally.  This migration lowers the auto-sweep
+// threshold to >= 3 to catch storm videos before they accumulate 5 crash cycles.
+async function migration034FailMTGcjkK8XQ(): Promise<void> {
+  const FLAG = "migration:034:fail_MTG_cjkK8XQ";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"All yt-dlp clients failed on every boot — video undownloadable, caused 16-min crash loop (migration 034)"}'::jsonb
+      WHERE  youtube_id = 'MTG_cjkK8XQ'
+        AND  status != 'failed'
+    `);
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video MTG_cjkK8XQ permanently undownloadable (migration 034)'
+      WHERE  status IN ('scheduled','pending','queued')
+        AND  metadata->>'sourceYoutubeId' = 'MTG_cjkK8XQ'
+    `);
+    // General sweep: any vault entry with failCount >= 3 that is still in an
+    // active state.  The server crashes before reaching 5, so we lower the bar.
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"reason":"Auto-failed by migration 034: failCount >= 3 and still active — video undownloadable"}'::jsonb
+      WHERE  status IN ('indexed', 'queued', 'downloading')
+        AND  (metadata->>'failCount') ~ '^[0-9]+$'
+        AND  (metadata->>'failCount')::int >= 3
+    `);
+    const swept = (result as any).rowCount ?? 0;
+    log.info(`[Migration 034] Permanently failed MTG_cjkK8XQ + swept ${swept} other high-failCount active vault entries`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 034] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1795,6 +1844,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration031FailLfupu2iliBw();
     await migration032FixPs5GameFallbacks();
     await migration033RescheduleLongFormFromJune11();
+    await migration034FailMTGcjkK8XQ();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
