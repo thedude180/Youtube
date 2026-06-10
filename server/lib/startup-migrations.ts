@@ -1700,6 +1700,46 @@ async function migration032FixPs5GameFallbacks(): Promise<void> {
   }
 }
 
+// ── Migration 033: Reschedule long-form clips to daily cadence from June 11 ───
+
+async function migration033RescheduleLongFormFromJune11(): Promise<void> {
+  const FLAG = "migration_033_longform_daily_from_june11";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Items ordered by their original scheduled_at, reassigned to Jun 11+ (one per day).
+    // Time-of-day is preserved from the original schedule; only the date shifts.
+    const schedule: Array<{ id: number; newDate: string }> = [
+      { id: 39343, newDate: "2026-06-11 07:42:17" },
+      { id: 39370, newDate: "2026-06-12 09:50:51" },
+      { id: 39377, newDate: "2026-06-13 20:05:36" },
+      { id: 39378, newDate: "2026-06-14 20:38:27" },
+      { id: 39379, newDate: "2026-06-15 19:30:50" },
+      { id: 39380, newDate: "2026-06-16 20:23:35" },
+      { id: 34970, newDate: "2026-06-17 20:31:43" },
+      { id: 39320, newDate: "2026-06-18 19:03:28" },
+      { id: 39322, newDate: "2026-06-19 20:31:07" },
+      { id: 39323, newDate: "2026-06-20 20:13:53" },
+      { id: 39321, newDate: "2026-06-21 20:39:04" },
+    ];
+
+    let updated = 0;
+    for (const { id, newDate } of schedule) {
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET    scheduled_at = ${newDate}::timestamptz
+        WHERE  id = ${id}
+          AND  status IN ('scheduled','pending')
+      `);
+      updated++;
+    }
+
+    log.info(`[Migration 033] Rescheduled ${updated} long-form items to daily cadence from 2026-06-11`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 033] Reschedule failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1736,6 +1776,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration030FailPo4WNli5ZLY();
     await migration031FailLfupu2iliBw();
     await migration032FixPs5GameFallbacks();
+    await migration033RescheduleLongFormFromJune11();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     await verifyAllMigrationFlags();
