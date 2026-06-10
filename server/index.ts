@@ -67,6 +67,7 @@ import fs from "fs";
 import path from "path";
 import { jitter } from "./lib/timer-utils";
 import { checkDependencies, getDependencyStatus } from "./lib/dependency-check";
+import { isEnabled } from "./config/service-gates";
 
 // Kick off ffmpeg + yt-dlp downloads immediately (no-op if already present).
 // Runs in parallel with server startup so binaries are ready before any
@@ -3214,19 +3215,23 @@ httpServer.listen(
       if (!LITE_MODE) { try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); } }
       if (!LITE_MODE) { try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); } }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
-      import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(slog("AgentExplanationContract"))).catch(slog("seed-schema-registry import"));
-      import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(slog("seedSignalRegistry"));
-      import("./kernel/seed").then(m => m.seedKernelData()).catch(slog("seedKernelData"));
-      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(slog("registerSmartEditCommand"));
-      import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(slog("seedDegradationPlaybooks"));
-      import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(slog("seedCapabilityRegistry"));
-      import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(slog("seedDefaultSkills"));
-      import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
+      if (isEnabled("kernel-seeds")) {
+        import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(slog("AgentExplanationContract"))).catch(slog("seed-schema-registry import"));
+        import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(slog("seedSignalRegistry"));
+        import("./kernel/seed").then(m => m.seedKernelData()).catch(slog("seedKernelData"));
+        import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(slog("registerSmartEditCommand"));
+        import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(slog("seedDegradationPlaybooks"));
+        import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(slog("seedCapabilityRegistry"));
+        import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(slog("seedDefaultSkills"));
+        import("./live-ops/event-triggers").then(m => m.seedDefaultLiveTriggers()).catch(slog("seedDefaultLiveTriggers"));
+      }
     });
 
     // ── Crash recovery check: email owner if last shutdown was unplanned ────────
     wave(() => {
-      import("./services/critical-alert").then(m => m.checkAndReportCrashRecovery()).catch(() => {});
+      if (isEnabled("critical-alert")) {
+        import("./services/critical-alert").then(m => m.checkAndReportCrashRecovery()).catch(() => {});
+      }
     });
 
     // ── Notification cleanup wave ─────────────────────────────────────────────
@@ -3262,15 +3267,17 @@ httpServer.listen(
       const DLQ_INTERVAL_MS = parseInt(process.env.DLQ_INTERVAL_MS || "300000");
       const DIGEST_INTERVAL_MS = parseInt(process.env.DIGEST_INTERVAL_MS || "3600000");
       const dlqInterval = setInterval(() => { processDeadLetterQueue().catch(slog("processDeadLetterQueue")); }, jitter(DLQ_INTERVAL_MS));
-      const digestInterval = setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, jitter(DIGEST_INTERVAL_MS));
+      const digestInterval = isEnabled("notification-digests")
+        ? setInterval(() => { processAllDigests().catch(slog("processAllDigests")); }, jitter(DIGEST_INTERVAL_MS))
+        : null;
       const notifCleanup = setInterval(() => {
         import("./db").then(({ db }) => import("@shared/schema").then(({ notifications }) => import("drizzle-orm").then(({ and, eq, lte }) => {
           const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
           db.delete(notifications).where(and(eq(notifications.read, true), lte(notifications.createdAt, cutoff))).then(() => {});
         }))).catch(slog("notifCleanup"));
       }, jitter(6 * 60 * 60_000));
-      backgroundIntervals.push(dlqInterval, digestInterval, notifCleanup);
-      if (!LITE_MODE) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
+      backgroundIntervals.push(dlqInterval, ...(digestInterval ? [digestInterval] : []), notifCleanup);
+      if (!LITE_MODE && isEnabled("content-loop")) import("./content-loop").then(m => m.bootContentLoops()).catch(err => logger.error("Content loop boot failed", { error: String(err) }));
     });
 
     // ── WAVE 3: Live detection, agents, watchers ──────────────────────────────
@@ -3289,7 +3296,7 @@ httpServer.listen(
       backgroundIntervals.push(liveInterval);
       logger.info(`Live detection heartbeat started — ${LIVE_POLL_MS / 1000}s tick, per-platform throttling + dual-pipeline gate active`);
 
-      import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
+      if (isEnabled("agent-orchestrator")) import("./services/agent-orchestrator").then(m => { m.bootstrapAllUserSessions().catch(slog("bootstrapAllUserSessions")); m.startWatchdog(); }).catch(slog("agent-orchestrator import"));
       import("./services/youtube-upload-watcher").then(m => m.bootstrapUploadWatchers().catch(slog("bootstrapUploadWatchers"))).catch(slog("upload-watcher import"));
       import("./services/youtube-vod-watcher").then(m => m.bootstrapVodWatchers().catch(slog("bootstrapVodWatchers"))).catch(slog("vod-watcher import"));
 
@@ -3336,7 +3343,7 @@ httpServer.listen(
         // multistream-engine: disabled — YouTube-only mode (no Twitch/Kick/TikTok streaming)
         { label: "connection-guardian",       fn: () => { startConnectionGuardian(); } },
         { label: "stripe-init",               fn: () => initStripe().catch(err => logger.error("Stripe init failed", { error: String(err) })) },
-      ], 3_000);
+      ].filter(s => isEnabled(s.label)), 3_000);
       // copyright-guardian: deferred to T+10min — its first AI scan fires immediately
       // on init; starting early fills background AI slots before publishers are ready.
       setTimeout(() => import("./services/copyright-guardian").then(m => m.bootstrapCopyrightGuardians().catch(slog("bootstrapCopyrightGuardians"))).catch(slog("copyright-guardian import")), 10 * 60_000);
@@ -3346,13 +3353,13 @@ httpServer.listen(
     if (!LITE_MODE) wave(() => {
       tokenBudget.ready.then(() => {
         // Non-AI lightweight guards fire immediately
-        startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
-        import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
-        try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); }
+        if (isEnabled("threat-learning-engine")) startThreatLearningEngine().catch(slog("startThreatLearningEngine"));
+        if (isEnabled("injection-spike-monitor")) import("./services/injection-spike-monitor").then(m => m.startInjectionSpikeMonitor()).catch(slog("startInjectionSpikeMonitor"));
+        if (isEnabled("sentinel")) { try { startSentinel(); } catch (err: any) { logger.error("[Boot] startSentinel failed", { error: String(err) }); } }
         // AI-intensive engines staggered to T+22–26min so they never compete
         // with the publisher pipeline or Wave 6–8 services for AI slots.
-        setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
-        setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
+        if (isEnabled("community-audience-engine")) setTimeout(() => import("./services/community-audience-engine").then(m => m.startCommunityAudienceEngine()).catch(slog("startCommunityAudienceEngine")), 22 * 60_000);
+        if (isEnabled("creator-education-engine")) setTimeout(() => import("./services/creator-education-engine").then(m => m.startCreatorEducationEngine()).catch(slog("startCreatorEducationEngine")), 24 * 60_000);
         // [YOUTUBE-ONLY] brand-partnerships-engine disabled — sponsor outreach, not YouTube learning:
         // setTimeout(() => import("./services/brand-partnerships-engine").then(m => m.startBrandPartnershipsEngine()).catch(slog("startBrandPartnershipsEngine")), 26 * 60_000);
       }).catch(slog("wave5-ready-gate"));
@@ -3368,6 +3375,7 @@ httpServer.listen(
       await sequentialBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
         { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
+
         { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
         // [YOUTUBE-ONLY] ai-team-scheduler disabled — fires business agent teams (CFO, CMO, strategy, etc.):
         // { label: "ai-team-scheduler",             fn: () => import("./ai-team-engine").then(m => m.initAiTeamScheduler()).catch(slog("initAiTeamScheduler")) },
@@ -3379,7 +3387,7 @@ httpServer.listen(
         { label: "live-clip-highlighter",         fn: () => import("./services/live-clip-highlighter").then(m => m.initLiveClipHighlighter()).catch(slog("initLiveClipHighlighter")) },
         { label: "live-raid-scout",               fn: () => import("./services/live-raid-scout").then(m => m.initLiveRaidScout()).catch(slog("initLiveRaidScout")) },
         { label: "live-revenue-activator",        fn: () => import("./services/live-revenue-activator").then(m => m.initLiveRevenueActivator()).catch(slog("initLiveRevenueActivator")) },
-      ], 1_500);
+      ].filter(s => isEnabled(s.label)), 1_500);
     });
 
     // ── WAVE 7: Continuity, VOD, cache, cleanup — T+15min ────────────────────
@@ -3400,21 +3408,21 @@ httpServer.listen(
         // resilience-watchdog is registered in Wave 11 via healthBrain (with restart
         // management). Starting it here too created two concurrent instances that
         // both polled every 30s — removed to fix the duplicate-registration bug.
-      ], 3_000);
+      ].filter(s => isEnabled(s.label)), 3_000);
     });
 
     // ── WAVE 8: Content engines — marketing, daily, back-catalog ─────────────
     if (!LITE_MODE) wave(() => {
-      import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
-      import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
+      if (isEnabled("weekly-report-engine")) import("./weekly-report-engine").then(m => m.initWeeklyReportEngine()).catch(slog("initWeeklyReportEngine"));
+      if (isEnabled("daily-upload-digest")) import("./services/daily-upload-digest").then(m => m.initDailyUploadDigestEngine()).catch(slog("initDailyUploadDigestEngine"));
       import("./services/pipeline-self-heal").then(m => m.initPipelineSelfHeal()).catch(slog("initPipelineSelfHeal"));
       // Sequential AI-engine delays (relative to Wave 8 start at ~T+15min):
       // repurpose T+20min, automation T+22min, trend-rider T+24min
       setTimeout(() => import("./services/shorts-repurpose-engine").then(m => m.initShortsRepurposeEngine()).catch(slog("initShortsRepurposeEngine")), 5 * 60_000);
       // Boot-level engines required for full autonomy
-      setTimeout(() => import("./automation-engine").then(m => m.initAutomationEngine()).catch(slog("initAutomationEngine")), 7 * 60_000);
-      setTimeout(() => import("./trend-rider-engine").then(m => m.startTrendRiderEngine()).catch(slog("startTrendRiderEngine")), 9 * 60_000);
-      import("./services/trust-governance").then(m => {
+      if (isEnabled("automation-engine")) setTimeout(() => import("./automation-engine").then(m => m.initAutomationEngine()).catch(slog("initAutomationEngine")), 7 * 60_000);
+      if (isEnabled("trend-rider-engine")) setTimeout(() => import("./trend-rider-engine").then(m => m.startTrendRiderEngine()).catch(slog("startTrendRiderEngine")), 9 * 60_000);
+      if (isEnabled("trust-governance")) import("./services/trust-governance").then(m => {
         m.startBudgetResetScheduler();
         m.startOverrideReportScheduler();
       }).catch(slog("trust-governance schedulers"));
@@ -3428,7 +3436,7 @@ httpServer.listen(
       //   const iv = setInterval(() => m.runAutoThumbnailGeneration().catch(slog("runAutoThumbnailGeneration")), jitter(60 * 60_000));
       //   backgroundIntervals.push(iv);
       // }).catch(slog("auto-thumbnail-engine import"));
-      import("./marketer-engine").then(async m => {
+      if (isEnabled("marketer-engine")) import("./marketer-engine").then(async m => {
         await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
         await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
         const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
@@ -3766,7 +3774,7 @@ httpServer.listen(
         { label: "game-detection-engine",       fn: () => import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine")) },
         { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
         { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
-      ], 5_000);
+      ].filter(s => isEnabled(s.label)), 5_000);
     });
 
     // ── WAVE 10: Autonomous command engines + publishers — T+25min ───────────
@@ -3789,16 +3797,16 @@ httpServer.listen(
         { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
         { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
-      ], 8_000);
+      ].filter(s => isEnabled(s.label)), 8_000);
     });
 
-    // ── WAVE 10.5: Autonomous meta-intelligence engines — T+30min ────────────
+    // ── WAVE 10.5: Autonomous meta-intelligence engines — T+30min (gated) ─────
     // Sleeps 5min after Wave 10 (T+~26.6min): fires at T+~31.6min.
     // These 18 deep-optimization engines run in background only; none are
     // required for uploads — they compound learning over hours/days.
     // Sequential: each engine is fully inited before the next one starts.
     // 18 engines × 15s gap = ~4.5min spread; Wave 11 starts at T+~36min.
-    if (!LITE_MODE) wave(async () => {
+    if (!LITE_MODE && isEnabled("meta-intelligence")) wave(async () => {
       await sleep(5 * 60_000); // Wave 10 T+~26.6min + 5min = T+~31.6min
       await sequentialBoot([
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
@@ -3831,14 +3839,14 @@ httpServer.listen(
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
-        healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
+        if (isEnabled("sentinel")) healthBrain.register({ name: "sentinel", priority: 2, start: () => startSentinel(), stop: () => stopSentinel(), intervalMs: 30_000, maxRestarts: 5 });
         healthBrain.register({ name: "resilience-watchdog", priority: 2, start: () => startResilienceWatchdog(), stop: () => stopResilienceWatchdog(), intervalMs: 30_000, maxRestarts: 5 });
         healthBrain.register({ name: "perpetual-repair", priority: 1, start: () => startPerpetualRepair(), stop: () => stopPerpetualRepair(), intervalMs: 30 * 60_000, maxRestarts: 20 });
         logger.info("[SelfHeal] Health Brain engines registered");
       } catch (err: any) { logger.error("[SelfHeal] Health Brain registration failed", { error: String(err) }); }
 
       try {
-        webhookPipeline.register("stripe", async (payload, eventType) => {
+        if (isEnabled("stripe-webhook")) webhookPipeline.register("stripe", async (payload, eventType) => {
           const { WebhookHandlers } = await import("./webhookHandlers");
           await WebhookHandlers.processWebhook(Buffer.from(JSON.stringify(payload)), "").catch(slog("stripeWebhookProcess"));
         });
@@ -3848,9 +3856,9 @@ httpServer.listen(
         logger.info("[SelfHeal] Webhook Pipeline sources registered");
       } catch (err: any) { logger.error("[SelfHeal] Webhook Pipeline registration failed", { error: String(err) }); }
 
-      selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
+      if (isEnabled("self-healing-agent")) selfHealingAgent.diagnoseAndHeal().catch(err => logger.error("[SelfHeal] Initial diagnostic failed", { error: String(err) }));
 
-      import("./services/notification-watchdog").then(m => {
+      if (isEnabled("notification-watchdog")) import("./services/notification-watchdog").then(m => {
         m.startNotificationWatchdog();
         m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
       }).catch(slog("notificationWatchdog"));
