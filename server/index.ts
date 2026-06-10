@@ -3325,11 +3325,11 @@ httpServer.listen(
       });
     });
 
-    // ── WAVE 4: Stream agents, consistency — 3s stagger (non-AI) ────────────
+    // ── WAVE 4: Stream agents, consistency — sequential 1→2→3→4 ─────────────
     // copyright-guardian moved to T+10min: its AI scan cycle fires immediately
     // on init and would saturate background AI slots during the boot window.
-    if (!LITE_MODE) wave(() => {
-      staggeredBoot([
+    if (!LITE_MODE) wave(async () => {
+      await sequentialBoot([
         { label: "content-consistency-agent", fn: () => import("./services/content-consistency-agent").then(m => m.bootstrapConsistencyAgents().catch(slog("bootstrapConsistencyAgents"))).catch(slog("consistency-agent import")) },
         { label: "stream-agent",              fn: () => import("./services/stream-agent").then(m => m.bootstrapStreamAgents().catch(slog("bootstrapStreamAgents"))).catch(slog("stream-agent import")) },
         // tiktok-autopublisher: disabled — YouTube-only mode
@@ -3362,9 +3362,10 @@ httpServer.listen(
     // Sleeps 8min before firing: analytics/AI engines would hit background AI
     // slots within seconds of boot otherwise. Live agents are event-driven and
     // only act during active streams — safe to start at T+8–9min.
+    // Sequential: each service is fully inited before the next one starts.
     if (!LITE_MODE) wave(async () => {
       await sleep(8 * 60_000); // sequential boot gate: T+8min
-      staggeredBoot([
+      await sequentialBoot([
         { label: "analytics-intelligence-engine", fn: () => import("./services/analytics-intelligence-engine").then(m => m.startAnalyticsIntelligenceEngine()).catch(slog("startAnalyticsIntelligenceEngine")) },
         { label: "compliance-legal-engine",       fn: () => import("./services/compliance-legal-engine").then(m => m.startComplianceLegalEngine()).catch(slog("startComplianceLegalEngine")) },
         { label: "platform-policy-tracker",       fn: () => import("./services/platform-policy-tracker").then(m => m.seedDefaultPlatformRules()).catch(slog("seedDefaultPlatformRules")) },
@@ -3385,9 +3386,10 @@ httpServer.listen(
     // Wave 6 sleeps 8min; this wave adds 7 more min → fires at T+15min.
     // vod-shorts-loop first run = T+15min init + 8min internal delay = T+23min.
     // vod-continuous first run is also delayed by its own internal schedule.
+    // Sequential: Wave 8 only starts after ALL 7 services here are inited.
     if (!LITE_MODE) wave(async () => {
       await sleep(7 * 60_000); // Wave 6 = T+8min; +7min here = T+15min total
-      staggeredBoot([
+      await sequentialBoot([
         { label: "continuity-engine",           fn: () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine")) },
         { label: "log-retention",               fn: () => import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention")) },
         { label: "universal-learning-observer", fn: () => import("./services/universal-learning-observer").then(m => m.initUniversalObserver()).catch(slog("initUniversalObserver")) },
@@ -3744,11 +3746,14 @@ httpServer.listen(
     // Sleeps 5min after Wave 8 (~T+15min): fires at T+20min.
     // Prevents self-improvement, growth-flywheel, game-detection from competing
     // with the publisher pipeline and Wave 8 AI services for background slots.
+    // Sequential: each engine is fully inited before the next one starts.
+    // smart-edit-engine fn() does NOT return its Promise (10-min internal delay)
+    // so sequentialBoot moves on immediately after firing it in the background.
     if (!LITE_MODE) wave(async () => {
       await sleep(5 * 60_000); // Wave 8 ~T+15min + 5min = T+20min
-      staggeredBoot([
+      await sequentialBoot([
         { label: "performance-feedback-engine", fn: () => import("./performance-feedback-engine").then(m => m.startPerformanceFeedbackEngine()).catch(() => {}) },
-        { label: "smart-edit-engine",           fn: () => import("./smart-edit-engine").then(async m => {
+        { label: "smart-edit-engine",           fn: () => { import("./smart-edit-engine").then(async m => {
             await new Promise(r => setTimeout(r, 10 * 60_000 + Math.floor(Math.random() * 120_000)));
             const { db: database } = await import("./db");
             const { users } = await import("@shared/schema");
@@ -3757,7 +3762,7 @@ httpServer.listen(
               m.initSmartEditForAllLongVideos(u.id).catch(slog(`smartEdit(${u.id})`));
               await new Promise(resolve => setTimeout(resolve, 5000));
             }
-          }).catch(slog("smart-edit-engine import")) },
+          }).catch(slog("smart-edit-engine import")); } },
         { label: "game-detection-engine",       fn: () => import("./game-detection-engine").then(m => { const iv = m.initGameDetectionEngine(); backgroundIntervals.push(iv); }).catch(slog("initGameDetectionEngine")) },
         { label: "self-improvement-engine",     fn: () => import("./services/self-improvement-engine").then(m => { const iv = m.initSelfImprovementEngine(); backgroundIntervals.push(iv); }).catch(slog("initSelfImprovementEngine")) },
         { label: "growth-flywheel-engine",      fn: () => import("./services/growth-flywheel-engine").then(m => { const ivs = m.initGrowthFlywheelEngine(); backgroundIntervals.push(...ivs); }).catch(slog("initGrowthFlywheelEngine")) },
@@ -3767,11 +3772,11 @@ httpServer.listen(
     // ── WAVE 10: Autonomous command engines + publishers — T+25min ───────────
     // Sleeps 5min after Wave 9 (T+20min): fires at T+25min.
     // Publishers listed FIRST so they're registered before heavy AI engines.
-    // 8s stagger (up from 5s): 12 engines spread over ~96s instead of 60s,
-    // preventing a thundering herd of first-cycle AI calls at T+25min.
+    // Sequential: each engine is fully inited before the next one starts.
+    // 12 engines × 8s gap = ~96s spread; Wave 10.5 starts at T+~26.6min.
     if (!LITE_MODE) wave(async () => {
       await sleep(5 * 60_000); // Wave 9 T+20min + 5min = T+25min
-      staggeredBoot([
+      await sequentialBoot([
         { label: "shorts-clip-publisher",     fn: () => import("./services/shorts-clip-publisher").then(m => m.initShortsClipPublisher()).catch(slog("initShortsClipPublisher")) },
         { label: "long-form-clip-publisher",  fn: () => import("./services/long-form-clip-publisher").then(m => m.initLongFormClipPublisher()).catch(slog("initLongFormClipPublisher")) },
         { label: "youtube-output-scheduler",  fn: () => import("./services/youtube-output-scheduler").then(m => { backgroundIntervals.push(m.initYouTubeOutputScheduler()); }).catch(slog("initYouTubeOutputScheduler")) },
@@ -3788,15 +3793,14 @@ httpServer.listen(
     });
 
     // ── WAVE 10.5: Autonomous meta-intelligence engines — T+30min ────────────
-    // Sleeps 5min after Wave 10 (T+25min): fires at T+30min.
+    // Sleeps 5min after Wave 10 (T+~26.6min): fires at T+~31.6min.
     // These 18 deep-optimization engines run in background only; none are
     // required for uploads — they compound learning over hours/days.
-    // 15s stagger (up from 4s): 18 engines spread over ~4.5min instead of 72s.
-    // Combined with background AI tier=1 this means engines queue behind each
-    // other rather than all firing first-cycle AI calls at once.
+    // Sequential: each engine is fully inited before the next one starts.
+    // 18 engines × 15s gap = ~4.5min spread; Wave 11 starts at T+~36min.
     if (!LITE_MODE) wave(async () => {
-      await sleep(5 * 60_000); // Wave 10 T+25min + 5min = T+30min
-      staggeredBoot([
+      await sleep(5 * 60_000); // Wave 10 T+~26.6min + 5min = T+~31.6min
+      await sequentialBoot([
         { label: "engine-interval-tuner",       fn: () => import("./services/engine-interval-tuner").then(m => { backgroundIntervals.push(m.initEngineIntervalTuner()); }).catch(slog("initEngineIntervalTuner")) },
         { label: "closed-loop-attribution",     fn: () => import("./services/closed-loop-attribution").then(m => { backgroundIntervals.push(m.initClosedLoopAttribution()); }).catch(slog("initClosedLoopAttribution")) },
         { label: "prompt-evolution-engine",     fn: () => import("./services/prompt-evolution-engine").then(m => { backgroundIntervals.push(m.initPromptEvolutionEngine()); }).catch(slog("initPromptEvolutionEngine")) },
