@@ -7,7 +7,7 @@
  */
 
 import { db } from "../db";
-import { autopilotQueue, systemSettings } from "@shared/schema";
+import { autopilotQueue, systemSettings, systemIncidentLog } from "@shared/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { createLogger } from "./logger";
 import { storage } from "../storage";
@@ -1065,6 +1065,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:034:fail_MTG_cjkK8XQ",               label: "034 — permanently fail MTG_cjkK8XQ (yt-dlp all-clients storm causing 16-min crash loop)" },
   { flag: "migration:035:stamp_missing_permanent_fail",   label: "035 — stamp permanentFail:true on all failed vault entries + fail FGv-w4tvc0M/SGCq53XHces" },
   { flag: "migration:036:fail_OG1_3Dw4_storm_videos",    label: "036 — permanently fail OG1-0dE1VPA + 3Dw4UB86S9g storm videos; fix dual-column orphan queue sweep" },
+  { flag: "migration:037:seed_system_incident_log",       label: "037 — seed system_incident_log with all 30 historical crash/bug incidents for AI learning brain" },
 ];
 
 export interface MigrationHealth {
@@ -1958,6 +1959,304 @@ async function migration036FailOG1And3Dw4StormVideos(): Promise<void> {
   }
 }
 
+// ── Migration 037: seed system_incident_log ───────────────────────────────────
+
+async function migration037SeedSystemIncidentLog(): Promise<void> {
+  const FLAG = "migration:037:seed_system_incident_log";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    type Inc = {
+      incidentDate: string; category: string; service: string;
+      rootCause: string; fixDescription: string; lesson: string;
+      migrationNumber?: number; severity: string; crashesPerDay?: number;
+      status: string; tags: string[];
+    };
+    const incidents: Inc[] = [
+      {
+        incidentDate: "2026-05-01", category: "oom_crash", service: "youtube-ai-orchestrator",
+        severity: "critical", crashesPerDay: 69, status: "resolved",
+        rootCause: "STARTUP_DELAY_MS was 30-40s; orchestrator fired its first AI cycle at T+15:30, converging with back-catalog runner and grinder second run, exhausting container memory.",
+        fixDescription: "All deferred starts pushed to T+20-25min minimum (T+35-40min total); sequential boot pattern enforced across all Wave 6-11 services.",
+        lesson: "Never start an AI service with a delay shorter than 20min from boot. Back-catalog + grinder + publishers ALL converge unless staggered by ≥5min each. Wave 10 (publishers) must fire LAST, never before T+30min.",
+        tags: ["boot-timing", "ai-orchestrator", "wave-ordering"],
+      },
+      {
+        incidentDate: "2026-05-05", category: "oom_crash", service: "back-catalog-runner",
+        severity: "critical", crashesPerDay: 30, status: "resolved",
+        rootCause: "Back-catalog runner + grinder second run + publisher sweep all converged at T+10-20min; direct runGrindCycle() call from runner added a third AI workload to the same 10-min window.",
+        fixDescription: "Memory gates added to both back-catalog and grinder; grinder urgent interval raised 10→20min; direct runGrindCycle() call removed from runner.",
+        lesson: "Any two services sharing AI slots must have non-overlapping initial-delay windows, never within 5min of each other. A runner must never directly invoke another runner — let each service manage its own boot delay.",
+        tags: ["boot-timing", "convergence", "ai-slots"],
+      },
+      {
+        incidentDate: "2026-05-10", category: "ai_queue", service: "stream-exhaust-engine",
+        severity: "critical", crashesPerDay: 20, status: "resolved",
+        rootCause: "stream-exhaust while-loop spun at 4 iterations/second when AI queue was full (zero backoff), permanently holding all 4 AI semaphore slots and starving every other background service.",
+        fixDescription: "Added re-throw + 30s backoff on AI queue full; boot delays pushed to T+20-27min for stream-exhaust, self-improvement, and growth-flywheel.",
+        lesson: "Every AI slot acquisition loop MUST have a minimum 30s backoff when the queue is full — never spin on contention. A loop that holds slots without doing work is a denial-of-service against all other AI services.",
+        tags: ["ai-semaphore", "hot-loop", "backoff"],
+      },
+      {
+        incidentDate: "2026-05-12", category: "db_saturation", service: "youtube-output-schedule",
+        severity: "high", status: "resolved",
+        rootCause: "getNextShortPublishTime() executed 42 DB queries per call when the 14-day schedule was full; no cache; bulk-queue loops called it thousands of times per cycle.",
+        fixDescription: "Saturation cache added (30min TTL); isShortScheduleSaturated() guard added to all bulk-queue loops to skip the scan entirely when full.",
+        lesson: "Any 'find next available slot' function that scans a full schedule MUST cache its result with a ≥30min TTL. Add an isSaturated() fast-path guard before every bulk-queue loop — never scan a full schedule per-iteration.",
+        tags: ["schedule", "cache", "db-queries"],
+      },
+      {
+        incidentDate: "2026-05-14", category: "oom_crash", service: "youtube-output-schedule",
+        severity: "critical", crashesPerDay: 30, status: "resolved",
+        rootCause: "getNextLongFormPublishTime() missing mutex; 18+ concurrent callers all bypassed the cache and each ran the full 42-query scan simultaneously → hot-spin → health-check 500s → crash loop.",
+        fixDescription: "Added _longFormMutexTails + withLongFormScheduleMutex; double-checked locking (re-check cache inside mutex before advisory lock).",
+        lesson: "Double-checked locking is mandatory for all schedule-slot functions: (1) fast-path cache check OUTSIDE mutex, (2) re-check cache INSIDE mutex before doing any DB work. The outer check prevents cold-start storms; the inner check prevents thundering herd when cache expires simultaneously.",
+        tags: ["mutex", "double-checked-locking", "schedule", "cache"],
+      },
+      {
+        incidentDate: "2026-05-16", category: "db_saturation", service: "youtube-output-schedule",
+        severity: "critical", crashesPerDay: 18, status: "resolved",
+        rootCause: "Fast-path cache check was placed OUTSIDE the mutex; 18+ Wave 10.5 concurrent callers all saw cache miss simultaneously, queued, and each ran the full 42-query scan serially inside the mutex.",
+        fixDescription: "Cache check moved inside mutex (before advisory lock); double-checked locking pattern enforced.",
+        lesson: "The cache check that prevents DB work MUST be inside the mutex for functions called concurrently. An outer-only check creates a thundering herd the moment the cache expires — all waiters queue, then all run the expensive scan.",
+        tags: ["mutex", "cache", "concurrent-callers"],
+      },
+      {
+        incidentDate: "2026-05-18", category: "oom_crash", service: "job-queue-recovery",
+        severity: "critical", status: "resolved",
+        rootCause: "startRecoveryPump() ran an immediate sweep on boot, replaying all stale crash-session jobs and saturating all 4 AI background slots → 9MB/min heap growth → MemoryGuardian restart at T+25min → crash loop.",
+        fixDescription: "Recovery pump uses a startup delay + dedup check before replaying any job from a previous crash session.",
+        lesson: "Never run a recovery/replay sweep immediately on boot without a startup delay AND a dedup guard. Stale jobs from the crashed session are NOT safe to replay immediately — they were crashed-in-progress and replaying them recreates the crash.",
+        tags: ["boot-timing", "recovery", "ai-slots"],
+      },
+      {
+        incidentDate: "2026-05-20", category: "oom_crash", service: "shorts-publisher",
+        severity: "critical", crashesPerDay: 87, status: "resolved",
+        rootCause: "Publisher sweep started at T+17min, coinciding exactly with back-catalog runner second-run; combined AI slot contention + heap pressure exceeded container limits.",
+        fixDescription: "Publisher sweep pushed to T+40min; back-catalog runner to T+30min; 4 orchestrator agents + 3 wave-5 engines boosted from 20-90s → 5-12min initial delays.",
+        lesson: "Wave 10 (publishers) must fire LAST in the boot sequence, never before T+30min. Verify absolute T+ boot times after ANY wave change — a single wave disable can cascade timing for all subsequent waves.",
+        tags: ["boot-timing", "wave-ordering", "publishers"],
+      },
+      {
+        incidentDate: "2026-05-22", category: "oom_crash", service: "wave-11-services",
+        severity: "high", status: "resolved",
+        rootCause: "When Wave 10.5 was disabled, Wave 11 fired at T+30.5min instead of T+35min; combined with grinder/back-catalog/VOD-optimizer convergence → OOM at T+35min.",
+        fixDescription: "Wave 11 sleep 5→15min; VOD optimizer 16→32min; grinder startup 4→10min.",
+        lesson: "Always verify absolute T+ boot times after any wave changes — conditional wave execution changes absolute timing of all downstream waves. Never assume a wave fires at its intended time without checking the enabled/disabled chain.",
+        tags: ["boot-timing", "wave-ordering"],
+      },
+      {
+        incidentDate: "2026-05-25", category: "hot_loop", service: "shorts-publisher",
+        severity: "high", status: "resolved",
+        rootCause: "Publisher treated 'all-skipped' batches (published==0, failed==0) as 'work done' with only a 2s retry delay, creating an infinite tight loop when the channel had no OAuth token.",
+        fixDescription: "Added a third outcome branch: published==0 && failed==0 → long idle backoff (90s for shorts, 2min for long-form).",
+        lesson: "Publisher loops MUST have exactly 3 outcome branches: (1) published>0 → short delay, (2) failed>0 → error delay, (3) all-skipped → long idle backoff ≥90s. Missing the third branch creates a tight loop on any non-error no-op condition.",
+        tags: ["publisher", "backoff", "hot-loop"],
+      },
+      {
+        incidentDate: "2026-05-27", category: "hot_loop", service: "shorts-publisher",
+        severity: "high", status: "resolved",
+        rootCause: "When a channel had no OAuth token, publisher reset the queue item to 'scheduled' without advancing scheduledAt → item picked up again every 90s indefinitely. Ghost channel rows (lower DB id) were silently selected first.",
+        fixDescription: "No-token branch now sets scheduledAt = NOW() + 4h; all services now use .find(c => c.accessToken) to prefer channels WITH a token.",
+        lesson: "When deferring a queue item due to missing OAuth token, ALWAYS advance scheduledAt by at least 4h. Always filter channel selection to channels with an active accessToken — ghost rows with lower IDs get selected first silently.",
+        tags: ["publisher", "oauth", "queue-scheduling"],
+      },
+      {
+        incidentDate: "2026-05-30", category: "hot_loop", service: "back-catalog-engine",
+        severity: "high", status: "resolved",
+        rootCause: "Back-catalog meta-update loop iterated ALL ~200 catalog videos at T+16min without any quota check. pushToYouTube() swallowed QUOTA_EXCEEDED errors without tripping the breaker → every iteration burned a full Claude call.",
+        fixDescription: "pushToYouTube() now trips quota breaker on QUOTA_EXCEEDED; loop capped at 25 videos/cycle with mid-loop breaker check.",
+        lesson: "All bulk YouTube API loops MUST: (1) check the quota breaker before each call, (2) cap iterations at ≤25/cycle, (3) have pushToYouTube trip the breaker on quota errors — not swallow them. Swallowed quota errors cause silent infinite burns.",
+        tags: ["quota", "bulk-loop", "quota-breaker"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "oom_crash", service: "content-grinder",
+        severity: "critical", crashesPerDay: 20, status: "resolved",
+        rootCause: "4 stacked bugs: (1) getGrindQueueDepth excluded overdue items via scheduledAt>=NOW filter → false URGENT mode; (2) 5-min madeProgress follow-up caused T+9min AI convergence; (3) catalog sync at T+10min too early; (4) VODSEOOptimizer had no concurrency limit → held all 4 AI slots.",
+        fixDescription: "Fixed queue depth query to include overdue items; removed madeProgress follow-up; delayed catalog sync; added concurrency limit to VODSEOOptimizer.",
+        lesson: "Queue depth queries that include a time filter can misreport URGENT mode — always include overdue items in the depth count. A follow-up cycle with a 5min delay can recreate T+9min convergence even when initial delays are set correctly.",
+        tags: ["grinder", "queue-depth", "ai-slots", "overdue-items"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "vault_failure", service: "video-vault",
+        severity: "critical", status: "resolved",
+        rootCause: "queueVaultDownloadForSource() had no permanent-failure return path; both publishers looped forever on undownloadable source videos because the vault function never signalled 'give up'.",
+        fixDescription: "Added 'download_failed' return + __vault_source_unavailable__ signal; Migration 019 cleaned up deadlocked queue items on boot.",
+        migrationNumber: 19,
+        lesson: "Any function that gates publishing on a vault download MUST return a permanent-failure sentinel when the download is impossible. Callers must treat that sentinel as 'skip this source forever', not 'retry next cycle'.",
+        tags: ["vault", "permanent-failure", "publisher-gate"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "vault_failure", service: "video-vault",
+        severity: "high", status: "resolved",
+        rootCause: "Vault filled disk to 0.0GB; processVaultDownloads callers re-invoked immediately after break with no backoff. One permanently undownloadable video (sWCir3U6m_U) kept retrying with no self-limiting.",
+        fixDescription: "_vaultDiskFullUntil 2h backoff cache at <0.5GB free; Migration 021 set failCount=10 for sWCir3U6m_U.",
+        migrationNumber: 21,
+        lesson: "Disk-full conditions MUST gate all vault downloads for ≥2h via a backoff cache — never retry a disk-full condition on the next loop tick. Any permanently undownloadable video that caused the fill must be explicitly failed via a named startup migration.",
+        tags: ["vault", "disk-full", "backoff"],
+      },
+      {
+        incidentDate: "2026-06-02", category: "storm_video", service: "clip-video-processor",
+        severity: "critical", status: "resolved",
+        rootCause: "Videos all extractors reject cause 40-60min/round yt-dlp storms. If the server crashes before failCount reaches the threshold (5), the storm never self-limits and restarts on every boot.",
+        fixDescription: "Named startup migrations set failCount=10 for known storm videos on boot; general threshold lowered to failCount≥3 (Migration 034) so the per-boot sweep catches videos before a 5th crash.",
+        migrationNumber: 34,
+        lesson: "Storm-candidate videos MUST be explicitly failed via named startup migrations — never rely on the organic failCount accumulating to a threshold when server crashes reset progress. Threshold of 5 never self-heals across crashes; use failCount≥3 for the general sweep.",
+        tags: ["vault", "storm-video", "startup-migration"],
+      },
+      {
+        incidentDate: "2026-06-02", category: "storm_video", service: "clip-video-processor",
+        severity: "critical", status: "resolved",
+        rootCause: "When ALL InnerTube clients return HTTP 400 for the same video, the caller fell through to yt-dlp 'No video formats found' storm instead of immediately marking the video as permanently unavailable.",
+        fixDescription: "Per-client http400FailCount tracking; when all clients return HTTP 400, throw PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS immediately so caller permanently skips without starting a yt-dlp storm.",
+        migrationNumber: 28,
+        lesson: "Track per-client HTTP 400 count in vault metadata. If ALL InnerTube clients return 400 for the same video, immediately throw PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS — never fall through to yt-dlp. yt-dlp will also fail and its failure storm is orders of magnitude more expensive.",
+        tags: ["vault", "innertube", "http-400", "storm-video"],
+      },
+      {
+        incidentDate: "2026-06-02", category: "vault_failure", service: "video-vault",
+        severity: "high", status: "resolved",
+        migrationNumber: 26,
+        rootCause: "Startup migrations set permanentFail:true in vault metadata, but vault entries kept status='indexed'/'downloading'. All vault SELECT queries and download-queue functions only checked status='failed', so the permanentFail flag was silently ignored and the downloader kept retrying.",
+        fixDescription: "permanentFail guard added to all vault SELECT queries and queueVaultDownloadForSource(); Migration 026 swept all indexed/downloading entries with permanentFail:true to status=failed.",
+        lesson: "The permanentFail:true metadata flag MUST be checked in ALL vault SELECT queries and download-queue functions, not just status='failed'. A vault entry can have permanentFail:true while still showing as 'indexed' or 'downloading' when migrations run between the status write and the flag write.",
+        tags: ["vault", "permanent-fail", "metadata-flag"],
+      },
+      {
+        incidentDate: "2026-06-03", category: "hot_loop", service: "clip-video-processor",
+        severity: "critical", status: "resolved",
+        rootCause: "yt-dlp spawned with execFileAsync; timeout sent SIGTERM. yt-dlp ignores SIGTERM when stuck in kernel I/O or when its --js-runtimes Node child is spinning → Promise never resolves → Node event loop stalls for hours.",
+        fixDescription: "spawnYtDlpWithHardTimeout() uses spawn(detached:true) + process.kill(-pid, 'SIGKILL') to kill the entire process group; 8-min hard limit enforced via SIGKILL not SIGTERM.",
+        lesson: "yt-dlp MUST always be spawned with detached:true so SIGKILL can kill the entire process group (including child processes). SIGTERM alone is insufficient — yt-dlp ignores it during kernel I/O. Hard timeout must be enforced with SIGKILL, not SIGTERM.",
+        tags: ["ytdlp", "sigkill", "process-group", "event-loop-stall"],
+      },
+      {
+        incidentDate: "2026-06-03", category: "hot_loop", service: "clip-video-processor",
+        severity: "high", status: "resolved",
+        rootCause: "yt-dlp stall watcher reset stalledMs=0 when the output file had not yet been created (currentSize===-1), so a process hung in the auth/metadata startup phase ran the full 2h hard timeout completely unchecked.",
+        fixDescription: "Added separate startupMs tracking; kills after 3min if the output file never appears; default hardTimeoutMs reduced from 2h to 20min.",
+        lesson: "yt-dlp stall detection must separately track two phases: startup (waiting for file to be created, max 3min) and download progress (file exists, monitor size growth). Default hard timeout must never exceed 20min — 2h was effectively no limit.",
+        tags: ["ytdlp", "stall-detection", "startup-phase"],
+      },
+      {
+        incidentDate: "2026-06-03", category: "oom_crash", service: "video-vault",
+        severity: "critical", status: "resolved",
+        migrationNumber: 31,
+        rootCause: "Vault entries with permanentFail:true in metadata but status≠failed held yt-dlp gate slots for up to 8min each (full hard timeout). Multiple such entries converged at T+44min → container OOM.",
+        fixDescription: "Migration 031 sweeps ALL vault entries where permanentFail:true AND status != 'failed' to status=failed on every boot, before any yt-dlp gate slot can be acquired.",
+        lesson: "On every boot, BEFORE any yt-dlp work starts, sweep all vault entries where metadata->>'permanentFail'='true' AND status != 'failed' to status='failed'. This is non-negotiable — permanentFail entries must never hold yt-dlp gate slots.",
+        tags: ["vault", "permanent-fail", "slot-starvation", "startup-sweep"],
+      },
+      {
+        incidentDate: "2026-06-04", category: "hot_loop", service: "token-hourly-cap",
+        severity: "high", status: "resolved",
+        rootCause: "checkDailyTokenBudget() had zero deduplication. Any service polling at 2-4s intervals triggered the 'daily budget exhausted' log on every tick → event loop saturation from log spam and repeated DB queries.",
+        fixDescription: "_dailyExhaustedCache Map in token-hourly-cap.ts deduplicates per-key; self-invalidates at UTC midnight via dateKey mismatch.",
+        lesson: "Budget and cap checks called from polling loops MUST be deduplicated with a per-key cache that expires at the reset boundary (UTC midnight for daily, top of hour for hourly). A budget check that fires on every poll tick with no dedup will saturate the event loop.",
+        tags: ["token-budget", "dedup", "polling-loop"],
+      },
+      {
+        incidentDate: "2026-06-04", category: "schema_bug", service: "back-catalog-engine",
+        severity: "high", status: "resolved",
+        rootCause: "refreshFailedVaultIds() only queried status='failed' to build the blocked-video-ID set. Videos with permanentFail:true in metadata but status='indexed' were not included → back-catalog engine kept re-queuing permanently failed videos in a cycle.",
+        fixDescription: "Query updated to include status='failed' OR metadata->>'permanentFail'='true' so the blocked set covers both status-based and metadata-based permanent failures.",
+        migrationNumber: 37,
+        lesson: "Any query that builds a 'blocked video IDs' set for the back-catalog engine MUST include both status='failed' AND metadata->>'permanentFail'='true', regardless of status. Using only status misses all videos permanently failed by a migration before their status was updated.",
+        tags: ["back-catalog", "permanent-fail", "vault-query"],
+      },
+      {
+        incidentDate: "2026-06-04", category: "schema_bug", service: "startup-migrations",
+        severity: "high", status: "resolved",
+        rootCause: "cleanupOrphanedQueueItems() Step 3 checked only metadata->>'sourceYoutubeId' (JSONB field). Drizzle ORM inserts populate the source_youtube_id column directly. The column was never checked → all migrations 034/035 orphan queue cancellations silently missed every queue item.",
+        fixDescription: "Orphan sweep now checks BOTH source_youtube_id column (Drizzle ORM inserts) AND metadata->>'sourceYoutubeId' JSONB field in a single OR condition.",
+        migrationNumber: 36,
+        lesson: "autopilot_queue orphan sweeps MUST check BOTH source_youtube_id (the Drizzle ORM column) AND metadata->>'sourceYoutubeId' (the JSONB field). Drizzle ORM and legacy code populate different fields for the same concept — checking only one silently misses the other.",
+        tags: ["queue", "orphan-sweep", "drizzle-vs-jsonb"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "schema_bug", service: "channel-management",
+        severity: "medium", status: "resolved",
+        rootCause: "deleteChannel() included youtube_output_metrics (no channel_id column) and token_vault (doesn't exist in prod) inside the main transaction → transaction rolled back → 500 error on channel disconnect.",
+        fixDescription: "Schema tables deleted inside loops; non-schema raw-SQL table deletions moved outside transaction in try/catch.",
+        lesson: "deleteChannel() must never include non-Drizzle-schema tables inside the main transaction. Raw-SQL table deletions go outside tx in try/catch — a failed drop of a non-essential table must not roll back the entire channel deletion.",
+        tags: ["delete-channel", "transaction", "raw-sql"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "schema_bug", service: "all-services",
+        severity: "critical", status: "resolved",
+        rootCause: "p-limit v5+ and other pure-ESM packages crash the CJS production build on boot with 'require() of ES Module' error — silent in dev, fatal in prod.",
+        fixDescription: "Reverted p-limit to v3; any ESM-only package now requires dynamic import() in server code.",
+        lesson: "Before importing ANY new npm package into server code, check its package.json for '\"type\": \"module\"'. Pure-ESM packages crash the CJS prod build silently during dev testing. Use p-limit v3, not v5+. If ESM-only is unavoidable, use dynamic import().",
+        tags: ["esm", "cjs", "production-build", "p-limit"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "schema_bug", service: "game-detection",
+        severity: "medium", status: "resolved",
+        migrationNumber: 32,
+        rootCause: "9 services hardcoded 'PS5 Gameplay'/'PS5 Gaming' as the default gameName when game detection failed. This contaminated titles and metadata for BF6 content with irrelevant PS5 branding.",
+        fixDescription: "All hardcoded game name fallbacks replaced with getFocusGame(); Migration 032 scrubbed existing contaminated queue items.",
+        lesson: "NEVER hardcode a game name as a fallback in any service. Always call getFocusGame() which reads the current focus from system_settings. Hardcoded fallbacks persist for months and contaminate titles, metadata, and thumbnails channel-wide.",
+        tags: ["game-detection", "focus-game", "title-contamination"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "vault_failure", service: "pre-encoder",
+        severity: "medium", status: "resolved",
+        rootCause: "Auto-clip content type was unconditionally treated as a long-form signal; back-catalog Shorts were encoded as 16:9 landscape and landed on the regular video shelf instead of the Shorts shelf.",
+        fixDescription: "isShortContent() (based on contentType) added as a veto over type-based isLongForm detection; dual-field timestamp fallback (startSec ?? segmentStartSec) added.",
+        lesson: "isLongForm determination MUST check contentType first (isShortContent veto) before checking duration or clip type. A clip type of 'auto-clip' alone is insufficient — a <60s auto-clip is a Short, not a long-form video.",
+        tags: ["pre-encoder", "shorts-shelf", "content-type"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "quota_breach", service: "youtube-quota-tracker",
+        severity: "high", status: "resolved",
+        rootCause: "Quota breaker tripped at T+17min after prod boot despite only 857 tracked units (well below 10k limit). True caller not identified because callerStack logging was absent.",
+        fixDescription: "CallerStack logging added to tripGlobalQuotaBreaker(); publishers confirmed to run at midnight Pacific via quota reset cron regardless of daytime trips.",
+        lesson: "Add callerStack logging to every quota-breaker trip call so the true caller is always identifiable. A quota breaker trip does NOT necessarily mean the 10k daily limit was hit — verify the actual unit count with callerStack before investigating further.",
+        tags: ["quota", "quota-breaker", "caller-stack"],
+      },
+      {
+        incidentDate: "2026-06-01", category: "other", service: "youtube-analytics-intelligence",
+        severity: "medium", status: "resolved",
+        rootCause: "YouTube Analytics API takes >15s in production; AbortSignal.timeout was set too short → analytics calls timed out and analytics-intelligence-engine fired quota-heavy scan on first boot wave.",
+        fixDescription: "AbortSignal.timeout raised to ≥30s; analytics-intelligence-engine boot warmup set to ≥3min after Wave 6.",
+        lesson: "YouTube Analytics API MUST use AbortSignal.timeout(30000) minimum in production — it routinely takes >15s. Analytics engines must not scan on first boot — minimum 3min warmup after the OAuth token wave completes.",
+        tags: ["analytics", "timeout", "abort-signal"],
+      },
+    ];
+
+    // Insert all incidents. ON CONFLICT DO NOTHING to keep idempotency if
+    // the migration somehow runs partially then re-runs.
+    let inserted = 0;
+    for (const inc of incidents) {
+      try {
+        await db.insert(systemIncidentLog).values({
+          incidentDate:        inc.incidentDate,
+          category:            inc.category,
+          service:             inc.service,
+          rootCause:           inc.rootCause,
+          fixDescription:      inc.fixDescription,
+          lesson:              inc.lesson,
+          migrationNumber:     inc.migrationNumber ?? null,
+          severity:            inc.severity,
+          crashesPerDay:       inc.crashesPerDay ?? null,
+          status:              inc.status,
+          tags:                inc.tags,
+          autoDetected:        false,
+          promotedToKnowledge: false,
+        } as any);
+        inserted++;
+      } catch {
+        // duplicate or constraint violation — skip silently
+      }
+    }
+
+    log.info(`[Migration 037] Seeded ${inserted}/${incidents.length} system incident records`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 037] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Per-boot vault storm prevention sweep (non-flagged — runs every restart) ──
 // The flagged migrations only run once.  New storm videos emerge on every boot
 // as the back-catalog engine queues fresh items for videos that were healthy at
@@ -2076,6 +2375,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration034FailMTGcjkK8XQ();
     await migration035StampMissingPermanentFail();
     await migration036FailOG1And3Dw4StormVideos();
+    await migration037SeedSystemIncidentLog();
+    
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     // Non-flagged per-boot vault storm prevention — runs every restart.

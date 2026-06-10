@@ -10592,3 +10592,34 @@ export const errorResolutions = pgTable("error_resolutions", {
   index("er_last_seen_idx").on(t.lastSeenAt),
 ]);
 export type ErrorResolution = typeof errorResolutions.$inferSelect;
+
+// ── System Incident Log (Living Institutional Memory) ─────────────────────────
+// Every structural bug, root cause, fix, and lesson learned — across all crashes,
+// hot-loops, storms, schema bugs, and architectural fixes.  Builds forever.
+// The learning brain reads this daily and promotes high-recurrence lessons into
+// masterKnowledgeBank so they flow into every AI prompt automatically.
+// Never purged — this is the full operational history of CreatorOS.
+export const systemIncidentLog = pgTable("system_incident_log", {
+  id:             serial("id").primaryKey(),
+  incidentDate:   text("incident_date").notNull(),              // ISO date string "YYYY-MM-DD"
+  category:       text("category").notNull(),                   // see INCIDENT_CATEGORIES below
+  service:        text("service").notNull(),                    // affected service/module
+  rootCause:      text("root_cause").notNull(),                 // what caused it
+  fixDescription: text("fix_description").notNull(),            // what resolved it
+  lesson:         text("lesson").notNull(),                     // durable rule for the learning brain
+  migrationNumber: integer("migration_number"),                  // startup migration that fixed it (if any)
+  severity:       text("severity").notNull().default("high"),   // critical | high | medium | low
+  crashesPerDay:  integer("crashes_per_day"),                   // measured impact before fix
+  status:         text("status").notNull().default("resolved"), // resolved | monitoring | active
+  tags:           text("tags").array().default([]),
+  autoDetected:   boolean("auto_detected").notNull().default(false),
+  promotedToKnowledge: boolean("promoted_to_knowledge").notNull().default(false),
+  createdAt:      timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("sil_date_idx").on(t.incidentDate),
+  index("sil_category_idx").on(t.category),
+  index("sil_severity_idx").on(t.severity),
+  index("sil_promoted_idx").on(t.promotedToKnowledge),
+  index("sil_status_idx").on(t.status),
+]);
+export type SystemIncident = typeof systemIncidentLog.$inferSelect;

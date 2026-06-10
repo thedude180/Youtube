@@ -42,6 +42,7 @@ import {
 import { refreshSuccessDNA } from "../lib/success-dna";
 import { recordEngineKnowledge } from "./knowledge-mesh";
 import { runCohortAnalysis } from "./generation-cohort-tracker";
+import { promoteIncidentLessonsToKnowledge } from "../lib/incident-log";
 
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
@@ -243,7 +244,20 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.warn(`[Brain] refreshSuccessDNA failed (non-fatal): ${dnaErr.message?.slice(0, 120)}`);
     }
 
-    // 9b. Measure generation-over-generation improvement velocity.
+    // 9b. Promote unlearned system incident lessons into masterKnowledgeBank.
+    //     Any high/critical severity resolved incident that hasn't been promoted yet
+    //     gets written as a "system_lesson" principle so every AI agent is aware of
+    //     the system's failure modes and the rules that prevent them from recurring.
+    try {
+      const promoted = await promoteIncidentLessonsToKnowledge(userId);
+      if (promoted > 0) {
+        logger.info(`[Brain] Promoted ${promoted} system incident lessons → masterKnowledgeBank`);
+      }
+    } catch (incErr: any) {
+      logger.debug(`[Brain] promoteIncidentLessons non-fatal: ${incErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9c. Measure generation-over-generation improvement velocity.
     //     Groups content by ISO week and writes a velocity signal to masterKnowledgeBank
     //     so the orchestrator knows if recent changes are actually helping or hurting.
     try {
