@@ -330,6 +330,13 @@
       "when": 1781049228369,
       "tag": "0046_dizzy_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1781131625645,
+      "tag": "0047_bumpy_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }
