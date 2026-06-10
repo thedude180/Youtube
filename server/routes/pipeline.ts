@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
 import { contentPipeline, streamPipelines, videos, videoUpdateHistory, PIPELINE_STEPS } from "@shared/schema";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, like } from "drizzle-orm";
 import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 import { cached } from "../lib/cache";
@@ -298,6 +298,21 @@ export async function executePipelineInBackground(id: number, videoTitle: string
       currentStep: "schedule",
     })
     .where(eq(contentPipeline.id, id));
+
+  // Success signal: this pipeline completed, meaning AI slots are available.
+  // Wake up all pipelines that were cooling down due to "AI queue full" so
+  // the drip-feed can try them immediately rather than waiting 20 min for
+  // the self-heal cycle. This is the "follow why it worked → reschedule the
+  // failed ones" pattern: one success means the queue drained, so retry all.
+  db.update(contentPipeline)
+    .set({ status: "pending", errorMessage: null })
+    .where(
+      and(
+        eq(contentPipeline.status, "error"),
+        like(contentPipeline.errorMessage, "%AI queue full%")
+      )
+    )
+    .catch(() => {}); // fire-and-forget — non-critical
 }
 
 export async function createPipelineForStream(userId: string, streamTitle: string, mode: "live" | "replay" = "live") {

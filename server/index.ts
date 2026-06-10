@@ -1170,7 +1170,28 @@ async function healProductionPipeline(): Promise<void> {
             contentPipeline.createdAt,
           )
           .limit(20); // check up to 20 candidates so we can skip cooled-down ones
-        if (pending.length === 0) return; // nothing pending — silently wait for next tick
+        if (pending.length === 0) {
+          // No pending pipelines. Check if any are cooling down due to AI queue
+          // full — if so, surface one to retry. Once the AI queue drains, one
+          // will succeed and the success-signal in pipeline.ts wakes up the rest.
+          const [cooled] = await db.select({ id: contentPipeline.id, videoTitle: contentPipeline.videoTitle, mode: contentPipeline.mode, stepResults: contentPipeline.stepResults, completedSteps: contentPipeline.completedSteps })
+            .from(contentPipeline)
+            .where(
+              and(
+                eq(contentPipeline.status, "error"),
+                like(contentPipeline.errorMessage, "%AI queue full%")
+              )
+            )
+            .orderBy(contentPipeline.createdAt)
+            .limit(1);
+          if (!cooled) return; // nothing to retry — wait for next tick
+          // Reset to pending so it can be picked up this tick or next
+          await db.update(contentPipeline)
+            .set({ status: "pending", errorMessage: null })
+            .where(eq(contentPipeline.id, cooled.id));
+          process.stdout.write(`[prod-heal] Drip-feed re-surfaced cooled pipeline ${cooled.id} (AI queue may have drained)\n`);
+          return; // pick it up next tick via the pending path
+        }
 
         const now = Date.now();
         const next = pending.find(p => {
@@ -1346,7 +1367,7 @@ import { anomalyResponder } from "./services/anomaly-responder";
 import { continuousAudit } from "./services/continuous-audit";
 import { webhookPipeline } from "./services/webhook-pipeline";
 import { userAutonomousSettings, autonomousActionLog, dailyBriefings, growthPlans, revenueStrategies } from "@shared/schema";
-import { eq, and, gt, desc, sql } from "drizzle-orm";
+import { eq, and, gt, desc, sql, like } from "drizzle-orm";
 import { sendSSEEvent } from "./routes/events";
 import { fireAgentEvent } from "./services/agent-events";
 import { startLifecycleManager, stopLifecycleManager, stopAllLifecycleManagers } from "./services/stream-lifecycle";
