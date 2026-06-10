@@ -1299,8 +1299,10 @@ export function startContentGrinder(): void {
     });
   }
 
-  // Initial run after 4 min (preserve existing startup delay — lets boot
-  // migrations and queue purge finish before first grind).
+  // Initial run after 10 min — pushed from 4 min to avoid the T+29-35min
+  // convergence window where back-catalog runner (T+25-30min), Wave 11
+  // (T+40min), and VOD optimizer (T+47min) all compete for memory/AI slots.
+  // Wave 10 fires at T+25min, so this first grind runs at T+35min.
   grindTimer = setTimeout(() => {
     grinderRunning = true;
     runGrindCycle()
@@ -1310,7 +1312,7 @@ export function startContentGrinder(): void {
         grinderRunning = false;
         scheduleNextGrind();
       });
-  }, 240_000);
+  }, 600_000);
 
   logger.info("Relentless Content Grinder started — adaptive perpetual mode (10 min–60 min based on queue depth)");
 }

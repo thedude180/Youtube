@@ -3465,7 +3465,7 @@ httpServer.listen(
       // Re-enable once upload cadence is stable and quota increase is approved.
       // import("./auto-thumbnail-engine").then(async m => { ... }).catch(slog("auto-thumbnail-backfill import"));
       import("./vod-optimizer-engine").then(async m => {
-        await new Promise(r => setTimeout(r, 16 * 60_000)); // T+15+16=T+31min
+        await new Promise(r => setTimeout(r, 32 * 60_000)); // T+15+32=T+47min (was 16min→T+31min; pushed to avoid T+29-35min convergence window)
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
         const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(2 * 60 * 60_000));
         backgroundIntervals.push(iv);
@@ -3830,12 +3830,14 @@ httpServer.listen(
       ], 15_000);
     });
 
-    // ── WAVE 11: Self-healing, webhook pipeline, health brain — T+35min ──────
-    // Sleeps 5min after Wave 10.5 (T+30min): fires at T+35min.
-    // Self-healing and webhooks have no dependency on the upload pipeline;
-    // deferring prevents health-check restarts during the busy T+0–30min window.
+    // ── WAVE 11: Self-healing, webhook pipeline, health brain — T+40min ──────
+    // NOTE: When meta-intelligence is disabled (Wave 10.5 skipped), the wave chain
+    // advances directly from Wave 10 (~T+25.5min) to Wave 11. A 5-min sleep here
+    // would fire Wave 11 at T+30.5min, colliding with back-catalog runner
+    // (T+25-30min), grinder (T+35min), and VOD optimizer (T+47min).
+    // Using 15min sleep so Wave 11 fires at T+40min regardless of Wave 10.5 state.
     if (!LITE_MODE) wave(async () => {
-      await sleep(5 * 60_000); // Wave 10.5 T+30min + 5min = T+35min
+      await sleep(15 * 60_000); // Wave 10 ~T+25.5min + 15min = T+40.5min
       try {
         healthBrain.register({ name: "autopilot-monitor", priority: 2, start: () => startAutopilotMonitor(), stop: () => stopAutopilotMonitor(), intervalMs: 60_000, maxRestarts: 5 });
         healthBrain.register({ name: "connection-guardian", priority: 1, start: () => startConnectionGuardian(), stop: () => stopConnectionGuardian(), intervalMs: 60_000, maxRestarts: 10 });
