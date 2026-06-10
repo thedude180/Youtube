@@ -5,7 +5,7 @@ import * as path from "path";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, inArray, desc, sql, gte } from "drizzle-orm";
-import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, abTestResults, linkedChannels } from "@shared/schema";
+import { brandAssets, competitorTracks, knowledgeMilestones, gettingStartedChecklist, channels, videos, AI_AGENTS, aiAgentActivities, notificationPreferences, contentApprovals, linkedChannels } from "@shared/schema";
 import { requireAuth, requireTier, EMPIRE_TIER_GATES, parseNumericId, asyncHandler, rateLimitEndpoint } from "./helpers";
 import { cached, apiCache } from "../lib/cache";
 import {
@@ -1110,12 +1110,7 @@ export function registerSettingsRoutes(app: Express) {
     res.json({ success: true });
   }));
 
-  app.get("/api/ab-tests", asyncHandler(async (req: any, res) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    const tests = await db.select().from(abTestResults).where(eq(abTestResults.userId, userId)).orderBy(desc(abTestResults.startedAt)).limit(50);
-    res.json(tests);
-  }));
+  // GET /api/ab-tests is registered in platform.ts (supports ?videoId filter, uses storage interface)
 
   app.post("/api/account/delete", deleteRateLimit, asyncHandler(async (req: any, res) => {
     const userId = requireAuth(req, res);

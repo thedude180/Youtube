@@ -416,43 +416,8 @@ Return JSON with these exact fields:
     }
   });
 
-  const vitalsStore: Array<{ name: string; value: number; rating: string; timestamp: number }> = [];
-  const MAX_VITALS = 500;
-
-  app.post("/api/vitals", async (req: any, res) => {
-    try {
-      const { vitals } = req.body || {};
-      if (Array.isArray(vitals)) {
-        for (const v of vitals) {
-          vitalsStore.push({ name: v.name, value: v.value, rating: v.rating, timestamp: Date.now() });
-          if (vitalsStore.length > MAX_VITALS) vitalsStore.shift();
-        }
-      }
-      res.sendStatus(204);
-    } catch {
-      res.sendStatus(204);
-    }
-  });
-
-  app.get("/api/vitals/summary", async (req: any, res) => {
-    try {
-      const userId = requireAuth(req, res);
-      if (!userId) return;
-      const summary: Record<string, { p75: number; good: number; needsImprovement: number; poor: number; count: number }> = {};
-      for (const v of vitalsStore) {
-        if (!summary[v.name]) summary[v.name] = { p75: 0, good: 0, needsImprovement: 0, poor: 0, count: 0 };
-        const s = summary[v.name];
-        s.count++;
-        if (v.rating === "good") s.good++;
-        else if (v.rating === "needs-improvement") s.needsImprovement++;
-        else s.poor++;
-        s.p75 = v.value;
-      }
-      res.json({ summary, totalSamples: vitalsStore.length });
-    } catch {
-      res.json({ summary: {}, totalSamples: 0 });
-    }
-  });
+  // POST /api/vitals and GET /api/vitals/summary are registered in routes.ts
+  // (primary vitalsBuffer store with url/timestamp metadata)
 
   app.get("/api/security/sessions", async (req: any, res) => {
     try {

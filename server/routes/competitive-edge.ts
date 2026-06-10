@@ -211,26 +211,8 @@ export function registerCompetitiveEdgeRoutes(app: Express) {
 
   // ── 4. Cross-Platform Analytics & ROI ──
 
-  app.get("/api/analytics/cross-platform", async (req: Request, res: Response) => {
-    const userId = requireAuth(req, res);
-    if (!userId) return;
-    try {
-      const userChannels = await db.select().from(channels).where(eq(channels.userId, userId));
-      const platforms = userChannels.map(ch => {
-        const avgViews = ch.videoCount && ch.videoCount > 0 ? Math.round((ch.viewCount || 0) / ch.videoCount) : 0;
-        return { name: ch.platform, channelName: ch.channelName, subscribers: ch.subscriberCount || 0, totalViews: ch.viewCount || 0, totalVideos: ch.videoCount || 0, avgViews, growth: 0 };
-      });
-      const totals = { subscribers: platforms.reduce((s, p) => s + p.subscribers, 0), views: platforms.reduce((s, p) => s + p.totalViews, 0), videos: platforms.reduce((s, p) => s + p.totalVideos, 0) };
-      const estimatedRevenue = Math.round(totals.views * 0.003);
-      res.json({
-        platforms, totals,
-        roiMetrics: { estimatedRevenue, costPerView: totals.views > 0 ? Number((estimatedRevenue / totals.views).toFixed(4)) : 0, revenuePerSub: totals.subscribers > 0 ? Number((estimatedRevenue / totals.subscribers).toFixed(2)) : 0 },
-      });
-    } catch (err: any) {
-      logger.error("Cross-platform analytics error", { error: err.message });
-      res.status(500).json({ error: "Failed to fetch cross-platform analytics" });
-    }
-  });
+  // GET /api/analytics/cross-platform is registered in security-dashboard.ts
+  // (fuller version: uses response caching + includes streams and revenue data)
 
   app.get("/api/analytics/attribution", async (req: Request, res: Response) => {
     const userId = requireAuth(req, res);
