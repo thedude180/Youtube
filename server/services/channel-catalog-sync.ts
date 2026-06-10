@@ -96,7 +96,7 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
     let chItem: any = null;
     for (const param of lookupStrategies) {
       const chUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&${param}${keyParam}`;
-      const chResp = await fetch(chUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
+      const chResp = await fetch(chUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(30000) });
       await trackQuotaUsage(userId, "list", 1);
       if (!chResp.ok) continue;
       const chData = await chResp.json() as any;
@@ -143,7 +143,7 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
         break;
       }
       const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}${keyParam}`;
-      const plResp = await fetch(plUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(15000) });
+      const plResp = await fetch(plUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(30000) });
       await trackQuotaUsage(userId, "list", 1);
       if (!plResp.ok) {
         logger.warn(`[${userId}] Playlist fetch failed: ${plResp.status}`);
@@ -193,7 +193,7 @@ async function syncYouTubePublicCatalog(userId: string, channel: any): Promise<{
       }
       try {
         const vUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=${idsNeedingFetch.join(",")}${keyParam}`;
-        const vResp = await fetch(vUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(20000) });
+        const vResp = await fetch(vUrl, { headers: buildHeaders(), signal: AbortSignal.timeout(30000) });
         await trackQuotaUsage(userId, "list", 1);
         if (!vResp.ok) {
           logger.warn(`[${userId}] Video detail fetch failed at batch ${i}: ${vResp.status}`);
