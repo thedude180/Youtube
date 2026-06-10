@@ -35,7 +35,7 @@ import { executeRoutedAICall } from "./ai-model-router";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { isAutonomousMode } from "../lib/autonomous";
 import { updateYouTubeVideo, postAndPinComment } from "../youtube";
-import { getFocusGame } from "./game-focus";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("back-catalog-growth");
 
