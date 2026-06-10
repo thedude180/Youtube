@@ -600,7 +600,7 @@ export function startAnalyticsIntelligenceEngine(): void {
 
   setTimeout(() => {
     runAnalyticsScan().catch(e => logger.error("[Analytics Engine] Startup scan failed:", e));
-  }, 50_000);
+  }, 3 * 60_000);
 
   analyticsInterval = setInterval(async () => {
     try {

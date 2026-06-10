@@ -102,8 +102,8 @@ async function runSweep(userId: string): Promise<void> {
 
       const quota = await getQuotaStatus(userId);
       if (quota.remaining < 200) {
-        logger.warn(`[${userId}] Quota too low (${quota.remaining}), pausing repurpose phase`);
-        await delay(60_000);
+        logger.warn(`[${userId}] Quota too low (${quota.remaining}), stopping repurpose phase until quota resets`);
+        break;
       }
 
       try {

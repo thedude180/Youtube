@@ -91,7 +91,7 @@ async function fetchAnalyticsReport(
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) {
       const errBody = await res.text();
