@@ -263,13 +263,16 @@ export async function executePipelineInBackground(id: number, videoTitle: string
       const isRateLimit = stepErr?.status === 429 || stepErr?.statusCode === 429 ||
         /rate.?limit|429|too many requests/i.test(stepErr?.message || "");
       // AI semaphore queue-full errors are transient — the queue will drain.
-      // Reset to pending so the heal cycle or next boot can retry.
+      // Set status="error" (not "pending") so the drip-feed won't immediately
+      // re-pick it up and create a tight retry loop.  The pipeline self-heal
+      // (every 20 min) matches the "AI queue full" pattern in transientConditions
+      // and resets it back to "pending" automatically, giving AI slots time to drain.
       const isQueueFull = /AI queue full|queue full|request dropped|AI slot deferred/i.test(stepErr?.message || "");
       if (isRateLimit || isQueueFull) {
         const reason = isQueueFull ? "AI queue full" : "429 rate limit";
-        logger.warn(`[Pipeline] ${reason} on step "${sanitizeForPrompt(step)}" for pipeline ${id} — resetting to pending for retry`);
+        logger.warn(`[Pipeline] ${reason} on step "${sanitizeForPrompt(step)}" for pipeline ${id} — cooling down (self-heal will retry in ~20 min)`);
         await db.update(contentPipeline)
-          .set({ status: "pending", errorMessage: null })
+          .set({ status: "error", errorMessage: `${reason} — auto-retry pending` })
           .where(eq(contentPipeline.id, id));
         return;
       }

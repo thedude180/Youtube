@@ -1063,6 +1063,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:027:fail_Ld07AcKauuI",               label: "027 — permanently fail vault entry for Ld07AcKauuI (InnerTube HTTP 400 storm)" },
   { flag: "migration:028:fail_permanently_inaccessible",   label: "028 — permanently fail vault entries confirmed inaccessible by InnerTube" },
   { flag: "migration:034:fail_MTG_cjkK8XQ",               label: "034 — permanently fail MTG_cjkK8XQ (yt-dlp all-clients storm causing 16-min crash loop)" },
+  { flag: "migration:035:stamp_missing_permanent_fail",   label: "035 — stamp permanentFail:true on all failed vault entries + fail FGv-w4tvc0M/SGCq53XHces" },
 ];
 
 export interface MigrationHealth {
@@ -1807,6 +1808,125 @@ async function migration034FailMTGcjkK8XQ(): Promise<void> {
   }
 }
 
+// ── Migration 035: stamp permanentFail:true on all failed vault entries + specific storm videos ──
+// Production audit found 4 vault entries with status='failed' but no permanentFail:true metadata.
+// This means the resurrection engine can re-queue them, causing new yt-dlp storms.
+// FGv-w4tvc0M: all yt-dlp clients/formats fail every boot.
+// SGCq53XHces: video geo-blocked/DRM — queue items reference it and fail every publisher sweep.
+// Broad sweep: any status='failed' vault entry gets permanentFail:true stamped so resurrection
+// and back-catalog engines will never re-queue it.
+async function migration035StampMissingPermanentFail(): Promise<void> {
+  const FLAG = "migration:035:stamp_missing_permanent_fail";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Specific videos known to storm
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"yt-dlp all-clients storm — FGv-w4tvc0M permanently undownloadable (migration 035)"}'::jsonb
+      WHERE  youtube_id = 'FGv-w4tvc0M'
+    `);
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"SGCq53XHces geo-blocked/DRM — permanently inaccessible (migration 035)"}'::jsonb
+      WHERE  youtube_id = 'SGCq53XHces'
+    `);
+    // Broad belt-and-suspenders sweep: stamp ALL status='failed' vault entries that are
+    // missing permanentFail:true so the resurrection engine can never re-queue them.
+    const stampResult = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true}'::jsonb
+      WHERE  status = 'failed'
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+    const stamped = (stampResult as any).rowCount ?? 0;
+    // Cancel all active autopilot_queue items referencing any permanently-failed vault source
+    const queueResult = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source vault entry permanently failed — cancelled by migration 035 sweep'
+      WHERE  status IN ('scheduled','pending','queued','deferred')
+        AND  metadata->>'sourceYoutubeId' IS NOT NULL
+        AND  EXISTS (
+          SELECT 1 FROM content_vault_backups cvb
+          WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+            AND  cvb.status = 'failed'
+        )
+    `);
+    const cancelled = (queueResult as any).rowCount ?? 0;
+    log.info(`[Migration 035] Stamped permanentFail on ${stamped} vault entries, cancelled ${cancelled} orphaned queue items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 035] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Per-boot vault storm prevention sweep (non-flagged — runs every restart) ──
+// The flagged migrations only run once.  New storm videos emerge on every boot
+// as the back-catalog engine queues fresh items for videos that were healthy at
+// queue-time but later became undownloadable.  This non-flagged sweep runs at
+// T+3s on every boot, before any service wave starts, and catches them all:
+//
+//  Step 1 — Stamp permanentFail:true on all status='failed' vault entries missing it.
+//            Prevents resurrection + back-catalog engines from re-queuing them.
+//  Step 2 — Fail active vault entries (indexed/queued/downloading) with failCount >= 2.
+//            Server crashes before failCount reaches 5 (the old threshold), so we
+//            catch storm videos after just 2 failed rounds.
+//  Step 3 — Cancel active autopilot_queue items whose sourceYoutubeId references any
+//            failed vault entry.  Prevents the publisher from doing pointless work and
+//            logging hundreds of "Publish failed" errors per boot.
+async function cleanupOrphanedQueueItems(): Promise<void> {
+  try {
+    // Step 1: stamp permanentFail on all failed vault entries missing the flag
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true}'::jsonb
+      WHERE  status = 'failed'
+        AND  (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+
+    // Step 2: fail active vault entries with failCount >= 2
+    const stormResult = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"reason":"Auto-failed by per-boot sweep: failCount >= 2 and still active — undownloadable video"}'::jsonb
+      WHERE  status IN ('indexed', 'queued', 'downloading')
+        AND  (metadata->>'failCount') ~ '^[0-9]+$'
+        AND  (metadata->>'failCount')::int >= 2
+    `);
+    const storms = (stormResult as any).rowCount ?? 0;
+
+    // Step 3: cancel active queue items whose source vault entry is permanently failed
+    const orphanResult = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source vault entry permanently failed — cancelled by per-boot orphan sweep'
+      WHERE  status IN ('scheduled','pending','queued','deferred')
+        AND  metadata->>'sourceYoutubeId' IS NOT NULL
+        AND  EXISTS (
+          SELECT 1 FROM content_vault_backups cvb
+          WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+            AND  cvb.status = 'failed'
+        )
+    `);
+    const orphans = (orphanResult as any).rowCount ?? 0;
+
+    if (storms > 0 || orphans > 0) {
+      log.info(`[BootVaultSweep] Stopped ${storms} potential storm vault entries, cancelled ${orphans} orphaned queue items`);
+    } else {
+      log.info("[BootVaultSweep] Vault clean — no storm entries or orphaned queue items");
+    }
+  } catch (err: any) {
+    log.warn(`[BootVaultSweep] Per-boot vault sweep failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -1845,8 +1965,15 @@ export async function runStartupMigrations(): Promise<void> {
     await migration032FixPs5GameFallbacks();
     await migration033RescheduleLongFormFromJune11();
     await migration034FailMTGcjkK8XQ();
+    await migration035StampMissingPermanentFail();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
+    // Non-flagged per-boot vault storm prevention — runs every restart.
+    // Fails active vault entries with failCount >= 2, stamps permanentFail on all
+    // failed entries, and cancels any autopilot_queue items whose source vault
+    // entry is permanently failed.  This is the structural guard that ensures
+    // no yt-dlp storm can persist across multiple crash/restart cycles.
+    await cleanupOrphanedQueueItems();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
