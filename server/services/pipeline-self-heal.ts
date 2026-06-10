@@ -23,7 +23,8 @@ const STUCK_CLIP_MS           = 30  * 60_000;
 const STUCK_STUDIO_MS         = 30  * 60_000;
 const STUCK_AUTOPILOT_MS      = 30  * 60_000;
 const STUCK_JOBS_MS           = 30  * 60_000;
-const STUCK_VAULT_DOWNLOAD_MS = 60  * 60_000;
+// yt-dlp hard-kills at 20 min; anything still "downloading" after 25 min is a zombie.
+const STUCK_VAULT_DOWNLOAD_MS = 25  * 60_000;
 const MAX_STREAM_JOB_RETRIES  = 5;
 const MAIN_INTERVAL_MS        = 20  * 60_000;
 const DEEP_INTERVAL_MS        = 6   * 60 * 60_000;
@@ -295,6 +296,34 @@ async function healVaultBackups(): Promise<[number, number]> {
   ];
 }
 
+// ─── Heal 8c: Permanently retire high-failCount vault entries ────────────────
+// Vault entries where failCount >= 8 (stored in metadata JSONB) will NEVER
+// succeed — they've exhausted every yt-dlp client/format combo.  Resetting them
+// to "indexed" on each cycle wastes a slot and stalls real work.  Mark them
+// permanently failed here so the downloader skips them entirely.
+async function healHighFailCountVault(): Promise<number> {
+  try {
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET
+        status        = 'failed',
+        download_error = COALESCE(
+          download_error,
+          'Permanently retired by self-heal: failCount >= 8 — all download strategies exhausted'
+        ),
+        metadata      = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"selfHealRetired":true}'::jsonb
+      WHERE status IN ('indexed', 'queued', 'downloading')
+        AND (metadata->>'failCount')::int >= 8
+        AND (metadata->>'permanentFail') IS DISTINCT FROM 'true'
+    `);
+    return (result as any)?.rowCount ?? 0;
+  } catch (err: any) {
+    logger.warn("[self-heal] healHighFailCountVault failed", { error: err?.message?.slice(0, 120) });
+    return 0;
+  }
+}
+
 // ─── Heal 9: token proactive refresh ─────────────────────────────────────────
 async function healTokens(): Promise<void> {
   try {
@@ -350,9 +379,10 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
     editStuck + editTransient + editMissing +
     clipsFixed + studioFixed + autopilotFixed + jobsFixed;
 
-  // Vault heal runs in both main and deep cycles
+  // Vault heal + high-failCount retirement run every cycle
   const [vaultStuck, vaultFailed] = await healVaultBackups();
-  totalRecovered += vaultStuck + vaultFailed;
+  const vaultRetired = await healHighFailCountVault();
+  totalRecovered += vaultStuck + vaultFailed + vaultRetired;
 
   // Token refresh + backlog drain run every cycle
   await Promise.all([healTokens(), healBacklogDrain()]);
@@ -367,7 +397,7 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
       `editJobs[stuck:${editStuck} transient:${editTransient} missing:${editMissing}] ` +
       `clips[${clipsFixed}] studio[${studioFixed}] ` +
       `autopilot[${autopilotFixed}] jobs[${jobsFixed}] ` +
-      `vault[stuck:${vaultStuck} failed:${vaultFailed}]`
+      `vault[stuck:${vaultStuck} failed:${vaultFailed} retired:${vaultRetired}]`
     );
   } else {
     logger.info(`[self-heal] All clear in ${elapsed}ms — no stuck or errored items found`);
