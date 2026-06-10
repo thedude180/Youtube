@@ -33,6 +33,13 @@ const DISABLED_SERVICES = new Set<string>([
   "creator-education-engine",
   "compliance-legal-engine",
 
+  // ── Non-YouTube analytics + general-purpose learning ────────────────────
+  // analytics-intelligence-engine loops through ALL platforms (TikTok, etc.)
+  // and produces multi-platform forecasts — not YouTube-specific.
+  "analytics-intelligence-engine",
+  // universal-learning-observer is a general event logger, not YouTube-specific.
+  "universal-learning-observer",
+
   // ── Non-YouTube integrations ─────────────────────────────────────────────
   "stripe-init",
   "stripe-webhook",
