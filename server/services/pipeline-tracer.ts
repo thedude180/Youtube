@@ -389,8 +389,10 @@ async function runUserCycle(userId: string, channelId: number) {
           eq(autopilotQueue.userId, userId),
           eq(autopilotQueue.status, "published"),
           gte(autopilotQueue.publishedAt, noIdWindow),
-          // jsonb check: youtubeVideoId and youtubeId both absent
-          sql`(metadata->>'youtubeVideoId') IS NULL AND (metadata->>'youtubeId') IS NULL`,
+          // jsonb check: youtubeVideoId, youtubeId, AND publishResult.postId all absent.
+          // studio_auto_publish items store the video ID in publishResult.postId — must
+          // check that field too or confirmed uploads are falsely flagged as missing IDs.
+          sql`(metadata->>'youtubeVideoId') IS NULL AND (metadata->>'youtubeId') IS NULL AND (metadata->'publishResult'->>'postId') IS NULL`,
         ),
       )
       .limit(20);

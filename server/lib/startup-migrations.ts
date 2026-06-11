@@ -2576,6 +2576,37 @@ async function migration046FailNonYoutubeStreamEditJobs(): Promise<void> {
   }
 }
 
+// ── Migration 047: strip non-YouTube platforms from stream_edit_jobs ──────────
+// stream_edit_jobs were created with platforms=["youtube","shorts","tiktok","rumble"].
+// When a job runs, the packager creates one studio video PER platform and the
+// auto-publisher queues each one — so ["youtube","shorts"] → 2 identical 53-min
+// YouTube uploads. 16,457 non-done jobs have this pattern.
+// Fix: collapse every non-done job's platform list to ["youtube"] only.
+// The auto-publisher dedup guard in stream-editor-auto-publisher.ts is the
+// belt, this migration is the suspenders.
+async function migration047StripNonYoutubePlatforms(): Promise<void> {
+  const FLAG = "migration:047:strip_non_youtube_platforms_from_stream_edit_jobs";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET    platforms = '["youtube"]'::jsonb
+      WHERE  status NOT IN ('done', 'failed')
+        AND  platforms::text LIKE '%youtube%'
+        AND  (
+          platforms::text LIKE '%shorts%'
+          OR platforms::text LIKE '%tiktok%'
+          OR platforms::text LIKE '%rumble%'
+        )
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 047] Stripped non-YouTube platforms from ${count} stream_edit_job(s) → youtube-only`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 047] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2626,6 +2657,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration044FixVodLongFormSegmentBounds();
     await migration045FailH6egjqm0XjcStormVideo();
     await migration046FailNonYoutubeStreamEditJobs();
+    await migration047StripNonYoutubePlatforms();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

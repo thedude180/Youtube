@@ -68,6 +68,16 @@ export async function scheduleClipsForAutoPublish(
 
       const currentMeta = (studioVideo.metadata ?? {}) as Record<string, unknown>;
 
+      // Dedup: if this studio video was already queued for auto-publish, skip.
+      // Prevents double-uploads when a stream_edit_job has both "youtube" and "shorts"
+      // in its platform list — both create separate studio videos that would otherwise
+      // each get their own autopilot queue entry and both upload as full YouTube videos.
+      if (isYoutubePlatform && currentMeta.autopilotQueueId) {
+        logger.info(`[AutoPublisher] Clip sv${clip.studioVideoId} already scheduled (queue item ${currentMeta.autopilotQueueId}) — skipping duplicate`);
+        scheduled.set(clip.studioVideoId, scheduledAt.toISOString());
+        continue;
+      }
+
       if (isYoutubePlatform && youtubeChannel) {
         const [queueEntry] = await db.insert(autopilotQueue).values({
           userId,
