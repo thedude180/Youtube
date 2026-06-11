@@ -168,7 +168,7 @@ export async function processAutoPublishQueue(): Promise<void> {
   const dueItems = await db.select().from(autopilotQueue)
     .where(
       and(
-        inArray(autopilotQueue.status, ["scheduled", "failed", "permanent_fail"]),
+        inArray(autopilotQueue.status, ["scheduled", "failed", "permanent_fail", "pending"]),
         eq(autopilotQueue.type, "studio_auto_publish"),
       )
     );

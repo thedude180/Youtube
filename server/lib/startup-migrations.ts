@@ -1066,6 +1066,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:035:stamp_missing_permanent_fail",   label: "035 — stamp permanentFail:true on all failed vault entries + fail FGv-w4tvc0M/SGCq53XHces" },
   { flag: "migration:036:fail_OG1_3Dw4_storm_videos",    label: "036 — permanently fail OG1-0dE1VPA + 3Dw4UB86S9g storm videos; fix dual-column orphan queue sweep" },
   { flag: "migration:037:seed_system_incident_log",       label: "037 — seed system_incident_log with all 30 historical crash/bug incidents for AI learning brain" },
+  { flag: "migration:049:cancel_blocked_publishing_queue", label: "049 — cancel permanently-blocked queue items (bad source videos + orphans); mark AC Valhalla studios published" },
 ];
 
 export interface MigrationHealth {
@@ -2660,6 +2661,69 @@ async function migration048HardFailUndownloadablePreEncoderItems(): Promise<void
   }
 }
 
+// ── Migration 049: cancel blocked publishing queue ────────────────────────────
+// Three sources of permanently-blocked items that prevent the autopilot queue
+// from making progress:
+//   1. Items whose sourceYoutubeId is one of the 4 confirmed no-DASH-format
+//      videos (T4PKhDhQPp0, q_HLUcS7rLE, bKi6jjwG7Ac, Ky7PFPhmF3Q).  These
+//      were marked enc_fail=3 by migration 048, but are still in the queue
+//      in pending/scheduled status — pre-encoder skips them, publisher finds
+//      no preEncodedPath, and they sit forever.
+//   2. Orphaned auto-clip/platform_short items with neither a sourceYoutubeId
+//      nor a studioVideoId — they can never be encoded or published.
+//   3. studio_auto_publish items for studio videos 357 and 358 (the two AC
+//      Valhalla uploads).  Both videos are confirmed live on YouTube by the
+//      channel owner; queue items need to be marked published so the poller
+//      stops retrying them (and avoids a third duplicate upload).
+
+async function migration049CancelBlockedPublishingQueue(): Promise<void> {
+  const FLAG = "migration:049:cancel_blocked_publishing_queue";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Cancel all items from permanently-undownloadable source videos
+    const r1 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration049: source video permanently undownloadable — no DASH format available'
+      WHERE status NOT IN ('published', 'cancelled', 'failed', 'permanent_fail')
+        AND (
+              metadata->>'sourceYoutubeId' IN ('T4PKhDhQPp0','q_HLUcS7rLE','bKi6jjwG7Ac','Ky7PFPhmF3Q')
+          OR  source_youtube_id            IN ('T4PKhDhQPp0','q_HLUcS7rLE','bKi6jjwG7Ac','Ky7PFPhmF3Q')
+        )
+    `);
+    log.info(`[Migration 049] Cancelled ${(r1 as any).rowCount ?? 0} bad-source-video queue items`);
+
+    // 2. Cancel orphaned auto-clip / platform_short items with no source or studio ref
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration049: orphaned item — no sourceYoutubeId and no studioVideoId'
+      WHERE status NOT IN ('published', 'cancelled', 'failed', 'permanent_fail')
+        AND type IN ('auto-clip', 'platform_short')
+        AND COALESCE(metadata->>'sourceYoutubeId', source_youtube_id::text, '') = ''
+        AND COALESCE(metadata->>'studioVideoId',   source_video_id::text,   '') = ''
+    `);
+    log.info(`[Migration 049] Cancelled ${(r2 as any).rowCount ?? 0} orphaned queue items`);
+
+    // 3. Mark studio_auto_publish items for studio 357 / 358 as published.
+    //    The channel owner confirmed both AC Valhalla uploads are live on YouTube.
+    const r3 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status       = 'published',
+          published_at = NOW(),
+          error_message = NULL
+      WHERE type   = 'studio_auto_publish'
+        AND status NOT IN ('published', 'cancelled')
+        AND (metadata->>'studioVideoId')::int IN (357, 358)
+    `);
+    log.info(`[Migration 049] Marked ${(r3 as any).rowCount ?? 0} studio_auto_publish items as published (AC Valhalla, confirmed live)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 049] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2712,6 +2776,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration046FailNonYoutubeStreamEditJobs();
     await migration047StripNonYoutubePlatforms();
     await migration048HardFailUndownloadablePreEncoderItems();
+    await migration049CancelBlockedPublishingQueue();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

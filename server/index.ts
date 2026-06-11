@@ -2989,7 +2989,10 @@ httpServer.listen(
                 AND q.status NOT IN ('published', 'permanent_fail', 'cancelled')
                 AND NOT EXISTS (
                   SELECT 1 FROM studio_videos sv
-                  WHERE sv.id = q.source_video_id
+                  WHERE sv.id = COALESCE(
+                          (q.metadata->>'studioVideoId')::int,
+                          q.source_video_id
+                        )
                     AND (sv.youtube_id IS NOT NULL OR sv.file_path IS NOT NULL)
                 )`
         )
