@@ -10719,3 +10719,89 @@ export const creativeLibrary = pgTable("creative_library", {
 ]);
 export type CreativeLibraryItem = typeof creativeLibrary.$inferSelect;
 export type InsertCreativeLibraryItem = typeof creativeLibrary.$inferInsert;
+
+// ── Shadow Video Analytics ─────────────────────────────────────────────────────
+// Quota-free mirror of YouTube Analytics per published video.
+// Tier 1 — InnerTube (public, no auth): views, likes, comments, velocity.
+// Tier 2 — YouTube Studio API (OAuth, zero Data-API-quota cost): watch time,
+//           impressions, CTR, avg view duration, subscribers gained, revenue.
+// Tier 3 — Official Analytics API (Data API quota): spot-check verification only.
+export const shadowVideoAnalytics = pgTable("shadow_video_analytics", {
+  id:                      serial("id").primaryKey(),
+  userId:                  text("user_id").notNull(),
+  youtubeVideoId:          text("youtube_video_id").notNull(),
+  contentType:             text("content_type").notNull().default("short"),
+  gameName:                text("game_name"),
+  title:                   text("title"),
+  publishedAt:             timestamp("published_at"),
+  // ── Tier 1: InnerTube public (no auth, free) ──────────────────────────────
+  views:                   integer("views").notNull().default(0),
+  likes:                   integer("likes").notNull().default(0),
+  commentCount:            integer("comment_count").notNull().default(0),
+  // ── Velocity windows (derived from InnerTube snapshot history) ────────────
+  velocity24h:             integer("velocity_24h").notNull().default(0),
+  velocity7d:              integer("velocity_7d").notNull().default(0),
+  velocity28d:             integer("velocity_28d").notNull().default(0),
+  velocityPerHour:         real("velocity_per_hour").notNull().default(0),
+  engagementRate:          real("engagement_rate").notNull().default(0),
+  // ── Tier 2: Studio API (OAuth, zero Data API quota) ──────────────────────
+  watchTimeMinutes:        real("watch_time_minutes"),
+  averageViewDurationSec:  real("average_view_duration_sec"),
+  averageViewPercent:      real("average_view_percent"),
+  impressions:             integer("impressions"),
+  impressionsCtr:          real("impressions_ctr"),
+  subscribersGained:       integer("subscribers_gained"),
+  shares:                  integer("shares"),
+  estimatedRevenue:        real("estimated_revenue"),
+  trafficSources:          jsonb("traffic_sources").$type<Record<string, number>>(),
+  // ── Tier 3: Official Analytics API verification (quota-limited) ───────────
+  verifiedViews:           integer("verified_views"),
+  verifiedWatchTime:       real("verified_watch_time"),
+  verifiedCtr:             real("verified_ctr"),
+  discrepancyPct:          real("discrepancy_pct"),
+  // ── Data source timestamps ─────────────────────────────────────────────────
+  publicDataAt:            timestamp("public_data_at"),
+  studioDataAt:            timestamp("studio_data_at"),
+  analyticsVerifiedAt:     timestamp("analytics_verified_at"),
+  // ── Composite scores ───────────────────────────────────────────────────────
+  performanceScore:        real("performance_score"),
+  momentumScore:           real("momentum_score"),
+  measuredAt:              timestamp("measured_at").notNull().defaultNow(),
+  metadata:                jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (t) => [
+  index("sva_user_idx").on(t.userId),
+  index("sva_video_idx").on(t.youtubeVideoId),
+  index("sva_measured_idx").on(t.measuredAt),
+  index("sva_perf_idx").on(t.performanceScore),
+  uniqueIndex("sva_user_video_uq").on(t.userId, t.youtubeVideoId),
+]);
+export type ShadowVideoAnalytics = typeof shadowVideoAnalytics.$inferSelect;
+
+// ── Shadow Channel Analytics ───────────────────────────────────────────────────
+// Daily channel-level rollup combining all shadow sources.
+export const shadowChannelAnalytics = pgTable("shadow_channel_analytics", {
+  id:                       serial("id").primaryKey(),
+  userId:                   text("user_id").notNull(),
+  date:                     text("date").notNull(),  // YYYY-MM-DD
+  subscriberCount:          integer("subscriber_count"),
+  totalVideoCount:          integer("total_video_count"),
+  // Aggregated from shadow_video_analytics
+  totalViews:               integer("total_views").notNull().default(0),
+  totalLikes:               integer("total_likes").notNull().default(0),
+  totalComments:            integer("total_comments").notNull().default(0),
+  newVideosPublished:       integer("new_videos_published").notNull().default(0),
+  avgEngagementRate:        real("avg_engagement_rate"),
+  // Studio API channel rollups (zero Data API quota)
+  totalWatchTimeMinutes:    real("total_watch_time_minutes"),
+  totalImpressions:         integer("total_impressions"),
+  avgCtr:                   real("avg_ctr"),
+  subscribersGainedToday:   integer("subscribers_gained_today"),
+  estimatedDailyRevenue:    real("estimated_daily_revenue"),
+  source:                   text("source").notNull().default("innertube"),
+  createdAt:                timestamp("created_at").notNull().defaultNow(),
+  metadata:                 jsonb("metadata").$type<Record<string, unknown>>().default({}),
+}, (t) => [
+  index("sca_user_idx").on(t.userId),
+  uniqueIndex("sca_user_date_uq").on(t.userId, t.date),
+]);
+export type ShadowChannelAnalytics = typeof shadowChannelAnalytics.$inferSelect;

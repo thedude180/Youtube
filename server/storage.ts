@@ -542,6 +542,14 @@ export class DatabaseStorage implements IStorage {
         DELETE FROM niche_insights
         WHERE user_id IN (SELECT user_id FROM channels WHERE id = ${id})
       `);
+      await tx.execute(sql`
+        DELETE FROM shadow_video_analytics
+        WHERE user_id IN (SELECT user_id FROM channels WHERE id = ${id})
+      `);
+      await tx.execute(sql`
+        DELETE FROM shadow_channel_analytics
+        WHERE user_id IN (SELECT user_id FROM channels WHERE id = ${id})
+      `);
 
       // Tables added in the autonomous OS upgrade (2026-06-05).
       // decision_journal and growth_experiments use text channel_id — cast.

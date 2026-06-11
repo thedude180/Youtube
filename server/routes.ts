@@ -740,6 +740,72 @@ export async function registerRoutes(
     }
   });
 
+  // ── Shadow Analytics (quota-free YouTube Analytics mirror) ──────────────────
+  app.get("/api/youtube/shadow-analytics/videos", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getShadowAnalyticsLeaderboard } = await import("./services/shadow-analytics-engine");
+      const limit = Math.min(100, parseInt(String(req.query.limit ?? "50"), 10) || 50);
+      const data = await getShadowAnalyticsLeaderboard(userId, limit);
+      res.json({ videos: data, count: data.length });
+    } catch (err: any) {
+      logger.error(`[ShadowAnalytics] GET /videos error: ${err.message}`);
+      res.status(500).json({ error: "Failed to fetch shadow analytics" });
+    }
+  });
+
+  app.get("/api/youtube/shadow-analytics/channel", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getChannelShadowAnalytics } = await import("./services/shadow-analytics-engine");
+      const days = Math.min(90, parseInt(String(req.query.days ?? "30"), 10) || 30);
+      const data = await getChannelShadowAnalytics(userId, days);
+      res.json({ days: data, count: data.length });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch channel analytics" });
+    }
+  });
+
+  app.get("/api/youtube/shadow-analytics/videos/:videoId", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVideoShadowDetail } = await import("./services/shadow-analytics-engine");
+      const data = await getVideoShadowDetail(userId, req.params.videoId);
+      if (!data) return res.status(404).json({ error: "Video not found" });
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch video detail" });
+    }
+  });
+
+  app.get("/api/youtube/shadow-analytics/sources", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getShadowDataSourceReport } = await import("./services/shadow-analytics-engine");
+      res.json(await getShadowDataSourceReport(userId));
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch source report" });
+    }
+  });
+
+  app.post("/api/youtube/shadow-analytics/run", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { runShadowAnalyticsSweep } = await import("./services/shadow-analytics-engine");
+      runShadowAnalyticsSweep(userId).catch(e =>
+        logger.warn(`[ShadowAnalytics] Manual sweep failed: ${e.message}`)
+      );
+      res.json({ ok: true, message: "Shadow analytics sweep started" });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to start sweep" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.

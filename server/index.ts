@@ -3900,6 +3900,14 @@ httpServer.listen(
         backgroundIntervals.push(m.initVideoMomentumTracker());
       }).catch(slog("initVideoMomentumTracker"));
 
+      // Shadow Analytics Engine — quota-free YouTube Analytics mirror.
+      // Tier 1: InnerTube (no auth). Tier 2: Studio API (OAuth, zero Data quota).
+      // Tier 3: Official Analytics API spot-check when quota available.
+      // First sweep at T+~54min (8min after Wave 11 fires).
+      import("./services/shadow-analytics-engine").then(m => {
+        backgroundIntervals.push(m.initShadowAnalyticsEngine());
+      }).catch(slog("initShadowAnalyticsEngine"));
+
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 
