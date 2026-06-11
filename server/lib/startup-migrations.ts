@@ -1924,31 +1924,19 @@ async function migration036FailOG1And3Dw4StormVideos(): Promise<void> {
     const dw4 = (dw4Result as any).rowCount ?? 0;
     const swept = (sweepResult as any).rowCount ?? 0;
     // Cancel ALL active autopilot_queue items referencing known permanently-failed source
-    // videos.  Checks BOTH the source_youtube_id column (Drizzle ORM inserts) AND the
-    // metadata->>'sourceYoutubeId' JSONB field (older queue items).
+    // videos via metadata->>'sourceYoutubeId' (the JSONB field used by back-catalog items).
+    // NOTE: autopilot_queue has no source_youtube_id text column — only source_video_id (int FK).
     const queueResult = await db.execute(sql`
       UPDATE autopilot_queue
       SET    status        = 'failed',
              error_message = 'Source video permanently undownloadable — cancelled by migration 036'
       WHERE  status IN ('scheduled','pending','queued','deferred')
-        AND  (
-          (
-            source_youtube_id IS NOT NULL
-            AND EXISTS (
-              SELECT 1 FROM content_vault_backups cvb
-              WHERE  cvb.youtube_id = autopilot_queue.source_youtube_id
-                AND  cvb.status = 'failed'
-            )
-          )
-          OR (
-            metadata->>'sourceYoutubeId' IS NOT NULL
-            AND metadata->>'sourceYoutubeId' != ''
-            AND EXISTS (
-              SELECT 1 FROM content_vault_backups cvb
-              WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
-                AND  cvb.status = 'failed'
-            )
-          )
+        AND  metadata->>'sourceYoutubeId' IS NOT NULL
+        AND  metadata->>'sourceYoutubeId' != ''
+        AND  EXISTS (
+          SELECT 1 FROM content_vault_backups cvb
+          WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+            AND  cvb.status = 'failed'
         )
     `);
     const cancelled = (queueResult as any).rowCount ?? 0;
@@ -2272,14 +2260,14 @@ async function migration038DeleteChannel52(): Promise<void> {
              error_message = 'Channel 52 (ET Gaming 247) deleted — cancelled by migration 038'
       WHERE  status IN ('scheduled','pending','queued','deferred')
         AND  user_id IN (
-          SELECT user_id FROM platform_channels WHERE id = 52
+          SELECT user_id FROM channels WHERE id = 52
         )
         AND  target_platform = 'youtube'
     `);
     // Delete the channel row — the startup-orchestrator and token guardian
     // will no longer find it and will stop emitting "needs_reconnect" warnings.
     const result = await db.execute(sql`
-      DELETE FROM platform_channels WHERE id = 52
+      DELETE FROM channels WHERE id = 52
     `);
     const deleted = (result as any).rowCount ?? 0;
     if (deleted > 0) {
@@ -2331,32 +2319,20 @@ async function cleanupOrphanedQueueItems(): Promise<void> {
     const storms = (stormResult as any).rowCount ?? 0;
 
     // Step 3: cancel active queue items whose source vault entry is permanently failed.
-    // Checks BOTH the direct source_youtube_id column (used by back-catalog queue items
-    // inserted via Drizzle ORM) AND the metadata->>'sourceYoutubeId' field (used by
-    // older queue items that stored the source ID only in the JSONB metadata blob).
+    // Uses metadata->>'sourceYoutubeId' (JSONB) — autopilot_queue has no source_youtube_id
+    // text column; only source_video_id (int FK). Back-catalog items store the YouTube ID
+    // in metadata, so this path captures all relevant orphans.
     const orphanResult = await db.execute(sql`
       UPDATE autopilot_queue
       SET    status        = 'failed',
              error_message = 'Source vault entry permanently failed — cancelled by per-boot orphan sweep'
       WHERE  status IN ('scheduled','pending','queued','deferred')
-        AND  (
-          (
-            source_youtube_id IS NOT NULL
-            AND EXISTS (
-              SELECT 1 FROM content_vault_backups cvb
-              WHERE  cvb.youtube_id = autopilot_queue.source_youtube_id
-                AND  cvb.status = 'failed'
-            )
-          )
-          OR (
-            metadata->>'sourceYoutubeId' IS NOT NULL
-            AND metadata->>'sourceYoutubeId' != ''
-            AND EXISTS (
-              SELECT 1 FROM content_vault_backups cvb
-              WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
-                AND  cvb.status = 'failed'
-            )
-          )
+        AND  metadata->>'sourceYoutubeId' IS NOT NULL
+        AND  metadata->>'sourceYoutubeId' != ''
+        AND  EXISTS (
+          SELECT 1 FROM content_vault_backups cvb
+          WHERE  cvb.youtube_id = (autopilot_queue.metadata->>'sourceYoutubeId')
+            AND  cvb.status = 'failed'
         )
     `);
     const orphans = (orphanResult as any).rowCount ?? 0;
@@ -2541,6 +2517,65 @@ async function migration044FixVodLongFormSegmentBounds(): Promise<void> {
   }
 }
 
+// ── Migration 045: permanently fail h6egjqm0Xjc storm video ─────────────────
+// 2026-06-11: All yt-dlp clients (tv_embedded, ios, android, web) exhausted
+// every format for h6egjqm0Xjc (~20 invocations in one cycle). Video is
+// inaccessible. Without this migration the clip-video-processor repeats the
+// same 20-invocation storm on every cycle.
+async function migration045FailH6egjqm0XjcStormVideo(): Promise<void> {
+  const FLAG = "migration:045:fail_h6egjqm0Xjc_storm_video";
+  if (await getFlag(FLAG)) return;
+  try {
+    const vaultResult = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status   = 'failed',
+             metadata = COALESCE(metadata, '{}'::jsonb)
+                        || '{"failCount":10,"permanentFail":true,"reason":"all yt-dlp clients exhausted all formats — permanently inaccessible (migration 045)"}'::jsonb
+      WHERE  youtube_id = 'h6egjqm0Xjc'
+    `);
+    const queue = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Source video h6egjqm0Xjc permanently undownloadable — cancelled by migration 045'
+      WHERE  status IN ('scheduled','pending','queued','deferred')
+        AND  metadata->>'sourceYoutubeId' = 'h6egjqm0Xjc'
+    `);
+    const vRows = (vaultResult as any).rowCount ?? 0;
+    const qRows = (queue as any).rowCount ?? 0;
+    log.info(`[Migration 045] Failed ${vRows} vault row(s) and ${qRows} queue item(s) for h6egjqm0Xjc`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 045] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 046: permanently fail non-YouTube stream edit jobs ──────────────
+// Stream edit jobs 334 and 426 target "rumble" and "tiktok" platforms.
+// The stream editor logs "unknown platform" and skips them, but never marks
+// them complete — they loop forever: startup recovery resets them to "queued",
+// they run, skip every step, and the cycle repeats. Permanently fail them.
+async function migration046FailNonYoutubeStreamEditJobs(): Promise<void> {
+  const FLAG = "migration:046:fail_non_youtube_stream_edit_jobs";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET    status        = 'failed',
+             error_message = 'Non-YouTube platform (rumble/tiktok) — not supported; cancelled by migration 046'
+      WHERE  status IN ('queued','processing','pending')
+        AND  (
+          (platforms::text LIKE '%rumble%' OR platforms::text LIKE '%tiktok%')
+          AND  (platforms::text NOT LIKE '%youtube%')
+        )
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 046] Failed ${count} non-YouTube stream edit job(s) (rumble/tiktok)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 046] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2589,6 +2624,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration042BackfillSmartEditVideoId();
     await migration043CancelUntimestampedAutoClips();
     await migration044FixVodLongFormSegmentBounds();
+    await migration045FailH6egjqm0XjcStormVideo();
+    await migration046FailNonYoutubeStreamEditJobs();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
