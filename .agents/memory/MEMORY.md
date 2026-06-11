@@ -1,3 +1,4 @@
+- [Creative Library system](creative-library-system.md) — ever-expanding scored asset library; music tracks auto-seeded from data/music-library/ on every boot; scores via real YouTube Analytics; drives music-scorer track selection; new tables need deleteChannel() entry.
 - [Orchestrator startup delay crash loop](orchestrator-startup-delay-crash.md) — STARTUP_DELAY_MS was 30–40s; orchestrator fired first AI cycle at T+15:30 → 69 OOM crashes/day; fixed to 20–25min after Wave 8 (T+35–40min total)
 - [OOM crash loop fixes](oom-crash-fix.md) — 3 root causes of 24-min production crash cycle; all fixed; container memory gate now enforced at ytdlp-gate slot acquisition
 - [T+15min convergence crash pattern](t15min-convergence-crash.md) — back-catalog runner + grinder second run + publisher sweep all converge at T+10-20min; fix: memory gates in both + grinder urgent interval raised 10→20 min + removed direct runGrindCycle() from runner
