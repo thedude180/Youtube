@@ -2257,6 +2257,42 @@ async function migration037SeedSystemIncidentLog(): Promise<void> {
   }
 }
 
+// ── Migration 038: delete ghost channel 52 (ET Gaming 247 / UCdemo placeholder) ──
+// Channel 52 has no OAuth tokens and no backup, triggers a boot warning every
+// restart, and pollutes the RSS / catalog-sync layer with a UCdemo channel ID.
+// Deleting it removes the boot noise and makes channel 53 the sole active channel.
+async function migration038DeleteChannel52(): Promise<void> {
+  const FLAG = 'migration_038_delete_channel_52';
+  if (await getFlag(FLAG)) return;
+  try {
+    // Cancel any active queue items targeting channel 52's user
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    status        = 'failed',
+             error_message = 'Channel 52 (ET Gaming 247) deleted — cancelled by migration 038'
+      WHERE  status IN ('scheduled','pending','queued','deferred')
+        AND  user_id IN (
+          SELECT user_id FROM platform_channels WHERE id = 52
+        )
+        AND  target_platform = 'youtube'
+    `);
+    // Delete the channel row — the startup-orchestrator and token guardian
+    // will no longer find it and will stop emitting "needs_reconnect" warnings.
+    const result = await db.execute(sql`
+      DELETE FROM platform_channels WHERE id = 52
+    `);
+    const deleted = (result as any).rowCount ?? 0;
+    if (deleted > 0) {
+      log.info(`[Migration 038] Deleted channel 52 (ET Gaming 247) — boot warnings silenced`);
+    } else {
+      log.info(`[Migration 038] Channel 52 not found — already removed or never existed`);
+    }
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 038] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Per-boot vault storm prevention sweep (non-flagged — runs every restart) ──
 // The flagged migrations only run once.  New storm videos emerge on every boot
 // as the back-catalog engine queues fresh items for videos that were healthy at
@@ -2376,7 +2412,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration035StampMissingPermanentFail();
     await migration036FailOG1And3Dw4StormVideos();
     await migration037SeedSystemIncidentLog();
-    
+    await migration038DeleteChannel52();
+
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     // Non-flagged per-boot vault storm prevention — runs every restart.
