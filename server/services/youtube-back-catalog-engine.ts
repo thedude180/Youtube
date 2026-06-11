@@ -735,6 +735,49 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       .where(and(eq(autopilotQueue.userId, userId), eq(autopilotQueue.status, "scheduled")));
     const scheduledDepth = depthRow?.cnt ?? 0;
 
+    // ── Catalog rotation — Shorts ─────────────────────────────────────────────
+    // When every focus-game source video has been mined for Shorts AND fewer
+    // than 7 days of Shorts remain in the queue, reset the mined flags so the
+    // catalog cycles through again rather than going dark permanently.
+    {
+      const matchesGame = buildGameFilter(focusGame);
+      const allShortsMined = ranked.every(v =>
+        v.isShort || !matchesGame(v) ||
+        (v.durationSec ?? 0) < SHORT_MIN_SOURCE_SEC ||
+        !!v.minedForShorts,
+      );
+      if (allShortsMined) {
+        const shortsWindowEnd = new Date(Date.now() + 7 * 24 * 3600_000);
+        const [shortsDepth] = await db
+          .select({ cnt: sql<number>`count(*)::int` })
+          .from(autopilotQueue)
+          .where(and(
+            eq(autopilotQueue.userId, userId),
+            inArray(autopilotQueue.type, ["auto-clip", "platform_short", "youtube_short", "vod-short"]),
+            inArray(autopilotQueue.status, ["scheduled", "pending"]),
+            gte(autopilotQueue.scheduledAt, new Date()),
+            lt(autopilotQueue.scheduledAt, shortsWindowEnd),
+          ));
+        if ((shortsDepth?.cnt ?? 0) < 21) { // fewer than 7 days × 3/day
+          await db.update(backCatalogVideos)
+            .set({ minedForShorts: false, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.minedForShorts, true),
+              sql`game_name = ${focusGame}`,
+            ))
+            .catch(() => {});
+          for (const v of ranked) {
+            if (matchesGame(v)) v.minedForShorts = false;
+          }
+          logger.info(
+            `[BackCatalog] Catalog rotation — reset Shorts mining flags for "${focusGame}" ` +
+            `(Shorts queue depth: ${shortsDepth?.cnt ?? 0} in next 7d)`,
+          );
+        }
+      }
+    }
+
     // Queue-filling is only gated by the depth cap — canQueueShortToday() is
     // intentionally removed here because getNextShortPublishTime() already
     // schedules each item to a future day that has capacity.  Checking today's
@@ -963,6 +1006,49 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       }
     }
     // (no else — depth cap is the only gate; if queue is full, just skip quietly)
+
+    // ── Catalog rotation — Long-form ──────────────────────────────────────────
+    // Same principle as Shorts rotation above: when every focus-game video is
+    // marked mined_for_long_form AND fewer than 14 days of long-form content
+    // remain in the queue, reset the flags so the catalog keeps cycling forever.
+    {
+      const matchesGame = buildGameFilter(focusGame);
+      const allLfMined = ranked.every(v =>
+        v.isShort || !matchesGame(v) ||
+        (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC ||
+        !!v.minedForLongForm,
+      );
+      if (allLfMined) {
+        const lfWindowEnd = new Date(Date.now() + 14 * 24 * 3600_000);
+        const [lfDepth] = await db
+          .select({ cnt: sql<number>`count(*)::int` })
+          .from(autopilotQueue)
+          .where(and(
+            eq(autopilotQueue.userId, userId),
+            inArray(autopilotQueue.type, ["auto-clip", "vod-long-form"]),
+            inArray(autopilotQueue.status, ["scheduled", "pending"]),
+            gte(autopilotQueue.scheduledAt, new Date()),
+            lt(autopilotQueue.scheduledAt, lfWindowEnd),
+          ));
+        if ((lfDepth?.cnt ?? 0) < 14) { // fewer than 1/day for 14 days
+          await db.update(backCatalogVideos)
+            .set({ minedForLongForm: false, updatedAt: new Date() })
+            .where(and(
+              eq(backCatalogVideos.userId, userId),
+              eq(backCatalogVideos.minedForLongForm, true),
+              sql`game_name = ${focusGame}`,
+            ))
+            .catch(() => {});
+          for (const v of ranked) {
+            if (matchesGame(v)) v.minedForLongForm = false;
+          }
+          logger.info(
+            `[BackCatalog] Catalog rotation — reset long-form mining flags for "${focusGame}" ` +
+            `(long-form queue depth: ${lfDepth?.cnt ?? 0} in next 14d)`,
+          );
+        }
+      }
+    }
 
     // ── Queue long-form clips from old VODs ───────────────────────────────────
     // Same pattern: depth cap only — canQueueLongFormToday() removed from here
