@@ -2607,6 +2607,59 @@ async function migration047StripNonYoutubePlatforms(): Promise<void> {
   }
 }
 
+// ── Migration 048: hard-fail pre-encoder items for permanently-undownloadable sources ──
+// Three source videos (bKi6jjwG7Ac, T4PKhDhQPp0, Ky7PFPhmF3Q, q_HLUcS7rLE) have no
+// DASH/fragmented formats on YouTube — yt-dlp section download fails with "Requested
+// format is not available" on every attempt.  The pre-encoder sets preEncoderFailCount=1
+// (soft-fail) when vault=indexed, but Math.max(prev,1) never increments past 1 across
+// restarts → items cycle forever.  73+ scheduled items for these 4 videos were spawning
+// 2 yt-dlp processes (~200 MB each) every few minutes, converging with the back-catalog
+// runner at T+15min → OOM crash loop (76 outages / 24h).
+//
+// Fix: set preEncoderFailCount=3 + preEncoderHardFail=true so the pre-encoder
+// selection query (COALESCE(failCount,0) < 3) excludes all of them immediately.
+// Also does a general sweep: any scheduled item whose vault entry has failCount>=3
+// or permanentFail=true will be hard-failed the same way.
+async function migration048HardFailUndownloadablePreEncoderItems(): Promise<void> {
+  const FLAG = "migration:048:hard_fail_undownloadable_pre_encoder_items";
+  if (await getFlag(FLAG)) return;
+  try {
+    // ── Explicit list of confirmed no-DASH-format source videos ──────────────
+    const explicit = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"preEncoderFailCount":3,"preEncoderHardFail":true,"failReason":"source_no_dash_format_undownloadable"}'::jsonb
+      WHERE status    = 'scheduled'
+        AND type      IN ('auto-clip', 'platform_short')
+        AND metadata->>'sourceYoutubeId' IN (
+          'T4PKhDhQPp0',
+          'q_HLUcS7rLE',
+          'bKi6jjwG7Ac',
+          'Ky7PFPhmF3Q'
+        )
+    `);
+    const explicitCount = (explicit as any).rowCount ?? 0;
+
+    // ── General sweep: vault entry fail_count>=3 or permanentFail=true ───────
+    const general = await db.execute(sql`
+      UPDATE autopilot_queue q
+      SET    metadata = COALESCE(q.metadata, '{}'::jsonb)
+                     || '{"preEncoderFailCount":3,"preEncoderHardFail":true,"failReason":"vault_permanently_failed"}'::jsonb
+      FROM   content_vault_backups v
+      WHERE  v.youtube_id = q.metadata->>'sourceYoutubeId'
+        AND  q.status     = 'scheduled'
+        AND  q.type       IN ('auto-clip', 'platform_short')
+        AND  (v.fail_count >= 3 OR (v.metadata->>'permanentFail')::boolean IS TRUE)
+    `);
+    const generalCount = (general as any).rowCount ?? 0;
+
+    log.info(`[Migration 048] Hard-failed ${explicitCount} explicit + ${generalCount} vault-failed pre-encoder items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 048] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2658,6 +2711,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration045FailH6egjqm0XjcStormVideo();
     await migration046FailNonYoutubeStreamEditJobs();
     await migration047StripNonYoutubePlatforms();
+    await migration048HardFailUndownloadablePreEncoderItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
