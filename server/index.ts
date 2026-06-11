@@ -3237,11 +3237,13 @@ httpServer.listen(
       if (!LITE_MODE) { try { startAutopilotMonitor(); } catch (err: any) { logger.error("Autopilot init failed", { error: String(err) }); } }
       if (!LITE_MODE) { try { startAutonomyController(); } catch (err: any) { logger.error("Autonomy init failed", { error: String(err) }); } }
       seedRetentionPolicies().catch(err => logger.error("DataRetention seed failed", { error: String(err) }));
+      // smart-edit handler MUST always be registered regardless of kernel-seeds gate —
+      // kernel dispatches fail with "No handler registered" when this is skipped.
+      import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(slog("registerSmartEditCommand"));
       if (isEnabled("kernel-seeds")) {
         import("./kernel/seed-schema-registry").then(m => m.seedAgentExplanationContract().catch(slog("AgentExplanationContract"))).catch(slog("seed-schema-registry import"));
         import("./kernel/learning").then(m => m.seedSignalRegistry()).catch(slog("seedSignalRegistry"));
         import("./kernel/seed").then(m => m.seedKernelData()).catch(slog("seedKernelData"));
-        import("./kernel/smart-edit-handler").then(m => m.registerSmartEditCommand()).catch(slog("registerSmartEditCommand"));
         import("./kernel/degradation-playbooks").then(m => m.seedDegradationPlaybooks()).catch(slog("seedDegradationPlaybooks"));
         import("./kernel/capability-probe").then(m => m.seedCapabilityRegistry()).catch(slog("seedCapabilityRegistry"));
         import("./kernel/skill-compiler").then(m => m.seedDefaultSkills()).catch(slog("seedDefaultSkills"));

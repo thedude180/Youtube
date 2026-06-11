@@ -374,6 +374,42 @@ async function generateAndSetPlaylistThumbnail(
       return false;
     }
 
+    // YouTube thumbnails.set has a 2 MB hard limit.
+    // AI-generated images (1536×1024 PNG) can exceed this — compress to JPEG first.
+    const YOUTUBE_THUMB_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+    let uploadBuffer = imageBuffer;
+    let uploadMime: string = "image/png";
+    if (imageBuffer.length > YOUTUBE_THUMB_MAX_BYTES) {
+      try {
+        const sharp = (await import("sharp")).default;
+        uploadBuffer = await sharp(imageBuffer)
+          .resize(1280, 720, { fit: "cover", position: "center" })
+          .jpeg({ quality: 85, progressive: true })
+          .toBuffer();
+        uploadMime = "image/jpeg";
+        logger.info("Playlist thumbnail compressed for upload", {
+          youtubePlaylistId,
+          originalBytes: imageBuffer.length,
+          compressedBytes: uploadBuffer.length,
+        });
+        // If still too large, try lower quality
+        if (uploadBuffer.length > YOUTUBE_THUMB_MAX_BYTES) {
+          uploadBuffer = await sharp(imageBuffer)
+            .resize(1280, 720, { fit: "cover", position: "center" })
+            .jpeg({ quality: 60, progressive: true })
+            .toBuffer();
+          logger.info("Playlist thumbnail re-compressed at lower quality", {
+            youtubePlaylistId,
+            compressedBytes: uploadBuffer.length,
+          });
+        }
+      } catch (compressErr: any) {
+        logger.warn("Thumbnail compression failed, uploading original", {
+          youtubePlaylistId, error: compressErr.message
+        });
+      }
+    }
+
     const { getAuthenticatedClient } = await import("./youtube");
     const { google } = await import("googleapis");
     const { oauth2Client } = await getAuthenticatedClient(channelId);
@@ -381,13 +417,13 @@ async function generateAndSetPlaylistThumbnail(
 
     const { Readable } = await import("stream");
     const readable = new Readable();
-    readable.push(imageBuffer);
+    readable.push(uploadBuffer);
     readable.push(null);
 
     await youtube.thumbnails.set({
       videoId: youtubePlaylistId,
       media: {
-        mimeType: "image/png",
+        mimeType: uploadMime,
         body: readable,
       },
     });

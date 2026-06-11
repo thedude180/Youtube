@@ -15,6 +15,14 @@ const logger = createLogger("agent-events");
 const _gameVaultPipelineRunning = new Set<string>();
 const _gameVaultPipelineTTL = new Map<string, number>();
 
+// Per-user debounce for upload.detected → consistency-agent path.
+// When a batch of videos is ingested at once (each firing its own upload.detected),
+// without this guard every single video triggers a separate consistency check
+// 2 min later, creating a hot-spin that saturates the background AI slot.
+// Only one consistency check is allowed to be *queued* per user per 30 min.
+const _consistencyCheckPendingUntil = new Map<string, number>();
+const CONSISTENCY_DEBOUNCE_MS = 30 * 60_000; // 30 min
+
 // Cooldown map: userId:videoId → expiry timestamp (in-memory fast-path)
 // Also persisted to system_settings table for cross-reboot resilience (Fix #5).
 const _recordingFailureCooldown = new Map<string, number>();
@@ -855,14 +863,25 @@ export async function wireAgentCoordination(): Promise<void> {
     logger.info(`New upload for ${event.userId.slice(0, 8)} — scheduling consistency audit + self-improvement`);
     const gameTitle = event.payload?.gameTitle || await getFocusGame();
 
-    setTimeout(async () => {
-      try {
-        const { runConsistencyCheckForUser } = await import("./content-consistency-agent");
-        await runConsistencyCheckForUser(event.userId);
-      } catch (err: any) {
-        logger.warn(`Upload-triggered consistency check failed: ${err.message}`);
-      }
-    }, 2 * 60_000);
+    // Debounce: only queue ONE consistency check per user per 30 min.
+    // Without this, a batch ingestion of N videos fires N concurrent checks
+    // 2 min later, each occupying the sole background AI slot in sequence.
+    const now = Date.now();
+    const pendingUntil = _consistencyCheckPendingUntil.get(event.userId) ?? 0;
+    if (now < pendingUntil) {
+      logger.info(`Upload consistency check debounced for ${event.userId.slice(0, 8)} — another check already pending (expires in ${Math.round((pendingUntil - now) / 60_000)} min)`);
+    } else {
+      _consistencyCheckPendingUntil.set(event.userId, now + CONSISTENCY_DEBOUNCE_MS);
+      setTimeout(async () => {
+        _consistencyCheckPendingUntil.delete(event.userId);
+        try {
+          const { runConsistencyCheckForUser } = await import("./content-consistency-agent");
+          await runConsistencyCheckForUser(event.userId);
+        } catch (err: any) {
+          logger.warn(`Upload-triggered consistency check failed: ${err.message}`);
+        }
+      }, 2 * 60_000);
+    }
 
     const videoId = event.payload?.videoId;
     if (videoId) {

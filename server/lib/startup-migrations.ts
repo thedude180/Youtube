@@ -2401,6 +2401,62 @@ async function migration039ResetHardBlacklistedPreEncoderItems(): Promise<void> 
   }
 }
 
+// ── Migration 040: Cancel orphan auto-clip items with no sourceYoutubeId ──────
+// The back-catalog runner queued auto-clip items for live_streams that have no
+// YouTube video ID (streams that never went live or were not captured).
+// These items can never be processed by the pre-encoder — cancel them so they
+// stop polluting the queue and triggering spurious pre-encoder failures.
+
+async function migration040CancelOrphanAutoClipsNoYoutubeId(): Promise<void> {
+  const FLAG = "migration:040:cancel_orphan_auto_clips_no_ytid";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'Cancelled: auto-clip has no sourceYoutubeId — source stream was never captured on YouTube'
+      WHERE type   = 'auto-clip'
+        AND status NOT IN ('published', 'failed', 'cancelled', 'permanent_fail')
+        AND (metadata->>'sourceYoutubeId' IS NULL OR metadata->>'sourceYoutubeId' = '')
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 040] Cancelled ${count} orphan auto-clip items with no sourceYoutubeId`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 040] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 041: Fail smart-edit items with no videoId ──────────────────────
+// The autopilot-monitor recovery logic re-queued failed smart-edit items as new
+// "auto_retry_unknown" items but did not carry the videoId forward into metadata.
+// These items can never dispatch (the kernel requires videoId to run smart-edit).
+// Cancel them so the queue is clean — the original source videos will get fresh
+// smart-edit items queued on the next initSmartEditForAllLongVideos cycle.
+
+async function migration041FailSmartEditItemsNoVideoId(): Promise<void> {
+  const FLAG = "migration:041:fail_smart_edit_no_video_id";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'Cancelled: smart-edit recovery item is missing videoId — will be re-queued by next initSmartEditForAllLongVideos cycle'
+      WHERE type   = 'smart-edit'
+        AND status NOT IN ('published', 'failed', 'cancelled', 'permanent_fail')
+        AND (metadata->>'videoId' IS NULL OR metadata->>'videoId' = '')
+        AND metadata->>'autoFixAction' IS NOT NULL
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 041] Cancelled ${count} smart-edit recovery items with no videoId`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 041] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2444,6 +2500,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration037SeedSystemIncidentLog();
     await migration038DeleteChannel52();
     await migration039ResetHardBlacklistedPreEncoderItems();
+    await migration040CancelOrphanAutoClipsNoYoutubeId();
+    await migration041FailSmartEditItemsNoVideoId();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
