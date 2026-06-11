@@ -3692,11 +3692,11 @@ httpServer.listen(
           try {
             const { db: _db } = await import("./db");
             const { channels: _ch } = await import("@shared/schema");
-            const { eq: _eq } = await import("drizzle-orm");
+            const { eq: _eq, isNotNull: _isNotNull, and: _and } = await import("drizzle-orm");
             const userRows = await _db
               .select({ userId: _ch.userId, id: _ch.id })
               .from(_ch)
-              .where(_eq(_ch.platform, "youtube"))
+              .where(_and(_eq(_ch.platform, "youtube"), _isNotNull(_ch.accessToken)))
               .limit(1);
             if (!userRows.length) {
               logger.warn("[Boot] No YouTube channel found — prep pipelines not started");

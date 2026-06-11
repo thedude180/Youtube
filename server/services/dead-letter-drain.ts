@@ -284,7 +284,7 @@ async function drainOneCycle(): Promise<void> {
           status,
           user_id,
           target_platform,
-          payload,
+          metadata,
           content,
           scheduled_at,
           created_at,

@@ -2371,6 +2371,36 @@ async function cleanupOrphanedQueueItems(): Promise<void> {
   }
 }
 
+// ── Migration 039: Reset hard-blacklisted pre-encoder items ──────────────────
+// Previously, "Requested format is not available" errors caused items to
+// immediately jump to preEncoderFailCount=3 (hard-fail), permanently excluding
+// them from the pre-encoder.  The pre-encoder now has a vault-first fallback:
+// it trims from the full downloaded vault file instead of section-downloading.
+// Reset all hard-failed items to count=1 so they get retried with the new logic.
+// Items whose vault entry also fails will be skipped via the per-vault-fail check.
+
+async function migration039ResetHardBlacklistedPreEncoderItems(): Promise<void> {
+  const FLAG = "migration:039:reset_hard_blacklisted_pre_encoder";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET metadata = (metadata - 'preEncoderHardFail')
+        || jsonb_build_object('preEncoderFailCount', 1,
+                              'preEncoderResetAt', NOW()::text,
+                              'preEncoderResetReason', 'vault-fallback-enabled')
+      WHERE status = 'scheduled'
+        AND COALESCE((metadata->>'preEncoderHardFail')::boolean, false) = true
+    `);
+    const count = (result as any).rowCount ?? 0;
+    log.info(`[Migration 039] Reset ${count} hard-blacklisted pre-encoder items to count=1 for vault-fallback retry`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 039] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2413,6 +2443,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration036FailOG1And3Dw4StormVideos();
     await migration037SeedSystemIncidentLog();
     await migration038DeleteChannel52();
+    await migration039ResetHardBlacklistedPreEncoderItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

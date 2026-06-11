@@ -92,6 +92,29 @@ async function downloadSection(
   await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
 }
 
+/**
+ * Trim a segment from an already-downloaded full video file using FFmpeg.
+ * Used as a fallback when yt-dlp section download reports "format not available"
+ * but the vault has a complete copy of the source video on disk.
+ */
+async function trimRawFromFile(
+  inputPath: string,
+  startSec: number,
+  endSec: number,
+  outputPath: string,
+): Promise<void> {
+  const durationSec = endSec - startSec;
+  if (durationSec <= 0) throw new Error(`Invalid trim bounds: ${startSec}–${endSec}`);
+  await runCmd("ffmpeg", [
+    "-y",
+    "-ss", String(startSec),
+    "-t",  String(durationSec),
+    "-i",  inputPath,
+    "-c",  "copy",
+    outputPath,
+  ]);
+}
+
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<void> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
@@ -501,27 +524,56 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       continue;
     }
 
-    // Skip items whose source video is permanently undownloadable in the vault
-    // (all clients exhausted after 3+ attempts — live stream never archived, HTTP 400, etc.)
-    // The publisher will permanently fail these on its next cycle via queueVaultDownloadForSource.
+    // ── Vault state check ────────────────────────────────────────────────────
+    // Look up vault for this source video: downloaded (has file) vs indexed
+    // (queued but not yet downloaded) vs failed (unrecoverable).
+    let vaultFilePath: string | null = null;
+    let vaultIsIndexedOnly = false;
     try {
       const { db: vaultDb } = await import("../db");
       const { contentVaultBackups } = await import("@shared/schema");
       const { eq: vEq, and: vAnd } = await import("drizzle-orm");
-      const [failedEntry] = await vaultDb
-        .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
+
+      // Check for a downloaded file first
+      const [downloadedEntry] = await vaultDb
+        .select({ id: contentVaultBackups.id, filePath: contentVaultBackups.filePath })
         .from(contentVaultBackups)
         .where(vAnd(
           vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
-          vEq(contentVaultBackups.status, "failed"),
+          vEq(contentVaultBackups.status, "downloaded"),
         ))
         .limit(1);
-      if (failedEntry) {
-        const failCount = ((failedEntry.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
-        if (failCount >= 3) {
-          logger.info(`[PreEncoder] Skipping item ${item.id} — source ${sourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
-          skipped++;
-          continue;
+
+      if (downloadedEntry?.filePath && fs.existsSync(downloadedEntry.filePath)) {
+        vaultFilePath = downloadedEntry.filePath;
+      } else {
+        // No downloaded file — check if indexed (vault knows about it but hasn't downloaded yet)
+        const [indexedEntry] = await vaultDb
+          .select({ id: contentVaultBackups.id })
+          .from(contentVaultBackups)
+          .where(vAnd(
+            vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+            vEq(contentVaultBackups.status, "indexed"),
+          ))
+          .limit(1);
+        if (indexedEntry) vaultIsIndexedOnly = true;
+
+        // Check for permanently failed vault entry — skip completely
+        const [failedEntry] = await vaultDb
+          .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
+          .from(contentVaultBackups)
+          .where(vAnd(
+            vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+            vEq(contentVaultBackups.status, "failed"),
+          ))
+          .limit(1);
+        if (failedEntry) {
+          const failCount = ((failedEntry.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
+          if (failCount >= 3) {
+            logger.info(`[PreEncoder] Skipping item ${item.id} — source ${sourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
+            skipped++;
+            continue;
+          }
         }
       }
     } catch { /* non-fatal — continue to attempt the download */ }
@@ -534,19 +586,32 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       if (fs.existsSync(p)) fs.unlinkSync(p);
     }
 
+    const musicChannelId = (meta.channelId as number | undefined) ?? 53;
+
     try {
-      logger.info(
-        `[PreEncoder] Encoding item ${item.id} (${isLongForm ? "long-form" : "short"}) ` +
-        `from ${sourceYoutubeId} [${startSec}s–${endSec}s]`,
-      );
-
-      await downloadSection(sourceYoutubeId, startSec, endSec, rawPath);
-
-      if (!fs.existsSync(rawPath)) throw new Error("yt-dlp produced no output");
+      if (vaultFilePath) {
+        // ── Vault-first path ─────────────────────────────────────────────────
+        // Full video already downloaded to vault — trim the segment with FFmpeg
+        // instead of using yt-dlp section download.  Much more reliable for
+        // videos whose DASH/fragmented formats aren't available for section-dl.
+        logger.info(
+          `[PreEncoder] Encoding item ${item.id} (${isLongForm ? "long-form" : "short"}) ` +
+          `from vault file [${startSec}s–${endSec}s]: ${path.basename(vaultFilePath)}`,
+        );
+        await trimRawFromFile(vaultFilePath, startSec, endSec, rawPath);
+        if (!fs.existsSync(rawPath)) throw new Error("FFmpeg trim produced no output");
+      } else {
+        // ── yt-dlp section download path ─────────────────────────────────────
+        logger.info(
+          `[PreEncoder] Encoding item ${item.id} (${isLongForm ? "long-form" : "short"}) ` +
+          `from ${sourceYoutubeId} [${startSec}s–${endSec}s]`,
+        );
+        await downloadSection(sourceYoutubeId, startSec, endSec, rawPath);
+        if (!fs.existsSync(rawPath)) throw new Error("yt-dlp produced no output");
+      }
 
       // channelId for library-aware music selection: read from metadata if present,
       // otherwise default to 53 (ET Gaming 274 — the only active channel)
-      const musicChannelId = (meta.channelId as number | undefined) ?? 53;
       if (isLongForm) {
         await encodeLongForm(rawPath, durationSec, outputPath, musicChannelId);
       } else {
@@ -564,6 +629,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             ...meta,
             preEncodedPath: outputPath,
             preEncodedAt: new Date().toISOString(),
+            ...(vaultFilePath ? { preEncodedViaVault: true } : {}),
           } as any,
         })
         .where(and(
@@ -574,14 +640,14 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         .returning({ id: autopilotQueue.id });
 
       if (!claimed.length) {
-        // Publisher already processed this item — discard the file
         logger.debug(`[PreEncoder] Item ${item.id} already claimed by publisher — discarding pre-encoded file`);
         if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
         skipped++;
       } else {
         const fileSizeMB = Math.round(fs.statSync(outputPath).size / 1_048_576);
         logger.info(
-          `[PreEncoder] Item ${item.id} pre-encoded → pre_${item.id}.mp4 (${fileSizeMB} MB)`,
+          `[PreEncoder] Item ${item.id} pre-encoded → pre_${item.id}.mp4 (${fileSizeMB} MB)` +
+          (vaultFilePath ? " [vault trim]" : ""),
         );
         encoded++;
       }
@@ -590,31 +656,48 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       const errMsg = err.message?.slice(0, 300) ?? String(err);
       logger.warn(`[PreEncoder] Failed to pre-encode item ${item.id}: ${errMsg}`);
 
-      // Hard format errors are permanent — no retry will ever succeed.
-      // "Requested format is not available" means the video is age-restricted,
-      // region-locked, or the format manifest was pulled by YouTube.  Retrying
-      // wastes two yt-dlp gate slots per cycle and produces identical 403s.
-      // Jump straight to the exclusion threshold (3) so the query filter skips
-      // this item on every future pre-encoder cycle.
-      const isHardFormatError =
+      // "Requested format is not available" means yt-dlp section download can't
+      // fetch a fragmented segment for this video.  This is recoverable if the
+      // full video gets downloaded to the vault — the next cycle will use the
+      // vault-trim path.  Only hard-fail if the vault itself has permanently
+      // failed (unresolvable).  For indexed-only vault entries, set count=1 so
+      // we retry after the vault downloader finishes the full-video download.
+      const isFormatError =
         errMsg.includes("Requested format is not available") ||
         errMsg.includes("format is not available") ||
         errMsg.includes("This video is not available") ||
         errMsg.includes("Video unavailable");
 
-      // Track failure count in metadata so we can stop retrying permanently-blocked videos.
-      // After 3 failures the item is excluded from future pre-encoder cycles via the query
-      // filter (preEncoderFailCount >= 3). At that point we leave it in "scheduled" so
-      // the publisher can still attempt a live-download on its next cycle.
       const prevCount = typeof meta.preEncoderFailCount === "number" ? meta.preEncoderFailCount : 0;
-      // Hard format errors skip straight to the exclusion threshold — no gradual retry
-      const newCount = isHardFormatError ? 3 : prevCount + 1;
+
+      let newCount: number;
+      let isHardFail = false;
+
+      if (isFormatError && vaultIsIndexedOnly) {
+        // Vault has the video indexed (it will be downloaded eventually).
+        // Soft-fail: count=1 so the item stays in the pre-encoder's retry window
+        // and will be picked up again once the vault file is ready.
+        newCount = Math.max(prevCount, 1);
+        logger.info(
+          `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) section-dl format error — ` +
+          `vault has it indexed; will retry after vault download completes.`,
+        );
+      } else if (isFormatError && !vaultFilePath) {
+        // No vault entry at all — genuinely unresolvable for now.
+        // Hard-fail to stop wasting yt-dlp slots.
+        newCount = 3;
+        isHardFail = true;
+      } else {
+        // Non-format error (timeout, ffmpeg failure, etc.) — gradual retry
+        newCount = prevCount + 1;
+      }
+
       const updatedMeta: Record<string, unknown> = {
         ...meta,
         preEncoderFailCount: newCount,
         preEncoderLastError: errMsg,
         preEncoderLastFailedAt: new Date().toISOString(),
-        ...(isHardFormatError ? { preEncoderHardFail: true } : {}),
+        ...(isHardFail ? { preEncoderHardFail: true } : {}),
       };
 
       try {
@@ -624,11 +707,10 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             eq(autopilotQueue.id, item.id),
             eq(autopilotQueue.status, "scheduled"),
           ));
-        if (isHardFormatError) {
+        if (isHardFail) {
           logger.warn(
             `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) hard format error — ` +
-            `permanently blacklisted from pre-encoder; will not retry. ` +
-            `Error: ${errMsg.slice(0, 120)}`,
+            `no vault entry; permanently blacklisted. Error: ${errMsg.slice(0, 120)}`,
           );
         } else if (newCount >= 3) {
           logger.warn(
