@@ -2681,15 +2681,13 @@ async function migration049CancelBlockedPublishingQueue(): Promise<void> {
   if (await getFlag(FLAG)) return;
   try {
     // 1. Cancel all items from permanently-undownloadable source videos
+    //    NOTE: autopilot_queue has NO source_youtube_id column — use metadata->>'sourceYoutubeId' only
     const r1 = await db.execute(sql`
       UPDATE autopilot_queue
       SET status        = 'cancelled',
           error_message = 'migration049: source video permanently undownloadable — no DASH format available'
       WHERE status NOT IN ('published', 'cancelled', 'failed', 'permanent_fail')
-        AND (
-              metadata->>'sourceYoutubeId' IN ('T4PKhDhQPp0','q_HLUcS7rLE','bKi6jjwG7Ac','Ky7PFPhmF3Q')
-          OR  source_youtube_id            IN ('T4PKhDhQPp0','q_HLUcS7rLE','bKi6jjwG7Ac','Ky7PFPhmF3Q')
-        )
+        AND metadata->>'sourceYoutubeId' IN ('T4PKhDhQPp0','q_HLUcS7rLE','bKi6jjwG7Ac','Ky7PFPhmF3Q','9d0pi7uTJ88')
     `);
     log.info(`[Migration 049] Cancelled ${(r1 as any).rowCount ?? 0} bad-source-video queue items`);
 
@@ -2700,8 +2698,8 @@ async function migration049CancelBlockedPublishingQueue(): Promise<void> {
           error_message = 'migration049: orphaned item — no sourceYoutubeId and no studioVideoId'
       WHERE status NOT IN ('published', 'cancelled', 'failed', 'permanent_fail')
         AND type IN ('auto-clip', 'platform_short')
-        AND COALESCE(metadata->>'sourceYoutubeId', source_youtube_id::text, '') = ''
-        AND COALESCE(metadata->>'studioVideoId',   source_video_id::text,   '') = ''
+        AND COALESCE(metadata->>'sourceYoutubeId', '') = ''
+        AND COALESCE(metadata->>'studioVideoId', source_video_id::text, '') = ''
     `);
     log.info(`[Migration 049] Cancelled ${(r2 as any).rowCount ?? 0} orphaned queue items`);
 
