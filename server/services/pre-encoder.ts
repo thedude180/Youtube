@@ -542,7 +542,10 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     if (!resolvedSourceYoutubeId && item.sourceVideoId) {
       try {
         const [srcVid] = await db
-          .select({ youtubeVideoId: videos.youtubeVideoId, durationSec: videos.durationSec })
+          .select({
+            youtubeVideoId: sql<string | null>`${videos.metadata}->>'youtubeVideoId'`,
+            durationSec:    sql<number | null>`(${videos.metadata}->>'durationSec')::int`,
+          })
           .from(videos)
           .where(eq(videos.id, item.sourceVideoId))
           .limit(1);

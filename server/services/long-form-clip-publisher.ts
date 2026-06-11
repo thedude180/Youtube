@@ -168,7 +168,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       // instead of being immediately failed as "Segment too short".
       if (rawDurationSec === 0 && item.type === "vod-long-form" && item.sourceVideoId) {
         try {
-          const [srcVid] = await db.select({ durationSec: videos.durationSec })
+          const [srcVid] = await db
+            .select({ durationSec: sql<number | null>`(${videos.metadata}->>'durationSec')::int` })
             .from(videos)
             .where(eq(videos.id, item.sourceVideoId))
             .limit(1);

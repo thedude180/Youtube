@@ -2768,6 +2768,97 @@ async function migration050FixPendingStudioAutoPublishItems(): Promise<void> {
   }
 }
 
+// ── Migration 051: redistribute jammed Short + long-form schedule ─────────────
+//
+// On Jun 11 2026 YouTube quota was exhausted at ~10:51 UTC.  The back-catalog
+// engine subsequently called getNextShortPublishTime() for many items while the
+// 14-day saturation cache was set, so it returned fallback = now+6h for all of
+// them.  Result: 16 youtube_short items piled at 2026-06-12 07:05:00 UTC
+// (= midnight Pacific + 5 min), plus several auto-clip items jammed together.
+//
+// Fix: redistribute ALL pending/scheduled youtube_short items to a proper 3/day
+// cadence spread equally across the day, and all auto-clip/vod-long-form items
+// to a proper 1/day cadence.  Both publishers use a 365-day batch window — they
+// upload everything as private YouTube videos with publishAt so YouTube handles
+// the gradual release.
+//
+// Windows used (UTC, matching America/Chicago = CDT = UTC-5):
+//   Short W0 → 13:00 UTC  (= 08:00 CDT)   morning slot
+//   Short W1 → 19:30 UTC  (= 14:30 CDT)   afternoon slot
+//   Short W2 → 02:30 UTC  (= 21:30 CDT)   evening slot (next calendar day in UTC)
+//   Long-form → 23:30 UTC (= 18:30 CDT)   prime-time slot
+//
+// 30 Shorts at 3/day fills Jun 12 – Jun 21 (10 days).
+// 24 long-form at 1/day fills Jun 12 – Jul 5 (24 days).
+async function migration051RedistributeSchedule(): Promise<void> {
+  const FLAG = "migration:051:redistribute_schedule";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Clear all future short_slot_claims so getNextShortPublishTime() won't
+    //    block new scheduling attempts with stale claim rows.
+    const r0 = await db.execute(sql`
+      DELETE FROM short_slot_claims
+      WHERE claimed_slot > NOW()
+    `);
+    log.info(`[Migration 051] Cleared ${(r0 as any).rowCount ?? 0} future short_slot_claims`);
+
+    // 2. Redistribute ALL youtube_short items (scheduled/pending) to 3/day
+    //    cadence windows.  ROW_NUMBER() preserves relative order (earlier
+    //    scheduled_at = earlier new slot).  Starting date: 2026-06-12 UTC.
+    //    W0 = 13h, W1 = 19h30m, W2 = 26h30m (= next day 02:30 UTC).
+    //    Jitter: 0–7 min per item so slots within the same window differ.
+    const r1 = await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               (ROW_NUMBER() OVER (ORDER BY scheduled_at, id) - 1) AS rn
+        FROM autopilot_queue
+        WHERE type = 'youtube_short'
+          AND status IN ('scheduled', 'pending')
+          AND target_platform IN ('youtube', 'youtubeshorts')
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at =
+            TIMESTAMP '2026-06-12 00:00:00 UTC'
+            + (r.rn / 3) * INTERVAL '1 day'
+            + CASE (r.rn % 3)
+                WHEN 0 THEN INTERVAL '13 hours'
+                WHEN 1 THEN INTERVAL '19 hours 30 minutes'
+                WHEN 2 THEN INTERVAL '26 hours 30 minutes'
+              END
+            + (FLOOR(RANDOM() * 7 * 60)::int) * INTERVAL '1 second'
+      FROM ranked r
+      WHERE q.id = r.id
+    `);
+    log.info(`[Migration 051] Redistributed ${(r1 as any).rowCount ?? 0} youtube_short items to 3/day cadence (Jun 12 onwards)`);
+
+    // 3. Redistribute ALL auto-clip and vod-long-form items (scheduled/pending)
+    //    to 1/day at 23:30 UTC (18:30 CDT prime-time slot).
+    //    Starting date: 2026-06-12 UTC.
+    const r2 = await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               (ROW_NUMBER() OVER (ORDER BY scheduled_at, id) - 1) AS rn
+        FROM autopilot_queue
+        WHERE type IN ('auto-clip', 'vod-long-form')
+          AND status IN ('scheduled', 'pending')
+          AND target_platform = 'youtube'
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at =
+            TIMESTAMP '2026-06-12 23:30:00 UTC'
+            + r.rn * INTERVAL '1 day'
+            + (FLOOR(RANDOM() * 7 * 60)::int) * INTERVAL '1 second'
+      FROM ranked r
+      WHERE q.id = r.id
+    `);
+    log.info(`[Migration 051] Redistributed ${(r2 as any).rowCount ?? 0} long-form items to 1/day cadence (Jun 12 onwards)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 051] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2822,6 +2913,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration048HardFailUndownloadablePreEncoderItems();
     await migration049CancelBlockedPublishingQueue();
     await migration050FixPendingStudioAutoPublishItems();
+    await migration051RedistributeSchedule();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
