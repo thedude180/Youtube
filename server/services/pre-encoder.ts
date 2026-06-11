@@ -28,13 +28,12 @@ import { autopilotQueue } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
+import { assembleMusicScore, cleanupMusicScore } from "./music-scorer";
 
 const logger = createLogger("pre-encoder");
 
 const PRE_ENCODE_DIR =
   process.env.PRE_ENCODE_DIR ?? path.join(process.cwd(), "data", "pre-encoded");
-
-const MUSIC_LIBRARY_DIR = path.join(process.cwd(), "data", "music-library");
 
 /** Background music volume relative to game audio (12% — audible but game audio stays primary) */
 const MUSIC_BG_VOLUME = 0.12;
@@ -42,26 +41,6 @@ const MUSIC_BG_VOLUME = 0.12;
 const MAX_ITEMS_PER_RUN = 20;   // items per cycle (pipeline runs continuously)
 const MIN_FREE_DISK_GB  = 2;    // skip cycle if less than this much space free
 const MAX_FILE_AGE_MS   = 7 * 24 * 3_600_000; // purge unused pre-encoded files after 7 days
-
-/**
- * Pick a random AI-generated background music track from the library.
- * Shorts get the action tracks; long-form gets the cinematic/tactical tracks.
- * Returns null gracefully if the library directory is missing or empty.
- */
-function selectMusicTrack(isShort: boolean): string | null {
-  try {
-    if (!fs.existsSync(MUSIC_LIBRARY_DIR)) return null;
-    const prefix = isShort ? "shorts_" : "longform_";
-    const files = fs.readdirSync(MUSIC_LIBRARY_DIR)
-      .filter(f => f.startsWith(prefix) && f.endsWith(".mp3"))
-      .map(f => path.join(MUSIC_LIBRARY_DIR, f))
-      .filter(f => fs.existsSync(f));
-    if (files.length === 0) return null;
-    return files[Math.floor(Math.random() * files.length)];
-  } catch {
-    return null;
-  }
-}
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -117,7 +96,9 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
-  const musicPath = selectMusicTrack(true);
+
+  // Narrative music: short_arc tracks have a baked-in story arc (quiet→build→peak→resolve)
+  const musicPath = await assembleMusicScore(durationSec, true);
 
   const videoFilter = [
     "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
@@ -140,36 +121,40 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
     "-threads", "2",
   ];
 
-  if (musicPath) {
-    // Mix in AI-generated background music at low volume
-    logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
-    await runCmd("ffmpeg", [
-      "-y",
-      "-i", rawPath,
-      "-stream_loop", "-1", "-i", musicPath,
-      "-filter_complex", [
-        `[0:v]${videoFilter}[outv]`,
-        "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
-        `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
-        "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
-      ].join(";"),
-      "-map", "[outv]",
-      "-map", "[outa]",
-      "-t", String(durationSec),
-      ...codecArgs,
-      outputPath,
-    ]);
-  } else {
-    // Fallback: no music library yet — encode without music
-    await runCmd("ffmpeg", [
-      "-y",
-      "-i", rawPath,
-      "-t", String(durationSec),
-      "-vf", videoFilter,
-      "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-      ...codecArgs,
-      outputPath,
-    ]);
+  try {
+    if (musicPath) {
+      // Mix narrative music score — arc track has a baked-in story (quiet→build→peak→resolve)
+      logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
+      await runCmd("ffmpeg", [
+        "-y",
+        "-i", rawPath,
+        "-stream_loop", "-1", "-i", musicPath,
+        "-filter_complex", [
+          `[0:v]${videoFilter}[outv]`,
+          "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
+          `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
+          "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
+        ].join(";"),
+        "-map", "[outv]",
+        "-map", "[outa]",
+        "-t", String(durationSec),
+        ...codecArgs,
+        outputPath,
+      ]);
+    } else {
+      // Fallback: no music library yet — encode without music
+      await runCmd("ffmpeg", [
+        "-y",
+        "-i", rawPath,
+        "-t", String(durationSec),
+        "-vf", videoFilter,
+        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+        ...codecArgs,
+        outputPath,
+      ]);
+    }
+  } finally {
+    cleanupMusicScore(musicPath); // no-op for library files; deletes assembled temp scores
   }
 }
 
@@ -272,8 +257,9 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
 
-  // Select background music track (null = library missing, encode without music)
-  const musicPath = selectMusicTrack(false);
+  // Assemble narrative score: intro → rising action → climax → outro
+  // (assembled by music-scorer.ts; temp file cleaned up in finally block)
+  const musicPath = await assembleMusicScore(durationSec, false);
   if (musicPath) logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
 
   const codecArgs = [
@@ -288,6 +274,8 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     "-pix_fmt", "yuv420p",
     "-threads", "2",
   ];
+
+  try {
 
   // Step 1 — detect loading screens / dead time (frozen frames ≥ 60 seconds).
   // This is a fast read-only pass that produces no output file.
@@ -399,6 +387,10 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   );
 
   await runCmd("ffmpeg", ffmpegArgs);
+
+  } finally {
+    cleanupMusicScore(musicPath); // deletes assembled temp score; no-op for library files
+  }
 }
 
 // ── Stale-file cleanup ─────────────────────────────────────────────────────────

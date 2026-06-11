@@ -90,3 +90,45 @@ id = "Ou4FAQaanwZgTECLoaXgK"
 uri = "file://data/music-library/longform_ambient_01.mp3"
 type = "audio"
 title = "longform_ambient_01"
+
+[[outputs]]
+id = "rJ9AIYOOkLZSUPuRgsB8c"
+uri = "file://data/music-library/act1_intro.mp3"
+type = "audio"
+title = "act1_intro"
+
+[[outputs]]
+id = "XNQWsNTpIvmG_MG8YTjI6"
+uri = "file://data/music-library/act2_rising.mp3"
+type = "audio"
+title = "act2_rising"
+
+[[outputs]]
+id = "_7z5RwuZ7ZNrZ_DJK_NkN"
+uri = "file://data/music-library/act3_climax.mp3"
+type = "audio"
+title = "act3_climax"
+
+[[outputs]]
+id = "MdNeExJR8LAwPMpq_X1_r"
+uri = "file://data/music-library/act4_falling.mp3"
+type = "audio"
+title = "act4_falling"
+
+[[outputs]]
+id = "nIbRAjMdhDoXu1bzANC03"
+uri = "file://data/music-library/act5_outro.mp3"
+type = "audio"
+title = "act5_outro"
+
+[[outputs]]
+id = "pK07MYbmJJiVAEMAHDy-y"
+uri = "file://data/music-library/short_arc_01.mp3"
+type = "audio"
+title = "short_arc_01"
+
+[[outputs]]
+id = "LlzXKj8UDpl777SZrHStK"
+uri = "file://data/music-library/short_arc_02.mp3"
+type = "audio"
+title = "short_arc_02"
