@@ -89,6 +89,10 @@ async function downloadSection(
 }
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
+  // Audio is stripped (-an) on all Shorts.  The channel is no-commentary, so
+  // silence is expected and standard.  Removing the audio track eliminates
+  // Content ID claims from in-game music (e.g. Ubisoft, EA licensed tracks)
+  // which are the primary cause of copyright notices on gaming Shorts.
   await runCmd("ffmpeg", [
     "-y",
     "-i", rawPath,
@@ -100,17 +104,13 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
       "setsar=1",
       "fps=60",
     ].join(","),
-    "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
+    "-an",
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",
     "-crf", "18",
     "-preset", "fast",
     "-movflags", "+faststart",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    "-ar", "48000",
-    "-ac", "2",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
     outputPath,
@@ -118,23 +118,23 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
 }
 
 async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
+  // Audio is stripped (-an) on all long-form encodes.  The channel is
+  // no-commentary; viewers come for the gameplay footage, not the soundtrack.
+  // Silent long-form videos have no Content ID exposure and allow unrestricted
+  // monetisation regardless of which game is being played.
   await runCmd("ffmpeg", [
     "-y",
     "-i", rawPath,
     "-t", String(durationSec),
     // 16:9 horizontal — letterbox to 3840×2160 (4K), keep original aspect ratio (no crop)
     "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
-    "-af", "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
+    "-an",
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",
     "-crf", "18",
     "-preset", "fast",
     "-movflags", "+faststart",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    "-ar", "48000",
-    "-ac", "2",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
     outputPath,

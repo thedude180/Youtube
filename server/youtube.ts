@@ -813,7 +813,7 @@ export async function fetchYouTubeVideoDetails(
 export async function updateYouTubeVideo(
   channelId: number,
   videoId: string,
-  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean },
+  updates: { title?: string; description?: string; tags?: string[]; categoryId?: string; enableMonetization?: boolean; privacyStatus?: "public" | "private" | "unlisted" },
   /** Callers that manage their own quota gate+tracking (e.g. youtube-push-backlog) pass
    *  the correct op type here so the internal tracking uses the right daily cap bucket.
    *  Pass "skip" to disable internal quota management entirely (caller is responsible). */
@@ -840,7 +840,7 @@ export async function updateYouTubeVideo(
   const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
   const parts: string[] = ["snippet"];
-  if (updates.enableMonetization !== undefined) {
+  if (updates.enableMonetization !== undefined || updates.privacyStatus !== undefined) {
     parts.push("status");
   }
 
@@ -866,13 +866,16 @@ export async function updateYouTubeVideo(
       },
     };
 
-    if (updates.enableMonetization) {
+    if (updates.enableMonetization || updates.privacyStatus !== undefined) {
       requestBody.status = {
         ...(item?.status || {}),
-        selfDeclaredMadeForKids: false,
-        embeddable: true,
-        license: "youtube",
-        publicStatsViewable: true,
+        ...(updates.privacyStatus !== undefined ? { privacyStatus: updates.privacyStatus } : {}),
+        ...(updates.enableMonetization ? {
+          selfDeclaredMadeForKids: false,
+          embeddable: true,
+          license: "youtube",
+          publicStatsViewable: true,
+        } : {}),
       };
     }
 

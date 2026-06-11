@@ -258,6 +258,26 @@ async function getCurrentStreamGame(userId: string): Promise<string | null> {
   }
 }
 
+// ── Copyright-risky games blocklist ──────────────────────────────────────────
+// Games whose in-game soundtracks consistently trigger Content ID claims on
+// YouTube regardless of fair-use intent.  Any back-catalog video whose
+// game_name (or title) matches one of these patterns is PERMANENTLY blocked
+// from Short and long-form clip generation.  Already-published content from
+// these games is handled by perpetual-repair step 5f (auto-unlist).
+export const COPYRIGHT_RISKY_GAME_PATTERNS: RegExp[] = [
+  /assassin.?s creed.*(unity|syndicate|liberation|black flag|freedom cry)/i,
+  /dragon age/i,
+  /middle.?earth.*shadow/i,   // Shadow of Mordor / Shadow of War
+  /tomb raider/i,
+  /hitman/i,
+];
+
+/** Returns true if the video's game name or title matches a risky pattern. */
+export function isCopyrightRiskyGame(v: { gameName?: string | null; title?: string | null }): boolean {
+  const text = `${v.gameName ?? ""} ${v.title ?? ""}`;
+  return COPYRIGHT_RISKY_GAME_PATTERNS.some(re => re.test(text));
+}
+
 // ── Game priority filter ──────────────────────────────────────────────────────
 // Returns a predicate that matches back-catalog videos for a given game name.
 // Handles abbreviated names ("BF6", "BF2042") that wouldn't match the full
@@ -727,6 +747,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           (v.durationSec ?? 0) >= SHORT_MIN_SOURCE_SEC &&
           v.shortsOpportunityScore >= SHORTS_OPPORTUNITY_THRESHOLD &&
           !v.minedForShorts &&
+          !isCopyrightRiskyGame(v) &&
           (!gameFilter || gameFilter(v)),
         )
         .sort((a, b) => (_viralScores.get(b.youtubeVideoId) ?? 30) - (_viralScores.get(a.youtubeVideoId) ?? 30));
@@ -954,6 +975,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           (v.durationSec ?? 0) >= LONG_FORM_MIN_SOURCE_SEC &&
           v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
           !v.minedForLongForm &&
+          !isCopyrightRiskyGame(v) &&
           (!gameFilter || gameFilter(v)),
         );
 
@@ -1034,6 +1056,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC &&
           v.longFormOpportunityScore >= LONG_FORM_OPPORTUNITY_THRESHOLD &&
           !v.minedForLongForm &&
+          !isCopyrightRiskyGame(v) &&
           (!gameFilter || gameFilter(v)),
         );
 
