@@ -635,10 +635,12 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     }
 
     // ── Hard game-priority gate with 30-day depth check ──────────────────────
-    // Gate stays ACTIVE (focus-game-only) while EITHER:
-    //   (a) unmined focus-game source videos still exist, OR
-    //   (b) fewer than MIN_FOCUS_DAYS_AHEAD × 4 slots are banked in the next 30 days.
-    // Only when BOTH conditions clear does the gate open to other games.
+    // Gate stays ACTIVE (focus-game-only) while unmined focus-game source
+    // videos still exist.  Once the focus-game catalog is exhausted the gate
+    // opens to ALL games so the pipeline keeps running — other games on the
+    // channel fill the queue until catalog rotation resets the focus-game flags
+    // and mining resumes from the top.  Queue depth alone no longer locks the
+    // gate; only the presence of unmined focus-game footage does.
     let gameFilter: ((v: { gameName?: string | null; title?: string | null }) => boolean) | null = null;
 
     {
@@ -674,16 +676,28 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
         (!v.minedForShorts || !v.minedForLongForm),
       );
 
-      if (hasUnminedForGame || focusDepth < focusThreshold) {
+      if (hasUnminedForGame) {
+        // Unmined focus-game footage exists — mine it exclusively.
         gameFilter = matchesGame;
         logger.info(
-          `[BackCatalog] Game priority gate ACTIVE — "${focusGame}" ` +
-          `(${focusDepth}/${focusThreshold} slots in next ${MIN_FOCUS_DAYS_AHEAD}d, unmined=${hasUnminedForGame})`,
+          `[BackCatalog] Game priority gate ACTIVE — "${focusGame}" has unmined content ` +
+          `(${focusDepth}/${focusThreshold} slots banked)`,
         );
       } else {
-        logger.info(
-          `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked, mixing allowed`,
-        );
+        // Focus-game catalog exhausted — open to all games so the pipeline
+        // keeps producing content.  Other games on the channel fill the queue
+        // until catalog rotation resets the focus-game flags.
+        gameFilter = null;
+        if (focusDepth < focusThreshold) {
+          logger.info(
+            `[BackCatalog] Game priority gate BYPASS — "${focusGame}" catalog exhausted, ` +
+            `queue low (${focusDepth}/${focusThreshold}), mining all games to keep pipeline running`,
+          );
+        } else {
+          logger.info(
+            `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked, mixing allowed`,
+          );
+        }
       }
     }
 
@@ -736,13 +750,13 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     const scheduledDepth = depthRow?.cnt ?? 0;
 
     // ── Catalog rotation — Shorts ─────────────────────────────────────────────
-    // When every focus-game source video has been mined for Shorts AND fewer
-    // than 7 days of Shorts remain in the queue, reset the mined flags so the
-    // catalog cycles through again rather than going dark permanently.
+    // When EVERY source video across ALL games has been mined for Shorts AND
+    // fewer than 7 days of Shorts remain in the queue, reset all mined flags
+    // so the catalog cycles again.  The pipeline runs:
+    //   BF6 → other games → ALL exhausted → reset all → BF6 → other games → …
     {
-      const matchesGame = buildGameFilter(focusGame);
       const allShortsMined = ranked.every(v =>
-        v.isShort || !matchesGame(v) ||
+        v.isShort ||
         (v.durationSec ?? 0) < SHORT_MIN_SOURCE_SEC ||
         !!v.minedForShorts,
       );
@@ -764,15 +778,14 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             .where(and(
               eq(backCatalogVideos.userId, userId),
               eq(backCatalogVideos.minedForShorts, true),
-              sql`game_name = ${focusGame}`,
             ))
             .catch(() => {});
           for (const v of ranked) {
-            if (matchesGame(v)) v.minedForShorts = false;
+            v.minedForShorts = false;
           }
           logger.info(
-            `[BackCatalog] Catalog rotation — reset Shorts mining flags for "${focusGame}" ` +
-            `(Shorts queue depth: ${shortsDepth?.cnt ?? 0} in next 7d)`,
+            `[BackCatalog] Catalog rotation — reset Shorts mining flags for ALL games ` +
+            `(entire catalog exhausted; Shorts queue: ${shortsDepth?.cnt ?? 0} in next 7d)`,
           );
         }
       }
@@ -1008,13 +1021,12 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     // (no else — depth cap is the only gate; if queue is full, just skip quietly)
 
     // ── Catalog rotation — Long-form ──────────────────────────────────────────
-    // Same principle as Shorts rotation above: when every focus-game video is
-    // marked mined_for_long_form AND fewer than 14 days of long-form content
-    // remain in the queue, reset the flags so the catalog keeps cycling forever.
+    // Same principle as Shorts rotation: when EVERY source video across ALL
+    // games is marked mined_for_long_form AND fewer than 14 days of long-form
+    // content remain, reset all flags and start the cycle over.
     {
-      const matchesGame = buildGameFilter(focusGame);
       const allLfMined = ranked.every(v =>
-        v.isShort || !matchesGame(v) ||
+        v.isShort ||
         (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC ||
         !!v.minedForLongForm,
       );
@@ -1036,15 +1048,14 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             .where(and(
               eq(backCatalogVideos.userId, userId),
               eq(backCatalogVideos.minedForLongForm, true),
-              sql`game_name = ${focusGame}`,
             ))
             .catch(() => {});
           for (const v of ranked) {
-            if (matchesGame(v)) v.minedForLongForm = false;
+            v.minedForLongForm = false;
           }
           logger.info(
-            `[BackCatalog] Catalog rotation — reset long-form mining flags for "${focusGame}" ` +
-            `(long-form queue depth: ${lfDepth?.cnt ?? 0} in next 14d)`,
+            `[BackCatalog] Catalog rotation — reset long-form mining flags for ALL games ` +
+            `(entire catalog exhausted; long-form queue: ${lfDepth?.cnt ?? 0} in next 14d)`,
           );
         }
       }
