@@ -2947,6 +2947,106 @@ async function migration052Bf6OnlyFocus(): Promise<void> {
   }
 }
 
+// ── Migration 053: Seed 30-day BF6 long-form schedule from Jun 12 ─────────────
+//
+// After migration 052 cancelled all non-BF6 long-form items the queue has
+// zero long-form entries.  The back-catalog engine mines and queues them at
+// T+10–20 min on boot, but the user needs the cadence to start on Jun 12
+// (the next quota reset) not whenever the engine eventually fills slots.
+//
+// This migration seeds one auto-clip long-form item per day for 30 days
+// (Jun 12 – Jul 11 2026) at 23:30 UTC + 0-7 min jitter, sourced from the
+// 30 longest Battlefield 6 catalog videos.  Each seeded video is immediately
+// marked mined_for_long_form = true so the engine doesn't double-queue it.
+// The engine's mining output will fill days > 30 or top up if fewer than
+// 30 BF6 videos are available.
+async function migration053SeedBf6LongFormSchedule(): Promise<void> {
+  const FLAG = "migration:053:seed_bf6_longform_30day";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Only seed if the long-form window is actually empty for Jun 12+
+    const existing = await db.execute(sql`
+      SELECT COUNT(*) AS cnt
+      FROM autopilot_queue
+      WHERE type IN ('auto-clip','vod-long-form')
+        AND status IN ('scheduled','pending')
+        AND target_platform = 'youtube'
+        AND scheduled_at >= TIMESTAMP '2026-06-12 00:00:00'
+    `);
+    const cnt = Number((existing.rows?.[0] as any)?.cnt ?? 0);
+    if (cnt >= 10) {
+      log.info(`[Migration 053] ${cnt} long-form items already scheduled — skipping seed`);
+      await setFlag(FLAG);
+      return;
+    }
+
+    // Insert one auto-clip per day for 30 days, sourced from the 30 longest
+    // BF6 catalog videos.  Uses a CTE with ROW_NUMBER to assign one day each.
+    // Jitter: (ROW_NUMBER % 8) minutes so no two items land at the same second.
+    const r1 = await db.execute(sql`
+      WITH ranked_bf6 AS (
+        SELECT
+          id                AS catalog_id,
+          youtube_video_id  AS yt_id,
+          title             AS vid_title,
+          ROW_NUMBER() OVER (ORDER BY COALESCE(duration_seconds,0) DESC) - 1 AS rn
+        FROM back_catalog_videos
+        WHERE channel_id = 53
+          AND game_name   = 'Battlefield 6'
+          AND youtube_video_id IS NOT NULL
+        LIMIT 30
+      )
+      INSERT INTO autopilot_queue
+        (user_id, channel_id, type, target_platform, content, status, scheduled_at, metadata)
+      SELECT
+        '7210ff92-76dd-4d0a-80bb-9eb5be27508b',
+        53,
+        'auto-clip',
+        'youtube',
+        COALESCE(NULLIF(TRIM(vid_title),''), 'Battlefield 6 Gameplay — Full Session') ||
+          E'\n\nBattlefield 6 PS5 gameplay — no commentary, no distractions.',
+        'scheduled',
+        TIMESTAMP '2026-06-12 23:30:00'
+          + (rn * INTERVAL '1 day')
+          + ((rn % 8) * INTERVAL '1 minute'),
+        jsonb_build_object(
+          'gameName',       'Battlefield 6',
+          'sourceYoutubeId', yt_id,
+          'contentType',    'long-form',
+          'seededBy',       'migration053'
+        )
+      FROM ranked_bf6
+    `);
+    const inserted = (r1 as any).rowCount ?? 0;
+    log.info(`[Migration 053] Seeded ${inserted} BF6 long-form items (Jun 12 – Jul 11 2026)`);
+
+    // Mark those same catalog videos as mined_for_long_form so the engine
+    // doesn't create duplicate long-form entries for them.
+    const r2 = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET mined_for_long_form = true
+      WHERE channel_id    = 53
+        AND game_name     = 'Battlefield 6'
+        AND youtube_video_id IS NOT NULL
+        AND id IN (
+          SELECT id
+          FROM back_catalog_videos
+          WHERE channel_id = 53
+            AND game_name  = 'Battlefield 6'
+            AND youtube_video_id IS NOT NULL
+          ORDER BY COALESCE(duration_seconds,0) DESC
+          LIMIT 30
+        )
+    `);
+    log.info(`[Migration 053] Marked ${(r2 as any).rowCount ?? 0} BF6 catalog videos as mined_for_long_form`);
+
+    await setFlag(FLAG);
+    log.info("[Migration 053] BF6 30-day long-form schedule seeded — cadence starts Jun 12 2026");
+  } catch (err: any) {
+    log.warn(`[Migration 053] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3003,6 +3103,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration050FixPendingStudioAutoPublishItems();
     await migration051RedistributeSchedule();
     await migration052Bf6OnlyFocus();
+    await migration053SeedBf6LongFormSchedule();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
