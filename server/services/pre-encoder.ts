@@ -34,9 +34,34 @@ const logger = createLogger("pre-encoder");
 const PRE_ENCODE_DIR =
   process.env.PRE_ENCODE_DIR ?? path.join(process.cwd(), "data", "pre-encoded");
 
+const MUSIC_LIBRARY_DIR = path.join(process.cwd(), "data", "music-library");
+
+/** Background music volume relative to game audio (12% — audible but game audio stays primary) */
+const MUSIC_BG_VOLUME = 0.12;
+
 const MAX_ITEMS_PER_RUN = 20;   // items per cycle (pipeline runs continuously)
 const MIN_FREE_DISK_GB  = 2;    // skip cycle if less than this much space free
 const MAX_FILE_AGE_MS   = 7 * 24 * 3_600_000; // purge unused pre-encoded files after 7 days
+
+/**
+ * Pick a random AI-generated background music track from the library.
+ * Shorts get the action tracks; long-form gets the cinematic/tactical tracks.
+ * Returns null gracefully if the library directory is missing or empty.
+ */
+function selectMusicTrack(isShort: boolean): string | null {
+  try {
+    if (!fs.existsSync(MUSIC_LIBRARY_DIR)) return null;
+    const prefix = isShort ? "shorts_" : "longform_";
+    const files = fs.readdirSync(MUSIC_LIBRARY_DIR)
+      .filter(f => f.startsWith(prefix) && f.endsWith(".mp3"))
+      .map(f => path.join(MUSIC_LIBRARY_DIR, f))
+      .filter(f => fs.existsSync(f));
+    if (files.length === 0) return null;
+    return files[Math.floor(Math.random() * files.length)];
+  } catch {
+    return null;
+  }
+}
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -90,33 +115,62 @@ async function downloadSection(
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
-  // Loudnorm normalises levels so gameplay audio isn't jarring.
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
-  await runCmd("ffmpeg", [
-    "-y",
-    "-i", rawPath,
-    "-t", String(durationSec),
-    "-vf", [
-      "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
-      "crop=2160:3840",
-      "pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black",
-      "setsar=1",
-      "fps=60",
-    ].join(","),
-    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-    "-c:a", "aac",
-    "-b:a", "192k",
+  const musicPath = selectMusicTrack(true);
+
+  const videoFilter = [
+    "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
+    "crop=2160:3840",
+    "pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black",
+    "setsar=1",
+    "fps=60",
+  ].join(",");
+
+  const codecArgs = [
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",
     "-crf", "18",
     "-preset", "fast",
+    "-c:a", "aac",
+    "-b:a", "192k",
     "-movflags", "+faststart",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
-    outputPath,
-  ]);
+  ];
+
+  if (musicPath) {
+    // Mix in AI-generated background music at low volume
+    logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
+    await runCmd("ffmpeg", [
+      "-y",
+      "-i", rawPath,
+      "-stream_loop", "-1", "-i", musicPath,
+      "-filter_complex", [
+        `[0:v]${videoFilter}[outv]`,
+        "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
+        `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
+        "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
+      ].join(";"),
+      "-map", "[outv]",
+      "-map", "[outa]",
+      "-t", String(durationSec),
+      ...codecArgs,
+      outputPath,
+    ]);
+  } else {
+    // Fallback: no music library yet — encode without music
+    await runCmd("ffmpeg", [
+      "-y",
+      "-i", rawPath,
+      "-t", String(durationSec),
+      "-vf", videoFilter,
+      "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+      ...codecArgs,
+      outputPath,
+    ]);
+  }
 }
 
 // ── Dead-time detection helpers ────────────────────────────────────────────────
@@ -218,6 +272,23 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
 
+  // Select background music track (null = library missing, encode without music)
+  const musicPath = selectMusicTrack(false);
+  if (musicPath) logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
+
+  const codecArgs = [
+    "-c:v", "libx264",
+    "-profile:v", "high",
+    "-level:v", "5.1",
+    "-crf", "18",
+    "-preset", "fast",
+    "-c:a", "aac",
+    "-b:a", "192k",
+    "-movflags", "+faststart",
+    "-pix_fmt", "yuv420p",
+    "-threads", "2",
+  ];
+
   // Step 1 — detect loading screens / dead time (frozen frames ≥ 60 seconds).
   // This is a fast read-only pass that produces no output file.
   const cutSegs = await detectFreezeSegments(rawPath, 60);
@@ -225,24 +296,38 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Step 2 — choose encode path based on whether dead time was found.
   if (cutSegs.length === 0) {
     // ── Simple path (no dead time) ──────────────────────────────────────────
-    await runCmd("ffmpeg", [
-      "-y",
-      "-i", rawPath,
-      "-t", String(durationSec),
-      "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
-      "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-      "-c:a", "aac",
-      "-b:a", "192k",
-      "-c:v", "libx264",
-      "-profile:v", "high",
-      "-level:v", "5.1",
-      "-crf", "18",
-      "-preset", "fast",
-      "-movflags", "+faststart",
-      "-pix_fmt", "yuv420p",
-      "-threads", "2",
-      outputPath,
-    ]);
+    const videoFilter =
+      "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
+      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1";
+
+    if (musicPath) {
+      await runCmd("ffmpeg", [
+        "-y",
+        "-i", rawPath,
+        "-stream_loop", "-1", "-i", musicPath,
+        "-filter_complex", [
+          `[0:v]${videoFilter}[outv]`,
+          "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
+          `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
+          "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
+        ].join(";"),
+        "-map", "[outv]",
+        "-map", "[outa]",
+        "-t", String(durationSec),
+        ...codecArgs,
+        outputPath,
+      ]);
+    } else {
+      await runCmd("ffmpeg", [
+        "-y",
+        "-i", rawPath,
+        "-t", String(durationSec),
+        "-vf", videoFilter,
+        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+        ...codecArgs,
+        outputPath,
+      ]);
+    }
     return;
   }
 
@@ -266,10 +351,11 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   );
 
   // Build filter_complex that:
-  //   1. Trims each keep segment from the source (v/a in sync)
+  //   1. Trims each keep segment from source input [0]
   //   2. Concatenates all segments back to a continuous stream
   //   3. Scales/pads the video to 4K
-  //   4. Normalises the audio levels
+  //   4. Normalises game audio, then mixes with background music from input [1]
+  //      (if music is available; music input is stream-looped to match video length)
   const filterParts: string[] = [];
   const vLabels: string[] = [];
   const aLabels: string[] = [];
@@ -286,31 +372,33 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   const concatInputs = vLabels.map((v, i) => v + aLabels[i]).join("");
   filterParts.push(`${concatInputs}concat=n=${keepSegs.length}:v=1:a=1[cv][ca]`);
 
-  // Scale/pad video to 4K letterbox, then normalise audio
+  // Scale/pad video to 4K letterbox
   filterParts.push(
     "[cv]scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
     "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1[outv]",
   );
-  filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[outa]");
 
-  await runCmd("ffmpeg", [
-    "-y",
-    "-i", rawPath,
+  // Audio: normalise game audio, then mix with background music (if available)
+  const musicInputIdx = 1; // music is always input [1] when present
+  if (musicPath) {
+    filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[game]");
+    filterParts.push(`[${musicInputIdx}:a]volume=${MUSIC_BG_VOLUME}[bg]`);
+    filterParts.push("[game][bg]amix=inputs=2:duration=first:normalize=0[outa]");
+  } else {
+    filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[outa]");
+  }
+
+  const ffmpegArgs = ["-y", "-i", rawPath];
+  if (musicPath) ffmpegArgs.push("-stream_loop", "-1", "-i", musicPath);
+  ffmpegArgs.push(
     "-filter_complex", filterParts.join(";"),
     "-map", "[outv]",
     "-map", "[outa]",
-    "-c:v", "libx264",
-    "-profile:v", "high",
-    "-level:v", "5.1",
-    "-crf", "18",
-    "-preset", "fast",
-    "-c:a", "aac",
-    "-b:a", "192k",
-    "-movflags", "+faststart",
-    "-pix_fmt", "yuv420p",
-    "-threads", "2",
+    ...codecArgs,
     outputPath,
-  ]);
+  );
+
+  await runCmd("ffmpeg", ffmpegArgs);
 }
 
 // ── Stale-file cleanup ─────────────────────────────────────────────────────────

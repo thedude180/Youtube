@@ -54,3 +54,39 @@ id = "Ko_m0FmXIgACAGWAS-gBp"
 uri = "file://exports/creatoros-issue-history.txt"
 type = "text"
 title = "CreatorOS Issue History — Full Production Record"
+
+[[outputs]]
+id = "OowMvZh5rXdNAXdIhtJsN"
+uri = "file://data/music-library/shorts_action_01.mp3"
+type = "audio"
+title = "shorts_action_01"
+
+[[outputs]]
+id = "d5VVzZlfAF1PYf9nqQyz-"
+uri = "file://data/music-library/shorts_action_02.mp3"
+type = "audio"
+title = "shorts_action_02"
+
+[[outputs]]
+id = "nhq6kIin29LHN8Wijm21V"
+uri = "file://data/music-library/longform_cinematic_01.mp3"
+type = "audio"
+title = "longform_cinematic_01"
+
+[[outputs]]
+id = "jkeACY3opPzmY4o9Sr-p8"
+uri = "file://data/music-library/longform_tactical_01.mp3"
+type = "audio"
+title = "longform_tactical_01"
+
+[[outputs]]
+id = "cOQub9yyR3qSraksLdWEN"
+uri = "file://data/music-library/longform_cinematic_02.mp3"
+type = "audio"
+title = "longform_cinematic_02"
+
+[[outputs]]
+id = "Ou4FAQaanwZgTECLoaXgK"
+uri = "file://data/music-library/longform_ambient_01.mp3"
+type = "audio"
+title = "longform_ambient_01"
