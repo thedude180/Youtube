@@ -119,25 +119,193 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
   ]);
 }
 
+// ── Dead-time detection helpers ────────────────────────────────────────────────
+
+/**
+ * Fast analysis pass: find every contiguous frozen/static run ≥ minFreezeSec
+ * seconds.  Loading screens are essentially motionless so they will always be
+ * caught.  Cutscenes have movement (characters, camera) and will NOT be cut.
+ *
+ * Returns an array of {start, end} timestamps (in seconds) to CUT.
+ */
+async function detectFreezeSegments(
+  inputPath: string,
+  minFreezeSec = 60,
+): Promise<Array<{ start: number; end: number }>> {
+  return new Promise((resolve) => {
+    // Run ffmpeg in analysis-only mode (-f null).  Freeze events are printed to
+    // stderr with lines like:
+    //   [freezedetect] freeze_start: 1234.56
+    //   [freezedetect] freeze_end: 1356.78
+    const proc = spawn("ffmpeg", [
+      "-i", inputPath,
+      "-vf", `freezedetect=n=-60dB:d=${minFreezeSec}`,
+      "-f", "null",
+      "-",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+
+    const chunks: Buffer[] = [];
+    proc.stderr?.on("data", (d: Buffer) => chunks.push(d));
+
+    proc.on("close", () => {
+      const output = Buffer.concat(chunks).toString("utf8");
+      const segs: Array<{ start: number; end: number }> = [];
+      let pendingStart: number | null = null;
+
+      for (const line of output.split("\n")) {
+        const s = line.match(/freeze_start:\s*([\d.]+)/);
+        const e = line.match(/freeze_end:\s*([\d.]+)/);
+        if (s) pendingStart = parseFloat(s[1]);
+        if (e && pendingStart !== null) {
+          segs.push({ start: pendingStart, end: parseFloat(e[1]) });
+          pendingStart = null;
+        }
+      }
+      resolve(segs);
+    });
+
+    proc.on("error", () => resolve([])); // if ffmpeg not available, skip
+  });
+}
+
+/** Get total video duration via ffprobe (seconds). */
+async function getVideoDuration(inputPath: string): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawn("ffprobe", [
+      "-v", "quiet",
+      "-print_format", "json",
+      "-show_format",
+      inputPath,
+    ], { stdio: ["ignore", "pipe", "ignore"] });
+
+    const chunks: Buffer[] = [];
+    proc.stdout?.on("data", (d: Buffer) => chunks.push(d));
+    proc.on("close", () => {
+      try {
+        const info = JSON.parse(Buffer.concat(chunks).toString("utf8")) as {
+          format?: { duration?: string };
+        };
+        resolve(parseFloat(info.format?.duration ?? "0") || 0);
+      } catch { resolve(0); }
+    });
+    proc.on("error", () => resolve(0));
+  });
+}
+
+/**
+ * Invert a list of cut segments into keep segments.
+ * e.g. cuts=[{100,200},{350,500}], total=600
+ *   → keeps=[{0,100},{200,350},{500,600}]
+ */
+function buildKeepSegments(
+  totalDuration: number,
+  cutSegs: Array<{ start: number; end: number }>,
+): Array<{ from: number; to: number }> {
+  const keeps: Array<{ from: number; to: number }> = [];
+  let cursor = 0;
+  for (const cut of cutSegs) {
+    if (cut.start > cursor + 0.5) keeps.push({ from: cursor, to: cut.start });
+    cursor = cut.end;
+  }
+  if (cursor < totalDuration - 0.5) keeps.push({ from: cursor, to: totalDuration });
+  return keeps;
+}
+
+// ── Long-form encoder ──────────────────────────────────────────────────────────
+
 async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
-  // Loudnorm normalises levels for consistent playback volume.
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
+
+  // Step 1 — detect loading screens / dead time (frozen frames ≥ 60 seconds).
+  // This is a fast read-only pass that produces no output file.
+  const cutSegs = await detectFreezeSegments(rawPath, 60);
+
+  // Step 2 — choose encode path based on whether dead time was found.
+  if (cutSegs.length === 0) {
+    // ── Simple path (no dead time) ──────────────────────────────────────────
+    await runCmd("ffmpeg", [
+      "-y",
+      "-i", rawPath,
+      "-t", String(durationSec),
+      "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
+      "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      "-c:v", "libx264",
+      "-profile:v", "high",
+      "-level:v", "5.1",
+      "-crf", "18",
+      "-preset", "fast",
+      "-movflags", "+faststart",
+      "-pix_fmt", "yuv420p",
+      "-threads", "2",
+      outputPath,
+    ]);
+    return;
+  }
+
+  // ── Dead-time removal path ──────────────────────────────────────────────────
+  // Get the actual duration of the raw file so keepSegments can be closed properly.
+  const totalDur = await getVideoDuration(rawPath);
+  const effectiveDur = totalDur > 0 ? totalDur : durationSec;
+  const keepSegs = buildKeepSegments(effectiveDur, cutSegs);
+
+  if (keepSegs.length === 0) {
+    // Degenerate: entire file is frozen — fall back to simple encode without cutting.
+    logger.warn("[PreEncoder] Dead-time detection: entire file appears frozen — encoding without cuts");
+    await encodeLongForm(rawPath, durationSec, outputPath);
+    return;
+  }
+
+  const removedSec = cutSegs.reduce((s, c) => s + (c.end - c.start), 0);
+  logger.info(
+    `[PreEncoder] Dead-time removal: ${cutSegs.length} frozen segment(s) cut ` +
+    `(~${Math.round(removedSec / 60)}min removed, ${keepSegs.length} gameplay segment(s) kept)`,
+  );
+
+  // Build filter_complex that:
+  //   1. Trims each keep segment from the source (v/a in sync)
+  //   2. Concatenates all segments back to a continuous stream
+  //   3. Scales/pads the video to 4K
+  //   4. Normalises the audio levels
+  const filterParts: string[] = [];
+  const vLabels: string[] = [];
+  const aLabels: string[] = [];
+
+  for (let i = 0; i < keepSegs.length; i++) {
+    const { from, to } = keepSegs[i];
+    filterParts.push(`[0:v]trim=start=${from}:end=${to},setpts=PTS-STARTPTS[v${i}]`);
+    filterParts.push(`[0:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS[a${i}]`);
+    vLabels.push(`[v${i}]`);
+    aLabels.push(`[a${i}]`);
+  }
+
+  // Interleave video and audio labels for concat: [v0][a0][v1][a1]...
+  const concatInputs = vLabels.map((v, i) => v + aLabels[i]).join("");
+  filterParts.push(`${concatInputs}concat=n=${keepSegs.length}:v=1:a=1[cv][ca]`);
+
+  // Scale/pad video to 4K letterbox, then normalise audio
+  filterParts.push(
+    "[cv]scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
+    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1[outv]",
+  );
+  filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[outa]");
+
   await runCmd("ffmpeg", [
     "-y",
     "-i", rawPath,
-    "-t", String(durationSec),
-    // 16:9 horizontal — letterbox to 3840×2160 (4K), keep original aspect ratio (no crop)
-    "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
-    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
-    "-c:a", "aac",
-    "-b:a", "192k",
+    "-filter_complex", filterParts.join(";"),
+    "-map", "[outv]",
+    "-map", "[outa]",
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",
     "-crf", "18",
     "-preset", "fast",
+    "-c:a", "aac",
+    "-b:a", "192k",
     "-movflags", "+faststart",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
