@@ -25,6 +25,7 @@ import {
   trackQuotaUsage,
 } from "./youtube-quota-tracker";
 import { createLogger } from "../lib/logger";
+import { recordOutcome } from "../lib/outcome-recorder";
 
 const logger = createLogger("pipeline-tracer");
 
@@ -181,6 +182,38 @@ async function runTraceCycle() {
     for (const { userId, channelId } of channelRows) {
       await runUserCycle(userId, channelId);
     }
+
+    // Feed pipeline health back to the learning brain
+    try {
+      const fifteenMinAgo = new Date(Date.now() - 15 * 60_000);
+      const [summary] = await db
+        .select({
+          verifiedLive:    sql<number>`count(*) filter (where stage = 'verified_live')::int`,
+          verifiedMissing: sql<number>`count(*) filter (where stage = 'verified_missing')::int`,
+          stuck:           sql<number>`count(*) filter (where stage = 'stuck_scheduled')::int`,
+        })
+        .from(pipelineTraces)
+        .where(gte(pipelineTraces.createdAt, fifteenMinAgo));
+
+      const live    = summary?.verifiedLive    ?? 0;
+      const missing = summary?.verifiedMissing ?? 0;
+      const stuck   = summary?.stuck           ?? 0;
+
+      if ((live + missing + stuck) > 0) {
+        const health = missing === 0 && stuck === 0 ? "healthy" : "degraded";
+        await recordOutcome({
+          engine:   "pipeline-tracer",
+          userId:   channelRows[0].userId,
+          category: "pipeline_health",
+          summary:  `Pipeline ${health}: ${live} verified live, ${missing} missing, ${stuck} stuck`,
+          metrics:  { verifiedLive: live, verifiedMissing: missing, stuck },
+          confidence:     0.85,
+          recommendation: health === "healthy"
+            ? "All recently published videos confirmed live on YouTube"
+            : `${stuck} stuck item(s) or ${missing} missing video ID(s) — review publisher and upload logs`,
+        });
+      }
+    } catch { /* non-fatal */ }
   } catch (err: any) {
     logger.error("[PipelineTracer] cycle error", { error: err?.message });
   } finally {

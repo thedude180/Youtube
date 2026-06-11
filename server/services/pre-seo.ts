@@ -29,6 +29,7 @@ import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
 import { db } from "../db";
+import { recordOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, backCatalogVideos, streams } from "@shared/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -490,6 +491,22 @@ export async function runPreSeoCycle(): Promise<{ processed: number; seoGenerate
     `[PreSeo] Cycle complete — seoGenerated: ${seoGenerated}, ` +
     `thumbsExtracted: ${thumbsExtracted} (backfill: ${thumbBackfill}), errors: ${errors}`,
   );
+
+  // Feed cycle results back to the learning brain so it knows SEO pipeline health
+  if ((seoGenerated + errors) > 0 && items[0]?.userId) {
+    await recordOutcome({
+      engine:   "pre-seo",
+      userId:   items[0].userId,
+      category: "cycle_complete",
+      summary:  `Pre-SEO: ${seoGenerated} title(s) generated, ${thumbsExtracted} thumbnail(s) extracted, ${errors} error(s)`,
+      metrics:  { processed, seoGenerated, thumbsExtracted, errors },
+      confidence:     errors === 0 ? 0.8 : 0.55,
+      recommendation: errors > 0
+        ? `${errors} SEO generation failure(s) — check Claude API availability and video metadata`
+        : "SEO pipeline healthy — all queued items pre-processed",
+    });
+  }
+
   return { processed, seoGenerated, thumbsExtracted, errors };
 
   } finally {

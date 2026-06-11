@@ -48,6 +48,76 @@ import { promoteIncidentLessonsToKnowledge } from "../lib/incident-log";
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
 
+// ── Cross-engine outcome intake ────────────────────────────────────────────────
+// Every service that calls recordOutcome() writes to learningInsights.
+// This function reads what ALL engines wrote in the last 24 hours and synthesises
+// improvement directives into masterKnowledgeBank so the entire system's
+// operational health automatically informs the brain's next decisions.
+
+async function ingestCrossEngineOutcomes(userId: string): Promise<void> {
+  try {
+    const yesterday = new Date(Date.now() - 24 * 3600_000);
+
+    // Pull every insight written by engines OTHER than the brain's own analysis
+    const rows = await db
+      .select({
+        category:   learningInsights.category,
+        pattern:    learningInsights.pattern,
+        confidence: learningInsights.confidence,
+        data:       learningInsights.data,
+      })
+      .from(learningInsights)
+      .where(and(
+        eq(learningInsights.userId, userId),
+        gte(learningInsights.createdAt, yesterday),
+        sql`${learningInsights.category} NOT LIKE 'youtube_performance%'`,
+        sql`${learningInsights.category} NOT LIKE 'daily_digest%'`,
+      ))
+      .orderBy(desc(learningInsights.createdAt))
+      .limit(40);
+
+    if (rows.length === 0) return;
+
+    // Group by engine (prefix before the first colon in category)
+    const byEngine = new Map<string, string[]>();
+    for (const row of rows) {
+      const engine = (row.category ?? "unknown").split(":")[0];
+      const patterns = byEngine.get(engine) ?? [];
+      patterns.push(row.pattern ?? "");
+      byEngine.set(engine, patterns);
+    }
+
+    // Promote one operational-telemetry entry per engine to masterKnowledgeBank
+    for (const [engine, patterns] of byEngine.entries()) {
+      if (!patterns.length) continue;
+      const principle =
+        `[${engine}] ${patterns.length} outcome(s) last 24h — latest: ${patterns[0].slice(0, 160)}`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "operational_telemetry",
+        principle,
+        sourceEngines:     [engine, "learning-brain"],
+        evidenceCount:     patterns.length,
+        confidenceScore:   70,
+        applicableEngines: ["youtube-ai-orchestrator", "content-grinder", "back-catalog-engine"],
+        isActive:          true,
+        metadata: {
+          engine,
+          patternCount:  patterns.length,
+          latestPattern: patterns[0],
+          intakeAt:      new Date().toISOString(),
+        },
+      } as any).catch(() => {}); // suppress duplicate-key noise
+    }
+
+    logger.info(
+      `[Brain] Cross-engine intake: ${rows.length} insight(s) from ${byEngine.size} engine(s) → masterKnowledgeBank`,
+    );
+  } catch (err: any) {
+    logger.warn(`[Brain] Cross-engine intake failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
 // ── Track daily cycle per user ─────────────────────────────────────────────────
 
 const _lastCycleAt = new Map<string, number>();
@@ -106,6 +176,13 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   _lastCycleAt.set(userId, Date.now());
 
   logger.info(`[Brain] Starting daily learning cycle for ${userId.slice(0, 8)}`);
+
+  // Step 0: Ingest what every other engine recorded since the last cycle.
+  // This closes the feedback loop — operational outcomes from publishers,
+  // SEO engine, pipeline tracer, etc. are synthesised into masterKnowledgeBank
+  // before the brain's own analysis runs, so all downstream AI calls have
+  // fresh cross-engine context.
+  await ingestCrossEngineOutcomes(userId);
 
   try {
     // 1. Pull analytics for any published videos missing metrics

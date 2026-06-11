@@ -23,6 +23,7 @@ import path from "path";
 import fs from "fs";
 import cron from "node-cron";
 import { db } from "../db";
+import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, sql, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -77,6 +78,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
   let failed = 0;
   let skipped = 0;
   let quotaExhausted = false;
+  let cycleUserId = ""; // captured from dueItems for outcome recording outside try block
 
   try {
     const now = new Date();
@@ -122,6 +124,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         autopilotQueue.scheduledAt,
       )
       .limit(1); // One upload per cycle — the perpetual loop calls us again immediately for the next
+    cycleUserId = dueItems[0]?.userId ?? "";
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
@@ -538,6 +541,18 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
   }
 
   logger.info("Long-form clip publisher cycle complete", { published, failed, skipped, quotaExhausted });
+
+  // Feed publish outcomes back to the learning brain
+  await recordPublishOutcome({
+    engine:      "long-form-publisher",
+    userId:      cycleUserId,
+    published,
+    failed,
+    skipped,
+    contentType: "long-form-clip",
+    quotaExhausted,
+  }).catch(() => {});
+
   return { published, failed, skipped, quotaExhausted };
 }
 

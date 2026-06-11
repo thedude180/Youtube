@@ -32,6 +32,7 @@ import path from "path";
 import fs from "fs";
 import cron from "node-cron";
 import { db } from "../db";
+import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -215,6 +216,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
   let failed = 0;
   let skipped = 0;
   let quotaExhausted = false;
+  let cycleUserId = ""; // captured from dueItems for outcome recording outside try block
 
   try {
     const now = new Date();
@@ -277,6 +279,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
         sql`COALESCE((${autopilotQueue.metadata}->>'viralScore')::float, 50) DESC`,
       )
       .limit(1); // One upload per cycle — the perpetual loop calls us again immediately for the next
+    cycleUserId = dueItems[0]?.userId ?? "";
 
     if (dueItems.length === 0) return { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
 
@@ -738,6 +741,18 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
   await recordHeartbeat("shortsClipPublisher", "completed").catch(() => {});
 
   logger.info("Shorts publisher cycle complete", { published, failed, skipped, quotaExhausted });
+
+  // Feed publish outcomes back to the learning brain
+  await recordPublishOutcome({
+    engine:      "shorts-publisher",
+    userId:      cycleUserId,
+    published,
+    failed,
+    skipped,
+    contentType: "youtube-short",
+    quotaExhausted,
+  }).catch(() => {});
+
   return { published, failed, skipped, quotaExhausted };
 }
 
