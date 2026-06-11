@@ -2457,6 +2457,90 @@ async function migration041FailSmartEditItemsNoVideoId(): Promise<void> {
   }
 }
 
+// ── Migration 042: Backfill videoId in smart-edit items that have source_video_id ─
+// queueVideoForSmartEdit() never wrote metadata.videoId, so existing items lack
+// that field even though they have the source_video_id FK column.  Backfill it
+// so the kernel, handlers, and any future metadata.videoId checks find the value.
+
+async function migration042BackfillSmartEditVideoId(): Promise<void> {
+  const FLAG = "migration:042:backfill_smart_edit_video_id";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET metadata = metadata || jsonb_build_object('videoId', source_video_id::text)
+      WHERE type = 'smart-edit'
+        AND status NOT IN ('published', 'failed', 'cancelled', 'permanent_fail')
+        AND source_video_id IS NOT NULL
+        AND (metadata->>'videoId' IS NULL OR metadata->>'videoId' = '')
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 042] Backfilled videoId into ${count} smart-edit items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 042] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 043: Cancel auto-clips with no timestamps ────────────────────────
+// Auto-clips without startSec/endSec (and no segmentStartSec/segmentEndSec)
+// cause the pre-encoder to default to 0–60s for ALL of them, producing identical
+// duplicate clips from the first minute of each source video.  Cancel the whole
+// batch so the back-catalog runner can refill with properly-timestamped items
+// on its next scoring cycle.
+
+async function migration043CancelUntimestampedAutoClips(): Promise<void> {
+  const FLAG = "migration:043:cancel_untimestamped_auto_clips";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'cancelled: no startSec/endSec timestamps — would extract duplicate 0–60s segment for every clip'
+      WHERE type   = 'auto-clip'
+        AND status IN ('scheduled', 'pending')
+        AND (metadata->>'startSec')        IS NULL
+        AND (metadata->>'endSec')          IS NULL
+        AND (metadata->>'segmentStartSec') IS NULL
+        AND (metadata->>'segmentEndSec')   IS NULL
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 043] Cancelled ${count} untimestamped auto-clip items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 043] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 044: Fix vod-long-form items with no segment bounds ─────────────
+// vod-long-form items created without segmentStartSec/segmentEndSec compute
+// rawDurationSec = 0, which causes the long-form publisher to immediately fail
+// them as "Segment too short (0m)".  Set generous bounds so the publisher can
+// select an optimal experiment duration via pickExperimentDurationSec().
+
+async function migration044FixVodLongFormSegmentBounds(): Promise<void> {
+  const FLAG = "migration:044:fix_vod_long_form_segment_bounds";
+  if (await getFlag(FLAG)) return;
+
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET metadata = metadata || jsonb_build_object('segmentStartSec', 0, 'segmentEndSec', 28800)
+      WHERE type   = 'vod-long-form'
+        AND status IN ('scheduled', 'pending')
+        AND (metadata->>'segmentStartSec') IS NULL
+        AND (metadata->>'segmentEndSec')   IS NULL
+    `);
+    const count = (result as any).rowCount ?? 0;
+    if (count > 0) log.info(`[Migration 044] Fixed segment bounds on ${count} vod-long-form items (0–28800s)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 044] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2502,6 +2586,9 @@ export async function runStartupMigrations(): Promise<void> {
     await migration039ResetHardBlacklistedPreEncoderItems();
     await migration040CancelOrphanAutoClipsNoYoutubeId();
     await migration041FailSmartEditItemsNoVideoId();
+    await migration042BackfillSmartEditVideoId();
+    await migration043CancelUntimestampedAutoClips();
+    await migration044FixVodLongFormSegmentBounds();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

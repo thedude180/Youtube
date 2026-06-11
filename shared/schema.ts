@@ -2674,6 +2674,7 @@ export const autopilotQueue = pgTable("autopilot_queue", {
     sourceYoutubeId?: string;
     sourceTitle?: string;
     totalDurationSec?: number;
+    videoId?: number;
     regenerateThumbnail?: boolean;
     crossPlatformBatch?: boolean;
     intensity?: number;

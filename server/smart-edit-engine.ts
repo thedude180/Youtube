@@ -886,6 +886,7 @@ export async function queueVideoForSmartEdit(userId: string, videoId: number): P
       sourceYoutubeId: meta?.youtubeVideoId,
       sourceTitle: video.title,
       totalDurationSec: dur,
+      videoId: videoId,
     },
   }).returning();
 

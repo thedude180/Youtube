@@ -511,6 +511,8 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     // Back-catalog items store segment bounds as segmentStartSec/segmentEndSec;
     // grinder Shorts use startSec/endSec.  Fall back across both field names so
     // switching a back-catalog auto-clip to Short encoding doesn't zero the bounds.
+    const hasExplicitStart = meta.startSec != null || meta.segmentStartSec != null;
+    const hasExplicitEnd   = meta.endSec   != null || meta.segmentEndSec   != null;
     const startSec = isLongForm
       ? Number(meta.segmentStartSec ?? 0)
       : Number(meta.startSec ?? meta.segmentStartSec ?? 0);
@@ -519,7 +521,28 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       : Number(meta.endSec ?? meta.segmentEndSec ?? 60);
     const durationSec = endSec - startSec;
 
-    if (!sourceYoutubeId || durationSec <= 0) {
+    if (!sourceYoutubeId) {
+      skipped++;
+      continue;
+    }
+
+    // Guard: Short items without explicit timestamps would silently extract
+    // 0–60s for every clip → producing identical first-minute duplicates from
+    // all scheduled Shorts in the batch.  Cancel immediately so the back-catalog
+    // runner can refill the slot with a properly-timestamped item.
+    if (isShortContent && !hasExplicitStart && !hasExplicitEnd) {
+      await db.update(autopilotQueue)
+        .set({
+          status: "cancelled" as any,
+          errorMessage: "cancelled: no startSec/endSec timestamps — would extract duplicate 0–60s segment",
+        })
+        .where(eq(autopilotQueue.id, item.id));
+      logger.warn(`[PreEncoder] Cancelled item ${item.id} (${item.type}/${contentType}) — missing timestamps, would produce duplicate 0–60s clip`);
+      skipped++;
+      continue;
+    }
+
+    if (durationSec <= 0) {
       skipped++;
       continue;
     }
