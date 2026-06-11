@@ -2642,15 +2642,19 @@ async function migration048HardFailUndownloadablePreEncoderItems(): Promise<void
     const explicitCount = (explicit as any).rowCount ?? 0;
 
     // ── General sweep: vault entry fail_count>=3 or permanentFail=true ───────
+    // Uses a subquery (not UPDATE...FROM alias syntax) so it works in production.
     const general = await db.execute(sql`
-      UPDATE autopilot_queue q
-      SET    metadata = COALESCE(q.metadata, '{}'::jsonb)
+      UPDATE autopilot_queue
+      SET    metadata = COALESCE(metadata, '{}'::jsonb)
                      || '{"preEncoderFailCount":3,"preEncoderHardFail":true,"failReason":"vault_permanently_failed"}'::jsonb
-      FROM   content_vault_backups v
-      WHERE  v.youtube_id = q.metadata->>'sourceYoutubeId'
-        AND  q.status     = 'scheduled'
-        AND  q.type       IN ('auto-clip', 'platform_short')
-        AND  (v.fail_count >= 3 OR (v.metadata->>'permanentFail')::boolean IS TRUE)
+      WHERE  status = 'scheduled'
+        AND  type   IN ('auto-clip', 'platform_short')
+        AND  metadata->>'sourceYoutubeId' IN (
+               SELECT youtube_id
+               FROM   content_vault_backups
+               WHERE  fail_count >= 3
+                  OR  (metadata->>'permanentFail')::boolean IS TRUE
+             )
     `);
     const generalCount = (general as any).rowCount ?? 0;
 
@@ -3007,8 +3011,8 @@ async function migration053SeedBf6LongFormSchedule(): Promise<void> {
           E'\n\nBattlefield 6 PS5 gameplay — no commentary, no distractions.',
         'scheduled',
         TIMESTAMP '2026-06-12 23:30:00'
-          + (rn * INTERVAL '1 day')
-          + ((rn % 8) * INTERVAL '1 minute'),
+          + (rn::integer * INTERVAL '1 day')
+          + ((rn % 8)::integer * INTERVAL '1 minute'),
         jsonb_build_object(
           'gameName',       'Battlefield 6',
           'sourceYoutubeId', yt_id,
