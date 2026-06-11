@@ -2859,6 +2859,94 @@ async function migration051RedistributeSchedule(): Promise<void> {
   }
 }
 
+// ── Migration 052: BF6-only 30-day focus — cancel non-BF6 queue, lock catalog ─
+//
+// User directive (Jun 11 2026): all content over the next 30 days must be
+// Battlefield 6.  The current queue contains two problems:
+//
+//  1. 53 auto-clip items titled "Pure PS5 gameplay — no commentary" sourced
+//     from videos 74136 (AC Shadows) and 74123 (unlabelled "AI tactics") —
+//     clearly not BF6.  Cancel all.
+//
+//  2. 1 youtube_short item (id=39743) is a stream-replay from GxD1IE7UH7s
+//     with gameName="AI" — sourced from the AC Shadows stream.  Cancel it.
+//
+// Catalog surgery (prevents recurrence):
+//  - Block all non-BF6 back_catalog_videos from being mined again by setting
+//    mined_for_shorts + mined_for_long_form = true for every video whose
+//    game_name is not 'Battlefield 6'.  This stops the engine from ever
+//    queueing AC Valhalla (256 videos), BF2042, AC Shadows etc. going forward.
+//  - Reset all 45 Battlefield 6 catalog videos to unmined so the engine
+//    generates 30+ days of BF6 Shorts + long-form on its next cycle.
+//  - Fix source video 72154 whose title says "Battlefield 6" but whose
+//    gameName was incorrectly set to "AI".
+async function migration052Bf6OnlyFocus(): Promise<void> {
+  const FLAG = "migration:052:bf6_only_30day_focus";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Cancel all auto-clip items (non-BF6 "Pure PS5 gameplay" content)
+    const r1 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'BF6-only focus: non-BF6 auto-clip cancelled (Jun 11 2026 directive)'
+      WHERE type   = 'auto-clip'
+        AND status IN ('scheduled', 'pending')
+        AND target_platform = 'youtube'
+    `);
+    log.info(`[Migration 052] Cancelled ${(r1 as any).rowCount ?? 0} non-BF6 auto-clip items`);
+
+    // 2. Cancel the 1 non-BF6 youtube_short (stream replay from AC Shadows)
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'BF6-only focus: stream replay from non-BF6 source cancelled'
+      WHERE id = 39743
+        AND type = 'youtube_short'
+        AND status IN ('scheduled', 'pending')
+    `);
+    log.info(`[Migration 052] Cancelled ${(r2 as any).rowCount ?? 0} non-BF6 stream-replay youtube_short`);
+
+    // 3. Block all non-BF6 back_catalog_videos from ever being mined again.
+    //    Sets both mined_for_shorts AND mined_for_long_form = true for every
+    //    catalog video whose game_name is not exactly 'Battlefield 6'.
+    const r3 = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET mined_for_shorts    = true,
+          mined_for_long_form = true
+      WHERE channel_id = 53
+        AND (game_name IS DISTINCT FROM 'Battlefield 6'
+             OR game_name IS NULL)
+    `);
+    log.info(`[Migration 052] Locked ${(r3 as any).rowCount ?? 0} non-BF6 catalog videos from future mining`);
+
+    // 4. Reset all 45 Battlefield 6 catalog videos to unmined so the
+    //    back-catalog engine mines them fresh on its next boot cycle.
+    const r4 = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET mined_for_shorts    = false,
+          mined_for_long_form = false
+      WHERE channel_id = 53
+        AND game_name = 'Battlefield 6'
+    `);
+    log.info(`[Migration 052] Reset ${(r4 as any).rowCount ?? 0} BF6 catalog videos to unmined`);
+
+    // 5. Fix gameName on video 72154 — title says "Battlefield 6" but was
+    //    labelled "AI" by the grinder.  Correct so future indexing is clean.
+    const r5 = await db.execute(sql`
+      UPDATE videos
+      SET metadata = metadata || '{"gameName":"Battlefield 6"}'::jsonb
+      WHERE id = 72154
+        AND metadata->>'gameName' IS DISTINCT FROM 'Battlefield 6'
+    `);
+    log.info(`[Migration 052] Fixed gameName on video 72154: ${(r5 as any).rowCount ?? 0} row(s) updated`);
+
+    await setFlag(FLAG);
+    log.info("[Migration 052] BF6-only 30-day focus complete — queue cleaned, catalog locked to BF6");
+  } catch (err: any) {
+    log.warn(`[Migration 052] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2914,6 +3002,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration049CancelBlockedPublishingQueue();
     await migration050FixPendingStudioAutoPublishItems();
     await migration051RedistributeSchedule();
+    await migration052Bf6OnlyFocus();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
