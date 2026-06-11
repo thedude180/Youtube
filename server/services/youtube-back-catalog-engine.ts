@@ -33,7 +33,7 @@ import {
   discoveredStrategies,
 } from "@shared/schema";
 import { extractGameForBackCatalog } from "./game-detection";
-import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, or, isNull, isNotNull, not, inArray } from "drizzle-orm";
 
 // ── Viral DNA scorer ──────────────────────────────────────────────────────────
 // Scores a back-catalog video 0-100 from the channel's viral DNA patterns.

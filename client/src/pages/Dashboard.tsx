@@ -27,6 +27,7 @@ import IntelligenceDigest from "./dashboard/IntelligenceDigest";
 import AudienceGrowthSection from "./dashboard/AudienceGrowthSection";
 import OmniIntelligenceFeed from "./dashboard/OmniIntelligenceFeed";
 import YouTubeAutopilotStatus from "./dashboard/YouTubeAutopilotStatus";
+import VideoMomentum from "./dashboard/VideoMomentum";
 import SystemHealthPanel from "./dashboard/SystemHealthPanel";
 import ChannelBrandSyncStatus from "./dashboard/ChannelBrandSyncStatus";
 import UpcomingSchedule from "./dashboard/UpcomingSchedule";
@@ -1057,6 +1058,8 @@ export default function TeamDashboard() {
         <IntelligenceDigest />
 
         <YouTubeAutopilotStatus />
+
+        <VideoMomentum />
 
         <SuccessDNA />
 

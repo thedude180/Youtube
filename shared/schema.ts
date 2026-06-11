@@ -10092,6 +10092,55 @@ export const youtubeOutputMetrics = pgTable("youtube_output_metrics", {
 ]);
 export type YoutubeOutputMetric = typeof youtubeOutputMetrics.$inferSelect;
 
+// ── Video Momentum Tracker (no-API view velocity) ─────────────────────────────
+// Snapshots view/like counts via unauthenticated InnerTube every 2h.
+// Calculates velocity (views/hr) and momentum score without touching the
+// YouTube Data API or Analytics API quota.  The Analytics API only fires for
+// videos already flagged isGainingSteam = true.
+export const trackedVideos = pgTable("tracked_videos", {
+  id:               serial("id").primaryKey(),
+  userId:           text("user_id").notNull(),
+  youtubeVideoId:   text("youtube_video_id").notNull(),
+  contentType:      text("content_type").notNull().default("short"), // "short" | "vod"
+  gameName:         text("game_name"),
+  title:            text("title"),
+  publishedAt:      timestamp("published_at"),
+  addedAt:          timestamp("added_at").defaultNow(),
+  lastSnapshotAt:   timestamp("last_snapshot_at"),
+  isActive:         boolean("is_active").default(true),
+  sourceQueueItemId:integer("source_queue_item_id"),
+}, (t) => [
+  index("tv_user_idx").on(t.userId),
+  uniqueIndex("tv_video_unique").on(t.userId, t.youtubeVideoId),
+  index("tv_active_idx").on(t.isActive),
+]);
+export type TrackedVideo = typeof trackedVideos.$inferSelect;
+
+export const videoMomentumSnapshots = pgTable("video_momentum_snapshots", {
+  id:                serial("id").primaryKey(),
+  userId:            text("user_id").notNull(),
+  youtubeVideoId:    text("youtube_video_id").notNull(),
+  contentType:       text("content_type").notNull().default("short"),
+  gameName:          text("game_name"),
+  title:             text("title"),
+  viewCount:         integer("view_count").notNull().default(0),
+  likeCount:         integer("like_count").default(0),
+  commentCount:      integer("comment_count").default(0),
+  velocityPerHour:   real("velocity_per_hour").default(0),   // views/hr since last snapshot
+  momentumScore:     real("momentum_score").default(0),       // composite: velocity + accel + vs avg
+  isGainingSteam:    boolean("is_gaining_steam").default(false),
+  hoursSincePublish: real("hours_since_publish"),
+  publishedAt:       timestamp("published_at"),
+  snapshotAt:        timestamp("snapshot_at").defaultNow(),
+}, (t) => [
+  index("vms_user_idx").on(t.userId),
+  index("vms_video_idx").on(t.youtubeVideoId),
+  index("vms_steam_idx").on(t.isGainingSteam),
+  index("vms_score_idx").on(t.momentumScore),
+  index("vms_snap_idx").on(t.snapshotAt),
+]);
+export type VideoMomentumSnapshot = typeof videoMomentumSnapshots.$inferSelect;
+
 // ── Learning Events ───────────────────────────────────────────────────────────
 // General event bus for the learning brain — every subsystem emits events here.
 export const learningEvents = pgTable("learning_events", {

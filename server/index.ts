@@ -3894,6 +3894,12 @@ httpServer.listen(
         m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
       }).catch(slog("notificationWatchdog"));
 
+      // Video momentum tracker — no API key needed; uses InnerTube (unauth).
+      // Polls every 2h per video; first sweep 5min after this wave fires (T+~46min).
+      import("./services/video-momentum-tracker").then(m => {
+        backgroundIntervals.push(m.initVideoMomentumTracker());
+      }).catch(slog("initVideoMomentumTracker"));
+
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 

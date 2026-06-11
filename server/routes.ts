@@ -689,6 +689,57 @@ export async function registerRoutes(
     }
   });
 
+  // ── Video Momentum Tracker (no-API InnerTube polling) ───────────────────────
+  app.get("/api/youtube/momentum", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getMomentumLeaderboard } = await import("./services/video-momentum-tracker");
+      const limit = Math.min(50, parseInt(String(req.query.limit ?? "20"), 10) || 20);
+      const data = await getMomentumLeaderboard(userId, limit);
+      res.json({ videos: data, count: data.length });
+    } catch (err: any) {
+      logger.error(`[Momentum] GET /momentum error: ${err.message}`);
+      res.status(500).json({ error: "Failed to fetch momentum data" });
+    }
+  });
+
+  app.get("/api/youtube/momentum/:videoId/history", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getVideoMomentumHistory } = await import("./services/video-momentum-tracker");
+      const data = await getVideoMomentumHistory(userId, req.params.videoId);
+      res.json({ snapshots: data });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch video history" });
+    }
+  });
+
+  app.post("/api/youtube/momentum/track", async (req, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    const { youtubeVideoId, contentType, gameName, title, publishedAt } = req.body ?? {};
+    if (!youtubeVideoId || typeof youtubeVideoId !== "string") {
+      return res.status(400).json({ error: "youtubeVideoId is required" });
+    }
+    try {
+      const { registerTrackedVideo } = await import("./services/video-momentum-tracker");
+      await registerTrackedVideo({
+        userId,
+        youtubeVideoId: youtubeVideoId.trim(),
+        contentType: contentType === "vod" ? "vod" : "short",
+        gameName: gameName ?? undefined,
+        title: title ?? undefined,
+        publishedAt: publishedAt ? new Date(publishedAt) : undefined,
+      });
+      res.json({ ok: true, youtubeVideoId: youtubeVideoId.trim() });
+    } catch (err: any) {
+      logger.error(`[Momentum] POST /track error: ${err.message}`);
+      res.status(500).json({ error: "Failed to register video for tracking" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.
