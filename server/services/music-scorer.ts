@@ -25,6 +25,7 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createLogger } from "../lib/logger";
+import { getBestItem, recordUsage } from "./creative-library-manager";
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger("music-scorer");
@@ -87,6 +88,10 @@ async function runFfmpeg(args: string[]): Promise<void> {
 /**
  * Build a narrative music score matched to the video duration.
  *
+ * When channelId is supplied the function queries the creative library DB for
+ * the highest-scoring track for each act role, falling back to the hardcoded
+ * file names when DB lookup fails or the file is missing.
+ *
  * @returns Absolute path to a temporary MP3 file that the caller must mix in
  *          and then delete via cleanupMusicScore().  Returns null if the music
  *          library is unavailable — the encoder will skip music gracefully.
@@ -94,23 +99,65 @@ async function runFfmpeg(args: string[]): Promise<void> {
 export async function assembleMusicScore(
   videoDurationSec: number,
   isShort: boolean,
+  channelId?: number,
 ): Promise<string | null> {
   try {
     if (!fs.existsSync(MUSIC_DIR)) return null;
 
-    // ── Shorts: use a single pre-arc track (90s, arc baked in) ───────────────
+    // ── Helper: resolve best track for a role from library or fall back ──────
+    async function bestFile(tag: string, fallback: string): Promise<string> {
+      if (channelId) {
+        try {
+          const item = await getBestItem(channelId, "music", tag);
+          if (item?.filePath && fs.existsSync(item.filePath)) {
+            recordUsage(item.id); // fire-and-forget
+            return item.filePath;
+          }
+        } catch { /* fall through to hardcoded path */ }
+      }
+      return fallback;
+    }
+
+    // ── Shorts: single pre-arc track (90s, arc baked in) ─────────────────────
     if (isShort) {
-      const arc = pickShortArc();
+      let arc: string | null = null;
+      if (channelId) {
+        try {
+          const item = await getBestItem(channelId, "music", "short_arc");
+          if (item?.filePath && fs.existsSync(item.filePath)) {
+            recordUsage(item.id);
+            arc = item.filePath;
+          }
+        } catch { /* fall through */ }
+      }
+      if (!arc) arc = pickShortArc();
       logger.info(`[MusicScorer] Short arc: ${arc ? path.basename(arc) : "none"}`);
       return arc;
     }
 
-    // ── Long-form: assemble 4-act narrative score ─────────────────────────────
+    // ── Long-form: resolve best act files ────────────────────────────────────
+    const actFiles = {
+      intro:  await bestFile("intro",  ACT_FILES.intro),
+      rising: await bestFile("rising", ACT_FILES.rising),
+      climax: await bestFile("climax", ACT_FILES.climax),
+      outro:  await bestFile("outro",  ACT_FILES.outro),
+    };
+
     const risingDur = videoDurationSec - FIXED_S + CROSSFADE_RECOVERY;
 
-    // Fallback: video too short for a proper arc — use a short arc track
-    if (risingDur < MIN_RISING_S || !allActsExist()) {
-      const arc = pickShortArc();
+    // Fallback: video too short or acts missing
+    if (risingDur < MIN_RISING_S || !Object.values(actFiles).every(p => fs.existsSync(p))) {
+      let arc: string | null = null;
+      if (channelId) {
+        try {
+          const item = await getBestItem(channelId, "music", "short_arc");
+          if (item?.filePath && fs.existsSync(item.filePath)) {
+            recordUsage(item.id);
+            arc = item.filePath;
+          }
+        } catch { /* fall through */ }
+      }
+      if (!arc) arc = pickShortArc();
       logger.info(`[MusicScorer] Short video / missing acts — using arc track: ${arc ? path.basename(arc) : "none"}`);
       return arc;
     }
@@ -140,10 +187,10 @@ export async function assembleMusicScore(
 
     await runFfmpeg([
       "-y",
-      "-i", ACT_FILES.intro,
-      "-stream_loop", "-1", "-i", ACT_FILES.rising,
-      "-i", ACT_FILES.climax,
-      "-i", ACT_FILES.outro,
+      "-i", actFiles.intro,
+      "-stream_loop", "-1", "-i", actFiles.rising,
+      "-i", actFiles.climax,
+      "-i", actFiles.outro,
       "-filter_complex", fc,
       "-map", "[outa]",
       "-c:a", "aac",

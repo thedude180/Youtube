@@ -2414,6 +2414,17 @@ export async function runStartupMigrations(): Promise<void> {
     await migration037SeedSystemIncidentLog();
     await migration038DeleteChannel52();
 
+    // Non-flagged per-boot creative library sync — seeds new music tracks from
+    // data/music-library/ into the creative_library DB table.  Idempotent: skips
+    // files already registered.  Runs before any encoder or publisher starts so
+    // the library is always current when the first encode cycle fires.
+    try {
+      const { seedMusicLibrary } = await import("../services/creative-library-manager");
+      await seedMusicLibrary(53); // channel 53 = ET Gaming 274
+    } catch (err: any) {
+      log.warn(`[StartupMigrations] Creative library seed failed (non-fatal): ${err?.message}`);
+    }
+
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     // Non-flagged per-boot vault storm prevention — runs every restart.

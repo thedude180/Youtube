@@ -10623,3 +10623,49 @@ export const systemIncidentLog = pgTable("system_incident_log", {
   index("sil_status_idx").on(t.status),
 ]);
 export type SystemIncident = typeof systemIncidentLog.$inferSelect;
+
+// ── Creative Library (Ever-expanding Asset Library) ───────────────────────────
+// Every music track, video filter, title template, hook pattern, and editing
+// preset that the system has ever generated or discovered lives here.
+// Items are scored by real YouTube Analytics (retention + CTR + success rate).
+// The best performers are automatically preferred by the encoder and AI systems.
+// New items are generated over time and added to the library, which expands
+// and evolves without limit — bad performers sink, good ones rise to the top.
+export const creativeLibrary = pgTable("creative_library", {
+  id:               serial("id").primaryKey(),
+  channelId:        integer("channel_id").notNull(),
+  // music | video_filter | title_template | hook_pattern | thumbnail_concept
+  type:             text("type").notNull(),
+  name:             text("name").notNull(),
+  description:      text("description"),
+  // Absolute path for physical-file assets (music tracks, etc.)
+  filePath:         text("file_path"),
+  // Structured config for non-file assets (ffmpeg filter strings, title templates)
+  config:           jsonb("config").$type<Record<string, unknown>>().default({}),
+  // Searchable tags for asset role and context, e.g. ['intro', 'longform'],
+  // ['short_arc', 'short'], ['title_template', 'battlefield']
+  tags:             text("tags").array().default([]),
+  // Composite performance score 0–100, weighted from real YouTube analytics.
+  // Starts at 50 (neutral) for all new items. Rises as videos using it perform
+  // well, falls when they underperform. Drives selection priority.
+  performanceScore: real("performance_score").notNull().default(50),
+  usageCount:       integer("usage_count").notNull().default(0),
+  successCount:     integer("success_count").notNull().default(0),
+  // Latest YouTube Analytics readings from videos that used this asset
+  avgRetention:     real("avg_retention"),
+  avgCtr:           real("avg_ctr"),
+  // ai_generated | discovered | manual
+  source:           text("source").notNull().default("ai_generated"),
+  // Soft-delete: set active=false to retire without losing history
+  active:           boolean("active").notNull().default(true),
+  metadata:         jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  createdAt:        timestamp("created_at").defaultNow(),
+  updatedAt:        timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("cl_channel_type_idx").on(t.channelId, t.type),
+  index("cl_performance_idx").on(t.performanceScore),
+  index("cl_active_idx").on(t.active),
+  index("cl_channel_active_idx").on(t.channelId, t.active),
+]);
+export type CreativeLibraryItem = typeof creativeLibrary.$inferSelect;
+export type InsertCreativeLibraryItem = typeof creativeLibrary.$inferInsert;

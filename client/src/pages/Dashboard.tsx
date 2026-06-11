@@ -33,6 +33,7 @@ import UpcomingSchedule from "./dashboard/UpcomingSchedule";
 import BackCatalogReviver from "./dashboard/BackCatalogReviver";
 import NicheResearch from "./dashboard/NicheResearch";
 import SuccessDNA from "./dashboard/SuccessDNA";
+import CreativeLibrary from "./dashboard/CreativeLibrary";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const AGENT_ROSTER = [
@@ -1058,6 +1059,8 @@ export default function TeamDashboard() {
         <YouTubeAutopilotStatus />
 
         <SuccessDNA />
+
+        <CreativeLibrary />
 
         <SystemHealthPanel />
 

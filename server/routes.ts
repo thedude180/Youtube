@@ -67,6 +67,7 @@ import { registerNicheResearchRoutes } from "./routes/niche-research";
 import { registerEtgaming247Routes } from "./routes/etgaming247";
 import { registerPipelineHealthRoutes } from "./routes/pipeline-health";
 import { registerViewerVerificationRoutes } from "./routes/viewer-verification";
+import { registerCreativeLibraryRoutes } from "./routes/creative-library";
 import { getUserId } from "./routes/helpers";
 import { createAsyncSafeApp, globalErrorHandler } from "./lib/security-hardening";
 import {
@@ -467,6 +468,7 @@ export async function registerRoutes(
   registerEtgaming247Routes(app);
   registerPipelineHealthRoutes(app);
   registerViewerVerificationRoutes(app);
+  registerCreativeLibraryRoutes(app);
 
   import("./services/resilience-observability").then(({ restoreSafeModeState }) => {
     restoreSafeModeState().catch((err: any) => logger.error("Failed to restore safe mode state", { error: err?.message }));

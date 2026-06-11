@@ -92,13 +92,14 @@ async function downloadSection(
   await downloadYouTubeSection({ youtubeId, startSec, endSec, outputPath });
 }
 
-async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
+async function encodeShort(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<void> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
 
   // Narrative music: short_arc tracks have a baked-in story arc (quiet→build→peak→resolve)
-  const musicPath = await assembleMusicScore(durationSec, true);
+  // channelId enables library-aware track selection (best-performing track wins)
+  const musicPath = await assembleMusicScore(durationSec, true, channelId);
 
   const videoFilter = [
     "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
@@ -252,14 +253,14 @@ function buildKeepSegments(
 
 // ── Long-form encoder ──────────────────────────────────────────────────────────
 
-async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
+async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<void> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
 
   // Assemble narrative score: intro → rising action → climax → outro
-  // (assembled by music-scorer.ts; temp file cleaned up in finally block)
-  const musicPath = await assembleMusicScore(durationSec, false);
+  // channelId enables library-aware track selection (best-performing track wins)
+  const musicPath = await assembleMusicScore(durationSec, false, channelId);
   if (musicPath) logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
 
   const codecArgs = [
@@ -543,10 +544,13 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
 
       if (!fs.existsSync(rawPath)) throw new Error("yt-dlp produced no output");
 
+      // channelId for library-aware music selection: read from metadata if present,
+      // otherwise default to 53 (ET Gaming 274 — the only active channel)
+      const musicChannelId = (meta.channelId as number | undefined) ?? 53;
       if (isLongForm) {
-        await encodeLongForm(rawPath, durationSec, outputPath);
+        await encodeLongForm(rawPath, durationSec, outputPath, musicChannelId);
       } else {
-        await encodeShort(rawPath, durationSec, outputPath);
+        await encodeShort(rawPath, durationSec, outputPath, musicChannelId);
       }
 
       if (!fs.existsSync(outputPath)) throw new Error("ffmpeg produced no output");
