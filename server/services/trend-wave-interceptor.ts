@@ -17,6 +17,7 @@ import {
   engineKnowledge,
   channels,
 } from "@shared/schema";
+import { getFocusGame } from "../lib/game-focus";
 import { eq, and, gt, isNull, or, sql, desc, ilike, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
@@ -99,9 +100,9 @@ Return ONLY the title string, no quotes, no explanation.`;
       prompt,
     );
     const title = result.content.trim().replace(/^["']|["']$/g, "");
-    return title.slice(0, 100) || `${topic} — PS5 Gameplay (No Commentary)`;
+    return title.slice(0, 100) || `${topic} — ${await getFocusGame()} (No Commentary)`;
   } catch {
-    return `${topic} — PS5 Gameplay (No Commentary)`;
+    return `${topic} — ${await getFocusGame()} (No Commentary)`;
   }
 }
 

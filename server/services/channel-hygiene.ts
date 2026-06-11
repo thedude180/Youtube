@@ -18,6 +18,7 @@ import { google } from "googleapis";
 import { db } from "../db";
 import { channels as channelsTable, videos, autopilotQueue } from "@shared/schema";
 import { eq, and, isNull, or, inArray } from "drizzle-orm";
+import { getFocusGame } from "../lib/game-focus";
 import { sql } from "drizzle-orm";
 import { getAuthenticatedClient } from "../youtube";
 import { addToBacklog } from "./youtube-push-backlog";
@@ -229,7 +230,16 @@ export async function runChannelHygiene(userId: string): Promise<HygieneReport> 
       // Rule 3 — Add "Replay:" to completed livestream VODs ───────────────────
       // (Rule 2 — Shorts thumbnails handled in the draft queue below)
       if (isVod && needsReplayMarker(updates.title || title)) {
-        const base    = (updates.title || title).replace(/^replay\s*:\s*/i, "").trim();
+        let base = (updates.title || title).replace(/^replay\s*:\s*/i, "").trim();
+        // Fix generic PS5 Gameplay game name before stamping the Replay: prefix
+        if (/PS5 Gameplay|Epic PS5/i.test(base)) {
+          const focusGame = await getFocusGame();
+          base = base
+            .replace(/Epic PS5 Gameplay/gi, `Epic ${focusGame} Gameplay`)
+            .replace(/PS5 Gameplay/gi, `${focusGame} Gameplay`)
+            .replace(/Epic PS5/gi, `Epic ${focusGame}`)
+            .substring(0, 90);
+        }
         updates.title = `Replay: ${base}`;
 
         // Also update description to clearly identify this as a replay

@@ -283,7 +283,7 @@ async function runRepairCycle(): Promise<void> {
     // in the last 30 days still bearing that string and push a corrected title to YouTube.
     // After the first successful push the back_catalog_videos.title is updated so this
     // branch becomes a no-op on every subsequent cycle.
-    const vodCutoff = new Date(Date.now() - 30 * 24 * 3600_000);
+    const vodCutoff = new Date(Date.now() - 90 * 24 * 3600_000);
     const genericVods = await db
       .select({
         id: backCatalogVideos.id,

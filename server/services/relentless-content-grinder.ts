@@ -8,6 +8,7 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { CommandCenter } from "../lib/command-center";
+import { getFocusGame } from "../lib/game-focus";
 import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
@@ -585,7 +586,7 @@ async function getShortLengthDistributionHint(userId: string): Promise<string> {
 async function extractUntappedMoments(userId: string, video: any, maxClips = 10): Promise<number> {
   const meta = (video.metadata as any) || {};
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 600;
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const gameName = meta.gameName || meta.game || await getFocusGame();
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
 
   const existingClips = await db.select().from(autopilotQueue)
@@ -774,7 +775,7 @@ async function extractLongFormMoments(userId: string, video: any): Promise<numbe
   });
   if (validTargets.length === 0) return 0;
 
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const gameName = meta.gameName || meta.game || await getFocusGame();
   const youtubeId = meta.youtubeId || meta.youtubeVideoId;
 
   // Use the performance learner to bias toward high-performing buckets.
@@ -912,7 +913,7 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
   const lastOptimized = meta.viralSeoAt ? new Date(meta.viralSeoAt).getTime() : 0;
   if (Date.now() - lastOptimized < 7 * 86400_000) return false;
 
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const gameName = meta.gameName || meta.game || await getFocusGame();
   const viewCount = meta.viewCount || meta.views || 0;
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) {
@@ -1069,7 +1070,7 @@ async function enhanceRetentionPacing(userId: string, video: any): Promise<boole
   const durSec = meta.durationSec || parseDurationToSeconds(meta.duration) || 0;
   if (durSec < 300) return false;
 
-  const gameName = meta.gameName || meta.game || "PS5 Gameplay";
+  const gameName = meta.gameName || meta.game || await getFocusGame();
 
   if (!tokenBudget.checkBudget("content-grinder", 2000)) {
     logger.debug(`[ContentGrinder] enhanceRetentionPacing: daily budget exhausted, skipping video ${video.id}`);
