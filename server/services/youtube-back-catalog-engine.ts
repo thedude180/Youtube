@@ -860,6 +860,19 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             }
           }
 
+          // ── MrBeast hook ranking: sort extracted moments by hook energy ──────
+          // Always prefer the clip most likely to earn the viewer in the first 3s.
+          // Position in video, duration fit, title power words, and retention
+          // score all factor in. Falls back to original order on any error.
+          if (clipTimestamps.length > 1) {
+            try {
+              const { rankMomentsByHook } = await import("./mrbeast-hook-scorer");
+              const ranked = rankMomentsByHook(clipTimestamps, dur);
+              clipTimestamps = ranked.map(r => ({ startSec: r.startSec, endSec: r.endSec, title: r.title }));
+              logger.debug(`[BackCatalog] Hook-ranked ${clipTimestamps.length} moments for ${v.youtubeVideoId} — top hook: ${ranked[0]?.hookScore.label} (score=${ranked[0]?.hookScore.score})`);
+            } catch { /* hook scoring is non-critical — keep original order */ }
+          }
+
           for (let clipIdx = 0; clipIdx < clipTimestamps.length; clipIdx++) {
             if ((depthRow?.cnt ?? 0) + result.shortsQueued >= MAX_SCHEDULED_DEPTH_GLOBAL) break;
             // Stop queuing if the schedule is known to be saturated — avoids 39 DB

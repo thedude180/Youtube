@@ -273,6 +273,163 @@ export async function refreshStaleVideoMetrics(userId: string): Promise<void> {
 }
 
 /**
+ * MrBeast principle: data → action within 2 hours, not 20.
+ *
+ * Checks videos published 2-39h ago every 2h. Writes hot/cold
+ * performance signals to masterKnowledgeBank immediately so every
+ * downstream engine (content grinder, back catalog, SEO optimizer)
+ * knows what's winning RIGHT NOW without waiting for the daily cycle.
+ *
+ * Hot = 2× channel average views in first 24h → "hot_streak_formula" entry
+ * Cold = <25% channel average views after 36h → "avoid_pattern" entry
+ */
+export async function runRapidFeedback24h(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const twoHoursAgo      = new Date(now - 2  * 3600_000);
+    const thirtyNineHrsAgo = new Date(now - 39 * 3600_000);
+    const thirtyDaysAgo    = new Date(now - 30 * 86400_000);
+
+    // ── 1. Find videos published 2-39h ago that need a rapid refresh ──────────
+    const recent = await db
+      .select({
+        youtubeVideoId: youtubeOutputMetrics.youtubeVideoId,
+        contentType:    youtubeOutputMetrics.contentType,
+        durationSec:    youtubeOutputMetrics.durationSec,
+        gameName:       youtubeOutputMetrics.gameName,
+        postingWindow:  youtubeOutputMetrics.postingWindow,
+        sourceVideoId:  youtubeOutputMetrics.sourceVideoId,
+        publishedAt:    youtubeOutputMetrics.publishedAt,
+        views:          youtubeOutputMetrics.views,
+        ctr:            youtubeOutputMetrics.ctr,
+        durationBucket: youtubeOutputMetrics.durationBucket,
+        measuredAt:     youtubeOutputMetrics.measuredAt,
+      })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        gte(youtubeOutputMetrics.publishedAt, thirtyNineHrsAgo),
+        lte(youtubeOutputMetrics.publishedAt, twoHoursAgo),
+        or(
+          sql`${youtubeOutputMetrics.measuredAt} IS NULL`,
+          lte(youtubeOutputMetrics.measuredAt, twoHoursAgo),
+        ),
+      ))
+      .orderBy(desc(youtubeOutputMetrics.publishedAt))
+      .limit(10);
+
+    if (recent.length === 0) return;
+
+    // ── 2. Refresh each video's analytics ────────────────────────────────────
+    for (const v of recent) {
+      await recordVideoPerformance(userId, v.youtubeVideoId, {
+        contentType:  v.contentType ?? "long_form",
+        durationSec:  v.durationSec ?? 0,
+        gameName:     v.gameName ?? undefined,
+        postingWindow: v.postingWindow ?? undefined,
+        sourceVideoId: v.sourceVideoId ?? undefined,
+        publishedAt:  v.publishedAt ?? undefined,
+      });
+    }
+
+    // ── 3. Get channel average views for Shorts (30-day baseline) ─────────────
+    const [avgRow] = await db
+      .select({ avgViews: sql<number>`coalesce(avg(views), 0)::float` })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        eq(youtubeOutputMetrics.contentType, "short"),
+        gte(youtubeOutputMetrics.publishedAt, thirtyDaysAgo),
+      ));
+    const channelAvgViews = +(avgRow?.avgViews ?? 0);
+    if (channelAvgViews < 10) return; // not enough data for meaningful signal
+
+    // ── 4. Re-read refreshed metrics and write brain signals for outliers ──────
+    const refreshed = await db
+      .select({
+        youtubeVideoId: youtubeOutputMetrics.youtubeVideoId,
+        views:          youtubeOutputMetrics.views,
+        ctr:            youtubeOutputMetrics.ctr,
+        contentType:    youtubeOutputMetrics.contentType,
+        gameName:       youtubeOutputMetrics.gameName,
+        durationBucket: youtubeOutputMetrics.durationBucket,
+        durationSec:    youtubeOutputMetrics.durationSec,
+        publishedAt:    youtubeOutputMetrics.publishedAt,
+      })
+      .from(youtubeOutputMetrics)
+      .where(and(
+        eq(youtubeOutputMetrics.userId, userId),
+        gte(youtubeOutputMetrics.publishedAt, thirtyNineHrsAgo),
+        lte(youtubeOutputMetrics.publishedAt, twoHoursAgo),
+      ))
+      .limit(10);
+
+    try {
+      const { db: dbImport } = await import("../db");
+      const { masterKnowledgeBank } = await import("@shared/schema");
+
+      for (const v of refreshed) {
+        const views = v.views ?? 0;
+        const mult  = channelAvgViews > 0 ? views / channelAvgViews : 0;
+
+        if (mult >= 2.0 && v.contentType === "short") {
+          // HOT STREAK: performing 2× channel average within 24h
+          const principle = `HOT STREAK [rapid-24h]: ${v.gameName ?? "gaming"} ${v.durationBucket ?? "short"} is outperforming at ${mult.toFixed(1)}× channel average. ytId: ${v.youtubeVideoId}. Queue MORE of this format IMMEDIATELY.`;
+          await dbImport.insert(masterKnowledgeBank).values({
+            userId,
+            category:          "hot_streak_formula",
+            principle,
+            sourceEngines:     ["youtube-performance-learner"],
+            evidenceCount:     1,
+            confidenceScore:   Math.min(92, Math.round(50 + mult * 15)),
+            applicableEngines: ["content-grinder", "back-catalog-engine", "creator-acceleration-engine"],
+            isActive:          true,
+            metadata: {
+              youtubeVideoId: v.youtubeVideoId,
+              views,
+              mult,
+              gameName:      v.gameName,
+              durationBucket: v.durationBucket,
+              durationSec:   v.durationSec,
+              detectedAt:    new Date().toISOString(),
+            },
+          } as any).catch(() => {}); // may already exist
+          logger.info(`[RapidFeedback] 🔥 HOT STREAK: ${v.youtubeVideoId} at ${mult.toFixed(1)}× avg (${views} views vs ${channelAvgViews.toFixed(0)} avg)`);
+
+        } else if (mult < 0.25 && v.contentType === "short" && v.publishedAt &&
+                   Date.now() - v.publishedAt.getTime() > 36 * 3600_000) {
+          // COLD: significantly under-performing after 36h
+          const principle = `AVOID PATTERN [rapid-24h]: ${v.gameName ?? "gaming"} ${v.durationBucket ?? "short"} under-performed at ${(mult * 100).toFixed(0)}% of channel average. ytId: ${v.youtubeVideoId}. De-prioritise this format.`;
+          await dbImport.insert(masterKnowledgeBank).values({
+            userId,
+            category:          "avoid_pattern",
+            principle,
+            sourceEngines:     ["youtube-performance-learner"],
+            evidenceCount:     1,
+            confidenceScore:   55,
+            applicableEngines: ["content-grinder", "back-catalog-engine"],
+            isActive:          true,
+            metadata: {
+              youtubeVideoId: v.youtubeVideoId,
+              views,
+              mult,
+              gameName:      v.gameName,
+              durationBucket: v.durationBucket,
+              detectedAt:    new Date().toISOString(),
+            },
+          } as any).catch(() => {});
+          logger.info(`[RapidFeedback] ❄️ COLD: ${v.youtubeVideoId} at ${(mult * 100).toFixed(0)}% avg after 36h`);
+        }
+      }
+    } catch { /* brain write failure is non-fatal */ }
+
+    logger.info(`[RapidFeedback] Refreshed ${recent.length} video(s) published in last 39h for ${userId.slice(0, 8)}`);
+  } catch (err: any) {
+    logger.warn(`[RapidFeedback] Failed: ${err?.message?.slice(0, 200)}`);
+  }
+}
+
+/**
  * Recompute bucket rankings and persist insights.
  * Reads all youtubeOutputMetrics for a user and writes a ranked model.
  */

@@ -38,6 +38,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { initCreatorAccelerationEngine, stopCreatorAccelerationEngine } from "./services/creator-acceleration-engine";
 import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
 import { initChannelIntelligenceEngine, stopChannelIntelligenceEngine } from "./services/channel-intelligence-engine";
 import { startQueueRescheduler, stopQueueRescheduler } from "./services/autopilot-queue-rescheduler";
@@ -3844,6 +3845,7 @@ httpServer.listen(
         { label: "internet-benchmark-engine",   fn: () => import("./services/internet-benchmark-engine").then(m => { backgroundIntervals.push(m.initInternetBenchmarkEngine()); }).catch(slog("initInternetBenchmarkEngine")) },
         { label: "omni-intelligence-harvester", fn: () => import("./services/omni-intelligence-harvester").then(m => { backgroundIntervals.push(m.initOmniIntelligenceHarvester()); }).catch(slog("initOmniIntelligenceHarvester")) },
         { label: "brain-association-engine",    fn: () => import("./services/brain-association-engine").then(m => { backgroundIntervals.push(m.initBrainAssociationEngine()); }).catch(slog("initBrainAssociationEngine")) },
+        { label: "creator-acceleration-engine", fn: () => { backgroundIntervals.push(initCreatorAccelerationEngine()); } },
         { label: "niche-video-researcher",      fn: () => import("./services/niche-video-researcher").then(m => { backgroundIntervals.push(m.initNicheVideoResearcher()); }).catch(slog("initNicheVideoResearcher")) },
         { label: "generation-cohort-tracker",   fn: () => import("./services/generation-cohort-tracker").then(m => { backgroundIntervals.push(m.initCohortTracker()); }).catch(slog("initCohortTracker")) },
         { label: "viral-prediction-engine",     fn: () => import("./services/viral-prediction-engine").then(m => { backgroundIntervals.push(...m.initViralPredictionEngine()); }).catch(slog("initViralPredictionEngine")) },
@@ -4292,6 +4294,7 @@ httpServer.listen(
     stopFortressCleanup();
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
+    stopCreatorAccelerationEngine();
     stopPublishingWatchdog();
     stopChannelIntelligenceEngine();
     stopQueueRescheduler();

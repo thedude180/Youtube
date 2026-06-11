@@ -9,6 +9,7 @@ import { buildDescription, reformatRawDescription, type DescriptionParts } from 
 import { getUserChannelLinks } from "../content-variation-engine";
 import { loadActivePrompt } from "../lib/prompt-loader";
 import { critiqueAndRefine } from "./recursive-critique-loop";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("vod-seo-optimizer");
 
@@ -19,6 +20,29 @@ async function getSEOLearnings(userId: string): Promise<string> {
     if (insights.length === 0) return "";
     const lines = insights.map(i => `- [${i.confidence}%] ${i.topic}: ${i.insight}`).join("\n");
     return `\n\nSEO LEARNINGS FROM PAST OPTIMIZATIONS (apply these patterns):\n${lines}`;
+  } catch {
+    return "";
+  }
+}
+
+async function getBrainTitlePatterns(userId: string): Promise<string> {
+  try {
+    const { db } = await import("../db");
+    const { masterKnowledgeBank } = await import("@shared/schema");
+    const { eq, and, desc } = await import("drizzle-orm");
+    const rows = await db
+      .select({
+        principle: masterKnowledgeBank.principle,
+        category:  masterKnowledgeBank.category,
+        confidence: masterKnowledgeBank.confidenceScore,
+      })
+      .from(masterKnowledgeBank)
+      .where(and(eq(masterKnowledgeBank.userId, userId), eq(masterKnowledgeBank.isActive, true)))
+      .orderBy(desc(masterKnowledgeBank.confidenceScore))
+      .limit(6);
+    if (rows.length === 0) return "";
+    const lines = rows.map(r => `- [${r.confidence ?? 0}% confidence] ${r.principle?.slice(0, 120)}`).join("\n");
+    return `\n\nCHANNEL BRAIN KNOWLEDGE (proven winning patterns — align your title/description strategy with these):\n${lines}`;
   } catch {
     return "";
   }
@@ -140,15 +164,21 @@ export class VODSEOOptimizer {
 
       const seoLearnings = await getSEOLearnings(userId);
       const visualContext = await getThumbnailVisualContext(userId, gameName || "");
+      const brainPatterns = await getBrainTitlePatterns(userId);
+      const focusGame = await getFocusGame().catch(() => "Battlefield 6");
 
-      const basePrompt = `You are an SEO expert for a YouTube PS5 gaming channel. Optimize the following video metadata and return STRUCTURED JSON — each description section is a SEPARATE field so they can be assembled with proper line breaks.
+      const channelIdentity = `"ET Gaming 274" — a no-commentary ${focusGame} gameplay highlights channel`;
+
+      const basePrompt = `You are an SEO expert for ${channelIdentity}. Optimize the following video metadata and return STRUCTURED JSON — each description section is a SEPARATE field so they can be assembled with proper line breaks.
 
 Current Title: ${sanitizeForPrompt(video.title, 200)}
 Current Description: ${sanitizeForPrompt(video.description || "None", 500)}
-${gameContext}${seoLearnings}${visualContext}
+${gameContext}${seoLearnings}${visualContext}${brainPatterns}
+
+CHANNEL STYLE: No-commentary gameplay highlights. Every title must lead with action/intensity — what HAPPENS in the clip, not what the channel is. Think: "Insane BF6 Clutch 1v4" not "ET Gaming PS5 Gameplay".
 
 Return a JSON object with EXACTLY these keys:
-1. "optimizedTitle": Catchy, high-CTR title (max 100 chars)
+1. "optimizedTitle": Catchy, high-CTR title (max 100 chars). Must reference the game AND a specific action/moment. Lead with the most dramatic element.
 2. "hookLines": Array of 1-2 short punchy sentences that open the description and appear in search previews. Each line is a separate array element. Max 25 words each. No timestamps here.
 3. "bodyParagraph": 2-3 sentences (one paragraph) describing what happens in the video with relevant keywords. No timestamps. No social links.
 4. "chapters": Array of { "time": "M:SS", "label": "Short chapter name" } — estimate 5-10 chapters based on the video. Use real-looking timestamps spread across the video duration.
