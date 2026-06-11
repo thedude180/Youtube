@@ -52,7 +52,12 @@ export async function scheduleClipsForAutoPublish(
 
   for (const clip of clips) {
     try {
-      const platform = clip.platform === "shorts" ? "youtube" : clip.platform;
+      // Preserve the original clip platform — do NOT silently convert "shorts"
+      // to "youtube".  That stripped every Short signal and caused Shorts to land
+      // on the regular video shelf.  The target_platform column stores the intent;
+      // studio-publisher reads metadata.isShort to add #shorts before upload.
+      const platform = clip.platform;
+      const isShort = clip.platform === "shorts";
       const isYoutubePlatform = YOUTUBE_PLATFORMS.has(clip.platform);
 
       // Stream editor clips are user-initiated top-priority uploads — publish NOW,
@@ -82,7 +87,9 @@ export async function scheduleClipsForAutoPublish(
         const [queueEntry] = await db.insert(autopilotQueue).values({
           userId,
           type: "studio_auto_publish",
-          targetPlatform: platform,
+          // Use "youtubeshorts" for Shorts so downstream systems can inspect it.
+          // studio-publisher.ts reads metadata.isShort to add #shorts before upload.
+          targetPlatform: isShort ? "youtubeshorts" : "youtube",
           content: studioVideo.title,
           status: "scheduled",
           scheduledAt,
@@ -92,6 +99,9 @@ export async function scheduleClipsForAutoPublish(
             title: studioVideo.title,
             autoQueued: true,
             publishImmediately: true,
+            // isShort flag lets studio-publisher.ts add #shorts to description
+            // even when the title was generated without it (common for packager clips).
+            ...(isShort ? { isShort: true } : {}),
           },
         }).returning();
 

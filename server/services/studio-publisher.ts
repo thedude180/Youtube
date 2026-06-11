@@ -94,8 +94,28 @@ export async function publishStudioVideo(
     const youtube = google.youtube({ version: "v3", auth: oauth2Client });
 
     const cleanTitle = removeBannedPhrases(studioVideo.title).slice(0, 100);
-    const cleanDescription = removeBannedPhrases(studioVideo.description || "").slice(0, 5000);
+    let cleanDescription = removeBannedPhrases(studioVideo.description || "").slice(0, 5000);
     const cleanTags = (meta.tags || []).map((t: string) => removeBannedPhrases(t)).filter(Boolean).slice(0, 500);
+
+    // ── Short detection ───────────────────────────────────────────────────────
+    // YouTube places a video on the Shorts shelf when:
+    //   1. Duration ≤ 60 s  AND
+    //   2. #shorts appears in title OR description  (OR aspect ratio is 9:16)
+    // The stream editor produces 16:9 clips from live streams, so we rely on
+    // the #shorts tag.  Detect Short via any of the following signals, then
+    // inject #shorts into the description if it isn't already present.
+    const durationNum = studioVideo.duration ? Number(studioVideo.duration) : NaN;
+    const isShortVideo =
+      (meta as any).isShort === true ||
+      cleanTitle.toLowerCase().includes("#shorts") ||
+      cleanDescription.toLowerCase().includes("#shorts") ||
+      (!isNaN(durationNum) && durationNum <= 60);
+
+    if (isShortVideo && !cleanDescription.toLowerCase().includes("#shorts")) {
+      cleanDescription = cleanDescription
+        ? `${cleanDescription}\n\n#shorts`
+        : "#shorts";
+    }
 
     let publishedVideoId = studioVideo.youtubeId;
 

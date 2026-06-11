@@ -288,9 +288,18 @@ export async function packageClips(
       ]);
 
       // ── Sequential phase: create the DB record (needs SEO output) ─────────────
+      const clipIsShort = clip.platform === "shorts";
+
+      // For Short clips: ensure #shorts appears in the title so YouTube
+      // correctly places the upload on the Shorts shelf.  studio-publisher.ts
+      // will also add #shorts to the description as a second signal.
+      const finalTitle = (clipIsShort && !seo.title.includes("#shorts"))
+        ? `${seo.title} #shorts`
+        : seo.title;
+
       const sv = await storage.createStudioVideo({
         userId,
-        title: seo.title,
+        title: finalTitle,
         description: seo.description,
         filePath: clip.filePath,
         fileSize: clip.fileSize,
@@ -302,6 +311,8 @@ export async function packageClips(
           seoScore: seo.seoScore,
           privacyStatus: "private",
           channelId: youtubeChannelId,
+          // isShort is read by studio-publisher.ts to add #shorts to description
+          ...(clipIsShort ? { isShort: true } : {}),
         },
       });
 

@@ -2722,6 +2722,52 @@ async function migration049CancelBlockedPublishingQueue(): Promise<void> {
   }
 }
 
+// ── Migration 050: fix pending AC Valhalla studio_auto_publish items ──────────
+// The vault-clip-exhauster + stream-editor-packager created several AC Valhalla
+// studio_auto_publish items whose studio videos were already published to YouTube
+// (confirmed by the channel owner on Jun 11 2026).  Without this fix the poller
+// would re-upload them every boot until permanently failed, creating duplicates.
+//
+// Also updates the metadata of any still-queued studio_auto_publish items that
+// have isShort implied by their title (containing "#shorts") so the now-fixed
+// studio-publisher.ts Short-detection path has a clean signal to read.
+async function migration050FixPendingStudioAutoPublishItems(): Promise<void> {
+  const FLAG = "migration:050:fix_pending_studio_auto_publish_items";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Mark studio_auto_publish items for AC Valhalla studio videos 359–362
+    //    as published — they were confirmed live on YouTube on Jun 11 2026.
+    //    (Studio 357 and 358 were already handled by migration 049.)
+    const r1 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status       = 'published',
+          published_at = NOW(),
+          error_message = NULL
+      WHERE type   = 'studio_auto_publish'
+        AND status NOT IN ('published', 'cancelled')
+        AND (metadata->>'studioVideoId')::int IN (359, 360, 361, 362)
+    `);
+    log.info(`[Migration 050] Marked ${(r1 as any).rowCount ?? 0} studio_auto_publish items as published (AC Valhalla studios 359-362)`);
+
+    // 2. For any still-queued/scheduled studio_auto_publish items whose title
+    //    contains "#shorts", inject isShort:true into metadata so the fixed
+    //    studio-publisher.ts will add #shorts to the description before upload.
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET metadata = metadata || '{"isShort":true}'::jsonb
+      WHERE type   = 'studio_auto_publish'
+        AND status IN ('scheduled', 'pending', 'failed')
+        AND (metadata->>'isShort') IS DISTINCT FROM 'true'
+        AND content ILIKE '%#shorts%'
+    `);
+    log.info(`[Migration 050] Injected isShort:true into ${(r2 as any).rowCount ?? 0} queued Short items lacking the flag`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 050] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -2775,6 +2821,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration047StripNonYoutubePlatforms();
     await migration048HardFailUndownloadablePreEncoderItems();
     await migration049CancelBlockedPublishingQueue();
+    await migration050FixPendingStudioAutoPublishItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
