@@ -160,7 +160,23 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       const itemMeta = (item.metadata ?? {}) as Record<string, unknown>;
       const startSec = Number(itemMeta.segmentStartSec ?? 0);
       const endSec = Number(itemMeta.segmentEndSec ?? 0);
-      const rawDurationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
+      let rawDurationSec = Math.min(endSec - startSec, MAX_SEGMENT_SEC);
+
+      // For vod-long-form items created by the VOD-engine with sourceVideoId but no
+      // explicit segment bounds, rawDurationSec will be 0.  Read the actual duration
+      // from the videos table so the item proceeds to the pre-encoder wait path
+      // instead of being immediately failed as "Segment too short".
+      if (rawDurationSec === 0 && item.type === "vod-long-form" && item.sourceVideoId) {
+        try {
+          const [srcVid] = await db.select({ durationSec: videos.durationSec })
+            .from(videos)
+            .where(eq(videos.id, item.sourceVideoId))
+            .limit(1);
+          if (srcVid?.durationSec && srcVid.durationSec > 0) {
+            rawDurationSec = Math.min(srcVid.durationSec, MAX_SEGMENT_SEC);
+          }
+        } catch { /* non-fatal — fall through to guard below */ }
+      }
 
       // ── Guard: reject anything that is actually a Short being passed as long-form ──
       // 1. No #shorts tag anywhere in pre-built SEO fields — Shorts content

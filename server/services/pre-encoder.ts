@@ -24,8 +24,8 @@ import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
 import { db } from "../db";
-import { autopilotQueue } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { autopilotQueue, videos } from "@shared/schema";
+import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { assembleMusicScore, cleanupMusicScore } from "./music-scorer";
@@ -468,9 +468,22 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     .select()
     .from(autopilotQueue)
     .where(and(
-      eq(autopilotQueue.status, "scheduled"),
-      // Only items that have a sourceYoutubeId (back-catalog items)
-      sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
+      or(
+        // Back-catalog items (have sourceYoutubeId in metadata) — must be 'scheduled'
+        and(
+          eq(autopilotQueue.status, "scheduled"),
+          sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NOT NULL`,
+        ),
+        // Grinder/VOD-engine items (use sourceVideoId int FK, no sourceYoutubeId in metadata)
+        // Accept both 'pending' and 'scheduled' — pre-encoder promotes pending→scheduled
+        // after encoding so the publisher finds them via the standard scheduled path.
+        and(
+          inArray(autopilotQueue.type, ["youtube_short", "auto-clip", "vod-long-form"]),
+          inArray(autopilotQueue.status, ["scheduled", "pending"]),
+          sql`${autopilotQueue.sourceVideoId} IS NOT NULL`,
+          sql`${autopilotQueue.metadata}->>'sourceYoutubeId' IS NULL`,
+        ),
+      ),
       // Skip items already pre-encoded (file written to disk, path in metadata)
       sql`${autopilotQueue.metadata}->>'preEncodedPath' IS NULL`,
       // Skip items the pre-encoder has permanently failed on (3+ attempts)
@@ -513,15 +526,40 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     // switching a back-catalog auto-clip to Short encoding doesn't zero the bounds.
     const hasExplicitStart = meta.startSec != null || meta.segmentStartSec != null;
     const hasExplicitEnd   = meta.endSec   != null || meta.segmentEndSec   != null;
-    const startSec = isLongForm
+    let startSec = isLongForm
       ? Number(meta.segmentStartSec ?? 0)
       : Number(meta.startSec ?? meta.segmentStartSec ?? 0);
-    const endSec = isLongForm
+    let endSec = isLongForm
       ? Number(meta.segmentEndSec ?? 0)
       : Number(meta.endSec ?? meta.segmentEndSec ?? 60);
-    const durationSec = endSec - startSec;
+    let durationSec = endSec - startSec;
 
-    if (!sourceYoutubeId) {
+    // ── Resolve sourceYoutubeId for items that use sourceVideoId (int FK) ──────
+    // Grinder/VOD-engine items store the source as sourceVideoId (integer FK to
+    // the videos table) rather than sourceYoutubeId in metadata.  Look up the
+    // YouTube ID from the videos table so vault lookup and yt-dlp work normally.
+    let resolvedSourceYoutubeId = sourceYoutubeId;
+    if (!resolvedSourceYoutubeId && item.sourceVideoId) {
+      try {
+        const [srcVid] = await db
+          .select({ youtubeVideoId: videos.youtubeVideoId, durationSec: videos.durationSec })
+          .from(videos)
+          .where(eq(videos.id, item.sourceVideoId))
+          .limit(1);
+        if (srcVid?.youtubeVideoId) {
+          resolvedSourceYoutubeId = srcVid.youtubeVideoId;
+          // For vod-long-form items with no explicit segment bounds (full-VOD uploads),
+          // use the source video's full duration capped at 60 min.
+          if (isLongForm && durationSec === 0 && srcVid.durationSec && srcVid.durationSec > 0) {
+            startSec    = 0;
+            endSec      = Math.min(srcVid.durationSec, 3600);
+            durationSec = endSec;
+          }
+        }
+      } catch { /* non-fatal — fall through to skip below */ }
+    }
+
+    if (!resolvedSourceYoutubeId) {
       skipped++;
       continue;
     }
@@ -562,7 +600,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         .select({ id: contentVaultBackups.id, filePath: contentVaultBackups.filePath })
         .from(contentVaultBackups)
         .where(vAnd(
-          vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+          vEq(contentVaultBackups.youtubeId, resolvedSourceYoutubeId),
           vEq(contentVaultBackups.status, "downloaded"),
         ))
         .limit(1);
@@ -575,7 +613,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           .select({ id: contentVaultBackups.id })
           .from(contentVaultBackups)
           .where(vAnd(
-            vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+            vEq(contentVaultBackups.youtubeId, resolvedSourceYoutubeId),
             vEq(contentVaultBackups.status, "indexed"),
           ))
           .limit(1);
@@ -586,14 +624,14 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
           .from(contentVaultBackups)
           .where(vAnd(
-            vEq(contentVaultBackups.youtubeId, sourceYoutubeId),
+            vEq(contentVaultBackups.youtubeId, resolvedSourceYoutubeId),
             vEq(contentVaultBackups.status, "failed"),
           ))
           .limit(1);
         if (failedEntry) {
           const failCount = ((failedEntry.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
           if (failCount >= 3) {
-            logger.info(`[PreEncoder] Skipping item ${item.id} — source ${sourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
+            logger.info(`[PreEncoder] Skipping item ${item.id} — source ${resolvedSourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
             skipped++;
             continue;
           }
@@ -627,9 +665,9 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         // ── yt-dlp section download path ─────────────────────────────────────
         logger.info(
           `[PreEncoder] Encoding item ${item.id} (${isLongForm ? "long-form" : "short"}) ` +
-          `from ${sourceYoutubeId} [${startSec}s–${endSec}s]`,
+          `from ${resolvedSourceYoutubeId} [${startSec}s–${endSec}s]`,
         );
-        await downloadSection(sourceYoutubeId, startSec, endSec, rawPath);
+        await downloadSection(resolvedSourceYoutubeId, startSec, endSec, rawPath);
         if (!fs.existsSync(rawPath)) throw new Error("yt-dlp produced no output");
       }
 
@@ -643,11 +681,14 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
 
       if (!fs.existsSync(outputPath)) throw new Error("ffmpeg produced no output");
 
-      // Atomically claim: only write preEncodedPath if item is still "scheduled"
-      // and not yet pre-encoded. If publisher already grabbed it, clean up.
+      // Atomically claim: write preEncodedPath and promote pending→scheduled so
+      // the publisher finds the item via the standard scheduled-items path.
+      // Accept both 'scheduled' and 'pending' — grinder items start as 'pending'.
+      // If the publisher already grabbed the item (status changed), clean up.
       const claimed = await db
         .update(autopilotQueue)
         .set({
+          status: "scheduled" as any,
           metadata: {
             ...meta,
             preEncodedPath: outputPath,
@@ -657,7 +698,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         })
         .where(and(
           eq(autopilotQueue.id, item.id),
-          eq(autopilotQueue.status, "scheduled"),
+          inArray(autopilotQueue.status, ["scheduled", "pending"]),
           sql`${autopilotQueue.metadata}->>'preEncodedPath' IS NULL`,
         ))
         .returning({ id: autopilotQueue.id });
@@ -702,7 +743,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         // and will be picked up again once the vault file is ready.
         newCount = Math.max(prevCount, 1);
         logger.info(
-          `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) section-dl format error — ` +
+          `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) section-dl format error — ` +
           `vault has it indexed; will retry after vault download completes.`,
         );
       } else if (isFormatError && !vaultFilePath) {
@@ -728,16 +769,16 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           .set({ metadata: updatedMeta as any })
           .where(and(
             eq(autopilotQueue.id, item.id),
-            eq(autopilotQueue.status, "scheduled"),
+            inArray(autopilotQueue.status, ["scheduled", "pending"]),
           ));
         if (isHardFail) {
           logger.warn(
-            `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) hard format error — ` +
+            `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) hard format error — ` +
             `no vault entry; permanently blacklisted. Error: ${errMsg.slice(0, 120)}`,
           );
         } else if (newCount >= 3) {
           logger.warn(
-            `[PreEncoder] Item ${item.id} (${sourceYoutubeId}) reached ${newCount} pre-encode failures — ` +
+            `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) reached ${newCount} pre-encode failures — ` +
             `excluded from future pre-encoder cycles; publisher will attempt live download.`,
           );
         }

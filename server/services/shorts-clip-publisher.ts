@@ -528,6 +528,12 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               } else {
                 logger.info(`[ShortsPublisher] Item ${item.id} not yet pre-encoded — skipping until pre-encoder processes it`);
               }
+              // Reset from 'processing' back to 'scheduled' so the pre-encoder can
+              // encode the file and the publisher picks it up on the next cycle.
+              // Without this reset the item stays stuck in 'processing' forever.
+              await db.update(autopilotQueue)
+                .set({ status: "scheduled" })
+                .where(eq(autopilotQueue.id, item.id));
               skipped++;
               continue;
             }
