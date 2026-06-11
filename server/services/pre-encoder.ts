@@ -89,10 +89,10 @@ async function downloadSection(
 }
 
 async function encodeShort(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
-  // Audio is stripped (-an) on all Shorts.  The channel is no-commentary, so
-  // silence is expected and standard.  Removing the audio track eliminates
-  // Content ID claims from in-game music (e.g. Ubisoft, EA licensed tracks)
-  // which are the primary cause of copyright notices on gaming Shorts.
+  // Keep native game audio (sound effects, ambient, cutscene dialogue).
+  // Loudnorm normalises levels so gameplay audio isn't jarring.
+  // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
+  // back-catalog engine — content reaching this encoder is from safe titles.
   await runCmd("ffmpeg", [
     "-y",
     "-i", rawPath,
@@ -104,7 +104,9 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
       "setsar=1",
       "fps=60",
     ].join(","),
-    "-an",
+    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+    "-c:a", "aac",
+    "-b:a", "192k",
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",
@@ -118,17 +120,19 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
 }
 
 async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string): Promise<void> {
-  // Audio is stripped (-an) on all long-form encodes.  The channel is
-  // no-commentary; viewers come for the gameplay footage, not the soundtrack.
-  // Silent long-form videos have no Content ID exposure and allow unrestricted
-  // monetisation regardless of which game is being played.
+  // Keep native game audio (sound effects, ambient, cutscene dialogue).
+  // Loudnorm normalises levels for consistent playback volume.
+  // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
+  // back-catalog engine — content reaching this encoder is from safe titles.
   await runCmd("ffmpeg", [
     "-y",
     "-i", rawPath,
     "-t", String(durationSec),
     // 16:9 horizontal — letterbox to 3840×2160 (4K), keep original aspect ratio (no crop)
     "-vf", "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos,pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1",
-    "-an",
+    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+    "-c:a", "aac",
+    "-b:a", "192k",
     "-c:v", "libx264",
     "-profile:v", "high",
     "-level:v", "5.1",

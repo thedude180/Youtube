@@ -325,55 +325,6 @@ async function runRepairCycle(): Promise<void> {
       }
     }
 
-    // 5f. Unlist long-form videos from copyright-risky games ──────────────
-    // Games like AC Unity, Syndicate, Dragon Age, Middle-earth have in-game
-    // soundtracks that consistently trigger Content ID claims.  Find long-form
-    // back-catalog videos from those games that are still public and set them
-    // to "unlisted" on YouTube so they stop accruing copyright strikes while
-    // keeping the content (not deleted).  Capped at 3 per cycle to stay within
-    // quota limits.
-    try {
-      const { isCopyrightRiskyGame } = await import("./youtube-back-catalog-engine");
-      const { updateYouTubeVideo } = await import("../youtube");
-
-      const riskyLongForm = await db
-        .select({
-          id: backCatalogVideos.id,
-          youtubeVideoId: backCatalogVideos.youtubeVideoId,
-          title: backCatalogVideos.title,
-          gameName: backCatalogVideos.gameName,
-          channelId: backCatalogVideos.channelId,
-        })
-        .from(backCatalogVideos)
-        .where(
-          and(
-            eq(backCatalogVideos.isShort, false),
-            // Only target videos not already unlisted or private
-            sql`${backCatalogVideos.privacyStatus} IS DISTINCT FROM 'unlisted'`,
-            sql`${backCatalogVideos.privacyStatus} IS DISTINCT FROM 'private'`,
-          ),
-        )
-        .limit(50);
-
-      const toUnlist = riskyLongForm.filter(v => isCopyrightRiskyGame(v)).slice(0, 3);
-
-      for (const v of toUnlist) {
-        if (!v.channelId || !v.youtubeVideoId) continue;
-        try {
-          await updateYouTubeVideo(v.channelId, v.youtubeVideoId, { privacyStatus: "unlisted" }, "write");
-          await db.update(backCatalogVideos)
-            .set({ privacyStatus: "unlisted" })
-            .where(eq(backCatalogVideos.id, v.id));
-          summary.push(`unlisted copyright-risky VOD ${v.youtubeVideoId} (${(v.gameName ?? "unknown").slice(0, 30)})`);
-          logger.info(`[perpetual-repair] Unlisted copyright-risky VOD ${v.youtubeVideoId}: "${(v.title ?? "").slice(0, 60)}"`);
-        } catch (err: any) {
-          logger.warn(`[perpetual-repair] Could not unlist ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
-        }
-      }
-    } catch (err: any) {
-      logger.warn(`[perpetual-repair] Copyright-unlist step failed: ${err.message?.slice(0, 100)}`);
-    }
-
     // 5. Empty autopilot queues → replenish ───────────────────────────────
     // Find users with autopilot active but 0 queued or processing items.
     const activeUserRows = await db
