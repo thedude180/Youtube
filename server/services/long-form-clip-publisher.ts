@@ -26,6 +26,7 @@ import { db } from "../db";
 import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, sql, or } from "drizzle-orm";
+import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
 import { recordHeartbeat } from "./engine-heartbeat";
@@ -86,6 +87,10 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
     // Upload them all now with publishAt set so YouTube spaces their release.
     const batchWindow = new Date(now.getTime() + BATCH_WINDOW_DAYS * 86400_000);
 
+    // Dynamic focus-game priority — updates automatically when setFocusGame() fires
+    const focusGame    = await getFocusGame().catch(() => "Battlefield 6");
+    const focusPattern = `%${focusGame.toLowerCase()}%`;
+
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
         // auto-clip = grinder/segmenter long-form; vod-long-form = full-VOD upload path
@@ -108,19 +113,14 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       // Priority order:
       //   0 — recent live-stream VOD uploads (vod-long-form) — new content first
       //   1 — back-catalog segmented clips (auto-clip long-form) — after new content
-      // Within each content-type tier, BF6 items come before all other games.
+      // Within each content-type tier, current focus game items come before all other games.
       // Within the same game+tier, earliest scheduled_at wins.
       .orderBy(
         sql`CASE
           WHEN ${autopilotQueue.type} = 'vod-long-form' THEN 0
           ELSE 1
         END`,
-        sql`CASE
-          WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%battlefield 6%'
-            OR LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%bf6%'
-          THEN 0
-          ELSE 1
-        END`,
+        sql`CASE WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE ${focusPattern} THEN 0 ELSE 1 END`,
         autopilotQueue.scheduledAt,
       )
       .limit(1); // One upload per cycle — the perpetual loop calls us again immediately for the next

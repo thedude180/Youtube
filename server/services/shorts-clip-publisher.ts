@@ -35,6 +35,7 @@ import { db } from "../db";
 import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
 import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
+import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
 import { recordHeartbeat } from "./engine-heartbeat";
@@ -75,7 +76,7 @@ async function generateShortCaption(opts: {
   const isBF6 = /battlefield\s*6|bf\s*6/i.test(gameName ?? "") || /battlefield\s*6|bf\s*6/i.test(sourceTitle);
 
   // Fast fallback if AI is unavailable
-  const fallback = buildFallbackCaption(platform, sourceTitle, hookLine);
+  const fallback = buildFallbackCaption(platform, sourceTitle, hookLine, gameName);
 
   try {
     const openai = getOpenAIClientBackground();
@@ -138,16 +139,31 @@ Respond with ONLY the title text. No JSON, no quotes, no explanation.`;
   }
 }
 
+function buildGameHashtags(gameName?: string | null): string {
+  const g = (gameName ?? "").toLowerCase();
+  if (/battlefield\s*6|bf\s*6/.test(g))  return "#shorts #bf6 #ps5";
+  if (/call of duty|warzone|cod\b/.test(g)) return "#shorts #cod #gaming";
+  if (/fortnite/.test(g))                  return "#shorts #fortnite #gaming";
+  if (/apex/.test(g))                      return "#shorts #apex #gaming";
+  if (g.length > 2) {
+    const tag = g.split(/\s+/)[0].replace(/[^a-z0-9]/g, "");
+    return tag ? `#shorts #${tag} #gaming` : "#shorts #gaming #ps5";
+  }
+  return "#shorts #gaming #ps5";
+}
+
 function buildFallbackCaption(
   _platform: string,
   title: string,
   hookLine: string | undefined,
+  gameName?: string | null,
 ): string {
+  const tags = buildGameHashtags(gameName);
   // Fallback titles also avoid template language — use the moment label directly
   // if available, otherwise clean up the source title.
   if (hookLine && hookLine.length >= 8) {
     const clean = hookLine.charAt(0).toUpperCase() + hookLine.slice(1);
-    return `${clean.slice(0, 70)} #shorts #bf6 #ps5`;
+    return `${clean.slice(0, 70)} ${tags}`;
   }
   // Strip generic suffixes from back-catalog titles before using as fallback
   const stripped = title
@@ -157,7 +173,7 @@ function buildFallbackCaption(
     .replace(/\bno facecam\b/gi, "")
     .replace(/\bPS5\b/gi, "")
     .trim();
-  return `${stripped.slice(0, 70)} #shorts #bf6 #ps5`;
+  return `${stripped.slice(0, 70)} ${tags}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +241,10 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     // each one at its spaced time automatically.
     const batchWindow = new Date(now.getTime() + BATCH_WINDOW_DAYS * 86400_000);
 
+    // Dynamic focus-game priority — updates automatically when setFocusGame() fires
+    const focusGame    = await getFocusGame().catch(() => "Battlefield 6");
+    const focusPattern = `%${focusGame.toLowerCase()}%`;
+
     const dueItems = await db.select().from(autopilotQueue)
       .where(and(
         // youtube_short / platform_short / platform_text_short — legacy types
@@ -256,7 +276,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       //   0 — live stream clips (highlights, replays, copilot-generated) — always first
       //   1 — new gameplay Shorts (youtube_short, platform_short, vod-short) — current content
       //   2 — back-catalog auto-clips — after new content is cleared
-      // Within each content-type tier, BF6 items come before all other games.
+      // Within each content-type tier, current focus game items come before all other games.
       // Within the same game+tier, earliest scheduled_at wins.
       // Within the same slot, highest viralScore (0–100) wins.
       .orderBy(
@@ -269,12 +289,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           THEN 1
           ELSE 2
         END`,
-        sql`CASE
-          WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%battlefield 6%'
-            OR LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE '%bf6%'
-          THEN 0
-          ELSE 1
-        END`,
+        sql`CASE WHEN LOWER(COALESCE(${autopilotQueue.metadata}->>'gameName','')) LIKE ${focusPattern} THEN 0 ELSE 1 END`,
         autopilotQueue.scheduledAt,
         sql`COALESCE((${autopilotQueue.metadata}->>'viralScore')::float, 50) DESC`,
       )

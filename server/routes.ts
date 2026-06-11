@@ -806,6 +806,140 @@ export async function registerRoutes(
     }
   });
 
+  // ── Infinity Machine routes ──────────────────────────────────────────────────
+  app.get("/api/youtube/infinity/status", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const [
+        { getGuardianStatusForUser },
+        { getBackCatalogSeoStatus },
+        { getFocusGame },
+        { getQuotaStatus, getDailyOpCounts },
+      ] = await Promise.all([
+        import("./services/perpetual-queue-guardian"),
+        import("./services/back-catalog-seo-engine"),
+        import("./lib/game-focus"),
+        import("./services/youtube-quota-tracker"),
+      ]);
+
+      const [guardian, quotaStat, focusGame] = await Promise.all([
+        getGuardianStatusForUser(userId),
+        getQuotaStatus(userId).catch(() => ({ remaining: 0, used: 0, limit: 10000, isExceeded: false })),
+        getFocusGame().catch(() => "Battlefield 6"),
+      ]);
+      const seoStat = getBackCatalogSeoStatus(userId);
+      const ops     = getDailyOpCounts(userId);
+
+      const { backCatalogVideos: bcvTable, autopilotQueue: aqTable } = await import("@shared/schema");
+      const { db: _db } = await import("./db");
+      const { eq, and, gte, inArray, sql: _sql, count: _count } = await import("drizzle-orm");
+
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
+      const focusPattern = `%${focusGame.toLowerCase()}%`;
+
+      const [bcStats, publishedRows, focusQueueRows] = await Promise.all([
+        _db.select({
+          total: _count(),
+          mined: _sql<number>`SUM(CASE WHEN ${bcvTable.minedForShorts} THEN 1 ELSE 0 END)::int`,
+        }).from(bcvTable).where(eq(bcvTable.userId, userId)),
+
+        _db.select({ n: _count() }).from(aqTable).where(and(
+          eq(aqTable.userId, userId),
+          eq(aqTable.status, "published"),
+          gte(aqTable.publishedAt, sevenDaysAgo),
+        )),
+
+        _db.select({ n: _count() }).from(aqTable).where(and(
+          eq(aqTable.userId, userId),
+          inArray(aqTable.status, ["scheduled", "pending"]),
+          gte(aqTable.scheduledAt, new Date()),
+          _sql`LOWER(COALESCE(${aqTable.metadata}->>'gameName','')) LIKE ${focusPattern}`,
+        )),
+      ]);
+
+      const totalVideos     = Number(bcStats[0]?.total  ?? 0);
+      const minedCount      = Number(bcStats[0]?.mined  ?? 0);
+      const published7d     = Number(publishedRows[0]?.n ?? 0);
+      const focusItemsCount = Number(focusQueueRows[0]?.n ?? 0);
+
+      res.json({
+        queue: {
+          shortsDays:   guardian.shortsDays,
+          longFormDays: guardian.longFormDays,
+          freshCount:   guardian.freshCount,
+          catalogCount: guardian.catalogCount,
+        },
+        quota: {
+          uploadsToday:      ops.upload        ?? 0,
+          backlogWriteToday: ops.backlogWrite   ?? 0,
+          remaining:         quotaStat.remaining,
+          limit:             quotaStat.limit,
+          isExceeded:        quotaStat.isExceeded,
+        },
+        gameFocus: {
+          currentGame:  focusGame,
+          daysQueued:   Math.round((focusItemsCount / 4) * 10) / 10,
+          itemsQueued:  focusItemsCount,
+        },
+        backCatalog: {
+          totalVideos,
+          minedCount,
+          minedPct: totalVideos ? Math.round((minedCount / totalVideos) * 100) : 0,
+        },
+        velocity: {
+          publishedLast7Days: published7d,
+          averagePerDay:      Math.round((published7d / 7) * 10) / 10,
+        },
+        guardian: {
+          isHealthy:    guardian.isHealthy,
+          lastCheckAt:  guardian.lastCheckAt,
+          lastRefillAt: guardian.lastRefillAt,
+          refillsToday: guardian.refillsToday,
+        },
+        seoEngine: {
+          updatesToday:    seoStat.updatesToday,
+          budgetRemaining: seoStat.budgetRemaining,
+          maxPerDay:       seoStat.maxPerDay,
+          lastRunAt:       seoStat.lastRunAt,
+          isRunning:       seoStat.isRunning,
+        },
+      });
+    } catch (err: any) {
+      logger.error(`[Infinity] Status error: ${err.message}`);
+      res.status(500).json({ error: "Failed to get infinity status" });
+    }
+  });
+
+  app.post("/api/youtube/infinity/seo/run", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { runBackCatalogSeoEngine } = await import("./services/back-catalog-seo-engine");
+      runBackCatalogSeoEngine(userId).catch(e =>
+        logger.warn(`[Infinity] Manual SEO run error: ${e.message}`)
+      );
+      res.json({ ok: true, message: "SEO engine started" });
+    } catch {
+      res.status(500).json({ error: "Failed to start SEO engine" });
+    }
+  });
+
+  app.post("/api/youtube/infinity/guardian/run", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { manualRefill } = await import("./services/perpetual-queue-guardian");
+      manualRefill(userId).catch(e =>
+        logger.warn(`[Infinity] Manual refill error: ${e.message}`)
+      );
+      res.json({ ok: true, message: "Queue refill triggered" });
+    } catch {
+      res.status(500).json({ error: "Failed to trigger refill" });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.

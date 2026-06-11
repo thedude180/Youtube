@@ -471,6 +471,18 @@ export function initQuotaResetCron(): void {
         ]);
         logger.info("[QuotaReset] Shorts publisher result", shortsResult.status === "fulfilled" ? shortsResult.value : { error: String((shortsResult as PromiseRejectedResult).reason) });
         logger.info("[QuotaReset] Long-form publisher result", longFormResult.status === "fulfilled" ? longFormResult.value : { error: String((longFormResult as PromiseRejectedResult).reason) });
+
+        // Back-catalog SEO: fire 30 min after publishers — uses leftover quota to
+        // update title/description/tags on worst-performing back-catalog videos.
+        setTimeout(async () => {
+          try {
+            const { runBackCatalogSeoEngine } = await import("./back-catalog-seo-engine");
+            const r = await runBackCatalogSeoEngine();
+            logger.info("[QuotaReset] SEO engine complete", r);
+          } catch (err2: any) {
+            logger.warn("[QuotaReset] SEO engine error", { error: String(err2) });
+          }
+        }, 30 * 60_000);
       } catch (err: any) {
         logger.error("[QuotaReset] Midnight publish cycle error:", { error: String(err) });
       }

@@ -3908,6 +3908,18 @@ httpServer.listen(
         backgroundIntervals.push(m.initShadowAnalyticsEngine());
       }).catch(slog("initShadowAnalyticsEngine"));
 
+      // Perpetual Queue Guardian — active 15-min monitor that auto-refills
+      // the publishing queue from back catalog whenever coverage drops below threshold.
+      import("./services/perpetual-queue-guardian").then(m => {
+        m.initPerpetualQueueGuardian();
+      }).catch(slog("initPerpetualQueueGuardian"));
+
+      // Back Catalog SEO Engine — initialized here; actual runs are triggered
+      // 30 min after each midnight quota reset via initQuotaResetCron().
+      import("./services/back-catalog-seo-engine").then(m => {
+        m.initBackCatalogSeoEngine();
+      }).catch(slog("initBackCatalogSeoEngine"));
+
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 
