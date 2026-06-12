@@ -16,6 +16,7 @@
 //    for critical-path callers (publish, pre-flight, live-chat).
 
 import { createLogger } from "./logger";
+import { logIncidentOnce } from "./incident-log";
 
 const logger = createLogger("ai-semaphore");
 
@@ -157,6 +158,17 @@ async function _waitForRelease(background: boolean): Promise<void> {
   // remaining queue depth for critical-path callers (publish, pre-flight).
   const bgLimit = _backgroundDepthOverride ?? BACKGROUND_MAX_QUEUE_DEPTH;
   if (background && _backgroundQueueCount >= bgLimit) {
+    logIncidentOnce({
+      category:  "ai_queue",
+      service:   "ai-semaphore / background",
+      severity:  "medium",
+      rootCause: `Background AI queue saturated: ${_backgroundQueueCount}/${bgLimit} slots full. ` +
+                 `Callers are converging faster than the AI semaphore can drain them.`,
+      lesson:    "Background AI queue depth must be sized for the worst-case convergence burst " +
+                 "(midnight quota-reset, boot-time wave, etc.). Count how many background engines fire " +
+                 "in the same 15-minute window and set BACKGROUND_MAX_QUEUE_DEPTH >= that count. " +
+                 "Dropped background requests are silent — always log when they occur.",
+    }).catch(() => {});
     throw new Error(`AI queue full for background tasks (${_backgroundQueueCount}/${bgLimit} background callers waiting) — request dropped`);
   }
   if (_releaseListeners.length >= MAX_QUEUE_DEPTH) {

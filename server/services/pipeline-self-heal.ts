@@ -11,6 +11,7 @@ import {
 } from "@shared/schema";
 import { and, eq, lt, or, like, isNull, isNotNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { logIncidentOnce } from "../lib/incident-log";
 import { refreshExpiringTokens } from "../token-refresh";
 import { processBacklog } from "./youtube-push-backlog";
 
@@ -389,6 +390,14 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
     if (r.status === "rejected") {
       const name = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs"][i];
       logger.warn(`[self-heal] Heal step "${name}" failed (non-fatal): ${r.reason?.message ?? r.reason}`);
+      logIncidentOnce({
+        category:  "other",
+        service:   `pipeline-self-heal / ${name}`,
+        severity:  "medium",
+        rootCause: `Self-heal step "${name}" threw an error: ${String(r.reason?.message ?? r.reason).slice(0, 250)}`,
+        lesson:    "Self-heal steps must be independent. One failing should never block others (use Promise.allSettled). " +
+                   "Recurring heal-step failures for the same step name indicate a structural bug in that healer — investigate root cause.",
+      }).catch(() => {});
     }
   });
 

@@ -27,6 +27,7 @@ import { db } from "../db";
 import { autopilotQueue, videos } from "@shared/schema";
 import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { logIncidentOnce } from "../lib/incident-log";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { assembleMusicScore, cleanupMusicScore } from "./music-scorer";
 
@@ -780,11 +781,31 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) hard format error — ` +
             `no vault entry; permanently blacklisted. Error: ${errMsg.slice(0, 120)}`,
           );
+          logIncidentOnce({
+            category:  "storm_video",
+            service:   "pre-encoder",
+            severity:  "medium",
+            rootCause: `Item ${item.id} (${resolvedSourceYoutubeId}) hard format error with no vault entry. ` +
+                       `Error: ${errMsg.slice(0, 200)}`,
+            lesson:    "Hard format errors (no vault entry + format not available) mean the video cannot be " +
+                       "section-downloaded. Set preEncoderFailCount=3 immediately so it is never retried. " +
+                       "Do NOT use Math.max(count,1) — always use count+1 so the threshold is actually reached.",
+          }).catch(() => {});
         } else if (newCount >= 3) {
           logger.warn(
             `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) reached ${newCount} pre-encode failures — ` +
             `excluded from future pre-encoder cycles; publisher will attempt live download.`,
           );
+          logIncidentOnce({
+            category:  "hot_loop",
+            service:   "pre-encoder",
+            severity:  "medium",
+            rootCause: `Item ${item.id} (${resolvedSourceYoutubeId}) hit ${newCount} soft pre-encode failures — ` +
+                       `likely a format-not-available or vault-indexed-only error that keeps recurring.`,
+            lesson:    "Soft pre-encoder failures that accumulate to >=3 indicate a stubborn format issue. " +
+                       "After exclusion, let the publisher handle the item via live yt-dlp download instead. " +
+                       "Never allow indefinite retry — the slot cost per cycle is too high.",
+          }).catch(() => {}); 
         }
       } catch (metaErr: any) {
         logger.debug(`[PreEncoder] Could not update failure count for item ${item.id}`, { error: metaErr?.message });

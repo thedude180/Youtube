@@ -7,6 +7,7 @@ import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 
 import { createLogger } from "../lib/logger";
+import { logIncidentOnce } from "../lib/incident-log";
 import { getYtdlpBin } from "../lib/dependency-check";
 import { registerCache } from "./resilience-core";
 import { getContainerMemory, hasSpawnHeadroom, MIN_SPAWN_HEADROOM_BYTES } from "../lib/container-memory";
@@ -1439,6 +1440,15 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
       if (msg.startsWith("PERM_UNAVAILABLE:")) {
         const detail = msg.replace("PERM_UNAVAILABLE:", "");
         logger.info(`[Vault] Permanently skipping ${youtubeId} — InnerTube confirmed unavailable: ${detail}`);
+        logIncidentOnce({
+          category:      "vault_failure",
+          service:       "video-vault / downloadViaInnerTube",
+          severity:      "high",
+          rootCause:     `InnerTube confirmed video ${youtubeId} permanently unavailable: ${detail.slice(0, 200)}`,
+          lesson:        "If a video is permanently unavailable (private/deleted/age-restricted), mark it once " +
+                         "and never retry. Track the specific PERM_UNAVAILABLE reason so the learning brain " +
+                         "can distinguish true unavailability from expired-auth false positives.",
+        }).catch(() => {});
         await db.update(contentVaultBackups)
           .set({
             status: "skipped",
@@ -1563,6 +1573,15 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
     })
     .where(eq(contentVaultBackups.id, vaultEntry.id));
   logger.error(`[Vault] All clients failed for ${youtubeId} (attempt ${failCount}): ${lastErr.substring(0, 100)}`);
+  logIncidentOnce({
+    category:  "storm_video",
+    service:   "video-vault / downloadSingleVideo",
+    severity:  "high",
+    rootCause: `All InnerTube + yt-dlp clients failed for ${youtubeId} after ${failCount} attempt(s). Last error: ${lastErr.slice(0, 200)}`,
+    lesson:    "When all download clients fail for a video, check whether the error is a transient network issue " +
+               "vs. a permanent format/availability issue. Increment failCount on each attempt. After failCount>=5, " +
+               "stop retrying and mark permanently failed so the slot is never held again.",
+  }).catch(() => {});
   return false;
 }
 

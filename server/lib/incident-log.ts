@@ -80,6 +80,87 @@ export async function logSystemIncident(incident: NewIncident): Promise<void> {
   }
 }
 
+// ── logIncidentOnce ───────────────────────────────────────────────────────────
+// Deduped variant of logSystemIncident for service-level auto-detection.
+// Fires status="active" + autoDetected=true. Skips silently when:
+//   1. In-memory: same service+category logged in last 24h (survives hot paths)
+//   2. DB: an "active" incident with same service+category exists in last 7 days
+//          (survives server restarts)
+// Call with fire-and-forget from error paths: logIncidentOnce(...).catch(() => {})
+
+const _onceCache = new Map<string, number>(); // key → Date.now() of last log
+const ONCE_MEM_TTL_MS = 24 * 60 * 60 * 1000; // 24 h
+
+export async function logIncidentOnce(incident: NewIncident): Promise<void> {
+  const key = `${incident.service}:${incident.category}`;
+  const now = Date.now();
+
+  // Fast-path: in-memory dedup
+  const last = _onceCache.get(key);
+  if (last && now - last < ONCE_MEM_TTL_MS) return;
+
+  // DB-level dedup: active same-type incident logged in the last 7 days?
+  try {
+    const cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const existing = await db
+      .select({ id: systemIncidentLog.id })
+      .from(systemIncidentLog)
+      .where(
+        and(
+          eq(systemIncidentLog.service,  incident.service),
+          eq(systemIncidentLog.category, incident.category),
+          eq(systemIncidentLog.status,   "active"),
+          sql`${systemIncidentLog.incidentDate} >= ${cutoff}`,
+        ),
+      )
+      .limit(1);
+    if (existing.length > 0) {
+      _onceCache.set(key, now); // sync memory with DB reality
+      return;
+    }
+  } catch { /* non-fatal — fall through and log anyway */ }
+
+  _onceCache.set(key, now);
+  await logSystemIncident({
+    autoDetected: true,
+    status:       "active",
+    severity:     "high",
+    fixDescription: "Under investigation — auto-detected by runtime error handler.",
+    ...incident,
+  });
+}
+
+// ── logMigrationResolution ────────────────────────────────────────────────────
+// Convenience wrapper for startup migrations that fix a known issue.
+// Always writes status="resolved" — no dedup (migrations are one-time by flag).
+
+export async function logMigrationResolution(opts: {
+  migrationNumber: number;
+  category: IncidentCategory;
+  service: string;
+  rootCause: string;
+  fixDescription: string;
+  lesson: string;
+  severity?: NewIncident["severity"];
+  crashesPerDay?: number;
+  tags?: string[];
+}): Promise<void> {
+  await logSystemIncident({
+    incidentDate:    new Date().toISOString().slice(0, 10),
+    category:        opts.category,
+    service:         opts.service,
+    rootCause:       opts.rootCause,
+    fixDescription:  opts.fixDescription,
+    lesson:          opts.lesson,
+    migrationNumber: opts.migrationNumber,
+    severity:        opts.severity ?? "high",
+    crashesPerDay:   opts.crashesPerDay,
+    status:          "resolved",
+    tags:            opts.tags ?? [],
+    autoDetected:    false,
+  });
+}
+
 // ── promoteIncidentLessonsToKnowledge ─────────────────────────────────────────
 // Called by the learning brain's daily cycle.
 // Reads all un-promoted resolved incidents with severity critical|high and writes
