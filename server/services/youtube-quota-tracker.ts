@@ -65,22 +65,25 @@ const DEFAULT_DAILY_LIMIT = 10000;
 const SAFETY_BUFFER = 200; // Hard floor — never go below this for any operation
 
 /**
- * Upload / write reserve — quota headroom that is always kept available
- * for uploads and metadata updates, which have NO non-API alternative.
+ * Upload / write reserve — quota headroom kept available for the ONE remaining
+ * upload slot that hasn't fired yet today.  Non-upload ops must leave this
+ * much room for the next videos.insert call.
  *
- * 2 uploads/day  × 1600 units = 3200
- * 10 metadata updates × 50 units =  500
- * ─────────────────────────────────────
- * Total reserve                   3700  (rounded up to 4000 for safety margin)
+ * 1 upload slot × 1600 units = 1600
+ * safety margin              =  200
+ * ────────────────────────────────────
+ * Reserve                      1800
  *
- * Operations that HAVE non-API alternatives (reads, list, scraping-backed
- * catalog indexing) must check canAffordOperation() which enforces this
- * reserve so uploads and metadata always have room to run.
+ * Previously 4000 (2 uploads + 10 writes), which blocked ALL writes/thumbnails
+ * after only 5,750 of 10,000 units were used — confirmed Jun 12 2026 via
+ * Google Cloud Console showing 4,786 units used when breaker fired.
+ * With 1,800: non-upload ops are blocked only when < 2,050 units remain
+ * (i.e. after 7,950+ units used), recovering ~2,200 usable units per day.
  *
  * Operations with NO alternative (upload, write, thumbnail) bypass the
  * reserve and only require the hard SAFETY_BUFFER floor.
  */
-const UPLOAD_RESERVE = 4000;
+const UPLOAD_RESERVE = 1800;
 
 /**
  * Daily operation COUNT caps — independent of unit budget.
@@ -534,6 +537,19 @@ export function markQuotaErrorFromResponse(err: any): boolean {
   if (code === 401 || status === 401 || msg.includes("unauthorized") || msg.includes("invalid_grant") || msg.includes("token has been expired")) {
     return false;
   }
+
+  // ── Internal pre-gate errors ──────────────────────────────────────────────
+  // canAffordOperation() returns false before calling the YouTube API and the
+  // caller throws with { code: "QUOTA_EXCEEDED" } (a string, not an HTTP status).
+  // These mean "our internal budget gate blocked this call" — NOT that YouTube
+  // returned a 403.  Real YouTube quota errors always have a numeric HTTP status
+  // code or an errors[] array from the Google API client.  Tripping the global
+  // circuit breaker on internal pre-gate errors kills all publishers for the
+  // rest of the day based on one service being at its local budget ceiling,
+  // even if plenty of real quota units remain (confirmed: Jun 12 2026 — breaker
+  // tripped at 4,786/10,000 units used because studio-publisher threw this).
+  const isInternalPreGate = code === "QUOTA_EXCEEDED" && !status && !err?.errors && !err?.response;
+  if (isInternalPreGate) return false;
 
   // ── Per-second rate limits ────────────────────────────────────────────────
   // Temporary throttles — NOT daily quota exhaustion.  Never trip the circuit
