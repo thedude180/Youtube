@@ -3238,6 +3238,124 @@ async function migration056RecoverFalse401PermSkips(): Promise<void> {
   }
 }
 
+// ── Migration 057 — Log June 2026 production bug sweep to incident log ────────
+// Each entry feeds the learning brain's daily cycle, which promotes critical/high
+// incidents to masterKnowledgeBank so every AI prompt gains the lessons.
+async function migration057LogJune2026Incidents(): Promise<void> {
+  const FLAG = "migration:057:log_june2026_incidents_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const { logSystemIncident } = await import("./incident-log");
+
+    await logSystemIncident({
+      incidentDate:  "2026-06-12",
+      category:      "vault_failure",
+      service:       "video-vault / downloadViaInnerTube",
+      severity:      "critical",
+      rootCause:
+        "HTTP 401 (expired OAuth Bearer token) was counted in http400FailCount alongside " +
+        "HTTP 400 (video unavailable). When both ANDROID + IOS InnerTube clients returned 401, " +
+        "http400FailCount reached INNERTUBE_CLIENTS.length and PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS " +
+        "was thrown — permanently skipping the video without trying yt-dlp. This blocked 283 public " +
+        "videos that were fully downloadable. 401 means the auth TOKEN is bad, not the video is gone.",
+      fixDescription:
+        "Added separate http401FailCount counter. 401s now try the unauthenticated fallback " +
+        "(same as 400). If unauth fallback also fails, http401FailCount is incremented but NOT " +
+        "http400FailCount. PERM_UNAVAILABLE only fires when http400FailCount >= clients.length " +
+        "AND http401FailCount === 0. For 401-only failures the function returns false so yt-dlp " +
+        "downloads the video as a public resource. Migration 056 recovered all 283 wrongly-skipped " +
+        "vault entries back to indexed status.",
+      lesson:
+        "NEVER conflate HTTP 401 (authentication error) with HTTP 400 (bad request / video unavailable). " +
+        "401 means the Bearer token is expired — the content itself is still accessible. " +
+        "Treat 401 as a soft credential failure: try unauthenticated, then fall through to yt-dlp. " +
+        "Only throw PERM_UNAVAILABLE when the unauthenticated path also rejects, confirming true unavailability.",
+      migrationNumber: 56,
+      status: "resolved",
+      tags: ["innertube", "401", "perm-unavailable", "vault", "oauth-expired"],
+    });
+
+    await logSystemIncident({
+      incidentDate:  "2026-06-12",
+      category:      "hot_loop",
+      service:       "pre-encoder",
+      severity:      "high",
+      rootCause:
+        "Pre-encoder used Math.max(prevCount, 1) for the preEncoderFailCount update when the vault " +
+        "had a video indexed (but not yet downloaded). This clamped the counter to 1 on every retry, " +
+        "so items with vault-indexed-only format errors NEVER reached the >=3 blacklist threshold. " +
+        "7 items (vFEd5Xckrhs, V_fIPnGxHRs, KytCt-M8Vho, others) burned yt-dlp section-download " +
+        "slots on every pre-encoder cycle indefinitely.",
+      fixDescription:
+        "Changed Math.max(prevCount, 1) to prevCount + 1 so the counter increments normally " +
+        "through 1→2→3 regardless of vault status. Items reaching >=3 are excluded by the SELECT " +
+        "gate and stop consuming slots. Migration 055 immediately set preEncoderFailCount=3 for all " +
+        "existing scheduled items where preEncoderLastError contains 'format is not available' " +
+        "and count was stuck at 1.",
+      lesson:
+        "Math.max(prevCount, N) as a soft-fail counter is a trap: it pins the value at N forever. " +
+        "Always use prevCount + 1 for retry counters, even when you want a minimum floor. " +
+        "If you need to distinguish 'first attempt' from 'retriable', use a separate boolean flag — " +
+        "never encode state in a clamped counter.",
+      migrationNumber: 55,
+      status: "resolved",
+      tags: ["pre-encoder", "soft-fail", "format-not-available", "counter-clamp-trap"],
+    });
+
+    await logSystemIncident({
+      incidentDate:  "2026-06-12",
+      category:      "other",
+      service:       "pipeline-self-heal",
+      severity:      "medium",
+      rootCause:
+        "runPipelineSelfHeal() called Promise.all() over 7 parallel heal functions. Any single heal " +
+        "step throwing (e.g., transient DB lock contention) caused the entire Promise.all to reject, " +
+        "which propagated out of runPipelineSelfHeal and was caught by the setInterval error handler " +
+        "as 'Periodic run FAILED'. All other heal steps that would have succeeded were abandoned, " +
+        "and stuck items in other tables were not reset.",
+      fixDescription:
+        "Replaced Promise.all() with Promise.allSettled(). Each heal result is extracted safely " +
+        "(defaulting to 0 on rejection). Individual failures are logged as non-fatal warnings with " +
+        "the specific step name so they remain visible without crashing the entire run.",
+      lesson:
+        "Use Promise.allSettled() (not Promise.all()) whenever running parallel independent tasks " +
+        "where failure of one should NOT block the others. Promise.all is correct only when all " +
+        "results are required together. In health/heal loops, isolation is more important than atomicity.",
+      status: "resolved",
+      tags: ["promise-all", "self-heal", "error-isolation"],
+    });
+
+    await logSystemIncident({
+      incidentDate:  "2026-06-12",
+      category:      "ai_queue",
+      service:       "ai-semaphore / self-healing-core",
+      severity:      "medium",
+      rootCause:
+        "BACKGROUND_MAX_QUEUE_DEPTH was set to 2, allowing only 2 background callers to queue " +
+        "simultaneously. At midnight (UTC quota reset), TrendPredictor, ContentCompounding, and " +
+        "other background engines all attempted to run concurrently. With 4 AI slots total and " +
+        "2-deep background queue, callers arriving 3rd and beyond received 'AI queue full' and " +
+        "their work was dropped silently for that cycle.",
+      fixDescription:
+        "Increased BACKGROUND_MAX_QUEUE_DEPTH from 2 to 4. This allows more background callers " +
+        "to queue at the midnight convergence point without dropping work. Critical-path callers " +
+        "(publishers, live chat) still get priority via the foreground/background slot distinction.",
+      lesson:
+        "Background AI queue depth must be sized for the midnight quota-reset convergence spike, " +
+        "not for steady-state operation. Count how many background engines fire within the same " +
+        "15-minute window after midnight and set depth >= that count. Dropped background work " +
+        "often goes unnoticed because acquireAISlotBackground() fail-fast callers just log a warn.",
+      status: "resolved",
+      tags: ["ai-semaphore", "background-queue", "midnight-convergence"],
+    });
+
+    await setFlag(FLAG);
+    log.info("[Migration 057] Logged 4 June 2026 production incidents to system_incident_log");
+  } catch (err: any) {
+    log.warn(`[Migration 057] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3298,6 +3416,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration054FixLongFormSchedule();
     await migration055BlacklistFormatErrorItems();
     await migration056RecoverFalse401PermSkips();
+    await migration057LogJune2026Incidents();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
