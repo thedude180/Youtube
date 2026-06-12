@@ -987,10 +987,12 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
  * that ffmpeg can download without any extra auth.
  */
 async function downloadViaInnerTube(youtubeId: string, outputPath: string, accessToken: string): Promise<boolean> {
-  // Track how many clients returned HTTP 400 (auth + unauth both rejected).
-  // If ALL clients 400, the video is definitively private/deleted/age-restricted —
-  // throw PERM_UNAVAILABLE so the caller skips yt-dlp entirely.
-  let http400FailCount = 0;
+  // Separate counters for HTTP 400 vs 401.
+  // 400 (bad request, unauth also rejected) = video is private/deleted/age-restricted.
+  // 401 (auth expired) = token problem, NOT video unavailability — must NOT trigger
+  // PERM_UNAVAILABLE because yt-dlp can still download the same public video.
+  let http400FailCount = 0;  // only true 400s where unauth fallback also failed
+  let http401FailCount = 0;  // auth-expired rejections (separate — don't block yt-dlp)
 
   for (const client of INNERTUBE_CLIENTS) {
     try {
@@ -1031,10 +1033,10 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
         let errBody = "";
         try { const t = await playerRes.text(); errBody = t.substring(0, 200); } catch {}
         logger.warn(`[Vault] InnerTube ${client.name}: HTTP ${playerRes.status} for ${youtubeId} — ${errBody}`);
-        // HTTP 400 often means the Bearer token is expired (short-lived access tokens).
+        // HTTP 400/401 often means the Bearer token is expired (short-lived access tokens).
         // Retry this client without the Authorization header — public content is
         // accessible unauthenticated and YouTube returns 200 in that case.
-        if (playerRes.status === 400) {
+        if (playerRes.status === 400 || playerRes.status === 401) {
           try {
             const unauthRes = await fetch("https://www.youtube.com/youtubei/v1/player", {
               method: "POST",
@@ -1058,7 +1060,14 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
           } catch {}
         }
         if (!(playerRes as any)._unauthData) {
-          http400FailCount++;
+          // Only true 400s count toward PERM_UNAVAILABLE.
+          // 401 = auth token expired — NOT a signal that the video is unavailable.
+          // yt-dlp should still be allowed to try for 401-only failures.
+          if (playerRes.status === 401) {
+            http401FailCount++;
+          } else {
+            http400FailCount++;
+          }
           continue;
         }
       }
@@ -1156,10 +1165,15 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
     }
   }
 
-  // All InnerTube clients rejected with HTTP 400 → video is private, deleted, or
-  // age-restricted. yt-dlp will also fail with "No video formats found" — skip it.
-  if (http400FailCount >= INNERTUBE_CLIENTS.length && INNERTUBE_CLIENTS.length > 0) {
+  // Only throw PERM_UNAVAILABLE when ALL clients returned HTTP 400 (video unavailable),
+  // NOT when they returned 401 (auth token expired).  401-only failures mean the Bearer
+  // token is bad — the video itself is fine and yt-dlp can download it without auth.
+  if (http400FailCount >= INNERTUBE_CLIENTS.length && INNERTUBE_CLIENTS.length > 0 && http401FailCount === 0) {
     throw new Error(`PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS:Video is private, deleted, or age-restricted — all InnerTube clients returned HTTP 400`);
+  }
+  // If all failures were 401s, log and fall through so yt-dlp can attempt the download.
+  if (http401FailCount > 0 && http400FailCount === 0) {
+    logger.info(`[Vault] InnerTube: all ${http401FailCount} clients returned 401 (token expired) — falling through to yt-dlp for ${youtubeId}`);
   }
 
   return false;

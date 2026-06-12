@@ -742,12 +742,13 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
 
       if (isFormatError && vaultIsIndexedOnly) {
         // Vault has the video indexed (it will be downloaded eventually).
-        // Soft-fail: count=1 so the item stays in the pre-encoder's retry window
-        // and will be picked up again once the vault file is ready.
-        newCount = Math.max(prevCount, 1);
+        // Increment the fail counter so we eventually hard-fail (>=3) if the vault
+        // never actually downloads the file.  Previously used Math.max(prevCount,1)
+        // which kept the counter stuck at 1 forever — this caused an infinite retry loop.
+        newCount = prevCount + 1;
         logger.info(
           `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) section-dl format error — ` +
-          `vault has it indexed; will retry after vault download completes.`,
+          `vault has it indexed; fail count now ${newCount}/3.`,
         );
       } else if (isFormatError && !vaultFilePath) {
         // No vault entry at all — genuinely unresolvable for now.

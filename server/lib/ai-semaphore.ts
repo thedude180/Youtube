@@ -30,7 +30,7 @@ const MAX_QUEUE_DEPTH = 12;
 // dropped immediately and retries on its own natural interval (1–6 h).
 // This keeps 1 slot always free for critical-path callers (publishers, live chat)
 // and prevents learning engines from overwhelming the AI layer on boot.
-const BACKGROUND_MAX_QUEUE_DEPTH = 2;
+const BACKGROUND_MAX_QUEUE_DEPTH = 4;
 const _bootTime = Date.now();
 
 let _busy = false;

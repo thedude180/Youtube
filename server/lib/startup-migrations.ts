@@ -3168,6 +3168,76 @@ async function migration054FixLongFormSchedule(): Promise<void> {
   }
 }
 
+// ── Migration 055 — Blacklist stuck "format not available" pre-encoder items ──
+// These are autopilot_queue items with preEncoderFailCount=1 and a
+// "format is not available" error.  The old soft-fail logic kept the counter at
+// Math.max(prevCount,1)=1 forever, so they never hit the >=3 exclusion gate.
+// Set failCount=3 so they are permanently excluded from the pre-encoder and
+// the publisher attempts a live download instead.
+async function migration055BlacklistFormatErrorItems(): Promise<void> {
+  const FLAG = "migration:055:blacklist_format_error_items_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET    metadata = jsonb_set(
+               jsonb_set(
+                 metadata,
+                 '{preEncoderFailCount}', '3'::jsonb
+               ),
+               '{preEncoderHardFail}', 'true'::jsonb
+             )
+      WHERE  status IN ('scheduled','pending')
+        AND  (metadata->>'preEncoderFailCount')::int = 1
+        AND  (
+          metadata->>'preEncoderLastError' ILIKE '%format is not available%'
+          OR metadata->>'preEncoderLastError' ILIKE '%Requested format%'
+        )
+    `);
+    const n = (result as any).rowCount ?? 0;
+    log.info(`[Migration 055] Blacklisted ${n} stuck "format not available" pre-encoder items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 055] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+// ── Migration 056 — Recover vault entries incorrectly skipped due to 401 bug ──
+// Before the InnerTube 401/400 fix, all InnerTube 401 responses (expired OAuth
+// token) counted toward the http400FailCount and triggered PERM_UNAVAILABLE when
+// all clients returned 401.  This permanently skipped 283 videos that are actually
+// public and downloadable.  Reset them to "indexed" so yt-dlp retries them.
+async function migration056RecoverFalse401PermSkips(): Promise<void> {
+  const FLAG = "migration:056:recover_false_401_perm_skips_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET    status        = 'indexed',
+             download_error = NULL,
+             metadata      = jsonb_strip_nulls(
+               jsonb_set(
+                 jsonb_set(
+                   jsonb_set(
+                     COALESCE(metadata, '{}'::jsonb),
+                     '{failCount}', '0'::jsonb
+                   ),
+                   '{permanentSkip}', 'null'::jsonb
+                 ),
+                 '{recoveredBy}', '"migration056"'::jsonb
+               )
+             )
+      WHERE  status         = 'skipped'
+        AND  download_error ILIKE '%HTTP_400_ALL_CLIENTS%'
+    `);
+    const n = (result as any).rowCount ?? 0;
+    log.info(`[Migration 056] Recovered ${n} vault entries incorrectly skipped due to InnerTube 401 bug`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 056] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3226,6 +3296,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration052Bf6OnlyFocus();
     await migration053SeedBf6LongFormSchedule();
     await migration054FixLongFormSchedule();
+    await migration055BlacklistFormatErrorItems();
+    await migration056RecoverFalse401PermSkips();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

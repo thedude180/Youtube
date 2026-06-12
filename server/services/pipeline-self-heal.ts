@@ -356,16 +356,9 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const t0 = Date.now();
   let totalRecovered = 0;
 
-  // Run all heals in parallel where safe (read-then-write each table independently)
-  const [
-    [pipelineStuck, pipelineErrored],
-    backlogFixed,
-    [editStuck, editTransient, editMissing],
-    clipsFixed,
-    studioFixed,
-    autopilotFixed,
-    jobsFixed,
-  ] = await Promise.all([
+  // Run all heals in parallel — use allSettled so one failing step
+  // never crashes the entire run (e.g., transient DB lock contention).
+  const settled = await Promise.allSettled([
     healContentPipeline(),
     healPushBacklog(),
     healStreamEditJobs(),
@@ -374,6 +367,30 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
     healAutopilotQueue(),
     healJobsTable(),
   ]);
+
+  // Extract results, defaulting to zero on rejection so totals stay sane.
+  const safeNum = (r: PromiseSettledResult<number>) =>
+    r.status === "fulfilled" ? r.value : 0;
+  const safePair = (r: PromiseSettledResult<[number, number]>): [number, number] =>
+    r.status === "fulfilled" ? r.value : [0, 0];
+  const safeTriple = (r: PromiseSettledResult<[number, number, number]>): [number, number, number] =>
+    r.status === "fulfilled" ? r.value : [0, 0, 0];
+
+  const [pipelineStuck, pipelineErrored] = safePair(settled[0] as PromiseSettledResult<[number, number]>);
+  const backlogFixed      = safeNum(settled[1] as PromiseSettledResult<number>);
+  const [editStuck, editTransient, editMissing] = safeTriple(settled[2] as PromiseSettledResult<[number, number, number]>);
+  const clipsFixed        = safeNum(settled[3] as PromiseSettledResult<number>);
+  const studioFixed       = safeNum(settled[4] as PromiseSettledResult<number>);
+  const autopilotFixed    = safeNum(settled[5] as PromiseSettledResult<number>);
+  const jobsFixed         = safeNum(settled[6] as PromiseSettledResult<number>);
+
+  // Log any individual heal failures so they're visible without crashing the run.
+  settled.forEach((r, i) => {
+    if (r.status === "rejected") {
+      const name = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs"][i];
+      logger.warn(`[self-heal] Heal step "${name}" failed (non-fatal): ${r.reason?.message ?? r.reason}`);
+    }
+  });
 
   totalRecovered = pipelineStuck + pipelineErrored + backlogFixed +
     editStuck + editTransient + editMissing +
