@@ -3920,6 +3920,70 @@ httpServer.listen(
         m.initBackCatalogSeoEngine();
       }).catch(slog("initBackCatalogSeoEngine"));
 
+      // ── Full Autonomy Layer — 5 additional engines ───────────────────────
+      // Staggered 17–26min after Wave 11 fires (T+57–66min total) so they
+      // never converge with the back-catalog runner or grinder OOM windows.
+
+      // Community Auto Manager — 8-hour per-user cycle: polls, comment
+      // replies, hearts on recent videos.
+      setTimeout(async () => {
+        try {
+          const { startCommunityAutoManager } = await import("./services/community-auto-manager");
+          const allChannels = await storage.getChannels();
+          const ytUserIds = [...new Set(
+            allChannels.filter((c: any) => c.platform === "youtube" && c.accessToken).map((c: any) => c.userId as string)
+          )];
+          for (const uid of ytUserIds) {
+            await (startCommunityAutoManager(uid) as Promise<void>).catch(slog("startCommunityAutoManager"));
+          }
+          logger.info(`[Boot] CommunityAutoManager started for ${ytUserIds.length} user(s)`);
+        } catch (e: any) { logger.error("[Boot] CommunityAutoManager init", { error: e.message }); }
+      }, 17 * 60_000);
+
+      // Brand Partnerships Engine — weekly sponsorship readiness + deal
+      // pipeline tracking (scores channel, logs prospects to DB).
+      setTimeout(() => {
+        import("./services/brand-partnerships-engine")
+          .then(m => m.startBrandPartnershipsEngine())
+          .catch(slog("startBrandPartnershipsEngine"));
+      }, 19 * 60_000);
+
+      // Back Catalog Growth Engine — daily: SEO sweep + thumbnail backfill
+      // + pinned comments + playlist management for all published clips.
+      setTimeout(async () => {
+        try {
+          const { runBackCatalogGrowthEngine } = await import("./services/youtube-back-catalog-growth-engine");
+          const allChannels = await storage.getChannels();
+          const ytUserIds = [...new Set(
+            allChannels.filter((c: any) => c.platform === "youtube" && c.accessToken).map((c: any) => c.userId as string)
+          )];
+          const runAll = async () => {
+            for (const uid of ytUserIds) {
+              await (runBackCatalogGrowthEngine(uid) as Promise<unknown>).catch(slog("runBackCatalogGrowthEngine"));
+            }
+          };
+          runAll().catch(slog("BackCatalogGrowthEngine-initial"));
+          setInterval(() => runAll().catch(slog("BackCatalogGrowthEngine-cycle")), 22 * 60 * 60_000);
+          logger.info(`[Boot] BackCatalogGrowthEngine scheduled for ${ytUserIds.length} user(s)`);
+        } catch (e: any) { logger.error("[Boot] BackCatalogGrowthEngine init", { error: e.message }); }
+      }, 22 * 60_000);
+
+      // Stream Auto Scheduler — creates YouTube broadcasts 48h ahead of the
+      // weekly slot and posts community announcements 24h before.
+      setTimeout(() => {
+        import("./services/stream-auto-scheduler")
+          .then(m => m.initStreamAutoScheduler())
+          .catch(slog("initStreamAutoScheduler"));
+      }, 24 * 60_000);
+
+      // Back Catalog Reviver — weekly top-video re-promotion via community
+      // posts; 30-day cooldown per video to avoid repetition.
+      setTimeout(() => {
+        import("./services/back-catalog-reviver")
+          .then(m => m.initBackCatalogReviver())
+          .catch(slog("initBackCatalogReviver"));
+      }, 26 * 60_000);
+
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 

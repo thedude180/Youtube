@@ -905,10 +905,48 @@ export async function registerRoutes(
           lastRunAt:       seoStat.lastRunAt,
           isRunning:       seoStat.isRunning,
         },
+        engines: await (async () => {
+          const [brandMod, schedulerMod, reviverMod] = await Promise.all([
+            import("./services/brand-partnerships-engine").catch(() => null),
+            import("./services/stream-auto-scheduler").catch(() => null),
+            import("./services/back-catalog-reviver").catch(() => null),
+          ]);
+          return {
+            brandPartnerships: brandMod ? (brandMod as any).getBrandEngineStatus() : { running: false },
+            streamScheduler:   schedulerMod ? (schedulerMod as any).getStreamSchedulerStatus() : { running: false },
+            catalogReviver:    reviverMod ? (reviverMod as any).getRevivalStatus() : { running: false },
+          };
+        })(),
       });
     } catch (err: any) {
       logger.error(`[Infinity] Status error: ${err.message}`);
       res.status(500).json({ error: "Failed to get infinity status" });
+    }
+  });
+
+  app.post("/api/youtube/infinity/community/run", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { startCommunityAutoManager } = await import("./services/community-auto-manager");
+      (startCommunityAutoManager(userId) as Promise<void>).catch(e =>
+        logger.warn(`[Infinity] Manual community cycle error: ${e.message}`)
+      );
+      res.json({ ok: true, message: "Community cycle started" });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to start community cycle" });
+    }
+  });
+
+  app.post("/api/youtube/infinity/revive/run", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { initBackCatalogReviver } = await import("./services/back-catalog-reviver");
+      initBackCatalogReviver();
+      res.json({ ok: true, message: "Reviver cycle started" });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to start reviver" });
     }
   });
 

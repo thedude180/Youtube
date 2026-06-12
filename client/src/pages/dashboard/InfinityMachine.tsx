@@ -19,7 +19,22 @@ import {
   Clock,
   Youtube,
   Film,
+  Users,
+  Handshake,
+  Video,
+  RotateCcw,
+  Calendar,
 } from "lucide-react";
+
+interface EngineStatus {
+  running: boolean;
+  lastScanTime?: number;
+  lastCheck?: string;
+  lastRun?: string;
+  lastCount?: number;
+  nextSlot?: string;
+  lastBroadcast?: string;
+}
 
 interface InfinityStatus {
   queue: {
@@ -62,9 +77,14 @@ interface InfinityStatus {
     lastRunAt: string | null;
     isRunning: boolean;
   };
+  engines?: {
+    brandPartnerships: EngineStatus;
+    streamScheduler: EngineStatus;
+    catalogReviver: EngineStatus;
+  };
 }
 
-function timeAgo(iso: string | null): string {
+function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "never";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -73,6 +93,16 @@ function timeAgo(iso: string | null): string {
   const hrs = Math.floor(mins / 60);
   if (hrs  < 24)  return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function timeFromNow(iso: string | null | undefined): string {
+  if (!iso) return "–";
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return "now";
+  const hrs = Math.floor(diff / 3_600_000);
+  if (hrs < 1) return `${Math.floor(diff / 60_000)}m`;
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
 }
 
 function QueueBar({ label, days, threshold, target, icon: Icon }: {
@@ -106,6 +136,61 @@ function QueueBar({ label, days, threshold, target, icon: Icon }: {
   );
 }
 
+function EngineRow({
+  icon: Icon,
+  iconColor,
+  label,
+  running,
+  meta,
+  testId,
+  action,
+  actionLabel,
+  actionPending,
+}: {
+  icon: React.ElementType;
+  iconColor: string;
+  label: string;
+  running: boolean;
+  meta: string;
+  testId: string;
+  action?: () => void;
+  actionLabel?: string;
+  actionPending?: boolean;
+}) {
+  return (
+    <div data-testid={testId} className="flex items-center justify-between gap-3 py-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <Icon className={`h-3.5 w-3.5 shrink-0 ${iconColor}`} />
+        <div className="min-w-0">
+          <p className="text-xs font-medium truncate">{label}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{meta}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Badge
+          variant="outline"
+          className={`text-[10px] px-1.5 py-0 ${running ? "text-green-600 border-green-600/30 bg-green-500/10" : "text-muted-foreground border-border/50"}`}
+        >
+          {running ? "Live" : "Idle"}
+        </Badge>
+        {action && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            data-testid={`button-run-${testId}`}
+            disabled={actionPending}
+            onClick={action}
+          >
+            {actionPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+            {actionLabel ?? "Run"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function InfinityMachine() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -115,20 +200,26 @@ export default function InfinityMachine() {
     refetchInterval: 2 * 60_000,
   });
 
+  const invalidate = () => setTimeout(() => qc.invalidateQueries({ queryKey: ["/api/youtube/infinity/status"] }), 3000);
+
   const runSeo = useMutation({
     mutationFn: () => apiRequest("POST", "/api/youtube/infinity/seo/run", {}),
-    onSuccess: () => {
-      toast({ title: "SEO engine started", description: "Updating worst-performing back-catalog videos" });
-      setTimeout(() => qc.invalidateQueries({ queryKey: ["/api/youtube/infinity/status"] }), 3000);
-    },
+    onSuccess: () => { toast({ title: "SEO engine started", description: "Updating worst-performing back-catalog videos" }); invalidate(); },
   });
 
   const runRefill = useMutation({
     mutationFn: () => apiRequest("POST", "/api/youtube/infinity/guardian/run", {}),
-    onSuccess: () => {
-      toast({ title: "Queue refill triggered", description: "Back-catalog runner pulling more content" });
-      setTimeout(() => qc.invalidateQueries({ queryKey: ["/api/youtube/infinity/status"] }), 5000);
-    },
+    onSuccess: () => { toast({ title: "Queue refill triggered", description: "Back-catalog runner pulling more content" }); invalidate(); },
+  });
+
+  const runCommunity = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/infinity/community/run", {}),
+    onSuccess: () => { toast({ title: "Community cycle started", description: "Posting update + poll for your channel" }); invalidate(); },
+  });
+
+  const runRevive = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/youtube/infinity/revive/run", {}),
+    onSuccess: () => { toast({ title: "Revival started", description: "Re-promoting top back-catalog videos" }); invalidate(); },
   });
 
   if (isLoading || !data) {
@@ -154,6 +245,7 @@ export default function InfinityMachine() {
 
   const quotaUsed    = data.quota.limit - data.quota.remaining;
   const quotaUsedPct = Math.min(100, (quotaUsed / data.quota.limit) * 100);
+  const eng = data.engines;
 
   return (
     <Card data-testid="infinity-machine-panel">
@@ -176,7 +268,7 @@ export default function InfinityMachine() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Autonomous publishing loop — never stops, zero human input required
+          Fully autonomous — zero human input required for content, community, sponsorships, and streams
         </p>
       </CardHeader>
 
@@ -268,75 +360,151 @@ export default function InfinityMachine() {
 
         <Separator />
 
-        {/* SEO Engine + Guardian */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2" data-testid="section-seo-engine">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Zap className="h-3.5 w-3.5 text-yellow-500" />
-              <span className="font-semibold uppercase tracking-wide">SEO Engine</span>
-            </div>
-            <div className="text-xs space-y-0.5">
-              <p>
-                <span className="text-muted-foreground">Today: </span>
-                <span className="font-medium">{data.seoEngine.updatesToday}/{data.seoEngine.maxPerDay}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Budget left: </span>
-                <span className="font-medium">{data.seoEngine.budgetRemaining}</span>
-              </p>
-              <p className="text-muted-foreground">
-                <Clock className="inline h-3 w-3 mr-0.5" />
-                {timeAgo(data.seoEngine.lastRunAt)}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs w-full"
-              data-testid="button-run-seo"
-              disabled={runSeo.isPending || data.seoEngine.isRunning}
-              onClick={() => runSeo.mutate()}
-            >
-              {data.seoEngine.isRunning ? (
-                <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Running…</>
-              ) : (
-                <><Play className="h-3 w-3 mr-1" /> Run now</>
-              )}
-            </Button>
-          </div>
+        {/* Content Engines — SEO + Guardian */}
+        <div className="space-y-1">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Content Engines</h4>
 
-          <div className="space-y-2" data-testid="section-guardian">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Database className="h-3.5 w-3.5 text-violet-500" />
-              <span className="font-semibold uppercase tracking-wide">Guardian</span>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2" data-testid="section-seo-engine">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                <span className="font-semibold uppercase tracking-wide">SEO Engine</span>
+              </div>
+              <div className="text-xs space-y-0.5">
+                <p>
+                  <span className="text-muted-foreground">Today: </span>
+                  <span className="font-medium">{data.seoEngine.updatesToday}/{data.seoEngine.maxPerDay}</span>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Budget left: </span>
+                  <span className="font-medium">{data.seoEngine.budgetRemaining}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  <Clock className="inline h-3 w-3 mr-0.5" />
+                  {timeAgo(data.seoEngine.lastRunAt)}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs w-full"
+                data-testid="button-run-seo"
+                disabled={runSeo.isPending || data.seoEngine.isRunning}
+                onClick={() => runSeo.mutate()}
+              >
+                {data.seoEngine.isRunning ? (
+                  <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Running…</>
+                ) : (
+                  <><Play className="h-3 w-3 mr-1" /> Run now</>
+                )}
+              </Button>
             </div>
-            <div className="text-xs space-y-0.5">
-              <p>
-                <span className="text-muted-foreground">Refills today: </span>
-                <span className="font-medium">{data.guardian.refillsToday}</span>
-              </p>
-              <p className="text-muted-foreground">
-                Checked: <Clock className="inline h-3 w-3 mr-0.5" />{timeAgo(data.guardian.lastCheckAt)}
-              </p>
-              <p className="text-muted-foreground">
-                Refilled: {timeAgo(data.guardian.lastRefillAt)}
-              </p>
+
+            <div className="space-y-2" data-testid="section-guardian">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Database className="h-3.5 w-3.5 text-violet-500" />
+                <span className="font-semibold uppercase tracking-wide">Guardian</span>
+              </div>
+              <div className="text-xs space-y-0.5">
+                <p>
+                  <span className="text-muted-foreground">Refills today: </span>
+                  <span className="font-medium">{data.guardian.refillsToday}</span>
+                </p>
+                <p className="text-muted-foreground">
+                  Checked: <Clock className="inline h-3 w-3 mr-0.5" />{timeAgo(data.guardian.lastCheckAt)}
+                </p>
+                <p className="text-muted-foreground">
+                  Refilled: {timeAgo(data.guardian.lastRefillAt)}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs w-full"
+                data-testid="button-run-refill"
+                disabled={runRefill.isPending}
+                onClick={() => runRefill.mutate()}
+              >
+                {runRefill.isPending ? (
+                  <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Refilling…</>
+                ) : (
+                  <><RefreshCw className="h-3 w-3 mr-1" /> Force refill</>
+                )}
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs w-full"
-              data-testid="button-run-refill"
-              disabled={runRefill.isPending}
-              onClick={() => runRefill.mutate()}
-            >
-              {runRefill.isPending ? (
-                <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Refilling…</>
-              ) : (
-                <><RefreshCw className="h-3 w-3 mr-1" /> Force refill</>
-              )}
-            </Button>
           </div>
+        </div>
+
+        <Separator />
+
+        {/* Autonomous Services Layer */}
+        <div className="space-y-1">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Autonomous Services</h4>
+
+          <EngineRow
+            icon={Users}
+            iconColor="text-blue-500"
+            label="Community Manager"
+            running={true}
+            meta="Posts polls + replies comments every 8h"
+            testId="section-community-manager"
+            action={() => runCommunity.mutate()}
+            actionLabel="Post now"
+            actionPending={runCommunity.isPending}
+          />
+
+          <Separator className="my-0" />
+
+          <EngineRow
+            icon={Handshake}
+            iconColor="text-emerald-500"
+            label="Brand Partnerships"
+            running={eng?.brandPartnerships?.running ?? false}
+            meta={eng?.brandPartnerships?.lastScanTime
+              ? `Last scan ${timeAgo(new Date(eng.brandPartnerships.lastScanTime).toISOString())}`
+              : "Weekly sponsorship readiness + deal tracking"}
+            testId="section-brand-partnerships"
+          />
+
+          <Separator className="my-0" />
+
+          <EngineRow
+            icon={Video}
+            iconColor="text-rose-500"
+            label="Back Catalog Growth"
+            running={true}
+            meta="Daily: SEO sweep + thumbnails + pinned comments + playlists"
+            testId="section-back-catalog-growth"
+          />
+
+          <Separator className="my-0" />
+
+          <EngineRow
+            icon={Calendar}
+            iconColor="text-orange-500"
+            label="Stream Auto-Scheduler"
+            running={eng?.streamScheduler?.running ?? false}
+            meta={eng?.streamScheduler?.nextSlot
+              ? `Next slot in ${timeFromNow(eng.streamScheduler.nextSlot)}`
+              : "Creates weekly YouTube broadcasts + announces 24h before"}
+            testId="section-stream-scheduler"
+          />
+
+          <Separator className="my-0" />
+
+          <EngineRow
+            icon={RotateCcw}
+            iconColor="text-purple-500"
+            label="Back Catalog Reviver"
+            running={eng?.catalogReviver?.running ?? false}
+            meta={eng?.catalogReviver?.lastRun
+              ? `Last revival ${timeAgo(eng.catalogReviver.lastRun)} · ${eng.catalogReviver.lastCount ?? 0} videos`
+              : "Weekly: re-promotes top 5 videos via community posts"}
+            testId="section-catalog-reviver"
+            action={() => runRevive.mutate()}
+            actionLabel="Revive"
+            actionPending={runRevive.isPending}
+          />
         </div>
 
       </CardContent>
