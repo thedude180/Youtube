@@ -3522,6 +3522,43 @@ async function migration059FixFileSizeBigint(): Promise<void> {
   }
 }
 
+// ── Migration 060 — Purge non-BF6 Shorts from the queue ──────────────────────
+// When the back-catalog engine's focus gate bypassed (BF6 catalog exhausted),
+// it queued AC Valhalla and other non-BF6 Shorts.  Publishing off-brand content
+// drives subscriber churn (screenshot Jun 12 2026: two AC Valhalla Shorts, -13
+// subs in 28 days).  The engine gate is now fixed to keep gameFilter=matchesGame
+// always — this migration cleans up items already in the queue.
+//
+// Safe: only cancels scheduled/pending SHORT-type items for non-BF6 games.
+// Long-form clips (contentType=long-form-clip) and items with no gameName are
+// preserved — null gameName could be undetected BF6 footage.
+async function migration060PurgeNonBF6Shorts(): Promise<void> {
+  const FLAG = "migration:060:purge_non_bf6_shorts_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status        = 'permanent_fail',
+        error_message = 'migration060: non-focus-game Short removed — channel focus is Battlefield 6'
+      WHERE channel_id = 53
+        AND status IN ('scheduled', 'pending')
+        AND type IN ('auto-clip', 'platform_short', 'youtube_short', 'vod-short')
+        AND COALESCE(metadata->>'contentType', '') NOT IN ('long-form-clip', 'vod_long_form')
+        AND (metadata->>'gameName') IS NOT NULL
+        AND (metadata->>'gameName') != ''
+        AND (metadata->>'gameName') NOT ILIKE '%battlefield%'
+        AND (metadata->>'gameName') NOT ILIKE '%bf6%'
+        AND (metadata->>'gameName') NOT ILIKE '%bf 6%'
+    `);
+    const cancelled = (result as any).rowCount ?? (result as any).count ?? 0;
+    log.info(`[Migration 060] Cancelled ${cancelled} non-BF6 Shorts from autopilot queue`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 060] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3585,6 +3622,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration057LogJune2026Incidents();
     await migration058BlacklistStormVideos();
     await migration059FixFileSizeBigint();
+    await migration060PurgeNonBF6Shorts();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

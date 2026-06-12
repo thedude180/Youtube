@@ -684,18 +684,22 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           `(${focusDepth}/${focusThreshold} slots banked)`,
         );
       } else {
-        // Focus-game catalog exhausted — open to all games so the pipeline
-        // keeps producing content.  Other games on the channel fill the queue
-        // until catalog rotation resets the focus-game flags.
-        gameFilter = null;
+        // Focus-game catalog exhausted — keep focus filter active.
+        // Publishing off-brand content (AC Valhalla, etc.) while a focus game is
+        // set dilutes the channel identity and drives subscriber churn.  Better
+        // to idle and wait for catalog rotation or a new live stream than to
+        // fill the queue with unrelated games.  The catalog-rotation block below
+        // resets mined flags once the entire catalog is exhausted, so BF6 clips
+        // will be re-mined automatically when that threshold is hit.
+        gameFilter = matchesGame;
         if (focusDepth < focusThreshold) {
           logger.info(
             `[BackCatalog] Game priority gate BYPASS — "${focusGame}" catalog exhausted, ` +
-            `queue low (${focusDepth}/${focusThreshold}), mining all games to keep pipeline running`,
+            `keeping focus-only filter (${focusDepth}/${focusThreshold} slots) — idling until rotation`,
           );
         } else {
           logger.info(
-            `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked, mixing allowed`,
+            `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked`,
           );
         }
       }
