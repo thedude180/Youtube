@@ -3399,17 +3399,23 @@ async function migration058BlacklistStormVideos(): Promise<void> {
         )
       `);
 
-      // Cancel all pending/scheduled autopilot_queue items for this source video
-      await db.execute(sql`
-        UPDATE autopilot_queue
-        SET status   = 'permanent_fail',
-            metadata = COALESCE(metadata, '{}'::jsonb)
-                       || '{"permanentFail": true, "failReason": "source video permanently inaccessible"}'::jsonb
-        WHERE source_video_id IN (
-          SELECT id FROM videos WHERE youtube_id = ${ytId}
-        )
-          AND status IN ('scheduled', 'pending')
-      `);
+      // Cancel all pending/scheduled autopilot_queue items whose metadata references
+      // this YouTube ID.  The `videos` table has no youtube_id column — the storm
+      // video ID is stored in autopilot_queue.metadata->>'sourceYoutubeId'.
+      // Wrap in its own try/catch so a failure here never aborts vault-row creation
+      // for the remaining storm IDs in the loop.
+      try {
+        await db.execute(sql`
+          UPDATE autopilot_queue
+          SET status   = 'permanent_fail',
+              metadata = COALESCE(metadata, '{}'::jsonb)
+                         || '{"permanentFail": true, "failReason": "source video permanently inaccessible"}'::jsonb
+          WHERE (metadata->>'sourceYoutubeId') = ${ytId}
+            AND status IN ('scheduled', 'pending')
+        `);
+      } catch (qErr: any) {
+        log.warn(`[Migration 058] autopilot_queue cancel for ${ytId} failed (non-fatal): ${qErr?.message}`);
+      }
     }
 
     // General sweep: any vault entry with format-not-available or permanent-inaccessibility
