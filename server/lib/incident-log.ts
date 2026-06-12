@@ -44,7 +44,7 @@ export interface NewIncident {
   category: IncidentCategory;
   service: string;
   rootCause: string;
-  fixDescription: string;
+  fixDescription?: string;          // optional for auto-detected "active" incidents
   lesson: string;
   migrationNumber?: number;
   severity?: "critical" | "high" | "medium" | "low";
@@ -64,7 +64,7 @@ export async function logSystemIncident(incident: NewIncident): Promise<void> {
       category:        incident.category,
       service:         incident.service,
       rootCause:       incident.rootCause,
-      fixDescription:  incident.fixDescription,
+      fixDescription:  incident.fixDescription ?? "",
       lesson:          incident.lesson,
       migrationNumber: incident.migrationNumber ?? null,
       severity:        incident.severity ?? "high",
@@ -122,11 +122,11 @@ export async function logIncidentOnce(incident: NewIncident): Promise<void> {
 
   _onceCache.set(key, now);
   await logSystemIncident({
-    autoDetected: true,
-    status:       "active",
-    severity:     "high",
-    fixDescription: "Under investigation — auto-detected by runtime error handler.",
     ...incident,
+    autoDetected:    true,
+    status:          incident.status    ?? "active",
+    severity:        incident.severity  ?? "high",
+    fixDescription:  incident.fixDescription ?? "Under investigation — auto-detected by runtime error handler.",
   });
 }
 
@@ -139,7 +139,7 @@ export async function logMigrationResolution(opts: {
   category: IncidentCategory;
   service: string;
   rootCause: string;
-  fixDescription: string;
+  fixDescription?: string;
   lesson: string;
   severity?: NewIncident["severity"];
   crashesPerDay?: number;

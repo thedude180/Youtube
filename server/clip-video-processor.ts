@@ -30,7 +30,9 @@ const activeDownloads = new Map<string, Promise<string>>();
 const MAX_CONCURRENT_FULL_DOWNLOADS = 1;
 let _activeFullDownloadCount = 0;
 
-const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number }>();
+// neverExpire=true → entry loaded from DB (authoritative); skip the 24h expiry window.
+// neverExpire=false/undefined → entry added at runtime; expires after PERMANENT_FAIL_EXPIRY_MS.
+const permanentlyFailedIds = new Map<string, { reason: string; failedAt: number; neverExpire?: boolean }>();
 const softFailCounts = new Map<string, { count: number; lastAttempt: number }>();
 const MAX_SOFT_RETRIES = 3;
 const SOFT_FAIL_COOLDOWN_MS = 4 * 60 * 60 * 1000;
@@ -42,11 +44,13 @@ try {
 } catch {}
 
 // Pre-load DB-persisted permanent failures into the in-memory map on startup.
-// Without this, every server restart clears the cache and clip-video-processor
-// retries permanently-failed videos immediately on boot, spawning yt-dlp
-// processes that exhaust RAM and trigger an OOM loop.
+// WITHOUT this completing before any download attempt, clip-video-processor spawns
+// 25+ yt-dlp processes per storm video immediately on boot — causing T+16min OOM crashes.
 //
-(async () => {
+// _preloadPromise resolves once the DB query finishes.  downloadSourceVideo() must
+// await it before proceeding so no download attempt races with the preload.
+let _preloadPromise: Promise<void>;
+_preloadPromise = (async () => {
   try {
     const failed = await db
       .select({ youtubeId: contentVaultBackups.youtubeId, downloadError: contentVaultBackups.downloadError })
@@ -57,6 +61,9 @@ try {
         permanentlyFailedIds.set(row.youtubeId, {
           reason: (row.downloadError ?? "vault-failed").substring(0, 300),
           failedAt: Date.now(),
+          // neverExpire: DB is the authoritative source — don't let 24h timer re-enable
+          // a video that the vault has explicitly recorded as permanently failed.
+          neverExpire: true,
         });
       }
     }
@@ -108,7 +115,9 @@ export function markPermanentlyFailed(youtubeId: string, reason: string): void {
 export function isPermanentlyFailed(youtubeId: string): string | null {
   const entry = permanentlyFailedIds.get(youtubeId);
   if (!entry) return null;
-  if (Date.now() - entry.failedAt > PERMANENT_FAIL_EXPIRY_MS) {
+  // DB-sourced entries (neverExpire=true) are authoritative — skip the 24h window.
+  // Only runtime-added entries (marked at download time) expire after 24h.
+  if (!entry.neverExpire && Date.now() - entry.failedAt > PERMANENT_FAIL_EXPIRY_MS) {
     permanentlyFailedIds.delete(youtubeId);
     return null;
   }
@@ -401,6 +410,11 @@ async function checkVideoAvailability(youtubeId: string, accessToken?: string | 
 }
 
 export async function downloadSourceVideo(youtubeId: string, userId?: string): Promise<string> {
+  // Wait for the boot-time DB preload to finish before doing any permanent-fail check.
+  // This prevents the T+2s Maximizer catch-up from racing with the preload and spawning
+  // 25+ yt-dlp processes for a video that would have been in the block list.
+  await _preloadPromise.catch(() => {});
+
   if (!isYtdlpAvailable()) {
     throw new Error(
       "Video downloading requires yt-dlp, which is not available on this server. " +

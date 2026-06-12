@@ -3356,6 +3356,125 @@ async function migration057LogJune2026Incidents(): Promise<void> {
   }
 }
 
+// ── Migration 058 — Blacklist confirmed all-clients-fail storm videos ──────────
+// Root cause of 21 outages on Jun 11-12:
+//   1. vFEd5Xckrhs (and similar videos) fail ALL yt-dlp clients/formats
+//   2. Maximizer catch-up creates 17 queue experiments at T+2s on every boot
+//   3. Each experiment triggers clip-video-processor → 25 sequential yt-dlp spawns
+//   4. At T+16min this converges with back-catalog/grinder → OOM crash → repeat
+// Fix:
+//   - Mark confirmed storm video IDs as status='failed'+permanentFail=true in vault
+//   - Cancel all pending/scheduled autopilot_queue items for these source videos
+//   - General sweep: any format-not-available vault entries get permanentFail=true
+//     so the no-expiry preload in clip-video-processor.ts blocks them permanently
+async function migration058BlacklistStormVideos(): Promise<void> {
+  const FLAG = "migration:058:blacklist_storm_videos_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Confirmed all-clients-fail videos from production crash logs (Jun 11-12, 2026)
+    const STORM_IDS = ["vFEd5Xckrhs", "990MjVBCiIA", "HNXKbE_wcuY", "xZICplRIdpc"];
+
+    for (const ytId of STORM_IDS) {
+      // Update existing vault rows to failed + permanentFail=true
+      await db.execute(sql`
+        UPDATE content_vault_backups
+        SET status        = 'failed',
+            download_error = COALESCE(download_error,
+                             'All download clients failed: format not available (confirmed storm video)'),
+            metadata       = COALESCE(metadata, '{}'::jsonb)
+                             || '{"permanentFail": true}'::jsonb
+        WHERE youtube_id = ${ytId}
+          AND status != 'downloaded'
+      `);
+
+      // Insert a sentinel row if no vault entry exists yet (so preload can find it)
+      await db.execute(sql`
+        INSERT INTO content_vault_backups
+               (user_id, youtube_id, platform, content_type, status, download_error, metadata)
+        SELECT 'system', ${ytId}, 'youtube', 'video', 'failed',
+               'All download clients failed: format not available (confirmed storm video)',
+               '{"permanentFail": true}'::jsonb
+        WHERE NOT EXISTS (
+          SELECT 1 FROM content_vault_backups WHERE youtube_id = ${ytId}
+        )
+      `);
+
+      // Cancel all pending/scheduled autopilot_queue items for this source video
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET status   = 'permanent_fail',
+            metadata = COALESCE(metadata, '{}'::jsonb)
+                       || '{"permanentFail": true, "failReason": "source video permanently inaccessible"}'::jsonb
+        WHERE source_video_id IN (
+          SELECT id FROM videos WHERE youtube_id = ${ytId}
+        )
+          AND status IN ('scheduled', 'pending')
+      `);
+    }
+
+    // General sweep: any vault entry with format-not-available or permanent-inaccessibility
+    // error gets permanentFail=true stamped into metadata.  The clip-video-processor boot
+    // preload loads all status='failed' rows and marks them neverExpire=true, so these
+    // are blocked permanently without needing the 24h re-expiry cycle.
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET metadata = COALESCE(metadata, '{}'::jsonb)
+                     || '{"permanentFail": true}'::jsonb
+      WHERE status IN ('failed', 'skipped')
+        AND COALESCE((metadata->>'permanentFail')::boolean, false) = false
+        AND (
+          download_error LIKE '%format is not available%'
+          OR download_error LIKE '%format strategies failed%'
+          OR download_error LIKE '%permanently inaccessible%'
+          OR download_error LIKE '%geo-blocked%'
+          OR download_error LIKE '%live-only%'
+          OR download_error LIKE '%DRM%'
+          OR download_error LIKE '%Permanent:%'
+        )
+    `);
+
+    await setFlag(FLAG);
+    log.info("[Migration 058] Blacklisted storm video IDs + cancelled dependent queue items");
+
+    // Log as a resolved incident so learning brain captures this crash pattern
+    try {
+      const { logMigrationResolution } = await import("./incident-log");
+      await logMigrationResolution({
+        migrationNumber: 58,
+        category:        "storm_video",
+        service:         "clip-video-processor / content-maximizer",
+        severity:        "critical",
+        crashesPerDay:   21,
+        rootCause:
+          "vFEd5Xckrhs and 3 other videos fail ALL yt-dlp clients/formats but were not " +
+          "permanently blocked in clip-video-processor. The Maximizer catch-up fires at T+2s " +
+          "on every boot (before the async permanent-fail preload completes) and creates 17 " +
+          "queue experiments, each triggering 25 sequential yt-dlp spawns. At T+16min this " +
+          "converged with back-catalog/grinder/publisher sweep → OOM kill → crash → repeat.",
+        fixDescription:
+          "1. clip-video-processor.ts: added _preloadPromise gate — downloadSourceVideo() " +
+          "awaits the DB preload before any yt-dlp attempt. " +
+          "2. neverExpire=true flag on all DB-loaded vault failures — 24h timer no longer " +
+          "re-enables videos that the vault has marked as permanently failed. " +
+          "3. Migration 058: marked vFEd5Xckrhs, 990MjVBCiIA, HNXKbE_wcuY, xZICplRIdpc as " +
+          "status=failed + permanentFail=true in content_vault_backups. Cancelled all pending " +
+          "autopilot_queue items for these source videos. General sweep: all format-not-available " +
+          "vault entries stamped with permanentFail=true.",
+        lesson:
+          "Any video that fails ALL download clients (all formats × all yt-dlp clients) must be " +
+          "permanently blacklisted with no time-based expiry. The 24h PERMANENT_FAIL_EXPIRY_MS " +
+          "is only appropriate for transient failures. Videos confirmed inaccessible must be " +
+          "stored in content_vault_backups with permanentFail=true and the boot preload must " +
+          "complete BEFORE any download attempt. Never let the Maximizer create queue experiments " +
+          "for a source video that is permanently blocked.",
+        tags: ["storm-video", "yt-dlp", "clip-video-processor", "maximizer", "preload-race", "24h-expiry"],
+      });
+    } catch { /* non-fatal */ }
+  } catch (err: any) {
+    log.warn(`[Migration 058] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3417,6 +3536,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration055BlacklistFormatErrorItems();
     await migration056RecoverFalse401PermSkips();
     await migration057LogJune2026Incidents();
+    await migration058BlacklistStormVideos();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
