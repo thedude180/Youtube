@@ -13,7 +13,7 @@ import {
   processContentRecycling,
   processCrossPromotion,
 } from "../autopilot-engine";
-import { getQuotaStatus, isQuotaBreakerTripped } from "../services/youtube-quota-tracker";
+import { getQuotaStatus, getDailyOpCounts, isQuotaBreakerTripped, QUOTA_COSTS, DAILY_OP_CAPS, UPLOAD_RESERVE, SAFETY_BUFFER } from "../services/youtube-quota-tracker";
 import { getStealthReport } from "../content-variation-engine";
 import { getUserId, requireTier, parseNumericId } from "./helpers";
 import { storage } from "../storage";
@@ -1274,11 +1274,28 @@ export function registerAutopilotRoutes(app: Express) {
     try {
       const status = await getQuotaStatus(userId);
       const breakerActive = isQuotaBreakerTripped();
+      const opCounts = getDailyOpCounts(userId);
+
+      // Build per-operation breakdown: count used, daily cap, unit cost, units spent
+      const trackedOps = ["upload", "write", "thumbnail", "search", "broadcast", "livechat"] as const;
+      const ops: Record<string, { used: number; cap: number; unitCost: number; unitsSpent: number }> = {};
+      for (const op of trackedOps) {
+        const used = opCounts[op] ?? 0;
+        const cap = DAILY_OP_CAPS[op] ?? Infinity;
+        const unitCost = QUOTA_COSTS[op] ?? 0;
+        ops[op] = { used, cap: isFinite(cap) ? cap : 9999, unitCost, unitsSpent: used * unitCost };
+      }
+
       res.json({
         breakerActive,
         unitsUsed: status.used,
         quotaLimit: status.limit,
+        percentUsed: status.percentUsed,
+        remaining: status.remaining,
         resetsAt: status.resetsAt,
+        uploadReserve: UPLOAD_RESERVE,
+        safetyBuffer: SAFETY_BUFFER,
+        ops,
       });
     } catch (err) {
       logger.error("[Autopilot] Quota status error:", err);

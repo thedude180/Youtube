@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw, Gauge, Pencil, Check, X } from "lucide-react";
+import { Shield, Plus, Trash2, Users, HeartPulse, Database, Cpu, Clock, RefreshCw, Coins, AlertTriangle, ListX, RotateCcw, Gauge, Pencil, Check, X, Zap, Ban } from "lucide-react";
 
 function SubscriptionTab() {
   const { data: profile } = useQuery<any>({ queryKey: ["/api/user/profile"], refetchInterval: 60_000, staleTime: 30_000 });
@@ -893,6 +893,22 @@ function AdminHourlyCapsTab() {
   });
   const liveHourly: Record<string, { used: number; limit: number; pct: number }> = statusData?.ai?.hourly ?? {};
 
+  const { data: ytQuota, isLoading: ytQuotaLoading, refetch: ytQuotaRefetch, isFetching: ytQuotaFetching } = useQuery<{
+    breakerActive: boolean;
+    unitsUsed: number;
+    quotaLimit: number;
+    percentUsed: number;
+    remaining: number;
+    resetsAt: string;
+    uploadReserve: number;
+    safetyBuffer: number;
+    ops: Record<string, { used: number; cap: number; unitCost: number; unitsSpent: number }>;
+  }>({
+    queryKey: ["/api/youtube/quota/status"],
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   // ── Hourly mutations ──
   const saveMutation = useMutation({
     mutationFn: async ({ module, value }: { module: string; value: string }) => {
@@ -1463,6 +1479,164 @@ function AdminHourlyCapsTab() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* ── YouTube API Quota Card ───────────────────────────────────────── */}
+        <div className="space-y-3" data-testid="youtube-quota-section">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <Zap className="w-4 h-4 text-red-400" />
+              YouTube API Quota
+              {ytQuota?.breakerActive && (
+                <Badge className="text-[10px] bg-red-500/15 text-red-400 border-red-500/30 flex items-center gap-1" data-testid="badge-breaker-active">
+                  <Ban className="w-2.5 h-2.5" /> Circuit breaker tripped
+                </Badge>
+              )}
+              {ytQuota && !ytQuota.breakerActive && (
+                <Badge className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30" data-testid="badge-breaker-ok">
+                  Active
+                </Badge>
+              )}
+            </h3>
+            <Button variant="ghost" size="sm" onClick={() => ytQuotaRefetch()} disabled={ytQuotaFetching} data-testid="button-refresh-yt-quota">
+              <RefreshCw className={`w-4 h-4 mr-1 ${ytQuotaFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            Google gives this channel <span className="font-medium text-foreground/80">10,000 API units/day</span>, resetting at midnight Pacific.
+            All publishing operations — uploads, metadata, thumbnails — draw from this single shared pool.
+            {ytQuota && (
+              <span className="ml-1">
+                Upload reserve holds <span className="font-mono text-amber-400">{ytQuota.uploadReserve.toLocaleString()}</span> units for the next video upload slot;
+                non-upload ops are blocked below that threshold.
+              </span>
+            )}
+          </p>
+
+          <Card data-testid="card-yt-quota">
+            <CardContent className="pt-4">
+              {ytQuotaLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full rounded-md" />
+                  <Skeleton className="h-32 w-full rounded-md" />
+                </div>
+              ) : !ytQuota ? (
+                <p className="text-sm text-muted-foreground">YouTube quota data unavailable — channel may not be connected.</p>
+              ) : (() => {
+                const pct = ytQuota.percentUsed;
+                const barColor = ytQuota.breakerActive ? "bg-red-500"
+                  : pct >= 90 ? "bg-red-500"
+                  : pct >= 75 ? "bg-amber-400"
+                  : pct >= 50 ? "bg-amber-500/70"
+                  : "bg-emerald-400";
+                const textColor = ytQuota.breakerActive ? "text-red-400"
+                  : pct >= 90 ? "text-red-400"
+                  : pct >= 75 ? "text-amber-400"
+                  : pct >= 50 ? "text-amber-500/80"
+                  : "text-emerald-400";
+
+                const opLabels: Record<string, string> = {
+                  upload: "Video upload",
+                  write: "Metadata update",
+                  thumbnail: "Thumbnail set",
+                  search: "Search query",
+                  broadcast: "Live broadcast",
+                  livechat: "Live chat",
+                };
+
+                const resetsAt = new Date(ytQuota.resetsAt);
+                const hoursUntilReset = Math.max(0, Math.round((resetsAt.getTime() - Date.now()) / 3_600_000));
+
+                return (
+                  <div className="space-y-4">
+                    {/* Overall usage */}
+                    <div data-testid="yt-quota-total">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-muted-foreground">Daily units used</span>
+                        <span className={`text-sm font-mono font-semibold ${textColor}`} data-testid="text-yt-units-used">
+                          {ytQuota.unitsUsed.toLocaleString()} / {ytQuota.quotaLimit.toLocaleString()} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden" data-testid="bar-yt-quota-container">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{ width: `${Math.min(100, pct)}%` }}
+                          data-testid="bar-yt-quota"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-muted-foreground/60">
+                          {ytQuota.remaining.toLocaleString()} units remaining
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/60" data-testid="text-yt-reset-time">
+                          resets in ~{hoursUntilReset}h (midnight Pacific)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Reserve / safety info */}
+                    <div className="flex gap-3 text-[10px] font-mono">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20" data-testid="text-upload-reserve">
+                        upload reserve: {ytQuota.uploadReserve.toLocaleString()} units
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30" data-testid="text-safety-buffer">
+                        safety floor: {ytQuota.safetyBuffer} units
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border/30" data-testid="text-non-upload-threshold">
+                        non-upload blocked below: {(ytQuota.uploadReserve + ytQuota.safetyBuffer).toLocaleString()} remaining
+                      </span>
+                    </div>
+
+                    {/* Per-operation breakdown */}
+                    <div className="space-y-1.5" data-testid="yt-quota-ops">
+                      {Object.entries(ytQuota.ops).map(([op, info]) => {
+                        const opPct = Math.round((info.used / info.cap) * 100);
+                        const opBarColor = opPct >= 100 ? "bg-red-500" : opPct >= 80 ? "bg-amber-400" : "bg-sky-400/70";
+                        const opTextColor = opPct >= 100 ? "text-red-400" : opPct >= 80 ? "text-amber-400" : "text-sky-400";
+                        return (
+                          <div key={op} className="rounded border border-border/20 bg-muted/15 px-3 py-2" data-testid={`yt-quota-op-row-${op}`}>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-foreground/80">{opLabels[op] ?? op}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground/60">{info.unitCost.toLocaleString()} units each</span>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className={`text-[11px] font-mono font-semibold ${opTextColor}`} data-testid={`text-yt-op-count-${op}`}>
+                                  {info.used}/{info.cap} ops
+                                </span>
+                                <span className="text-[11px] font-mono text-muted-foreground/70" data-testid={`text-yt-op-units-${op}`}>
+                                  {info.unitsSpent.toLocaleString()} units
+                                </span>
+                              </div>
+                            </div>
+                            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${opBarColor}`}
+                                style={{ width: `${Math.min(100, opPct)}%` }}
+                                data-testid={`bar-yt-op-${op}`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {ytQuota.breakerActive && (
+                      <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400 flex items-start gap-2" data-testid="alert-breaker-active">
+                        <Ban className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>
+                          Circuit breaker is active — all YouTube API publishing is paused until midnight Pacific (in ~{hoursUntilReset}h).
+                          This trips only on a real YouTube 403 quota-exceeded response; internal pre-gate blocks do not trigger it.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card data-testid="card-daily-caps">
           <CardContent className="pt-4">
