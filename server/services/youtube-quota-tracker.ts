@@ -702,6 +702,30 @@ export async function canAffordCatalogListing(userId: string, estimatedUnits: nu
   return status.remaining >= estimatedUnits + SAFETY_BUFFER;
 }
 
+/**
+ * Calibrate internal quota usage against the real number from Google Cloud
+ * Monitoring API.  Takes the higher of our internal count and Google's report
+ * (Google's data is ~1–2 hours delayed, so if our count is higher we're ahead).
+ * Called by google-quota-sync.ts after a successful Monitoring API fetch.
+ */
+export async function calibrateQuotaUsage(userId: string, realUnitsUsed: number): Promise<void> {
+  try {
+    const record = await getOrCreateDailyRecord(userId);
+    // Trust the higher of the two: our real-time internal count vs Google's
+    // authoritative-but-delayed report.  Never decrease — that would hide real usage.
+    const newValue = Math.max(record.unitsUsed, realUnitsUsed);
+    if (newValue === record.unitsUsed) return; // nothing to update
+
+    await db.update(youtubeQuotaUsage)
+      .set({ unitsUsed: newValue, lastUpdatedAt: new Date() })
+      .where(eq(youtubeQuotaUsage.id, record.id));
+
+    logger.info(`[QuotaTracker] Calibrated unitsUsed ${record.unitsUsed} → ${newValue} (Google Cloud Monitoring)`);
+  } catch (err: any) {
+    logger.error(`[QuotaTracker] calibrateQuotaUsage failed: ${err?.message}`);
+  }
+}
+
 export { QUOTA_COSTS, DAILY_OP_CAPS, UPLOAD_RESERVE, SAFETY_BUFFER, type QuotaOperation, getPacificDate, getNextResetTime };
 
 

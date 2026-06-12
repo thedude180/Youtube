@@ -3566,6 +3566,16 @@ httpServer.listen(
         }
       }, 120_000);
 
+      // ── Google Cloud Monitoring Quota Sync (T+150s) ───────────────────────────
+      // Pulls real YouTube API unit consumption from Google Cloud Monitoring API
+      // and calibrates the internal quota tracker with the authoritative number.
+      // No-ops silently if GOOGLE_CLOUD_MONITORING_KEY is not set.
+      setTimeout(() => {
+        import("./services/google-quota-sync").then(m => m.initGoogleQuotaSync()).catch(e =>
+          logger.error("[Boot] initGoogleQuotaSync threw", { error: e?.message })
+        );
+      }, 150_000);
+
       // ── Midnight-Pacific Quota Reset Cron ────────────────────────────────────
       // Fires once at the precise moment the YouTube API quota resets (midnight
       // Pacific, handles PST/PDT).  On each tick it: (1) clears the in-memory

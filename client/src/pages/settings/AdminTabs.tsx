@@ -903,6 +903,7 @@ function AdminHourlyCapsTab() {
     uploadReserve: number;
     safetyBuffer: number;
     ops: Record<string, { used: number; cap: number; unitCost: number; unitsSpent: number }>;
+    sync: { configured: boolean; lastSyncAt: string | null; lastSyncValue: number | null; lastSyncError: string | null };
   }>({
     queryKey: ["/api/youtube/quota/status"],
     refetchInterval: 60_000,
@@ -1631,6 +1632,38 @@ function AdminHourlyCapsTab() {
                         </span>
                       </div>
                     )}
+
+                    {/* Google Cloud Monitoring sync status */}
+                    <div className="rounded border border-border/20 bg-muted/10 px-3 py-2 flex items-center justify-between gap-3 flex-wrap" data-testid="yt-quota-sync-row">
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span className="text-muted-foreground/70">Google sync:</span>
+                        {!ytQuota.sync?.configured ? (
+                          <span className="text-muted-foreground/50 italic" data-testid="text-sync-not-configured">
+                            not configured — internal tracking only
+                          </span>
+                        ) : ytQuota.sync.lastSyncError ? (
+                          <span className="text-amber-400/80" data-testid="text-sync-error">
+                            error — {ytQuota.sync.lastSyncError}
+                          </span>
+                        ) : ytQuota.sync.lastSyncAt ? (
+                          <span className="text-emerald-400" data-testid="text-sync-ok">
+                            ✓ synced {Math.round((Date.now() - new Date(ytQuota.sync.lastSyncAt).getTime()) / 60_000)} min ago
+                            {ytQuota.sync.lastSyncValue !== null && (
+                              <span className="text-muted-foreground/60 ml-1">
+                                (Google reported {ytQuota.sync.lastSyncValue.toLocaleString()} units)
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-sky-400/70 italic" data-testid="text-sync-pending">
+                            first sync in ~3 min after boot…
+                          </span>
+                        )}
+                      </div>
+                      {ytQuota.sync?.configured && (
+                        <span className="text-[10px] text-muted-foreground/40 font-mono">~1–2h data delay from Google</span>
+                      )}
+                    </div>
                   </div>
                 );
               })()}

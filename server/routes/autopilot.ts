@@ -14,6 +14,7 @@ import {
   processCrossPromotion,
 } from "../autopilot-engine";
 import { getQuotaStatus, getDailyOpCounts, isQuotaBreakerTripped, QUOTA_COSTS, DAILY_OP_CAPS, UPLOAD_RESERVE, SAFETY_BUFFER } from "../services/youtube-quota-tracker";
+import { getQuotaSyncState } from "../services/google-quota-sync";
 import { getStealthReport } from "../content-variation-engine";
 import { getUserId, requireTier, parseNumericId } from "./helpers";
 import { storage } from "../storage";
@@ -1286,6 +1287,7 @@ export function registerAutopilotRoutes(app: Express) {
         ops[op] = { used, cap: isFinite(cap) ? cap : 9999, unitCost, unitsSpent: used * unitCost };
       }
 
+      const syncState = getQuotaSyncState();
       res.json({
         breakerActive,
         unitsUsed: status.used,
@@ -1296,6 +1298,12 @@ export function registerAutopilotRoutes(app: Express) {
         uploadReserve: UPLOAD_RESERVE,
         safetyBuffer: SAFETY_BUFFER,
         ops,
+        sync: {
+          configured: syncState.configured,
+          lastSyncAt: syncState.lastSyncAt,
+          lastSyncValue: syncState.lastSyncValue,
+          lastSyncError: syncState.lastSyncError,
+        },
       });
     } catch (err) {
       logger.error("[Autopilot] Quota status error:", err);
