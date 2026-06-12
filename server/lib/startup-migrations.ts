@@ -3558,6 +3558,39 @@ async function migration060PurgeNonBF6Shorts(): Promise<void> {
   }
 }
 
+// ── Migration 061: purge non-BF6 queue items that slipped past the focus gate ──
+// Migration 060 ran once-and-flagged, but new leaks (AC IV, Sonic, Gaming, AI
+// as gameName) continued to enter the queue via two unfixed code paths:
+//   1. queuePastStreamContent had no focus-game gate (now fixed).
+//   2. Wrong catalog game names were written to queue metadata when the
+//      gameFilter passed a video via its title rather than gameName (now fixed).
+// This migration purges any scheduled/pending items still carrying a non-BF6
+// gameName.  Uses a new v2 flag so it re-runs independently of migration 060.
+
+async function migration061PurgeNonBF6SlippageItems(): Promise<void> {
+  const FLAG = "migration:061:purge_non_bf6_slippage_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status        = 'permanent_fail',
+        error_message = 'migration061: non-focus-game content removed — channel focus is Battlefield 6'
+      WHERE status IN ('scheduled', 'pending')
+        AND (metadata->>'gameName') IS NOT NULL
+        AND (metadata->>'gameName') != ''
+        AND (metadata->>'gameName') NOT ILIKE '%battlefield%'
+        AND (metadata->>'gameName') NOT ILIKE '%bf6%'
+        AND (metadata->>'gameName') NOT ILIKE '%bf 6%'
+    `);
+    const cancelled = (result as any).rowCount ?? (result as any).count ?? 0;
+    log.info(`[Migration 061] Cancelled ${cancelled} non-BF6 slippage items from autopilot queue`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 061] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3622,6 +3655,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration058BlacklistStormVideos();
     await migration059FixFileSizeBigint();
     await migration060PurgeNonBF6Shorts();
+    await migration061PurgeNonBF6SlippageItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

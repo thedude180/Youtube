@@ -118,6 +118,7 @@ import {
 } from "./youtube-output-schedule";
 import {
   autoSwitchFocusGameIfNeeded,
+  getFocusGame,
   getFocusSwitchedToday,
   buildFocusGameRegex,
   MIN_FOCUS_DAYS_AHEAD,
@@ -972,8 +973,13 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             }
 
             const clipLabel = stamp.title ? stamp.title.slice(0, 80) : `Back catalog Short ${clipIdx + 1}/${clipTimestamps.length} from: ${v.title}`;
+            // Prefer title-derived game name over catalog-stored name — catalog
+            // detection can be stale/wrong while the title is always authoritative.
+            // This prevents "Sonic the Hedgehog" (bad detection) appearing in
+            // metadata for a video whose title clearly says "Battlefield 2042".
+            const effectiveGameName = detectGameFromTitle(v.title ?? "") ?? v.gameName;
             const clipCaption = stamp.title
-              ? `🎮 ${stamp.title.slice(0, 80)} #gaming #shorts #${(v.gameName ?? "gaming").replace(/\s+/g, "")}`
+              ? `🎮 ${stamp.title.slice(0, 80)} #gaming #shorts #${(effectiveGameName ?? "gaming").replace(/\s+/g, "")}`
               : `🎮 ${v.title.slice(0, 100)} #gaming #shorts`;
 
             await db.insert(autopilotQueue).values({
@@ -988,7 +994,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
               metadata: {
                 contentType: "platform_short",
                 sourceYoutubeId: v.youtubeVideoId,
-                gameName: v.gameName ?? undefined,
+                gameName: effectiveGameName ?? undefined,
                 startSec: stamp.startSec,
                 endSec: stamp.endSec,
                 clipIndex: clipIdx,
@@ -1280,20 +1286,24 @@ async function queueLongFormFromBackCatalog(
       break;
     }
 
+    // Same title-first game name resolution as Short clips — prevents wrong
+    // catalog detections from contaminating long-form queue metadata.
+    const lfEffectiveGameName = detectGameFromTitle(v.title ?? "") ?? v.gameName;
+
     await db.insert(autopilotQueue).values({
       userId,
       sourceVideoId: v.localVideoId,
       type: "auto-clip",
       targetPlatform: "youtube",
       content: `Back catalog long-form clip: ${v.title}`,
-      caption: `${v.gameName ?? "Gaming"} — ${experimentMin} Min Gameplay | No Commentary`,
+      caption: `${lfEffectiveGameName ?? "Gaming"} — ${experimentMin} Min Gameplay | No Commentary`,
       status: "scheduled",
       scheduledAt,
       metadata: {
         contentType: "long-form-clip",
         sourceYoutubeId: v.youtubeVideoId,
         sourceTitle: v.title,
-        gameName: v.gameName ?? undefined,
+        gameName: lfEffectiveGameName ?? undefined,
         segmentStartSec,
         segmentEndSec: segmentStartSec + experimentSec,
         totalDurationSec: dur,
@@ -1591,6 +1601,13 @@ export async function queuePastStreamContent(userId: string): Promise<{
       return result;
     }
 
+    // Build a focus-game matcher once for all streams in this batch.
+    // Past-stream content must pass the same focus-game gate as back-catalog
+    // clips — otherwise AC Valhalla / SoM / other off-brand live sessions
+    // flood the queue with non-BF6 content.
+    const currentFocusGame = await getFocusGame().catch(() => "Battlefield 6");
+    const streamMatchesFocusGame = buildGameFilter(currentFocusGame);
+
     const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
 
     for (const stream of unexhausted) {
@@ -1603,6 +1620,17 @@ export async function queuePastStreamContent(userId: string): Promise<{
         const minDaysAhead = isRecent ? 0 : 1;
 
         const gameName = stream.category || "Gaming";
+
+        // Focus game gate — skip streams that don't match the channel's current
+        // focus game.  A stream whose category is "Assassin's Creed Valhalla"
+        // or that has no BF6/Battlefield signal should never generate clips.
+        if (!streamMatchesFocusGame({ gameName, title: stream.title ?? "" })) {
+          logger.info(
+            `[BackCatalog/PastStreams] Skipping stream ${stream.id} — ` +
+            `"${gameName}" doesn't match focus game "${currentFocusGame}"`,
+          );
+          continue;
+        }
         const streamDurationMs =
           stream.endedAt && stream.startedAt
             ? new Date(stream.endedAt).getTime() - new Date(stream.startedAt).getTime()
