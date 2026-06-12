@@ -3481,6 +3481,47 @@ async function migration058BlacklistStormVideos(): Promise<void> {
   }
 }
 
+// ── Migration 059 — Widen file_size columns from INT4 → BIGINT ────────────────
+// Root cause: content_vault_backups.file_size is INT4 (max ~2.1 GB). Long-form
+// gaming stream downloads (BF6 etc.) are typically 2-4+ GB. When the InnerTube
+// client successfully downloads a file > 2.1 GB the DB UPDATE to mark it
+// "downloaded" throws a PostgreSQL integer overflow error, the vault record
+// stays in its previous state, and the file is orphaned on disk.
+// Example from prod logs Jun 12 2026:
+//   vPapOhtN3dQ: 2,780,652,886 bytes downloaded OK → UPDATE failed → yt-dlp fallback
+// Same issue exists in studio_videos and asset_library.
+async function migration059FixFileSizeBigint(): Promise<void> {
+  const FLAG = "migration:059:file_size_bigint_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // content_vault_backups — the critical table where this causes vault failures
+    await db.execute(sql`
+      ALTER TABLE content_vault_backups
+        ALTER COLUMN file_size TYPE bigint USING file_size::bigint
+    `);
+    log.info("[Migration 059] content_vault_backups.file_size → bigint");
+
+    // studio_videos — stream-editor output files can also be large
+    await db.execute(sql`
+      ALTER TABLE studio_videos
+        ALTER COLUMN file_size TYPE bigint USING file_size::bigint
+    `);
+    log.info("[Migration 059] studio_videos.file_size → bigint");
+
+    // asset_library — creative assets, less likely to exceed 2 GB but fixed for consistency
+    await db.execute(sql`
+      ALTER TABLE asset_library
+        ALTER COLUMN file_size TYPE bigint USING file_size::bigint
+    `);
+    log.info("[Migration 059] asset_library.file_size → bigint");
+
+    await setFlag(FLAG);
+    log.info("[Migration 059] All file_size columns widened to bigint — vault downloads for files > 2 GB now work correctly");
+  } catch (err: any) {
+    log.warn(`[Migration 059] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3543,6 +3584,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration056RecoverFalse401PermSkips();
     await migration057LogJune2026Incidents();
     await migration058BlacklistStormVideos();
+    await migration059FixFileSizeBigint();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
