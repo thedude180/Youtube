@@ -374,7 +374,7 @@ async function getShortsOnDay(userId: string, tz: string, day: LocalDay): Promis
     .where(and(
       eq(autopilotQueue.userId, userId),
       inArray(autopilotQueue.status, ["scheduled", "processing", "published"]),
-      inArray(autopilotQueue.type, ["youtube_short", "platform_short"]),
+      inArray(autopilotQueue.type, ["youtube_short", "platform_short", "vod-short", "auto-clip"]),
       gte(autopilotQueue.scheduledAt, start),
       lte(autopilotQueue.scheduledAt, end),
     ));
@@ -409,7 +409,7 @@ async function getLastScheduledShortTime(userId: string): Promise<Date | null> {
     .where(and(
       eq(autopilotQueue.userId, userId),
       inArray(autopilotQueue.status, ["scheduled", "processing", "published"]),
-      inArray(autopilotQueue.type, ["youtube_short", "platform_short"]),
+      inArray(autopilotQueue.type, ["youtube_short", "platform_short", "vod-short", "auto-clip"]),
     ))
     .orderBy(desc(autopilotQueue.scheduledAt))
     .limit(1);
@@ -772,7 +772,7 @@ export async function countUploadedShortsForDate(
     .from(autopilotQueue)
     .where(and(
       eq(autopilotQueue.userId, userId),
-      inArray(autopilotQueue.type, ["youtube_short", "platform_short"]),
+      inArray(autopilotQueue.type, ["youtube_short", "platform_short", "vod-short", "auto-clip"]),
       inArray(autopilotQueue.status, ["processing", "published"]),
       gte(autopilotQueue.scheduledAt, start),
       lte(autopilotQueue.scheduledAt, end),
