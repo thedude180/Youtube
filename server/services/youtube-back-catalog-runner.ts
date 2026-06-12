@@ -94,14 +94,14 @@ async function getEligibleUserIds(): Promise<string[]> {
 async function getGlobalQueueDepth(): Promise<number> {
   try {
     const now     = new Date();
-    const plus14d = new Date(now.getTime() + 14 * 24 * 60 * 60_000);
+    const plus60d = new Date(now.getTime() + 60 * 24 * 60 * 60_000);
     const r = await db.select({ n: count() })
       .from(autopilotQueue)
       .where(and(
         eq(autopilotQueue.targetPlatform, "youtube"),
         inArray(autopilotQueue.status, ["scheduled", "pending"]),
         gte(autopilotQueue.scheduledAt, now),
-        // look only 14 days ahead — no need to plan further for adaptive purposes
+        // Shadow YouTube: plan 60 days ahead so staging library stays deep
       ));
     return Number(r[0]?.n ?? 0);
   } catch {
@@ -111,10 +111,10 @@ async function getGlobalQueueDepth(): Promise<number> {
 
 /** Choose the next cycle delay based on how full the queue is. */
 function adaptiveIntervalMs(queueDepth: number): number {
-  if (queueDepth <  7) return INTERVAL_URGENT_MS;   // ~1h — nearly empty
-  if (queueDepth < 20) return INTERVAL_LOW_MS;       // ~3h — thin
-  if (queueDepth < 42) return INTERVAL_MODERATE_MS;  // ~8h — building up
-  return INTERVAL_HEALTHY_MS;                        // ~22-24h — queue is full
+  if (queueDepth <   7) return INTERVAL_URGENT_MS;    // ~1h  — nearly empty
+  if (queueDepth <  20) return INTERVAL_LOW_MS;        // ~3h  — thin
+  if (queueDepth < 180) return INTERVAL_MODERATE_MS;   // ~8h  — building Shadow YouTube library
+  return INTERVAL_HEALTHY_MS;                          // ~22-24h — 60-day library staged
 }
 
 // ── Core cycle ───────────────────────────────────────────────────────────────

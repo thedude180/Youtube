@@ -23,8 +23,8 @@ import { storage } from "../storage";
 // ── Thresholds ────────────────────────────────────────────────────────────────
 const SHORTS_REFILL_THRESHOLD_DAYS   = 3;   // < 3 days of Shorts  → refill
 const LONGFORM_REFILL_THRESHOLD_DAYS = 7;   // < 7 days of LF      → refill
-const SHORTS_TARGET_DAYS             = 5;
-const LONGFORM_TARGET_DAYS           = 14;
+const SHORTS_TARGET_DAYS             = 30;  // Shadow YouTube: keep 30 days staged
+const LONGFORM_TARGET_DAYS           = 60;  // Shadow YouTube: keep 60 days staged
 const CHECK_INTERVAL_MS              = 15 * 60_000;
 
 // ── State ─────────────────────────────────────────────────────────────────────

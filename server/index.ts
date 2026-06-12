@@ -3984,6 +3984,15 @@ httpServer.listen(
           .catch(slog("initBackCatalogReviver"));
       }, 26 * 60_000);
 
+      // Shadow Content Packager — completeness enforcer for the Shadow YouTube
+      // staging library. Runs every 20 min; pokes pre-seo when items are missing
+      // SEO or thumbnails; exposes stats for the ShadowYouTube dashboard panel.
+      setTimeout(() => {
+        import("./services/shadow-content-packager")
+          .then(m => m.initShadowContentPackager())
+          .catch(slog("initShadowContentPackager"));
+      }, 30 * 60_000);
+
       logger.info("[Boot] SEQUENTIAL BOOT COMPLETE — all 50+ engines online, each stage started after the previous finished");
     });
 

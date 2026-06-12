@@ -978,6 +978,144 @@ export async function registerRoutes(
     }
   });
 
+  // ── SHADOW YOUTUBE — staging library routes ────────────────────────────────
+
+  // GET /api/youtube/shadow/stats — overall completeness stats
+  app.get("/api/youtube/shadow/stats", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { getPackagerStats } = await import("./services/shadow-content-packager");
+      const { getGuardianStatusForUser } = await import("./services/perpetual-queue-guardian");
+      const stats = getPackagerStats();
+      const depth = userId
+        ? await getGuardianStatusForUser(userId).catch(() => ({ shortsDays: 0, longFormDays: 0 }))
+        : { shortsDays: 0, longFormDays: 0 };
+      res.json({ ok: true, stats, depth });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/youtube/shadow/library — paginated list of staged items
+  app.get("/api/youtube/shadow/library", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const page    = Math.max(1, parseInt(String(req.query.page  ?? 1)));
+      const limit   = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? 25))));
+      const typeFilter = String(req.query.type ?? "all"); // "all" | "short" | "long_form"
+      const offset  = (page - 1) * limit;
+
+      const { db } = await import("./db");
+      const { autopilotQueue } = await import("@shared/schema");
+      const { eq, and, inArray, sql, count, asc, desc } = await import("drizzle-orm");
+
+      const baseWhere = [
+        eq(autopilotQueue.userId, userId),
+        inArray(autopilotQueue.status, ["scheduled", "pending"]),
+      ] as const;
+
+      const typeWhere = typeFilter === "short"
+        ? sql`(${autopilotQueue.metadata}->>'contentType' = 'short' OR ${autopilotQueue.type} ILIKE '%short%')`
+        : typeFilter === "long_form"
+          ? sql`(${autopilotQueue.metadata}->>'contentType' = 'long_form' OR ${autopilotQueue.type} ILIKE '%long%')`
+          : sql`1=1`;
+
+      const [totalRow] = await db
+        .select({ n: count() })
+        .from(autopilotQueue)
+        .where(and(...baseWhere, typeWhere));
+
+      const rows = await db
+        .select({
+          id:          autopilotQueue.id,
+          caption:     autopilotQueue.caption,
+          type:        autopilotQueue.type,
+          status:      autopilotQueue.status,
+          scheduledAt: autopilotQueue.scheduledAt,
+          metadata:    autopilotQueue.metadata,
+        })
+        .from(autopilotQueue)
+        .where(and(...baseWhere, typeWhere))
+        .orderBy(asc(autopilotQueue.scheduledAt))
+        .limit(limit)
+        .offset(offset);
+
+      const items = rows.map(r => {
+        const meta = (r.metadata ?? {}) as Record<string, any>;
+        const hasSeo       = !!meta.seoTitle;
+        const hasThumbnail = !!meta.thumbnailPath;
+        return {
+          id:          r.id,
+          title:       meta.seoTitle || r.caption || meta.title || meta.gameName || "Gaming clip",
+          description: meta.seoDescription || "",
+          tags:        Array.isArray(meta.seoTags) ? meta.seoTags : [],
+          game:        meta.gameName || "Unknown",
+          contentType: meta.contentType || (r.type?.toLowerCase().includes("short") ? "short" : "long_form"),
+          scheduledAt: r.scheduledAt?.toISOString() ?? null,
+          hasSeo,
+          hasThumbnail,
+          isComplete:  hasSeo && hasThumbnail,
+          thumbnailUrl: hasThumbnail ? `/api/youtube/shadow/thumbnail/${r.id}` : null,
+        };
+      });
+
+      res.json({
+        ok: true,
+        total: Number(totalRow?.n ?? 0),
+        page,
+        limit,
+        items,
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/youtube/shadow/thumbnail/:id — serve pre-generated thumbnail from disk
+  app.get("/api/youtube/shadow/thumbnail/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).send("Bad id");
+
+      const { db } = await import("./db");
+      const { autopilotQueue } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const fs = await import("fs");
+
+      const [row] = await db
+        .select({ metadata: autopilotQueue.metadata })
+        .from(autopilotQueue)
+        .where(eq(autopilotQueue.id, id))
+        .limit(1);
+
+      const thumbPath = (row?.metadata as any)?.thumbnailPath as string | undefined;
+      if (!thumbPath || !fs.existsSync(thumbPath)) {
+        return res.status(404).json({ error: "No thumbnail" });
+      }
+
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Content-Type", "image/jpeg");
+      fs.createReadStream(thumbPath).pipe(res);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/youtube/shadow/package — trigger a packager cycle now
+  app.post("/api/youtube/shadow/package", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const { runPackagerCycle } = await import("./services/shadow-content-packager");
+      runPackagerCycle().catch(e => logger.warn(`[Shadow] Manual pack: ${e.message}`));
+      res.json({ ok: true, message: "Packager cycle triggered" });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ── YOUTUBE-ONLY MODE: Disabled legacy platform routes ──────────────────────
   // These catch routes return 410 Gone instead of crashing, so old bookmarks
   // and cached frontend calls get a clean JSON response rather than a 404 or 500.
