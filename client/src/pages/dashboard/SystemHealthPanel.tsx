@@ -11,7 +11,7 @@ import {
   Activity, Shield, Cpu, Zap, HardDrive, Wrench,
   CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw,
   ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Wifi, WifiOff, Users,
-  Gauge, Pencil, Check, X, DatabaseZap,
+  Gauge, Pencil, Check, X, DatabaseZap, Archive, Layers, ListChecks,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,6 +47,48 @@ interface FlushHealth {
   isStale: boolean;
   consecutiveFailures: number;
   lastErrorMsg: string | null;
+}
+
+interface VaultHealth {
+  ok: boolean;
+  freeSpaceGB: number;
+  diskFull: boolean;
+  statusCounts: Record<string, number>;
+  permanentFailCount: number;
+  totalCount: number;
+  failRate: number;
+  checkedAt: string;
+}
+
+interface BootRegistryEntry {
+  service: string;
+  startMs: number;
+  elapsedMs: number;
+  elapsedLabel: string;
+}
+
+interface BootRegistry {
+  ok: boolean;
+  bootStartMs: number;
+  services: BootRegistryEntry[];
+  convergenceWindows: Array<{ windowStart: number; services: string[] }>;
+  checkedAt: string;
+}
+
+interface MigrationCatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  confirmed: boolean;
+}
+
+interface MigrationCatalog {
+  ok: boolean;
+  total: number;
+  confirmed: number;
+  migrations: MigrationCatalogEntry[];
+  checkedAt: string;
 }
 
 interface SystemStatus {
@@ -372,6 +414,15 @@ export default function SystemHealthPanel() {
   const [killSwitchesExpanded, setKillSwitchesExpanded] = useState(() => {
     try { return localStorage.getItem("healthKillSwitchesExpanded") === "true"; } catch { return false; }
   });
+  const [vaultHealthExpanded, setVaultHealthExpanded] = useState(() => {
+    try { return localStorage.getItem("healthVaultExpanded") === "true"; } catch { return false; }
+  });
+  const [bootRegistryExpanded, setBootRegistryExpanded] = useState(() => {
+    try { return localStorage.getItem("healthBootRegistryExpanded") === "true"; } catch { return false; }
+  });
+  const [migrationCatalogExpanded, setMigrationCatalogExpanded] = useState(() => {
+    try { return localStorage.getItem("healthMigrationCatalogExpanded") === "true"; } catch { return false; }
+  });
   const [showAllEngines, setShowAllEngines] = useState(() => {
     try { return localStorage.getItem("showAllEngines") === "true"; } catch { return false; }
   });
@@ -420,6 +471,30 @@ export default function SystemHealthPanel() {
     staleTime: 90_000,
     retry: 1,
     enabled: isAdmin,
+  });
+
+  const { data: vaultHealth } = useQuery<VaultHealth>({
+    queryKey: ["/api/admin/vault-health"],
+    refetchInterval: 60_000,
+    staleTime: 50_000,
+    retry: 1,
+    enabled: isAdmin,
+  });
+
+  const { data: bootRegistry } = useQuery<BootRegistry>({
+    queryKey: ["/api/admin/boot-registry"],
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    retry: 1,
+    enabled: isAdmin,
+  });
+
+  const { data: migrationCatalog } = useQuery<MigrationCatalog>({
+    queryKey: ["/api/admin/migrations"],
+    refetchInterval: 300_000,
+    staleTime: 270_000,
+    retry: 1,
+    enabled: isAdmin && migrationCatalogExpanded,
   });
 
   const prevFlushFailuresRef = useRef(0);
@@ -997,6 +1072,194 @@ export default function SystemHealthPanel() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ── Vault Health ─────────────────────────────────────────────────── */}
+        {isAdmin && (
+          <div data-testid="section-vault-health">
+            <button
+              className="w-full flex items-center justify-between text-left mb-2"
+              onClick={() => { const v = !vaultHealthExpanded; setVaultHealthExpanded(v); try { localStorage.setItem("healthVaultExpanded", String(v)); } catch {} }}
+              data-testid="button-toggle-vault-health"
+            >
+              <SectionHeader
+                icon={<Archive className="h-3.5 w-3.5" />}
+                title="Vault Health"
+                badge={
+                  vaultHealth ? (
+                    vaultHealth.diskFull ? (
+                      <Badge className="text-[9px] bg-red-500/15 text-red-400 border-red-500/30">disk full</Badge>
+                    ) : vaultHealth.failRate > 0.3 ? (
+                      <Badge className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30">{Math.round(vaultHealth.failRate * 100)}% fail rate</Badge>
+                    ) : (
+                      <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{vaultHealth.freeSpaceGB.toFixed(1)} GB free</Badge>
+                    )
+                  ) : null
+                }
+              />
+              {vaultHealthExpanded
+                ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              }
+            </button>
+
+            {vaultHealthExpanded && vaultHealth && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <div className={`rounded-md border px-2.5 py-2 ${vaultHealth.diskFull ? "border-red-500/30 bg-red-500/5" : "border-border/20 bg-muted/5"}`} data-testid="stat-vault-disk">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Free Space</div>
+                    <div className={`text-sm font-bold font-mono mt-0.5 ${vaultHealth.diskFull ? "text-red-400" : vaultHealth.freeSpaceGB < 1 ? "text-amber-400" : "text-emerald-400"}`} data-testid="text-vault-free-space">
+                      {vaultHealth.freeSpaceGB.toFixed(1)} GB
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border/20 bg-muted/5 px-2.5 py-2" data-testid="stat-vault-total">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Items</div>
+                    <div className="text-sm font-bold font-mono mt-0.5 text-foreground" data-testid="text-vault-total">{vaultHealth.totalCount.toLocaleString()}</div>
+                  </div>
+                  <div className={`rounded-md border px-2.5 py-2 ${vaultHealth.permanentFailCount > 50 ? "border-amber-500/30 bg-amber-500/5" : "border-border/20 bg-muted/5"}`} data-testid="stat-vault-perm-fail">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Perm Failed</div>
+                    <div className={`text-sm font-bold font-mono mt-0.5 ${vaultHealth.permanentFailCount > 50 ? "text-amber-400" : "text-foreground"}`} data-testid="text-vault-perm-fail">
+                      {vaultHealth.permanentFailCount.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className={`rounded-md border px-2.5 py-2 ${vaultHealth.failRate > 0.3 ? "border-amber-500/30 bg-amber-500/5" : "border-border/20 bg-muted/5"}`} data-testid="stat-vault-fail-rate">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Fail Rate</div>
+                    <div className={`text-sm font-bold font-mono mt-0.5 ${vaultHealth.failRate > 0.3 ? "text-amber-400" : "text-foreground"}`} data-testid="text-vault-fail-rate">
+                      {Math.round(vaultHealth.failRate * 100)}%
+                    </div>
+                  </div>
+                </div>
+                {Object.keys(vaultHealth.statusCounts).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5" data-testid="vault-status-counts">
+                    {Object.entries(vaultHealth.statusCounts).sort((a, b) => b[1] - a[1]).map(([status, count]) => (
+                      <div key={status} className="rounded-md border border-border/20 bg-muted/5 px-2 py-1 text-center" data-testid={`vault-status-${status}`}>
+                        <div className="text-[10px] text-muted-foreground font-mono">{status}</div>
+                        <div className="text-[11px] font-bold font-mono text-foreground">{count.toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Boot Registry ─────────────────────────────────────────────────── */}
+        {isAdmin && (
+          <div data-testid="section-boot-registry">
+            <button
+              className="w-full flex items-center justify-between text-left mb-2"
+              onClick={() => { const v = !bootRegistryExpanded; setBootRegistryExpanded(v); try { localStorage.setItem("healthBootRegistryExpanded", String(v)); } catch {} }}
+              data-testid="button-toggle-boot-registry"
+            >
+              <SectionHeader
+                icon={<Layers className="h-3.5 w-3.5" />}
+                title="Boot Registry"
+                badge={
+                  bootRegistry ? (
+                    bootRegistry.convergenceWindows.length > 0 ? (
+                      <Badge className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30">{bootRegistry.convergenceWindows.length} convergence{bootRegistry.convergenceWindows.length > 1 ? "s" : ""}</Badge>
+                    ) : (
+                      <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">{bootRegistry.services.length} service{bootRegistry.services.length !== 1 ? "s" : ""}</Badge>
+                    )
+                  ) : null
+                }
+              />
+              {bootRegistryExpanded
+                ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              }
+            </button>
+
+            {bootRegistryExpanded && bootRegistry && (
+              <div className="space-y-1.5">
+                {bootRegistry.convergenceWindows.length > 0 && (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-2" data-testid="boot-convergence-warning">
+                    <div className="text-[11px] text-amber-400 font-semibold mb-0.5">Wave convergence detected</div>
+                    {bootRegistry.convergenceWindows.map((w, i) => (
+                      <div key={i} className="text-[10px] text-amber-400/70 font-mono" data-testid={`boot-convergence-${i}`}>
+                        {w.services.join(", ")}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {bootRegistry.services.length === 0 ? (
+                  <div className="text-[11px] text-muted-foreground px-1" data-testid="text-boot-registry-empty">No services registered yet — check back after first boot cycle</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {bootRegistry.services.map((svc) => (
+                      <div key={svc.service} className="flex items-center justify-between rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5" data-testid={`boot-service-${svc.service}`}>
+                        <span className="text-[11px] text-foreground/80 font-mono truncate flex-1">{svc.service}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono ml-2 shrink-0">T+{svc.elapsedLabel}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Migration Catalog ─────────────────────────────────────────────── */}
+        {isAdmin && (
+          <div data-testid="section-migration-catalog">
+            <button
+              className="w-full flex items-center justify-between text-left mb-2"
+              onClick={() => { const v = !migrationCatalogExpanded; setMigrationCatalogExpanded(v); try { localStorage.setItem("healthMigrationCatalogExpanded", String(v)); } catch {} }}
+              data-testid="button-toggle-migration-catalog"
+            >
+              <SectionHeader
+                icon={<ListChecks className="h-3.5 w-3.5" />}
+                title="Migration Catalog"
+                badge={
+                  migrationCatalog ? (
+                    migrationCatalog.confirmed < migrationCatalog.total ? (
+                      <Badge className="text-[9px] bg-amber-500/15 text-amber-400 border-amber-500/30">{migrationCatalog.confirmed}/{migrationCatalog.total} confirmed</Badge>
+                    ) : (
+                      <Badge className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">all {migrationCatalog.total} confirmed</Badge>
+                    )
+                  ) : migrationHealth ? (
+                    <Badge className="text-[9px] bg-muted/20 text-muted-foreground">{migrationHealth.confirmed ?? "?"}/{migrationHealth.total ?? "?"} confirmed</Badge>
+                  ) : null
+                }
+              />
+              {migrationCatalogExpanded
+                ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              }
+            </button>
+
+            {migrationCatalogExpanded && (
+              migrationCatalog ? (
+                <div className="space-y-1" data-testid="migration-catalog-list">
+                  {migrationCatalog.migrations.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`flex items-start gap-2 rounded-md border px-2.5 py-1.5 ${m.confirmed ? "border-border/15 bg-muted/5" : "border-amber-500/30 bg-amber-500/5"}`}
+                      data-testid={`migration-row-${m.id}`}
+                    >
+                      {m.confirmed
+                        ? <CheckCircle2 className="h-3 w-3 text-emerald-400 mt-0.5 shrink-0" />
+                        : <AlertTriangle className="h-3 w-3 text-amber-400 mt-0.5 shrink-0" />
+                      }
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-mono text-muted-foreground shrink-0">{m.id}</span>
+                          <span className="text-[11px] text-foreground/80 truncate">{m.name}</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">{m.description}</div>
+                      </div>
+                      <Badge className="text-[9px] shrink-0 bg-muted/20 text-muted-foreground border-border/20">{m.category}</Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px] text-muted-foreground px-1 flex items-center gap-1.5" data-testid="text-migration-catalog-loading">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Loading catalog…
+                </div>
+              )
+            )}
           </div>
         )}
 

@@ -196,5 +196,173 @@ export function registerSystemStatusRoutes(app: Express): void {
     }
   });
 
-  log.info("[SystemStatus] Routes registered: GET /api/system/status");
+  /**
+   * GET /api/admin/boot-registry
+   * Returns actual service start timestamps + convergence analysis.
+   * Admin only.
+   */
+  app.get("/api/admin/boot-registry", async (req: Request, res: Response) => {
+    try {
+      const adminUserId = requireAdmin(req, res);
+      if (!adminUserId) return;
+      const { getBootRegistrySnapshot } = await import("../lib/boot-registry");
+      return res.json(getBootRegistrySnapshot());
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message });
+    }
+  });
+
+  /**
+   * GET /api/admin/vault-health
+   * Returns vault status distribution, fail rate, disk state, circuit state.
+   * Admin only.
+   */
+  app.get("/api/admin/vault-health", async (req: Request, res: Response) => {
+    try {
+      const adminUserId = requireAdmin(req, res);
+      if (!adminUserId) return;
+
+      const { db } = await import("../db");
+      const { contentVaultBackups } = await import("@shared/schema");
+      const { eq, sql: drizzleSql, and, gte } = await import("drizzle-orm");
+
+      // Get the real ET Gaming user — channel 53 owns all real vault data
+      const { channels } = await import("@shared/schema");
+      const { isNotNull } = await import("drizzle-orm");
+      const [ch] = await db.select({ userId: channels.userId })
+        .from(channels)
+        .where(and(isNotNull(channels.accessToken), isNotNull(channels.userId)))
+        .limit(1);
+      const userId = ch?.userId ?? adminUserId;
+
+      // Status distribution + permanentFail count
+      const [statusRows, permFailRows, recentRows] = await Promise.all([
+        db.select({
+          status: contentVaultBackups.status,
+          count: drizzleSql<number>`count(*)::int`,
+        })
+          .from(contentVaultBackups)
+          .where(eq(contentVaultBackups.userId, userId))
+          .groupBy(contentVaultBackups.status),
+        db.select({ count: drizzleSql<number>`count(*)::int` })
+          .from(contentVaultBackups)
+          .where(
+            and(
+              eq(contentVaultBackups.userId, userId),
+              drizzleSql`(metadata->>'permanentFail')::boolean = true`,
+            )
+          ),
+        db.select({
+          status: contentVaultBackups.status,
+          count: drizzleSql<number>`count(*)::int`,
+        })
+          .from(contentVaultBackups)
+          .where(
+            and(
+              eq(contentVaultBackups.userId, userId),
+              gte(contentVaultBackups.createdAt, new Date(Date.now() - 24 * 3_600_000)),
+            )
+          )
+          .groupBy(contentVaultBackups.status),
+      ]);
+
+      const statusCounts: Record<string, number> = {};
+      for (const r of statusRows) statusCounts[r.status ?? "unknown"] = Number(r.count);
+
+      const recentCounts: Record<string, number> = {};
+      for (const r of recentRows) recentCounts[r.status ?? "unknown"] = Number(r.count);
+
+      const recentFailed  = recentCounts["failed"] ?? 0;
+      const recentTotal   = Object.values(recentCounts).reduce((s, n) => s + n, 0);
+      const recentFailRate = recentTotal > 0 ? Math.round((recentFailed / recentTotal) * 100) : 0;
+
+      // Disk circuit state (in-memory variable from video-vault)
+      let diskCircuit: { isOpen: boolean; backoffUntil: number | null; freeGb: number | null } = {
+        isOpen: false, backoffUntil: null, freeGb: null,
+      };
+      try {
+        const { getVaultStats } = await import("../services/video-vault");
+        const vs = await getVaultStats(userId);
+        diskCircuit.freeGb = vs.freeSpaceGB;
+        diskCircuit.isOpen = vs.freeSpaceGB < 0.5;
+      } catch { /* non-fatal */ }
+
+      return res.json({
+        statusCounts,
+        permanentFailCount: Number(permFailRows[0]?.count ?? 0),
+        recentFailRate,
+        recentCounts,
+        diskCircuit,
+        backlogSize: statusCounts["indexed"] ?? 0,
+        activeDownloads: statusCounts["downloading"] ?? 0,
+        totalDownloaded: statusCounts["downloaded"] ?? 0,
+        totalFailed: statusCounts["failed"] ?? 0,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message });
+    }
+  });
+
+  /**
+   * GET /api/admin/migrations
+   * Returns migration catalog + which ones have run (from system_settings flags).
+   * Admin only.
+   */
+  app.get("/api/admin/migrations", async (req: Request, res: Response) => {
+    try {
+      const adminUserId = requireAdmin(req, res);
+      if (!adminUserId) return;
+
+      const { db } = await import("../db");
+      const { systemSettings } = await import("@shared/schema");
+      const { like } = await import("drizzle-orm");
+      const { MIGRATION_CATALOG } = await import("../lib/startup-migrations");
+
+      // Read all system_settings keys that look like migration flags
+      const rows = await db
+        .select({ key: systemSettings.key, value: systemSettings.value, updatedAt: systemSettings.updatedAt })
+        .from(systemSettings)
+        .where(like(systemSettings.key, "migration%"));
+
+      const flagMap = new Map(rows.map(r => [r.key.toLowerCase(), r]));
+
+      // Match catalog entries to their flags (best-effort; flag naming is not fully consistent)
+      const migrations = Object.entries(MIGRATION_CATALOG).map(([numStr, info]) => {
+        const num = parseInt(numStr, 10);
+        const paddedNum = String(num).padStart(3, "0");
+        // Try several flag key patterns used across the codebase
+        const candidates = [
+          `migration:${paddedNum}:`,
+          `migration_${paddedNum}_`,
+          `migration:${num}:`,
+          `migration_${num}_`,
+        ];
+        let matchedRow: typeof rows[0] | undefined;
+        for (const cand of candidates) {
+          for (const [key, row] of flagMap) {
+            if (key.startsWith(cand)) { matchedRow = row; break; }
+          }
+          if (matchedRow) break;
+        }
+        return {
+          id: num,
+          name: info.name,
+          description: info.description,
+          category: info.category,
+          ran: matchedRow?.value === "true",
+          ranAt: matchedRow?.updatedAt?.toISOString() ?? null,
+          flagKey: matchedRow?.key ?? null,
+        };
+      });
+
+      const ran    = migrations.filter(m => m.ran).length;
+      const notRan = migrations.filter(m => !m.ran).length;
+
+      return res.json({ total: migrations.length, ran, notRan, migrations });
+    } catch (err: any) {
+      return res.status(500).json({ error: err?.message });
+    }
+  });
+
+  log.info("[SystemStatus] Routes registered: GET /api/system/status + admin: boot-registry, vault-health, migrations");
 }

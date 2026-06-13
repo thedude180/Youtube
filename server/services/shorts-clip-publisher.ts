@@ -790,6 +790,9 @@ export function startPerpetualShortsLoop(): void {
   if (_perpetualRunning) return;
   _perpetualRunning = true;
 
+  // Record that the publisher actually started executing (not just scheduled)
+  import("../lib/boot-registry").then(({ recordBootStart }) => recordBootStart("shorts-publisher")).catch(() => {});
+
   const loop = async () => {
     while (_perpetualRunning) {
       try {

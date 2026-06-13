@@ -149,6 +149,9 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
     return { usersRun: 0, errors: 0 };
   }
 
+  // Record actual first execution (not just when setTimeout fired)
+  import("../lib/boot-registry").then(({ recordBootStart }) => recordBootStart("back-catalog-runner")).catch(() => {});
+
   logger.info(`[BackCatalogRunner] Starting back catalog cycle — ${userIds.length} eligible user(s)`);
 
   let usersRun = 0;

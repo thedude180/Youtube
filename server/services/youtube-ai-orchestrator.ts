@@ -680,6 +680,8 @@ export function initYouTubeAIOrchestrator(): void {
 
   // ── Startup full cycle ───────────────────────────────────────────────────
   startupTimer = setTimeout(async () => {
+    // Record that the orchestrator actually fired (not just when setTimeout was scheduled)
+    import("../lib/boot-registry").then(({ recordBootStart }) => recordBootStart("ai-orchestrator")).catch(() => {});
     logger.info("[YouTubeAI] Startup delay complete — running first full cycle");
     await runYouTubeAIForAllEligibleUsers(true).catch(
       err => logger.error("[YouTubeAI] Startup cycle error:", err?.message),

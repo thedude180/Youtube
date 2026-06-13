@@ -434,6 +434,21 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Metadata repair non-fatal: ${repairErr?.message?.slice(0, 80)}`);
     }
 
+    // 9f. Template performance scoring — adjusts confidenceScore in masterKnowledgeBank
+    //     for "seo_template" principles based on real CTR data from youtube_output_metrics.
+    //     Non-fatal; runs at most once per 20h per user.
+    try {
+      const { runTemplatePerfScoring } = await import("./template-performance-scorer");
+      const { updated, skipped } = await runTemplatePerfScoring(userId);
+      if (updated > 0) {
+        logger.info(`[Brain] Template perf scoring: ${updated} principle(s) confidence adjusted`);
+      } else if (skipped) {
+        logger.debug(`[Brain] Template perf scoring skipped: ${skipped}`);
+      }
+    } catch (tpsErr: any) {
+      logger.debug(`[Brain] Template perf scoring non-fatal: ${tpsErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
