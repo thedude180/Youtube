@@ -3844,6 +3844,7 @@ httpServer.listen(
         { label: "relentless-content-grinder",fn: () => import("./services/relentless-content-grinder").then(m => m.startContentGrinder()).catch(slog("startContentGrinder")) },
         { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
+        { label: "youtube-cadence-guard",     fn: () => import("./services/youtube-cadence-guard").then(m => { backgroundIntervals.push(m.initCadenceGuard()); }).catch(slog("initCadenceGuard")) },
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 

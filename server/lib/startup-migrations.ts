@@ -4024,6 +4024,90 @@ async function migration067SeedSEOTemplates(): Promise<void> {
   }
 }
 
+// ── Migration 068: Re-spread cadence pile-up — 3 Shorts/day, 1 LF/day ────────
+// The stream-exhaust engine bulk-inserted 116+ Shorts onto a single day (Jun 13),
+// and multiple long-form items landed on the same day.  This migration takes ALL
+// future scheduled Shorts and reassigns them at exactly 3/day spread evenly from
+// tomorrow, then does the same for long-form at 1/day.
+// One-shot, guarded by flag.  After this runs the cadence-guard service will
+// keep the schedule balanced on every subsequent 6h cycle.
+
+async function migration068RebalanceCadencePileup(): Promise<void> {
+  const FLAG = "migration:068:rebalance_cadence_pileup_v2";
+  if (await getFlag(FLAG)) return;
+  try {
+    // ── Shorts: re-spread 3/day starting tomorrow ─────────────────────────
+    const r1 = await db.execute(sql`
+      WITH ranked AS (
+        SELECT
+          id,
+          (ROW_NUMBER() OVER (ORDER BY id ASC) - 1) AS rn
+        FROM autopilot_queue
+        WHERE status IN ('scheduled', 'pending')
+          AND target_platform = 'youtube'
+          AND (
+            type IN ('youtube_short', 'platform_short', 'vod-short')
+            OR (
+              type = 'auto-clip'
+              AND COALESCE(metadata->>'contentType', '') NOT IN
+                  ('long-form', 'long-form-clip', 'vod_long_form', 'long-form-compilation')
+            )
+          )
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at =
+        (DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day')
+        + (FLOOR(r.rn / 3)::integer * INTERVAL '1 day')
+        + CASE (r.rn % 3)
+            WHEN 0 THEN INTERVAL '16 hours'
+            WHEN 1 THEN INTERVAL '21 hours'
+            ELSE        INTERVAL '23 hours 30 minutes'
+          END
+        + (RANDOM() * INTERVAL '12 minutes')::interval
+      FROM ranked r
+      WHERE q.id = r.id
+    `);
+    const shortsMoved = (r1 as unknown as { rowCount?: number }).rowCount ?? 0;
+
+    // ── Long-form: re-spread 1/day starting tomorrow ──────────────────────
+    const r2 = await db.execute(sql`
+      WITH ranked AS (
+        SELECT
+          id,
+          (ROW_NUMBER() OVER (ORDER BY id ASC) - 1) AS rn
+        FROM autopilot_queue
+        WHERE status IN ('scheduled', 'pending')
+          AND target_platform = 'youtube'
+          AND (
+            type = 'vod-long-form'
+            OR (
+              type = 'auto-clip'
+              AND metadata->>'contentType' IN
+                  ('long-form', 'long-form-clip', 'vod_long_form', 'long-form-compilation')
+            )
+          )
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at =
+        (DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day')
+        + (r.rn::integer * INTERVAL '1 day')
+        + INTERVAL '23 hours'
+        + (RANDOM() * INTERVAL '12 minutes')::interval
+      FROM ranked r
+      WHERE q.id = r.id
+    `);
+    const lfMoved = (r2 as unknown as { rowCount?: number }).rowCount ?? 0;
+
+    await setFlag(FLAG);
+    log.info(
+      `[Migration 068] Cadence rebalance complete: ` +
+      `${shortsMoved} Shorts re-spread (3/day) + ${lfMoved} long-form re-spread (1/day)`,
+    );
+  } catch (err: any) {
+    log.warn(`[Migration 068] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -4095,6 +4179,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration065BlacklistNewStormVideos();
     await migration066CancelUnresolvableGrinderShorts();
     await migration067SeedSEOTemplates();
+    await migration068RebalanceCadencePileup();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
