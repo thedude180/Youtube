@@ -108,7 +108,7 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           ),
         ),
         lte(autopilotQueue.scheduledAt, batchWindow),
-        sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form','long-form-compilation')`,
+        sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','long-form','vod_long_form','long-form-compilation')`,
       ))
       // Priority order:
       //   0 — recent live-stream VOD uploads (vod-long-form) — new content first

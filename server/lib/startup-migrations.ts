@@ -3578,7 +3578,7 @@ async function migration060PurgeNonBF6Shorts(): Promise<void> {
         error_message = 'migration060: non-focus-game Short removed — channel focus is Battlefield 6'
       WHERE status IN ('scheduled', 'pending')
         AND type IN ('auto-clip', 'platform_short', 'youtube_short', 'vod-short')
-        AND COALESCE(metadata->>'contentType', '') NOT IN ('long-form-clip', 'vod_long_form')
+        AND COALESCE(metadata->>'contentType', '') NOT IN ('long-form-clip', 'long-form', 'vod_long_form')
         AND (metadata->>'gameName') IS NOT NULL
         AND (metadata->>'gameName') != ''
         AND (metadata->>'gameName') NOT ILIKE '%battlefield%'

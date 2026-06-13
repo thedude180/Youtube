@@ -334,7 +334,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
             eq(autopilotQueue.userId, firstUserId),
             eq(autopilotQueue.status, "scheduled"),
             inArray(autopilotQueue.type, ["auto-clip", "vod-long-form"]),
-            sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','vod_long_form')`,
+            sql`COALESCE(${autopilotQueue.metadata}->>'contentType','long-form-clip') IN ('long-form-clip','long-form','vod_long_form')`,
           ));
         if ((lfInQueue?.cnt ?? 0) > 0) {
           const todayLfCount = await countUploadedLongFormForDate(firstUserId, new Date());

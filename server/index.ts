@@ -3165,7 +3165,7 @@ httpServer.listen(
                       AND scheduled_at >= ${dayStart.toISOString()}
                       AND scheduled_at <  ${dayEnd.toISOString()}
                       AND (
-                        metadata->>'contentType' IN ('long-form-clip','vod_long_form')
+                        metadata->>'contentType' IN ('long-form-clip','long-form','vod_long_form')
                         OR type = 'vod-long-form'
                       )
                     LIMIT 1`
@@ -3193,7 +3193,7 @@ httpServer.listen(
                       FROM   autopilot_queue q
                       WHERE  q.status = 'scheduled'
                         AND  (
-                               q.metadata->>'contentType' IN ('long-form-clip','vod_long_form')
+                               q.metadata->>'contentType' IN ('long-form-clip','long-form','vod_long_form')
                                OR q.type = 'vod-long-form'
                              )
                         AND  q.scheduled_at >= ${poolHorizon.toISOString()}
