@@ -115,8 +115,8 @@ async function fetchYouTubeAnalytics(
   subscribersGained: number;
 }>> {
   try {
-    const { fetchVideoAnalytics } = await import("./youtube-analytics");
-    return await fetchVideoAnalytics(userId, youtubeVideoId);
+    const { getCachedVideoMetrics } = await import("./youtube-data-cache");
+    return await getCachedVideoMetrics(userId, youtubeVideoId);
   } catch {
     return {};
   }

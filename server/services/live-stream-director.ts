@@ -509,10 +509,10 @@ async function runPostStreamVodOptimization(
   // ── Fetch channel CTR benchmark ────────────────────────────────────────────
   let channelCtr: number | null = null;
   try {
-    const { fetchChannelCTR } = await import("./youtube-analytics");
-    const ctrData = await fetchChannelCTR(userId);
+    const { getCachedChannelCTR } = await import("./youtube-data-cache");
+    const ctrData = await getCachedChannelCTR(userId);
     channelCtr = ctrData.ctr;
-    logger.info(`[Director] Channel CTR benchmark: ${channelCtr ?? "unavailable"}%`);
+    logger.info(`[Director] Channel CTR benchmark: ${channelCtr ?? "unavailable"}% (${ctrData.fromCache ? "cached" : "live"})`);
   } catch { /* non-fatal */ }
 
   // ── Generate analytics-optimized VOD title + description via AI ────────────

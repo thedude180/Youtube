@@ -38,6 +38,7 @@ import { stopSettingsCleanup } from "./services/auto-settings-optimizer";
 import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
+import { initYouTubeDataCache, stopYouTubeDataCache } from "./services/youtube-data-cache";
 import { initCreatorAccelerationEngine, stopCreatorAccelerationEngine } from "./services/creator-acceleration-engine";
 import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
 import { initChannelIntelligenceEngine, stopChannelIntelligenceEngine } from "./services/channel-intelligence-engine";
@@ -3921,6 +3922,14 @@ httpServer.listen(
         backgroundIntervals.push(m.initVideoMomentumTracker());
       }).catch(slog("initVideoMomentumTracker"));
 
+      // YouTube Data Cache — single scheduled refresher (every 4h) that is the
+      // ONLY place background engines may call YouTube read APIs.  All other
+      // engines pull from DB via getCachedVideoMetrics / getCachedChannelStats.
+      // First refresh at T+~45min (5min after this wave fires).
+      try { initYouTubeDataCache(); } catch (e: any) {
+        logger.error("[Boot] initYouTubeDataCache threw", { error: e?.message });
+      }
+
       // Shadow Analytics Engine — quota-free YouTube Analytics mirror.
       // Tier 1: InnerTube (no auth). Tier 2: Studio API (OAuth, zero Data quota).
       // Tier 3: Official Analytics API spot-check when quota available.
@@ -4419,6 +4428,7 @@ httpServer.listen(
     stopFortressCleanup();
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
+    stopYouTubeDataCache();
     stopCreatorAccelerationEngine();
     stopPublishingWatchdog();
     stopChannelIntelligenceEngine();

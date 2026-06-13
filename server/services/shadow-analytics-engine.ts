@@ -28,7 +28,7 @@ import {
 } from "@shared/schema";
 import { logger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "../services/youtube-quota-tracker";
-import { fetchVideoAnalytics } from "../services/youtube-analytics";
+import { getCachedVideoMetrics } from "../services/youtube-data-cache";
 import { storage } from "../storage";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -299,7 +299,7 @@ async function verifyTopPerformers(
         return;
       }
 
-      const verData  = await fetchVideoAnalytics(channelUserId, videoId);
+      const verData  = await getCachedVideoMetrics(channelUserId, videoId);
       const verViews = verData.views ?? null;
       const verWatch = verData.watchTimeMinutes ?? null;
       const verCtr   = verData.ctr ?? null;
