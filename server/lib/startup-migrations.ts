@@ -1086,6 +1086,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:061:purge_non_bf6_slippage_v1",        label: "061 — purge non-BF6 slippage items (past-stream gate + wrong gameName in metadata)" },
   { flag: "migration:062:cancel_non_bf6_studio_auto_publish_v1", label: "062 — permanent-fail non-BF6 studio_auto_publish queue items + cancel ready studio_videos (AC Valhalla double-post fix)" },
   { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos for mining + recover wrongly-purged queue items (multi-game channel directive Jun 13 2026)" },
+  { flag: "migration:064:purge_bad_game_name_items_v1",          label: "064 — purge auto-clip queue items with nonsense game names (AI/Sonic/Epic/Gaming) blocking BF6 queue slots" },
 ];
 
 export interface MigrationHealth {
@@ -3719,6 +3720,41 @@ async function migration063UnlockMultiGameCatalog(): Promise<void> {
   }
 }
 
+// ── Migration 064: Purge auto-clips with nonsense game names ──────────────────
+// The back-catalog engine misdetected game names on several source videos,
+// producing 99 contaminated queue items scheduled out to August 2026 that are
+// blocking BF6 content from filling the queue.  Known bad labels:
+//
+//  "AI"               — not a game; 30 items from oNGsg4mqxT8, Wq593MG5VYY, GxD1IE7UH7s
+//  "Sonic the Hedgehog" — channel doesn't publish Sonic; 23 items from UfVaEBup2eg
+//  "Epic"             — not a game; 22 items from Ky7PFPhmF3Q
+//  "Gaming"           — too generic to be useful; 4 items
+//
+// AC4 / Assassin's Creed IV items are left untouched (legitimate game).
+// After this purge the back-catalog engine will refill with BF6 on its next cycle.
+async function migration064PurgeBadGameNameItems(): Promise<void> {
+  const FLAG = "migration:064:purge_bad_game_name_items_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status        = 'permanent_fail',
+        error_message = 'migration064: auto-clip has a nonsense/non-channel game name — purged to make room for BF6 content'
+      WHERE status IN ('scheduled', 'pending')
+        AND type IN ('auto-clip', 'platform_short', 'youtube_short', 'vod-short')
+        AND LOWER(COALESCE(metadata->>'gameName', '')) IN (
+          'ai', 'sonic the hedgehog', 'epic', 'gaming', 'games', 'game', 'video games'
+        )
+    `);
+    const purged = (result as any).rowCount ?? 0;
+    log.info(`[Migration 064] Purged ${purged} auto-clip items with nonsense game names`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 064] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3786,6 +3822,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration061PurgeNonBF6SlippageItems();
     await migration062CancelNonBF6StudioAutoPublish();
     await migration063UnlockMultiGameCatalog();
+    await migration064PurgeBadGameNameItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
