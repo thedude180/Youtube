@@ -266,6 +266,15 @@ const SIGNATURES: Record<string, GameSignatures> = {
     keywords: ["ratchet and clank", "rift apart", "lombax", "dimensionator"],
   },
 
+  // ── Grand Theft Auto V ───────────────────────────────────────────────────────
+  "Grand Theft Auto V": {
+    titleRegex: [/grand theft auto|gta\s*[v5]\b|\bgta\b/i],
+    characters: ["trevor", "michael", "franklin", "lamar", "lester", "ron", "amanda", "wade"],
+    weapons: ["minigun", "rpg", "ap pistol", "heavy sniper", "combat mg"],
+    locations: ["los santos", "blaine county", "vinewood", "sandy shores", "grove street", "paleto bay", "del perro"],
+    keywords: ["gta", "gta5", "gta v", "heist", "rockstar", "grand theft", "online", "modded", "shark card"],
+  },
+
   // ── Warhammer 40,000: Space Marine 2 ─────────────────────────────────────────
   "Warhammer 40,000: Space Marine 2": {
     titleRegex: [/space marine\s*2?|warhammer.*space marine/i],

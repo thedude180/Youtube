@@ -1009,29 +1009,12 @@ async function migration016CreateErrorKnowledgeBase(): Promise<void> {
 // sweep runs on every boot so any contamination introduced since the last deploy
 // is cleared before publishers fire.
 async function cleanupNonBF6QueueItems(): Promise<void> {
-  try {
-    const result = await db.execute(sql`
-      UPDATE autopilot_queue
-      SET
-        status        = 'permanent_fail',
-        error_message = 'per-boot cleanup: non-focus-game item removed — channel focus is Battlefield 6'
-      WHERE status IN ('scheduled', 'pending')
-        AND (metadata->>'gameName') IS NOT NULL
-        AND (metadata->>'gameName') != ''
-        AND metadata->>'gameName' NOT ILIKE '%battlefield%'
-        AND metadata->>'gameName' NOT ILIKE '%bf6%'
-        AND metadata->>'gameName' NOT ILIKE '%bf 6%'
-        AND metadata->>'gameName' NOT ILIKE '%gaming%'
-    `);
-    const count = (result as any).rowCount ?? (result as any).count ?? 0;
-    if (typeof count === "number" && count > 0) {
-      log.info(`[BootCleanup] Purged ${count} non-BF6 queue item(s) (gameName filter)`);
-    } else {
-      log.debug("[BootCleanup] No non-BF6 queue items found");
-    }
-  } catch (err: any) {
-    log.warn(`[BootCleanup] cleanupNonBF6QueueItems failed (non-fatal): ${err?.message}`);
-  }
+  // [DISABLED — Jun 13 2026] Channel publishes multi-game content.
+  // AC Liberation, AC Mirage, Dragon Age: The Veilguard, GTA, Ratchet & Clank,
+  // and Battlefield 6 are all active games on the channel.
+  // A BF6-only per-boot purge is no longer appropriate.
+  // Migration 063 unlocks previously-locked non-BF6 catalog videos.
+  log.info("[BootCleanup] Multi-game channel — per-boot non-BF6 purge DISABLED");
 }
 
 async function cleanupStuckPendingItems(): Promise<void> {
@@ -1102,6 +1085,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:060:purge_non_bf6_shorts_v1",          label: "060 — purge non-BF6 Shorts from autopilot queue (focus gate enforcement)" },
   { flag: "migration:061:purge_non_bf6_slippage_v1",        label: "061 — purge non-BF6 slippage items (past-stream gate + wrong gameName in metadata)" },
   { flag: "migration:062:cancel_non_bf6_studio_auto_publish_v1", label: "062 — permanent-fail non-BF6 studio_auto_publish queue items + cancel ready studio_videos (AC Valhalla double-post fix)" },
+  { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos; update game focus to Assassin's Creed (multi-game channel directive Jun 13 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -3681,6 +3665,69 @@ async function migration062CancelNonBF6StudioAutoPublish(): Promise<void> {
   }
 }
 
+// ── Migration 063: Unlock multi-game catalog — revert BF6-only focus ──────────
+// User directive (Jun 13 2026): channel publishes multi-game content.
+// Screenshots confirm: AC Liberation, AC Mirage, Dragon Age: The Veilguard,
+// GTA, Ratchet & Clank, and Battlefield 6 are all active games on the channel.
+//
+// What this migration does:
+//  1. Unlocks all non-BF6 back_catalog_videos locked by migration 052
+//     (mined_for_shorts + mined_for_long_form reset to false) so the back-catalog
+//     engine can mine AC, Dragon Age, GTA, and Ratchet & Clank content again.
+//  2. Updates game_focus:current from "Battlefield 6" → "Assassin's Creed"
+//     (the dominant Shorts game visible on the channel as of Jun 13 2026).
+//  3. Recovers recent autopilot_queue items that were wrongly permanent-failed
+//     by the BF6-only per-boot purge, rescheduling them 1 hour from now.
+//
+// The per-boot cleanupNonBF6QueueItems() is also disabled above (no-op).
+async function migration063UnlockMultiGameCatalog(): Promise<void> {
+  const FLAG = "migration:063:unlock_multi_game_catalog_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Unlock all catalog videos that migration 052 blocked from being mined.
+    //    Only resets non-BF6 videos — BF6 videos keep their current mined state.
+    const r1 = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET mined_for_shorts    = false,
+          mined_for_long_form = false
+      WHERE channel_id = 53
+        AND game_name IS NOT NULL
+        AND game_name NOT ILIKE '%battlefield%'
+        AND (mined_for_shorts = true OR mined_for_long_form = true)
+    `);
+    log.info(`[Migration 063] Unlocked ${(r1 as any).rowCount ?? 0} non-BF6 catalog videos for mining`);
+
+    // 2. Update game_focus:current → Assassin's Creed (dominant Shorts content)
+    await db.execute(sql`
+      INSERT INTO system_settings (key, value, created_at, updated_at)
+      VALUES ('game_focus:current', 'Assassin''s Creed', NOW(), NOW())
+      ON CONFLICT (key) DO UPDATE SET value = 'Assassin''s Creed', updated_at = NOW()
+    `);
+    log.info("[Migration 063] Updated game_focus:current → Assassin's Creed");
+
+    // 3. Recover queue items wrongly permanent-failed by the BF6-only boot purge.
+    //    Only recovers items scheduled within the last 14 days (still relevant).
+    //    Reschedules them 1 hour out so publishers don't get a burst on next boot.
+    const r3 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'scheduled',
+          error_message = NULL,
+          scheduled_at  = NOW() + INTERVAL '1 hour'
+      WHERE status IN ('permanent_fail', 'cancelled')
+        AND error_message ILIKE '%channel focus is Battlefield 6%'
+        AND (metadata->>'gameName') IS NOT NULL
+        AND (metadata->>'gameName') != ''
+        AND scheduled_at > NOW() - INTERVAL '14 days'
+    `);
+    log.info(`[Migration 063] Recovered ${(r3 as any).rowCount ?? 0} wrongly-purged queue items`);
+
+    await setFlag(FLAG);
+    log.info("[Migration 063] Multi-game catalog unlock complete");
+  } catch (err: any) {
+    log.warn(`[Migration 063] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3747,6 +3794,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration060PurgeNonBF6Shorts();
     await migration061PurgeNonBF6SlippageItems();
     await migration062CancelNonBF6StudioAutoPublish();
+    await migration063UnlockMultiGameCatalog();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

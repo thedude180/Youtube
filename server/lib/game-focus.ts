@@ -54,6 +54,21 @@ const ALIASES: Record<string, string> = {
   "valhalla":         "Assassin's Creed Valhalla",
   "ac valhalla":      "Assassin's Creed Valhalla",
   "assassin's creed valhalla": "Assassin's Creed Valhalla",
+  "liberation":       "Assassin's Creed Liberation",
+  "ac liberation":    "Assassin's Creed Liberation",
+  "assassin's creed liberation": "Assassin's Creed Liberation",
+  "mirage":           "Assassin's Creed Mirage",
+  "ac mirage":        "Assassin's Creed Mirage",
+  "assassin's creed mirage": "Assassin's Creed Mirage",
+  "shadows":          "Assassin's Creed Shadows",
+  "ac shadows":       "Assassin's Creed Shadows",
+  "assassin's creed shadows": "Assassin's Creed Shadows",
+  "dragon age":       "Dragon Age: The Veilguard",
+  "veilguard":        "Dragon Age: The Veilguard",
+  "dragon age veilguard": "Dragon Age: The Veilguard",
+  "ratchet":          "Ratchet & Clank",
+  "ratchet and clank": "Ratchet & Clank",
+  "ratchet & clank":  "Ratchet & Clank",
   "cod":              "Call of Duty",
   "warzone":          "Call of Duty: Warzone",
   "gta":              "Grand Theft Auto V",
@@ -88,7 +103,12 @@ export function detectGameFromStream(title: string): string | null {
   if (/overwatch/.test(t))                          return "Overwatch";
   if (/elden ring/.test(t))                         return "Elden Ring";
   if (/god of war/.test(t))                         return "God of War";
-  if (/assassin.s creed valhalla|ac valhalla/i.test(t)) return "Assassin's Creed Valhalla";
+  if (/assassin.s creed valhalla|ac valhalla/i.test(t))      return "Assassin's Creed Valhalla";
+  if (/assassin.s creed liberation|ac liberation/i.test(t))  return "Assassin's Creed Liberation";
+  if (/assassin.s creed mirage|ac mirage|\bmirage\b/i.test(t)) return "Assassin's Creed Mirage";
+  if (/assassin.s creed shadows|ac shadows/i.test(t))        return "Assassin's Creed Shadows";
+  if (/dragon age.*veilguard|veilguard/i.test(t))            return "Dragon Age: The Veilguard";
+  if (/ratchet.{0,8}clank|rift apart/i.test(t))              return "Ratchet & Clank";
   return null;
 }
 
