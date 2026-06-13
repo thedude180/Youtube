@@ -30,6 +30,11 @@ import { createLogger } from "../lib/logger";
 import { logIncidentOnce } from "../lib/incident-log";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
 import { assembleMusicScore, cleanupMusicScore } from "./music-scorer";
+import {
+  detectLowMotion,
+  extractThumbnail,
+  buildChaptersFromSceneDetection,
+} from "./clip-intelligence";
 
 const logger = createLogger("pre-encoder");
 
@@ -728,6 +733,29 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         if (!fs.existsSync(rawPath)) throw new Error("yt-dlp produced no output");
       }
 
+      // ── Low-motion guard ────────────────────────────────────────────────────
+      // If the trimmed raw clip is mostly static (loading screen, scoreboard,
+      // lobby UI) soft-cancel it so the back-catalog runner picks a better moment
+      // next cycle rather than wasting an upload slot on a dead clip.
+      // Only applied to Shorts — long-form dead-time is removed inside encodeLongForm.
+      if (!isLongForm) {
+        const isStatic = await detectLowMotion(rawPath, 0, 25).catch(() => false);
+        if (isStatic) {
+          logger.info(
+            `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId} [${startSec}–${endSec}s]) ` +
+            `is low-motion — cancelling this clip so a better moment can be selected`,
+          );
+          await db.update(autopilotQueue)
+            .set({
+              status: "cancelled" as any,
+              errorMessage: "low-motion: clip is mostly a loading screen or static UI — re-queue a better moment",
+            })
+            .where(and(eq(autopilotQueue.id, item.id), inArray(autopilotQueue.status, ["scheduled", "pending"])));
+          skipped++;
+          continue;
+        }
+      }
+
       // channelId for library-aware music selection: read from metadata if present,
       // otherwise default to 53 (ET Gaming 274 — the only active channel)
       if (isLongForm) {
@@ -737,6 +765,36 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       }
 
       if (!fs.existsSync(outputPath)) throw new Error("ffmpeg produced no output");
+
+      // ── Frame-accurate thumbnail (Shorts + long-form) ───────────────────────
+      // Extract a JPEG at the ~20% mark — early enough to show the action opener
+      // but past any brief black frames at the very start.
+      // For long-form, the publisher reads thumbnailPath from metadata directly;
+      // for Shorts, YouTube auto-selects from the portrait video (thumbnailPath
+      // is written but the publisher intentionally does not upload it for Shorts).
+      let thumbnailPath: string | undefined;
+      try {
+        const thumbAt  = Math.round(durationSec * 0.20);
+        const thumbOut = path.join(PRE_ENCODE_DIR, `thumb_${item.id}.jpg`);
+        await extractThumbnail(rawPath, thumbAt, thumbOut);
+        if (fs.existsSync(thumbOut)) thumbnailPath = thumbOut;
+        if (thumbnailPath) logger.debug(`[PreEncoder] Thumbnail extracted for item ${item.id} → thumb_${item.id}.jpg`);
+      } catch { /* non-fatal — proceed without thumbnail */ }
+
+      // ── Scene-change chapter markers (long-form only) ───────────────────────
+      // Detect scene transitions in the trimmed clip and format them as a
+      // YouTube chapter block.  Stored in metadata so the long-form publisher
+      // appends it to the video description automatically.
+      let chapterDescription: string | undefined;
+      if (isLongForm) {
+        try {
+          const chapters = await buildChaptersFromSceneDetection(rawPath, durationSec);
+          if (chapters) {
+            chapterDescription = chapters;
+            logger.debug(`[PreEncoder] Chapter markers built for item ${item.id} (${chapters.split("\n").length} chapters)`);
+          }
+        } catch { /* non-fatal */ }
+      }
 
       // Atomically claim: write preEncodedPath and promote pending→scheduled so
       // the publisher finds the item via the standard scheduled-items path.
@@ -751,6 +809,8 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             preEncodedPath: outputPath,
             preEncodedAt: new Date().toISOString(),
             ...(vaultFilePath ? { preEncodedViaVault: true } : {}),
+            ...(thumbnailPath   ? { thumbnailPath }       : {}),
+            ...(chapterDescription ? { chapterDescription } : {}),
           } as any,
         })
         .where(and(

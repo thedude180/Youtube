@@ -379,11 +379,21 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
         ).substring(0, 100));
 
         const fullVideoUrl = resolvedYoutubeId ? `\n\nFull recording → https://youtu.be/${resolvedYoutubeId}` : "";
-        const description = stripShortsTag((
+        const baseDescription = stripShortsTag((
           typeof itemMeta.seoDescription === "string" && itemMeta.seoDescription.length > 5
             ? itemMeta.seoDescription
             : `${item.content || ""}\n\nPS5 no-commentary gameplay.${fullVideoUrl}\n\n#PS5 #NoCommentary #${gameName.replace(/\s+/g, "")} #Gaming`
-        ).substring(0, 5000));
+        ));
+        // Append chapter markers built by the pre-encoder (Tier 3 intelligence).
+        // These are YouTube-format timestamps derived from scene-change detection
+        // on the actual encoded clip, so they are accurate to the uploaded video.
+        const preEncoderChapters = typeof itemMeta.chapterDescription === "string" && itemMeta.chapterDescription.length > 5
+          ? itemMeta.chapterDescription
+          : null;
+        const description = (preEncoderChapters
+          ? `${baseDescription}\n\n${preEncoderChapters}`
+          : baseDescription
+        ).substring(0, 5000);
 
         const rawTagsLF = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
         // Strip "shorts" from any tag — long-form must not have it anywhere

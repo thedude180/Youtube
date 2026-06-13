@@ -7,6 +7,12 @@ import { streamEditJobs, contentVaultBackups } from "@shared/schema";
 import { eq, and, or, sql, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { packageClips } from "./stream-editor-packager";
+import {
+  detectGameplayStartSec,
+  detectLowMotion,
+  extractThumbnail,
+  buildChapterFromMoments,
+} from "./clip-intelligence";
 
 const logger = createLogger("stream-editor");
 
@@ -342,104 +348,6 @@ async function probeVideo(filePath: string): Promise<{
   };
 }
 
-// ── Audio-capture FFmpeg runner ───────────────────────────────────────────────
-// Runs FFmpeg and captures stderr (where analysis filters like silencedetect and
-// scdet write their output).  Always resolves — FFmpeg exits 1 on -f null runs.
-function runFFmpegCapture(args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const errChunks: Buffer[] = [];
-    const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "ignore", "pipe"] });
-    proc.stderr.on("data", (d: Buffer) => errChunks.push(d));
-    proc.on("close", () => resolve(Buffer.concat(errChunks).toString("utf8")));
-    proc.on("error", (e) => reject(e));
-  });
-}
-
-// ── Smart intro detection (Tier 2) ───────────────────────────────────────────
-// Scans the first 5 minutes of audio for silence blocks to find where gameplay
-// actually begins.  Streams often open with 30–120 s of lobby or loading silence.
-// Returns the inferred gameplay-start timestamp in seconds.
-async function detectGameplayStartSec(filePath: string, totalDurationSec: number): Promise<number> {
-  const defaultSkip = Math.min(totalDurationSec * 0.08, 600);
-  try {
-    const scanSec = Math.min(300, Math.round(totalDurationSec * 0.10));
-    if (scanSec < 30) return defaultSkip;
-    const stderr = await runFFmpegCapture([
-      "-ss", "0", "-t", String(scanSec),
-      "-i", filePath,
-      "-af", "silencedetect=n=-35dB:d=8",
-      "-vn", "-f", "null", "-",
-    ]);
-    const silenceEnds: number[] = [];
-    for (const m of stderr.matchAll(/silence_end:\s*([\d.]+)/g)) {
-      silenceEnds.push(parseFloat(m[1]));
-    }
-    const preGameSilences = silenceEnds.filter(t => t < Math.min(240, scanSec * 0.8));
-    if (preGameSilences.length > 0) {
-      const gameplayStart = Math.max(...preGameSilences) + 2; // +2 s buffer
-      return Math.min(gameplayStart, defaultSkip * 1.5);
-    }
-  } catch { /* non-fatal */ }
-  return defaultSkip;
-}
-
-// ── Low-motion guard (Tier 3) ─────────────────────────────────────────────────
-// Probes a 20 s sample via FFmpeg scene-change detection.  Low scores = static
-// content (menus, loading screens, lobby UI).  When true, cinematic colour
-// grading is skipped — applying teal-orange curves to a black loading screen looks wrong.
-async function detectLowMotion(filePath: string, startSec: number, sampleSec = 20): Promise<boolean> {
-  try {
-    const stderr = await runFFmpegCapture([
-      "-ss", String(Math.max(0, startSec)),
-      "-t", String(Math.min(sampleSec, 30)),
-      "-i", filePath,
-      "-vf", "scdet=threshold=10",
-      "-an", "-f", "null", "-",
-    ]);
-    const scores = [...stderr.matchAll(/score:\s*([\d.]+)/gi)].map(m => parseFloat(m[1]));
-    if (scores.length === 0) return false;
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    return mean < 5.0;
-  } catch {
-    return false;
-  }
-}
-
-// ── Frame-accurate thumbnail extractor (Tier 2) ───────────────────────────────
-// Extracts a single 1280×720 JPEG from the source at the given timestamp.
-// Generates a thumbnail from the actual peak-action moment rather than AI art.
-async function extractThumbnail(sourcePath: string, atSec: number, outputPath: string): Promise<void> {
-  await runFFmpegCapture([
-    "-ss", String(Math.max(0, atSec)),
-    "-i", sourcePath,
-    "-vframes", "1",
-    "-vf", "scale=1280:720:flags=lanczos",
-    "-q:v", "2",
-    "-f", "image2",
-    outputPath,
-  ]);
-}
-
-// ── Chapter markers builder (Tier 3) ─────────────────────────────────────────
-// Converts detected moment timestamps into YouTube chapter format.
-// Moments are re-baselined to the long-form clip's start so they are accurate
-// relative to the output video's own timeline (not the full-length source).
-function buildChapterFromMoments(
-  moments: Array<{ startSec: number }>,
-  longFormStartSec: number,
-  longFormDurationSec: number,
-): string | null {
-  const relevant = moments
-    .filter(m => m.startSec >= longFormStartSec && m.startSec < longFormStartSec + longFormDurationSec)
-    .map(m => {
-      const relSec = Math.round(m.startSec - longFormStartSec);
-      const mm = Math.floor(relSec / 60);
-      const ss  = relSec % 60;
-      return `${mm}:${String(ss).padStart(2, "0")} Highlight`;
-    });
-  if (relevant.length === 0) return null;
-  return ["0:00 Gameplay", ...relevant].join("\n");
-}
 
 function buildCinematicVideoFilter(
   gameName: string | null | undefined,
