@@ -970,12 +970,28 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             }
           }
 
-          // Fallback: evenly-spaced timestamps
+          // Fallback: evenly-spaced timestamps — use the audience-learned target
+          // duration instead of the static constant so the system experiments
+          // across the full 15–179 s Shorts range and converges on what works.
           if (clipTimestamps.length === 0) {
+            let targetSec = SHORT_TARGET_SEC;
+            try {
+              const { chooseBestShortDuration } = await import("./youtube-performance-learner");
+              targetSec = await chooseBestShortDuration(userId, v.gameName ?? "");
+            } catch { /* non-fatal — keep static default */ }
             for (let i = 0; i < targetCount; i++) {
-              clipTimestamps.push({ startSec: i * intervalSec, endSec: i * intervalSec + SHORT_TARGET_SEC });
+              clipTimestamps.push({ startSec: i * intervalSec, endSec: i * intervalSec + targetSec });
             }
           }
+
+          // Hard cap: Shorts must be ≤ 179 s (YouTube 3-min platform limit).
+          // Also applies to AI-extracted moments whose natural window may exceed
+          // this — clamp endSec without moving startSec so the clip is still
+          // anchored to the viral peak.
+          clipTimestamps = clipTimestamps.map(s => ({
+            ...s,
+            endSec: Math.min(s.endSec, s.startSec + 179),
+          }));
 
           // ── MrBeast hook ranking: sort extracted moments by hook energy ──────
           // Always prefer the clip most likely to earn the viewer in the first 3s.

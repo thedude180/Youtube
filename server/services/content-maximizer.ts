@@ -34,7 +34,8 @@ const NO_COMMENTARY_TAGS = ["no commentary", "no commentary gameplay", "PS5 game
 const NO_COMMENTARY_TITLE_SUFFIX = " | No Commentary";
 const NO_COMMENTARY_DESC_HEADER = "Pure PS5 gameplay — no commentary, no distractions. Just the game.\n\n";
 
-const SHORT_DURATIONS_TO_TEST = [15, 30, 45, 59];
+// Full 15–179 s experiment range — mirrors SHORT_BUCKETS_SEC in the learner
+const SHORT_DURATIONS_TO_TEST = [22, 45, 75, 105, 135, 165];
 const LONG_FORM_DURATIONS_TO_TEST = [480, 600, 900, 1200, 1800, 2700, 3600];
 
 function parseDurationSec(raw: any): number {

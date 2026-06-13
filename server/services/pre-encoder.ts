@@ -535,6 +535,16 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       : Number(meta.endSec ?? meta.segmentEndSec ?? 60);
     let durationSec = endSec - startSec;
 
+    // ── YouTube Shorts hard cap ────────────────────────────────────────────────
+    // YouTube rejects or misclassifies Shorts longer than 180 s. Clamp to 179 s
+    // so there's always 1 s of headroom regardless of what the upstream clip
+    // selector chose. Only applied to non-long-form content.
+    if (!isLongForm && durationSec > 179) {
+      logger.debug(`[PreEncoder] Short duration ${durationSec}s exceeds 179s cap — clamping endSec`);
+      endSec = startSec + 179;
+      durationSec = 179;
+    }
+
     // ── Resolve sourceYoutubeId for items that use sourceVideoId (int FK) ──────
     // Grinder/VOD-engine items store the source as sourceVideoId (integer FK to
     // the videos table) rather than sourceYoutubeId in metadata.  Look up the

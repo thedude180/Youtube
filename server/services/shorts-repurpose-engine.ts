@@ -21,7 +21,7 @@ type TargetPlatform = string;
 
 const MAX_SHORTS_PER_RUN = 3;
 const MIN_DURATION_SEC = 5;
-const MAX_SHORT_DURATION_SEC = 61;
+const MAX_SHORT_DURATION_SEC = 179; // YouTube Shorts hard cap (3 min)
 
 // ISO 8601 duration (e.g. "PT1M23S" / "PT45S") → seconds
 function parseIsoDurationSec(iso: string | undefined): number | null {

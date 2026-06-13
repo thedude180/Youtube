@@ -28,10 +28,16 @@ const logger = createLogger("yt-learner");
 export const LONG_FORM_BUCKETS_MIN = [8, 10, 15, 20, 30, 45, 60] as const;
 export type LongFormBucket = typeof LONG_FORM_BUCKETS_MIN[number];
 
+// Six buckets spanning the full YouTube Shorts range (15 s – 179 s).
+// The learner experiments across all buckets and converges on whichever
+// duration earns the highest watch-time / retention for this channel.
 export const SHORT_BUCKETS_SEC = [
-  { label: "short_15_30", minSec: 15, maxSec: 30, targetSec: 22 },
-  { label: "short_31_45", minSec: 31, maxSec: 45, targetSec: 38 },
-  { label: "short_46_60", minSec: 46, maxSec: 59, targetSec: 53 },
+  { label: "short_15_30",   minSec: 15,  maxSec: 30,  targetSec: 22  },
+  { label: "short_31_60",   minSec: 31,  maxSec: 60,  targetSec: 45  },
+  { label: "short_61_90",   minSec: 61,  maxSec: 90,  targetSec: 75  },
+  { label: "short_91_120",  minSec: 91,  maxSec: 120, targetSec: 105 },
+  { label: "short_121_150", minSec: 121, maxSec: 150, targetSec: 135 },
+  { label: "short_151_179", minSec: 151, maxSec: 179, targetSec: 165 },
 ] as const;
 
 const LONG_FORM_BUCKET_LABELS: Record<LongFormBucket, string> = {
@@ -54,7 +60,7 @@ export function getBucketLabel(contentType: "long_form" | "short", durationSec: 
     for (const b of SHORT_BUCKETS_SEC) {
       if (durationSec >= b.minSec && durationSec <= b.maxSec) return b.label;
     }
-    return durationSec < 30 ? "short_15_30" : "short_46_60";
+    return durationSec < 31 ? "short_15_30" : "short_151_179";
   }
   const min = durationSec / 60;
   if (min < 10)  return "long_8_10";
@@ -572,9 +578,11 @@ export async function chooseBestShortDuration(
       ))
       .groupBy(youtubeOutputMetrics.durationBucket);
 
-    if (!rows.length) return SHORT_BUCKETS_SEC[1].targetSec; // default 38s
+    // Default to 61–90 s bucket while data accumulates — mid-range performs
+    // consistently for gaming content before the learner has enough samples.
+    if (!rows.length) return SHORT_BUCKETS_SEC[2].targetSec; // 75s default
 
-    let best: typeof SHORT_BUCKETS_SEC[number] = SHORT_BUCKETS_SEC[1];
+    let best: typeof SHORT_BUCKETS_SEC[number] = SHORT_BUCKETS_SEC[2];
     let bestScore = -Infinity;
     for (const row of rows) {
       if ((row.cnt ?? 0) < EXPLORE_THRESHOLD) continue;
@@ -586,7 +594,7 @@ export async function chooseBestShortDuration(
     }
     return best.targetSec;
   } catch {
-    return SHORT_BUCKETS_SEC[1].targetSec;
+    return SHORT_BUCKETS_SEC[2].targetSec; // 75s fallback
   }
 }
 

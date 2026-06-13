@@ -154,6 +154,14 @@ async function queueAccelerationClips(
 
   if (sources.length === 0) return 0;
 
+  // Resolve the audience-learned clip duration once per hot-game batch
+  // (avoids one async DB call per clip while still exploiting the learner).
+  let targetShortSec = 75; // mid-range default until data accumulates
+  try {
+    const { chooseBestShortDuration } = await import("./youtube-performance-learner");
+    targetShortSec = await chooseBestShortDuration(userId, game);
+  } catch { /* non-fatal */ }
+
   let clipsQueued = 0;
 
   for (const src of sources) {
@@ -180,8 +188,8 @@ async function queueAccelerationClips(
     // Use the golden ratio offset (φ = 0.618) per clip to spread coverage
     const clipIndex    = (src.shortsQueuedCount ?? 0) + clipsQueued;
     const goldenOffset = ((clipIndex * 0.618) % 1.0);
-    const startSec     = Math.floor(goldenOffset * Math.max(0, src.durationSec - 45));
-    const endSec       = startSec + 38; // 38s sweet-spot for algorithm
+    const startSec     = Math.floor(goldenOffset * Math.max(0, src.durationSec - targetShortSec));
+    const endSec       = startSec + targetShortSec;
 
     const scheduledAt = await getNextShortPublishTime(userId, MIN_DAYS_AHEAD).catch(() => null);
     if (!scheduledAt) continue;
