@@ -4108,6 +4108,75 @@ async function migration068RebalanceCadencePileup(): Promise<void> {
   }
 }
 
+async function migration070LogQuotaTripIncident(): Promise<void> {
+  const FLAG = "migration:070:log_quota_trip_self_improve_hot_spin_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const { logSystemIncident } = await import("./incident-log");
+
+    // Incident A — daily quota trip from self-improvement hot-spin
+    await logSystemIncident({
+      incidentDate: "2026-06-13",
+      category: "quota_breach",
+      service: "self-improvement-engine",
+      rootCause:
+        "Back-catalog import fires upload.detected once per video (200+ videos). " +
+        "Each event scheduled onNewContentDetected 3 min later with NO per-user debounce. " +
+        "200+ AI cycles converged simultaneously → AI queue saturated → each cycle " +
+        "failed instantly but the 5s-apart error bursts still triggered YouTube Analytics " +
+        "reads per attempt. Quota hit 10,000 units at 13:00 UTC (6 AM Pacific) — " +
+        "6 hours into the day — blocking all publishing for the rest of the day.",
+      fixDescription:
+        "Added _selfImprovementPendingUntil debounce map (30 min TTL) in agent-events.ts. " +
+        "Mirrors the existing _consistencyCheckPendingUntil pattern. " +
+        "Also added logIncidentOnce() auto-detection inside reflectOnSelf() catch block " +
+        "so future AI-queue saturation from this engine is auto-logged.",
+      lesson:
+        "Every upload.detected consumer that triggers AI or YouTube API work MUST have " +
+        "a per-user batch debounce (30 min window). Batch catalog imports ingest 200+ " +
+        "videos at once — without a debounce, every subscriber of upload.detected fires " +
+        "N concurrent tasks N minutes later. Add _pendingUntil guards to ALL new " +
+        "upload.detected handlers, not just the first one written.",
+      severity: "critical",
+      crashesPerDay: 0,
+      status: "resolved",
+      tags: ["quota", "upload-batch", "debounce", "self-improvement", "no-publishing"],
+    });
+
+    // Incident B — self-improvement engine design clarification
+    await logSystemIncident({
+      incidentDate: "2026-06-13",
+      category: "hot_loop",
+      service: "self-improvement-engine",
+      rootCause:
+        "onNewContentDetected() was called once per ingested video with no debounce. " +
+        "A 200-video back-catalog import → 200 scheduled AI calls converging at T+3 min. " +
+        "The engine correctly reads only from local DB (videos.metadata, strategies, etc.) " +
+        "and does NOT call YouTube Analytics API directly. But the flood of simultaneous " +
+        "AI calls (each failing instantly due to queue full) created the visible 5-second " +
+        "hot-spin pattern in the logs before the quota breaker tripped.",
+      fixDescription:
+        "Per-user 30-min debounce added to the upload.detected → self-improvement path " +
+        "in agent-events.ts. Only ONE cascade fires per user per 30-min window regardless " +
+        "of how many videos were ingested in that batch.",
+      lesson:
+        "The self-improvement engine does NOT need its own analytics fetches — " +
+        "it correctly reads from pre-populated DB tables (videos.metadata->>'viewCount', " +
+        "discovered_strategies, etc.). The design is sound. The bug was the missing " +
+        "upstream debounce in the upload.detected event handler.",
+      severity: "high",
+      crashesPerDay: 0,
+      status: "resolved",
+      tags: ["hot-loop", "upload-batch", "debounce", "ai-queue"],
+    });
+
+    await setFlag(FLAG);
+    log.info("[Migration 070] Logged quota-trip + self-improvement hot-spin incidents to system_incident_log");
+  } catch (err: any) {
+    log.warn(`[Migration 070] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration069CancelStaleStreamEditJobs(): Promise<void> {
   const FLAG = "migration:069:cancel_stale_stream_edit_jobs_v1";
   if (await getFlag(FLAG)) return;
@@ -4204,6 +4273,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration067SeedSEOTemplates();
     await migration068RebalanceCadencePileup();
     await migration069CancelStaleStreamEditJobs();
+    await migration070LogQuotaTripIncident();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

@@ -10,6 +10,7 @@ import { safeParseJSON } from "../lib/safe-json";
 import { executeRoutedAICall } from "./ai-model-router";
 import { sanitizeObjectForPrompt } from "../lib/ai-attack-shield";
 import { recordLearningEvent } from "../learning-engine";
+import { logIncidentOnce } from "../lib/incident-log";
 import { createEngineStore, registerUserQueries, getUserData, getUserDataOne, invalidateUserData } from "../lib/engine-store";
 import { recordEngineKnowledge, getEngineKnowledgeForContext, getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
@@ -317,7 +318,23 @@ Return JSON: {
       blindSpots: (result.blindSpots || []).length,
     });
   } catch (err) {
-    logger.warn("Self-reflection failed", { error: String(err).slice(0, 200) });
+    const msg = String(err);
+    logger.warn("Self-reflection failed", { error: msg.slice(0, 200) });
+    // Auto-log if the AI queue is saturated — means upload.detected batch triggered
+    // too many concurrent cycles. This incident flows into masterKnowledgeBank via
+    // the learning brain's daily promoteIncidentLessonsToKnowledge() cycle.
+    if (msg.includes("AI queue full") || msg.includes("background callers waiting")) {
+      logIncidentOnce({
+        category: "hot_loop",
+        service: "self-improvement-engine",
+        rootCause: "upload.detected batch fires one onNewContentDetected per video; without a per-user debounce, 200+ imports schedule 200+ AI cycles simultaneously, saturating all 4 background AI slots.",
+        lesson: "Every upload.detected consumer that triggers AI work MUST have a per-user batch debounce (30 min window). The self-improvement cascade now has one in agent-events.ts.",
+        severity: "high",
+        status: "resolved",
+        fixDescription: "Added _selfImprovementPendingUntil debounce map (30 min TTL) in agent-events.ts — same pattern as _consistencyCheckPendingUntil.",
+        tags: ["upload-batch", "debounce", "ai-queue", "self-improvement"],
+      }).catch(() => {});
+    }
   }
 }
 

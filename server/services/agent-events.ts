@@ -23,6 +23,14 @@ const _gameVaultPipelineTTL = new Map<string, number>();
 const _consistencyCheckPendingUntil = new Map<string, number>();
 const CONSISTENCY_DEBOUNCE_MS = 30 * 60_000; // 30 min
 
+// Per-user debounce for upload.detected → self-improvement-engine path.
+// Same problem: back-catalog import ingests 200+ videos, each fires upload.detected,
+// each schedules onNewContentDetected 3 min later → 200 AI calls pile up simultaneously,
+// saturate the 4-slot AI queue, and can burn YouTube Data API quota on analytics lookups.
+// Only one self-improvement cascade is allowed per user per 30 min from this trigger.
+const _selfImprovementPendingUntil = new Map<string, number>();
+const SELF_IMPROVEMENT_DEBOUNCE_MS = 30 * 60_000; // 30 min
+
 // Cooldown map: userId:videoId → expiry timestamp (in-memory fast-path)
 // Also persisted to system_settings table for cross-reboot resilience (Fix #5).
 const _recordingFailureCooldown = new Map<string, number>();
@@ -885,15 +893,27 @@ export async function wireAgentCoordination(): Promise<void> {
 
     const videoId = event.payload?.videoId;
     if (videoId) {
-      setTimeout(async () => {
-        try {
-          const { onNewContentDetected } = await import("./self-improvement-engine");
-          await onNewContentDetected(event.userId, videoId, "upload_detected");
-          logger.info(`Self-improvement cascade (upload) complete for ${event.userId.slice(0, 8)}`);
-        } catch (err: any) {
-          logger.warn(`Upload self-improvement cascade failed: ${err.message}`);
-        }
-      }, 3 * 60_000);
+      // Debounce: only queue ONE self-improvement cascade per user per 30 min.
+      // Back-catalog import fires upload.detected once per video (200+ at a time).
+      // Without this guard every video schedules a full AI cycle 3 min later,
+      // creating a 200-call pile-up that saturates all 4 background AI slots.
+      const nowSI = Date.now();
+      const siPendingUntil = _selfImprovementPendingUntil.get(event.userId) ?? 0;
+      if (nowSI < siPendingUntil) {
+        logger.info(`Self-improvement cascade debounced for ${event.userId.slice(0, 8)} — batch already queued (expires in ${Math.round((siPendingUntil - nowSI) / 60_000)} min)`);
+      } else {
+        _selfImprovementPendingUntil.set(event.userId, nowSI + SELF_IMPROVEMENT_DEBOUNCE_MS);
+        setTimeout(async () => {
+          _selfImprovementPendingUntil.delete(event.userId);
+          try {
+            const { onNewContentDetected } = await import("./self-improvement-engine");
+            await onNewContentDetected(event.userId, videoId, "upload_detected");
+            logger.info(`Self-improvement cascade (upload) complete for ${event.userId.slice(0, 8)}`);
+          } catch (err: any) {
+            logger.warn(`Upload self-improvement cascade failed: ${err.message}`);
+          }
+        }, 3 * 60_000);
+      }
 
       setTimeout(async () => {
         try {
