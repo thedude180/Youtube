@@ -22,7 +22,7 @@ import { db } from "../db";
 import { channels, autopilotQueue } from "@shared/schema";
 import { eq, and, isNotNull, count, gte, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
+import { isQuotaBreakerTripped, getNextResetTime } from "./youtube-quota-tracker";
 import { runBackCatalogMonetizationCycle } from "./youtube-back-catalog-engine";
 import { runClipSeoSync } from "./youtube-clip-seo-sync";
 import { getContainerMemory } from "../lib/container-memory";
@@ -245,8 +245,36 @@ export function initBackCatalogRunner(): void {
   logger.info(`[BackCatalogRunner] Scheduled — first run in ${Math.round(STARTUP_DELAY_MS / 60_000)} min, then adaptive (1h–24h based on queue depth)`);
 
   // Recursive setTimeout — interval shrinks when queue is thin, expands when full.
+  // When the quota breaker is active, override the adaptive interval and instead
+  // schedule the next run for just after midnight Pacific (the quota reset window),
+  // so the runner always gets at least one full-quota attempt per day.
+  function msUntilQuotaReset(): number {
+    const resetTime = getNextResetTime();
+    // Add a 5-min buffer after reset so publishers (07:00 UTC) fire first
+    const msUntilReset = resetTime.getTime() - Date.now() + 5 * 60_000;
+    // If reset is within 5 min or already past, wait 1h (next reset is tomorrow)
+    return msUntilReset > 5 * 60_000 ? msUntilReset : 23 * 60 * 60_000;
+  }
+
   function scheduleNextRun(): void {
     getGlobalQueueDepth().then(depth => {
+      // If quota breaker is active, skip the adaptive interval and aim for reset
+      if (isQuotaBreakerTripped()) {
+        const waitMs = msUntilQuotaReset();
+        lastIntervalMs = waitMs;
+        nextRunAt = new Date(Date.now() + waitMs);
+        logger.info(
+          `[BackCatalogRunner] Quota breaker active — rescheduling for quota reset in ${Math.round(waitMs / 60_000)} min`
+        );
+        repeatTimer = setTimeout(async () => {
+          if (running) { scheduleNextRun(); return; }
+          running = true;
+          try { await runBackCatalogForAllEligibleUsers(); } finally { running = false; }
+          scheduleNextRun();
+        }, waitMs);
+        return;
+      }
+
       const intervalMs = adaptiveIntervalMs(depth);
       lastIntervalMs = intervalMs;
       nextRunAt = new Date(Date.now() + intervalMs);

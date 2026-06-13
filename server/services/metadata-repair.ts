@@ -25,7 +25,7 @@ import {
   buildLongFormDescriptionParts,
   buildStreamReplayDescriptionParts,
 } from "../lib/seo-templates";
-import { isQuotaBreakerTripped } from "../services/youtube-quota-tracker";
+import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { getRawOpenAIClientForDirectUse } from "../lib/openai";
 import { buildDescription } from "../lib/description-formatter";
 import { getUserChannelLinks } from "../content-variation-engine";
