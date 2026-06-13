@@ -564,6 +564,21 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     }
 
     if (!resolvedSourceYoutubeId) {
+      // If we had a sourceVideoId but the videos table entry has no YouTube ID,
+      // the item can never be processed — cancel it now so it stops churning
+      // every pre-encoder cycle.  The back-catalog runner will re-queue it
+      // properly (with sourceYoutubeId in metadata) if the source is ever valid.
+      if (item.sourceVideoId) {
+        try {
+          await db.update(autopilotQueue)
+            .set({
+              status: "cancelled" as any,
+              errorMessage: `sourceVideoId ${item.sourceVideoId} has no YouTube ID in videos table — cannot download or use vault`,
+            })
+            .where(and(eq(autopilotQueue.id, item.id), inArray(autopilotQueue.status, ["scheduled", "pending"])));
+          logger.info(`[PreEncoder] Cancelled item ${item.id} (sourceVideoId=${item.sourceVideoId}) — videos table has no youtubeVideoId`);
+        } catch (_) {}
+      }
       skipped++;
       continue;
     }

@@ -1088,6 +1088,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos for mining + recover wrongly-purged queue items (multi-game channel directive Jun 13 2026)" },
   { flag: "migration:064:purge_bad_game_name_items_v1",          label: "064 — purge auto-clip queue items with nonsense game names (AI/Sonic/Epic/Gaming) blocking BF6 queue slots" },
   { flag: "migration:065:blacklist_maz2_llq_storm_videos_v1",    label: "065 — blacklist mAz2whE1ruI + LlQFaMvy5_k storm videos (format unavailable → DB pool exhaustion → crash loop Jun 13 2026)" },
+  { flag: "migration:066:cancel_unresolvable_grinder_shorts_v1", label: "066 — cancel 20 stuck grinder youtube_short items whose sourceVideoId has no YouTube ID (silent-skip churn fix Jun 13 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -3873,6 +3874,38 @@ async function migration065BlacklistNewStormVideos(): Promise<void> {
   }
 }
 
+// ── Migration 066 — Cancel stuck grinder shorts with no YouTube ID ────────────
+// 20 youtube_short items in autopilot_queue all point to source_video_id=70167.
+// That videos table row has no title, no filePath, and no youtubeVideoId in
+// metadata — it is a broken/empty grinder artifact from an earlier failed run.
+// Without a YouTube ID the pre-encoder can't resolve a source → silently skips
+// on every 5-min cycle, burning pre-encoder budget forever without progress.
+// Fix: cancel all scheduled/pending queue items where sourceVideoId has a videos
+// table row with no youtubeVideoId (general form — catches 70167 and any future
+// equivalent broken artifacts).
+async function migration066CancelUnresolvableGrinderShorts(): Promise<void> {
+  const FLAG = "migration:066:cancel_unresolvable_grinder_shorts_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue aq
+      SET status        = 'cancelled',
+          error_message = 'sourceVideoId has no YouTube ID in videos table — cannot download or encode (migration 066)'
+      FROM videos v
+      WHERE v.id              = aq.source_video_id
+        AND aq.status         IN ('scheduled', 'pending')
+        AND aq.metadata->>'sourceYoutubeId' IS NULL
+        AND aq.metadata->>'preEncodedPath'  IS NULL
+        AND v.metadata->>'youtubeVideoId'   IS NULL
+    `);
+    const count = (result as any).rowCount ?? 0;
+    await setFlag(FLAG);
+    log.info(`[Migration 066] Cancelled ${count} unresolvable grinder shorts (sourceVideoId with no YouTube ID)`);
+  } catch (err: any) {
+    log.warn(`[Migration 066] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3942,6 +3975,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration063UnlockMultiGameCatalog();
     await migration064PurgeBadGameNameItems();
     await migration065BlacklistNewStormVideos();
+    await migration066CancelUnresolvableGrinderShorts();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
