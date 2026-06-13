@@ -24,6 +24,24 @@ const logger = createLogger("stream-editor-auto-publisher");
 
 const YOUTUBE_PLATFORMS = new Set(["youtube", "shorts"]);
 
+/**
+ * Returns true when the studio video title belongs to a game that is
+ * explicitly NOT the channel focus (Battlefield 6).
+ *
+ * This is a title-based heuristic guard — the packager may receive old stream
+ * recordings from any game the user has ever played.  Only Battlefield content
+ * (and generic / unidentified gaming content) should auto-publish.
+ *
+ * Patterns matched: AC Valhalla, any Assassin's Creed, Black Flag, Far Cry,
+ * Halo, Sonic, GTA, Minecraft, Fortnite, Apex Legends, Overwatch, Valorant.
+ * Add more as needed; false-positives (blocking BF6 content) are impossible
+ * because none of the pattern strings appear in Battlefield titles.
+ */
+function isNonBF6StudioTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return /valhalla|assassin[''s]*\s*creed|black flag|far cry|halo\b|sonic\b|grand theft|minecraft|fortnite|apex legends|overwatch|valorant|dying light|cyberpunk|god of war|spider.?man|hogwarts|elden ring|demon.s souls/i.test(title);
+}
+
 export interface ClipToSchedule {
   studioVideoId: number;
   platform: string;
@@ -68,6 +86,14 @@ export async function scheduleClipsForAutoPublish(
       const studioVideo = await storage.getStudioVideo(clip.studioVideoId);
       if (!studioVideo) {
         logger.warn(`[AutoPublisher] Studio video ${clip.studioVideoId} not found — skipping`);
+        continue;
+      }
+
+      // BF6 focus-gate: never auto-queue non-BF6 studio content.
+      // The packager may produce clips from any game the user has ever streamed;
+      // only Battlefield content (or unidentified gaming content) should be published.
+      if (isNonBF6StudioTitle(studioVideo.title)) {
+        logger.warn(`[AutoPublisher] Skipping clip sv${clip.studioVideoId} — non-BF6 content ("${studioVideo.title}"). Channel focus is Battlefield 6.`);
         continue;
       }
 
@@ -208,6 +234,21 @@ export async function processAutoPublishQueue(): Promise<void> {
       const studioVideo = await storage.getStudioVideo(studioVideoId);
       if (!studioVideo) {
         throw new Error(`Studio video ${studioVideoId} not found`);
+      }
+
+      // BF6 focus-gate (last-resort publisher guard).
+      // scheduleClipsForAutoPublish already blocks non-BF6 at queue time, but
+      // items queued before this guard was deployed may still be in the DB.
+      // Permanent-fail them here so they are never uploaded.
+      if (isNonBF6StudioTitle(studioVideo.title)) {
+        logger.warn(`[AutoPublisher] Permanent-failing sv${studioVideoId} — non-BF6 content ("${studioVideo.title}")`);
+        await db.update(autopilotQueue)
+          .set({
+            status: "permanent_fail",
+            errorMessage: "Non-BF6 studio content blocked — channel focus is Battlefield 6",
+          })
+          .where(eq(autopilotQueue.id, item.id));
+        continue;
       }
 
       const { publishStudioVideo } = await import("./studio-publisher");

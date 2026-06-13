@@ -337,6 +337,16 @@ export async function packageClips(
   }
 
   if (autoPublish) {
+    // BF6 focus-gate: only auto-publish content that matches the channel focus.
+    // The packager may produce clips from any game the user has ever streamed;
+    // non-BF6 games (AC Valhalla, Black Flag, etc.) must not be auto-published.
+    // Clips are still saved as studio videos (status=ready) for manual review.
+    const isNonBF6 = !!gameName && /valhalla|assassin[''s]*\s*creed|black flag|far cry|halo\b|sonic\b|grand theft|minecraft|fortnite|apex legends|overwatch|valorant|dying light|cyberpunk|god of war|spider.?man|hogwarts|elden ring|demon.s souls/i.test(gameName);
+    if (isNonBF6) {
+      logger.warn(`[Packager] Skipping auto-publish — gameName "${gameName}" is not Battlefield 6 (channel focus). ${result.filter(c => c.studioVideoId).length} clips saved as ready for manual review.`);
+      return result;
+    }
+
     const clipsToSchedule = result
       .filter(c => c.studioVideoId != null)
       .map(c => ({ studioVideoId: c.studioVideoId!, platform: c.platform, label: c.label }));

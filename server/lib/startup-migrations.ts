@@ -1101,6 +1101,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:049:cancel_blocked_publishing_queue", label: "049 — cancel permanently-blocked queue items (bad source videos + orphans); mark AC Valhalla studios published" },
   { flag: "migration:060:purge_non_bf6_shorts_v1",          label: "060 — purge non-BF6 Shorts from autopilot queue (focus gate enforcement)" },
   { flag: "migration:061:purge_non_bf6_slippage_v1",        label: "061 — purge non-BF6 slippage items (past-stream gate + wrong gameName in metadata)" },
+  { flag: "migration:062:cancel_non_bf6_studio_auto_publish_v1", label: "062 — permanent-fail non-BF6 studio_auto_publish queue items + cancel ready studio_videos (AC Valhalla double-post fix)" },
 ];
 
 export interface MigrationHealth {
@@ -3625,6 +3626,61 @@ async function migration061PurgeNonBF6SlippageItems(): Promise<void> {
   }
 }
 
+// ── Migration 062: permanent-fail non-BF6 studio_auto_publish queue items ──────
+// Root cause of AC Valhalla double-posts: the stream-editor packager created
+// studio_videos from old Valhalla stream recordings and auto-queued them for
+// publishing WITHOUT a BF6 game gate. publishStudioVideo uploaded fresh new
+// videos even though the source was already live on the channel (lMhEgKDntgY
+// etc.), creating duplicates. This migration:
+//   1. Permanent-fails all studio_auto_publish queue items whose studio_video
+//      title matches known non-BF6 game patterns (AC Valhalla, Black Flag, etc.)
+//   2. Cancels all studio_videos with matching titles that are in ready/error/
+//      processing state (prevents future auto-publish on any path).
+// Code gates added in stream-editor-auto-publisher.ts + stream-editor-packager.ts
+// prevent new non-BF6 items from entering the pipeline after this boot.
+
+async function migration062CancelNonBF6StudioAutoPublish(): Promise<void> {
+  const FLAG = "migration:062:cancel_non_bf6_studio_auto_publish_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // PostgreSQL ~* is case-insensitive regex — ILIKE does not support alternation (|).
+    // Pattern matches known non-BF6 game titles that slipped through the studio pipeline.
+    const NON_BF6_REGEX = "valhalla|assassin.s creed|black flag|far cry|halo\\b|sonic\\b|grand theft|minecraft|fortnite|apex legend|overwatch|valorant|dying light|cyberpunk|god of war|spider.?man|hogwarts|elden ring|demon.s souls";
+
+    // Step 1: permanent-fail any studio_auto_publish queue items whose linked
+    //         studio_video has a non-BF6 title and hasn't already been published.
+    const queueResult = await db.execute(sql`
+      UPDATE autopilot_queue q
+      SET
+        status        = 'permanent_fail',
+        error_message = 'migration062: non-BF6 studio content blocked — channel focus is Battlefield 6'
+      WHERE q.type   = 'studio_auto_publish'
+        AND q.status NOT IN ('published', 'permanent_fail')
+        AND EXISTS (
+          SELECT 1 FROM studio_videos sv
+          WHERE sv.id = (q.metadata->>'studioVideoId')::int
+            AND sv.title ~* ${NON_BF6_REGEX}
+        )
+    `);
+    const queueCancelled = (queueResult as any).rowCount ?? 0;
+
+    // Step 2: cancel studio_videos that are in a pre-publish state and match
+    //         the non-BF6 pattern so they cannot be re-queued by any other path.
+    const studioResult = await db.execute(sql`
+      UPDATE studio_videos
+      SET status = 'cancelled'
+      WHERE status IN ('ready', 'error', 'processing')
+        AND title ~* ${NON_BF6_REGEX}
+    `);
+    const studioCancelled = (studioResult as any).rowCount ?? 0;
+
+    log.info(`[Migration 062] Blocked ${queueCancelled} non-BF6 studio_auto_publish queue items; cancelled ${studioCancelled} non-BF6 studio_videos`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 062] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3690,6 +3746,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration059FixFileSizeBigint();
     await migration060PurgeNonBF6Shorts();
     await migration061PurgeNonBF6SlippageItems();
+    await migration062CancelNonBF6StudioAutoPublish();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
