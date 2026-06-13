@@ -755,12 +755,18 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     const scheduledDepth = depthRow?.cnt ?? 0;
 
     // ── Catalog rotation — Shorts ─────────────────────────────────────────────
-    // When EVERY source video across ALL games has been mined for Shorts AND
-    // fewer than 7 days of Shorts remain in the queue, reset all mined flags
-    // so the catalog cycles again.  The pipeline runs:
-    //   BF6 → other games → ALL exhausted → reset all → BF6 → other games → …
+    // When EVERY BF6 source video has been mined for Shorts AND fewer than 7
+    // days of Shorts remain in the queue, reset the BF6 mined flags so the
+    // catalog cycles endlessly through BF6 content.
+    //
+    // IMPORTANT: the exhaustion check must only look at BF6 videos.
+    // Non-BF6 videos are never mined (gameFilter blocks them), so their
+    // minedForShorts is always false — including non-BF6 in the "all mined"
+    // check would make it permanently false and break catalog rotation.
     {
-      const allShortsMined = ranked.every(v =>
+      const bf6Filter = buildGameFilter(focusGame);
+      const bf6Videos = ranked.filter(v => bf6Filter(v));
+      const allShortsMined = bf6Videos.length === 0 || bf6Videos.every(v =>
         v.isShort ||
         (v.durationSec ?? 0) < SHORT_MIN_SOURCE_SEC ||
         !!v.minedForShorts,
@@ -778,19 +784,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             lt(autopilotQueue.scheduledAt, shortsWindowEnd),
           ));
         if ((shortsDepth?.cnt ?? 0) < 21) { // fewer than 7 days × 3/day
+          const bf6Ids = bf6Videos.map(v => v.id).filter((id): id is number => typeof id === "number");
           await db.update(backCatalogVideos)
             .set({ minedForShorts: false, updatedAt: new Date() })
             .where(and(
               eq(backCatalogVideos.userId, userId),
               eq(backCatalogVideos.minedForShorts, true),
+              bf6Ids.length > 0 ? inArray(backCatalogVideos.id, bf6Ids) : sql`true`,
             ))
             .catch(() => {});
-          for (const v of ranked) {
+          for (const v of bf6Videos) {
             v.minedForShorts = false;
           }
           logger.info(
-            `[BackCatalog] Catalog rotation — reset Shorts mining flags for ALL games ` +
-            `(entire catalog exhausted; Shorts queue: ${shortsDepth?.cnt ?? 0} in next 7d)`,
+            `[BackCatalog] Catalog rotation — reset Shorts mining flags for BF6 ` +
+            `(${bf6Videos.length} focus-game videos recycled; queue: ${shortsDepth?.cnt ?? 0} Shorts in next 7d)`,
           );
         }
       }
@@ -1031,11 +1039,18 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     // (no else — depth cap is the only gate; if queue is full, just skip quietly)
 
     // ── Catalog rotation — Long-form ──────────────────────────────────────────
-    // Same principle as Shorts rotation: when EVERY source video across ALL
-    // games is marked mined_for_long_form AND fewer than 14 days of long-form
-    // content remain, reset all flags and start the cycle over.
+    // Same principle as Shorts rotation but for long-form: when EVERY BF6
+    // source video is marked mined_for_long_form AND fewer than 14 days of
+    // long-form content remain, reset BF6 flags only so the cycle repeats
+    // indefinitely through focus-game content.
+    //
+    // Non-BF6 videos must be excluded from the "all mined" check — they are
+    // never mined (gameFilter blocks them) so their flag is always false,
+    // which would permanently prevent the rotation from ever firing.
     {
-      const allLfMined = ranked.every(v =>
+      const bf6FilterLf = buildGameFilter(focusGame);
+      const bf6VideosLf = ranked.filter(v => bf6FilterLf(v));
+      const allLfMined = bf6VideosLf.length === 0 || bf6VideosLf.every(v =>
         v.isShort ||
         (v.durationSec ?? 0) < LONG_FORM_MIN_SOURCE_SEC ||
         !!v.minedForLongForm,
@@ -1053,19 +1068,21 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
             lt(autopilotQueue.scheduledAt, lfWindowEnd),
           ));
         if ((lfDepth?.cnt ?? 0) < 14) { // fewer than 1/day for 14 days
+          const bf6IdsLf = bf6VideosLf.map(v => v.id).filter((id): id is number => typeof id === "number");
           await db.update(backCatalogVideos)
             .set({ minedForLongForm: false, updatedAt: new Date() })
             .where(and(
               eq(backCatalogVideos.userId, userId),
               eq(backCatalogVideos.minedForLongForm, true),
+              bf6IdsLf.length > 0 ? inArray(backCatalogVideos.id, bf6IdsLf) : sql`true`,
             ))
             .catch(() => {});
-          for (const v of ranked) {
+          for (const v of bf6VideosLf) {
             v.minedForLongForm = false;
           }
           logger.info(
-            `[BackCatalog] Catalog rotation — reset long-form mining flags for ALL games ` +
-            `(entire catalog exhausted; long-form queue: ${lfDepth?.cnt ?? 0} in next 14d)`,
+            `[BackCatalog] Catalog rotation — reset long-form mining flags for BF6 ` +
+            `(${bf6VideosLf.length} focus-game videos recycled; queue: ${lfDepth?.cnt ?? 0} long-form in next 14d)`,
           );
         }
       }
