@@ -417,6 +417,7 @@ export async function registerRoutes(
   await registerPlatformRoutes(app);
   registerAiRoutes(app);
   registerAutopilotRoutes(app);
+  registerPipelineHealthRoutes(app);
   registerPipelineRoutes(app);
   registerDualPipelineRoutes(app);
   await registerAutomationRoutes(app);
@@ -466,7 +467,6 @@ export async function registerRoutes(
   registerOmniIntelligenceRoutes(app);
   registerNicheResearchRoutes(app);
   registerEtgaming247Routes(app);
-  registerPipelineHealthRoutes(app);
   registerViewerVerificationRoutes(app);
   registerCreativeLibraryRoutes(app);
 
