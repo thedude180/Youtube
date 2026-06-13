@@ -414,6 +414,26 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Internet intelligence promotion non-fatal: ${internetErr?.message?.slice(0, 80)}`);
     }
 
+    // 9e. Seed curated SEO templates into masterKnowledgeBank (idempotent) + run
+    //     metadata repair cycle to fix any published videos with PS5-fallback or
+    //     generic "Live Stream" titles. Both run at most once per 20h per user and
+    //     are fully non-fatal — a failure here must never break the daily cycle.
+    try {
+      const { seedSEOTemplatesToKnowledgeBank } = await import("../lib/seo-templates");
+      await seedSEOTemplatesToKnowledgeBank(userId);
+    } catch (seoSeedErr: any) {
+      logger.debug(`[Brain] SEO template seed non-fatal: ${seoSeedErr?.message?.slice(0, 80)}`);
+    }
+    try {
+      const { runMetadataRepairCycle } = await import("./metadata-repair");
+      const { repaired } = await runMetadataRepairCycle(userId);
+      if (repaired > 0) {
+        logger.info(`[Brain] Metadata repair: ${repaired} video title(s) fixed`);
+      }
+    } catch (repairErr: any) {
+      logger.debug(`[Brain] Metadata repair non-fatal: ${repairErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];

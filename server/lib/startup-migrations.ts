@@ -3906,6 +3906,43 @@ async function migration066CancelUnresolvableGrinderShorts(): Promise<void> {
   }
 }
 
+// ── Migration 067: seed curated BF6 SEO templates into masterKnowledgeBank ───
+// Writes 15 permanent_principle entries covering title formulas, tag sets,
+// description patterns, playlist strategy, and banned title patterns.
+// Idempotent — the seeder checks for existing principles before inserting.
+// Running per user ensures the templates are available before the first
+// daily learning cycle fires (which would otherwise be the first seeding time).
+
+async function migration067SeedSEOTemplates(): Promise<void> {
+  const FLAG = "migration:067:seed_seo_templates_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const { channels } = await import("@shared/schema");
+    const { isNotNull } = await import("drizzle-orm");
+    const { seedSEOTemplatesToKnowledgeBank } = await import("./seo-templates");
+
+    // Collect all distinct user IDs that have a YouTube channel
+    const rows = await db
+      .select({ userId: channels.userId })
+      .from(channels)
+      .where(isNotNull(channels.userId));
+
+    const seen = new Set<string>();
+    let totalSeeded = 0;
+    for (const row of rows) {
+      if (!row.userId || seen.has(row.userId)) continue;
+      seen.add(row.userId);
+      const n = await seedSEOTemplatesToKnowledgeBank(row.userId);
+      totalSeeded += n;
+    }
+
+    await setFlag(FLAG);
+    log.info(`[Migration 067] Seeded ${totalSeeded} SEO template principles across ${seen.size} user(s)`);
+  } catch (err: any) {
+    log.warn(`[Migration 067] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3976,6 +4013,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration064PurgeBadGameNameItems();
     await migration065BlacklistNewStormVideos();
     await migration066CancelUnresolvableGrinderShorts();
+    await migration067SeedSEOTemplates();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
