@@ -1193,7 +1193,7 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
  * Fix: spawn with detached:true (own process group), then SIGKILL the whole
  * group on timeout so yt-dlp AND its children are wiped immediately.
  */
-function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs: number): Promise<void> {
+function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs?: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -1203,13 +1203,17 @@ function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs: numbe
     let stderr = "";
     let done = false;
 
-    const timer = setTimeout(() => {
+    // Hard kill timer — only set when a timeout is explicitly requested.
+    // Full vault downloads (full-video, not sections) pass no timeout so they
+    // run to completion regardless of duration.  yt-dlp's own --socket-timeout
+    // and --retries flags handle TCP stalls and transient failures internally.
+    const timer = timeoutMs != null ? setTimeout(() => {
       done = true;
       try {
         if (child.pid) process.kill(-child.pid, "SIGKILL"); // kill entire group
       } catch {}
       reject(new Error(`yt-dlp hard timeout after ${Math.round(timeoutMs / 1000)}s — process group killed`));
-    }, timeoutMs);
+    }, timeoutMs) : null;
 
     // Capture stderr for error messages (bounded to 8 KB)
     child.stderr?.on("data", (d: Buffer) => {
@@ -1220,7 +1224,7 @@ function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs: numbe
     child.stdout?.resume();
 
     child.on("close", (code) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (done) return; // timeout already rejected
       done = true;
       if (code === 0) {
@@ -1231,7 +1235,7 @@ function spawnYtDlpWithHardTimeout(bin: string, args: string[], timeoutMs: numbe
     });
 
     child.on("error", (err) => {
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
       if (done) return;
       done = true;
       reject(err);
@@ -1304,11 +1308,11 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
       // go before pre-encoder section downloads in the gate queue.
       const releaseDl = await acquireYtdlpSlot(0);
       try {
-        // Hard 8-minute wall-clock kill: SIGKILL the entire process group
-        // (yt-dlp + its --js-runtimes node child) so a hung download can never
-        // stall the Node event loop.  execFileAsync with SIGTERM didn't work —
-        // see spawnYtDlpWithHardTimeout() for the full explanation.
-        await spawnYtDlpWithHardTimeout(resolveYtdlp(), ["-f", formatStr, ...baseArgs], 480_000);
+        // No hard timeout — full vault downloads must run to completion regardless
+        // of video duration (streams can be 10+ hours).  yt-dlp's own --socket-timeout
+        // and --retries flags handle TCP stalls; the process exits naturally on
+        // success or exhausted retries.
+        await spawnYtDlpWithHardTimeout(resolveYtdlp(), ["-f", formatStr, ...baseArgs]);
       } finally {
         releaseDl();
       }
