@@ -1002,6 +1002,38 @@ async function migration016CreateErrorKnowledgeBase(): Promise<void> {
 // in the past will be bumped to the next valid future slot automatically,
 // so this reset cannot cause a burst of simultaneous uploads.
 
+// ── Per-boot non-BF6 queue purge (non-flagged — runs every restart) ───────────
+// Flagged migrations (060, 061) only run once.  New non-BF6 items can arrive at
+// any point: content-maximizer inheriting a stale gameName, queuePastStreamContent
+// picking up an off-brand stream, or back-catalog engine race.  This non-flagged
+// sweep runs on every boot so any contamination introduced since the last deploy
+// is cleared before publishers fire.
+async function cleanupNonBF6QueueItems(): Promise<void> {
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status        = 'permanent_fail',
+        error_message = 'per-boot cleanup: non-focus-game item removed — channel focus is Battlefield 6'
+      WHERE status IN ('scheduled', 'pending')
+        AND (metadata->>'gameName') IS NOT NULL
+        AND (metadata->>'gameName') != ''
+        AND metadata->>'gameName' NOT ILIKE '%battlefield%'
+        AND metadata->>'gameName' NOT ILIKE '%bf6%'
+        AND metadata->>'gameName' NOT ILIKE '%bf 6%'
+        AND metadata->>'gameName' NOT ILIKE '%gaming%'
+    `);
+    const count = (result as any).rowCount ?? (result as any).count ?? 0;
+    if (typeof count === "number" && count > 0) {
+      log.info(`[BootCleanup] Purged ${count} non-BF6 queue item(s) (gameName filter)`);
+    } else {
+      log.debug("[BootCleanup] No non-BF6 queue items found");
+    }
+  } catch (err: any) {
+    log.warn(`[BootCleanup] cleanupNonBF6QueueItems failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function cleanupStuckPendingItems(): Promise<void> {
   try {
     const result = await db
@@ -1067,6 +1099,8 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:036:fail_OG1_3Dw4_storm_videos",    label: "036 — permanently fail OG1-0dE1VPA + 3Dw4UB86S9g storm videos; fix dual-column orphan queue sweep" },
   { flag: "migration:037:seed_system_incident_log",       label: "037 — seed system_incident_log with all 30 historical crash/bug incidents for AI learning brain" },
   { flag: "migration:049:cancel_blocked_publishing_queue", label: "049 — cancel permanently-blocked queue items (bad source videos + orphans); mark AC Valhalla studios published" },
+  { flag: "migration:060:purge_non_bf6_shorts_v1",          label: "060 — purge non-BF6 Shorts from autopilot queue (focus gate enforcement)" },
+  { flag: "migration:061:purge_non_bf6_slippage_v1",        label: "061 — purge non-BF6 slippage items (past-stream gate + wrong gameName in metadata)" },
 ];
 
 export interface MigrationHealth {
@@ -3670,6 +3704,11 @@ export async function runStartupMigrations(): Promise<void> {
 
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
+    // Non-flagged per-boot non-BF6 purge — removes any scheduled/pending queue
+    // items whose gameName doesn't match the channel focus game.  Runs every
+    // restart so contamination from content-maximizer, past-stream extraction,
+    // or back-catalog engine race conditions is always cleared before publishers fire.
+    await cleanupNonBF6QueueItems();
     // Non-flagged per-boot vault storm prevention — runs every restart.
     // Fails active vault entries with failCount >= 2, stamps permanentFail on all
     // failed entries, and cancels any autopilot_queue items whose source vault

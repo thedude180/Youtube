@@ -197,7 +197,14 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
   }
 
   const durationMin = Math.floor(durationSec / 60);
-  const gameName = meta.gameName || meta.game || await getFocusGame();
+  const focusGame = await getFocusGame().catch(() => "Battlefield 6");
+  const rawGameName = meta.gameName || meta.game || focusGame;
+  // Always resolve to a focus-game-matched name.  Content-maximizer inherits the
+  // source item's gameName from metadata — if the catalog mis-detected the game
+  // (e.g. "Sonic the Hedgehog" on a BF2042 video), every generated clip would
+  // carry the wrong label.  Override with the focus game when the stored name
+  // doesn't match the Battlefield family.
+  const gameName = /battlefield|bf6|bf 6/i.test(rawGameName) ? rawGameName : focusGame;
   const preference = await getOptimalDurations(userId);
 
   logger.info("Content maximizer starting", {
