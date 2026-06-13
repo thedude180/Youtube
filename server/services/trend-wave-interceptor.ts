@@ -17,7 +17,7 @@ import {
   engineKnowledge,
   channels,
 } from "@shared/schema";
-import { getFocusGame } from "../lib/game-focus";
+import { getFocusGame, buildFocusGameRegex } from "../lib/game-focus";
 import { eq, and, gt, isNull, or, sql, desc, ilike, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
@@ -111,6 +111,9 @@ Return ONLY the title string, no quotes, no explanation.`;
 async function runTrendWaveInterceptorCycle(userId: string): Promise<void> {
   logger.info(`[TrendWave] Starting cycle — ${userId.slice(0, 8)}`);
 
+  const _trendFocusGame = await getFocusGame().catch(() => "Battlefield 6");
+  const _trendFocusRe = buildFocusGameRegex(_trendFocusGame);
+
   const freshSince = new Date(Date.now() - FRESHNESS_DAYS * 86_400_000);
 
   const rising = await db
@@ -155,6 +158,14 @@ async function runTrendWaveInterceptorCycle(userId: string): Promise<void> {
 
     // Find best matching catalog video
     const source = await findCatalogMatch(userId, topic);
+
+    // Focus-game gate: if the matched source is explicitly a different game, skip it
+    if (source && source.gameName && !_trendFocusRe.test(source.gameName)) {
+      logger.info(`[TrendWave] Skipping non-focus-game source "${source.gameName}" for trend "${topic.substring(0, 50)}"`);
+      noMatch++;
+      await db.update(predictiveTrends).set({ actionTaken: true }).where(eq(predictiveTrends.id, trend.id));
+      continue;
+    }
 
     if (!source) {
       // Write a content-gap signal for the orchestrator to act on

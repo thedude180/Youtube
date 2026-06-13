@@ -179,6 +179,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
       .where(and(
         eq(videos.channelId, channel.id),
         eq(videos.platform, "youtube"),
+        sql`(${videos.metadata}->>'gameName' IS NULL OR ${videos.metadata}->>'gameName' ~* 'battlefield|bf6|bf 6')`,
       ))
       .orderBy(desc(sql`COALESCE((${videos.metadata}->>'viewCount')::int, 0)`))
       .limit(50);

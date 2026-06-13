@@ -572,9 +572,16 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
         }
 
         try {
-          const { maximizeContentFromVideo } = await import("./content-maximizer");
-          const maxResult = await maximizeContentFromVideo(userId, dbVideo.id);
-          editingResult.contentMaximizer = maxResult;
+          const _titleFg = link.title || dbVideo.title || "";
+          const _gameFg: string = (dbVideo.metadata as any)?.gameName || "";
+          const _isFocusFg = !_gameFg || /battlefield|bf6|bf 6/i.test(_gameFg) || /battlefield|bf6|bf 6/i.test(_titleFg);
+          if (_isFocusFg) {
+            const { maximizeContentFromVideo } = await import("./content-maximizer");
+            const maxResult = await maximizeContentFromVideo(userId, dbVideo.id);
+            editingResult.contentMaximizer = maxResult;
+          } else {
+            logger.info(`[${userId}] Maximizer skipped — non-focus-game: "${_titleFg.substring(0, 60)}"`);
+          }
         } catch (err: any) {
           logger.warn(`[${userId}] Content maximizer failed for ${link.youtubeId}: ${err.message?.substring(0, 150)}`);
         }

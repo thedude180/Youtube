@@ -1273,7 +1273,7 @@ async function healProductionPipeline(): Promise<void> {
         })
         .from(videosTable)
         .innerJoin(channelsTbl, eq(channelsTbl.id, videosTable.channelId))
-        .where(sql`(${videosTable.metadata}->>'durationSec')::float >= 3600`)
+        .where(sql`(${videosTable.metadata}->>'durationSec')::float >= 3600 AND ((${videosTable.metadata}->>'gameName') IS NULL OR (${videosTable.metadata}->>'gameName') ~* 'battlefield|bf6|bf 6')`)
         .orderBy(sql`RANDOM()`)
         .limit(2);
 

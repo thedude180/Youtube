@@ -8,7 +8,7 @@ import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { CommandCenter } from "../lib/command-center";
-import { getFocusGame } from "../lib/game-focus";
+import { getFocusGame, buildFocusGameRegex } from "../lib/game-focus";
 import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
@@ -241,10 +241,14 @@ async function grindUserContent(userId: string): Promise<GrindState> {
   };
 
   const allVideos = await storage.getVideosByUser(userId);
+  const _grindFocusGame = await getFocusGame().catch(() => "Battlefield 6");
+  const _grindFocusRe = buildFocusGameRegex(_grindFocusGame);
   const longFormVideos = allVideos.filter((v: any) => {
     const meta = (v.metadata as any) || {};
     const durSec = meta.durationSec || parseDurationToSeconds(meta.duration);
-    return durSec >= 300 && v.type !== "short" && v.type !== "clip" && !meta.isShort;
+    if (!(durSec >= 300 && v.type !== "short" && v.type !== "clip" && !meta.isShort)) return false;
+    const gn: string = meta.gameName || "";
+    return !gn || _grindFocusRe.test(gn);
   });
 
   longFormVideos.sort((a: any, b: any) => {
@@ -1159,9 +1163,12 @@ Return JSON:
 
 async function scanForUnderperformers(userId: string): Promise<void> {
   const allVideos = await storage.getVideosByUser(userId);
-
+  const _scanFocusGame = await getFocusGame().catch(() => "Battlefield 6");
+  const _scanFocusRe = buildFocusGameRegex(_scanFocusGame);
   const publishedVideos = allVideos.filter((v: any) => {
     const meta = (v.metadata as any) || {};
+    const gn: string = meta.gameName || "";
+    if (gn && !_scanFocusRe.test(gn)) return false;
     return meta.youtubeId && (meta.viewCount || 0) > 0;
   });
 

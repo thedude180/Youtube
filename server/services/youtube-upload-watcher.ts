@@ -180,12 +180,19 @@ async function runFullEditingPipeline(userId: string, videoId: number, channelId
   }
 
   if (durationSec >= 3600) {
-    try {
-      const { maximizeContentFromVideo } = await import("./content-maximizer");
-      const result = await maximizeContentFromVideo(userId, videoId);
-      logger.info(`[${userId}] Content maximizer: ${result.shortsQueued} shorts + ${result.longFormsQueued} long-forms queued, ${result.experimentsCreated} experiments`);
-    } catch (err: any) {
-      logger.warn(`[${userId}] Content maximizer failed for video ${videoId}: ${err.message}`);
+    const _vTitle: string = video.title || "";
+    const _vGame: string = (video.metadata as any)?.gameName || detectedGame || "";
+    const _isFocusForMax = !_vGame || /battlefield|bf6|bf 6/i.test(_vGame) || /battlefield|bf6|bf 6/i.test(_vTitle);
+    if (_isFocusForMax) {
+      try {
+        const { maximizeContentFromVideo } = await import("./content-maximizer");
+        const result = await maximizeContentFromVideo(userId, videoId);
+        logger.info(`[${userId}] Content maximizer: ${result.shortsQueued} shorts + ${result.longFormsQueued} long-forms queued, ${result.experimentsCreated} experiments`);
+      } catch (err: any) {
+        logger.warn(`[${userId}] Content maximizer failed for video ${videoId}: ${err.message}`);
+      }
+    } else {
+      logger.info(`[${userId}] Maximizer skipped — non-focus-game video: "${_vTitle.substring(0, 60)}"`);
     }
   }
 
