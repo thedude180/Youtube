@@ -58,7 +58,7 @@ async function ytCreatePlaylist(channelId: number, title: string, description: s
   }
 }
 
-async function ytAddToPlaylist(channelId: number, youtubePlaylistId: string, videoId: string, position: number): Promise<boolean> {
+async function ytAddToPlaylist(channelId: number, youtubePlaylistId: string, videoId: string): Promise<boolean> {
   try {
     const { getAuthenticatedClient } = await import("../youtube");
     const { google } = await import("googleapis");
@@ -71,7 +71,6 @@ async function ytAddToPlaylist(channelId: number, youtubePlaylistId: string, vid
         snippet: {
           playlistId: youtubePlaylistId,
           resourceId: { kind: "youtube#video", videoId },
-          position,
         },
       },
     });
@@ -154,13 +153,12 @@ async function syncGameFunnel(
   let added = 0;
 
   for (let i = currentShortsCount; i < shorts.length && added < MAX_VIDEOS_PER_RUN; i++) {
-    const ok = await ytAddToPlaylist(channelId, funnel.youtubePlaylistId, shorts[i].youtubeVideoId, i);
+    const ok = await ytAddToPlaylist(channelId, funnel.youtubePlaylistId, shorts[i].youtubeVideoId);
     if (ok) added++;
   }
 
   for (let i = currentLongFormCount; i < longForms.length && added < MAX_VIDEOS_PER_RUN; i++) {
-    const position = shorts.length + i;
-    const ok = await ytAddToPlaylist(channelId, funnel.youtubePlaylistId, longForms[i].youtubeVideoId, position);
+    const ok = await ytAddToPlaylist(channelId, funnel.youtubePlaylistId, longForms[i].youtubeVideoId);
     if (ok) added++;
   }
 

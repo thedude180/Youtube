@@ -248,7 +248,7 @@ function runProcess(bin: string, args: string[]): Promise<string> {
   });
 }
 
-// With 4 threads + ultrafast preset a 60-min 4K source encodes in ~45–75 min.
+// With 2 threads + ultrafast preset a 60-min 4K source encodes in ~60–90 min.
 // Hard-kill at 90 minutes — if it hasn't finished by then something is stuck.
 // Stall detector (below) kills sooner: if no stderr progress for 15 min the
 // encode is frozen (disk full, stuck I/O) and we abort immediately.
@@ -257,13 +257,12 @@ const FFMPEG_STALL_TIMEOUT_MS = 15 * 60 * 1000;  // 15 minutes without progress 
 
 // ── Encoding CPU budget ───────────────────────────────────────────────────────
 // 4K libx264 will use every available core if unconstrained, starving the web
-// server and causing 504 timeouts. Two limits work together:
+// server and causing event-loop stalls and health-check timeouts.  Two limits:
 //   1. nice -n 15  — OS scheduler gives the web server priority over FFmpeg
 //      whenever both compete for a core. The process still runs, just yields.
-//   2. -threads 4  — 4 threads encode ~2× faster than 2-thread, finishing sooner
-//      so FFmpeg releases CPU/memory back to the server in half the time.
-//      The nice -n 15 keeps the server responsive while FFmpeg runs.
-const FFMPEG_ENCODE_THREADS = 4;
+//   2. -threads 2  — capped at 2 threads to leave cores free for Node.js I/O.
+//      4 threads caused 25-min event-loop stalls on the production container.
+const FFMPEG_ENCODE_THREADS = 2;
 
 function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage: string) => void): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -287,6 +286,11 @@ function runFFmpeg(args: string[], onProgress?: (pct: number, fps: number, stage
         reject(new Error("FFmpeg stall — no encoding progress for 15 minutes, killed"));
       }
     }, 60_000); // check every minute
+
+    // Drain stdout — FFmpeg normally writes nothing here (output goes to a file),
+    // but if it does write any bytes the 64 KB pipe buffer fills and FFmpeg
+    // blocks, stalling the Node.js event loop via backpressure.
+    proc.stdout.resume();
 
     proc.stderr.on("data", (data: Buffer) => {
       const text = data.toString();

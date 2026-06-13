@@ -4108,6 +4108,29 @@ async function migration068RebalanceCadencePileup(): Promise<void> {
   }
 }
 
+async function migration069CancelStaleStreamEditJobs(): Promise<void> {
+  const FLAG = "migration:069:cancel_stale_stream_edit_jobs_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Cancel all queued stream_edit_jobs older than 24 hours.
+    // Jobs that old have lost their source files across container restarts.
+    // Without this, 4,500+ stale jobs run FFmpeg for up to 90 min each,
+    // starving the event loop and causing health-check timeouts on every boot.
+    const r = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET status = 'error',
+          error   = 'Cancelled by migration 069 — source file unavailable after container restart'
+      WHERE status = 'queued'
+        AND created_at < NOW() - INTERVAL '24 hours'
+    `);
+    const cancelled = (r as unknown as { rowCount?: number }).rowCount ?? 0;
+    await setFlag(FLAG);
+    log.info(`[Migration 069] Cancelled ${cancelled} stale queued stream_edit_jobs (>24h old)`);
+  } catch (err: any) {
+    log.warn(`[Migration 069] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -4180,6 +4203,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration066CancelUnresolvableGrinderShorts();
     await migration067SeedSEOTemplates();
     await migration068RebalanceCadencePileup();
+    await migration069CancelStaleStreamEditJobs();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

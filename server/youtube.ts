@@ -856,12 +856,16 @@ export async function updateYouTubeVideo(
     const snippet = item?.snippet;
     if (!snippet) throw new Error("Video not found on YouTube");
 
+    const { sanitizeYouTubeTags } = await import("./lib/youtube-keyword-sanitizer");
+    const rawTags = updates.tags ?? snippet.tags ?? [];
+    const safeTags = sanitizeYouTubeTags(rawTags);
+
     const requestBody: any = {
       id: videoId,
       snippet: {
         title: updates.title || snippet.title || "",
         description: updates.description !== undefined ? updates.description : (snippet.description || ""),
-        tags: updates.tags || snippet.tags || [],
+        tags: safeTags,
         categoryId: updates.categoryId || snippet.categoryId || "22",
       },
     };
