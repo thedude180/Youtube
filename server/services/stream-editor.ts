@@ -80,7 +80,9 @@ const GENRE_EQ: Record<GameGenre, string> = {
 //
 // All windows skip the first 8% (max 10 min) to avoid stream intros / lobby waits.
 
-const SHORTS_TARGET_SEC = 52;         // 52 s — sweet spot for YouTube Shorts algorithm
+// SHORTS_TARGET_SEC is a fallback only — runtime calls chooseBestShortDuration() for the
+// audience-learned optimal length.  179s = hard ceiling (YouTube Shorts max).
+const SHORTS_TARGET_SEC_DEFAULT = 75;
 const LONG_STREAM_THRESHOLD_SEC = 10_800; // 3 h — add a second long-form segment above this
 
 interface PlatformSegment {
@@ -95,14 +97,16 @@ function computePlatformSegments(
   smartCutStartSec: number | null,
   smartCutDurationSec: number | null,
   clipSecs: number,
+  targetShortSec = SHORTS_TARGET_SEC_DEFAULT,
+  introSkipSec?: number,
 ): PlatformSegment[] {
   if (platform === "shorts") {
-    const skipStart = Math.min(probeDurationSecs * 0.08, 600);
+    const skipStart = introSkipSec ?? Math.min(probeDurationSecs * 0.08, 600);
     const skipEnd   = probeDurationSecs * 0.03;
     const usable    = probeDurationSecs - skipStart - skipEnd;
 
-    if (usable < SHORTS_TARGET_SEC) {
-      return [{ startSec: 0, durationSec: Math.min(59, probeDurationSecs), segIndex: 0 }];
+    if (usable < 15) {
+      return [{ startSec: 0, durationSec: Math.min(targetShortSec, probeDurationSecs), segIndex: 0 }];
     }
 
     // 3 distinct Shorts from the 25%, 50%, and 75% marks of usable footage
@@ -110,8 +114,8 @@ function computePlatformSegments(
     return fractions
       .map((f, i) => {
         const mid   = skipStart + usable * f;
-        const start = Math.max(0, Math.round(mid - SHORTS_TARGET_SEC / 2));
-        const dur   = Math.min(SHORTS_TARGET_SEC, probeDurationSecs - start);
+        const start = Math.max(0, Math.round(mid - targetShortSec / 2));
+        const dur   = Math.min(targetShortSec, probeDurationSecs - start);
         return { startSec: start, durationSec: dur, segIndex: i };
       })
       .filter(s => s.durationSec >= 15);
@@ -216,7 +220,7 @@ const PLATFORM_PROFILES: Record<StreamEditPlatform, PlatformProfile> = {
     ],
     crf: 18,
     preset: "fast",
-    maxClipSecs: 60,
+    maxClipSecs: 179,
     audioBitrate: "192k",
     audioSampleRate: 48000,
     targetLoudness: "loudnorm=I=-14:TP=-1.0:LRA=7:linear=true",
@@ -338,6 +342,105 @@ async function probeVideo(filePath: string): Promise<{
   };
 }
 
+// ── Audio-capture FFmpeg runner ───────────────────────────────────────────────
+// Runs FFmpeg and captures stderr (where analysis filters like silencedetect and
+// scdet write their output).  Always resolves — FFmpeg exits 1 on -f null runs.
+function runFFmpegCapture(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const errChunks: Buffer[] = [];
+    const proc = spawn(FFMPEG_BIN, ["-y", ...args], { stdio: ["ignore", "ignore", "pipe"] });
+    proc.stderr.on("data", (d: Buffer) => errChunks.push(d));
+    proc.on("close", () => resolve(Buffer.concat(errChunks).toString("utf8")));
+    proc.on("error", (e) => reject(e));
+  });
+}
+
+// ── Smart intro detection (Tier 2) ───────────────────────────────────────────
+// Scans the first 5 minutes of audio for silence blocks to find where gameplay
+// actually begins.  Streams often open with 30–120 s of lobby or loading silence.
+// Returns the inferred gameplay-start timestamp in seconds.
+async function detectGameplayStartSec(filePath: string, totalDurationSec: number): Promise<number> {
+  const defaultSkip = Math.min(totalDurationSec * 0.08, 600);
+  try {
+    const scanSec = Math.min(300, Math.round(totalDurationSec * 0.10));
+    if (scanSec < 30) return defaultSkip;
+    const stderr = await runFFmpegCapture([
+      "-ss", "0", "-t", String(scanSec),
+      "-i", filePath,
+      "-af", "silencedetect=n=-35dB:d=8",
+      "-vn", "-f", "null", "-",
+    ]);
+    const silenceEnds: number[] = [];
+    for (const m of stderr.matchAll(/silence_end:\s*([\d.]+)/g)) {
+      silenceEnds.push(parseFloat(m[1]));
+    }
+    const preGameSilences = silenceEnds.filter(t => t < Math.min(240, scanSec * 0.8));
+    if (preGameSilences.length > 0) {
+      const gameplayStart = Math.max(...preGameSilences) + 2; // +2 s buffer
+      return Math.min(gameplayStart, defaultSkip * 1.5);
+    }
+  } catch { /* non-fatal */ }
+  return defaultSkip;
+}
+
+// ── Low-motion guard (Tier 3) ─────────────────────────────────────────────────
+// Probes a 20 s sample via FFmpeg scene-change detection.  Low scores = static
+// content (menus, loading screens, lobby UI).  When true, cinematic colour
+// grading is skipped — applying teal-orange curves to a black loading screen looks wrong.
+async function detectLowMotion(filePath: string, startSec: number, sampleSec = 20): Promise<boolean> {
+  try {
+    const stderr = await runFFmpegCapture([
+      "-ss", String(Math.max(0, startSec)),
+      "-t", String(Math.min(sampleSec, 30)),
+      "-i", filePath,
+      "-vf", "scdet=threshold=10",
+      "-an", "-f", "null", "-",
+    ]);
+    const scores = [...stderr.matchAll(/score:\s*([\d.]+)/gi)].map(m => parseFloat(m[1]));
+    if (scores.length === 0) return false;
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    return mean < 5.0;
+  } catch {
+    return false;
+  }
+}
+
+// ── Frame-accurate thumbnail extractor (Tier 2) ───────────────────────────────
+// Extracts a single 1280×720 JPEG from the source at the given timestamp.
+// Generates a thumbnail from the actual peak-action moment rather than AI art.
+async function extractThumbnail(sourcePath: string, atSec: number, outputPath: string): Promise<void> {
+  await runFFmpegCapture([
+    "-ss", String(Math.max(0, atSec)),
+    "-i", sourcePath,
+    "-vframes", "1",
+    "-vf", "scale=1280:720:flags=lanczos",
+    "-q:v", "2",
+    "-f", "image2",
+    outputPath,
+  ]);
+}
+
+// ── Chapter markers builder (Tier 3) ─────────────────────────────────────────
+// Converts detected moment timestamps into YouTube chapter format.
+// Moments are re-baselined to the long-form clip's start so they are accurate
+// relative to the output video's own timeline (not the full-length source).
+function buildChapterFromMoments(
+  moments: Array<{ startSec: number }>,
+  longFormStartSec: number,
+  longFormDurationSec: number,
+): string | null {
+  const relevant = moments
+    .filter(m => m.startSec >= longFormStartSec && m.startSec < longFormStartSec + longFormDurationSec)
+    .map(m => {
+      const relSec = Math.round(m.startSec - longFormStartSec);
+      const mm = Math.floor(relSec / 60);
+      const ss  = relSec % 60;
+      return `${mm}:${String(ss).padStart(2, "0")} Highlight`;
+    });
+  if (relevant.length === 0) return null;
+  return ["0:00 Gameplay", ...relevant].join("\n");
+}
+
 function buildCinematicVideoFilter(
   gameName: string | null | undefined,
   enhancements: { upscale4k: boolean; colorEnhance: boolean; sharpen: boolean },
@@ -346,6 +449,7 @@ function buildCinematicVideoFilter(
   sourceWidth: number,
   sourceHeight: number,
   durationSecs: number,
+  skipColorGrade = false,
 ): string {
   const genre    = detectGenre(gameName);
   const parts: string[] = [];
@@ -357,8 +461,9 @@ function buildCinematicVideoFilter(
   }
 
   // 2. Cinematic colour grade: tonal curves (genre LUT) + exposure/saturation eq
-  //    Applied before scale so grading works at source resolution (most accurate).
-  if (enhancements.colorEnhance) {
+  //    Skipped for low-motion segments (menus, lobbies, loading screens) — grading a
+  //    static black screen or UI overlay looks wrong and wastes encode time.
+  if (enhancements.colorEnhance && !skipColorGrade) {
     parts.push(GENRE_CURVES[genre]);
     parts.push(GENRE_EQ[genre]);
   }
@@ -422,12 +527,15 @@ async function processClip(
   sourceHeight: number,
   gameName: string | null | undefined,
   onProgress?: (pct: number, fps: number, stage: string) => void,
+  skipColorGrade = false,
 ): Promise<void> {
   const profile = PLATFORM_PROFILES[platform];
   if (!profile) throw new Error(`Unknown platform "${platform}" — no encoding profile found. Cannot process clip.`);
   const actualDuration = profile.maxClipSecs ? Math.min(durationSecs, profile.maxClipSecs) : durationSecs;
-  const vf = buildCinematicVideoFilter(gameName, enhancements, profile, sourceFps, sourceWidth, sourceHeight, actualDuration);
-  const af = enhancements.audioNormalize ? profile.targetLoudness : "anull";
+  const vf = buildCinematicVideoFilter(gameName, enhancements, profile, sourceFps, sourceWidth, sourceHeight, actualDuration, skipColorGrade);
+  // Always apply loudnorm — gaming streams have wildly variable loudness (explosions vs menus).
+  // -14 LUFS matches YouTube's target; linear=true preserves dynamics while hitting the target.
+  const af = profile.targetLoudness;
 
   const args: string[] = [
     "-ss", String(startSecs),
@@ -858,12 +966,82 @@ async function runJobInBackground(jobId: number): Promise<void> {
 
     const clipSecs = smartCutDurationSec ?? ((job.clipDurationMins ?? 60) * 60);
 
+    // ── Tier 1: Audience-learned Short duration ───────────────────────────────
+    // chooseBestShortDuration() reads historical performance data and returns the
+    // duration bucket that has performed best for this game.  Falls back to 75 s.
+    let targetShortSec = SHORTS_TARGET_SEC_DEFAULT;
+    try {
+      const { chooseBestShortDuration } = await import("./youtube-performance-learner");
+      targetShortSec = await chooseBestShortDuration(job.userId, gameName ?? await getFocusGame());
+      logger.info(`[StreamEditor] Job ${jobId}: audience-learned Short duration → ${targetShortSec}s`);
+    } catch {
+      logger.warn(`[StreamEditor] Job ${jobId}: chooseBestShortDuration failed — using ${targetShortSec}s default`);
+    }
+
+    // ── Tier 2: Smart intro detection ────────────────────────────────────────
+    // Replace "skip first 8%" with audio-silence analysis: find where lobby/loading
+    // silence ends and actual gameplay audio begins.  Only paid for on streams > 10 min.
+    let introSkipSec: number | undefined;
+    if (probe.durationSecs > 600 && sourceFile) {
+      introSkipSec = await detectGameplayStartSec(sourceFile, probe.durationSecs);
+      logger.info(`[StreamEditor] Job ${jobId}: smart intro skip → ${Math.round(introSkipSec)}s (was ${Math.round(Math.min(probe.durationSecs * 0.08, 600))}s default)`);
+    }
+
+    // ── Tier 1: Moment detection for Shorts ──────────────────────────────────
+    // 3-tier cascade: Vision AI (works on any vault file) → Retention curve
+    // (requires 48 h of analytics) → positional fallback (25%/50%/75% marks).
+    // Detected moments are hook-ranked before being turned into segments.
+    type MomentCandidate = { startSec: number; endSec: number; title?: string; retentionScore?: number };
+    let shortsMoments: MomentCandidate[] | null = null;
+
+    if (platforms.includes("shorts") && sourceFile && fs.existsSync(sourceFile)) {
+      try {
+        const { extractViralMomentsFromVisionAI } = await import("./vision-clip-detector");
+        let moments = await extractViralMomentsFromVisionAI(
+          sourceFile, probe.durationSecs, job.sourceTitle ?? "Gaming Clip", 4,
+        );
+        logger.info(`[StreamEditor] Job ${jobId}: vision AI → ${moments.length} moment(s)`);
+
+        // Tier 1b: retention curve (available 48 h+ post-broadcast)
+        if (moments.length < 2 && job.vaultEntryId) {
+          try {
+            const [ve] = await db.select({ youtubeId: contentVaultBackups.youtubeId })
+              .from(contentVaultBackups).where(eq(contentVaultBackups.id, job.vaultEntryId)).limit(1);
+            if (ve?.youtubeId) {
+              const { extractViralMomentsFromRetentionCurve } = await import("../shorts-pipeline-engine");
+              const curveMoments = await extractViralMomentsFromRetentionCurve(
+                job.userId, ve.youtubeId, probe.durationSecs, 4,
+              );
+              if (curveMoments.length > moments.length) {
+                moments = curveMoments;
+                logger.info(`[StreamEditor] Job ${jobId}: retention curve → ${moments.length} moment(s)`);
+              }
+            }
+          } catch { /* no analytics yet — non-fatal */ }
+        }
+
+        if (moments.length > 0) {
+          const { rankMomentsByHook } = await import("./mrbeast-hook-scorer");
+          const ranked = rankMomentsByHook(moments, probe.durationSecs);
+          shortsMoments = ranked.slice(0, 3).map(m => ({
+            startSec:       m.startSec,
+            endSec:         Math.min(m.endSec, m.startSec + targetShortSec),
+            title:          m.title,
+            retentionScore: (m as MomentCandidate).retentionScore,
+          }));
+          logger.info(
+            `[StreamEditor] Job ${jobId}: ${ranked.length} moments hook-ranked → ` +
+            `top 3 scores: ${ranked.slice(0, 3).map(r => r.hookScore.score).join(", ")}`,
+          );
+        }
+      } catch (mdErr: any) {
+        logger.warn(`[StreamEditor] Job ${jobId}: moment detection failed (non-fatal): ${mdErr?.message?.slice(0, 80)}`);
+      }
+    }
+
     // ── Build the per-platform segment plan ───────────────────────────────────
-    // Each platform gets its own list of time windows to encode:
-    //   youtube  → 1 highlight (2 for 3h+ streams)
-    //   shorts   → 3 distinct moments at 25% / 50% / 75% of the stream
-    // This replaces the old single-window approach and produces 4–5× more
-    // content per stream recording automatically.
+    // Shorts: use detected moments if found; otherwise fall back to 25%/50%/75%.
+    // YouTube: smart-cut window (1 highlight; 2 for 3h+ streams).
     interface JobSegment {
       platform: StreamEditPlatform;
       startSec: number;
@@ -883,25 +1061,40 @@ async function runJobInBackground(jobId: number): Promise<void> {
       const platformDir = path.join(jobOutputDir, platform);
       fs.mkdirSync(platformDir, { recursive: true });
 
-      const segs = computePlatformSegments(
-        platform, probe.durationSecs, smartCutStartSec, smartCutDurationSec, clipSecs,
-      );
-
-      segs.forEach((seg, idx) => {
-        const isShorts    = platform === "shorts";
-        const totalForPlatform = segs.length;
-        const label = totalForPlatform > 1
-          ? `${isShorts ? "Short" : "Part"} ${idx + 1}/${totalForPlatform} — ${profile.label}`
-          : (isShorts ? `Short — ${profile.label}` : `Highlight — ${profile.label}`);
-        jobSegments.push({
-          platform,
-          startSec:    seg.startSec,
-          durationSec: seg.durationSec,
-          label,
-          outputPath:  path.join(platformDir, `clip_${String(idx + 1).padStart(3, "0")}.mp4`),
-          profileLabel: profile.label,
+      if (platform === "shorts" && shortsMoments && shortsMoments.length > 0) {
+        // Use AI-detected moments (Tier 1) instead of positional marks
+        shortsMoments.forEach((m, idx) => {
+          const dur = Math.max(15, Math.min(targetShortSec, m.endSec - m.startSec));
+          jobSegments.push({
+            platform,
+            startSec:    m.startSec,
+            durationSec: dur,
+            label:       `Short ${idx + 1}/${shortsMoments!.length} — ${profile.label} (detected)`,
+            outputPath:  path.join(platformDir, `clip_${String(idx + 1).padStart(3, "0")}.mp4`),
+            profileLabel: profile.label,
+          });
         });
-      });
+      } else {
+        const segs = computePlatformSegments(
+          platform, probe.durationSecs, smartCutStartSec, smartCutDurationSec, clipSecs,
+          targetShortSec, introSkipSec,
+        );
+        segs.forEach((seg, idx) => {
+          const isShorts = platform === "shorts";
+          const totalForPlatform = segs.length;
+          const label = totalForPlatform > 1
+            ? `${isShorts ? "Short" : "Part"} ${idx + 1}/${totalForPlatform} — ${profile.label}`
+            : (isShorts ? `Short — ${profile.label}` : `Highlight — ${profile.label}`);
+          jobSegments.push({
+            platform,
+            startSec:    seg.startSec,
+            durationSec: seg.durationSec,
+            label,
+            outputPath:  path.join(platformDir, `clip_${String(idx + 1).padStart(3, "0")}.mp4`),
+            profileLabel: profile.label,
+          });
+        });
+      }
     }
 
     // Permanently cancel jobs where every listed platform is unsupported
@@ -925,6 +1118,8 @@ async function runJobInBackground(jobId: number): Promise<void> {
     const outputFiles: Array<{
       platform: string; clipIndex: number; label: string;
       filePath: string; fileSize: number; durationSecs: number;
+      startSec?: number;
+      extractedThumbnailPath?: string;
       studioVideoId?: number; scheduledPublishAt?: string;
     }> = [];
 
@@ -946,10 +1141,22 @@ async function runJobInBackground(jobId: number): Promise<void> {
     // Denoise → cinematic colour grade → sharpening → Lanczos upscale → vignette
     // → fade in/out all happen in one pass per clip to avoid double-encode cost.
     // Progress label transitions from [3/6] Editing to [4/6] Upscaling at ~50%.
+    // Tier 3: low-motion guard probes each segment before encoding — static scenes
+    // (menus, loading, lobby) skip the colour grade so the LUT isn't applied to
+    // frames that are already black or UI-only.
     for (const seg of jobSegments) {
       const profile  = PLATFORM_PROFILES[seg.platform];
       const clipRef  = seg.label;
       logger.info(`[StreamEditor] Job ${jobId}: [3/6→4/6] ${clipRef} · ${Math.round(seg.startSec / 60)}–${Math.round((seg.startSec + seg.durationSec) / 60)}min`);
+
+      // Tier 3: probe motion before encoding (fast audio-only pass, ~1 s per segment)
+      const segIsLowMotion = enhancements.colorEnhance
+        ? await detectLowMotion(sourceFile, seg.startSec, Math.min(20, seg.durationSec)).catch(() => false)
+        : false;
+
+      if (segIsLowMotion) {
+        logger.info(`[StreamEditor] Job ${jobId}: ${clipRef} — low-motion detected, skipping colour grade`);
+      }
 
       await processClip(
         sourceFile,
@@ -970,10 +1177,19 @@ async function runJobInBackground(jobId: number): Promise<void> {
             currentStage: `${phase} — ${clipRef} · ${speedLabel}`,
           }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
         },
+        segIsLowMotion,
       );
 
       if (fs.existsSync(seg.outputPath)) {
         const stat = fs.statSync(seg.outputPath);
+
+        // Tier 2: extract a frame-accurate thumbnail from the 35% point of the clip
+        // (usually past any setup/intro seconds — typically mid-action for BF6 content).
+        const thumbOutputPath = seg.outputPath.replace(/\.mp4$/, "_thumb.jpg");
+        const thumbAtSec = seg.startSec + Math.round(seg.durationSec * 0.35);
+        await extractThumbnail(sourceFile, thumbAtSec, thumbOutputPath).catch(() => {});
+        const extractedThumbnailPath = fs.existsSync(thumbOutputPath) ? thumbOutputPath : undefined;
+
         outputFiles.push({
           platform:    seg.platform,
           clipIndex:   completedTasks,
@@ -981,6 +1197,8 @@ async function runJobInBackground(jobId: number): Promise<void> {
           filePath:    seg.outputPath,
           fileSize:    stat.size,
           durationSecs: Math.round(seg.durationSec),
+          startSec:    seg.startSec,
+          extractedThumbnailPath,
         });
       }
 
@@ -990,6 +1208,19 @@ async function runJobInBackground(jobId: number): Promise<void> {
         progress: Math.round((completedTasks / totalTasks) * 100),
         outputFiles,
       }).where(eq(streamEditJobs.id, jobId));
+    }
+
+    // ── Tier 3: Chapter markers for long-form ─────────────────────────────────
+    // When moment detection found Shorts highlights, those same timestamps mark the
+    // interesting beats in the full-stream recording — use them as YouTube chapters.
+    let chapterDescription: string | null = null;
+    const longFormOutputs = outputFiles.filter(f => f.platform === "youtube");
+    if (longFormOutputs.length > 0 && shortsMoments && shortsMoments.length > 0) {
+      const lf = longFormOutputs[0];
+      chapterDescription = buildChapterFromMoments(shortsMoments, lf.startSec ?? 0, lf.durationSecs);
+      if (chapterDescription) {
+        logger.info(`[StreamEditor] Job ${jobId}: built chapter markers from ${shortsMoments.length} moment(s)`);
+      }
     }
 
     // Guard: if encoding produced no output files, surface as a retryable error
@@ -1021,6 +1252,7 @@ async function runJobInBackground(jobId: number): Promise<void> {
         gameName,
         outputFiles,
         job.autoPublish ?? false,
+        chapterDescription ?? undefined,
         (done, total) => {
           db.update(streamEditJobs).set({
             currentStage: `[5/6] Packaging — ${done}/${total} clips`,

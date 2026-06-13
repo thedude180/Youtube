@@ -36,6 +36,9 @@ export interface RawClip {
   filePath: string;
   fileSize: number;
   durationSecs: number;
+  startSec?: number;
+  /** Frame-accurate JPEG extracted from the clip's peak-action moment (Tier 2). */
+  extractedThumbnailPath?: string;
   studioVideoId?: number;
   scheduledPublishAt?: string;
 }
@@ -143,16 +146,36 @@ interface ThumbnailData {
 }
 
 /**
- * Phase 1 — Generate the thumbnail image only (no DB writes, no studioVideoId needed).
- * Runs in PARALLEL with generateSeoPackage so both complete at the same time.
- * Returns null on failure so callers can continue without a thumbnail.
+ * Phase 1 — Prepare the thumbnail image (no DB writes, no studioVideoId needed).
+ * If an extracted frame thumbnail exists on disk (Tier 2 frame-accurate thumb),
+ * use it directly — it shows the actual peak-action moment from the clip.
+ * Otherwise, fall back to AI generation.
+ * Runs in PARALLEL with generateSeoPackage.
  */
 async function generateThumbnailImage(
   title: string,
   gameName: string | null | undefined,
   platform: string,
   userId: string,
+  extractedThumbnailPath?: string,
 ): Promise<ThumbnailData | null> {
+  // Prefer the frame-accurate extracted thumbnail over AI art
+  if (extractedThumbnailPath && fs.existsSync(extractedThumbnailPath)) {
+    try {
+      const rawBuffer = fs.readFileSync(extractedThumbnailPath);
+      const sharp = (await import("sharp")).default;
+      const isVertical = platform === "shorts";
+      const [thumbW, thumbH] = isVertical ? [1080, 1920] : [1280, 720];
+      const jpegBuffer = await sharp(rawBuffer)
+        .resize(thumbW, thumbH, { fit: "cover", position: "center" })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      logger.info(`[Packager] Using frame-accurate thumbnail (${Math.round(jpegBuffer.length / 1024)}KB)`);
+      return { jpegBuffer, prompt: "frame-extracted", platform };
+    } catch (extractErr: unknown) {
+      logger.warn(`[Packager] Extracted thumbnail load failed — falling back to AI:`, (extractErr as Error)?.message);
+    }
+  }
   try {
     const thumbResult = await generateThumbnailPrompt({
       title,
@@ -244,6 +267,7 @@ export async function packageClips(
   gameName: string | null | undefined,
   clips: RawClip[],
   autoPublish: boolean = false,
+  chapterDescription?: string,
   onProgress?: (packaged: number, total: number) => void,
 ): Promise<RawClip[]> {
   const result: RawClip[] = [...clips];
@@ -284,7 +308,7 @@ export async function packageClips(
           totalForPlatform,
           userId,
         ),
-        generateThumbnailImage(sourceTitle, gameName, clip.platform, userId),
+        generateThumbnailImage(sourceTitle, gameName, clip.platform, userId, clip.extractedThumbnailPath),
       ]);
 
       // ── Sequential phase: create the DB record (needs SEO output) ─────────────
@@ -297,10 +321,17 @@ export async function packageClips(
         ? `${seo.title} #shorts`
         : seo.title;
 
+      // Tier 3: append chapter markers to long-form video descriptions.
+      // Chapters are derived from detected moment timestamps, re-baselined to the
+      // clip's timeline so YouTube recognises them as navigation points.
+      const finalDescription = (!clipIsShort && chapterDescription)
+        ? `${seo.description}\n\n${chapterDescription}`
+        : seo.description;
+
       const sv = await storage.createStudioVideo({
         userId,
         title: finalTitle,
-        description: seo.description,
+        description: finalDescription,
         filePath: clip.filePath,
         fileSize: clip.fileSize,
         duration: String(Math.round(clip.durationSecs)),
