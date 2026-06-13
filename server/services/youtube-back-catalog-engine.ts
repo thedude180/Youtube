@@ -736,10 +736,11 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
     // Cap at 25 per cycle to prevent the loop from running for 10+ min on a
     // large catalog.  queueMetadataUpdate() checks the quota breaker and the
     // MIN_HOURS_BETWEEN_UPDATES guard so we won't spam any one video.
-    // Metadata refresh runs for ALL videos regardless of game — even non-BF6
-    // catalog entries benefit from optimized titles and thumbnails.
+    // Applies the same gameFilter as Shorts/long-form queuing: BF6-only while
+    // unmined BF6 content exists; the unlocked game is included only when BF6
+    // is exhausted and another game has 2+ streams.
     const metaTargets = ranked
-      .filter(v => !v.isShort)
+      .filter(v => !v.isShort && (!gameFilter || gameFilter(v)))
       .slice(0, 25);
 
     const { isQuotaBreakerTripped: metaQuotaCheck } = await import("../services/youtube-quota-tracker");

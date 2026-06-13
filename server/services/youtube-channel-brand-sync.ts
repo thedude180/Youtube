@@ -26,7 +26,7 @@
 import cron from "node-cron";
 import { db } from "../db";
 import { backCatalogVideos, channels, videoUpdateHistory } from "@shared/schema";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, or, isNull, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
@@ -85,6 +85,57 @@ async function getYouTubeChannel(userId: string): Promise<{ id: number } | null>
       )
       .limit(1);
     return ch ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Returns null (BF6-only) or a game name to also allow when BF6 is fully edited.
+// Mirrors the back-catalog engine's exhaustion logic:
+//   1. BF6 has unedited videos → return null (BF6-only)
+//   2. BF6 fully edited AND another game has 2+ VODs → return that game name
+//   3. BF6 fully edited AND no qualifying game → return null (idle)
+async function computeBrandSyncEligibleGame(userId: string): Promise<string | null> {
+  try {
+    const bf6Sql = sql`(
+      ${backCatalogVideos.gameName} ILIKE '%battlefield%' OR
+      ${backCatalogVideos.gameName} ILIKE '%bf6%' OR
+      ${backCatalogVideos.gameName} ILIKE '%bf 6%'
+    )`;
+
+    const [bf6Unedited] = await db
+      .select({ id: backCatalogVideos.id })
+      .from(backCatalogVideos)
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        eq(backCatalogVideos.isShort, false),
+        bf6Sql,
+        isNull(backCatalogVideos.lastOptimizedAt),
+      ))
+      .limit(1);
+
+    if (bf6Unedited) return null; // BF6 not yet exhausted
+
+    const [newGameRow] = await db
+      .select({
+        gameName: backCatalogVideos.gameName,
+        cnt: sql<number>`count(*)::int`,
+      })
+      .from(backCatalogVideos)
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        eq(backCatalogVideos.isShort, false),
+        isNotNull(backCatalogVideos.gameName),
+        sql`(${backCatalogVideos.gameName}) NOT ILIKE '%battlefield%'`,
+        sql`(${backCatalogVideos.gameName}) NOT ILIKE '%bf6%'`,
+        sql`(${backCatalogVideos.gameName}) NOT ILIKE '%bf 6%'`,
+      ))
+      .groupBy(backCatalogVideos.gameName)
+      .having(sql`count(*) >= 2`)
+      .orderBy(desc(sql`count(*)`))
+      .limit(1);
+
+    return newGameRow?.gameName ?? null;
   } catch {
     return null;
   }
@@ -319,14 +370,22 @@ async function sweepShortsSEO(
   userId: string,
   channelId: number,
   budget: { remaining: number },
+  eligibleGame: string | null,
 ): Promise<{ updated: number; skipped: number }> {
   let updated = 0;
   let skipped = 0;
   try {
+    const gameWhere = eligibleGame
+      ? sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%' OR ${backCatalogVideos.gameName} ILIKE ${'%' + eligibleGame + '%'})`
+      : sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%')`;
     const shorts = await db
       .select()
       .from(backCatalogVideos)
-      .where(and(eq(backCatalogVideos.userId, userId), eq(backCatalogVideos.isShort, true)))
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        eq(backCatalogVideos.isShort, true),
+        gameWhere,
+      ))
       .orderBy(desc(backCatalogVideos.viewCount))
       .limit(40);
 
@@ -399,14 +458,22 @@ async function sweepReplaySEO(
   userId: string,
   channelId: number,
   budget: { remaining: number },
+  eligibleGame: string | null,
 ): Promise<{ updated: number; skipped: number }> {
   let updated = 0;
   let skipped = 0;
   try {
+    const gameWhere = eligibleGame
+      ? sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%' OR ${backCatalogVideos.gameName} ILIKE ${'%' + eligibleGame + '%'})`
+      : sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%')`;
     const replays = await db
       .select()
       .from(backCatalogVideos)
-      .where(and(eq(backCatalogVideos.userId, userId), eq(backCatalogVideos.isVod, true)))
+      .where(and(
+        eq(backCatalogVideos.userId, userId),
+        eq(backCatalogVideos.isVod, true),
+        gameWhere,
+      ))
       .orderBy(desc(backCatalogVideos.viewCount))
       .limit(25);
 
@@ -478,11 +545,16 @@ async function sweepReplaySEO(
 async function sweepBrandConsistency(
   userId: string,
   budget: { remaining: number },
+  eligibleGame: string | null,
 ): Promise<{ fixed: number; skipped: number }> {
   let fixed = 0;
   let skipped = 0;
   try {
     const brandProfile = getBrandProfile(userId);
+
+    const gameWhere = eligibleGame
+      ? sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%' OR ${backCatalogVideos.gameName} ILIKE ${'%' + eligibleGame + '%'})`
+      : sql`(${backCatalogVideos.gameName} ILIKE '%battlefield%' OR ${backCatalogVideos.gameName} ILIKE '%bf6%' OR ${backCatalogVideos.gameName} ILIKE '%bf 6%')`;
 
     const allVideos = await db
       .select()
@@ -490,6 +562,7 @@ async function sweepBrandConsistency(
       .where(and(
         eq(backCatalogVideos.userId, userId),
         eq(backCatalogVideos.isShort, false),
+        gameWhere,
       ))
       .orderBy(desc(backCatalogVideos.viewCount))
       .limit(50);
@@ -584,10 +657,20 @@ export async function runChannelBrandSync(userId: string): Promise<BrandSyncResu
   const metaBudget = { remaining: METADATA_PER_SWEEP };
   const thumbBudget = { remaining: THUMBS_PER_SWEEP };
 
+  // Determine which games are eligible this sweep: BF6 always first; another
+  // game unlocks only when all BF6 videos have been edited at least once AND
+  // that game has 2+ stream VODs in the back catalog.
+  const eligibleGame = await computeBrandSyncEligibleGame(userId);
+  if (eligibleGame) {
+    logger.info(`[BrandSync] BF6 editing exhausted — also sweeping "${eligibleGame}" (2+ streams qualify)`);
+  } else {
+    logger.info(`[BrandSync] Sweeping BF6-only content`);
+  }
+
   const [shorts, replays, brand, thumbs] = await Promise.allSettled([
-    sweepShortsSEO(userId, channel.id, metaBudget),
-    sweepReplaySEO(userId, channel.id, metaBudget),
-    sweepBrandConsistency(userId, metaBudget),
+    sweepShortsSEO(userId, channel.id, metaBudget, eligibleGame),
+    sweepReplaySEO(userId, channel.id, metaBudget, eligibleGame),
+    sweepBrandConsistency(userId, metaBudget, eligibleGame),
     sweepThumbnails(userId),
   ]);
 
