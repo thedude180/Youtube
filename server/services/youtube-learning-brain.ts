@@ -28,6 +28,8 @@ import {
   channels,
   masterKnowledgeBank,
   systemIncidentLog,
+  growthStrategies,
+  predictiveTrends,
 } from "@shared/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -349,6 +351,67 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       }
     } catch (cohortErr: any) {
       logger.debug(`[Brain] Cohort analysis skipped (non-fatal): ${cohortErr.message?.slice(0, 80)}`);
+    }
+
+    // 9d. Promote top internet-sourced intelligence into engineKnowledge (→ masterKnowledgeBank).
+    //     Reads from growthStrategies + predictiveTrends tables populated by the omni-intelligence
+    //     harvester (YouTube trending, Reddit, RSS, DuckDuckGo). Elevates the highest-confidence
+    //     signals so every AI content generator benefits from live external intelligence.
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
+      const channelRows = await db
+        .select({ id: channels.id })
+        .from(channels)
+        .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
+        .limit(1);
+      const channelId = channelRows[0]?.id;
+
+      const [topStrategies, topTrends] = await Promise.all([
+        channelId
+          ? db.select({ title: growthStrategies.title, description: growthStrategies.description, priority: growthStrategies.priority })
+              .from(growthStrategies)
+              .where(eq(growthStrategies.channelId, channelId))
+              .orderBy(desc(growthStrategies.createdAt))
+              .limit(5)
+          : Promise.resolve([] as any[]),
+        db.select({ topic: predictiveTrends.topic, category: predictiveTrends.category, velocity: predictiveTrends.velocity, confidence: predictiveTrends.confidence })
+          .from(predictiveTrends)
+          .where(and(
+            eq(predictiveTrends.userId, userId),
+            gte(predictiveTrends.createdAt, sevenDaysAgo),
+          ))
+          .orderBy(desc(predictiveTrends.velocity))
+          .limit(5),
+      ]);
+
+      let internetPromoted = 0;
+      for (const s of topStrategies) {
+        if (!s.title) continue;
+        await recordEngineKnowledge(
+          "learning-brain", userId,
+          "internet_intelligence", `growth_strategy:${String(s.title).slice(0, 60)}`,
+          `GROWTH STRATEGY: ${s.title}${s.description ? " — " + String(s.description).slice(0, 180) : ""}`,
+          `priority=${s.priority ?? "medium"}`,
+          s.priority === "high" ? 75 : 60,
+        ).catch(() => {});
+        internetPromoted++;
+      }
+      for (const t of topTrends) {
+        if (!t.topic) continue;
+        await recordEngineKnowledge(
+          "learning-brain", userId,
+          "internet_intelligence", `rising_trend:${String(t.topic).slice(0, 60)}`,
+          `RISING TREND: "${t.topic}" (velocity ${Number(t.velocity ?? 0).toFixed(2)}, category: ${t.category ?? "general"}) — prioritise content on this NOW`,
+          `confidence=${(Number(t.confidence ?? 0) * 100).toFixed(0)}%`,
+          Math.min(88, Math.round(Number(t.confidence ?? 0.5) * 100)),
+        ).catch(() => {});
+        internetPromoted++;
+      }
+      if (internetPromoted > 0) {
+        logger.info(`[Brain] Promoted ${internetPromoted} internet intelligence signals → engineKnowledge`);
+      }
+    } catch (internetErr: any) {
+      logger.debug(`[Brain] Internet intelligence promotion non-fatal: ${internetErr?.message?.slice(0, 80)}`);
     }
 
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up

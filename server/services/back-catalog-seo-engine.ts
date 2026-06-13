@@ -20,6 +20,7 @@ import { getFocusGame } from "../lib/game-focus";
 import { storage } from "../storage";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { updateYouTubeVideo } from "../youtube";
+import { recordEngineKnowledge } from "./knowledge-mesh";
 
 const MAX_UPDATES_PER_DAY     = 30;
 const REOPTIMIZE_AFTER_DAYS   = 7;
@@ -168,6 +169,16 @@ async function runForUser(userId: string): Promise<{ updated: number; skipped: n
       incDailyCount(userId);
       updated++;
       logger.info(`[SeoEngine] ✓ ${video.youtubeVideoId}: "${seo.title.slice(0, 50)}"`);
+
+      // Feed the winning title pattern back to the learning brain — future SEO gets smarter each cycle
+      recordEngineKnowledge(
+        "back-catalog-seo-engine", userId,
+        "seo_pattern", `winning_title:${(video.gameName ?? "gaming").slice(0, 40)}`,
+        `Winning SEO title: "${seo.title}" (was: "${video.title.slice(0, 60)}")`,
+        `youtube_id=${video.youtubeVideoId}, game=${video.gameName ?? "unknown"}`,
+        62,
+        { oldTitle: video.title, newTitle: seo.title, tags: seo.tags.slice(0, 5) },
+      ).catch(() => {});
 
       await new Promise(r => setTimeout(r, INTER_UPDATE_PAUSE_MS));
     } catch (err: any) {

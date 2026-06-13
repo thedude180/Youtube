@@ -28,6 +28,7 @@ import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
 import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 import { getFocusGame } from "../lib/game-focus";
+import { recordEngineKnowledge } from "./knowledge-mesh";
 
 const logger = createLogger("omni-intelligence");
 const execFileAsync = promisify(execFile);
@@ -434,6 +435,14 @@ Return 5-8 trending topics, 4-6 growth strategies, 3-4 experiment hypotheses. On
       });
       strategiesWritten++;
     } catch { /* skip */ }
+    // Feed each internet-derived strategy into the knowledge mesh so all AI generators see it
+    recordEngineKnowledge(
+      "omni-intelligence-harvester", userId,
+      "internet_intelligence", `growth_strategy:${String(s.title).slice(0, 60)}`,
+      `INTERNET GROWTH STRATEGY [${s.priority ?? "medium"} priority]: ${s.title}${s.description ? " — " + String(s.description).slice(0, 160) : ""}`,
+      `estimatedImpact=${s.estimatedImpact ?? "unknown"}, category=${s.category ?? "growth"}`,
+      s.priority === "high" ? 70 : 55,
+    ).catch(() => {});
   }
 
   // Write experiment hypotheses as capability gaps

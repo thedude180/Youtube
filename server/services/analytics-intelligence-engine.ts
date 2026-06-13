@@ -452,6 +452,16 @@ export async function computeAlgorithmHealth(userId: string): Promise<void> {
         score: overallScore,
         signals,
       });
+
+      // Feed the algorithm health score + recommendation to the knowledge mesh so
+      // every content engine knows when the channel is under-performing
+      recordEngineKnowledge(
+        "analytics-intelligence", userId,
+        "algorithm_health", "algorithm_health_score",
+        `Algorithm health: ${overallScore}/100 — ${(signals as any).recommendation ?? ""}`,
+        `platform=${platform}`,
+        Math.min(90, overallScore),
+      ).catch(() => {});
     }
 
   } catch (e) {

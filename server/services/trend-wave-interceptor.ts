@@ -14,10 +14,10 @@ import {
   predictiveTrends,
   backCatalogVideos,
   autopilotQueue,
-  engineKnowledge,
   channels,
 } from "@shared/schema";
 import { getFocusGame, buildFocusGameRegex } from "../lib/game-focus";
+import { recordEngineKnowledge } from "./knowledge-mesh";
 import { eq, and, gt, isNull, or, sql, desc, ilike, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
@@ -169,18 +169,14 @@ async function runTrendWaveInterceptorCycle(userId: string): Promise<void> {
 
     if (!source) {
       // Write a content-gap signal for the orchestrator to act on
-      try {
-        await db.insert(engineKnowledge).values({
-          engineName: "trend-wave-interceptor",
-          userId,
-          knowledgeType: "trend_gap",
-          topic,
-          insight: `TRENDING NOW: "${topic}" (velocity ${trend.velocity?.toFixed(2)}, peaks ~${urgencyDays}d). No catalog video found — this is a CONTENT GAP. Consider covering "${topic}" gameplay ASAP.`,
-          evidence: `predictiveTrends id=${trend.id}, confidence=${trend.confidence?.toFixed(2) ?? "?"}`,
-          confidenceScore: Math.round((trend.confidence ?? 0.6) * 100),
-          metadata: { topic, velocity: trend.velocity, urgencyDays, trendId: trend.id },
-        });
-      } catch { /* non-critical — row may already exist */ }
+      recordEngineKnowledge(
+        "trend-wave-interceptor", userId,
+        "trend_gap", topic,
+        `TRENDING NOW: "${topic}" (velocity ${trend.velocity?.toFixed(2)}, peaks ~${urgencyDays}d). No catalog video found — this is a CONTENT GAP. Consider covering "${topic}" gameplay ASAP.`,
+        `predictiveTrends id=${trend.id}, confidence=${trend.confidence?.toFixed(2) ?? "?"}`,
+        Math.round((trend.confidence ?? 0.6) * 100),
+        { topic, velocity: trend.velocity, urgencyDays, trendId: trend.id },
+      ).catch(() => {});
       noMatch++;
 
       await db.update(predictiveTrends)

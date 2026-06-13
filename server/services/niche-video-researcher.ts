@@ -26,6 +26,7 @@ import { eq, and, desc, gte, lt, sql, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
+import { getMasterKnowledgeForPrompt, recordEngineKnowledge } from "./knowledge-mesh";
 import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 
 const logger = createLogger("niche-researcher");
@@ -189,11 +190,12 @@ async function analysePatterns(userId: string, gameName: string): Promise<void> 
   const sampleList = top30.map((s, i) =>
     `${i + 1}. "${s.title}" | views:${s.viewCount ?? 0} | dur:${s.durationSec ?? "?"}s | channel:${s.channelName ?? "?"} | isShort:${s.isShort}`
   ).join("\n");
+  const _brainCtx = await getMasterKnowledgeForPrompt(userId, 5).catch(() => "");
 
   const prompt = `You are analysing YouTube video data from the ${gameName} no-commentary gaming niche on behalf of ET Gaming 274 (a PS5 gaming channel). Extract patterns and produce ACTIONABLE insights the creator can implement TODAY.
 
 TOP ${top30.length} VIDEOS BY VIEW COUNT:
-${sampleList}
+${sampleList}${_brainCtx ? `\n\nCHANNEL INTELLIGENCE (AI learning brain — apply these principles to your analysis):\n${_brainCtx}` : ""}
 
 Respond with a JSON object (no markdown) with this exact shape:
 {
@@ -310,6 +312,19 @@ Rules:
     for (const row of toInsert) {
       try { await db.insert(nicheInsights).values(row as any); } catch { /* skip */ }
     }
+  }
+
+  // Feed high-priority competitive insights into the knowledge mesh so all AI content
+  // generators (grinder, maximizer, SEO engine) benefit from niche research results
+  for (const row of toInsert.filter(r => r.priority === "high" || r.insightType === "title_pattern")) {
+    recordEngineKnowledge(
+      "niche-video-researcher", userId,
+      "competitive_intel", `${row.insightType}:${String(row.title).slice(0, 60)}`,
+      `NICHE INTELLIGENCE [${row.insightType}]: ${row.title}${row.body ? " — " + String(row.body).slice(0, 150) : ""}`,
+      `gameName=${gameName}, sampleCount=${count}`,
+      row.priority === "high" ? 72 : 58,
+      { gameName, insightType: row.insightType },
+    ).catch(() => {});
   }
 
   logger.info("[NicheResearcher] Insights written", {

@@ -6,6 +6,7 @@ import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/o
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { getFocusGame } from "../lib/game-focus";
+import { getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("content-maximizer");
 const openai = getOpenAIClientBackground();
@@ -206,6 +207,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
   // doesn't match the Battlefield family.
   const gameName = /battlefield|bf6|bf 6/i.test(rawGameName) ? rawGameName : focusGame;
   const preference = await getOptimalDurations(userId);
+  const _brainCtx = await getMasterKnowledgeForPrompt(userId, 5).catch(() => "");
 
   logger.info("Content maximizer starting", {
     videoId,
@@ -216,7 +218,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     confidence: preference.confidence,
   });
 
-  const moments = await identifyAllUsableMoments(video, durationSec, gameName, preference);
+  const moments = await identifyAllUsableMoments(video, durationSec, gameName, preference, _brainCtx);
 
   let shortsQueued = 0;
   let longFormsQueued = 0;
@@ -440,6 +442,7 @@ async function identifyAllUsableMoments(
   durationSec: number,
   gameName: string,
   preference: DurationPreference,
+  brainContext = "",
 ): Promise<ExtractedMoment[]> {
   const durationMin = Math.floor(durationSec / 60);
   const maxShorts = Math.min(Math.floor(durationMin / 5), 20);
@@ -470,7 +473,7 @@ CRITICAL RULES:
 - ALL timestamps must be within 0-${durationMin} minutes
 - NO overlapping moments
 - Titles must include game name and imply no commentary (use words like "pure gameplay", "ambient", "immersive")
-- Rate intensity 1-10 for each moment
+- Rate intensity 1-10 for each moment${brainContext ? `\n\nCHANNEL INTELLIGENCE (AI brain learned from analytics + internet signals):\n${brainContext}` : ""}
 
 Return ONLY valid JSON:
 {

@@ -9,6 +9,7 @@ import { storage } from "../storage";
 import { sanitizeForPrompt, sanitizeObjectForPrompt, tokenBudget } from "../lib/ai-attack-shield";
 import { CommandCenter } from "../lib/command-center";
 import { getFocusGame, buildFocusGameRegex } from "../lib/game-focus";
+import { getMasterKnowledgeForPrompt } from "./knowledge-mesh";
 import {
   getNextShortPublishTime,
   getNextLongFormPublishTime,
@@ -607,10 +608,11 @@ async function extractUntappedMoments(userId: string, video: any, maxClips = 10)
     return { start, end };
   }).filter(r => r.end > r.start);
 
-  const [retentionContext, seoContext, lengthDistributionHint] = await Promise.all([
+  const [retentionContext, seoContext, lengthDistributionHint, brainContext] = await Promise.all([
     getRetentionIntelligence(userId, gameName),
     getSEOKnowledgeForClips(userId, gameName),
     getShortLengthDistributionHint(userId),
+    getMasterKnowledgeForPrompt(userId, 5).catch(() => ""),
   ]);
 
   if (!tokenBudget.checkBudget("content-grinder", 3000)) {
@@ -645,7 +647,7 @@ For NO COMMENTARY PS5 gaming, viral moments include:
 - A clutch dodge or parry at the last possible moment
 - An unexpected enemy ambush
 - Speed-running a section perfectly
-- Any "wait for it..." moment with a payoff${retentionContext}${seoContext}
+- Any "wait for it..." moment with a payoff${retentionContext}${seoContext}${brainContext ? `\n\nCHANNEL INTELLIGENCE (AI brain learned from analytics + internet):\n${brainContext}` : ""}
 
 VIRAL RULES:
 - First frame must be VISUALLY EXPLOSIVE — no menus, no inventory, no walking
