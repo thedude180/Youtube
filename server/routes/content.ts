@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
+import { recordLearningEvent } from "../services/youtube-learning-brain";
 import { eq, and, desc, inArray, isNotNull, gte, sql, lt } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { requireYouTubeOnly } from "@shared/youtube-only";
@@ -1235,6 +1236,9 @@ export function registerContentRoutes(app: Express) {
     }
     const strategy = await storage.updateGrowthStrategy(id, { status: parsed.data.status });
     res.json(strategy);
+    recordLearningEvent(userId, `growth_strategy_${parsed.data.status}`, {
+      strategyId: id, status: parsed.data.status,
+    }).catch(() => {});
   }));
 
   app.post(api.advisor.ask.path, contentRateLimit, asyncHandler(async (req, res) => {
@@ -2077,6 +2081,10 @@ export function registerContentRoutes(app: Express) {
       .set({ status: newStatus })
       .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
     res.json({ success: true, status: newStatus });
+    recordLearningEvent(userId,
+      action === "approve" ? "calendar_item_approved" : "calendar_item_rejected",
+      { queueId: id, action, newStatus },
+    ).catch(() => {});
   }));
 
   app.get("/api/keywords/insights", asyncHandler(async (req, res) => {

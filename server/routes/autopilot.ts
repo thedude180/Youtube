@@ -23,6 +23,8 @@ import {
   addHumanMicroDelay,
 } from "../human-behavior-engine";
 import { createLogger } from "../lib/logger";
+import { recordLearningEvent } from "../services/youtube-learning-brain";
+import { recordEngineKnowledge } from "../services/knowledge-mesh";
 
 
 const logger = createLogger("autopilot");
@@ -214,6 +216,11 @@ export function registerAutopilotRoutes(app: Express) {
         .where(and(eq(commentResponses.id, id), eq(commentResponses.userId, userId)))
         .returning();
       res.json(updated);
+      if (updated) recordLearningEvent(userId, "comment_response_approved", {
+        commentId: id,
+        responsePreview: (updated as any).responseText?.slice(0, 100),
+        tone: (updated as any).tone,
+      }).catch(() => {});
     } catch (err) {
       res.status(500).json({ error: "Failed to approve comment" });
     }
@@ -230,6 +237,11 @@ export function registerAutopilotRoutes(app: Express) {
         .where(and(eq(commentResponses.id, id), eq(commentResponses.userId, userId)))
         .returning();
       res.json(updated);
+      if (updated) recordLearningEvent(userId, "comment_response_rejected", {
+        commentId: id,
+        responsePreview: (updated as any).responseText?.slice(0, 100),
+        tone: (updated as any).tone,
+      }).catch(() => {});
     } catch (err) {
       res.status(500).json({ error: "Failed to reject comment" });
     }
@@ -316,9 +328,18 @@ export function registerAutopilotRoutes(app: Express) {
     try {
       const id = parseNumericId(req.params.id as string, res);
       if (id === null) return;
+      const [item] = await db.select({ type: autopilotQueue.type, metadata: autopilotQueue.metadata })
+        .from(autopilotQueue)
+        .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
       await db.delete(autopilotQueue)
         .where(and(eq(autopilotQueue.id, id), eq(autopilotQueue.userId, userId)));
       res.json({ success: true });
+      if (item) recordLearningEvent(userId, "queue_item_manually_deleted", {
+        type: item.type,
+        contentType: (item.metadata as any)?.contentType,
+        gameName: (item.metadata as any)?.gameName,
+        reason: "user_manual_delete",
+      }).catch(() => {});
     } catch (err) {
       res.status(500).json({ error: "Failed to delete queue item" });
     }

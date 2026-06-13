@@ -8,6 +8,7 @@ import { getUserId } from "./helpers";
 import { cached } from "../lib/cache";
 
 import { createLogger } from "../lib/logger";
+import { recordEngineKnowledge } from "../services/knowledge-mesh";
 
 const logger = createLogger("feedback");
 function requireAuth(req: Request, res: Response): string | null {
@@ -40,6 +41,14 @@ export function registerFeedbackRoutes(app: Express) {
       processFeedback(inserted.id, userId, parsed.message).catch(err => {
         logger.error("[Feedback] Background processing failed:", err.message);
       });
+
+      recordEngineKnowledge(
+        "user-feedback", userId,
+        "user_directive", `feedback:${parsed.type || "improvement"}`,
+        `USER ${(parsed.type || "improvement").toUpperCase()}: ${parsed.message.slice(0, 300)}`,
+        "direct_user_input",
+        parsed.type === "feature" || parsed.type === "improvement" ? 80 : 60,
+      ).catch(() => {});
 
       res.json({
         id: inserted.id,
