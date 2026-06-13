@@ -26,8 +26,10 @@ const SPECS: EnvSpec[] = [
   { key: "SESSION_SECRET",       required: true,  description: "Express session secret (min 32 chars)" },
 
   // ── AI ──────────────────────────────────────────────────────────────────────
-  { key: "OPENAI_API_KEY",       required: false, description: "OpenAI API key — AI features degraded without it" },
-  { key: "ANTHROPIC_API_KEY",    required: false, description: "Anthropic API key — Claude features unavailable without it" },
+  // Keys are injected by the Replit AI integrations under the AI_INTEGRATIONS_ prefix.
+  // The bare OPENAI_API_KEY / ANTHROPIC_API_KEY names are NOT used by the app.
+  { key: "AI_INTEGRATIONS_OPENAI_API_KEY",     required: false, description: "OpenAI API key (via Replit AI integration) — AI features degraded without it" },
+  { key: "AI_INTEGRATIONS_ANTHROPIC_API_KEY",  required: false, description: "Anthropic API key (via Replit AI integration) — Claude features unavailable without it" },
 
   // ── Google / YouTube ────────────────────────────────────────────────────────
   { key: "GOOGLE_CLIENT_ID",     required: false, description: "Google OAuth client ID — YouTube integration disabled without it" },

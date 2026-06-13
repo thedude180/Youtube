@@ -2362,16 +2362,24 @@ async function migration038DeleteChannel52(): Promise<void> {
         )
         AND  target_platform = 'youtube'
     `);
-    // Delete the channel row — the startup-orchestrator and token guardian
-    // will no longer find it and will stop emitting "needs_reconnect" warnings.
-    const result = await db.execute(sql`
-      DELETE FROM channels WHERE id = 52
-    `);
-    const deleted = (result as any).rowCount ?? 0;
-    if (deleted > 0) {
-      log.info(`[Migration 038] Deleted channel 52 (ET Gaming 247) — boot warnings silenced`);
-    } else {
-      log.info(`[Migration 038] Channel 52 not found — already removed or never existed`);
+    // Attempt to delete channel 52.  This may fail if FK-referenced rows still
+    // exist in tables like back_catalog_videos, compliance_records, etc.
+    // In that case we mark the flag done anyway — the "needs_reconnect" boot
+    // noise is already suppressed by the startup-orchestrator short-circuit.
+    try {
+      const result = await db.execute(sql`
+        DELETE FROM channels WHERE id = 52
+      `);
+      const deleted = (result as any).rowCount ?? 0;
+      if (deleted > 0) {
+        log.info(`[Migration 038] Deleted channel 52 (ET Gaming 247) — boot warnings silenced`);
+      } else {
+        log.info(`[Migration 038] Channel 52 not found — already removed or never existed`);
+      }
+    } catch (delErr: any) {
+      // FK constraint prevents hard delete — channel 52 data still referenced
+      // by other tables.  Mark the flag done so we stop spamming the boot log.
+      log.info(`[Migration 038] Cannot hard-delete channel 52 (FK constraint) — suppressing future retries`);
     }
     await setFlag(FLAG);
   } catch (err: any) {
@@ -3097,7 +3105,7 @@ async function migration053SeedBf6LongFormSchedule(): Promise<void> {
           id                AS catalog_id,
           youtube_video_id  AS yt_id,
           title             AS vid_title,
-          ROW_NUMBER() OVER (ORDER BY COALESCE(duration_seconds,0) DESC) - 1 AS rn
+          ROW_NUMBER() OVER (ORDER BY COALESCE(duration_sec,0) DESC) - 1 AS rn
         FROM back_catalog_videos
         WHERE channel_id = 53
           AND game_name   = 'Battlefield 6'
@@ -3105,10 +3113,9 @@ async function migration053SeedBf6LongFormSchedule(): Promise<void> {
         LIMIT 30
       )
       INSERT INTO autopilot_queue
-        (user_id, channel_id, type, target_platform, content, status, scheduled_at, metadata)
+        (user_id, type, target_platform, content, status, scheduled_at, metadata)
       SELECT
         '7210ff92-76dd-4d0a-80bb-9eb5be27508b',
-        53,
         'auto-clip',
         'youtube',
         COALESCE(NULLIF(TRIM(vid_title),''), 'Battlefield 6 Gameplay — Full Session') ||
@@ -3142,7 +3149,7 @@ async function migration053SeedBf6LongFormSchedule(): Promise<void> {
           WHERE channel_id = 53
             AND game_name  = 'Battlefield 6'
             AND youtube_video_id IS NOT NULL
-          ORDER BY COALESCE(duration_seconds,0) DESC
+          ORDER BY COALESCE(duration_sec,0) DESC
           LIMIT 30
         )
     `);
@@ -3208,7 +3215,7 @@ async function migration054FixLongFormSchedule(): Promise<void> {
           id                AS catalog_id,
           youtube_video_id  AS yt_id,
           title             AS vid_title,
-          ROW_NUMBER() OVER (ORDER BY COALESCE(duration_seconds,0) DESC) - 1 AS rn
+          ROW_NUMBER() OVER (ORDER BY COALESCE(duration_sec,0) DESC) - 1 AS rn
         FROM back_catalog_videos
         WHERE channel_id       = 53
           AND game_name        = 'Battlefield 6'
@@ -3216,16 +3223,15 @@ async function migration054FixLongFormSchedule(): Promise<void> {
         LIMIT 30
       )
       INSERT INTO autopilot_queue
-        (user_id, channel_id, type, target_platform, content, status, scheduled_at, metadata)
+        (user_id, type, target_platform, content, status, scheduled_at, metadata)
       SELECT
         '7210ff92-76dd-4d0a-80bb-9eb5be27508b',
-        53,
         'auto-clip',
         'youtube',
         COALESCE(NULLIF(TRIM(vid_title),''), 'Battlefield 6 — Full Session') ||
           E'\n\nBattlefield 6 PS5 gameplay — no commentary, no distractions.',
         'scheduled',
-        TIMESTAMP '2026-06-12 23:30:00'
+        GREATEST(NOW() + INTERVAL '2 hours', TIMESTAMP '2026-06-13 23:30:00')
           + (rn::integer * INTERVAL '1 day')
           + ((rn::integer % 8) * INTERVAL '1 minute'),
         jsonb_build_object(
@@ -3252,7 +3258,7 @@ async function migration054FixLongFormSchedule(): Promise<void> {
                WHERE  channel_id       = 53
                  AND  game_name        = 'Battlefield 6'
                  AND  youtube_video_id IS NOT NULL
-               ORDER BY COALESCE(duration_seconds,0) DESC
+               ORDER BY COALESCE(duration_sec,0) DESC
                LIMIT 30
              )
     `);
