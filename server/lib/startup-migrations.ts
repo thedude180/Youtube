@@ -1085,7 +1085,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:060:purge_non_bf6_shorts_v1",          label: "060 — purge non-BF6 Shorts from autopilot queue (focus gate enforcement)" },
   { flag: "migration:061:purge_non_bf6_slippage_v1",        label: "061 — purge non-BF6 slippage items (past-stream gate + wrong gameName in metadata)" },
   { flag: "migration:062:cancel_non_bf6_studio_auto_publish_v1", label: "062 — permanent-fail non-BF6 studio_auto_publish queue items + cancel ready studio_videos (AC Valhalla double-post fix)" },
-  { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos; update game focus to Assassin's Creed (multi-game channel directive Jun 13 2026)" },
+  { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos for mining + recover wrongly-purged queue items (multi-game channel directive Jun 13 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -3665,18 +3665,17 @@ async function migration062CancelNonBF6StudioAutoPublish(): Promise<void> {
   }
 }
 
-// ── Migration 063: Unlock multi-game catalog — revert BF6-only focus ──────────
+// ── Migration 063: Unlock multi-game catalog ──────────────────────────────────
 // User directive (Jun 13 2026): channel publishes multi-game content.
 // Screenshots confirm: AC Liberation, AC Mirage, Dragon Age: The Veilguard,
 // GTA, Ratchet & Clank, and Battlefield 6 are all active games on the channel.
+// Game focus stays Battlefield 6 — but ALL games are valid catalog sources.
 //
 // What this migration does:
 //  1. Unlocks all non-BF6 back_catalog_videos locked by migration 052
 //     (mined_for_shorts + mined_for_long_form reset to false) so the back-catalog
 //     engine can mine AC, Dragon Age, GTA, and Ratchet & Clank content again.
-//  2. Updates game_focus:current from "Battlefield 6" → "Assassin's Creed"
-//     (the dominant Shorts game visible on the channel as of Jun 13 2026).
-//  3. Recovers recent autopilot_queue items that were wrongly permanent-failed
+//  2. Recovers recent autopilot_queue items that were wrongly permanent-failed
 //     by the BF6-only per-boot purge, rescheduling them 1 hour from now.
 //
 // The per-boot cleanupNonBF6QueueItems() is also disabled above (no-op).
@@ -3697,15 +3696,7 @@ async function migration063UnlockMultiGameCatalog(): Promise<void> {
     `);
     log.info(`[Migration 063] Unlocked ${(r1 as any).rowCount ?? 0} non-BF6 catalog videos for mining`);
 
-    // 2. Update game_focus:current → Assassin's Creed (dominant Shorts content)
-    await db.execute(sql`
-      INSERT INTO system_settings (key, value, created_at, updated_at)
-      VALUES ('game_focus:current', 'Assassin''s Creed', NOW(), NOW())
-      ON CONFLICT (key) DO UPDATE SET value = 'Assassin''s Creed', updated_at = NOW()
-    `);
-    log.info("[Migration 063] Updated game_focus:current → Assassin's Creed");
-
-    // 3. Recover queue items wrongly permanent-failed by the BF6-only boot purge.
+    // 2. Recover queue items wrongly permanent-failed by the BF6-only boot purge.
     //    Only recovers items scheduled within the last 14 days (still relevant).
     //    Reschedules them 1 hour out so publishers don't get a burst on next boot.
     const r3 = await db.execute(sql`
