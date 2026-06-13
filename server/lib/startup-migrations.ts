@@ -1087,6 +1087,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:062:cancel_non_bf6_studio_auto_publish_v1", label: "062 — permanent-fail non-BF6 studio_auto_publish queue items + cancel ready studio_videos (AC Valhalla double-post fix)" },
   { flag: "migration:063:unlock_multi_game_catalog_v1",          label: "063 — unlock non-BF6 catalog videos for mining + recover wrongly-purged queue items (multi-game channel directive Jun 13 2026)" },
   { flag: "migration:064:purge_bad_game_name_items_v1",          label: "064 — purge auto-clip queue items with nonsense game names (AI/Sonic/Epic/Gaming) blocking BF6 queue slots" },
+  { flag: "migration:065:blacklist_maz2_llq_storm_videos_v1",    label: "065 — blacklist mAz2whE1ruI + LlQFaMvy5_k storm videos (format unavailable → DB pool exhaustion → crash loop Jun 13 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -3755,6 +3756,123 @@ async function migration064PurgeBadGameNameItems(): Promise<void> {
   }
 }
 
+// ── Migration 065 — Blacklist mAz2whE1ruI + LlQFaMvy5_k storm videos ─────────
+// Root cause of outage detected Jun 13 2026:
+//   mAz2whE1ruI (vault: indexed, no downloaded file) → pre-encoder falls through
+//   to yt-dlp section download → "Requested format is not available" on both
+//   default and ios clients → 3-min startup-stall timeout per attempt → many
+//   concurrent items hold all yt-dlp slots → DB connection pool exhausted →
+//   healthcheck context-deadline-exceeded → crash loop.
+//   13+ youtube_short items confirmed from this source (endSec values match logs).
+//
+//   LlQFaMvy5_k (vault: downloaded but file may be missing / still format-errors)
+//   → 6 platform_short items doing the same thing.
+//
+// Fix (identical pattern to migration 058):
+//   1. Vault: mark both IDs as failed + permanentFail:true (sentinel insert if needed)
+//   2. Queue: permanent_fail ALL items referencing either ID (ILIKE search catches
+//      IDs stored anywhere in metadata JSON, not just sourceYoutubeId)
+//   3. General sweep: any vault entry whose download_error indicates format unavailable
+async function migration065BlacklistNewStormVideos(): Promise<void> {
+  const FLAG = "migration:065:blacklist_maz2_llq_storm_videos_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const STORM_IDS = ["mAz2whE1ruI", "LlQFaMvy5_k"];
+
+    for (const ytId of STORM_IDS) {
+      // Mark existing vault rows failed + permanentFail
+      await db.execute(sql`
+        UPDATE content_vault_backups
+        SET status        = 'failed',
+            download_error = COALESCE(download_error,
+                             'All format strategies failed: format not available (confirmed storm video Jun 13 2026)'),
+            metadata       = COALESCE(metadata, '{}'::jsonb)
+                             || '{"permanentFail": true}'::jsonb
+        WHERE youtube_id = ${ytId}
+          AND status != 'downloaded'
+      `);
+
+      // Sentinel insert so clip-video-processor preload can block it permanently
+      await db.execute(sql`
+        INSERT INTO content_vault_backups
+               (user_id, youtube_id, platform, content_type, status, download_error, metadata)
+        SELECT 'system', ${ytId}, 'youtube', 'video', 'failed',
+               'All format strategies failed: format not available (confirmed storm video Jun 13 2026)',
+               '{"permanentFail": true}'::jsonb
+        WHERE NOT EXISTS (
+          SELECT 1 FROM content_vault_backups WHERE youtube_id = ${ytId}
+        )
+      `);
+
+      // Cancel all queue items — search the full metadata JSON text because the
+      // storm video ID may be stored under any key (sourceYoutubeId, youtubeId,
+      // videoId, or a nested field).
+      try {
+        await db.execute(sql`
+          UPDATE autopilot_queue
+          SET status   = 'permanent_fail',
+              metadata = COALESCE(metadata, '{}'::jsonb)
+                         || '{"permanentFail": true, "failReason": "source video permanently inaccessible - confirmed storm video"}'::jsonb
+          WHERE status IN ('scheduled', 'pending')
+            AND metadata::text ILIKE ${'%' + ytId + '%'}
+        `);
+      } catch (qErr: any) {
+        log.warn(`[Migration 065] autopilot_queue cancel for ${ytId} failed (non-fatal): ${qErr?.message}`);
+      }
+    }
+
+    // General sweep: any vault entry that indicates format unavailability but
+    // hasn't been stamped permanentFail yet — covers videos discovered between
+    // migration runs.
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET metadata = COALESCE(metadata, '{}'::jsonb)
+                     || '{"permanentFail": true}'::jsonb
+      WHERE status IN ('failed', 'skipped')
+        AND COALESCE((metadata->>'permanentFail')::boolean, false) = false
+        AND (
+          download_error LIKE '%format is not available%'
+          OR download_error LIKE '%format strategies failed%'
+          OR download_error LIKE '%permanently inaccessible%'
+          OR download_error LIKE '%confirmed storm video%'
+          OR download_error LIKE '%PERM_UNAVAILABLE%'
+        )
+    `);
+
+    await setFlag(FLAG);
+    log.info("[Migration 065] Blacklisted mAz2whE1ruI + LlQFaMvy5_k storm videos; cancelled dependent queue items");
+
+    try {
+      const { logMigrationResolution } = await import("./incident-log");
+      await logMigrationResolution({
+        migrationNumber: 65,
+        category:        "storm_video",
+        service:         "pre-encoder / yt-dlp-section",
+        severity:        "critical",
+        crashesPerDay:   10,
+        rootCause:
+          "mAz2whE1ruI (vault: indexed) caused pre-encoder to fall through to yt-dlp section " +
+          "download. 'Requested format is not available' on all clients → 3-min startup-stall " +
+          "timeout per attempt × 13+ concurrent items → all yt-dlp slots held → DB pool " +
+          "exhausted → healthcheck deadline exceeded → crash loop. LlQFaMvy5_k (6 items) " +
+          "contributed additional concurrent failures.",
+        fixDescription:
+          "Migration 065: both IDs marked failed+permanentFail in vault (sentinel rows " +
+          "inserted); all dependent queue items permanent_failed via full-metadata ILIKE " +
+          "search; general format-error sweep stamps permanentFail on any new discoveries.",
+        lesson:
+          "When vault status is 'indexed' (not downloaded), pre-encoder falls through to " +
+          "yt-dlp section download. Videos with no DASH formats cause 3-min startup-stall " +
+          "timeouts × many concurrent items → DB pool exhaustion → crash. Use full metadata " +
+          "ILIKE search (not just sourceYoutubeId) to cancel all dependent queue items.",
+        tags: ["storm-video", "yt-dlp", "pre-encoder", "db-pool-exhaustion", "healthcheck"],
+      });
+    } catch (_) {}
+  } catch (err: any) {
+    log.warn(`[Migration 065] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -3823,6 +3941,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration062CancelNonBF6StudioAutoPublish();
     await migration063UnlockMultiGameCatalog();
     await migration064PurgeBadGameNameItems();
+    await migration065BlacklistNewStormVideos();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
