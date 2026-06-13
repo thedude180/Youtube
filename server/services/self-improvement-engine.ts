@@ -393,23 +393,8 @@ async function pursueCuriosity(userId: string): Promise<void> {
 
     for (const q of questions) {
       try {
-        const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q.question)}&format=json&srlimit=3&utf8=1`;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const resp = await fetch(wikiUrl, {
-          signal: controller.signal,
-          headers: { "User-Agent": "CreatorOS/1.0 (curiosity-pursuit)" },
-        });
-        clearTimeout(timeout);
-
-        let webContext = "";
-        if (resp.ok) {
-          const data = await resp.json() as any;
-          const results = data?.query?.search || [];
-          webContext = results.map((r: any) =>
-            `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
-          ).join("\n");
-        }
+        const { getCachedWikiResults } = await import("./external-data-cache");
+        const webContext = await getCachedWikiResults(q.question);
 
         const aiResult = await executeRoutedAICall(
           { taskType: "curiosity_pursuit", userId, priority: "low" },
@@ -646,23 +631,8 @@ async function scanWebForStrategies(userId: string): Promise<void> {
   const topic = TREND_SCAN_TOPICS[topicIndex];
 
   try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&srlimit=3&utf8=1`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const resp = await fetch(wikiUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "CreatorOS/1.0 (self-improvement)" },
-    });
-    clearTimeout(timeout);
-
-    let webContext = "";
-    if (resp.ok) {
-      const data = await resp.json() as any;
-      const results = data?.query?.search || [];
-      webContext = results.map((r: any) =>
-        `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
-      ).join("\n");
-    }
+    const { getCachedWikiResults } = await import("./external-data-cache");
+    const webContext = await getCachedWikiResults(topic);
 
     const lastReflection = await getUserData<any>(siStore, userId, "reflection_latest");
 

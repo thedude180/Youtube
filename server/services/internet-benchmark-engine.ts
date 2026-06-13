@@ -140,54 +140,18 @@ type BenchmarkDomain = typeof BENCHMARK_DOMAINS[number];
 // Web search helpers
 // ---------------------------------------------------------------------------
 async function searchWebForDomain(domain: BenchmarkDomain): Promise<string> {
+  const { getCachedWikiResults, getCachedDDGResult } = await import("./external-data-cache");
   const parts: string[] = [];
 
   for (const query of domain.queries) {
-    // Wikipedia
-    try {
-      const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=3&utf8=1`;
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 10_000);
-      const resp = await fetch(wikiUrl, {
-        signal: ctrl.signal,
-        headers: { "User-Agent": "CreatorOS/1.0 (internet-benchmark)" },
-      });
-      clearTimeout(t);
-      if (resp.ok) {
-        const data = await resp.json() as any;
-        const results: any[] = data?.query?.search || [];
-        const text = results.map((r: any) =>
-          `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 250)}`
-        ).join("\n");
-        if (text) parts.push(`[Wikipedia — ${query}]\n${text}`);
-      }
-    } catch { /* swallow */ }
+    const wiki = await getCachedWikiResults(query);
+    if (wiki) parts.push(`[Wikipedia — ${query}]\n${wiki}`);
 
-    // DuckDuckGo
-    try {
-      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1`;
-      const ctrl2 = new AbortController();
-      const t2 = setTimeout(() => ctrl2.abort(), 10_000);
-      const resp2 = await fetch(ddgUrl, {
-        signal: ctrl2.signal,
-        headers: { "User-Agent": "CreatorOS/1.0 (internet-benchmark)" },
-      });
-      clearTimeout(t2);
-      if (resp2.ok) {
-        const data2 = await resp2.json() as any;
-        const chunks: string[] = [];
-        if (data2.AbstractText) chunks.push(data2.AbstractText.slice(0, 400));
-        if (data2.RelatedTopics?.length) {
-          chunks.push(
-            data2.RelatedTopics.slice(0, 4)
-              .map((t: any) => t.Text?.slice(0, 180))
-              .filter(Boolean)
-              .join(" | ")
-          );
-        }
-        if (chunks.length) parts.push(`[DuckDuckGo — ${query}]\n${chunks.join("\n")}`);
-      }
-    } catch { /* swallow */ }
+    const ddg = await getCachedDDGResult(query);
+    const ddgChunks: string[] = [];
+    if (ddg.abstract) ddgChunks.push(ddg.abstract);
+    if (ddg.related.length) ddgChunks.push(ddg.related.join(" | "));
+    if (ddgChunks.length) parts.push(`[DuckDuckGo — ${query}]\n${ddgChunks.join("\n")}`);
   }
 
   return parts.join("\n\n") || "No web data retrieved — using AI training knowledge.";

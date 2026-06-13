@@ -116,42 +116,18 @@ async function postChatMessage(yt: any, liveChatId: string, message: string): Pr
 }
 
 async function researchQuestion(question: string, gameName: string): Promise<string> {
-  let webContext = "";
+  const { getCachedWikiResults, getCachedDDGResult } = await import("./external-data-cache");
+  const searchQuery = `${question} ${sanitizeForPrompt(gameName)} PS5`;
 
-  try {
-    const searchQuery = `${question} ${sanitizeForPrompt(gameName)} PS5`;
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&format=json&srlimit=3&utf8=1`;
-    const resp = await fetch(wikiUrl, {
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "CreatorOS/1.0 (live-chat-research)" },
-    });
+  const wikiContext = await getCachedWikiResults(searchQuery);
+  if (wikiContext) return wikiContext;
 
-    if (resp.ok) {
-      const data = await resp.json() as any;
-      const results = data?.query?.search || [];
-      webContext = results.map((r: any) =>
-        `${sanitizeForPrompt(r.title)}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 300)}`
-      ).join("\n");
-    }
-  } catch (err: any) { logger.warn("[LiveChat] Wikipedia search failed:", err?.message || err); }
-
-  if (!webContext) {
-    try {
-      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(question + " " + gameName)}&format=json&no_html=1&skip_disambig=1`;
-      const resp = await fetch(ddgUrl, {
-        signal: AbortSignal.timeout(8000),
-        headers: { "User-Agent": "CreatorOS/1.0 (live-chat-research)" },
-      });
-      if (resp.ok) {
-        const data = await resp.json() as any;
-        const abstract = data?.AbstractText || data?.Abstract || "";
-        const related = (data?.RelatedTopics || []).slice(0, 3).map((t: any) => t.Text || "").filter(Boolean).join("\n");
-        webContext = `${abstract}\n${related}`.trim();
-      }
-    } catch (err: any) { logger.warn("[LiveChat] DuckDuckGo search failed:", err?.message || err); }
+  const ddg = await getCachedDDGResult(`${question} ${gameName}`);
+  if (ddg.abstract || ddg.related.length) {
+    return `${ddg.abstract}\n${ddg.related.join("\n")}`.trim();
   }
 
-  return webContext;
+  return "";
 }
 
 function isQuestion(text: string): boolean {

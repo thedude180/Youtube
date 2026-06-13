@@ -144,7 +144,7 @@ export async function getCachedVideoMetrics(
       comments:               cached.comments      ?? 0,
       subscribersGained:      cached.subscribersGained ?? 0,
       performanceScore:       Number(cached.performanceScore) ?? null,
-      measuredAt:             cached.measuredAt,
+      measuredAt:             cached.measuredAt ?? undefined,
       fromCache:              true,
     };
   }

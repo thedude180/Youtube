@@ -16,7 +16,7 @@
  */
 
 import { db } from "../db";
-import { eq, and, desc, gte, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, sql, inArray, isNotNull } from "drizzle-orm";
 import {
   shadowVideoAnalytics,
   shadowChannelAnalytics,
@@ -520,8 +520,18 @@ export async function runShadowAnalyticsSweep(userId: string): Promise<void> {
     }
   }
 
-  // Channel-level public stats
-  const channelStats = ytChannelId ? await fetchChannelPublicStats(ytChannelId) : { subscriberCount: null, videoCount: null };
+  // Channel-level stats — read from DB (channels table), zero external API call.
+  // The platform-sync engine keeps channels.subscriberCount / videoCount fresh every 12h.
+  let channelStats: { subscriberCount: number | null; videoCount: number | null } = { subscriberCount: null, videoCount: null };
+  if (ytChannelId) {
+    try {
+      const [ch] = await db.select({ subscriberCount: channels.subscriberCount, videoCount: channels.videoCount })
+        .from(channels)
+        .where(and(eq(channels.channelId, ytChannelId), isNotNull(channels.accessToken)))
+        .limit(1);
+      if (ch) channelStats = { subscriberCount: Number(ch.subscriberCount ?? 0) || null, videoCount: ch.videoCount ?? null };
+    } catch { /* keep nulls */ }
+  }
 
   // Upsert channel daily rollup
   const channelRollup = {

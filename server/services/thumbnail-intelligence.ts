@@ -88,23 +88,8 @@ async function searchBraveViaProxy(query: string): Promise<Array<{ url: string; 
 }
 
 async function searchWebForThumbnailArticles(query: string): Promise<string> {
-  try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=3&utf8=1`;
-    const resp = await fetch(wikiUrl, {
-      signal: AbortSignal.timeout(10000),
-      headers: { "User-Agent": "CreatorOS/1.0 (thumbnail-research)" },
-    });
-
-    if (!resp.ok) return "";
-
-    const data = await resp.json() as any;
-    const results = data?.query?.search || [];
-    return results.map((r: any) =>
-      `${sanitizeForPrompt(r.title)}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
-    ).join("\n");
-  } catch {
-    return "";
-  }
+  const { getCachedWikiResults } = await import("./external-data-cache");
+  return getCachedWikiResults(query);
 }
 
 export async function researchThumbnailsForGame(userId: string, gameName: string): Promise<

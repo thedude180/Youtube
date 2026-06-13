@@ -8995,10 +8995,12 @@ export function registerAiRoutes(app: Express) {
     const userId = await requireTier(req, res, "pro", "Platform Intelligence");
     if (!userId) return;
     try {
-      const { getGamingDemandSignals, extractTopContentIdeas } = await import("../services/reddit-listener");
-      const extra = req.query.subreddits ? String(req.query.subreddits).split(",") : [];
-      const feeds = await getGamingDemandSignals(extra);
-      const ideas = extractTopContentIdeas(feeds);
+      const { extractTopContentIdeas } = await import("../services/reddit-listener");
+      const { getCachedSubredditFeeds } = await import("../services/external-data-cache");
+      const extra = req.query.subreddits ? String(req.query.subreddits).split(",").filter(Boolean) : [];
+      const defaultSubs = ["battlefield", "battlefield2042", "gaming", "YouTube", "NewTubers"];
+      const feeds = await getCachedSubredditFeeds([...new Set([...defaultSubs, ...extra])]);
+      const ideas = extractTopContentIdeas(feeds as any);
       res.json({ feeds: feeds.map(f => ({ subreddit: f.subreddit, postCount: f.posts.length, topPosts: f.posts.slice(0, 5) })), topContentIdeas: ideas.slice(0, 10) });
     } catch (e: any) { logger.error("Reddit demand-feed error:", e); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });

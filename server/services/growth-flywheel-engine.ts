@@ -593,49 +593,11 @@ async function scanCompetitiveIntelForUser(userId: string): Promise<void> {
   const principleFilter = activePrinciples.map(p => p.corePrinciple).join("; ");
 
   try {
-    const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&srlimit=3&utf8=1`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const resp = await fetch(wikiUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "CreatorOS/1.0 (competitive-intel)" },
-    });
-    clearTimeout(timeout);
-
-    let webContext = "";
-    if (resp.ok) {
-      const data = await resp.json() as any;
-      const results = data?.query?.search || [];
-      webContext = results.map((r: any) =>
-        `${r.title}: ${(r.snippet || "").replace(/<[^>]*>/g, "").slice(0, 200)}`
-      ).join("\n");
-    }
-
-    const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(topic)}&format=json&no_redirect=1`;
-    const ddgController = new AbortController();
-    const ddgTimeout = setTimeout(() => ddgController.abort(), 10000);
-    try {
-      const ddgResp = await fetch(ddgUrl, {
-        signal: ddgController.signal,
-        headers: { "User-Agent": "CreatorOS/1.0 (competitive-intel)" },
-      });
-      clearTimeout(ddgTimeout);
-      if (ddgResp.ok) {
-        const ddgData = await ddgResp.json() as any;
-        if (ddgData.AbstractText) {
-          webContext += `\n\nDuckDuckGo: ${ddgData.AbstractText.slice(0, 400)}`;
-        }
-        if (ddgData.RelatedTopics) {
-          const relatedText = ddgData.RelatedTopics.slice(0, 3)
-            .map((t: any) => t.Text?.slice(0, 150))
-            .filter(Boolean)
-            .join("\n");
-          webContext += `\n${relatedText}`;
-        }
-      }
-    } catch {
-      clearTimeout(ddgTimeout);
-    }
+    const { getCachedWikiResults, getCachedDDGResult } = await import("./external-data-cache");
+    let webContext = await getCachedWikiResults(topic);
+    const ddg = await getCachedDDGResult(topic);
+    if (ddg.abstract) webContext += `\n\nDuckDuckGo: ${ddg.abstract}`;
+    if (ddg.related.length) webContext += `\n${ddg.related.slice(0, 3).map(t => t.slice(0, 150)).join("\n")}`;
 
     const aiResult = await executeRoutedAICall(
       { taskType: "competitive_intel", userId, priority: "low" },

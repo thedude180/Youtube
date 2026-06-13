@@ -39,6 +39,7 @@ import { stopTierCleanup } from "./services/auto-tier-optimizer";
 import { initBackCatalogRunner, stopBackCatalogRunner } from "./services/youtube-back-catalog-runner";
 import { initYouTubeAIOrchestrator, stopYouTubeAIOrchestrator } from "./services/youtube-ai-orchestrator";
 import { initYouTubeDataCache, stopYouTubeDataCache } from "./services/youtube-data-cache";
+import { initExternalDataCache, stopExternalDataCache } from "./services/external-data-cache";
 import { initCreatorAccelerationEngine, stopCreatorAccelerationEngine } from "./services/creator-acceleration-engine";
 import { initPublishingWatchdog, stopPublishingWatchdog } from "./services/publishing-watchdog";
 import { initChannelIntelligenceEngine, stopChannelIntelligenceEngine } from "./services/channel-intelligence-engine";
@@ -3930,6 +3931,14 @@ httpServer.listen(
         logger.error("[Boot] initYouTubeDataCache threw", { error: e?.message });
       }
 
+      // External Data Cache — centralises ALL non-YouTube external reads.
+      // Wikipedia, DuckDuckGo, and Reddit are fetched once per TTL window
+      // (wiki/DDG: 24h, Reddit: 2h).  All background engines call the
+      // getters instead of hitting external APIs directly.
+      try { initExternalDataCache(); } catch (e: any) {
+        logger.error("[Boot] initExternalDataCache threw", { error: e?.message });
+      }
+
       // Shadow Analytics Engine — quota-free YouTube Analytics mirror.
       // Tier 1: InnerTube (no auth). Tier 2: Studio API (OAuth, zero Data quota).
       // Tier 3: Official Analytics API spot-check when quota available.
@@ -4429,6 +4438,7 @@ httpServer.listen(
     stopBackCatalogRunner();
     stopYouTubeAIOrchestrator();
     stopYouTubeDataCache();
+    stopExternalDataCache();
     stopCreatorAccelerationEngine();
     stopPublishingWatchdog();
     stopChannelIntelligenceEngine();
