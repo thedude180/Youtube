@@ -18,6 +18,17 @@
  * scrapeTab (container-memory.ts) to SKIP scraping when memory is already
  * high — that is a separate, orthogonal concern.
  *
+ * PRIORITY QUEUE (two levels):
+ *   Priority 0 — vault full-video downloads.  These always go first.
+ *                Ensures the catalog fills up steadily without being
+ *                interrupted by pre-encoder section downloads.
+ *   Priority 1 — everything else (pre-encoder, niche-researcher, omni-harvester).
+ *                These wait for all priority-0 callers to drain before
+ *                acquiring the slot.
+ *
+ * When the slot is released, priority-0 waiters are served before priority-1.
+ * Within each priority level, callers are served FIFO.
+ *
  * MEMORY GATE (added): before handing a slot to ANY caller, we also verify
  * the container has at least MIN_SPAWN_HEADROOM_BYTES of free memory.  This
  * catches the case where Node.js's own RSS has grown large (post-startup
@@ -34,12 +45,21 @@ const logger = createLogger("ytdlp-gate");
 
 let _running = 0;
 const MAX_CONCURRENT = 1;
-const _queue: Array<() => void> = [];
+
+/** Two-level priority FIFO queues.  Index 0 = highest priority (vault). */
+const _queues: Array<Array<() => void>> = [[], []];
 
 function _release(): void {
   _running--;
-  const next = _queue.shift();
-  if (next) { _running++; next(); }
+  // Serve highest-priority waiters first (index 0), then fall through to index 1
+  for (let p = 0; p < _queues.length; p++) {
+    const q = _queues[p];
+    if (q.length > 0) {
+      _running++;
+      q.shift()!();
+      return;
+    }
+  }
 }
 
 /**
@@ -47,24 +67,31 @@ function _release(): void {
  * Returns a release() function you MUST call in a finally block.
  * Blocks (queues) if MAX_CONCURRENT slots are all in use.
  *
+ * @param priority  0 = vault full downloads (highest — served first).
+ *                  1 = section downloads, research, harvesters (default).
+ *                  Lower number wins when multiple callers are waiting.
+ *
  * Throws if the container does not have enough free memory to safely
  * spawn a yt-dlp subprocess, even after the concurrency slot is free.
  * Callers should catch this and skip/defer the download.
  *
  * @example
- *   const release = await acquireYtdlpSlot();
+ *   const release = await acquireYtdlpSlot();      // default priority 1
+ *   const release = await acquireYtdlpSlot(0);     // vault priority
  *   try {
  *     await execFileAsync(ytdlpBin, args, opts);
  *   } finally {
  *     release();
  *   }
  */
-export async function acquireYtdlpSlot(): Promise<() => void> {
+export async function acquireYtdlpSlot(priority: 0 | 1 = 1): Promise<() => void> {
+  const queueIdx = Math.min(priority, _queues.length - 1) as 0 | 1;
+
   // ── Step 1: concurrency gate ──────────────────────────────────────────────
   if (_running < MAX_CONCURRENT) {
     _running++;
   } else {
-    await new Promise<void>(resolve => _queue.push(resolve));
+    await new Promise<void>(resolve => _queues[queueIdx].push(resolve));
     _running++;
   }
 
@@ -99,7 +126,7 @@ export function ytdlpGateStatus(): { running: number; queued: number; containerF
   const mem = getContainerMemory();
   return {
     running: _running,
-    queued: _queue.length,
+    queued: _queues.reduce((sum, q) => sum + q.length, 0),
     containerFreeMB: Math.round(mem.freeBytes / 1024 / 1024),
   };
 }

@@ -564,8 +564,9 @@ async function scrapeTab(tabUrl: string, contentType: "video" | "short" | "strea
     // Hold one global yt-dlp slot for the entire two-attempt scrape.
     // Releasing between attempts would let another service grab the slot
     // mid-tab, which defeats the memory-gate purpose.
+    // Priority 0 = vault (highest) — vault downloads always go before section downloads.
     let stdout: string;
-    const releaseScrapeSLot = await acquireYtdlpSlot();
+    const releaseScrapeSLot = await acquireYtdlpSlot(0);
     try {
       ({ stdout } = await execFileAsync(resolveYtdlp(), buildScrapeArgs(true), scrapeExecOpts));
     } catch (primaryErr: any) {
@@ -1299,7 +1300,9 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
     // Remove stale output before each attempt
     try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
     try {
-      const releaseDl = await acquireYtdlpSlot();
+      // Priority 0 = vault (highest) — vault full-video downloads always
+      // go before pre-encoder section downloads in the gate queue.
+      const releaseDl = await acquireYtdlpSlot(0);
       try {
         // Hard 8-minute wall-clock kill: SIGKILL the entire process group
         // (yt-dlp + its --js-runtimes node child) so a hung download can never

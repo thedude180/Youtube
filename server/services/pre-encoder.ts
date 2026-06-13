@@ -621,7 +621,35 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             vEq(contentVaultBackups.status, "indexed"),
           ))
           .limit(1);
-        if (indexedEntry) vaultIsIndexedOnly = true;
+        if (indexedEntry) {
+          vaultIsIndexedOnly = true;
+          // ── Vault-indexed strict gate ─────────────────────────────────────
+          // The vault knows about this video but hasn't downloaded it yet.
+          // NEVER attempt a section download for an indexed-only entry — the
+          // yt-dlp section download will fail (format not available, startup
+          // stall, etc.) holding the gate slot for 3+ minutes per item.
+          // Instead: trigger the vault downloader, reschedule this item +2h,
+          // and let the vault-first path handle it on the next cycle.
+          logger.info(
+            `[PreEncoder] Item ${item.id} (${resolvedSourceYoutubeId}) — vault is indexed ` +
+            `but not yet downloaded. Deferring 2h and queuing vault download.`
+          );
+          try {
+            const { queueVaultDownloadForSource } = await import("./video-vault");
+            const itemUserId = item.userId as string;
+            queueVaultDownloadForSource(itemUserId, resolvedSourceYoutubeId).catch(() => {});
+          } catch (_) {}
+          try {
+            const prevDeferred = typeof meta.preEncoderDeferCount === "number" ? meta.preEncoderDeferCount : 0;
+            await db.update(autopilotQueue)
+              .set({
+                metadata: { ...meta, preEncoderDeferCount: prevDeferred + 1, preEncoderLastDeferred: new Date().toISOString() } as any,
+              })
+              .where(and(eq(autopilotQueue.id, item.id), inArray(autopilotQueue.status, ["scheduled", "pending"])));
+          } catch (_) {}
+          skipped++;
+          continue;
+        }
 
         // Check for permanently failed vault entry — skip completely
         const [failedEntry] = await vaultDb
@@ -725,11 +753,11 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       logger.warn(`[PreEncoder] Failed to pre-encode item ${item.id}: ${errMsg}`);
 
       // "Requested format is not available" means yt-dlp section download can't
-      // fetch a fragmented segment for this video.  This is recoverable if the
-      // full video gets downloaded to the vault — the next cycle will use the
-      // vault-trim path.  Only hard-fail if the vault itself has permanently
-      // failed (unresolvable).  For indexed-only vault entries, set count=1 so
-      // we retry after the vault downloader finishes the full-video download.
+      // fetch a fragmented segment for this video.
+      // NOTE: indexed-only vault entries now early-return above and never reach here.
+      // This catch block only fires for: (a) vault-check threw (fell through), or
+      // (b) vault had no entry and section download failed.
+      // Hard-fail immediately in the no-vault case — don't waste more yt-dlp slots.
       const isFormatError =
         errMsg.includes("Requested format is not available") ||
         errMsg.includes("format is not available") ||
