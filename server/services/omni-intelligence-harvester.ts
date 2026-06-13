@@ -22,13 +22,18 @@ import { db } from "../db";
 import {
   users, channels, intelligenceSignals, predictiveTrends, growthStrategies, capabilityGaps,
 } from "@shared/schema";
-import { eq, and, desc, gte, lt, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
 import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
 import { getFocusGame } from "../lib/game-focus";
 import { recordEngineKnowledge } from "./knowledge-mesh";
+import {
+  getCachedRedditFeed,
+  getCachedRSSFeed,
+  getCachedDDGResult,
+} from "./external-data-cache";
 
 const logger = createLogger("omni-intelligence");
 const execFileAsync = promisify(execFile);
@@ -111,18 +116,15 @@ async function harvestYouTubeTrending(userId: string, focusGame: string): Promis
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 2: Reddit public JSON (no auth, just User-Agent)
+// SOURCE 2: Reddit — served from external-data-cache (2 h TTL, DB-persisted)
 // ─────────────────────────────────────────────────────────────────────────────
 async function harvestReddit(userId: string, focusGame: string): Promise<number> {
-  // Core gaming subs + game-specific subs derived from the focus game name
   const gameSub = focusGame.toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
   const gameSubVariants = [
-    { sub: gameSub,         category: "community_pulse" as const },
-    // Well-known BF-family alternates when focus is a Battlefield title
+    { sub: gameSub,           category: "community_pulse" as const },
     ...(focusGame.toLowerCase().includes("battlefield") ? [
-      { sub: "battlefield",       category: "community_pulse" as const },
-      { sub: "Battlefield",       category: "community_pulse" as const },
-      { sub: "battlefield2042",   category: "community_pulse" as const },
+      { sub: "battlefield",     category: "community_pulse" as const },
+      { sub: "battlefield2042", category: "community_pulse" as const },
     ] : []),
   ];
 
@@ -132,37 +134,28 @@ async function harvestReddit(userId: string, focusGame: string): Promise<number>
     { sub: "NewTubers",   category: "strategy_article" as const },
     { sub: "youtube",     category: "strategy_article" as const },
     ...gameSubVariants,
-  ].filter((v, i, arr) => arr.findIndex(x => x.sub === v.sub) === i); // dedupe
+  ].filter((v, i, arr) => arr.findIndex(x => x.sub === v.sub) === i);
+
   let saved = 0;
   const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
 
   for (const { sub, category } of subreddits) {
     try {
-      const res = await fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=${MAX_REDDIT_POSTS}`, {
-        headers: {
-          "User-Agent": "CreatorOS/2.0 (channel growth intelligence bot)",
-          "Accept": "application/json",
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) continue;
-      const data = await res.json() as any;
-      const posts = data?.data?.children ?? [];
-      for (const { data: p } of posts) {
-        if (!p?.title || p.stickied || p.over_18) continue;
+      const posts = await getCachedRedditFeed(sub, "hot", MAX_REDDIT_POSTS);
+      for (const p of posts) {
+        if (!p.title) continue;
         const score = Math.min(100, Math.log10(Math.max(p.score ?? 1, 1) + 1) * 25);
         await db.insert(intelligenceSignals).values({
           userId,
           source: "reddit",
           category,
           title: p.title,
-          url: `https://reddit.com${p.permalink}`,
+          url: p.permalink,
           score,
           metadata: {
             subreddit: sub,
             upvotes: p.score,
-            comments: p.num_comments,
-            flair: p.link_flair_text,
+            comments: p.commentCount,
             selftext: (p.selftext ?? "").slice(0, 400),
           },
           expiresAt: expiry,
@@ -179,31 +172,15 @@ async function harvestReddit(userId: string, focusGame: string): Promise<number>
 // SOURCE 3: Twitch top-games harvest removed — YouTube-only mode.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 4: Gaming RSS news feeds
+// SOURCE 4: Gaming RSS — served from external-data-cache (6 h TTL, DB-persisted)
 // ─────────────────────────────────────────────────────────────────────────────
 const RSS_FEEDS = [
-  { url: "https://www.vg247.com/feed",                         name: "VG247"      },
-  { url: "https://kotaku.com/rss",                             name: "Kotaku"     },
-  { url: "https://www.eurogamer.net/?format=rss",              name: "Eurogamer"  },
-  { url: "https://feeds.feedburner.com/ign/games-articles",    name: "IGN"        },
+  { url: "https://www.vg247.com/feed",                         name: "VG247"       },
+  { url: "https://kotaku.com/rss",                             name: "Kotaku"      },
+  { url: "https://www.eurogamer.net/?format=rss",              name: "Eurogamer"   },
+  { url: "https://feeds.feedburner.com/ign/games-articles",    name: "IGN"         },
   { url: "https://www.gameinformer.com/rss.xml",               name: "GameInformer"},
 ];
-
-function parseRSSItems(xml: string, sourceName: string): Array<{ title: string; url: string; pubDate: string }> {
-  const items: Array<{ title: string; url: string; pubDate: string }> = [];
-  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
-  let match;
-  while ((match = itemRegex.exec(xml)) !== null) {
-    const block = match[1];
-    const title   = (/<title[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/is.exec(block)?.[1] ?? "").trim();
-    const link    = (/<link[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/link>/is.exec(block)?.[1] ?? "").trim()
-                 || (/<guid[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<]+)(?:\]\]>)?<\/guid>/is.exec(block)?.[1] ?? "").trim();
-    const pubDate = (/<pubDate>(.*?)<\/pubDate>/is.exec(block)?.[1] ?? "").trim();
-    if (title && link) items.push({ title, url: link, pubDate });
-    if (items.length >= 10) break;
-  }
-  return items;
-}
 
 async function harvestRSSFeeds(userId: string): Promise<number> {
   let saved = 0;
@@ -211,13 +188,7 @@ async function harvestRSSFeeds(userId: string): Promise<number> {
 
   for (const feed of RSS_FEEDS) {
     try {
-      const res = await fetch(feed.url, {
-        headers: { "User-Agent": "CreatorOS/2.0 (gaming news reader)" },
-        signal: AbortSignal.timeout(12_000),
-      });
-      if (!res.ok) continue;
-      const xml = await res.text();
-      const items = parseRSSItems(xml, feed.name);
+      const items = await getCachedRSSFeed(feed.url, feed.name);
       for (const item of items) {
         await db.insert(intelligenceSignals).values({
           userId,
@@ -239,7 +210,7 @@ async function harvestRSSFeeds(userId: string): Promise<number> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 5: DuckDuckGo web search (strategy + YouTube algorithm queries)
+// SOURCE 5: DuckDuckGo — served from external-data-cache (24 h TTL, DB-persisted)
 // ─────────────────────────────────────────────────────────────────────────────
 async function harvestWebSearch(userId: string, focusGame: string): Promise<number> {
   const year = new Date().getFullYear();
@@ -256,19 +227,8 @@ async function harvestWebSearch(userId: string, focusGame: string): Promise<numb
 
   for (const q of queries) {
     try {
-      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(q)}&format=json&no_redirect=1&no_html=1`;
-      const res = await fetch(url, {
-        headers: { "User-Agent": "CreatorOS/2.0 (strategy research)" },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) continue;
-      const data = await res.json() as any;
-
-      const relatedTopics: string[] = [];
-      for (const t of (data?.RelatedTopics ?? []).slice(0, 8)) {
-        const text = t?.Text ?? t?.Result ?? "";
-        if (text && text.length > 20) relatedTopics.push(text.slice(0, 200));
-      }
+      const ddg = await getCachedDDGResult(q);
+      const relatedTopics = ddg.related.filter(t => t.length > 20).slice(0, 8);
 
       if (relatedTopics.length > 0) {
         await db.insert(intelligenceSignals).values({

@@ -3,6 +3,7 @@ import { db } from "../db";
 import { discoveredGames } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
+import { getCachedWikiRawSearch, getCachedDDGResult } from "./external-data-cache";
 
 const logger = createLogger("web-game-lookup");
 
@@ -224,29 +225,21 @@ interface WikiGameResult {
   publisher?: string;
 }
 
+/**
+ * Uses external-data-cache (24 h DB-persisted) instead of a raw fetch.
+ * Zero external API cost when the query is warm.
+ */
 async function searchWikipediaForGame(query: string): Promise<WikiGameResult | null> {
   try {
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query + " video game")}&format=json&srlimit=5&utf8=1`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const resp = await fetch(searchUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "CreatorOS/1.0 (game-detection)" },
-    });
-    clearTimeout(timeout);
-
-    if (!resp.ok) return null;
-    const data = await resp.json() as any;
-    const results = data?.query?.search;
-    if (!Array.isArray(results) || results.length === 0) return null;
+    const results = await getCachedWikiRawSearch(query + " video game", 5);
+    if (results.length === 0) return null;
 
     for (const result of results) {
-      const title = result.title as string;
-      const snippet = (result.snippet as string || "").toLowerCase();
+      const title   = result.title;
+      const snippet = result.snippet.toLowerCase();
 
       const isVideoGame = snippet.includes("video game") ||
-        snippet.includes("is a") && (snippet.includes("game") || snippet.includes("shooter") || snippet.includes("rpg") || snippet.includes("action")) ||
+        (snippet.includes("is a") && (snippet.includes("game") || snippet.includes("shooter") || snippet.includes("rpg") || snippet.includes("action"))) ||
         snippet.includes("developed by") ||
         snippet.includes("published by") ||
         snippet.includes("playstation") ||
@@ -261,13 +254,8 @@ async function searchWikipediaForGame(query: string): Promise<WikiGameResult | n
 
         const gameResult: WikiGameResult = { name: cleanTitle };
 
-        const genrePatterns = [
-          /(?:action|shooter|rpg|role-playing|adventure|racing|sports|fighting|puzzle|strategy|simulation|horror|survival|stealth|platformer|sandbox|open[- ]world|battle royale|mmo|mmorpg)/i,
-        ];
-        for (const gp of genrePatterns) {
-          const gm = snippet.match(gp);
-          if (gm) { gameResult.genre = gm[0]; break; }
-        }
+        const genreMatch = snippet.match(/(?:action|shooter|rpg|role-playing|adventure|racing|sports|fighting|puzzle|strategy|simulation|horror|survival|stealth|platformer|sandbox|open[- ]world|battle royale|mmo|mmorpg)/i);
+        if (genreMatch) gameResult.genre = genreMatch[0];
 
         const pubMatch = snippet.match(/(?:published|developed)\s+by\s+([^<.]+)/i);
         if (pubMatch) gameResult.publisher = pubMatch[1].trim().replace(/<[^>]*>/g, "").substring(0, 60);
@@ -283,40 +271,30 @@ async function searchWikipediaForGame(query: string): Promise<WikiGameResult | n
   }
 }
 
+/**
+ * Uses external-data-cache (24 h DB-persisted) instead of a raw fetch.
+ * Zero external API cost when the query is warm.
+ */
 async function searchDuckDuckGoForGame(query: string): Promise<string | null> {
   try {
-    const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query + " PS5 game")}&format=json&no_html=1&skip_disambig=1`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const ddg = await getCachedDDGResult(query + " PS5 game");
 
-    const resp = await fetch(searchUrl, {
-      signal: controller.signal,
-      headers: { "User-Agent": "CreatorOS/1.0 (game-detection)" },
-    });
-    clearTimeout(timeout);
-
-    if (!resp.ok) return null;
-    const data = await resp.json() as any;
-
-    if (data.AbstractSource && data.Heading) {
-      const heading = data.Heading as string;
-      const abstract = (data.Abstract as string || "").toLowerCase();
-
+    if (ddg.heading) {
+      const abstract = ddg.abstract.toLowerCase();
       if (abstract.includes("video game") || abstract.includes("developed by") ||
           abstract.includes("published by") || abstract.includes("playstation")) {
-        return heading.replace(/\s*\(.*?\)/, "").trim();
+        return ddg.heading.replace(/\s*\(.*?\)/, "").trim();
       }
     }
 
-    if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
-      for (const topic of data.RelatedTopics.slice(0, 5)) {
-        const text = (topic.Text as string || "").toLowerCase();
-        const name = topic.FirstURL as string || "";
-        if ((text.includes("video game") || text.includes("developed by")) && name) {
-          const match = name.match(/\/([^/]+)$/);
-          if (match) {
-            return decodeURIComponent(match[1]).replace(/_/g, " ").replace(/\s*\(.*?\)/, "").trim();
-          }
+    const relatedUrls = ddg.relatedUrls ?? [];
+    for (let i = 0; i < Math.min(relatedUrls.length, ddg.related.length, 5); i++) {
+      const text = (ddg.related[i] ?? "").toLowerCase();
+      const url  = relatedUrls[i] ?? "";
+      if ((text.includes("video game") || text.includes("developed by")) && url) {
+        const match = url.match(/\/([^/]+)$/);
+        if (match) {
+          return decodeURIComponent(match[1]).replace(/_/g, " ").replace(/\s*\(.*?\)/, "").trim();
         }
       }
     }

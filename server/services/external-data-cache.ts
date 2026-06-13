@@ -8,12 +8,12 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Design rule (mirrors youtube-data-cache.ts)
  * ─────────────────────────────────────────────────────────────────────────────
- *  • This is the ONLY place that may call Wikipedia, DuckDuckGo, or Reddit
- *    for background-engine reads.
+ *  • This is the ONLY place that may call Wikipedia, DuckDuckGo, Reddit,
+ *    or RSS feeds for background-engine reads.
  *  • All callers use the getters below — they receive cached data from the
  *    database (system_settings) and pay zero external API cost when warm.
- *  • Actual real-time or action calls (e.g., Twilio SMS, Discord messages,
- *    OAuth token refreshes) are NOT subject to this rule — they are writes.
+ *  • Actual real-time or action calls (e.g., OAuth token refreshes,
+ *    live chat posts) are NOT subject to this rule — they are writes.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * What is cached
@@ -23,23 +23,35 @@
  *      "Title: snippet\n..." string, HTML-stripped, ready for AI prompts.
  *      Key: extcache:wiki:<query>   TTL: 24 h
  *
+ *  getCachedWikiRawSearch(query)
+ *      Same Wikipedia search but returns Array<{title,snippet}> for
+ *      callers that need structured results (e.g. game detection).
+ *      Key: extcache:wikiraw:<query>   TTL: 24 h
+ *
  *  getCachedDDGResult(query)
- *      DuckDuckGo Instant Answer API. Returns { abstract, related[] }.
+ *      DuckDuckGo Instant Answer API. Returns { abstract, related[],
+ *      heading?, relatedUrls? }. Extra fields used by game detection.
  *      Key: extcache:ddg:<query>    TTL: 24 h
  *
  *  getCachedRedditFeed(subreddit, type)
- *      Reddit hot/top posts. Returns RedditPost[].
+ *      Reddit hot/top posts. Returns CachedRedditPost[].
  *      Key: extcache:reddit:<sub>:<type>   TTL: 2 h
+ *
+ *  getCachedRSSFeed(url, name)
+ *      Gaming RSS feed. Returns RSSItem[].
+ *      Key: extcache:rss:<url-slug>   TTL: 6 h
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * Callers that were redirected to use this cache
  * ─────────────────────────────────────────────────────────────────────────────
- *  self-improvement-engine   × 2 (curiosity pursuit + strategy web scan)
- *  growth-flywheel-engine    × 1 (competitive intel scan)
- *  thumbnail-intelligence    × 1 (searchWebForThumbnailArticles)
- *  internet-benchmark-engine × 1 (searchWebForDomain — per query)
- *  live-chat-agent           × 1 (researchQuestion — wiki + DDG)
- *  routes/ai.ts              × 1 (getGamingDemandSignals via Reddit)
+ *  self-improvement-engine     × 2 (curiosity pursuit + strategy web scan)
+ *  growth-flywheel-engine      × 1 (competitive intel scan)
+ *  thumbnail-intelligence      × 1 (searchWebForThumbnailArticles)
+ *  internet-benchmark-engine   × 1 (searchWebForDomain — per query)
+ *  live-chat-agent             × 1 (researchQuestion — wiki + DDG)
+ *  routes/ai.ts                × 1 (getGamingDemandSignals via Reddit)
+ *  omni-intelligence-harvester × 3 (Reddit + RSS + DDG — rewired)
+ *  web-game-lookup             × 2 (Wikipedia + DDG — rewired)
  */
 
 import { db } from "../db";
@@ -51,7 +63,8 @@ const logger = createLogger("ext-cache");
 
 const WIKI_TTL_MS   = 24 * 60 * 60_000;   // 24 hours
 const DDG_TTL_MS    = 24 * 60 * 60_000;   // 24 hours
-const REDDIT_TTL_MS =  2 * 60 * 60_000;   // 2 hours
+const REDDIT_TTL_MS =  2 * 60 * 60_000;   //  2 hours
+const RSS_TTL_MS    =  6 * 60 * 60_000;   //  6 hours
 
 const USER_AGENT = "CreatorOS/1.0 (platform-intelligence)";
 
@@ -127,23 +140,76 @@ export async function getCachedWikiResults(query: string, maxResults = 3): Promi
   }
 }
 
+// ── getCachedWikiRawSearch ────────────────────────────────────────────────────
+
+export type WikiSearchResult = {
+  title: string;
+  snippet: string;
+};
+
+/**
+ * Returns Wikipedia search results as a structured array { title, snippet }[].
+ * Used by callers that need to inspect titles and snippets individually
+ * (e.g. game detection, which checks isVideoGame signals in the snippet).
+ * HTML tags in snippets are stripped. Returns [] on failure.
+ *
+ * Cache key: extcache:wikiraw:<query>   TTL: 24 h
+ */
+export async function getCachedWikiRawSearch(
+  query: string,
+  maxResults = 5,
+): Promise<WikiSearchResult[]> {
+  const key = `extcache:wikiraw:${query.toLowerCase().trim().slice(0, 200)}`;
+
+  const cached = await readCache<WikiSearchResult[]>(key);
+  if (cached && isFresh(cached.fetchedAt, WIKI_TTL_MS)) {
+    return cached.value;
+  }
+
+  try {
+    const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&srlimit=${maxResults}&utf8=1`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { "User-Agent": USER_AGENT },
+    });
+
+    if (!resp.ok) return cached?.value ?? [];
+
+    const data = await resp.json() as any;
+    const results: WikiSearchResult[] = (data?.query?.search ?? []).map((r: any) => ({
+      title:   r.title ?? "",
+      snippet: (r.snippet ?? "").replace(/<[^>]*>/g, "").trim(),
+    }));
+
+    await writeCache(key, results);
+    return results;
+  } catch (err: any) {
+    logger.warn(`[ExtCache] Wikipedia raw search failed for "${query.slice(0, 60)}": ${err?.message?.slice(0, 80)}`);
+    return cached?.value ?? [];
+  }
+}
+
 // ── getCachedDDGResult ────────────────────────────────────────────────────────
 
 export type DDGResult = {
   abstract: string;
   related: string[];
+  heading?: string;
+  relatedUrls?: string[];
 };
 
 /**
- * Returns a DuckDuckGo Instant Answer: { abstract, related[] }.
- * abstract — up to 400 chars of the AbstractText field.
- * related  — up to 4 RelatedTopics Text strings (up to 180 chars each).
+ * Returns a DuckDuckGo Instant Answer: { abstract, related[], heading?, relatedUrls? }.
+ * abstract     — up to 400 chars of the AbstractText field.
+ * related      — up to 4 RelatedTopics Text strings (up to 180 chars each).
+ * heading      — the Heading field (page title when DDG matches a topic).
+ * relatedUrls  — up to 4 RelatedTopics FirstURL strings (for link-based detection).
  *
  * Cache key: extcache:ddg:<query>   TTL: 24 h
  */
 export async function getCachedDDGResult(query: string): Promise<DDGResult> {
   const key = `extcache:ddg:${query.toLowerCase().trim().slice(0, 200)}`;
-  const empty: DDGResult = { abstract: "", related: [] };
+  const empty: DDGResult = { abstract: "", related: [], heading: "", relatedUrls: [] };
 
   const cached = await readCache<DDGResult>(key);
   if (cached && isFresh(cached.fetchedAt, DDG_TTL_MS)) {
@@ -160,12 +226,12 @@ export async function getCachedDDGResult(query: string): Promise<DDGResult> {
     if (!resp.ok) return cached?.value ?? empty;
 
     const data = await resp.json() as any;
+    const topics: any[] = (data.RelatedTopics ?? []).slice(0, 4);
     const result: DDGResult = {
-      abstract: (data.AbstractText ?? "").slice(0, 400),
-      related:  (data.RelatedTopics ?? [])
-                  .slice(0, 4)
-                  .map((t: any) => (t.Text ?? "").slice(0, 180))
-                  .filter(Boolean),
+      abstract:    (data.AbstractText ?? "").slice(0, 400),
+      related:     topics.map((t: any) => (t.Text ?? "").slice(0, 180)).filter(Boolean),
+      heading:     (data.Heading ?? "").slice(0, 200),
+      relatedUrls: topics.map((t: any) => t.FirstURL ?? "").filter(Boolean),
     };
 
     await writeCache(key, result);
@@ -271,10 +337,80 @@ export async function getCachedSubredditFeeds(
     .map(r => r.value);
 }
 
+// ── getCachedRSSFeed ──────────────────────────────────────────────────────────
+
+export type RSSItem = {
+  title: string;
+  url: string;
+  pubDate: string;
+  feedName: string;
+};
+
+function parseRSSXML(xml: string, feedName: string, maxItems = 10): RSSItem[] {
+  const items: RSSItem[] = [];
+  const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const block = match[1];
+    const title   = (/<title[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/is.exec(block)?.[1] ?? "").trim();
+    const link    = (/<link[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/link>/is.exec(block)?.[1] ?? "").trim()
+                 || (/<guid[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<]+)(?:\]\]>)?<\/guid>/is.exec(block)?.[1] ?? "").trim();
+    const pubDate = (/<pubDate>(.*?)<\/pubDate>/is.exec(block)?.[1] ?? "").trim();
+    if (title && link) items.push({ title, url: link, pubDate, feedName });
+    if (items.length >= maxItems) break;
+  }
+  return items;
+}
+
+/**
+ * Returns parsed items from an RSS feed URL.
+ * Falls back to stale cache on fetch failure.
+ *
+ * Cache key: extcache:rss:<url-slug>   TTL: 6 h
+ */
+export async function getCachedRSSFeed(
+  feedUrl: string,
+  feedName: string,
+  maxItems = 10,
+): Promise<RSSItem[]> {
+  const slug = feedUrl.replace(/^https?:\/\//, "").replace(/[^a-z0-9]/gi, "_").slice(0, 120);
+  const key = `extcache:rss:${slug}`;
+
+  const cached = await readCache<RSSItem[]>(key);
+  if (cached && isFresh(cached.fetchedAt, RSS_TTL_MS)) {
+    return cached.value;
+  }
+
+  try {
+    const resp = await fetch(feedUrl, {
+      signal: AbortSignal.timeout(12_000),
+      headers: { "User-Agent": USER_AGENT },
+    });
+
+    if (!resp.ok) return cached?.value ?? [];
+
+    const xml = await resp.text();
+    const items = parseRSSXML(xml, feedName, maxItems);
+    await writeCache(key, items);
+    return items;
+  } catch (err: any) {
+    logger.warn(`[ExtCache] RSS fetch failed for ${feedName}: ${err?.message?.slice(0, 80)}`);
+    return cached?.value ?? [];
+  }
+}
+
 // ── Scheduled pre-warm ────────────────────────────────────────────────────────
 
 const DEFAULT_GAMING_SUBREDDITS = [
   "battlefield", "battlefield2042", "gaming", "YouTube", "NewTubers",
+];
+
+const DEFAULT_RSS_FEEDS: Array<{ url: string; name: string }> = [
+  { url: "https://www.vg247.com/feed",                         name: "VG247"       },
+  { url: "https://kotaku.com/rss",                             name: "Kotaku"      },
+  { url: "https://www.eurogamer.net/?format=rss",              name: "Eurogamer"   },
+  { url: "https://feeds.feedburner.com/ign/games-articles",    name: "IGN"         },
+  { url: "https://www.gameinformer.com/rss.xml",               name: "GameInformer"},
 ];
 
 async function prewarmRedditFeeds(): Promise<void> {
@@ -287,14 +423,25 @@ async function prewarmRedditFeeds(): Promise<void> {
   logger.info(`[ExtCache] Reddit pre-warm complete (${DEFAULT_GAMING_SUBREDDITS.length} subreddits)`);
 }
 
+async function prewarmRSSFeeds(): Promise<void> {
+  for (const feed of DEFAULT_RSS_FEEDS) {
+    try {
+      await getCachedRSSFeed(feed.url, feed.name);
+    } catch { /* non-fatal */ }
+  }
+  logger.info(`[ExtCache] RSS pre-warm complete (${DEFAULT_RSS_FEEDS.length} feeds)`);
+}
+
 let _warmTimer: ReturnType<typeof setInterval> | null = null;
+let _rssTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Call once from index.ts. Warms the Reddit cache every 2 h so background
- * engines always find it populated. Wikipedia/DDG are warmed on first access.
+ * Call once from index.ts. Warms Reddit every 2 h and RSS every 6 h so
+ * background engines always find caches populated. Wikipedia/DDG warm on
+ * first access.
  */
 export function initExternalDataCache(): void {
-  logger.info("[ExtCache] External data cache initialised — Reddit pre-warm in 2 min, then every 2h");
+  logger.info("[ExtCache] External data cache initialised — Reddit pre-warm in 2 min, RSS in 3 min");
 
   setTimeout(() => {
     prewarmRedditFeeds().catch(err =>
@@ -302,16 +449,26 @@ export function initExternalDataCache(): void {
     );
   }, 2 * 60_000);
 
+  setTimeout(() => {
+    prewarmRSSFeeds().catch(err =>
+      logger.warn(`[ExtCache] Initial RSS pre-warm failed: ${err?.message?.slice(0, 80)}`),
+    );
+  }, 3 * 60_000);
+
   _warmTimer = setInterval(() => {
     prewarmRedditFeeds().catch(err =>
       logger.warn(`[ExtCache] Scheduled Reddit pre-warm failed: ${err?.message?.slice(0, 80)}`),
     );
   }, REDDIT_TTL_MS);
+
+  _rssTimer = setInterval(() => {
+    prewarmRSSFeeds().catch(err =>
+      logger.warn(`[ExtCache] Scheduled RSS pre-warm failed: ${err?.message?.slice(0, 80)}`),
+    );
+  }, RSS_TTL_MS);
 }
 
 export function stopExternalDataCache(): void {
-  if (_warmTimer) {
-    clearInterval(_warmTimer);
-    _warmTimer = null;
-  }
+  if (_warmTimer) { clearInterval(_warmTimer); _warmTimer = null; }
+  if (_rssTimer)  { clearInterval(_rssTimer);  _rssTimer  = null; }
 }
