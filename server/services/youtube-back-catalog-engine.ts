@@ -685,22 +685,48 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
           `(${focusDepth}/${focusThreshold} slots banked)`,
         );
       } else {
-        // Focus-game catalog exhausted — keep focus filter active.
-        // Publishing off-brand content (AC Valhalla, etc.) while a focus game is
-        // set dilutes the channel identity and drives subscriber churn.  Better
-        // to idle and wait for catalog rotation or a new live stream than to
-        // fill the queue with unrelated games.  The catalog-rotation block below
-        // resets mined flags once the entire catalog is exhausted, so BF6 clips
-        // will be re-mined automatically when that threshold is hit.
-        gameFilter = matchesGame;
-        if (focusDepth < focusThreshold) {
+        // BF6 catalog exhausted — only allow another game if it has 2+ stream
+        // VODs in the back catalog.  "2 streams" is the minimum signal that the
+        // channel has intentionally started playing a new game.  Without that
+        // threshold the engine idles until BF6 catalog rotation resets the flags.
+        const newGameRows = await db
+          .select({
+            gameName: backCatalogVideos.gameName,
+            cnt:      sql<number>`count(*)::int`,
+          })
+          .from(backCatalogVideos)
+          .where(and(
+            eq(backCatalogVideos.userId, userId),
+            eq(backCatalogVideos.isShort, false),
+            isNotNull(backCatalogVideos.gameName),
+            sql`(${backCatalogVideos.gameName}) NOT ILIKE '%battlefield%'`,
+            sql`(${backCatalogVideos.gameName}) NOT ILIKE '%bf6%'`,
+            sql`(${backCatalogVideos.gameName}) NOT ILIKE '%bf 6%'`,
+          ))
+          .groupBy(backCatalogVideos.gameName)
+          .having(sql`count(*) >= 2`)
+          .orderBy(desc(sql`count(*)`))
+          .limit(1);
+
+        const newGameRow = newGameRows[0];
+
+        if (newGameRow?.gameName) {
+          // A new game has earned queue access — allow it alongside any
+          // residual BF6 content.
+          const matchesNewGame = buildGameFilter(newGameRow.gameName);
+          const bf6Matcher     = buildGameFilter(focusGame);
+          gameFilter = (v) => bf6Matcher(v) || matchesNewGame(v);
           logger.info(
-            `[BackCatalog] Game priority gate BYPASS — "${focusGame}" catalog exhausted, ` +
-            `keeping focus-only filter (${focusDepth}/${focusThreshold} slots) — idling until rotation`,
+            `[BackCatalog] BF6 exhausted — unlocking "${newGameRow.gameName}" ` +
+            `(${newGameRow.cnt} streams qualify; BF6 clips still prioritised if any exist)`,
           );
         } else {
+          // No other game has 2+ streams — idle until BF6 catalog rotation
+          // resets the mined flags and mining can resume from the top.
+          gameFilter = matchesGame;
           logger.info(
-            `[BackCatalog] Game priority gate CLEAR — "${focusGame}" has ${focusDepth}/${focusThreshold} slots banked`,
+            `[BackCatalog] BF6 exhausted — no other game has 2+ streams, ` +
+            `idling until catalog rotation (${focusDepth}/${focusThreshold} slots banked)`,
           );
         }
       }
