@@ -8,7 +8,9 @@ import { executeRoutedAICall } from "./ai-model-router";
 
 const logger = createLogger("prompt-evolution");
 
-const EVOLUTION_CYCLE_MS = 90 * 60_000;
+// Prompt evolutions compound over days, not hours. 24h gives one full refresh
+// per day without burning an AI slot every 90 minutes.
+const EVOLUTION_CYCLE_MS = 24 * 60 * 60_000;
 
 const promptStore = createEngineStore("prompt-evolution", 15 * 60_000);
 

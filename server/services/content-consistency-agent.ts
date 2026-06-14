@@ -41,7 +41,9 @@ const agentSessions = new Map<string, ConsistencyAgentState>();
 const pendingRecommendations = new Map<string, VideoRecommendation[]>();
 const MAX_SESSIONS = 200;
 
-const RUN_INTERVAL_MS = 60 * 60 * 1000;
+// Video metadata and SEO gaps don't change hour-to-hour.  Running daily instead
+// of hourly cuts AI slot usage by 24× while still catching every new upload.
+const RUN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const LOOK_AHEAD_DAYS = 14;
 const LOOK_BACK_DAYS = 90;
 const SEO_TITLE_MIN_LEN = 30;

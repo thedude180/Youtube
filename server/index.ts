@@ -3478,7 +3478,7 @@ httpServer.listen(
       if (isEnabled("marketer-engine")) import("./marketer-engine").then(async m => {
         await new Promise(r => setTimeout(r, 10 * 60_000)); // T+15+10=T+25min
         await m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers"));
-        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(90 * 60_000));
+        const iv = setInterval(() => m.runMarketingCycleForAllUsers().catch(slog("runMarketingCycleForAllUsers")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("marketer-engine import"));
       // CROSS-POSTING DISABLED — daily-content-engine generates multi-platform

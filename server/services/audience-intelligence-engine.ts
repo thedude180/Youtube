@@ -9,7 +9,9 @@ import { invalidateIntelligenceCache } from "./intelligence-context";
 
 const logger = createLogger("audience-intelligence");
 
-const AUDIENCE_CYCLE_MS = 60 * 60_000;
+// Audience behaviour patterns shift over days; running every 12h is more than
+// sufficient and cuts AI slot usage by 12× vs the previous 1h cycle.
+const AUDIENCE_CYCLE_MS = 12 * 60 * 60_000;
 
 const audStore = createEngineStore("audience-intelligence", 10 * 60_000);
 

@@ -10,7 +10,9 @@ import { AIScheduler } from "../lib/ai-scheduler";
 
 const logger = createLogger("revenue-optimizer");
 
-const REVENUE_CYCLE_MS = 120 * 60_000;
+// Revenue patterns shift over days, not hours. 12h is sufficient for
+// optimization passes while cutting AI slot usage by 6× vs the 2h cycle.
+const REVENUE_CYCLE_MS = 12 * 60 * 60_000;
 
 const revStore = createEngineStore("revenue-optimizer", 15 * 60_000);
 

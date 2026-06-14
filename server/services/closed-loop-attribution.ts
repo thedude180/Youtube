@@ -8,7 +8,10 @@ import { executeRoutedAICall } from "./ai-model-router";
 
 const logger = createLogger("closed-loop-attribution");
 
-const ATTRIBUTION_CYCLE_MS = 30 * 60_000;
+// Attribution scores are based on historical performance data that accumulates
+// over hours/days. Running every 6h is more than frequent enough — 30min was
+// burning an AI slot 48 times per day on data that barely changes.
+const ATTRIBUTION_CYCLE_MS = 6 * 60 * 60_000;
 const MEASUREMENT_DELAY_HOURS = 48;
 
 const attrStore = createEngineStore("closed-loop-attribution", 5 * 60_000);

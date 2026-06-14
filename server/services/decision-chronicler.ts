@@ -8,7 +8,10 @@ import { executeRoutedAICall } from "./ai-model-router";
 
 const logger = createLogger("decision-chronicler");
 
-const CHRONICLE_CYCLE_MS = 30 * 60_000;
+// Decision chronicling is a retrospective synthesis — decisions accumulate in
+// the DB and don't need AI summarisation every 30 min.  6h gives 4 passes/day
+// while cutting AI slot usage by 12× vs the original 30-min cycle.
+const CHRONICLE_CYCLE_MS = 6 * 60 * 60_000;
 
 const chronicleStore = createEngineStore("decision-chronicler", 5 * 60_000);
 

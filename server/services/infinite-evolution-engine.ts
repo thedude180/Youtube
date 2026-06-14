@@ -11,7 +11,10 @@ import { recordEngineKnowledge, getMasterKnowledgeForPrompt } from "./knowledge-
 
 const logger = createLogger("infinite-evolution");
 
-const EVOLUTION_CYCLE_MS = 60 * 60_000;
+// Strategy discovery doesn't need to happen hourly — channel data and performance
+// patterns shift over days, not hours.  Running daily cuts AI slot usage by 24×
+// while still giving the system a fresh strategic pass every day.
+const EVOLUTION_CYCLE_MS = 24 * 60 * 60_000;
 
 /** Fix #7 — guard against phantom non-YouTube platform users in AI loops */
 function isYouTubeUser(userId: string): boolean {
