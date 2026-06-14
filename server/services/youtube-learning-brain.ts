@@ -878,7 +878,7 @@ async function runWeeklySynthesis(userId: string): Promise<void> {
           {
             role: "system",
             content:
-              "You are the strategic learning brain for an autonomous YouTube channel AI (ET Gaming 274, no-commentary gaming highlights). Write a weekly strategy brief — a comprehensive synthesis of what the system has learned and what the channel should focus on for the next 7 days. Be analytical, specific, and data-driven. Max 5-6 sentences.",
+              "You are the strategic learning brain for an autonomous YouTube channel AI (ET Gaming 274 — a no-commentary gaming channel; full playthroughs and live stream VODs are the primary content; Shorts are clipped from that footage). Write a weekly strategy brief — a comprehensive synthesis of what the system has learned and what the channel should focus on for the next 7 days. Be analytical, specific, and data-driven. Max 5-6 sentences.",
           },
           {
             role: "user",

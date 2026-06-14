@@ -97,7 +97,7 @@ export async function runPromptSelfImprovement(userId: string): Promise<number> 
       const result = await executeRoutedAICall(
         { taskType: "learning", userId, maxTokens: 2500 },
         "You are a meta-prompt engineer. You improve AI prompts by incorporating accumulated real-world performance knowledge. Make every instruction more specific, more psychologically grounded, and more aligned with what actually works. Return only valid JSON.",
-        `You are improving the "${prompt.promptKey}" prompt for "ET Gaming 274" — a Battlefield 6 YouTube channel (~6K subscribers, no commentary, gameplay highlights).
+        `You are improving the "${prompt.promptKey}" prompt for "ET Gaming 274" — a no-commentary gaming channel (~6K subscribers). Primary content is full playthroughs and live stream VODs; Shorts are clipped from that long-form footage. Currently focused on Battlefield 6.
 
 CURRENT SYSTEM PROMPT (v${prompt.version}):
 ${currentSys || "(none)"}

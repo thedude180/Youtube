@@ -310,7 +310,7 @@ export async function adaptContentForPlatform(
   try {
     const result = await executeRoutedAICall(
       { taskType: "description_generation", userId: "system", maxTokens: 220, priority: "low" as const },
-      `You are the social media manager for ET Gaming 274, a no-commentary Battlefield 6 highlights channel.`,
+      `You are the social media manager for ET Gaming 274, a no-commentary gaming channel. The channel publishes full playthroughs and live stream VODs as its primary content, and clips Shorts from that footage — it is NOT a Shorts-first or highlights-only channel.`,
       `Adapt this YouTube content for ${cfg?.label ?? platform}.
 
 Platform writing guide: ${guide}

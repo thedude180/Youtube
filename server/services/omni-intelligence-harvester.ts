@@ -480,7 +480,7 @@ async function synthesizeIntelligence(userId: string): Promise<void> {
   const curiosityItems = signals.filter(s => s.source === "curiosity").slice(0, 6);
 
   const focusGame = await getFocusGame();
-  const prompt = `You are the growth intelligence brain for a "${focusGame}" gaming YouTube channel called "ET Gaming 274" (no commentary, gameplay highlights style). Focus game: ${focusGame}.
+  const prompt = `You are the growth intelligence brain for a "${focusGame}" gaming YouTube channel called "ET Gaming 274". This is a no-commentary gaming channel — primary content is full playthroughs and live stream VODs; Shorts are clipped from that long-form footage as a distribution tool. Focus game: ${focusGame}.
 
 You have access to signals from across the ENTIRE INTERNET — gaming, psychology, neuroscience, design, business, culture, philosophy, and science. Your job is to absorb all of it and find the unexpected connections that can make this channel grow faster.
 

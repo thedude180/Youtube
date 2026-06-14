@@ -213,7 +213,8 @@ If any reference image title or source appears to be about a DIFFERENT game, IGN
 Only extract patterns that authentically apply to "${sanitizeForPrompt(gameName)}"'s art style, characters, and environments.
 
 CHANNEL CONTEXT — ET Gaming 274:
-- PS5 gameplay, no face cam, no commentary
+- No-commentary gaming channel: full playthroughs and live stream VODs are the primary content; Shorts are clipped from that footage
+- PS5 gameplay, no face cam, no commentary — never any creator voice or face
 - Brand aesthetic: cinematic dark backgrounds, vivid warm/neon accent colours (navy/charcoal base + orange, electric blue, or gold highlights)
 - Thumbnails rely entirely on in-game visuals — no creator face
 

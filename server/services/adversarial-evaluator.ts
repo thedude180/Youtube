@@ -41,7 +41,7 @@ export async function evaluateStrategiesAdversarially(
 ): Promise<AdversarialResult[]> {
   if (candidates.length === 0) return [];
 
-  const prompt = `You are a rigorous devil's advocate evaluating growth strategies for the "${focusGame}" gaming YouTube channel "ET Gaming 274" (~6K subscribers, no commentary, gameplay highlights only).
+  const prompt = `You are a rigorous devil's advocate evaluating growth strategies for the "${focusGame}" gaming YouTube channel "ET Gaming 274" (~6K subscribers). This is a no-commentary gaming channel — full playthroughs and live stream VODs are the primary content; Shorts are clipped from that footage as a growth tool, not the main format.
 
 STRATEGIES TO EVALUATE:
 ${candidates.map((s, i) => `

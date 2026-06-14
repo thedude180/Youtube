@@ -77,7 +77,7 @@ export async function runCausalSynthesis(userId: string): Promise<number> {
     return `- [${(m?.feedName ?? "web")}/${m?.domain ?? m?.query?.slice(0, 30) ?? ""}] ${s.title.slice(0, 120)}`;
   }).join("\n");
 
-  const prompt = `You are a causal reasoning engine for a Battlefield 6 YouTube channel ("ET Gaming 274", ~6K subscribers, no commentary, highlights style).
+  const prompt = `You are a causal reasoning engine for "ET Gaming 274" (~6K subscribers) — a no-commentary gaming channel. Primary content is full playthroughs and live stream VODs; Shorts are clipped from that footage. Currently focused on Battlefield 6.
 
 CROSS-DOMAIN SIGNALS FROM THE LAST 48 HOURS:
 ${signalLines}

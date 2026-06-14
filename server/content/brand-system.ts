@@ -12,10 +12,10 @@ export interface BrandProfile {
 const DEFAULT_GAMING_BRAND: BrandProfile = {
   voiceTone: "cinematic-immersive",
   colorPalette: ["#1a1a2e", "#16213e", "#0f3460", "#e94560"],
-  contentPillars: ["no-commentary gameplay", "highlight reels", "full playthroughs", "cinematic moments"],
-  audiencePersona: "gaming enthusiasts who prefer pure gameplay",
+  contentPillars: ["no-commentary full playthroughs", "live stream VODs", "raw gameplay footage", "Shorts clipped from long-form content"],
+  audiencePersona: "gaming enthusiasts who prefer pure gameplay without commentary or face cam",
   brandValues: ["authenticity", "quality", "immersion", "consistency"],
-  channelIdentity: "PS5 no-commentary gaming channel",
+  channelIdentity: "no-commentary gaming channel — full playthroughs and live streams are the primary content; Shorts are clipped from that footage as a growth tool, not the main format",
 };
 
 export function getBrandProfile(userId: string): BrandProfile {
