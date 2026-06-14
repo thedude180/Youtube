@@ -463,20 +463,99 @@ export function initQuotaResetCron(): void {
         const { runShortsClipPublisher } = await import("./shorts-clip-publisher");
         const { runLongFormClipPublisher } = await import("./long-form-clip-publisher");
 
-        // Publishers run FIRST — the entire purpose of the new quota day is to
-        // pre-upload scheduled content to YouTube as private videos with publishAt.
-        // Back catalog has its own 22h cycle and must NOT steal upload quota at midnight.
-        // Thumbnails, SEO writes, and catalog runs happen later in the day only if
-        // upload quota is left over.
-        const [shortsResult, longFormResult] = await Promise.allSettled([
-          runShortsClipPublisher(),
-          runLongFormClipPublisher(),
-        ]);
-        logger.info("[QuotaReset] Shorts publisher result", shortsResult.status === "fulfilled" ? shortsResult.value : { error: String((shortsResult as PromiseRejectedResult).reason) });
-        logger.info("[QuotaReset] Long-form publisher result", longFormResult.status === "fulfilled" ? longFormResult.value : { error: String((longFormResult as PromiseRejectedResult).reason) });
+        // ── SEQUENTIAL, not parallel ────────────────────────────────────────────
+        // The Shorts cadence gate queries countUploadedLongFormForDate(today).
+        // At the exact moment of reset that count is always 0 (fresh day).
+        // Running both publishers in parallel means the gate fires before long-form
+        // has finished uploading → Shorts yield EVERY midnight even when items are
+        // ready. Sequential execution (long-form → wait 3 s → shorts) guarantees the
+        // DB write for the long-form upload commits before Shorts checks the gate.
 
-        // Back-catalog SEO: fire 30 min after publishers — uses leftover quota to
-        // update title/description/tags on worst-performing back-catalog videos.
+        logger.info("[QuotaReset] Running long-form publisher first…");
+        const longFormResult = await runLongFormClipPublisher()
+          .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+        logger.info("[QuotaReset] Long-form result:", longFormResult);
+
+        // 3 s breathing room so the DB row is visible to the Shorts cadence gate
+        await new Promise(r => setTimeout(r, 3_000));
+
+        logger.info("[QuotaReset] Running shorts publisher…");
+        const shortsResult = await runShortsClipPublisher()
+          .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+        logger.info("[QuotaReset] Shorts result:", shortsResult);
+
+        const totalPublished = (longFormResult.published ?? 0) + (shortsResult.published ?? 0);
+
+        // ── Zero-result safety net ─────────────────────────────────────────────
+        // If both publishers returned published=0 it usually means both perpetual
+        // loops held isRunning=true when we called them (lock contention at reset).
+        // Wait 2 minutes for those runs to finish, then try once more.
+        if (totalPublished === 0 && !(longFormResult as any).quotaExhausted && !(shortsResult as any).quotaExhausted) {
+          logger.info("[QuotaReset] Nothing published on first attempt — retrying in 2 min (probable isRunning contention)");
+          await new Promise(r => setTimeout(r, 2 * 60_000));
+          const retryLf = await runLongFormClipPublisher()
+            .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+          logger.info("[QuotaReset] Retry long-form:", retryLf);
+          await new Promise(r => setTimeout(r, 3_000));
+          const retrySp = await runShortsClipPublisher()
+            .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+          logger.info("[QuotaReset] Retry shorts:", retrySp);
+          const retryTotal = (retryLf.published ?? 0) + (retrySp.published ?? 0);
+          if (retryTotal === 0) {
+            logger.warn("[QuotaReset] Still 0 published after retry — queue may be empty or OAuth token missing");
+          }
+        }
+
+        // ── Brain context snapshot ─────────────────────────────────────────────
+        // Write a reset-time snapshot to learningInsights so the brain's daily
+        // cycle knows exactly what was queued and uploaded at midnight.  The brain
+        // uses this to track: time-of-day publish patterns, quota consumption
+        // trends, and whether the nightly cadence is healthy.
+        try {
+          const { db: _db } = await import("../db");
+          const { learningInsights, autopilotQueue: _aq } = await import("@shared/schema");
+          const { eq: _eq, inArray: _inArray, sql: _sql } = await import("drizzle-orm");
+          // Count what is still scheduled for the next 7 days (not yet uploaded)
+          const [pendingCounts] = await _db
+            .select({
+              shorts:   _sql<number>`COUNT(*) FILTER (WHERE ${_aq.metadata}->>'contentType' = 'youtube-short' OR ${_aq.type} IN ('youtube_short','vod-short'))`,
+              longForm: _sql<number>`COUNT(*) FILTER (WHERE ${_aq.metadata}->>'contentType' IN ('long-form-clip','long-form','vod_long_form'))`,
+            })
+            .from(_aq)
+            .where(_eq(_aq.status, "scheduled"))
+            .limit(1)
+            .catch(() => [{ shorts: 0, longForm: 0 }]);
+
+          // Find a user ID for the insight row — take the first real user
+          const [firstUser] = await _db.execute(_sql`SELECT id FROM users LIMIT 1`).catch(() => ({ rows: [] })) as any;
+          const uid = firstUser?.rows?.[0]?.id ?? firstUser?.[0]?.id ?? "system";
+
+          await _db.insert(learningInsights).values({
+            userId:     uid,
+            category:   "publish-reset-snapshot",
+            pattern:    `Midnight quota reset — ${totalPublished} video(s) uploaded to YouTube`,
+            confidence: 0.9,
+            sampleSize: 1,
+            data: {
+              finding: `Reset published ${totalPublished} video(s). Queue remaining: ${(pendingCounts as any)?.shorts ?? 0} shorts + ${(pendingCounts as any)?.longForm ?? 0} long-form.`,
+              evidence: [
+                `longFormPublished: ${longFormResult.published ?? 0}`,
+                `shortsPublished: ${shortsResult.published ?? 0}`,
+                `shortsQueued: ${(pendingCounts as any)?.shorts ?? 0}`,
+                `longFormQueued: ${(pendingCounts as any)?.longForm ?? 0}`,
+              ],
+              recommendation: totalPublished > 0
+                ? "Publishing healthy — content will go live on schedule. Review in 48h for performance data."
+                : "Zero published at reset — check OAuth token health and queue depth in the morning.",
+            },
+            isGlobal:   false,
+            createdAt:  new Date(),
+          }).catch(() => {});
+        } catch { /* non-critical — never block publishing over a logging failure */ }
+
+        // ── Back-catalog SEO ───────────────────────────────────────────────────
+        // Fire 30 min after publishers — uses leftover quota to update
+        // title/description/tags on worst-performing back-catalog videos.
         setTimeout(async () => {
           try {
             const { runBackCatalogSeoEngine } = await import("./back-catalog-seo-engine");
