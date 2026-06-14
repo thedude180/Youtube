@@ -655,7 +655,7 @@ export async function afterStreamCopilot(
           isStreamReplay: true,
           copilotGenerated: true,
           skipLoadingScreens: true,
-          tags: ["no commentary", "PS5", gameName, "battlefield 6", "bf6", "full match"],
+          tags: ["no commentary", "PS5", gameName, "full match", "gameplay"].filter(Boolean),
         } as any,
       });
       longFormQueued++;

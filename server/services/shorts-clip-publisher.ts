@@ -87,13 +87,13 @@ async function generateShortCaption(opts: {
       ? `The specific moment in this clip: "${hookLine.slice(0, 150)}"`
       : `Clip from: "${sourceTitle.slice(0, 120)}"`;
 
-    const bf6Voice = isBF6 ? `
-This is Battlefield 6 PS5 gameplay — no commentary, no facecam, no reaction, just raw match footage.
-BF6-specific context: Conquest or Breakthrough matches. Infantry, armor, helicopters, jets.
-Channel name: ETGaming274. No team — solo player. PS5 controller, no mods.` : "";
+    const gameTag   = (gameName ?? "gaming").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 20) || "gaming";
+    const gameVoice = gameName ? `
+This is ${gameName} PS5 gameplay — no commentary, no facecam, no reaction, just raw footage.
+Channel: ETGaming274. Solo player. PS5. No mods.` : "";
 
     const prompt = `You are writing a YouTube Shorts title for a real gaming clip on the ET Gaming 274 channel.
-${bf6Voice}
+${gameVoice}
 
 ${momentContext}
 ${gameName ? `Game: ${gameName}` : ""}
@@ -103,7 +103,7 @@ Rules — follow every single one:
 2. Sound like a REAL gamer wrote it — casual, direct, no corporate language.
 3. Start with the action or reaction — NOT with a hashtag, NOT with the channel name.
 4. Forbidden words and phrases: "Ultimate", "Epic", "Amazing", "Incredible", "Watch more", "Full video", "Check out", "You won't believe", "Insane gameplay", "No Commentary Gaming", "raw footage", emojis in the title, "AI", "AI-generated", "AI-powered", "AI-curated", "AI-edited", "artificial intelligence", "auto-generated", "made with AI".
-5. Hashtags go at the END only — max 3, all lowercase: #shorts #bf6 #ps5
+5. Hashtags go at the END only — max 3, all lowercase: #shorts #${gameTag} #ps5
 6. Write about the specific moment — not generic "gameplay highlights".
 7. Tone: dry, confident, like a player who's seen it all. No hype for its own sake.
 8. If you don't have a specific moment, write a title from the perspective of the player in that situation — first-person implied ("Ran straight through their squad", "Took the flag before they even noticed").

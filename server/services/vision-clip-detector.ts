@@ -86,7 +86,7 @@ async function analyzeFrameBatch(
   }));
 
   const timestamps = frames.map(f => `${f.sec}s`).join(", ");
-  const prompt = `You are analyzing frames from a Battlefield 6 no-commentary FPS gaming stream: "${videoTitle}".
+  const prompt = `You are analyzing frames from a no-commentary gaming stream: "${videoTitle}".
 
 The ${frames.length} frames shown (in order) are at timestamps: ${timestamps}.
 

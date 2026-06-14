@@ -32,12 +32,14 @@ const YOUTUBE_PLATFORMS = new Set(["youtube", "shorts"]);
  * recordings from any game the user has ever played.  Only Battlefield content
  * (and generic / unidentified gaming content) should auto-publish.
  *
- * Patterns matched: AC Valhalla, any Assassin's Creed, Black Flag, Far Cry,
- * Halo, Sonic, GTA, Minecraft, Fortnite, Apex Legends, Overwatch, Valorant.
- * Add more as needed; false-positives (blocking BF6 content) are impossible
- * because none of the pattern strings appear in Battlefield titles.
+ * Detects studio clips that are explicitly named after games other than whatever
+ * the channel is currently focused on. Only fires when the title contains a
+ * recognisable off-brand game name — generic or unrecognised titles are allowed
+ * through so legitimate content is never accidentally blocked.
+ * Add patterns here as needed; the list intentionally excludes terms that could
+ * appear in multiple game names (e.g. "war", "field") to avoid false positives.
  */
-function isNonBF6StudioTitle(title: string | null | undefined): boolean {
+function isOffBrandContent(title: string | null | undefined): boolean {
   if (!title) return false;
   return /valhalla|assassin[''s]*\s*creed|black flag|far cry|halo\b|sonic\b|grand theft|minecraft|fortnite|apex legends|overwatch|valorant|dying light|cyberpunk|god of war|spider.?man|hogwarts|elden ring|demon.s souls/i.test(title);
 }
@@ -89,11 +91,11 @@ export async function scheduleClipsForAutoPublish(
         continue;
       }
 
-      // BF6 focus-gate: never auto-queue non-BF6 studio content.
+      // Focus-gate: never auto-queue off-brand studio content.
       // The packager may produce clips from any game the user has ever streamed;
-      // only Battlefield content (or unidentified gaming content) should be published.
-      if (isNonBF6StudioTitle(studioVideo.title)) {
-        logger.warn(`[AutoPublisher] Skipping clip sv${clip.studioVideoId} — non-BF6 content ("${studioVideo.title}"). Channel focus is Battlefield 6.`);
+      // only the current focus game (or unidentified content) should be published.
+      if (isOffBrandContent(studioVideo.title)) {
+        logger.warn(`[AutoPublisher] Skipping clip sv${clip.studioVideoId} — off-brand content ("${studioVideo.title}"), not matching current focus game.`);
         continue;
       }
 
@@ -236,16 +238,16 @@ export async function processAutoPublishQueue(): Promise<void> {
         throw new Error(`Studio video ${studioVideoId} not found`);
       }
 
-      // BF6 focus-gate (last-resort publisher guard).
-      // scheduleClipsForAutoPublish already blocks non-BF6 at queue time, but
-      // items queued before this guard was deployed may still be in the DB.
+      // Focus-gate (last-resort publisher guard).
+      // scheduleClipsForAutoPublish already blocks off-brand content at queue time,
+      // but items queued before this guard was deployed may still be in the DB.
       // Permanent-fail them here so they are never uploaded.
-      if (isNonBF6StudioTitle(studioVideo.title)) {
-        logger.warn(`[AutoPublisher] Permanent-failing sv${studioVideoId} — non-BF6 content ("${studioVideo.title}")`);
+      if (isOffBrandContent(studioVideo.title)) {
+        logger.warn(`[AutoPublisher] Permanent-failing sv${studioVideoId} — off-brand content ("${studioVideo.title}")`);
         await db.update(autopilotQueue)
           .set({
             status: "permanent_fail",
-            errorMessage: "Non-BF6 studio content blocked — channel focus is Battlefield 6",
+            errorMessage: "Off-brand studio content blocked — does not match current channel focus game",
           })
           .where(eq(autopilotQueue.id, item.id));
         continue;

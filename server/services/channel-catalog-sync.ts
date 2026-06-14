@@ -574,7 +574,9 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
         try {
           const _titleFg = link.title || dbVideo.title || "";
           const _gameFg: string = (dbVideo.metadata as any)?.gameName || "";
-          const _isFocusFg = !_gameFg || /battlefield|bf6|bf 6/i.test(_gameFg) || /battlefield|bf6|bf 6/i.test(_titleFg);
+          const { buildFocusGameRegex, getFocusGame: _getFG } = await import("../lib/game-focus");
+          const _focusRegex = buildFocusGameRegex(await _getFG().catch(() => "Battlefield 6"));
+          const _isFocusFg = !_gameFg || _focusRegex.test(_gameFg) || _focusRegex.test(_titleFg);
           if (_isFocusFg) {
             const { maximizeContentFromVideo } = await import("./content-maximizer");
             const maxResult = await maximizeContentFromVideo(userId, dbVideo.id);
