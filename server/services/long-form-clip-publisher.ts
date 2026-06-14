@@ -423,9 +423,8 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           // game's YouTube page and benefits from game-specific discovery.
           gameTitle: gameName,
           // AI content disclosure per YouTube policy 2025:
-          // Long-form content is real gameplay footage — not AI-generated video or audio.
-          // AI was used only for titles/descriptions/segment selection (metadata, not content).
-          selfDeclaredMadeWithAI: false,
+          // Set true when the pre-encoder mixed AI-generated music from the creative library.
+          selfDeclaredMadeWithAI: !!(itemMeta?.hasAiMusic),
         });
 
         if (lfIsScheduled) {

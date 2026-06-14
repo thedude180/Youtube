@@ -188,6 +188,7 @@ async function uploadToYouTube(opts: {
   videoFilePath: string;
   scheduledStartTime?: string;
   gameTitle?: string;
+  selfDeclaredMadeWithAI?: boolean;
 }): Promise<{ success: boolean; youtubeId?: string; error?: string }> {
   try {
     const result = await uploadVideoToYouTube(opts.channelId, {
@@ -205,9 +206,8 @@ async function uploadToYouTube(opts: {
       enableMonetization: true,
       gameTitle: opts.gameTitle,
       // AI content disclosure per YouTube policy 2025:
-      // These Shorts are real gameplay footage from live streams — not AI-generated
-      // video or audio content. AI was used only for titles/descriptions/curation.
-      selfDeclaredMadeWithAI: false,
+      // Set true when AI-generated music from the creative library was mixed into this clip.
+      selfDeclaredMadeWithAI: opts.selfDeclaredMadeWithAI === true,
     });
     if (!result?.youtubeId) return { success: false, error: "Upload returned no YouTube ID" };
     return { success: true, youtubeId: result.youtubeId };
@@ -630,6 +630,9 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                   // Sets the YouTube Studio "Game" field so YouTube can surface this
                   // Short in game-specific browsing (e.g. Battlefield 6 game page).
                   gameTitle: gameName ?? undefined,
+                  // AI content disclosure per YouTube policy 2025: set true when the
+                  // pre-encoder mixed AI-generated music from the creative library.
+                  selfDeclaredMadeWithAI: !!(item.metadata as any)?.hasAiMusic,
                 });
 
                 if (result.success) {

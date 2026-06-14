@@ -121,7 +121,7 @@ async function trimRawFromFile(
   ]);
 }
 
-async function encodeShort(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<void> {
+async function encodeShort(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<boolean> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
@@ -186,6 +186,7 @@ async function encodeShort(rawPath: string, durationSec: number, outputPath: str
   } finally {
     cleanupMusicScore(musicPath); // no-op for library files; deletes assembled temp scores
   }
+  return musicPath !== null;
 }
 
 // ── Dead-time detection helpers ────────────────────────────────────────────────
@@ -282,7 +283,7 @@ function buildKeepSegments(
 
 // ── Long-form encoder ──────────────────────────────────────────────────────────
 
-async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<void> {
+async function encodeLongForm(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<boolean> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
@@ -346,7 +347,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
         outputPath,
       ]);
     }
-    return;
+    return musicPath !== null;
   }
 
   // ── Dead-time removal path ──────────────────────────────────────────────────
@@ -359,7 +360,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     // Degenerate: entire file is frozen — fall back to simple encode without cutting.
     logger.warn("[PreEncoder] Dead-time detection: entire file appears frozen — encoding without cuts");
     await encodeLongForm(rawPath, durationSec, outputPath);
-    return;
+    return musicPath !== null;
   }
 
   const removedSec = cutSegs.reduce((s, c) => s + (c.end - c.start), 0);
@@ -421,6 +422,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   } finally {
     cleanupMusicScore(musicPath); // deletes assembled temp score; no-op for library files
   }
+  return musicPath !== null;
 }
 
 // ── Stale-file cleanup ─────────────────────────────────────────────────────────
@@ -758,10 +760,11 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
 
       // channelId for library-aware music selection: read from metadata if present,
       // otherwise default to 53 (ET Gaming 274 — the only active channel)
+      let hasMusicMixed = false;
       if (isLongForm) {
-        await encodeLongForm(rawPath, durationSec, outputPath, musicChannelId);
+        hasMusicMixed = await encodeLongForm(rawPath, durationSec, outputPath, musicChannelId);
       } else {
-        await encodeShort(rawPath, durationSec, outputPath, musicChannelId);
+        hasMusicMixed = await encodeShort(rawPath, durationSec, outputPath, musicChannelId);
       }
 
       if (!fs.existsSync(outputPath)) throw new Error("ffmpeg produced no output");
@@ -811,6 +814,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
             ...(vaultFilePath ? { preEncodedViaVault: true } : {}),
             ...(thumbnailPath   ? { thumbnailPath }       : {}),
             ...(chapterDescription ? { chapterDescription } : {}),
+            ...(hasMusicMixed ? { hasAiMusic: true } : {}),
           } as any,
         })
         .where(and(

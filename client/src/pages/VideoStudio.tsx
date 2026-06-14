@@ -50,6 +50,7 @@ interface StudioVideoMetadata {
   publishedYoutubeId?: string;
   seoScore?: number;
   gameName?: string;
+  selfDeclaredMadeWithAI?: boolean;
 }
 
 interface StudioVideo {
@@ -426,6 +427,7 @@ function VideoEditor({
   const [description, setDescription] = useState(studioVideo.description || "");
   const [tags, setTags] = useState((studioVideo.metadata?.tags || []).join(", "));
   const [gameName, setGameName] = useState(studioVideo.metadata?.gameName || "");
+  const [aiDisclosure, setAiDisclosure] = useState(studioVideo.metadata?.selfDeclaredMadeWithAI ?? false);
   const [endScreenElements, setEndScreenElements] = useState<EndScreenElement[]>(
     studioVideo.metadata?.endScreen?.elements || []
   );
@@ -450,6 +452,7 @@ function VideoEditor({
             elements: endScreenElements,
           },
           ...(gameName ? { gameName } : {}),
+          selfDeclaredMadeWithAI: aiDisclosure,
         },
       });
       return res.json();
@@ -654,6 +657,22 @@ function VideoEditor({
                     )}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/20">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium cursor-pointer" htmlFor="ai-disclosure-switch">
+                    Contains AI-generated content
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Required by YouTube policy if this video uses AI-generated music or other synthetic media.
+                  </p>
+                </div>
+                <Switch
+                  id="ai-disclosure-switch"
+                  checked={aiDisclosure}
+                  onCheckedChange={setAiDisclosure}
+                  data-testid="switch-ai-disclosure"
+                />
               </div>
               {meta.seoScore && (
                 <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg">

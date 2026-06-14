@@ -477,11 +477,14 @@ export function registerStudioRoutes(app: Express) {
                 title: cleanTitle,
                 description: cleanDescription,
                 tags: cleanTags,
-                categoryId: meta.categoryId || "22",
+                categoryId: (meta as any).categoryId || "22",
               },
+              // Cast status as any: selfDeclaredMadeWithAI is not in the googleapis
+              // TypeScript schema yet but IS accepted by the YouTube Data API v3.
               status: {
-                privacyStatus: meta.privacyStatus || "public",
-              },
+                privacyStatus: (meta as any).privacyStatus || "public",
+                selfDeclaredMadeWithAI: (meta as any).selfDeclaredMadeWithAI === true,
+              } as any,
             },
             media: {
               mimeType: "video/mp4",
