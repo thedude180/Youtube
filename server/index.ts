@@ -2761,6 +2761,38 @@ httpServer.listen(
           .then((res: any) => logger.info("[Boot] Full queue reset: all failed/stuck items → scheduled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Full queue reset skipped:", err?.message));
 
+        // ── Per-boot AC/off-brand content purge ───────────────────────────────
+        // Runs on EVERY boot (not a one-shot migration) so that newly-generated
+        // AC items from the 22-24h back-catalog runner repeat cycle are always
+        // cleaned up regardless of which migrations have run.
+        //
+        // Uses 'cancelled' status (not 'permanent_fail') so the boot queue reset
+        // above cannot resurrect these items on the next restart.
+        //
+        // Criteria: metadata text contains "ssassin" (catches all AC spellings)
+        // and does NOT also contain "battlefield" (no false positives).
+        // Also catches items explicitly stamped with a known non-BF6 gameName.
+        db.execute(
+          sql`UPDATE autopilot_queue
+              SET status   = 'cancelled',
+                  metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    '{failReason}',
+                    '"boot-cleanup: non-BF6 AC content cancelled (channel is BF6-only)"'
+                  )
+              WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
+                AND status IN ('scheduled', 'pending', 'processing', 'permanent_fail')
+                AND (
+                  (metadata::text ILIKE '%ssassin%' AND metadata::text NOT ILIKE '%battlefield%')
+                  OR (metadata::text ILIKE '%valhalla%' AND metadata::text NOT ILIKE '%battlefield%')
+                  OR metadata::text ILIKE '%"ACUnity"%'
+                  OR metadata::text ILIKE '%"ACOdyssey"%'
+                  OR metadata::text ILIKE '%"ACOrigins"%'
+                )`
+        )
+          .then((res: any) => logger.info("[Boot] AC/off-brand purge: cancelled non-BF6 items", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
+          .catch((err: any) => logger.warn("[Boot] AC/off-brand purge skipped:", err?.message));
+
         // ── Quota record reset (boot self-heal) ──────────────────────────────
         // Delete today's quota record on every fresh deploy so that
         // restoreQuotaBreakerOnStartup() creates a clean record starting at

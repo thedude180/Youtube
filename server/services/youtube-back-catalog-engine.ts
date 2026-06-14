@@ -265,8 +265,18 @@ async function getCurrentStreamGame(userId: string): Promise<string | null> {
 // game_name (or title) matches one of these patterns is PERMANENTLY blocked
 // from Short and long-form clip generation.  Already-published content from
 // these games is handled by perpetual-repair step 5f (auto-unlist).
+//
+// NOTE: All Assassin's Creed titles are blocked — including Valhalla — because
+// the channel focus is BF6-only and AC content should never enter the queue.
+// The broader /assassin.?s creed/i pattern replaces the old subtitle list so
+// any future AC release is also blocked automatically.
 export const COPYRIGHT_RISKY_GAME_PATTERNS: RegExp[] = [
-  /assassin.?s creed.*(unity|syndicate|liberation|black flag|freedom cry)/i,
+  /assassin.?s creed/i,       // ALL AC titles (Valhalla, Unity, Syndicate, Origins, Odyssey, etc.)
+  /\bac valhalla\b/i,         // abbreviation
+  /\bac origins\b/i,
+  /\bac odyssey\b/i,
+  /\bac unity\b/i,
+  /\bac syndicate\b/i,
   /dragon age/i,
   /middle.?earth.*shadow/i,   // Shadow of Mordor / Shadow of War
   /tomb raider/i,
