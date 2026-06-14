@@ -657,11 +657,71 @@ export async function restoreQuotaBreakerOnStartup(): Promise<void> {
       const isExhausted = record.unitsUsed >= record.quotaLimit;
       const isNearLimit = record.quotaLimit - record.unitsUsed < SAFETY_BUFFER;
       if (isExhausted || isNearLimit) {
-        tripGlobalQuotaBreaker();
-        logger.info(
-          `[QuotaBreaker] Startup restore: quota exhausted for user ${userId} ` +
-          `(${record.quotaLimit - record.unitsUsed} remaining) — circuit breaker pre-tripped until midnight Pacific`
-        );
+        // ── Google Monitoring confirmation ────────────────────────────────────
+        // Before tripping the breaker from a DB row, ask Google Cloud Monitoring
+        // for the authoritative unit count.  This catches phantom / stale rows
+        // (e.g. a row showing 10,000/10,000 from a crashed previous session while
+        // no real uploads occurred) and prevents the breaker from blocking all
+        // publishing for the rest of the day based on bad data.
+        //
+        // Only trust Google's override when it reports WELL below the limit
+        // (< 50 %).  Google Monitoring has a 1–2h propagation delay, so if
+        // Google says 8,000/10,000 we still trip (quota may have just been spent
+        // in the last two hours and Google hasn't caught up yet).  But if Google
+        // says 14/10,000 while the DB says 10,000/10,000, that's a clear phantom.
+        //
+        // Dynamic import avoids a circular module-level dependency:
+        //   google-quota-sync → calibrateQuotaUsage (quota-tracker)
+        //   quota-tracker     → fetchRealQuotaUnitsPublic (google-quota-sync)
+        let shouldTrip = true;
+        try {
+          const { fetchRealQuotaUnitsPublic } = await import("./google-quota-sync");
+          const googleUnits = await Promise.race([
+            fetchRealQuotaUnitsPublic(),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 15_000)), // 15s timeout
+          ]);
+          if (googleUnits !== null) {
+            const googleExhausted = googleUnits >= record.quotaLimit * 0.5;
+            if (!googleExhausted) {
+              // Google says we are well below the limit — DB row is stale/phantom
+              shouldTrip = false;
+              logger.warn(
+                `[QuotaBreaker] Google Monitoring reports only ${googleUnits} units used today ` +
+                `(DB says ${record.unitsUsed}/${record.quotaLimit}) — DB row appears to be a ` +
+                `phantom/stale artifact.  Skipping breaker trip and correcting DB.`
+              );
+              // Correct the phantom DB row so future restores also see the real value
+              try {
+                await db.update(youtubeQuotaUsage)
+                  .set({ unitsUsed: googleUnits, lastUpdatedAt: new Date() })
+                  .where(eq(youtubeQuotaUsage.id, record.id));
+              } catch { /* non-fatal — correct value in memory even if DB write fails */ }
+            } else {
+              logger.info(
+                `[QuotaBreaker] Google Monitoring confirms ${googleUnits} units used today ` +
+                `(DB: ${record.unitsUsed}/${record.quotaLimit}) — tripping breaker.`
+              );
+            }
+          } else {
+            logger.warn(
+              `[QuotaBreaker] Google Monitoring unavailable for startup confirmation ` +
+              `(null result) — falling back to DB value (${record.unitsUsed}/${record.quotaLimit}).`
+            );
+          }
+        } catch (gErr: any) {
+          logger.warn(
+            `[QuotaBreaker] Google Monitoring check failed during startup restore ` +
+            `(${gErr?.message?.slice(0, 120)}) — falling back to DB (fail-safe, breaker trips).`
+          );
+        }
+
+        if (shouldTrip) {
+          tripGlobalQuotaBreaker();
+          logger.info(
+            `[QuotaBreaker] Startup restore: quota exhausted for user ${userId} ` +
+            `(${record.quotaLimit - record.unitsUsed} remaining) — circuit breaker pre-tripped until midnight Pacific`
+          );
+        }
       }
 
       logger.info(

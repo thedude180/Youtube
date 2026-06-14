@@ -224,6 +224,25 @@ export function getQuotaSyncState(): SyncState {
   return { ..._state };
 }
 
+/**
+ * Public entry point for the quota tracker to call at startup without creating
+ * a circular module-level import.  Called via dynamic import() so it resolves
+ * after both modules have fully initialised.
+ *
+ * Returns the number of YouTube API units Google Cloud Monitoring reports for
+ * today, or null when:
+ *   - GOOGLE_CLOUD_MONITORING_KEY is not set
+ *   - The Monitoring API is unreachable / returns an error
+ *   - Data has not yet propagated (Google Monitoring has a 1–2h delay)
+ *
+ * Callers must treat null as "unavailable, fall back to DB" — never as 0.
+ */
+export async function fetchRealQuotaUnitsPublic(): Promise<number | null> {
+  const sa = getServiceAccountKey();
+  if (!sa) return null;
+  return fetchRealQuotaUnits(sa);
+}
+
 export function initGoogleQuotaSync(): void {
   const key = process.env.GOOGLE_CLOUD_MONITORING_KEY;
   if (!key) {
