@@ -3,15 +3,21 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Continuously pulls signals from every relevant source:
  *   • YouTube trending gaming (yt-dlp metadata scrape — no download)
- *   • Reddit r/gaming, r/PS5, r/gamingclips, r/NewTubers, r/youtube
- *   • Twitch top games (app-credentials auth)
- *   • Gaming RSS news feeds (IGN, VG247, Eurogamer, Kotaku)
- *   • DuckDuckGo web search (strategy + algorithm queries)
+ *   • Reddit — gaming + viral + science + psychology + filmmaking + culture
+ *   • Gaming RSS news feeds (IGN, VG247, Eurogamer, Kotaku + 20 more)
+ *   • Tech/culture/science/marketing RSS (The Verge, Wired, HBR, Quanta, etc.)
+ *   • DuckDuckGo — gaming strategy + cross-domain curiosity queries
+ *   • Curiosity engine — 60-topic rotating pool, 4 random topics/cycle
+ *     (neuroscience, psychology, design, viral mechanics, storytelling,
+ *      attention economy, philosophy, business — no domain off-limits)
  *
  * Every 6 hours the AI synthesizer converts raw signals into:
  *   → predictive_trends   (topic momentum + confidence)
- *   → growth_strategies   (actionable channel tactics)
+ *   → growth_strategies   (actionable channel tactics — including cross-domain)
  *   → capability_gaps     (new experiment hypotheses for the experimenter)
+ *
+ * The curiosity engine gives the system the drive to learn anything and
+ * find unexpected connections between any field and channel growth.
  */
 
 import { execFile } from "child_process";
@@ -129,10 +135,37 @@ async function harvestReddit(userId: string, focusGame: string): Promise<number>
   ];
 
   const subreddits = [
-    { sub: "gaming",      category: "community_pulse"  as const },
-    { sub: "gamingclips", category: "viral_video"      as const },
-    { sub: "NewTubers",   category: "strategy_article" as const },
-    { sub: "youtube",     category: "strategy_article" as const },
+    // ── Gaming ──────────────────────────────────────────────────────────────
+    { sub: "gaming",              category: "community_pulse"  as const },
+    { sub: "gamingclips",         category: "viral_video"      as const },
+    { sub: "PS5",                 category: "community_pulse"  as const },
+    // ── YouTube / creator strategy ───────────────────────────────────────────
+    { sub: "NewTubers",           category: "strategy_article" as const },
+    { sub: "youtube",             category: "strategy_article" as const },
+    { sub: "youtubers",           category: "strategy_article" as const },
+    // ── Viral content & culture ───────────────────────────────────────────────
+    { sub: "videos",              category: "viral_video"      as const },
+    { sub: "interestingasfuck",   category: "viral_video"      as const },
+    { sub: "nextfuckinglevel",    category: "viral_video"      as const },
+    { sub: "oddlysatisfying",     category: "viral_video"      as const },
+    // ── Psychology & attention ────────────────────────────────────────────────
+    { sub: "psychology",          category: "strategy_article" as const },
+    { sub: "neuroscience",        category: "strategy_article" as const },
+    { sub: "BehavioralEconomics", category: "strategy_article" as const },
+    // ── Marketing & business ──────────────────────────────────────────────────
+    { sub: "marketing",           category: "strategy_article" as const },
+    { sub: "entrepreneur",        category: "strategy_article" as const },
+    { sub: "analytics",           category: "strategy_article" as const },
+    // ── Film / video craft ────────────────────────────────────────────────────
+    { sub: "filmmakers",          category: "strategy_article" as const },
+    { sub: "editors",             category: "strategy_article" as const },
+    // ── Science & curiosity ────────────────────────────────────────────────────
+    { sub: "todayilearned",       category: "community_pulse"  as const },
+    { sub: "Futurology",          category: "community_pulse"  as const },
+    { sub: "dataisbeautiful",     category: "strategy_article" as const },
+    // ── Tech & digital ────────────────────────────────────────────────────────
+    { sub: "technology",          category: "strategy_article" as const },
+    { sub: "artificial",          category: "strategy_article" as const },
     ...gameSubVariants,
   ].filter((v, i, arr) => arr.findIndex(x => x.sub === v.sub) === i);
 
@@ -175,11 +208,40 @@ async function harvestReddit(userId: string, focusGame: string): Promise<number>
 // SOURCE 4: Gaming RSS — served from external-data-cache (6 h TTL, DB-persisted)
 // ─────────────────────────────────────────────────────────────────────────────
 const RSS_FEEDS = [
-  { url: "https://www.vg247.com/feed",                         name: "VG247"       },
-  { url: "https://kotaku.com/rss",                             name: "Kotaku"      },
-  { url: "https://www.eurogamer.net/?format=rss",              name: "Eurogamer"   },
-  { url: "https://feeds.feedburner.com/ign/games-articles",    name: "IGN"         },
-  { url: "https://www.gameinformer.com/rss.xml",               name: "GameInformer"},
+  // ── Gaming news ──────────────────────────────────────────────────────────
+  { url: "https://www.vg247.com/feed",                              name: "VG247",         domain: "gaming" },
+  { url: "https://kotaku.com/rss",                                  name: "Kotaku",        domain: "gaming" },
+  { url: "https://www.eurogamer.net/?format=rss",                   name: "Eurogamer",     domain: "gaming" },
+  { url: "https://feeds.feedburner.com/ign/games-articles",         name: "IGN",           domain: "gaming" },
+  { url: "https://www.gameinformer.com/rss.xml",                    name: "GameInformer",  domain: "gaming" },
+  { url: "https://www.pcgamer.com/rss/",                            name: "PCGamer",       domain: "gaming" },
+  { url: "https://www.rockpapershotgun.com/feed",                   name: "RPS",           domain: "gaming" },
+  // ── Tech & digital culture ────────────────────────────────────────────────
+  { url: "https://www.theverge.com/rss/index.xml",                  name: "TheVerge",      domain: "tech"   },
+  { url: "https://www.wired.com/feed/rss",                          name: "Wired",         domain: "tech"   },
+  { url: "https://feeds.arstechnica.com/arstechnica/index",         name: "ArsTechnica",   domain: "tech"   },
+  { url: "https://techcrunch.com/feed/",                            name: "TechCrunch",    domain: "tech"   },
+  { url: "https://www.technologyreview.com/feed/",                  name: "MITTechReview", domain: "tech"   },
+  // ── Creator economy & YouTube strategy ───────────────────────────────────
+  { url: "https://creatoriq.com/blog/feed/",                        name: "CreatorIQ",     domain: "creator" },
+  { url: "https://tubefilter.com/feed/",                            name: "Tubefilter",    domain: "creator" },
+  { url: "https://vidiq.com/blog/feed/",                            name: "VidIQ",         domain: "creator" },
+  // ── Marketing & psychology ────────────────────────────────────────────────
+  { url: "https://feeds.feedburner.com/ seth-godin-blog",           name: "SethGodin",     domain: "marketing" },
+  { url: "https://feeds.hbr.org/harvardbusiness",                   name: "HBR",           domain: "marketing" },
+  { url: "https://www.marketingweek.com/feed/",                     name: "MarketingWeek", domain: "marketing" },
+  { url: "https://neilpatel.com/blog/feed/",                        name: "NeilPatel",     domain: "marketing" },
+  // ── Science & curiosity ───────────────────────────────────────────────────
+  { url: "https://www.quantamagazine.org/feed/",                    name: "Quanta",        domain: "science" },
+  { url: "https://www.smithsonianmag.com/rss/latest_articles/",     name: "Smithsonian",   domain: "science" },
+  { url: "https://feeds.newscientist.com/science-news",             name: "NewScientist",  domain: "science" },
+  { url: "https://www.sciencedaily.com/rss/top/technology.xml",     name: "ScienceDaily",  domain: "science" },
+  // ── Business & entrepreneurship ───────────────────────────────────────────
+  { url: "https://www.inc.com/rss",                                 name: "Inc",           domain: "business" },
+  { url: "https://www.fastcompany.com/latest/rss",                  name: "FastCompany",   domain: "business" },
+  // ── Entertainment & pop culture ───────────────────────────────────────────
+  { url: "https://variety.com/feed/",                               name: "Variety",       domain: "culture" },
+  { url: "https://www.billboard.com/feed/",                         name: "Billboard",     domain: "culture" },
 ];
 
 async function harvestRSSFeeds(userId: string): Promise<number> {
@@ -197,7 +259,7 @@ async function harvestRSSFeeds(userId: string): Promise<number> {
           title: item.title,
           url: item.url,
           score: 50,
-          metadata: { feedName: feed.name, pubDate: item.pubDate },
+          metadata: { feedName: feed.name, domain: (feed as any).domain ?? "gaming", pubDate: item.pubDate },
           expiresAt: expiry,
         }).onConflictDoNothing();
         saved++;
@@ -215,12 +277,30 @@ async function harvestRSSFeeds(userId: string): Promise<number> {
 async function harvestWebSearch(userId: string, focusGame: string): Promise<number> {
   const year = new Date().getFullYear();
   const queries = [
+    // ── Gaming / YouTube strategy ────────────────────────────────────────────
     `youtube gaming channel growth tips ${year}`,
     `youtube algorithm changes gaming ${year}`,
     `${focusGame} youtube content strategy creators ${year}`,
     `${focusGame} best clips highlights format youtube ${year}`,
     "youtube shorts vs long form gaming content strategy",
     `${focusGame} trending topics community ${year}`,
+    // ── Cross-domain: psychology of engagement ────────────────────────────────
+    "attention span psychology video content research",
+    "what makes video content go viral psychology study",
+    "viewer retention techniques video psychology",
+    "dopamine reward loop video games psychology",
+    // ── Cross-domain: visual & design science ─────────────────────────────────
+    "thumbnail design eye tracking study youtube clicks",
+    "color psychology marketing conversion science",
+    "visual hierarchy attention design research",
+    // ── Cross-domain: storytelling & hooks ────────────────────────────────────
+    "hook theory storytelling first 3 seconds video",
+    "narrative transportation engagement research",
+    "curiosity gap information theory content",
+    // ── Cross-domain: creator economy ─────────────────────────────────────────
+    `youtube creator economy trends ${year}`,
+    "short form vs long form video retention data",
+    "youtube algorithm ranking factors research",
   ];
   let saved = 0;
   const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
@@ -251,6 +331,130 @@ async function harvestWebSearch(userId: string, focusGame: string): Promise<numb
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SOURCE 6: Curiosity Engine — rotating 60-topic pool, 4 random topics/cycle
+// No AI calls — just DuckDuckGo searches on any topic. The AI synthesizer
+// then finds the hidden connection between any field and channel growth.
+// ─────────────────────────────────────────────────────────────────────────────
+const CURIOSITY_POOL = [
+  // Neuroscience & attention
+  "dopamine reward prediction brain neuroscience",
+  "attention restoration theory cognitive science",
+  "flow state neuroscience triggers research",
+  "mirror neurons social engagement brain",
+  "working memory limits human cognition",
+  "pattern recognition visual cortex research",
+  "emotional contagion psychology science",
+  "decision fatigue cognitive load study",
+  // Viral mechanics & psychology
+  "what makes content spread social contagion study",
+  "awe emotion viral content research",
+  "social currency why people share content",
+  "nostalgia psychology brain reward research",
+  "surprise versus expectation engagement psychology",
+  "FOMO fear of missing out behavioral science",
+  "parasocial relationship psychology media",
+  "identity signaling content sharing behavior",
+  // Storytelling & narrative science
+  "story transportation theory narrative engagement",
+  "three act structure brain response research",
+  "cliffhanger suspense psychology science",
+  "character identification empathy psychology",
+  "open loops curiosity gap information theory",
+  "tension resolution dopamine loop narrative",
+  // Visual perception & design
+  "visual saliency eye tracking attention",
+  "color emotion psychology cross-cultural study",
+  "contrast ratio visual perception attention",
+  "rule of thirds composition psychology",
+  "facial recognition amygdala social brain",
+  "motion detection peripheral vision attention",
+  // Audio & music psychology
+  "music tempo heartbeat synchronization psychology",
+  "earworm involuntary musical imagery science",
+  "silence tension film music psychology",
+  "bass frequency emotional response body",
+  // Habit & behavior
+  "habit loop cue routine reward neuroscience",
+  "variable ratio reinforcement schedule addiction",
+  "social proof behavior conformity research",
+  "scarcity psychology urgency decision making",
+  "completion instinct Zeigarnik effect psychology",
+  // Gaming psychology
+  "gaming flow state challenge skill balance",
+  "competitive gaming spectator engagement psychology",
+  "game tension victory moment dopamine spike",
+  "tutorial design learning curve psychology",
+  // Business & growth
+  "network effect viral growth mathematics",
+  "long tail distribution niche audience economics",
+  "compounding growth exponential curves business",
+  "first mover vs fast follower market strategy",
+  "minimum viable audience niche content strategy",
+  // Philosophy & ideas
+  "information theory entropy signal noise Shannon",
+  "emergence complex systems simple rules",
+  "feedback loop second order effects systems thinking",
+  "Dunning-Kruger expert beginner knowledge gap",
+  "memetic theory cultural evolution internet",
+  // Nature & patterns
+  "fractal self-similarity nature patterns mathematics",
+  "swarm intelligence collective behavior emergence",
+  "evolutionary arms race coevolution biology",
+  "power law distribution Pareto principle data",
+  "golden ratio human preference aesthetics",
+];
+
+// Deterministic-but-rotating selection: picks 4 different topics per cycle
+// based on hour-of-day so each 6h window explores a different quadrant
+function pickCuriosityTopics(): string[] {
+  const seed = Math.floor(Date.now() / (6 * 60 * 60_000)); // changes every 6h
+  const start = (seed * 4) % CURIOSITY_POOL.length;
+  const picked: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    picked.push(CURIOSITY_POOL[(start + i) % CURIOSITY_POOL.length]);
+  }
+  return picked;
+}
+
+async function harvestCuriositySignals(userId: string): Promise<number> {
+  const topics = pickCuriosityTopics();
+  let saved = 0;
+  const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
+
+  for (const topic of topics) {
+    try {
+      const ddg = await getCachedDDGResult(topic);
+      const relatedTopics = ddg.related.filter((t: string) => t.length > 15).slice(0, 6);
+      if (relatedTopics.length === 0 && !ddg.abstract) continue;
+
+      await db.insert(intelligenceSignals).values({
+        userId,
+        source: "curiosity",
+        category: "strategy_article",
+        title: `Curiosity: ${topic}`,
+        url: `https://duckduckgo.com/?q=${encodeURIComponent(topic)}`,
+        score: 35,
+        metadata: {
+          topic,
+          abstract: (ddg.abstract ?? "").slice(0, 300),
+          relatedTopics,
+          domain: "cross_domain",
+        },
+        expiresAt: expiry,
+      }).onConflictDoNothing();
+      saved++;
+    } catch (err: any) {
+      logger.debug(`Curiosity search failed for "${topic}": ${err.message?.slice(0, 60)}`);
+    }
+  }
+
+  if (saved > 0) {
+    logger.info("Curiosity engine harvested", { userId: userId.slice(0, 8), topics: topics.slice(0, 2), saved });
+  }
+  return saved;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI SYNTHESIS — turns raw signals into strategies + trends + experiment gaps
 // ─────────────────────────────────────────────────────────────────────────────
 async function synthesizeIntelligence(userId: string): Promise<void> {
@@ -267,71 +471,90 @@ async function synthesizeIntelligence(userId: string): Promise<void> {
   }
 
   // Compact signal summary for the prompt
-  const ytVideos    = signals.filter(s => s.source === "youtube_trending").slice(0, 20);
-  const redditPosts = signals.filter(s => s.source === "reddit").slice(0, 15);
-  const twitchGames = signals.filter(s => s.source === "twitch").slice(0, 15);
-  const newsItems   = signals.filter(s => s.source === "rss").slice(0, 10);
-  const webItems    = signals.filter(s => s.source === "web_search").slice(0, 5);
+  const ytVideos      = signals.filter(s => s.source === "youtube_trending").slice(0, 20);
+  const redditPosts   = signals.filter(s => s.source === "reddit").slice(0, 15);
+  const gamingNews    = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain === "gaming").slice(0, 8);
+  const broadNews     = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain !== "gaming").slice(0, 10);
+  const webItems      = signals.filter(s => s.source === "web_search").slice(0, 8);
+  const curiosityItems = signals.filter(s => s.source === "curiosity").slice(0, 6);
 
   const focusGame = await getFocusGame();
   const prompt = `You are the growth intelligence brain for a "${focusGame}" gaming YouTube channel called "ET Gaming 274" (no commentary, gameplay highlights style). Focus game: ${focusGame}.
 
+You have access to signals from across the ENTIRE INTERNET — gaming, psychology, neuroscience, design, business, culture, philosophy, and science. Your job is to absorb all of it and find the unexpected connections that can make this channel grow faster.
+
 LIVE DATA JUST HARVESTED FROM ${signals.length} SIGNALS:
 
-## YouTube Trending Gaming Videos (top by view score):
+## YouTube Trending Gaming Videos:
 ${ytVideos.map(s => `- "${s.title}" | ${(s.metadata as any)?.uploader ?? ""} | views≈${((s.metadata as any)?.views ?? 0).toLocaleString()}`).join("\n") || "none"}
 
-## Reddit Gaming Community Pulse:
+## Reddit Community Pulse (gaming + viral + psychology + filmmaking + culture):
 ${redditPosts.map(s => `- [r/${(s.metadata as any)?.subreddit}] "${s.title}" | ↑${(s.metadata as any)?.upvotes ?? 0}`).join("\n") || "none"}
 
-## Twitch Top Games Right Now:
-${twitchGames.map(s => `${(s.metadata as any)?.rank}. ${s.title}`).join(", ") || "none"}
-
 ## Gaming News (last 24h):
-${newsItems.map(s => `- [${(s.metadata as any)?.feedName}] ${s.title}`).join("\n") || "none"}
+${gamingNews.map(s => `- [${(s.metadata as any)?.feedName}] ${s.title}`).join("\n") || "none"}
 
-## Web Strategy Intelligence:
-${webItems.map(s => (s.metadata as any)?.topics?.slice(0, 2).join(" | ") ?? "").filter(Boolean).join("\n") || "none"}
+## Broader World News (tech, science, culture, business, marketing, creator economy):
+${broadNews.map(s => `- [${(s.metadata as any)?.feedName}/${(s.metadata as any)?.domain}] ${s.title}`).join("\n") || "none"}
 
-Based on ALL this real-time data, produce a JSON response with EXACTLY this structure:
+## Web Search Intelligence (gaming strategy + cross-domain research):
+${webItems.map(s => (s.metadata as any)?.topics?.slice(0, 3).join(" | ") ?? "").filter(Boolean).join("\n") || "none"}
+
+## Curiosity Engine Discoveries (any topic — find the hidden channel connection):
+${curiosityItems.map(s => {
+  const m = s.metadata as any;
+  return `- Topic: "${m?.topic}" | Related: ${(m?.relatedTopics ?? []).slice(0, 3).join(", ")}${m?.abstract ? ` | Abstract: ${m.abstract.slice(0, 120)}` : ""}`;
+}).join("\n") || "none"}
+
+CROSS-DOMAIN SYNTHESIS INSTRUCTIONS:
+The curiosity engine discoveries and broad news may seem unrelated to gaming — that is intentional. Your most valuable insight is finding the non-obvious connection. For example:
+- "dopamine reward prediction brain neuroscience" → structure clips to delay the payoff moment to maximise the reward spike
+- "visual saliency eye tracking attention" → position the most important element in the thumbnail where eyes land first
+- "Zeigarnik effect psychology" → never fully resolve tension in a Short — leave an open loop that drives clicks to the long-form
+- A marketing study on emotional contagion → use emotional escalation in clip selection rather than just highlight moments
+Always ask: "what does this field know that can make gaming content perform better?"
+
+Based on ALL this data, produce a JSON response with EXACTLY this structure:
 {
   "trendingTopics": [
     {
-      "topic": "game or theme name",
-      "category": "trending_game|viral_format|emerging_trend|algorithm_shift",
+      "topic": "game, format, or emerging theme",
+      "category": "trending_game|viral_format|emerging_trend|algorithm_shift|cross_domain_insight",
       "confidence": 0.0-1.0,
       "velocity": -1.0 to 1.0 (negative=declining, positive=rising fast),
       "currentVolume": estimated_monthly_searches,
       "peakDaysFromNow": estimated_days_to_peak,
-      "whyItMatters": "one sentence for the channel"
+      "whyItMatters": "one sentence for the channel — include the cross-domain connection if applicable"
     }
   ],
   "growthStrategies": [
     {
       "title": "Actionable strategy title",
-      "category": "title_formula|thumbnail_style|upload_timing|content_format|platform_tactic",
+      "category": "title_formula|thumbnail_style|upload_timing|content_format|platform_tactic|psychology_lever|cross_domain",
       "priority": "high|medium|low",
-      "description": "What to do and exactly why based on the data",
+      "description": "What to do and exactly why — cite the signal or field it came from",
       "actionItems": ["specific step 1", "specific step 2", "specific step 3"],
-      "estimatedImpact": "e.g. +15% CTR or +20% views"
+      "estimatedImpact": "e.g. +15% CTR or +20% views",
+      "sourceField": "psychology|neuroscience|gaming|marketing|design|culture|business|science|other"
     }
   ],
   "experimentHypotheses": [
     {
       "title": "Hypothesis to test",
-      "domain": "thumbnails|titles|timing|format|hooks",
-      "description": "What to test, why the data suggests it, and what success looks like"
+      "domain": "thumbnails|titles|timing|format|hooks|editing|music|pacing",
+      "description": "What to test, why the data suggests it, and what success looks like",
+      "inspiration": "which signal or cross-domain field suggested this"
     }
   ]
 }
 
-Return 5-8 trending topics, 4-6 growth strategies, 3-4 experiment hypotheses. Only return valid JSON — no markdown.`;
+Return 5-8 trending topics, 4-6 growth strategies (at least 2 must be cross-domain insights), 3-4 experiment hypotheses. Only return valid JSON — no markdown.`;
 
   let result;
   try {
     result = await executeRoutedAICall(
       { taskType: "trend_detection", userId, maxTokens: 4096 },
-      "You are a world-class YouTube gaming growth strategist. You analyse real-time signal data and produce precise, immediately-actionable intelligence. Return only valid JSON.",
+      "You are a world-class growth strategist and polymath. You synthesise signals from gaming, neuroscience, psychology, design, business, and culture to produce channel growth intelligence. You excel at finding non-obvious cross-domain connections. Return only valid JSON.",
       prompt
     );
   } catch (err: any) {
@@ -468,18 +691,20 @@ export async function runIntelligenceCycle(): Promise<void> {
         const focusGame = await getFocusGame();
         logger.info("Harvesting with focus game", { userId: userId.slice(0, 8), focusGame });
 
-        const [yt, reddit, rss, web] = await Promise.allSettled([
+        const [yt, reddit, rss, web, curiosity] = await Promise.allSettled([
           harvestYouTubeTrending(userId, focusGame),
           harvestReddit(userId, focusGame),
           harvestRSSFeeds(userId),
           harvestWebSearch(userId, focusGame),
+          harvestCuriositySignals(userId),
         ]);
 
         const counts = {
-          youtube : yt.status      === "fulfilled" ? yt.value      : 0,
-          reddit  : reddit.status  === "fulfilled" ? reddit.value  : 0,
-          rss     : rss.status     === "fulfilled" ? rss.value     : 0,
-          web     : web.status     === "fulfilled" ? web.value     : 0,
+          youtube  : yt.status       === "fulfilled" ? yt.value       : 0,
+          reddit   : reddit.status   === "fulfilled" ? reddit.value   : 0,
+          rss      : rss.status      === "fulfilled" ? rss.value      : 0,
+          web      : web.status      === "fulfilled" ? web.value      : 0,
+          curiosity: curiosity.status === "fulfilled" ? curiosity.value : 0,
         };
         const total = Object.values(counts).reduce((s, v) => s + v, 0);
         logger.info("Harvest complete — running AI synthesis", { userId: userId.slice(0, 8), ...counts, total });
