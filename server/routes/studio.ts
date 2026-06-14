@@ -470,7 +470,9 @@ export function registerStudioRoutes(app: Express) {
           });
 
           const fileStream = fs.createReadStream(studioVideo.filePath!);
-          const uploadResponse = await youtube.videos.insert({
+          // Cast the entire insert call as any: selfDeclaredMadeWithAI is not yet
+          // in the googleapis TypeScript schema but IS accepted by YouTube Data API v3.
+          const uploadResponse = await (youtube.videos.insert as any)({
             part: ["snippet", "status"],
             requestBody: {
               snippet: {
@@ -479,12 +481,10 @@ export function registerStudioRoutes(app: Express) {
                 tags: cleanTags,
                 categoryId: (meta as any).categoryId || "22",
               },
-              // Cast status as any: selfDeclaredMadeWithAI is not in the googleapis
-              // TypeScript schema yet but IS accepted by the YouTube Data API v3.
               status: {
                 privacyStatus: (meta as any).privacyStatus || "public",
                 selfDeclaredMadeWithAI: (meta as any).selfDeclaredMadeWithAI === true,
-              } as any,
+              },
             },
             media: {
               mimeType: "video/mp4",
@@ -492,7 +492,7 @@ export function registerStudioRoutes(app: Express) {
             },
           });
 
-          publishedVideoId = uploadResponse.data.id || publishedVideoId;
+          publishedVideoId = uploadResponse?.data?.id || publishedVideoId;
           logger.info("Video uploaded to YouTube", { id, youtubeId: publishedVideoId });
 
           await storage.updateStudioVideo(id, {

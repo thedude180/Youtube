@@ -1098,7 +1098,7 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
             '{failReason}',
             '"per-boot-cleanup: off-brand content removed — channel is BF6-only"'
           )
-      WHERE channel_id = 53
+      WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
         AND status IN ('scheduled', 'pending')
         AND (
           (
@@ -1199,6 +1199,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:066:cancel_unresolvable_grinder_shorts_v1", label: "066 — cancel 20 stuck grinder youtube_short items whose sourceVideoId has no YouTube ID (silent-skip churn fix Jun 13 2026)" },
   { flag: "migration:072:purge_ac_bf2042_queue_contamination_v1", label: "072 — purge 142 AC Valhalla/BF2042/off-brand items from autopilot queue (3 overdue studio_auto_publish + 129 AC youtube_short + 7 non-BF6 smart-edit + 3 BF2042 clips Jun 14 2026)" },
   { flag: "migration:073:block_offbrand_studio_and_fail_bad_vault_v1", label: "073 — block sv372/sv373 AC Valhalla hot loop + permanent-fail K5gAxqrF_7A/r0MWPGPqzFo inaccessible vault entries (Jun 14 2026)" },
+  { flag: "migration:074:purge_ac_shorts_defer_storm_v1", label: "074 — purge 132 AC Unity youtube_short items stuck in pre-encoder defer storm (migration-072 channel_id column bug — Jun 14 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4265,7 +4266,7 @@ async function migration072PurgeACAndBF2042QueueContamination(): Promise<void> {
             '{failReason}',
             '"migration-072: off-brand content purged — channel is BF6-only (AC Valhalla/BF2042/generic contamination Jun 14 2026)"'
           )
-      WHERE channel_id = 53
+      WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
         AND status IN ('scheduled', 'pending')
         AND (
           type = 'studio_auto_publish'
@@ -4281,6 +4282,45 @@ async function migration072PurgeACAndBF2042QueueContamination(): Promise<void> {
     log.info(`[Migration 072] Purged ${count} off-brand queue items (AC Valhalla + BF2042 + non-BF6 smart-edit) — BF6-only enforcement restored`);
   } catch (err: any) {
     log.warn(`[Migration 072] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
+async function migration074PurgeACShortsDeferStorm(): Promise<void> {
+  const FLAG = "migration:074:purge_ac_shorts_defer_storm_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Migration 072 used WHERE channel_id=53 which doesn't exist on autopilot_queue
+    // (only user_id does) — it failed on every boot since Jun 14 2026, leaving 132
+    // AC Unity youtube_short items stuck in perpetual pre-encoder defer loops
+    // (preEncoderDeferCount ≥ 100).  This migration cleans them up using user_id.
+    const r = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'permanent_fail',
+          metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{failReason}',
+            '"migration-074: AC/off-brand Shorts purged — migration-072 column bug left 132 items in defer storm (preEncoderDeferCount ≥ 100)"'
+          )
+      WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
+        AND status IN ('scheduled', 'pending')
+        AND (
+          type IN ('youtube_short', 'platform_short', 'auto-clip', 'studio_auto_publish')
+          OR metadata::text ILIKE '%"AssassinsCreed"%'
+          OR metadata::text ILIKE '%"ACUnity"%'
+          OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+          OR (metadata->>'gameName' = 'Battlefield 2042')
+        )
+        AND NOT (
+          metadata::text ILIKE '%battlefield 6%'
+          OR metadata::text ILIKE '%"Battlefield 6"%'
+          OR metadata::text ILIKE '%bf6%'
+        )
+    `);
+    const count = (r as unknown as { rowCount?: number }).rowCount ?? 0;
+    await setFlag(FLAG);
+    log.info(`[Migration 074] Purged ${count} off-brand queue items (AC defer storm cleanup) — BF6-only queue restored`);
+  } catch (err: any) {
+    log.warn(`[Migration 074] Failed (non-fatal): ${err?.message}`);
   }
 }
 
@@ -4461,6 +4501,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration071ResetFocusGameToBF6();
     await migration072PurgeACAndBF2042QueueContamination();
     await migration073BlockOffBrandStudioVideosAndFailBadVault();
+    await migration074PurgeACShortsDeferStorm();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
