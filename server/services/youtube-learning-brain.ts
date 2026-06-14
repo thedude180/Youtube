@@ -703,6 +703,38 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Pipeline intelligence intake non-fatal: ${piErr?.message?.slice(0, 80)}`);
     }
 
+    // 9h. Causal synthesis — extract causal chains from cross-domain signals
+    //     (curiosity + science + psychology + marketing → channel action rules).
+    //     ASI pillar #2: the system builds a causal world model, not just patterns.
+    try {
+      const { runCausalSynthesis } = await import("./causal-synthesis");
+      const chains = await runCausalSynthesis(userId);
+      if (chains > 0) {
+        logger.info(`[Brain] Causal synthesis: ${chains} causal chain(s) added to masterKnowledgeBank`);
+      }
+    } catch (csErr: any) {
+      logger.debug(`[Brain] Causal synthesis non-fatal: ${csErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9i. Prediction tracking — measure 14-day outcomes for growth strategies
+    //     that had an estimatedImpact. Calibrates AI prediction accuracy over time.
+    //     ASI pillar #4: the system corrects its own predictions.
+    try {
+      const { runPredictionTracking } = await import("./prediction-tracker");
+      await runPredictionTracking(userId);
+    } catch (ptErr: any) {
+      logger.debug(`[Brain] Prediction tracking non-fatal: ${ptErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9j. Goal progress measurement — measure 30-day output targets vs actuals.
+    //     ASI pillar #5: the system always knows where it wants to be and re-plans.
+    try {
+      const { measureAndLogGoalProgress } = await import("./goal-planner");
+      await measureAndLogGoalProgress(userId);
+    } catch (gpErr: any) {
+      logger.debug(`[Brain] Goal progress measurement non-fatal: ${gpErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
@@ -898,6 +930,19 @@ Write the weekly strategy brief now. It should tell a future AI agent reading it
     } catch {
       releaseAISlot();
       throw new Error("weekly synthesis AI call failed");
+    }
+
+    // Prompt self-improvement — runs after the weekly brief so it has the
+    // freshest knowledge to incorporate. Improves up to 3 active prompts per week.
+    // ASI pillar #3: the system rewrites its own reasoning instructions.
+    try {
+      const { runPromptSelfImprovement } = await import("./prompt-self-improver");
+      const improved = await runPromptSelfImprovement(userId);
+      if (improved > 0) {
+        logger.info(`[Brain] Prompt self-improvement: ${improved} prompt(s) evolved to next version`);
+      }
+    } catch (psiErr: any) {
+      logger.debug(`[Brain] Prompt self-improvement non-fatal: ${psiErr?.message?.slice(0, 80)}`);
     }
   } catch (err: any) {
     logger.warn(`[Brain] Weekly synthesis failed (non-fatal): ${err.message?.slice(0, 120)}`);

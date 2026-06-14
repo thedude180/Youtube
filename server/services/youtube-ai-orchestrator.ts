@@ -39,6 +39,7 @@ import {
   getBackCatalogStatus,
 } from "./youtube-back-catalog-engine";
 import { runDailyLearningCycle, getLearningSummary, harvestMicroSignals } from "./youtube-learning-brain";
+import { getGoalContext } from "./goal-planner";
 import { auditBatchForUser } from "./youtube-monetization-readiness";
 import { buildInternalLinkingPlan } from "./youtube-internal-linking-engine";
 import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
@@ -157,6 +158,15 @@ async function buildExecutionPlan(userId: string, fullCycle: boolean): Promise<Y
     ));
   const backlogCount = Number(queueBacklog[0]?.count ?? 0);
 
+  // ASI pillar #5: goal-aware planning — read progress against 30-day targets
+  // and boost queue priorities when the channel is behind.
+  const goalContext = await getGoalContext(userId).catch(() => "");
+  const goalBehindShorts   = goalContext.includes("Shorts:") && goalContext.includes("URGENT");
+  const goalBehindLongForm = goalContext.includes("Long-form:") && goalContext.includes("URGENT");
+  if (goalContext) {
+    logger.info(`[YouTubeAI] Goal context:\n${goalContext}`);
+  }
+
   const tasks: YouTubeAITask[] = [
     {
       name: "sync_channel_catalog",
@@ -192,18 +202,28 @@ async function buildExecutionPlan(userId: string, fullCycle: boolean): Promise<Y
     },
     {
       name: "queue_shorts",
-      priority: 7,
+      // Goal-aware: boost priority to 9 when Shorts pipeline is urgently behind target
+      priority: goalBehindShorts ? 9 : 7,
       allowedToRun: quotaOk && backlogCount < 500,
       requiresApproval: false,
-      reason: backlogCount >= 500 ? "Queue backlog healthy — skipping" : "Queue back catalog Shorts (3/day cap enforced)",
+      reason: backlogCount >= 500
+        ? "Queue backlog healthy — skipping"
+        : goalBehindShorts
+          ? "⚠️ GOAL URGENT: Shorts behind 30-day target — priority elevated"
+          : "Queue back catalog Shorts (3/day cap enforced)",
       estimatedQuotaCost: 2,
     },
     {
       name: "queue_long_form",
-      priority: 7,
+      // Goal-aware: boost priority to 9 when long-form pipeline is urgently behind target
+      priority: goalBehindLongForm ? 9 : 7,
       allowedToRun: quotaOk && backlogCount < 500,
       requiresApproval: false,
-      reason: backlogCount >= 500 ? "Queue backlog healthy — skipping" : "Queue long-form clips (1/day cap enforced)",
+      reason: backlogCount >= 500
+        ? "Queue backlog healthy — skipping"
+        : goalBehindLongForm
+          ? "⚠️ GOAL URGENT: Long-form behind 30-day target — priority elevated"
+          : "Queue long-form clips (1/day cap enforced)",
       estimatedQuotaCost: 2,
     },
     {

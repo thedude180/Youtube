@@ -33,6 +33,7 @@ import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
 import { safeParseJSON } from "../lib/safe-json";
 import { acquireYtdlpSlot } from "../lib/ytdlp-gate";
+import { evaluateStrategiesAdversarially, type StrategyCandidate } from "./adversarial-evaluator";
 import { getFocusGame } from "../lib/game-focus";
 import { recordEngineKnowledge } from "./knowledge-mesh";
 import {
@@ -595,36 +596,65 @@ Return 5-8 trending topics, 4-6 growth strategies (at least 2 must be cross-doma
     } catch { /* row may already exist */ }
   }
 
-  // Write growth strategies (attached to first YouTube channel if available)
+  // Write growth strategies — adversarially evaluated first (ASI pillar #1)
   const ytChannels = await db.select({ id: channels.id })
     .from(channels)
     .where(and(eq(channels.userId, userId), eq(channels.platform, "youtube")))
     .limit(1);
   const channelId = ytChannels[0]?.id ?? null;
 
-  for (const s of (parsed.growthStrategies ?? []).slice(0, 6)) {
-    if (!s?.title) continue;
+  const rawCandidates: StrategyCandidate[] = (parsed.growthStrategies ?? [])
+    .slice(0, 8)
+    .filter((s: any) => s?.title)
+    .map((s: any) => ({
+      title:          s.title,
+      category:       s.category ?? "growth",
+      priority:       s.priority ?? "medium",
+      description:    s.description ?? "",
+      actionItems:    s.actionItems ?? [],
+      estimatedImpact: s.estimatedImpact ?? "",
+      sourceField:    s.sourceField ?? "gaming",
+    }));
+
+  let adversarialResults = rawCandidates.map(s => ({
+    strategy: s, score: 60, challenge: "", rebuttal: "", survived: true,
+  }));
+
+  if (rawCandidates.length > 0) {
+    try {
+      adversarialResults = await evaluateStrategiesAdversarially(userId, rawCandidates, focusGame);
+    } catch (adversErr: any) {
+      logger.warn(`[OmniHarvester] Adversarial eval failed — using all candidates: ${adversErr?.message?.slice(0, 80)}`);
+    }
+  }
+
+  for (const ev of adversarialResults) {
+    if (!ev.survived) {
+      logger.info(`[OmniHarvester] Strategy rejected (score ${ev.score}): "${ev.strategy.title.slice(0, 60)}" — ${ev.challenge.slice(0, 80)}`);
+      continue;
+    }
+    const s = ev.strategy;
     try {
       await db.insert(growthStrategies).values({
         channelId,
         title: s.title,
-        description: s.description ?? "",
-        priority: s.priority ?? "medium",
-        category: s.category ?? "growth",
-        actionItems: s.actionItems ?? [],
-        estimatedImpact: s.estimatedImpact ?? null,
+        description: s.description,
+        priority: s.priority,
+        category: s.category,
+        actionItems: s.actionItems,
+        estimatedImpact: s.estimatedImpact || null,
         status: "pending",
         aiGenerated: true,
       });
       strategiesWritten++;
-    } catch { /* skip */ }
-    // Feed each internet-derived strategy into the knowledge mesh so all AI generators see it
+    } catch { /* skip duplicate */ }
+    // Feed surviving strategies into the knowledge mesh so all AI generators see them
     recordEngineKnowledge(
       "omni-intelligence-harvester", userId,
-      "internet_intelligence", `growth_strategy:${String(s.title).slice(0, 60)}`,
-      `INTERNET GROWTH STRATEGY [${s.priority ?? "medium"} priority]: ${s.title}${s.description ? " — " + String(s.description).slice(0, 160) : ""}`,
-      `estimatedImpact=${s.estimatedImpact ?? "unknown"}, category=${s.category ?? "growth"}`,
-      s.priority === "high" ? 70 : 55,
+      "internet_intelligence", `growth_strategy:${s.title.slice(0, 60)}`,
+      `INTERNET GROWTH STRATEGY [${s.priority} priority, adversarial score ${ev.score}]: ${s.title}${s.description ? " — " + s.description.slice(0, 160) : ""}`,
+      `estimatedImpact=${s.estimatedImpact || "unknown"}, category=${s.category}, challenge="${ev.challenge.slice(0, 80)}"`,
+      s.priority === "high" ? 72 : 57,
     ).catch(() => {});
   }
 
