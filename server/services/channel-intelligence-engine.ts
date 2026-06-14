@@ -429,6 +429,35 @@ export async function runIntelligenceCycle(): Promise<void> {
           `pub24h=${signals.publishedLast24h} queue=${signals.queueDepth} ` +
           `zombies=${signals.zombieVideoIds.length} actions=${actions.length}`
         );
+
+        // ── Brain feed: push full health snapshot into learningInsights ────────
+        try {
+          const { recordOutcome } = await import("../lib/outcome-recorder");
+          await recordOutcome({
+            engine:     "channel-intelligence",
+            userId,
+            category:   "health_snapshot",
+            summary:    `Channel health ${score.total}/100 — pub24h=${signals.publishedLast24h} queue=${signals.queueDepth} zombies=${signals.zombieVideoIds.length}${signals.quotaBlocked ? " QUOTA_BLOCKED" : ""}`,
+            metrics:    {
+              healthScore:        score.total,
+              publishRate:        score.publishRate,
+              queueDepthScore:    score.queueDepth,
+              zombiFreeScore:     score.zombieFree,
+              quotaHealthScore:   score.quotaHealth,
+              publishedLast24h:   signals.publishedLast24h,
+              publishedLast7days: signals.publishedLast7days,
+              queueDepth:         signals.queueDepth,
+              zombieCount:        signals.zombieVideoIds.length,
+              quotaBlocked:       signals.quotaBlocked ? 1 : 0,
+            },
+            confidence: 0.92,
+            recommendation: score.total < 50
+              ? "CRITICAL: channel health below 50 — investigate publish blockers, quota state, and queue depth immediately"
+              : score.total < 75
+              ? "Channel health degraded — check queue depth and zombie videos; publishing may slow"
+              : "Channel healthy — continue current BF6 publishing cadence",
+          });
+        } catch { /* non-fatal */ }
       } catch (err: any) {
         logger.error(`[Intelligence] Error processing user ${userId}:`, err.message);
       }

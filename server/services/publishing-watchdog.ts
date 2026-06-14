@@ -338,6 +338,20 @@ async function processChannel(userId: string, channelId: string): Promise<void> 
     state.lastRecoveryActions = actions;
     state.status = "recovering";
     logger.info("[Watchdog] Pipeline repair complete:", actions);
+
+    // ── Brain feed: recovery event ───────────────────────────────────────────
+    try {
+      const { recordOutcome } = await import("../lib/outcome-recorder");
+      await recordOutcome({
+        engine:     "publishing-watchdog",
+        userId,
+        category:   "recovery_fired",
+        summary:    `Publishing watchdog fired recovery #${state.recoveryCount} — ${actions.length} action(s): ${actions.slice(0, 2).join("; ")}`,
+        metrics:    { recoveryCount: state.recoveryCount, actionsCount: actions.length, hourUTC: new Date().getUTCHours() },
+        confidence: 0.75,
+        recommendation: "Recovery in progress — confirm videos appear on YouTube within 30 min; if not, watchdog will retry automatically",
+      });
+    } catch { /* non-fatal */ }
   } finally {
     state.recoveryInProgress = false;
   }

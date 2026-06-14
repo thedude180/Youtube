@@ -936,6 +936,30 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
   logger.info(
     `[PreEncoder] Cycle complete — encoded: ${encoded}, skipped: ${skipped}, errors: ${errors}`,
   );
+
+  // ── Brain feed ─────────────────────────────────────────────────────────────
+  if (encoded > 0 || errors > 0) {
+    try {
+      const { recordOutcome } = await import("../lib/outcome-recorder");
+      const { storage } = await import("../storage");
+      const allUsers = await storage.getAllUsers();
+      const brainUserId = allUsers[0]?.id;
+      if (brainUserId) {
+        await recordOutcome({
+          engine:     "pre-encoder",
+          userId:     brainUserId,
+          category:   "cycle_complete",
+          summary:    `Pre-encoder: ${encoded} video(s) encoded and ready for publisher pickup, ${errors} error(s)`,
+          metrics:    { encoded, skipped, errors, successRate: encoded + errors > 0 ? Math.round((encoded / (encoded + errors)) * 100) : 100 },
+          confidence: errors === 0 ? 0.95 : encoded > errors ? 0.7 : 0.4,
+          recommendation: errors > 0
+            ? `${errors} encode failure(s) — check vault download status; affected items will be retried by publisher via live yt-dlp`
+            : `${encoded} pre-encoded file(s) on disk — short and long-form publishers will pick them up immediately`,
+        });
+      }
+    } catch { /* non-fatal */ }
+  }
+
   return { encoded, skipped, errors };
 }
 

@@ -227,6 +227,26 @@ export async function runGrindCycle(): Promise<{ clipsQueued: number; longFormQu
     logger.error(`Content grinder cycle error: ${err.message?.substring(0, 300)}`);
   }
 
+  // ── Brain feed: every grind outcome (even zero) flows into learningInsights ─
+  try {
+    const { recordOutcome } = await import("../lib/outcome-recorder");
+    const allUsers = await storage.getAllUsers();
+    const brainUserId = allUsers.find((u: any) => u.tier && u.tier !== "free")?.id ?? allUsers[0]?.id;
+    if (brainUserId) {
+      await recordOutcome({
+        engine:     "content-grinder",
+        userId:     brainUserId,
+        category:   "cycle_complete",
+        summary:    `Grind cycle: ${totalClips} Shorts + ${totalLongForm} long-form clips queued for publishing`,
+        metrics:    { clipsQueued: totalClips, longFormQueued: totalLongForm, total: totalClips + totalLongForm },
+        confidence: totalClips + totalLongForm > 0 ? 0.9 : 0.5,
+        recommendation: totalClips + totalLongForm > 0
+          ? `${totalClips + totalLongForm} item(s) ready in autopilot_queue — publishers pick up next sweep`
+          : "No new clips queued — catalog may be exhausted; recycler should trigger a fresh mining pass",
+      });
+    }
+  } catch { /* non-fatal */ }
+
   return { clipsQueued: totalClips, longFormQueued: totalLongForm };
 }
 

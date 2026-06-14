@@ -507,50 +507,49 @@ export function initQuotaResetCron(): void {
         }
 
         // ── Brain context snapshot ─────────────────────────────────────────────
-        // Write a reset-time snapshot to learningInsights so the brain's daily
-        // cycle knows exactly what was queued and uploaded at midnight.  The brain
-        // uses this to track: time-of-day publish patterns, quota consumption
-        // trends, and whether the nightly cadence is healthy.
+        // Write a reset-time snapshot so the brain's daily cycle knows exactly
+        // what was uploaded at midnight and what remains in the queue.
         try {
-          const { db: _db } = await import("../db");
-          const { learningInsights, autopilotQueue: _aq } = await import("@shared/schema");
-          const { eq: _eq, inArray: _inArray, sql: _sql } = await import("drizzle-orm");
-          // Count what is still scheduled for the next 7 days (not yet uploaded)
-          const [pendingCounts] = await _db
+          const { db: _db }          = await import("../db");
+          const { autopilotQueue: _aq } = await import("@shared/schema");
+          const { eq: _eq, sql: _sql }  = await import("drizzle-orm");
+          const { recordOutcome }       = await import("../lib/outcome-recorder");
+          const { storage: _stor }      = await import("../storage");
+
+          const [pendingRow] = await _db
             .select({
               shorts:   _sql<number>`COUNT(*) FILTER (WHERE ${_aq.metadata}->>'contentType' = 'youtube-short' OR ${_aq.type} IN ('youtube_short','vod-short'))`,
               longForm: _sql<number>`COUNT(*) FILTER (WHERE ${_aq.metadata}->>'contentType' IN ('long-form-clip','long-form','vod_long_form'))`,
             })
             .from(_aq)
             .where(_eq(_aq.status, "scheduled"))
-            .limit(1)
-            .catch(() => [{ shorts: 0, longForm: 0 }]);
+            .catch(() => [] as any[]);
 
-          // Find a user ID for the insight row — take the first real user
-          const [firstUser] = await _db.execute(_sql`SELECT id FROM users LIMIT 1`).catch(() => ({ rows: [] })) as any;
-          const uid = firstUser?.rows?.[0]?.id ?? firstUser?.[0]?.id ?? "system";
+          const shortsQ   = Number((pendingRow as any)?.shorts   ?? 0);
+          const longFormQ = Number((pendingRow as any)?.longForm  ?? 0);
 
-          await _db.insert(learningInsights).values({
-            userId:     uid,
-            category:   "publish-reset-snapshot",
-            pattern:    `Midnight quota reset — ${totalPublished} video(s) uploaded to YouTube`,
-            confidence: 0.9,
-            sampleSize: 1,
-            data: {
-              finding: `Reset published ${totalPublished} video(s). Queue remaining: ${(pendingCounts as any)?.shorts ?? 0} shorts + ${(pendingCounts as any)?.longForm ?? 0} long-form.`,
-              evidence: [
-                `longFormPublished: ${longFormResult.published ?? 0}`,
-                `shortsPublished: ${shortsResult.published ?? 0}`,
-                `shortsQueued: ${(pendingCounts as any)?.shorts ?? 0}`,
-                `longFormQueued: ${(pendingCounts as any)?.longForm ?? 0}`,
-              ],
+          const allUsers = await _stor.getAllUsers().catch(() => [] as any[]);
+          const brainUid = allUsers[0]?.id;
+          if (brainUid) {
+            await recordOutcome({
+              engine:     "quota-reset-cron",
+              userId:     brainUid,
+              category:   "midnight_reset_snapshot",
+              summary:    `Midnight quota reset: ${totalPublished} video(s) published — ${shortsQ} shorts + ${longFormQ} long-form remain queued`,
+              metrics:    {
+                totalPublished,
+                longFormPublished: longFormResult.published ?? 0,
+                shortsPublished:   shortsResult.published  ?? 0,
+                shortsQueued:      shortsQ,
+                longFormQueued:    longFormQ,
+                hourUTC:           new Date().getUTCHours(),
+              },
+              confidence: totalPublished > 0 ? 0.92 : 0.5,
               recommendation: totalPublished > 0
                 ? "Publishing healthy — content will go live on schedule. Review in 48h for performance data."
                 : "Zero published at reset — check OAuth token health and queue depth in the morning.",
-            },
-            isGlobal:   false,
-            createdAt:  new Date(),
-          }).catch(() => {});
+            });
+          }
         } catch { /* non-critical — never block publishing over a logging failure */ }
 
         // ── Back-catalog SEO ───────────────────────────────────────────────────

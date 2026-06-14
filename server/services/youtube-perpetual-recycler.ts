@@ -100,6 +100,25 @@ export async function runPerpetualRecycler(): Promise<RecyclerResult> {
       logger.warn("[Recycler] RESUME engine trigger failed (non-fatal)", { error: err?.message?.slice(0, 200) });
     }
 
+    // Brain feed
+    try {
+      const { recordOutcome } = await import("../lib/outcome-recorder");
+      const { storage } = await import("../storage");
+      const allUsers = await storage.getAllUsers();
+      const brainUserId = allUsers[0]?.id;
+      if (brainUserId) {
+        await recordOutcome({
+          engine:     "perpetual-recycler",
+          userId:     brainUserId,
+          category:   "resume_mining",
+          summary:    `Recycler RESUME: ${unminedCount}/${totalCount} BF6 catalog videos still unmined — back-catalog engine triggered`,
+          metrics:    { unminedCount, totalCount, percentMined: Math.round(((totalCount - unminedCount) / totalCount) * 100) },
+          confidence: 0.88,
+          recommendation: `${unminedCount} video(s) remain in the BF6 catalog — mining will continue until all are queued as Shorts + long-form`,
+        });
+      }
+    } catch { /* non-fatal */ }
+
     return { triggered: true, fullRecycle: false, reason: "resume_mining" };
   }
 
@@ -127,6 +146,25 @@ export async function runPerpetualRecycler(): Promise<RecyclerResult> {
     const { runBackCatalogForAllEligibleUsers } = await import("./youtube-back-catalog-runner");
     await runBackCatalogForAllEligibleUsers();
     logger.info("[Recycler] RECYCLE complete — fresh publish cycle queued");
+
+    // Brain feed
+    try {
+      const { recordOutcome } = await import("../lib/outcome-recorder");
+      const { storage } = await import("../storage");
+      const allUsers = await storage.getAllUsers();
+      const brainUserId = allUsers[0]?.id;
+      if (brainUserId) {
+        await recordOutcome({
+          engine:     "perpetual-recycler",
+          userId:     brainUserId,
+          category:   "full_recycle",
+          summary:    `Recycler FULL RECYCLE: all ${totalCount} BF6 catalog videos mined — mined flags reset, fresh publish cycle queued`,
+          metrics:    { totalCount, recycleCount: 1 },
+          confidence: 0.95,
+          recommendation: `Full catalog loop complete — all ${totalCount} BF6 videos will be re-queued as Shorts + long-form with fresh publish slots. Channel has infinite content.`,
+        });
+      }
+    } catch { /* non-fatal */ }
   } catch (err: any) {
     logger.warn("[Recycler] RECYCLE failed (non-fatal)", { error: err?.message?.slice(0, 200) });
     return { triggered: false, fullRecycle: true, reason: "recycle_db_error" };
