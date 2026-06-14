@@ -1084,12 +1084,45 @@ async function migration016CreateErrorKnowledgeBase(): Promise<void> {
 // sweep runs on every boot so any contamination introduced since the last deploy
 // is cleared before publishers fire.
 async function cleanupNonBF6QueueItems(): Promise<void> {
-  // [DISABLED — Jun 13 2026] Channel publishes multi-game content.
-  // AC Liberation, AC Mirage, Dragon Age: The Veilguard, GTA, Ratchet & Clank,
-  // and Battlefield 6 are all active games on the channel.
-  // A BF6-only per-boot purge is no longer appropriate.
-  // Migration 063 unlocks previously-locked non-BF6 catalog videos.
-  log.info("[BootCleanup] Multi-game channel — per-boot non-BF6 purge DISABLED");
+  // Re-enabled Jun 14 2026 — migration 071 hard-reset focus back to BF6-only.
+  // Purges any scheduled/pending items that are provably off-brand:
+  //   1. Explicit non-BF6 gameName in metadata
+  //   2. AC-specific tags (AssassinsCreed, ACUnity, Valhalla) in metadata with no BF6 signal
+  //   3. studio_auto_publish items (current channel workflow no longer uses them for BF6)
+  try {
+    const r = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'permanent_fail',
+          metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{failReason}',
+            '"per-boot-cleanup: off-brand content removed — channel is BF6-only"'
+          )
+      WHERE channel_id = 53
+        AND status IN ('scheduled', 'pending')
+        AND (
+          (
+            metadata->>'gameName' IS NOT NULL
+            AND metadata->>'gameName' != ''
+            AND metadata->>'gameName' NOT ILIKE '%battlefield%'
+            AND metadata->>'gameName' NOT ILIKE '%bf6%'
+            AND metadata->>'gameName' NOT ILIKE '%bf 6%'
+          )
+          OR metadata::text ILIKE '%"AssassinsCreed"%'
+          OR metadata::text ILIKE '%"ACUnity"%'
+          OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+          OR type = 'studio_auto_publish'
+        )
+    `);
+    const count = (r as unknown as { rowCount?: number }).rowCount ?? 0;
+    if (count > 0) {
+      log.info(`[BootCleanup] Purged ${count} off-brand queue item(s) — BF6-only enforcement`);
+    } else {
+      log.info("[BootCleanup] Queue clean — no off-brand items found");
+    }
+  } catch (err: any) {
+    log.warn(`[BootCleanup] cleanupNonBF6QueueItems failed (non-fatal): ${err?.message}`);
+  }
 }
 
 async function cleanupStuckPendingItems(): Promise<void> {
@@ -1164,6 +1197,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:064:purge_bad_game_name_items_v1",          label: "064 — purge auto-clip queue items with nonsense game names (AI/Sonic/Epic/Gaming) blocking BF6 queue slots" },
   { flag: "migration:065:blacklist_maz2_llq_storm_videos_v1",    label: "065 — blacklist mAz2whE1ruI + LlQFaMvy5_k storm videos (format unavailable → DB pool exhaustion → crash loop Jun 13 2026)" },
   { flag: "migration:066:cancel_unresolvable_grinder_shorts_v1", label: "066 — cancel 20 stuck grinder youtube_short items whose sourceVideoId has no YouTube ID (silent-skip churn fix Jun 13 2026)" },
+  { flag: "migration:072:purge_ac_bf2042_queue_contamination_v1", label: "072 — purge 142 AC Valhalla/BF2042/off-brand items from autopilot queue (3 overdue studio_auto_publish + 129 AC youtube_short + 7 non-BF6 smart-edit + 3 BF2042 clips Jun 14 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4213,6 +4247,42 @@ async function migration071ResetFocusGameToBF6(): Promise<void> {
   }
 }
 
+async function migration072PurgeACAndBF2042QueueContamination(): Promise<void> {
+  const FLAG = "migration:072:purge_ac_bf2042_queue_contamination_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Purge all off-brand items confirmed in production queue on Jun 14 2026:
+    //  - 3 studio_auto_publish AC Valhalla items (IDs 40353, 40443, 40356) — already overdue
+    //  - 129 youtube_short items with no gameName but AC Unity/Valhalla tags in metadata
+    //  - 7 non-BF6 smart-edit items (Mass Effect, Ratchet & Clank, PS5 generic) — keep ID 41482 (BF6)
+    //  - 2 auto-clip + 1 platform_short with gameName='Battlefield 2042'
+    const r = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'permanent_fail',
+          metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{failReason}',
+            '"migration-072: off-brand content purged — channel is BF6-only (AC Valhalla/BF2042/generic contamination Jun 14 2026)"'
+          )
+      WHERE channel_id = 53
+        AND status IN ('scheduled', 'pending')
+        AND (
+          type = 'studio_auto_publish'
+          OR metadata::text ILIKE '%"AssassinsCreed"%'
+          OR metadata::text ILIKE '%"ACUnity"%'
+          OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+          OR (metadata->>'gameName' = 'Battlefield 2042')
+          OR id IN (41476, 41477, 41478, 41479, 41480, 41481, 41483)
+        )
+    `);
+    const count = (r as unknown as { rowCount?: number }).rowCount ?? 0;
+    await setFlag(FLAG);
+    log.info(`[Migration 072] Purged ${count} off-brand queue items (AC Valhalla + BF2042 + non-BF6 smart-edit) — BF6-only enforcement restored`);
+  } catch (err: any) {
+    log.warn(`[Migration 072] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration069CancelStaleStreamEditJobs(): Promise<void> {
   const FLAG = "migration:069:cancel_stale_stream_edit_jobs_v1";
   if (await getFlag(FLAG)) return;
@@ -4320,6 +4390,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration069CancelStaleStreamEditJobs();
     await migration070LogQuotaTripIncident();
     await migration071ResetFocusGameToBF6();
+    await migration072PurgeACAndBF2042QueueContamination();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
