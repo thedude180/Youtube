@@ -193,8 +193,13 @@ export async function runWatchdogCycle(): Promise<void> {
       await processChannel(ch.userId, ch.channelId);
     }
   } catch (err: any) {
-    logger.error("[Watchdog] Unhandled error in watchdog cycle:", err.message);
-    state.lastError = err.message?.slice(0, 200) ?? "unknown";
+    const causeMsg = err?.cause?.message ?? err?.cause?.code ?? "";
+    logger.error("[Watchdog] Unhandled error in watchdog cycle:", {
+      message: err?.message?.slice(0, 200),
+      cause: causeMsg ? String(causeMsg).slice(0, 200) : undefined,
+      stack: err?.stack?.split("\n")[1]?.trim(),
+    });
+    state.lastError = (err?.message ?? String(err))?.slice(0, 200) ?? "unknown";
   }
 }
 

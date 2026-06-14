@@ -982,6 +982,13 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
   return videos;
 }
 
+// Module-level session backoff: when InnerTube returns 401 (expired auth token),
+// skip InnerTube entirely for the next 30 minutes so the vault doesn't fire
+// 17+ wasted HTTP requests per download cycle with a known-expired token.
+// The token is shared across all downloads in the process, so one 401 means
+// all subsequent authenticated downloads will also 401 until the token refreshes.
+let _innerTubeAuthExpiredUntil = 0;
+
 /**
  * Download a YouTube video directly via the InnerTube player API.
  * This bypasses yt-dlp bot-detection entirely: the Bearer token is legitimate
@@ -989,6 +996,14 @@ async function fetchVideosFromYouTubeAPI(accessToken: string): Promise<ScrapedVi
  * that ffmpeg can download without any extra auth.
  */
 async function downloadViaInnerTube(youtubeId: string, outputPath: string, accessToken: string): Promise<boolean> {
+  // If the last InnerTube call returned 401 (auth expired), skip the
+  // authenticated path entirely until the backoff window has elapsed.
+  // This prevents a storm of 401s when the OAuth token has lapsed.
+  if (Date.now() < _innerTubeAuthExpiredUntil) {
+    logger.debug(`[Vault] InnerTube auth backoff active — skipping InnerTube for ${youtubeId}, falling through to yt-dlp`);
+    return false;
+  }
+
   // Separate counters for HTTP 400 vs 401.
   // 400 (bad request, unauth also rejected) = video is private/deleted/age-restricted.
   // 401 (auth expired) = token problem, NOT video unavailability — must NOT trigger
@@ -1173,9 +1188,12 @@ async function downloadViaInnerTube(youtubeId: string, outputPath: string, acces
   if (http400FailCount >= INNERTUBE_CLIENTS.length && INNERTUBE_CLIENTS.length > 0 && http401FailCount === 0) {
     throw new Error(`PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS:Video is private, deleted, or age-restricted — all InnerTube clients returned HTTP 400`);
   }
-  // If all failures were 401s, log and fall through so yt-dlp can attempt the download.
+  // If all failures were 401s, set the session-level backoff so subsequent
+  // vault downloads skip the authenticated InnerTube path for the next 30 min.
+  // This prevents the 17+ consecutive 401 storm seen when the token expires mid-run.
   if (http401FailCount > 0 && http400FailCount === 0) {
-    logger.info(`[Vault] InnerTube: all ${http401FailCount} clients returned 401 (token expired) — falling through to yt-dlp for ${youtubeId}`);
+    _innerTubeAuthExpiredUntil = Date.now() + 30 * 60_000;
+    logger.info(`[Vault] InnerTube: all ${http401FailCount} clients returned 401 (token expired) — falling through to yt-dlp for ${youtubeId}; InnerTube auth backoff active for 30 min`);
   }
 
   return false;

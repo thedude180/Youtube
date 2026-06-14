@@ -82,6 +82,11 @@ export async function smartPushOrQueue(params: {
       const beforeMeta = (beforeVideo?.metadata as any) || {};
 
       const { updateYouTubeVideo } = await import("../youtube");
+      const { sanitizeYouTubeTags } = await import("../lib/youtube-keyword-sanitizer");
+      // Sanitize tags on the fast path too — prevents "invalid video keywords" permanent failures
+      if (Array.isArray(params.updates.tags) && params.updates.tags.length > 0) {
+        params.updates = { ...params.updates, tags: sanitizeYouTubeTags(params.updates.tags) };
+      }
       // opType="write" → internal gate + tracking handled inside updateYouTubeVideo
       await updateYouTubeVideo(params.channelId, params.youtubeVideoId, params.updates, "write");
 

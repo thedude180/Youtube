@@ -976,7 +976,12 @@ export async function wireAgentCoordination(): Promise<void> {
             }
           }
         } catch (err: any) {
-          logger.warn(`Upload SEO optimization failed: ${err.message}`);
+          const isExpected = /AI queue full|queue full|request dropped|budget/i.test(err?.message ?? "");
+          if (isExpected) {
+            logger.debug(`Upload SEO optimization skipped (expected): ${err.message}`);
+          } else {
+            logger.warn(`Upload SEO optimization failed: ${err.message}`);
+          }
         }
       }, 6 * 60_000);
 
