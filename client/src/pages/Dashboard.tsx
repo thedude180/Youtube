@@ -39,6 +39,7 @@ import NicheResearch from "./dashboard/NicheResearch";
 import SuccessDNA from "./dashboard/SuccessDNA";
 import CreativeLibrary from "./dashboard/CreativeLibrary";
 import ContentPipelinePanel from "./dashboard/ContentPipelinePanel";
+import SocialExpansionPanel from "./dashboard/SocialExpansionPanel";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const AGENT_ROSTER = [
@@ -1062,6 +1063,8 @@ export default function TeamDashboard() {
         <IntelligenceDigest />
 
         <YouTubeAutopilotStatus />
+
+        <SocialExpansionPanel />
 
         <ContentPipelinePanel />
 

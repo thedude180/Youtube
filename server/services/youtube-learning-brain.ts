@@ -944,6 +944,15 @@ Write the weekly strategy brief now. It should tell a future AI agent reading it
     } catch (psiErr: any) {
       logger.debug(`[Brain] Prompt self-improvement non-fatal: ${psiErr?.message?.slice(0, 80)}`);
     }
+
+    // ASI cross-platform expansion — checks if YouTube is mature enough to expand
+    // to the next social platform and fires a user notification when ready.
+    try {
+      const { runSocialExpansionCycle } = await import("./social-expansion-engine");
+      await runSocialExpansionCycle(userId);
+    } catch (seeErr: any) {
+      logger.debug(`[Brain] Social expansion cycle non-fatal: ${seeErr?.message?.slice(0, 80)}`);
+    }
   } catch (err: any) {
     logger.warn(`[Brain] Weekly synthesis failed (non-fatal): ${err.message?.slice(0, 120)}`);
     _lastWeeklyCycleAt.delete(userId); // allow retry next daily cycle

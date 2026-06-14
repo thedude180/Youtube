@@ -58,6 +58,7 @@ import { registerStudioRoutes } from "./routes/studio";
 import { registerStreamEditorRoutes } from "./routes/stream-editor";
 import { registerAudienceEngineRoutes } from "./routes/audience-engine";
 import { registerEmpireRoutes } from "./routes/empire";
+import { registerSocialExpansionRoutes } from "./routes/social-expansion";
 import { registerCatalogRoutes } from "./routes/catalog";
 import { registerGrinderRoutes } from "./routes/grinder";
 import { registerEvolutionRoutes } from "./routes/evolution";
@@ -460,6 +461,7 @@ export async function registerRoutes(
   registerStreamEditorRoutes(app);
   registerAudienceEngineRoutes(app);
   registerEmpireRoutes(app);
+  registerSocialExpansionRoutes(app);
   registerCatalogRoutes(app);
   registerGrinderRoutes(app);
   registerEvolutionRoutes(app);
