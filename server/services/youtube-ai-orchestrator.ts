@@ -38,7 +38,7 @@ import {
   queueBackCatalogRevivalWork,
   getBackCatalogStatus,
 } from "./youtube-back-catalog-engine";
-import { runDailyLearningCycle, getLearningSummary } from "./youtube-learning-brain";
+import { runDailyLearningCycle, getLearningSummary, harvestMicroSignals } from "./youtube-learning-brain";
 import { auditBatchForUser } from "./youtube-monetization-readiness";
 import { buildInternalLinkingPlan } from "./youtube-internal-linking-engine";
 import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
@@ -693,6 +693,14 @@ export function initYouTubeAIOrchestrator(): void {
       await runYouTubeAIForAllEligibleUsers(false).catch(
         err => logger.error("[YouTubeAI] Light cycle error:", err?.message),
       );
+      // Harvest micro-signals from the last 4h of operations into the knowledge
+      // bank so the brain grows continuously between daily deep cycles.
+      const eligibleUsers = await getEligibleUserIds().catch(() => [] as string[]);
+      for (const uid of eligibleUsers) {
+        harvestMicroSignals(uid).catch(
+          (err: any) => logger.debug(`[YouTubeAI] Micro-harvest non-fatal: ${err?.message?.slice(0, 80)}`),
+        );
+      }
     }, LIGHT_CYCLE_MS);
 
     // ── Full strategic cycle (every ~22–24h) ───────────────────────────────

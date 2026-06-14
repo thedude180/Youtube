@@ -30,8 +30,11 @@ import {
   systemIncidentLog,
   growthStrategies,
   predictiveTrends,
+  contentVaultBackups,
+  backCatalogVideos,
+  pipelineTraces,
 } from "@shared/schema";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getRawOpenAIClientForDirectUse } from "../lib/openai";
 import { tryAcquireAISlotNow, releaseAISlot } from "../lib/ai-semaphore";
@@ -117,6 +120,246 @@ async function ingestCrossEngineOutcomes(userId: string): Promise<void> {
     );
   } catch (err: any) {
     logger.warn(`[Brain] Cross-engine intake failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
+// ── Pipeline intelligence intake ───────────────────────────────────────────────
+// Reads raw operational tables the daily cycle never previously touched:
+// autopilot_queue outcomes, vault download health, catalog stock, pipeline
+// traces, and queue churn.  Every signal becomes a masterKnowledgeBank
+// principle so AI generators get a continuous operational picture.
+
+async function ingestPipelineIntelligence(userId: string): Promise<void> {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
+
+    // 1. Queue outcome rates — publish success/fail breakdown by type (last 7d)
+    const queueOutcomes = await db.execute(sql`
+      SELECT
+        type,
+        COUNT(*) FILTER (WHERE status = 'published')   AS published,
+        COUNT(*) FILTER (WHERE status = 'permanent_fail' OR status = 'failed') AS failed,
+        COUNT(*) FILTER (WHERE status IN ('scheduled','pending'))               AS pending,
+        COUNT(*)                                                                AS total
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND created_at >= ${sevenDaysAgo}
+      GROUP BY type
+      ORDER BY total DESC
+      LIMIT 10
+    `);
+    const queueRows = (queueOutcomes as unknown as { rows: any[] }).rows ?? [];
+    for (const r of queueRows.slice(0, 5)) {
+      const total = Number(r.total) || 1;
+      const successRate = Math.round((Number(r.published) / total) * 100);
+      const principle = `[queue-outcomes] ${r.type}: ${successRate}% publish rate last 7d (${r.published}/${total} published, ${r.failed} failed, ${r.pending} pending)`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "pipeline_intelligence",
+        principle,
+        sourceEngines:     ["learning-brain", "autopilot-queue"],
+        evidenceCount:     total,
+        confidenceScore:   Math.min(85, 50 + Math.floor(total / 2)),
+        applicableEngines: ["shorts-publisher", "long-form-publisher", "back-catalog-engine", "youtube-ai-orchestrator"],
+        isActive:          true,
+        metadata: { type: r.type, published: r.published, failed: r.failed, pending: r.pending, successRate, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // 2. Vault health — source video download availability
+    const vaultHealth = await db.execute(sql`
+      SELECT status, COUNT(*) AS cnt
+      FROM content_vault_backups
+      GROUP BY status
+      ORDER BY cnt DESC
+    `);
+    const vaultRows = (vaultHealth as unknown as { rows: any[] }).rows ?? [];
+    const vaultTotal = vaultRows.reduce((s: number, r: any) => s + Number(r.cnt), 0) || 1;
+    const vaultDownloaded = Number(vaultRows.find((r: any) => r.status === "downloaded")?.cnt ?? 0);
+    const vaultFailed = Number(vaultRows.find((r: any) => r.status === "failed")?.cnt ?? 0);
+    const vaultIndexed = Number(vaultRows.find((r: any) => r.status === "indexed")?.cnt ?? 0);
+    if (vaultTotal > 0) {
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "pipeline_intelligence",
+        principle:         `[vault-health] ${vaultDownloaded} source videos downloaded and ready for encoding; ${vaultIndexed} queued to download; ${vaultFailed} permanently unavailable (${Math.round(vaultFailed / vaultTotal * 100)}% loss rate)`,
+        sourceEngines:     ["learning-brain", "video-vault"],
+        evidenceCount:     vaultTotal,
+        confidenceScore:   80,
+        applicableEngines: ["back-catalog-engine", "pre-encoder", "youtube-ai-orchestrator"],
+        isActive:          true,
+        metadata: { downloaded: vaultDownloaded, failed: vaultFailed, indexed: vaultIndexed, total: vaultTotal, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // 3. Catalog stock — BF6 mining depth remaining
+    const catalogStock = await db.execute(sql`
+      SELECT
+        game_name,
+        COUNT(*) AS total,
+        COUNT(*) FILTER (WHERE score IS NOT NULL AND score >= 60) AS high_score,
+        ROUND(AVG(score)::numeric, 1) AS avg_score
+      FROM back_catalog_videos
+      WHERE channel_id = 53
+      GROUP BY game_name
+      ORDER BY total DESC
+      LIMIT 8
+    `);
+    const catalogRows = (catalogStock as unknown as { rows: any[] }).rows ?? [];
+    for (const r of catalogRows.slice(0, 4)) {
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "pipeline_intelligence",
+        principle:         `[catalog-stock] ${r.game_name}: ${r.total} catalog videos (${r.high_score} high-score ≥60, avg score ${r.avg_score ?? "n/a"}) available for clip mining`,
+        sourceEngines:     ["learning-brain", "back-catalog-engine"],
+        evidenceCount:     Number(r.total),
+        confidenceScore:   75,
+        applicableEngines: ["back-catalog-engine", "youtube-ai-orchestrator"],
+        isActive:          true,
+        metadata: { game: r.game_name, total: r.total, highScore: r.high_score, avgScore: r.avg_score, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // 4. Pipeline trace patterns — stuck/missing content from last 7d
+    const tracePatterns = await db.execute(sql`
+      SELECT
+        status,
+        stage,
+        COUNT(*) AS cnt
+      FROM pipeline_traces
+      WHERE created_at >= ${sevenDaysAgo}
+      GROUP BY status, stage
+      ORDER BY cnt DESC
+      LIMIT 8
+    `);
+    const traceRows = (tracePatterns as unknown as { rows: any[] }).rows ?? [];
+    const stuckCount = traceRows.filter((r: any) => r.status === "stuck" || r.status === "missing").reduce((s: number, r: any) => s + Number(r.cnt), 0);
+    const verifiedCount = traceRows.filter((r: any) => r.status === "verified").reduce((s: number, r: any) => s + Number(r.cnt), 0);
+    if (stuckCount + verifiedCount > 0) {
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "pipeline_intelligence",
+        principle:         `[pipeline-traces] Last 7d: ${verifiedCount} videos confirmed live on YouTube; ${stuckCount} stuck/missing — pipeline health ${stuckCount === 0 ? "CLEAN" : stuckCount < 5 ? "MINOR ISSUES" : "NEEDS ATTENTION"}`,
+        sourceEngines:     ["learning-brain", "pipeline-tracer"],
+        evidenceCount:     stuckCount + verifiedCount,
+        confidenceScore:   stuckCount === 0 ? 85 : 65,
+        applicableEngines: ["youtube-ai-orchestrator", "shorts-publisher", "long-form-publisher"],
+        isActive:          true,
+        metadata: { verified: verifiedCount, stuck: stuckCount, stageBreakdown: traceRows.slice(0, 5), intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // 5. Queue churn — items deferred 3+ times (repeated failure signal)
+    const churnItems = await db.execute(sql`
+      SELECT type, COUNT(*) AS cnt
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND status IN ('scheduled','pending')
+        AND (metadata->>'deferCount')::int >= 3
+      GROUP BY type
+      ORDER BY cnt DESC
+      LIMIT 6
+    `);
+    const churnRows = (churnItems as unknown as { rows: any[] }).rows ?? [];
+    const totalChurn = churnRows.reduce((s: number, r: any) => s + Number(r.cnt), 0);
+    if (totalChurn > 0) {
+      const churnBreakdown = churnRows.map((r: any) => `${r.type}:${r.cnt}`).join(", ");
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "pipeline_intelligence",
+        principle:         `[queue-churn] ${totalChurn} queue items deferred 3+ times (repeated failures): ${churnBreakdown} — investigate source availability or encoding issues for these types`,
+        sourceEngines:     ["learning-brain", "autopilot-queue"],
+        evidenceCount:     totalChurn,
+        confidenceScore:   70,
+        applicableEngines: ["back-catalog-engine", "pre-encoder", "youtube-ai-orchestrator"],
+        isActive:          true,
+        metadata: { totalChurn, breakdown: churnRows, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    const signalCount = queueRows.length + (vaultTotal > 0 ? 1 : 0) + catalogRows.length + (stuckCount + verifiedCount > 0 ? 1 : 0) + (totalChurn > 0 ? 1 : 0);
+    logger.info(`[Brain] Pipeline intelligence: ${signalCount} signal(s) ingested → masterKnowledgeBank`);
+  } catch (err: any) {
+    logger.warn(`[Brain] Pipeline intelligence intake failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
+// ── Micro-signal harvester (4h) ────────────────────────────────────────────────
+// Lightweight harvester that runs every 4 hours between daily cycles.
+// No AI calls — pure DB observation → masterKnowledgeBank micro-signals.
+// Every publish, failure, and pipeline event in the last 4h becomes a
+// living signal so the brain accumulates knowledge continuously, not just
+// once per day.
+
+const _lastMicroHarvestAt = new Map<string, number>();
+const MICRO_HARVEST_COOLDOWN_MS = 3.5 * 3_600_000; // max once per 3.5h
+
+export async function harvestMicroSignals(userId: string): Promise<void> {
+  const last = _lastMicroHarvestAt.get(userId) ?? 0;
+  if (Date.now() - last < MICRO_HARVEST_COOLDOWN_MS) return;
+  _lastMicroHarvestAt.set(userId, Date.now());
+
+  try {
+    const fourHoursAgo = new Date(Date.now() - 4 * 3_600_000);
+
+    // Recent publishing activity
+    const recentPublishes = await db.execute(sql`
+      SELECT
+        type,
+        COUNT(*) FILTER (WHERE status = 'published' AND published_at >= ${fourHoursAgo}) AS published,
+        COUNT(*) FILTER (WHERE status IN ('failed','permanent_fail') AND updated_at >= ${fourHoursAgo}) AS failed
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND (published_at >= ${fourHoursAgo} OR updated_at >= ${fourHoursAgo})
+      GROUP BY type
+      HAVING COUNT(*) FILTER (WHERE status = 'published' AND published_at >= ${fourHoursAgo}) > 0
+          OR COUNT(*) FILTER (WHERE status IN ('failed','permanent_fail') AND updated_at >= ${fourHoursAgo}) > 0
+      ORDER BY published DESC
+      LIMIT 6
+    `);
+    const pubRows = (recentPublishes as unknown as { rows: any[] }).rows ?? [];
+
+    for (const r of pubRows) {
+      if (Number(r.published) === 0 && Number(r.failed) === 0) continue;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "micro_signal",
+        principle:         `[4h-activity] ${r.type}: ${r.published} published, ${r.failed} failed in last 4h`,
+        sourceEngines:     ["micro-signal-harvester"],
+        evidenceCount:     Number(r.published) + Number(r.failed),
+        confidenceScore:   60,
+        applicableEngines: ["youtube-ai-orchestrator"],
+        isActive:          true,
+        metadata: { type: r.type, published: r.published, failed: r.failed, harvestedAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // Recent vault downloads completed
+    const recentVaultDone = await db.execute(sql`
+      SELECT COUNT(*) AS cnt FROM content_vault_backups
+      WHERE updated_at >= ${fourHoursAgo} AND status = 'downloaded'
+    `);
+    const vaultDone = Number((recentVaultDone as unknown as { rows: any[] }).rows?.[0]?.cnt ?? 0);
+    if (vaultDone > 0) {
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "micro_signal",
+        principle:         `[4h-vault] ${vaultDone} source video(s) finished downloading in last 4h — new raw material available for encoding`,
+        sourceEngines:     ["micro-signal-harvester", "video-vault"],
+        evidenceCount:     vaultDone,
+        confidenceScore:   65,
+        applicableEngines: ["pre-encoder", "back-catalog-engine"],
+        isActive:          true,
+        metadata: { vaultDownloadsCompleted: vaultDone, harvestedAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    const totalSignals = pubRows.length + (vaultDone > 0 ? 1 : 0);
+    if (totalSignals > 0) {
+      logger.info(`[Brain] Micro-harvest: ${totalSignals} signal(s) written → masterKnowledgeBank`);
+    }
+  } catch (err: any) {
+    logger.debug(`[Brain] Micro-signal harvest non-fatal: ${err?.message?.slice(0, 80)}`);
   }
 }
 
@@ -447,6 +690,17 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       }
     } catch (tpsErr: any) {
       logger.debug(`[Brain] Template perf scoring non-fatal: ${tpsErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9g. Pipeline intelligence — harvest operational signals from every major
+    //     table that the brain previously never read: autopilot_queue outcome
+    //     rates, vault download health, catalog stock depth, pipeline trace
+    //     patterns, and queue churn.  Each signal becomes a masterKnowledgeBank
+    //     principle that flows into every downstream AI generator.
+    try {
+      await ingestPipelineIntelligence(userId);
+    } catch (piErr: any) {
+      logger.debug(`[Brain] Pipeline intelligence intake non-fatal: ${piErr?.message?.slice(0, 80)}`);
     }
 
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
