@@ -510,6 +510,28 @@ export function tripGlobalQuotaBreaker(): void {
       .map(l => l.trim().replace(/^\s*at\s*/, ""))
       .join(" | ") ?? "unknown";
     logger.warn(`[QuotaBreaker] YouTube API quota circuit breaker TRIPPED for ${today} — all YouTube API calls blocked until midnight Pacific`, { callerStack });
+
+    // Record to learning_insights so the brain can detect time-of-day patterns
+    // (e.g., "quota trips at 11am Pacific on 4/5 recent days → front-load publishing").
+    // Fire-and-forget — never await in this synchronous hot path.
+    const tripHour = new Date().toLocaleString("en-US", {
+      timeZone: "America/Los_Angeles", hour: "numeric", hour12: false,
+    });
+    import("../lib/system-telemetry").then(({ recordSystemEvent }) => {
+      recordSystemEvent({
+        engine: "quota-tracker",
+        event:  "quota_trip",
+        summary: `YouTube quota circuit breaker tripped for ${today} at ~${tripHour}:xx Pacific — all API calls blocked until midnight`,
+        metrics: {
+          tripDate:     today,
+          pacificHourOverride: parseInt(tripHour, 10),
+          callerContext: callerStack.split("|")[0]?.trim().slice(0, 100) ?? "unknown",
+        },
+        recommendation:
+          "If quota consistently trips before noon Pacific, front-load all publishing to 07:00–10:00 Pacific immediately after the midnight quota reset.",
+        debounce: false, // always record first trip of the day
+      }).catch(() => {});
+    }).catch(() => {});
   }
   _globalQuotaTripDate = today;
 }

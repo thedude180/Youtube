@@ -18,6 +18,7 @@ import {
 } from "@shared/schema";
 import { getFocusGame, buildFocusGameRegex } from "../lib/game-focus";
 import { recordEngineKnowledge } from "./knowledge-mesh";
+import { recordOutcome } from "../lib/outcome-recorder";
 import { eq, and, gt, isNull, or, sql, desc, ilike, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { executeRoutedAICall } from "./ai-model-router";
@@ -224,6 +225,25 @@ async function runTrendWaveInterceptorCycle(userId: string): Promise<void> {
       queued++;
 
       logger.info(`[TrendWave] Queued "${title.slice(0, 60)}" for trend "${topic}" (peaks ~${urgencyDays}d, vel=${trend.velocity?.toFixed(2)})`);
+
+      // Record to learning_insights — brain aggregates these to understand which
+      // trend categories and velocity thresholds produce the most queued content.
+      recordOutcome({
+        engine:   "trend-wave-interceptor",
+        userId,
+        category: "system_telemetry:trend_queued",
+        summary:  `Trend-wave catalog-remix queued: "${topic}" (vel=${(trend.velocity ?? 0).toFixed(2)}, peaks ~${urgencyDays}d, cat=${trend.category ?? "?"})`,
+        metrics: {
+          trendVelocity: trend.velocity ?? 0,
+          urgencyDays,
+          trendCategory: trend.category ?? "trending_game",
+          confidence: trend.confidence ?? 0.5,
+          sourceGame: source.gameName ?? "unknown",
+        },
+        recommendation: urgencyDays <= 3
+          ? "Imminent peak — ensure this Short is published within 24h for maximum wave capture."
+          : "Standard trend — publish within scheduled window.",
+      }).catch(() => {});
     } catch (err: any) {
       logger.warn(`[TrendWave] Failed to queue for trend "${topic}": ${err.message?.slice(0, 80)}`);
     }

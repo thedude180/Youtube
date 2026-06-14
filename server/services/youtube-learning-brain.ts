@@ -284,6 +284,122 @@ async function ingestPipelineIntelligence(userId: string): Promise<void> {
   }
 }
 
+// ── System telemetry synthesizer ──────────────────────────────────────────────
+// Reads system_telemetry:* events written by quota-tracker, ai-semaphore,
+// and other infrastructure services.  Detects time-of-day patterns and writes
+// actionable scheduling recommendations to masterKnowledgeBank.
+// No AI calls — pure DB observation + deterministic pattern logic.
+
+async function synthesizeSystemTelemetry(userId: string): Promise<void> {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400_000);
+
+    const rows = await db
+      .select({
+        category:  learningInsights.category,
+        pattern:   learningInsights.pattern,
+        data:      learningInsights.data,
+        createdAt: learningInsights.createdAt,
+      })
+      .from(learningInsights)
+      .where(
+        and(
+          eq(learningInsights.userId, userId),
+          gte(learningInsights.createdAt, sevenDaysAgo),
+          sql`${learningInsights.category} LIKE 'system_telemetry:%'`,
+        ),
+      )
+      .orderBy(desc(learningInsights.createdAt))
+      .limit(100);
+
+    if (rows.length === 0) return;
+
+    // ── Quota trip pattern ─────────────────────────────────────────────────
+    const quotaTrips = rows.filter(r => r.category?.includes("quota_trip"));
+    if (quotaTrips.length >= 2) {
+      const hours: number[] = [];
+      for (const t of quotaTrips) {
+        const h = (t.data as any)?.evidence?.find((e: string) => e.startsWith("pacificHour:"));
+        const override = (t.data as any)?.evidence?.find((e: string) => e.startsWith("pacificHourOverride:"));
+        const val = override ?? h;
+        if (val) {
+          const n = parseInt(val.split(":")[1], 10);
+          if (!isNaN(n)) hours.push(n);
+        }
+      }
+      if (hours.length >= 2) {
+        const avg = Math.round(hours.reduce((a, b) => a + b, 0) / hours.length);
+        const earliest = Math.min(...hours);
+        const recommendation = avg <= 12
+          ? `Quota trips at ~${avg}:00 Pacific on ${quotaTrips.length}/${Math.min(7, quotaTrips.length + 2)} recent days. CRITICAL: front-load ALL publishing to the 07:00–${Math.max(7, earliest - 1)}:00 Pacific window immediately after midnight quota reset.`
+          : `Quota trips at ~${avg}:00 Pacific — current morning publishing window is acceptable but monitor for earlier trips.`;
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:          "system_pattern",
+          principle:         `[quota-timing] Quota circuit breaker has tripped ${quotaTrips.length}x in last 7 days at avg ${avg}:00 Pacific (earliest ${earliest}:00). ${recommendation}`,
+          sourceEngines:     ["learning-brain", "quota-tracker"],
+          evidenceCount:     quotaTrips.length,
+          confidenceScore:   Math.min(95, 70 + quotaTrips.length * 5),
+          applicableEngines: ["shorts-publisher", "long-form-publisher", "youtube-ai-orchestrator", "back-catalog-engine"],
+          isActive:          true,
+          metadata: {
+            eventType: "quota_trip", tripCount: quotaTrips.length, avgHour: avg, earliestHour: earliest,
+            recommendation, intakeAt: new Date().toISOString(),
+          },
+        } as any).catch(() => {});
+      }
+    }
+
+    // ── AI semaphore saturation pattern ───────────────────────────────────
+    const aiSaturations = rows.filter(r => r.category?.includes("background_queue_full"));
+    if (aiSaturations.length >= 3) {
+      const hours: number[] = [];
+      for (const t of aiSaturations) {
+        const h = (t.data as any)?.evidence?.find((e: string) => e.startsWith("pacificHour:"));
+        if (h) {
+          const n = parseInt(h.split(":")[1], 10);
+          if (!isNaN(n)) hours.push(n);
+        }
+      }
+      const avgHour = hours.length > 0 ? Math.round(hours.reduce((a, b) => a + b, 0) / hours.length) : -1;
+      const hourNote = avgHour >= 0 ? ` (most often at ~${avgHour}:00 Pacific)` : "";
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "system_pattern",
+        principle:         `[ai-saturation] Background AI queue filled to capacity ${aiSaturations.length}x in last 7 days${hourNote} — background engines are converging faster than the semaphore can drain. Consider staggering engine startup delays by 2–5 min each.`,
+        sourceEngines:     ["learning-brain", "ai-semaphore"],
+        evidenceCount:     aiSaturations.length,
+        confidenceScore:   80,
+        applicableEngines: ["youtube-ai-orchestrator", "back-catalog-engine", "omni-intelligence-harvester"],
+        isActive:          true,
+        metadata: { eventType: "background_queue_full", count: aiSaturations.length, avgHour, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // ── Trend-wave queue activity ──────────────────────────────────────────
+    const trendQueued = rows.filter(r => r.category?.includes("trend_queued"));
+    if (trendQueued.length > 0) {
+      const topics = trendQueued.slice(0, 5).map(r => r.pattern?.slice(0, 80)).join("; ");
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "system_pattern",
+        principle:         `[trend-activity] ${trendQueued.length} trend-wave catalog-remix clips queued in last 7 days. Recent topics: ${topics}`,
+        sourceEngines:     ["learning-brain", "trend-wave-interceptor"],
+        evidenceCount:     trendQueued.length,
+        confidenceScore:   75,
+        applicableEngines: ["youtube-ai-orchestrator", "back-catalog-engine"],
+        isActive:          true,
+        metadata: { eventType: "trend_queued", count: trendQueued.length, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    const totalSignals = quotaTrips.length + aiSaturations.length + trendQueued.length;
+    logger.info(`[Brain] System telemetry synthesis: ${rows.length} events → ${totalSignals > 0 ? "patterns detected" : "no patterns yet"}`);
+  } catch (err: any) {
+    logger.warn(`[Brain] System telemetry synthesis failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
 // ── Micro-signal harvester (4h) ────────────────────────────────────────────────
 // Lightweight harvester that runs every 4 hours between daily cycles.
 // No AI calls — pure DB observation → masterKnowledgeBank micro-signals.
@@ -428,6 +544,10 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   // before the brain's own analysis runs, so all downstream AI calls have
   // fresh cross-engine context.
   await ingestCrossEngineOutcomes(userId);
+
+  // Synthesize system telemetry patterns (quota timing, AI saturation, trend activity)
+  // into actionable masterKnowledgeBank recommendations. No AI calls — pure DB pattern logic.
+  await synthesizeSystemTelemetry(userId);
 
   try {
     // 1. Pull analytics for any published videos missing metrics

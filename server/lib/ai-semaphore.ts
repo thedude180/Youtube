@@ -169,6 +169,16 @@ async function _waitForRelease(background: boolean): Promise<void> {
                  "in the same 15-minute window and set BACKGROUND_MAX_QUEUE_DEPTH >= that count. " +
                  "Dropped background requests are silent — always log when they occur.",
     }).catch(() => {});
+    // Record to learning_insights — brain uses these to detect convergence patterns
+    import("./system-telemetry").then(({ recordSystemEvent }) => {
+      recordSystemEvent({
+        engine: "ai-semaphore",
+        event:  "background_queue_full",
+        summary: `Background AI queue saturated: ${_backgroundQueueCount}/${bgLimit} background callers — request dropped`,
+        metrics: { queueDepth: _backgroundQueueCount, bgLimit },
+        recommendation: "Stagger AI engine startup delays or reduce BACKGROUND_MAX_QUEUE_DEPTH callers converging in the same window.",
+      }).catch(() => {});
+    }).catch(() => {});
     throw new Error(`AI queue full for background tasks (${_backgroundQueueCount}/${bgLimit} background callers waiting) — request dropped`);
   }
   if (_releaseListeners.length >= MAX_QUEUE_DEPTH) {

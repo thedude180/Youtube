@@ -402,15 +402,29 @@ export async function getCachedRSSFeed(
 // ── Scheduled pre-warm ────────────────────────────────────────────────────────
 
 const DEFAULT_GAMING_SUBREDDITS = [
-  "battlefield", "battlefield2042", "gaming", "YouTube", "NewTubers",
+  // Battlefield community — primary signal for BF6 channel
+  "battlefield", "battlefield2042", "BattlefieldPortal", "BattlefieldVeterans",
+  // FPS + competitive gaming — broader audience signals
+  "fps", "pcgaming", "CompetitiveGaming",
+  // YouTube growth — channel strategy signals
+  "gaming", "YouTube", "NewTubers", "youtubestudio",
 ];
 
 const DEFAULT_RSS_FEEDS: Array<{ url: string; name: string }> = [
-  { url: "https://www.vg247.com/feed",                         name: "VG247"       },
-  { url: "https://kotaku.com/rss",                             name: "Kotaku"      },
-  { url: "https://www.eurogamer.net/?format=rss",              name: "Eurogamer"   },
-  { url: "https://feeds.feedburner.com/ign/games-articles",    name: "IGN"         },
-  { url: "https://www.gameinformer.com/rss.xml",               name: "GameInformer"},
+  // Core gaming news
+  { url: "https://www.vg247.com/feed",                          name: "VG247"        },
+  { url: "https://kotaku.com/rss",                              name: "Kotaku"       },
+  { url: "https://www.eurogamer.net/?format=rss",               name: "Eurogamer"    },
+  { url: "https://feeds.feedburner.com/ign/games-articles",     name: "IGN"          },
+  { url: "https://www.gameinformer.com/rss.xml",                name: "GameInformer" },
+  // Broader gaming + tech
+  { url: "https://www.pcgamer.com/rss/",                        name: "PCGamer"      },
+  { url: "https://www.rockpapershotgun.com/feed",               name: "RockPaperShotgun" },
+  { url: "https://www.polygon.com/rss/index.xml",               name: "Polygon"      },
+  // EA / Battlefield official
+  { url: "https://www.ea.com/news/rss",                         name: "EA News"      },
+  // YouTube strategy
+  { url: "https://www.theverge.com/rss/index.xml",              name: "TheVerge"     },
 ];
 
 async function prewarmRedditFeeds(): Promise<void> {
