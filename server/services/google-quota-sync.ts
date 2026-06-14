@@ -134,7 +134,6 @@ async function fetchRealQuotaUnits(sa: ServiceAccountKey): Promise<number | null
       "aggregation.alignmentPeriod": "86400s",
       "aggregation.perSeriesAligner": "ALIGN_SUM",
       "aggregation.crossSeriesReducer": "REDUCE_SUM",
-      "aggregation.groupByFields": [],
       view: "FULL",
     } as any);
 
