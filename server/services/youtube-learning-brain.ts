@@ -49,6 +49,7 @@ import { refreshSuccessDNA } from "../lib/success-dna";
 import { recordEngineKnowledge } from "./knowledge-mesh";
 import { runCohortAnalysis } from "./generation-cohort-tracker";
 import { promoteIncidentLessonsToKnowledge } from "../lib/incident-log";
+import { readAndAnalyzeViewerComments } from "./youtube-comments-reader";
 
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
@@ -548,6 +549,14 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   // Synthesize system telemetry patterns (quota timing, AI saturation, trend activity)
   // into actionable masterKnowledgeBank recommendations. No AI calls — pure DB pattern logic.
   await synthesizeSystemTelemetry(userId);
+
+  // Step 0c: Read viewer comments from recent videos — direct audience voice.
+  // Cost: 1 YouTube Data API quota unit per video, max 5 videos = ≤5 units/day.
+  // Results flow into intelligenceSignals (source="viewer_comments") where
+  // both the omni-harvester synthesis and brain-association-engine can see them.
+  await readAndAnalyzeViewerComments(userId).catch(err =>
+    logger.warn(`[Brain] Comment reader failed: ${err.message?.slice(0, 80)}`)
+  );
 
   try {
     // 1. Pull analytics for any published videos missing metrics

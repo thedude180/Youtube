@@ -40,6 +40,9 @@ import {
   getCachedRedditFeed,
   getCachedRSSFeed,
   getCachedDDGResult,
+  getCachedGoogleTrends,
+  getCachedYouTubeAutocomplete,
+  getCachedSteamCharts,
 } from "./external-data-cache";
 
 const logger = createLogger("omni-intelligence");
@@ -136,37 +139,55 @@ async function harvestReddit(userId: string, focusGame: string): Promise<number>
   ];
 
   const subreddits = [
-    // ── Gaming ──────────────────────────────────────────────────────────────
-    { sub: "gaming",              category: "community_pulse"  as const },
-    { sub: "gamingclips",         category: "viral_video"      as const },
-    { sub: "PS5",                 category: "community_pulse"  as const },
-    // ── YouTube / creator strategy ───────────────────────────────────────────
-    { sub: "NewTubers",           category: "strategy_article" as const },
-    { sub: "youtube",             category: "strategy_article" as const },
-    { sub: "youtubers",           category: "strategy_article" as const },
+    // ── Battlefield / FPS — primary game community ────────────────────────────
+    { sub: "BattlefieldPortal",       category: "community_pulse"  as const },
+    { sub: "BattlefieldVeterans",     category: "community_pulse"  as const },
+    { sub: "EAGaming",                category: "community_pulse"  as const },
+    { sub: "fps",                     category: "community_pulse"  as const },
+    { sub: "CompetitiveGaming",       category: "community_pulse"  as const },
+    { sub: "GamingLeaksAndRumours",   category: "community_pulse"  as const },
+    { sub: "patientgamers",           category: "community_pulse"  as const },
+    // ── Gaming ────────────────────────────────────────────────────────────────
+    { sub: "gaming",                  category: "community_pulse"  as const },
+    { sub: "gamingclips",             category: "viral_video"      as const },
+    { sub: "pcgaming",                category: "community_pulse"  as const },
+    { sub: "PS5",                     category: "community_pulse"  as const },
+    // ── Esports & spectatorship ───────────────────────────────────────────────
+    { sub: "esports",                 category: "community_pulse"  as const },
+    { sub: "livestreamfail",          category: "viral_video"      as const },
+    // ── YouTube / creator strategy ────────────────────────────────────────────
+    { sub: "NewTubers",               category: "strategy_article" as const },
+    { sub: "youtube",                 category: "strategy_article" as const },
+    { sub: "youtubers",               category: "strategy_article" as const },
+    { sub: "youtubestudio",           category: "strategy_article" as const },
     // ── Viral content & culture ───────────────────────────────────────────────
-    { sub: "videos",              category: "viral_video"      as const },
-    { sub: "interestingasfuck",   category: "viral_video"      as const },
-    { sub: "nextfuckinglevel",    category: "viral_video"      as const },
-    { sub: "oddlysatisfying",     category: "viral_video"      as const },
+    { sub: "videos",                  category: "viral_video"      as const },
+    { sub: "interestingasfuck",       category: "viral_video"      as const },
+    { sub: "nextfuckinglevel",        category: "viral_video"      as const },
+    { sub: "oddlysatisfying",         category: "viral_video"      as const },
     // ── Psychology & attention ────────────────────────────────────────────────
-    { sub: "psychology",          category: "strategy_article" as const },
-    { sub: "neuroscience",        category: "strategy_article" as const },
-    { sub: "BehavioralEconomics", category: "strategy_article" as const },
+    { sub: "psychology",              category: "strategy_article" as const },
+    { sub: "neuroscience",            category: "strategy_article" as const },
+    { sub: "BehavioralEconomics",     category: "strategy_article" as const },
+    { sub: "socialskills",            category: "strategy_article" as const },
     // ── Marketing & business ──────────────────────────────────────────────────
-    { sub: "marketing",           category: "strategy_article" as const },
-    { sub: "entrepreneur",        category: "strategy_article" as const },
-    { sub: "analytics",           category: "strategy_article" as const },
+    { sub: "marketing",               category: "strategy_article" as const },
+    { sub: "entrepreneur",            category: "strategy_article" as const },
+    { sub: "analytics",               category: "strategy_article" as const },
+    { sub: "growthhacking",           category: "strategy_article" as const },
+    { sub: "SEO",                     category: "strategy_article" as const },
     // ── Film / video craft ────────────────────────────────────────────────────
-    { sub: "filmmakers",          category: "strategy_article" as const },
-    { sub: "editors",             category: "strategy_article" as const },
-    // ── Science & curiosity ────────────────────────────────────────────────────
-    { sub: "todayilearned",       category: "community_pulse"  as const },
-    { sub: "Futurology",          category: "community_pulse"  as const },
-    { sub: "dataisbeautiful",     category: "strategy_article" as const },
+    { sub: "filmmakers",              category: "strategy_article" as const },
+    { sub: "editors",                 category: "strategy_article" as const },
+    { sub: "videography",             category: "strategy_article" as const },
+    // ── Science & curiosity ───────────────────────────────────────────────────
+    { sub: "todayilearned",           category: "community_pulse"  as const },
+    { sub: "Futurology",              category: "community_pulse"  as const },
+    { sub: "dataisbeautiful",         category: "strategy_article" as const },
     // ── Tech & digital ────────────────────────────────────────────────────────
-    { sub: "technology",          category: "strategy_article" as const },
-    { sub: "artificial",          category: "strategy_article" as const },
+    { sub: "technology",              category: "strategy_article" as const },
+    { sub: "artificial",              category: "strategy_article" as const },
+    { sub: "MachineLearning",         category: "strategy_article" as const },
     ...gameSubVariants,
   ].filter((v, i, arr) => arr.findIndex(x => x.sub === v.sub) === i);
 
@@ -285,6 +306,15 @@ async function harvestWebSearch(userId: string, focusGame: string): Promise<numb
     `${focusGame} best clips highlights format youtube ${year}`,
     "youtube shorts vs long form gaming content strategy",
     `${focusGame} trending topics community ${year}`,
+    // ── BF6 / EA DICE specific intelligence ──────────────────────────────────
+    `${focusGame} meta patch notes update ${year}`,
+    `${focusGame} community reaction opinions reddit ${year}`,
+    `ea dice ${focusGame} announcement developer news ${year}`,
+    `${focusGame} best weapons loadout season ${year}`,
+    // ── Military FPS audience psychology ─────────────────────────────────────
+    "military fps viewer psychology competitive shooter appeal",
+    "team-based shooter solo player content youtube strategy",
+    "competitive gaming spectator psychology why watch",
     // ── Cross-domain: psychology of engagement ────────────────────────────────
     "attention span psychology video content research",
     "what makes video content go viral psychology study",
@@ -298,10 +328,17 @@ async function harvestWebSearch(userId: string, focusGame: string): Promise<numb
     "hook theory storytelling first 3 seconds video",
     "narrative transportation engagement research",
     "curiosity gap information theory content",
+    // ── Social media timing & velocity ───────────────────────────────────────
+    "best time to post youtube gaming engagement data",
+    "trending topic timing content velocity social media",
+    "youtube shorts discovery algorithm gaming strategy",
     // ── Cross-domain: creator economy ─────────────────────────────────────────
     `youtube creator economy trends ${year}`,
     "short form vs long form video retention data",
     "youtube algorithm ranking factors research",
+    // ── Viewer loyalty & community ────────────────────────────────────────────
+    "youtube channel subscriber retention loyalty psychology",
+    "parasocial relationship gaming streamer audience research",
   ];
   let saved = 0;
   const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
@@ -403,6 +440,36 @@ const CURIOSITY_POOL = [
   "evolutionary arms race coevolution biology",
   "power law distribution Pareto principle data",
   "golden ratio human preference aesthetics",
+  // Social media & virality science
+  "social media contagion information cascade theory sharing",
+  "content sharing identity signaling self-presentation psychology",
+  "like button social validation reward dopamine brain study",
+  "scroll stopping behavior thumb halt attention capture",
+  // Esports & gaming spectatorship
+  "esports spectator experience why people watch others play research",
+  "vicarious achievement fan engagement gaming psychology",
+  "gaming tournament tension uncertainty excitement brain",
+  "moment of triumph peak emotion dopamine viewer reaction media",
+  // Platform algorithm mechanics
+  "recommendation algorithm filter bubble content discovery research",
+  "click-through prediction human heuristics decision making",
+  "content virality cascades platform dynamics mathematics",
+  // Visual emotion science
+  "thumbnail face expression emotion viewer response eye tracking",
+  "high contrast visual attention capture cognitive science",
+  // Competitive psychology
+  "underdog story viewer empathy psychological engagement research",
+  "victory defeat emotional resonance sports media psychology",
+  // Influence & persuasion
+  "social proof credibility heuristic decision making Cialdini",
+  "commitment consistency behaviour change psychology",
+  "loss aversion prospect theory content engagement hook",
+  // Creator-viewer relationship
+  "parasocial relationship bond loyalty creator audience brain",
+  "authenticity perception trust media personality research",
+  // Creativity & originality
+  "creative remixing originality perception audience psychology",
+  "novelty detection brain reward dopamine surprise response",
 ];
 
 // Deterministic-but-rotating selection: picks 4 different topics per cycle
@@ -456,6 +523,155 @@ async function harvestCuriositySignals(userId: string): Promise<number> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SOURCE 3: Google Trends — daily US trending topics via unofficial public API
+// No API key required. Strips the XSSI prefix )]}'\n before JSON parse.
+// ─────────────────────────────────────────────────────────────────────────────
+async function harvestGoogleTrends(userId: string, focusGame: string): Promise<number> {
+  let saved = 0;
+  const expiry   = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
+  const gameLower = focusGame.toLowerCase().split(" ")[0]; // "battlefield"
+
+  try {
+    const trends = await getCachedGoogleTrends("US");
+    for (const t of trends) {
+      if (!t.title) continue;
+      const titleLower = t.title.toLowerCase();
+      const isGameRelevant =
+        titleLower.includes("game") || titleLower.includes("gaming") ||
+        titleLower.includes("battlefield") || titleLower.includes("ea ") ||
+        titleLower.includes("fps") || titleLower.includes("playstation") ||
+        titleLower.includes("xbox") || titleLower.includes("stream") ||
+        titleLower.includes(gameLower);
+
+      const trafficRaw = t.formattedTraffic.replace(/[^0-9kKmM]/g, "");
+      const trafficNum = trafficRaw
+        ? parseInt(trafficRaw, 10) * (t.formattedTraffic.toLowerCase().includes("m") ? 1_000_000 : t.formattedTraffic.toLowerCase().includes("k") ? 1_000 : 1)
+        : 0;
+
+      await db.insert(intelligenceSignals).values({
+        userId,
+        source:   "google_trends",
+        category: isGameRelevant ? "community_pulse" : "strategy_article",
+        title:    `Google Trending: ${t.title}`,
+        url:      `https://trends.google.com/trends/explore?q=${encodeURIComponent(t.title)}`,
+        score:    isGameRelevant ? 80 : 42,
+        metadata: {
+          topic:           t.title,
+          formattedTraffic: t.formattedTraffic,
+          trafficEstimate: trafficNum,
+          isGameRelevant,
+          articles:        t.articles.slice(0, 2),
+        },
+        expiresAt: expiry,
+      }).onConflictDoNothing();
+      saved++;
+    }
+  } catch (err: any) {
+    logger.warn(`[OmniHarvester] Google Trends harvest failed: ${err.message?.slice(0, 80)}`);
+  }
+
+  return saved;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SOURCE 7: YouTube Search Autocomplete — real-time search intent signals
+// Uses suggestqueries.google.com with ds=yt to restrict to YouTube searches.
+// Zero cost, no auth, cached 6h in external-data-cache.
+// ─────────────────────────────────────────────────────────────────────────────
+async function harvestYouTubeAutocomplete(userId: string, focusGame: string): Promise<number> {
+  const gameLower = focusGame.toLowerCase();
+  const queries   = [
+    focusGame,
+    `${focusGame} gameplay`,
+    `${focusGame} tips tricks`,
+    `${focusGame} best moments`,
+    `${focusGame} highlights`,
+    "bf6",
+    "battlefield 6",
+    `${gameLower} shorts youtube`,
+    "fps highlights youtube",
+    "gaming clips shorts 2026",
+  ];
+
+  let saved = 0;
+  const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
+
+  for (const q of queries) {
+    try {
+      const suggestions = await getCachedYouTubeAutocomplete(q);
+      if (suggestions.length === 0) continue;
+
+      await db.insert(intelligenceSignals).values({
+        userId,
+        source:   "youtube_autocomplete",
+        category: "community_pulse",
+        title:    `YT Searches for "${q}": ${suggestions.slice(0, 3).join(" | ")}`,
+        url:      `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
+        score:    68,
+        metadata: {
+          seedQuery:   q,
+          suggestions: suggestions.slice(0, 10),
+          topSearch:   suggestions[0] ?? "",
+        },
+        expiresAt: expiry,
+      }).onConflictDoNothing();
+      saved++;
+    } catch (err: any) {
+      logger.warn(`[OmniHarvester] Autocomplete failed for "${q}": ${err.message?.slice(0, 60)}`);
+    }
+  }
+
+  return saved;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SOURCE 8: SteamCharts — concurrent player health for BF2042 / BF6
+// Free public JSON endpoint, no auth required. 6h cache.
+// BF2042 (App 1517290) serves as a live proxy for Battlefield franchise health.
+// ─────────────────────────────────────────────────────────────────────────────
+const BF2042_APP_ID = 1517290;
+
+async function harvestSteamCharts(userId: string): Promise<number> {
+  const expiry = new Date(Date.now() + SIGNAL_TTL_DAYS * 86_400_000);
+  try {
+    const data = await getCachedSteamCharts(BF2042_APP_ID);
+    if (!data) return 0;
+
+    const arrow = data.recentTrend === "rising" ? "📈" : data.recentTrend === "declining" ? "📉" : "→";
+    const implication =
+      data.recentTrend === "rising"
+        ? "Franchise player base growing — ideal time to push BF content volume hard"
+        : data.recentTrend === "declining"
+        ? "Franchise player base declining — lean into BF6 hype / comparison / 'what went wrong' angles"
+        : "Franchise player base stable — maintain current content cadence";
+
+    await db.insert(intelligenceSignals).values({
+      userId,
+      source:   "steam_charts",
+      category: "community_pulse",
+      title:    `BF2042 Steam: ${data.currentAvg.toLocaleString()} avg concurrent (${arrow} ${data.recentTrend})`,
+      url:      `https://steamcharts.com/app/${BF2042_APP_ID}`,
+      score:    data.recentTrend === "rising" ? 78 : data.recentTrend === "declining" ? 42 : 55,
+      metadata: {
+        appId:        data.appId,
+        currentAvg:   data.currentAvg,
+        peakAllTime:  data.peakAllTime,
+        recentTrend:  data.recentTrend,
+        monthlyData:  data.monthlyData,
+        implication,
+      },
+      expiresAt: expiry,
+    }).onConflictDoNothing();
+
+    logger.info(`[OmniHarvester] SteamCharts BF2042: ${data.currentAvg} players (${data.recentTrend})`);
+    return 1;
+  } catch (err: any) {
+    logger.warn(`[OmniHarvester] SteamCharts harvest failed: ${err.message?.slice(0, 80)}`);
+    return 0;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI SYNTHESIS — turns raw signals into strategies + trends + experiment gaps
 // ─────────────────────────────────────────────────────────────────────────────
 async function synthesizeIntelligence(userId: string): Promise<void> {
@@ -472,28 +688,54 @@ async function synthesizeIntelligence(userId: string): Promise<void> {
   }
 
   // Compact signal summary for the prompt
-  const ytVideos      = signals.filter(s => s.source === "youtube_trending").slice(0, 20);
-  const redditPosts   = signals.filter(s => s.source === "reddit").slice(0, 15);
-  const gamingNews    = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain === "gaming").slice(0, 8);
-  const broadNews     = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain !== "gaming").slice(0, 10);
-  const webItems      = signals.filter(s => s.source === "web_search").slice(0, 8);
+  const ytVideos       = signals.filter(s => s.source === "youtube_trending").slice(0, 18);
+  const redditPosts    = signals.filter(s => s.source === "reddit").slice(0, 15);
+  const gamingNews     = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain === "gaming").slice(0, 8);
+  const broadNews      = signals.filter(s => s.source === "rss" && (s.metadata as any)?.domain !== "gaming").slice(0, 8);
+  const webItems       = signals.filter(s => s.source === "web_search").slice(0, 7);
   const curiosityItems = signals.filter(s => s.source === "curiosity").slice(0, 6);
+  // New sources
+  const googleTrends   = signals.filter(s => s.source === "google_trends").slice(0, 10);
+  const ytSearches     = signals.filter(s => s.source === "youtube_autocomplete").slice(0, 8);
+  const steamSignals   = signals.filter(s => s.source === "steam_charts").slice(0, 2);
+  const viewerComments = signals.filter(s => s.source === "viewer_comments").slice(0, 5);
 
   const focusGame = await getFocusGame();
   const prompt = `You are the growth intelligence brain for a "${focusGame}" gaming YouTube channel called "ET Gaming 274". This is a no-commentary gaming channel — primary content is full playthroughs and live stream VODs; Shorts are clipped from that long-form footage as a distribution tool. Focus game: ${focusGame}.
 
 You have access to signals from across the ENTIRE INTERNET — gaming, psychology, neuroscience, design, business, culture, philosophy, and science. Your job is to absorb all of it and find the unexpected connections that can make this channel grow faster.
 
-LIVE DATA JUST HARVESTED FROM ${signals.length} SIGNALS:
+LIVE DATA JUST HARVESTED FROM ${signals.length} SIGNALS ACROSS 10 SOURCES:
 
 ## YouTube Trending Gaming Videos:
 ${ytVideos.map(s => `- "${s.title}" | ${(s.metadata as any)?.uploader ?? ""} | views≈${((s.metadata as any)?.views ?? 0).toLocaleString()}`).join("\n") || "none"}
+
+## What People Are Searching on YouTube RIGHT NOW (autocomplete — real user intent):
+${ytSearches.map(s => {
+  const m = s.metadata as any;
+  return `- Seed: "${m?.seedQuery}" → Top results: ${(m?.suggestions ?? []).slice(0, 5).join(" | ")}`;
+}).join("\n") || "none"}
+
+## Google Trending Searches Today (US):
+${googleTrends.map(s => {
+  const m = s.metadata as any;
+  return `- "${m?.topic}" (${m?.formattedTraffic ?? "?"} searches)${m?.isGameRelevant ? " 🎮" : ""}${m?.articles?.[0]?.title ? ` — "${m.articles[0].title}"` : ""}`;
+}).join("\n") || "none"}
+
+## Battlefield Franchise Game Health (SteamCharts):
+${steamSignals.map(s => `- ${s.title} | ${(s.metadata as any)?.implication ?? ""}`).join("\n") || "none"}
 
 ## Reddit Community Pulse (gaming + viral + psychology + filmmaking + culture):
 ${redditPosts.map(s => `- [r/${(s.metadata as any)?.subreddit}] "${s.title}" | ↑${(s.metadata as any)?.upvotes ?? 0}`).join("\n") || "none"}
 
 ## Gaming News (last 24h):
 ${gamingNews.map(s => `- [${(s.metadata as any)?.feedName}] ${s.title}`).join("\n") || "none"}
+
+## Your Viewers Are Actually Saying (comment sentiment from recent videos):
+${viewerComments.map(s => {
+  const m = s.metadata as any;
+  return `- [${m?.sentiment}/${m?.frequency}] "${m?.theme}" — example: "${(m?.quote ?? "").slice(0, 80)}" → Action: ${m?.contentImplication ?? ""}`;
+}).join("\n") || "none (no recent comment data yet)"}
 
 ## Broader World News (tech, science, culture, business, marketing, creator economy):
 ${broadNews.map(s => `- [${(s.metadata as any)?.feedName}/${(s.metadata as any)?.domain}] ${s.title}`).join("\n") || "none"}
@@ -508,12 +750,16 @@ ${curiosityItems.map(s => {
 }).join("\n") || "none"}
 
 CROSS-DOMAIN SYNTHESIS INSTRUCTIONS:
+You now have 10 data sources — use all of them. The YouTube autocomplete data shows EXACTLY what viewers are searching for right now; Google Trends shows what the whole country is thinking about; SteamCharts shows if the game is growing or dying; viewer comments are the most direct signal of what your actual audience wants. Cross-reference all of these.
+
 The curiosity engine discoveries and broad news may seem unrelated to gaming — that is intentional. Your most valuable insight is finding the non-obvious connection. For example:
 - "dopamine reward prediction brain neuroscience" → structure clips to delay the payoff moment to maximise the reward spike
 - "visual saliency eye tracking attention" → position the most important element in the thumbnail where eyes land first
 - "Zeigarnik effect psychology" → never fully resolve tension in a Short — leave an open loop that drives clicks to the long-form
-- A marketing study on emotional contagion → use emotional escalation in clip selection rather than just highlight moments
-Always ask: "what does this field know that can make gaming content perform better?"
+- YouTube autocomplete showing "battlefield 6 best weapons" → create a Short specifically targeting that search query
+- Game player count declining → pivot to "what went wrong" / nostalgia / BF6 hype comparison angles
+- Viewer comments asking for longer content → prioritize long-form over Shorts in the next week
+Always ask: "what does this field know, combined with what viewers are searching and saying, that can make this gaming content perform better RIGHT NOW?"
 
 Based on ALL this data, produce a JSON response with EXACTLY this structure:
 {
@@ -721,12 +967,15 @@ export async function runIntelligenceCycle(): Promise<void> {
         const focusGame = await getFocusGame();
         logger.info("Harvesting with focus game", { userId: userId.slice(0, 8), focusGame });
 
-        const [yt, reddit, rss, web, curiosity] = await Promise.allSettled([
+        const [yt, reddit, rss, web, curiosity, gtrends, ytac, steam] = await Promise.allSettled([
           harvestYouTubeTrending(userId, focusGame),
           harvestReddit(userId, focusGame),
           harvestRSSFeeds(userId),
           harvestWebSearch(userId, focusGame),
           harvestCuriositySignals(userId),
+          harvestGoogleTrends(userId, focusGame),
+          harvestYouTubeAutocomplete(userId, focusGame),
+          harvestSteamCharts(userId),
         ]);
 
         const counts = {
@@ -735,6 +984,9 @@ export async function runIntelligenceCycle(): Promise<void> {
           rss      : rss.status      === "fulfilled" ? rss.value      : 0,
           web      : web.status      === "fulfilled" ? web.value      : 0,
           curiosity: curiosity.status === "fulfilled" ? curiosity.value : 0,
+          gtrends  : gtrends.status  === "fulfilled" ? gtrends.value  : 0,
+          ytac     : ytac.status     === "fulfilled" ? ytac.value     : 0,
+          steam    : steam.status    === "fulfilled" ? steam.value    : 0,
         };
         const total = Object.values(counts).reduce((s, v) => s + v, 0);
         logger.info("Harvest complete — running AI synthesis", { userId: userId.slice(0, 8), ...counts, total });

@@ -41,6 +41,21 @@
  *      Gaming RSS feed. Returns RSSItem[].
  *      Key: extcache:rss:<url-slug>   TTL: 6 h
  *
+ *  getCachedGoogleTrends(geo?)
+ *      Google daily trending searches in a given country (default US).
+ *      Uses the unofficial trends API — no key required.
+ *      Key: extcache:gtrends:<geo>   TTL: 6 h
+ *
+ *  getCachedYouTubeAutocomplete(query)
+ *      YouTube search suggestions from Google's suggestqueries endpoint.
+ *      Returns what real users actually type when searching YouTube.
+ *      Key: extcache:ytac:<query>   TTL: 6 h
+ *
+ *  getCachedSteamCharts(appId)
+ *      Concurrent player data from SteamCharts. Returns peak, current,
+ *      monthly trend, and a "rising|stable|declining" health signal.
+ *      Key: extcache:steam:<appId>   TTL: 6 h
+ *
  * ─────────────────────────────────────────────────────────────────────────────
  * Callers that were redirected to use this cache
  * ─────────────────────────────────────────────────────────────────────────────
@@ -396,6 +411,159 @@ export async function getCachedRSSFeed(
   } catch (err: any) {
     logger.warn(`[ExtCache] RSS fetch failed for ${feedName}: ${err?.message?.slice(0, 80)}`);
     return cached?.value ?? [];
+  }
+}
+
+// ── getCachedGoogleTrends ─────────────────────────────────────────────────────
+
+const TRENDS_TTL_MS = 6 * 60 * 60_000;
+
+export interface GoogleTrendEntry {
+  title: string;
+  formattedTraffic: string;
+  articles: Array<{ title: string; source: string; url: string }>;
+}
+
+/**
+ * Fetches Google daily trending searches for the given geo (default: US).
+ * Uses the unofficial dailytrends endpoint — no API key needed.
+ * Returns up to 20 trending topics with their article headlines.
+ *
+ * Cache key: extcache:gtrends:<geo>   TTL: 6 h
+ */
+export async function getCachedGoogleTrends(geo = "US"): Promise<GoogleTrendEntry[]> {
+  const key = `extcache:gtrends:${geo}`;
+  const cached = await readCache<GoogleTrendEntry[]>(key);
+  if (cached && isFresh(cached.fetchedAt, TRENDS_TTL_MS)) return cached.value;
+
+  try {
+    const url = `https://trends.google.com/trends/api/dailytrends?hl=en-US&tz=0&geo=${geo}&ns=15`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(12_000),
+      headers: { "User-Agent": USER_AGENT },
+    });
+    if (!resp.ok) return cached?.value ?? [];
+    const text = await resp.text();
+    // Google prepends )]}'\n to prevent JSON hijacking — strip it before parsing
+    const json = JSON.parse(text.replace(/^\)\]\}'\n/, ""));
+    const searches: GoogleTrendEntry[] = (json?.default?.trendingSearchesDays ?? [])
+      .flatMap((d: any) => d.trendingSearches ?? [])
+      .map((t: any) => ({
+        title: (t.title?.query ?? "").trim(),
+        formattedTraffic: t.formattedTraffic ?? "",
+        articles: (t.articles ?? []).slice(0, 3).map((a: any) => ({
+          title: (a.title ?? "").trim(),
+          source: a.source ?? "",
+          url: a.url ?? "",
+        })),
+      }))
+      .filter((t: GoogleTrendEntry) => t.title.length > 2)
+      .slice(0, 25);
+
+    await writeCache(key, searches);
+    return searches;
+  } catch (err: any) {
+    logger.warn(`[ExtCache] Google Trends fetch failed (${geo}): ${err?.message?.slice(0, 80)}`);
+    return cached?.value ?? [];
+  }
+}
+
+// ── getCachedYouTubeAutocomplete ──────────────────────────────────────────────
+
+const AUTOCOMPLETE_TTL_MS = 6 * 60 * 60_000;
+
+/**
+ * Returns YouTube search suggestions for a query via Google's suggestqueries
+ * endpoint. ds=yt restricts results to YouTube searches specifically.
+ * Shows exactly what real users are searching on YouTube right now.
+ *
+ * Cache key: extcache:ytac:<query>   TTL: 6 h
+ */
+export async function getCachedYouTubeAutocomplete(query: string): Promise<string[]> {
+  const norm = query.toLowerCase().trim().slice(0, 100);
+  const key  = `extcache:ytac:${norm}`;
+  const cached = await readCache<string[]>(key);
+  if (cached && isFresh(cached.fetchedAt, AUTOCOMPLETE_TTL_MS)) return cached.value;
+
+  try {
+    const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}&hl=en&ds=yt`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(8_000),
+      headers: { "User-Agent": USER_AGENT },
+    });
+    if (!resp.ok) return cached?.value ?? [];
+    const data = await resp.json() as [string, string[]];
+    const suggestions = (Array.isArray(data[1]) ? data[1] : []) as string[];
+    const trimmed = suggestions.slice(0, 10);
+    await writeCache(key, trimmed);
+    return trimmed;
+  } catch (err: any) {
+    logger.warn(`[ExtCache] YouTube autocomplete failed for "${query}": ${err?.message?.slice(0, 60)}`);
+    return cached?.value ?? [];
+  }
+}
+
+// ── getCachedSteamCharts ──────────────────────────────────────────────────────
+
+const STEAM_TTL_MS = 6 * 60 * 60_000;
+
+export interface SteamConcurrentData {
+  appId: number;
+  peakAllTime: number;
+  currentAvg: number;
+  recentTrend: "rising" | "stable" | "declining";
+  monthlyData: Array<{ month: string; avg: number; peak: number }>;
+}
+
+/**
+ * Returns concurrent player data from SteamCharts for a given Steam app ID.
+ * Uses the public /chart-data.json endpoint — no auth required.
+ * Computes a rising/stable/declining trend from the last 6 months vs prior.
+ *
+ * Cache key: extcache:steam:<appId>   TTL: 6 h
+ */
+export async function getCachedSteamCharts(appId: number): Promise<SteamConcurrentData | null> {
+  const key = `extcache:steam:${appId}`;
+  const cached = await readCache<SteamConcurrentData>(key);
+  if (cached && isFresh(cached.fetchedAt, STEAM_TTL_MS)) return cached.value;
+
+  try {
+    // SteamCharts returns [[timestamp_ms, avg_concurrent, peak_concurrent], ...]
+    const url = `https://steamcharts.com/app/${appId}/chart-data.json`;
+    const resp = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
+      headers: { "User-Agent": USER_AGENT },
+    });
+    if (!resp.ok) return cached?.value ?? null;
+
+    const rows = (await resp.json()) as Array<[number, number, number]>;
+    if (!Array.isArray(rows) || rows.length === 0) return cached?.value ?? null;
+
+    const recent3 = rows.slice(-3);
+    const prior3  = rows.slice(-6, -3);
+    const recentAvg = recent3.reduce((s, r) => s + r[1], 0) / (recent3.length || 1);
+    const priorAvg  = prior3.reduce((s, r)  => s + r[1], 0) / (prior3.length  || 1);
+    const recentTrend: SteamConcurrentData["recentTrend"] =
+      recentAvg > priorAvg * 1.05 ? "rising"   :
+      recentAvg < priorAvg * 0.95 ? "declining" : "stable";
+
+    const peakAllTime = Math.max(...rows.map(r => r[2]));
+    const currentAvg  = rows.at(-1)?.[1] ?? 0;
+    const monthlyData = rows.slice(-6).map(r => {
+      const d = new Date(r[0]);
+      return {
+        month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        avg: Math.round(r[1]),
+        peak: Math.round(r[2]),
+      };
+    });
+
+    const result: SteamConcurrentData = { appId, peakAllTime, currentAvg: Math.round(currentAvg), recentTrend, monthlyData };
+    await writeCache(key, result);
+    return result;
+  } catch (err: any) {
+    logger.warn(`[ExtCache] SteamCharts fetch failed for app ${appId}: ${err?.message?.slice(0, 60)}`);
+    return cached?.value ?? null;
   }
 }
 
