@@ -126,6 +126,19 @@ export class VODSEOOptimizer {
         return;
       }
 
+      // Per-video cooldown: skip if this video was AI-optimized within the last 7 days.
+      // The optimizer runs every 12h — without this guard it would re-spend an AI slot
+      // and a videos.update (50 quota units) on every video every cycle.
+      const lastOptimized = (video.metadata as any)?.aiOptimizedAt as string | undefined;
+      if (lastOptimized) {
+        const ageMs = Date.now() - new Date(lastOptimized).getTime();
+        const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+        if (ageMs < COOLDOWN_MS) {
+          logger.debug(`[VODSEOOptimizer] Skipping video ${videoId} — optimized ${Math.round(ageMs / 86_400_000)}d ago (cooldown 7d)`);
+          return;
+        }
+      }
+
       logger.info(`[VODSEOOptimizer] Optimizing metadata for video ${videoId}: ${video.title}`);
 
       let gameName = video.metadata?.gameName as string | undefined;

@@ -3506,7 +3506,7 @@ httpServer.listen(
       import("./vod-optimizer-engine").then(async m => {
         await new Promise(r => setTimeout(r, 32 * 60_000)); // T+15+32=T+47min (was 16min→T+31min; pushed to avoid T+29-35min convergence window)
         await m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle"));
-        const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(2 * 60 * 60_000));
+        const iv = setInterval(() => m.runVodOptimizationCycle().catch(slog("runVodOptimizationCycle")), jitter(12 * 60 * 60_000));
         backgroundIntervals.push(iv);
       }).catch(slog("vod-optimizer-engine import"));
 

@@ -7,6 +7,18 @@ const logger = createLogger("youtube-analytics");
 
 const YT_ANALYTICS_BASE = "https://youtubeanalytics.googleapis.com/v2/reports";
 
+// ── Analytics response cache ──────────────────────────────────────────────────
+// Analytics data changes at most once per hour on YouTube's side. Caching here
+// eliminates redundant API calls across the 8 report functions that all call
+// fetchAnalyticsReport (scheduling insights, heatmap, retention curves, etc.).
+// Each entry is keyed by channelId + serialised params; TTL is 6 hours.
+const ANALYTICS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const analyticsCache = new Map<string, { rows: any[]; expiresAt: number }>();
+
+function getAnalyticsCacheKey(channelYtId: string, params: Record<string, string>): string {
+  return `${channelYtId}::${JSON.stringify(params)}`;
+}
+
 // Per-user 401 cooldown: if we get a 401 from YouTube Analytics, back off for 30 minutes
 // before trying again for that user. This prevents hammering the API with invalid tokens.
 const AUTH_FAILURE_COOLDOWN_MS = 30 * 60 * 1000;
@@ -83,6 +95,15 @@ async function fetchAnalyticsReport(
   userId?: string,
 ): Promise<any[] | null> {
   if (!accessToken || accessToken === "dev_api_key_mode") return null;
+
+  // Check cache before making a live API call.
+  const cacheKey = getAnalyticsCacheKey(channelYtId, params);
+  const cached = analyticsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    logger.debug("YouTube Analytics cache hit", { channelYtId, params: JSON.stringify(params).slice(0, 80) });
+    return cached.rows;
+  }
+
   const searchParams = new URLSearchParams({
     ids: `channel==${channelYtId || "MINE"}`,
     ...params,
@@ -109,7 +130,12 @@ async function fetchAnalyticsReport(
       return null;
     }
     const data = await res.json() as any;
-    return data.rows || [];
+    const rows: any[] = data.rows || [];
+
+    // Store in cache with 6-hour TTL.
+    analyticsCache.set(cacheKey, { rows, expiresAt: Date.now() + ANALYTICS_CACHE_TTL_MS });
+
+    return rows;
   } catch (err: any) {
     logger.error("YouTube Analytics fetch failed", { error: err?.message });
     return null;
