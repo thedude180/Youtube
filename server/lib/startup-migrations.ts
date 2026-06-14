@@ -1200,6 +1200,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:072:purge_ac_bf2042_queue_contamination_v1", label: "072 — purge 142 AC Valhalla/BF2042/off-brand items from autopilot queue (3 overdue studio_auto_publish + 129 AC youtube_short + 7 non-BF6 smart-edit + 3 BF2042 clips Jun 14 2026)" },
   { flag: "migration:073:block_offbrand_studio_and_fail_bad_vault_v1", label: "073 — block sv372/sv373 AC Valhalla hot loop + permanent-fail K5gAxqrF_7A/r0MWPGPqzFo inaccessible vault entries (Jun 14 2026)" },
   { flag: "migration:074:purge_ac_shorts_defer_storm_v1", label: "074 — purge 132 AC Unity youtube_short items stuck in pre-encoder defer storm (migration-072 channel_id column bug — Jun 14 2026)" },
+  { flag: "migration:075:cancel_ac_items_resurrected_by_boot_reset_v1", label: "075 — cancel 131 AC/off-brand items resurrected by boot full-queue-reset; use 'cancelled' status to survive future resets (Jun 14 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4324,6 +4325,51 @@ async function migration074PurgeACShortsDeferStorm(): Promise<void> {
   }
 }
 
+async function migration075CancelACItemsResurrectedByBootReset(): Promise<void> {
+  const FLAG = "migration:075:cancel_ac_items_resurrected_by_boot_reset_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Migrations 072 and 074 set AC items to 'permanent_fail', but the boot-time
+    // "Full queue reset" in index.ts Wave 0.6 unconditionally resets ALL permanent_fail
+    // items back to 'scheduled' — undoing the migration purge on every restart.
+    // Fix: use 'cancelled' status which is NOT in the reset's WHERE clause, so
+    // cancelled items survive the full queue reset permanently.
+    //
+    // Targets:
+    //   1. Items already flagged by migration-072 (failReason in metadata) that were
+    //      reset back to pending/scheduled by the boot reset.
+    //   2. Any remaining AC Unity / off-brand items not yet caught by prior migrations.
+    const r = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'cancelled',
+          metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{failReason}',
+            '"migration-075: AC/off-brand content cancelled — immune to boot queue reset (channel is BF6-only)"'
+          )
+      WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
+        AND status IN ('scheduled', 'pending', 'permanent_fail', 'processing')
+        AND (
+          metadata->>'failReason' LIKE 'migration-0%'
+          OR metadata::text ILIKE '%"AssassinsCreed"%'
+          OR metadata::text ILIKE '%"ACUnity"%'
+          OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+          OR (metadata->>'gameName' = 'Battlefield 2042')
+          OR type = 'studio_auto_publish'
+        )
+        AND NOT (
+          metadata::text ILIKE '%"Battlefield 6"%'
+          OR metadata::text ILIKE '%battlefield 6%'
+        )
+    `);
+    const count = (r as unknown as { rowCount?: number }).rowCount ?? 0;
+    await setFlag(FLAG);
+    log.info(`[Migration 075] Cancelled ${count} AC/off-brand items using immune 'cancelled' status — boot reset will no longer resurrect them`);
+  } catch (err: any) {
+    log.warn(`[Migration 075] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration073BlockOffBrandStudioVideosAndFailBadVault(): Promise<void> {
   const FLAG = "migration:073:block_offbrand_studio_and_fail_bad_vault_v1";
   if (await getFlag(FLAG)) return;
@@ -4502,6 +4548,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration072PurgeACAndBF2042QueueContamination();
     await migration073BlockOffBrandStudioVideosAndFailBadVault();
     await migration074PurgeACShortsDeferStorm();
+    await migration075CancelACItemsResurrectedByBootReset();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

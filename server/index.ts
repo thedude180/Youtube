@@ -2754,7 +2754,9 @@ httpServer.listen(
               SET status        = 'scheduled',
                   error_message = NULL
               WHERE status IN ('permanent_fail', 'processing', 'pending')
-                AND error_message IS DISTINCT FROM 'YouTube-only system: non-YouTube platform purged on startup'`
+                AND error_message IS DISTINCT FROM 'YouTube-only system: non-YouTube platform purged on startup'
+                AND (metadata->>'failReason' IS NULL
+                  OR metadata->>'failReason' NOT LIKE 'migration-%')`
         )
           .then((res: any) => logger.info("[Boot] Full queue reset: all failed/stuck items → scheduled", { rows: res?.rowCount ?? res?.rows?.length ?? 0 }))
           .catch((err: any) => logger.warn("[Boot] Full queue reset skipped:", err?.message));
