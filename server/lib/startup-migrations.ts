@@ -1198,6 +1198,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:065:blacklist_maz2_llq_storm_videos_v1",    label: "065 — blacklist mAz2whE1ruI + LlQFaMvy5_k storm videos (format unavailable → DB pool exhaustion → crash loop Jun 13 2026)" },
   { flag: "migration:066:cancel_unresolvable_grinder_shorts_v1", label: "066 — cancel 20 stuck grinder youtube_short items whose sourceVideoId has no YouTube ID (silent-skip churn fix Jun 13 2026)" },
   { flag: "migration:072:purge_ac_bf2042_queue_contamination_v1", label: "072 — purge 142 AC Valhalla/BF2042/off-brand items from autopilot queue (3 overdue studio_auto_publish + 129 AC youtube_short + 7 non-BF6 smart-edit + 3 BF2042 clips Jun 14 2026)" },
+  { flag: "migration:073:block_offbrand_studio_and_fail_bad_vault_v1", label: "073 — block sv372/sv373 AC Valhalla hot loop + permanent-fail K5gAxqrF_7A/r0MWPGPqzFo inaccessible vault entries (Jun 14 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4283,6 +4284,74 @@ async function migration072PurgeACAndBF2042QueueContamination(): Promise<void> {
   }
 }
 
+async function migration073BlockOffBrandStudioVideosAndFailBadVault(): Promise<void> {
+  const FLAG = "migration:073:block_offbrand_studio_and_fail_bad_vault_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 1. Stamp sv372 + sv373 (AC Valhalla studio clips) with autopilotQueueId="blocked-off-brand"
+    //    so scheduleClipsForAutoPublish's dedup guard never re-creates queue entries for them.
+    //    These two studio videos caused a hot loop: processAutoPublishQueue permanent-failed the
+    //    queue item but did not update the studio_video metadata, so the next sweep re-created it.
+    await db.execute(sql`
+      UPDATE studio_videos
+      SET metadata = jsonb_set(
+            COALESCE(metadata, '{}'::jsonb),
+            '{autopilotQueueId}',
+            '"blocked-off-brand"'
+          )
+      WHERE id IN (372, 373)
+        AND (metadata->>'autopilotQueueId' IS NULL
+          OR metadata->>'autopilotQueueId' = '')
+    `);
+
+    // 2. Permanent-fail any lingering autopilot_queue items still pointing at sv372/sv373.
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'permanent_fail',
+          error_message = 'migration-073: off-brand studio content (AC Valhalla sv372/sv373) — channel focus does not match'
+      WHERE type = 'studio_auto_publish'
+        AND status NOT IN ('permanent_fail', 'published', 'cancelled')
+        AND (metadata->>'studioVideoId')::int IN (372, 373)
+    `);
+
+    // 3. Permanent-fail K5gAxqrF_7A and r0MWPGPqzFo in the vault.
+    //    All InnerTube clients return 401 and all yt-dlp clients return "Requested format is not
+    //    available" — these videos are inaccessible and should never be retried.
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET status = 'failed',
+          metadata = jsonb_set(
+            jsonb_set(
+              COALESCE(metadata, '{}'::jsonb),
+              '{permanentFail}',
+              'true'
+            ),
+            '{failCount}',
+            '10'
+          )
+      WHERE youtube_id IN ('K5gAxqrF_7A', 'r0MWPGPqzFo')
+        AND status != 'failed'
+    `);
+
+    // 4. Cancel any autopilot_queue items that were sourcing from those vault IDs.
+    await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'permanent_fail',
+          error_message = 'migration-073: vault source permanently inaccessible (K5gAxqrF_7A / r0MWPGPqzFo)'
+      WHERE status NOT IN ('permanent_fail', 'published', 'cancelled')
+        AND (
+          metadata::text LIKE '%K5gAxqrF_7A%'
+          OR metadata::text LIKE '%r0MWPGPqzFo%'
+        )
+    `);
+
+    await setFlag(FLAG);
+    log.info("[Migration 073] Blocked sv372/sv373 hot loop + permanent-failed K5gAxqrF_7A/r0MWPGPqzFo vault entries");
+  } catch (err: any) {
+    log.warn(`[Migration 073] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration069CancelStaleStreamEditJobs(): Promise<void> {
   const FLAG = "migration:069:cancel_stale_stream_edit_jobs_v1";
   if (await getFlag(FLAG)) return;
@@ -4391,6 +4460,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration070LogQuotaTripIncident();
     await migration071ResetFocusGameToBF6();
     await migration072PurgeACAndBF2042QueueContamination();
+    await migration073BlockOffBrandStudioVideosAndFailBadVault();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

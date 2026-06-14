@@ -157,11 +157,17 @@ Return ONLY valid JSON matching this structure:
             WHERE autonomous_mode = true
               AND (paused_until IS NULL OR paused_until < NOW())
           `);
-          for (const row of (result as any).rows ?? []) {
-            await this.dailyGrowthCycle(row.user_id as string).catch((err: any) =>
-              logger.error(`[GrowthEngine] Daily cycle error for ${row.user_id}:`, err)
-            );
-          }
+          const rows = (result as any).rows ?? [];
+          // Stagger per-user cycles by 0–10 min so they don't all fire at
+          // T+0 quota-reset and saturate all 4 background AI slots at once.
+          rows.forEach((row: any, idx: number) => {
+            const delayMs = idx * 10 * 60_000; // 10 min apart per user
+            setTimeout(() => {
+              this.dailyGrowthCycle(row.user_id as string).catch((err: any) =>
+                logger.error(`[GrowthEngine] Daily cycle error for ${row.user_id}:`, err)
+              );
+            }, delayMs);
+          });
         } catch (err: any) {
           logger.error("[GrowthEngine] Failed to fetch autonomous users:", err);
         }

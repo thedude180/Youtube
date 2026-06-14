@@ -206,7 +206,7 @@ export async function processAutoPublishQueue(): Promise<void> {
   const dueItems = await db.select().from(autopilotQueue)
     .where(
       and(
-        inArray(autopilotQueue.status, ["scheduled", "failed", "permanent_fail", "pending"]),
+        inArray(autopilotQueue.status, ["scheduled", "failed", "pending"]),
         eq(autopilotQueue.type, "studio_auto_publish"),
       )
     );
@@ -250,6 +250,15 @@ export async function processAutoPublishQueue(): Promise<void> {
             errorMessage: "Off-brand studio content blocked — does not match current channel focus game",
           })
           .where(eq(autopilotQueue.id, item.id));
+        // Stamp the studio_video metadata with a block sentinel so that
+        // scheduleClipsForAutoPublish's dedup check (autopilotQueueId guard)
+        // never re-creates a queue entry for this video, breaking the hot loop.
+        const svMeta = ((studioVideo.metadata ?? {}) as Record<string, unknown>);
+        if (!svMeta.autopilotQueueId) {
+          await storage.updateStudioVideo(studioVideoId, {
+            metadata: { ...svMeta, autopilotQueueId: "blocked-off-brand" } as any,
+          });
+        }
         continue;
       }
 
