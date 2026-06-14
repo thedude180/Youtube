@@ -6,6 +6,7 @@ import { sendSSEEvent } from "./routes/events";
 import { getOpenAIClientBackground } from "./lib/openai";
 import { getCreatorStyleContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { sanitizeForPrompt, tokenBudget } from "./lib/ai-attack-shield";
+import { checkTokenBudgets } from "./lib/token-hourly-cap";
 import { createLogger } from "./lib/logger";
 import { storage } from "./storage";
 import { jobQueue } from "./services/intelligent-job-queue";
@@ -295,12 +296,24 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
       return;
     }
     import("./backlog-engine").then(m => {
-      // Budget pre-check — deduplicated log so a 70-video batch import doesn't
-      // emit 70 identical warn lines.  Log at most once per hour.
+      // Budget pre-check — check BOTH daily cap and hourly cap before submitting.
+      // Without the hourly check, a 47-video bulk import passes the daily gate for
+      // all 47 videos simultaneously, floods the semaphore queue, and each waiter
+      // logs a cap-hit when it acquires the slot → "×47 this hour" spam.
+      // Log at most once per hour for each cap type.
       if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
         const now = Date.now();
         if (now - _viralBudgetWarnedAt > 60 * 60_000) {
-          logger.warn(`[Autopilot] Viral optimization deferred — viral-optimizer budget exhausted (per-video logs suppressed until reset)`);
+          logger.warn(`[Autopilot] Viral optimization deferred — viral-optimizer daily budget exhausted (per-video logs suppressed until reset)`);
+          _viralBudgetWarnedAt = now;
+        }
+        return;
+      }
+      const hourlyCap = checkTokenBudgets("viral-optimizer", 3000);
+      if (!hourlyCap.allowed) {
+        const now = Date.now();
+        if (now - _viralBudgetWarnedAt > 60 * 60_000) {
+          logger.warn(`[Autopilot] Viral optimization deferred — viral-optimizer hourly cap: ${hourlyCap.reason} (per-video logs suppressed until reset)`);
           _viralBudgetWarnedAt = now;
         }
         return;
