@@ -83,177 +83,89 @@ export async function prepareLongformForUpload(
   );
   const durationMin = Math.round(video.durationSec / 60);
 
-  // Step 1 — Strategic scoring
+  // Single batched OpenAI call — score + title + description + tags + chapters in one prompt
+  // (5 sequential calls → 1, then Claude thumbnail separately)
   assertTierCapacity("longform_pipeline", "longform-prep");
-  const strategyResult = await callOpenAI({
+  const batchResult = await callOpenAI({
     tier: "longform_pipeline",
     messages: [
       {
         role: "system",
         content:
-          "You are a YouTube growth strategist for a no-commentary PS5 gaming channel. " +
-          "Score how well a video fits current publishing conditions. " +
-          'Respond ONLY with JSON: { "publishScore": 0-100, "reason": "one sentence" }',
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${video.gameName}\n` +
-          `Title: ${video.title}\n` +
-          `Duration: ${durationMin} minutes\n` +
-          `Historical views: ${video.viewCount}\n` +
-          `Historical likes: ${video.likeCount}\n\n` +
-          "Score how well this video should perform if published today.",
-      },
-    ],
-    maxTokens: 80,
-  });
-  let publishScore = 70;
-  try {
-    const raw = strategyResult.choices[0].message.content?.trim() ?? "{}";
-    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    publishScore = parsed.publishScore ?? 70;
-  } catch { /* use default */ }
-  log.info(`[LongformPrepPipeline] Video ${video.id} publish score: ${publishScore}/100`);
-
-  // Step 2 — Title generation
-  assertTierCapacity("longform_pipeline", "longform-prep");
-  const titleResult = await callOpenAI({
-    tier: "longform_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a YouTube title writer for a no-commentary PS5 gaming channel. " +
-          "Write a title that: (1) is ≤100 characters, (2) leads with the most " +
-          "searchable keyword for this game + video type, (3) creates curiosity or " +
-          "communicates clear value, (4) no clickbait, no ALL CAPS, no emojis. " +
-          "Respond with ONLY the title.",
+          "You are a YouTube content strategist for a no-commentary PS5 gaming channel. " +
+          "Generate all metadata for a long-form video in one response. " +
+          "Respond ONLY with valid JSON (no markdown, no explanation):\n" +
+          "{\n" +
+          '  "publishScore": 0-100,\n' +
+          '  "scoreReason": "one sentence",\n' +
+          '  "title": "≤100 chars, keyword-first, creates curiosity, no clickbait, no ALL CAPS, no emojis",\n' +
+          '  "description": "400-800 chars: (1) opening hook with searchable keyword in first 125 chars, (2) what video covers 2-3 sentences, (3) subscribe+notification CTA, (4) Watch more [Game] gameplay: with 3-4 search phrases, (5) 5-8 hashtags",\n' +
+          '  "tags": ["10-20 tags, ≤500 total chars, ranked best-first by search volume"],\n' +
+          '  "chapters": [{"timestampSec": 0, "label": "Intro"}] — 4-8 chapters, first MUST be 0:00 Intro, evenly spaced, labels ≤30 chars\n' +
+          "}",
       },
       {
         role: "user",
         content:
           `Game: ${video.gameName}\n` +
           `Original title: ${video.title}\n` +
-          `Duration: ${durationMin} minutes\n` +
-          `Description preview: ${video.description?.slice(0, 300) ?? "none"}\n\n` +
-          "Write the optimized YouTube title.",
-      },
-    ],
-    maxTokens: 60,
-  });
-  const title =
-    titleResult.choices[0].message.content?.trim().slice(0, 100) ?? video.title;
-  log.info(`[LongformPrepPipeline] Video ${video.id} title: "${title}"`);
-
-  // Step 3 — Full SEO description
-  assertTierCapacity("longform_pipeline", "longform-prep");
-  const descResult = await callOpenAI({
-    tier: "longform_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an SEO specialist for a no-commentary PS5 gaming YouTube channel. " +
-          "Write a full YouTube video description with these sections:\n" +
-          "1. Opening hook (1-2 sentences, most searchable keyword in first 125 chars)\n" +
-          "2. What the video covers (2-3 sentences)\n" +
-          "3. Subscribe + notification CTA\n" +
-          '4. Keyword section: "Watch more [Game] gameplay:" followed by 3-4 related search phrases\n' +
-          "5. Hashtags: 5-8 relevant tags including game name\n\n" +
-          "Total: 400-800 characters. No filler. No fake timestamps unless provided.",
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${video.gameName}\n` +
-          `Title: ${title}\n` +
-          `Duration: ${durationMin} minutes\n` +
+          `Duration: ${durationMin} minutes (${video.durationSec}s)\n` +
+          `Historical views: ${video.viewCount} | Historical likes: ${video.likeCount}\n` +
           `Channel: ${video.channelName}\n` +
-          `Original description: ${video.description?.slice(0, 500) ?? "none"}\n\n` +
-          "Write the full SEO description.",
-      },
-    ],
-    maxTokens: 600,
-  });
-  const description =
-    descResult.choices[0].message.content?.trim().slice(0, 5000) ?? "";
-  log.info(
-    `[LongformPrepPipeline] Video ${video.id} description ready (${description.length} chars)`
-  );
-
-  // Step 4 — Tag set
-  assertTierCapacity("longform_pipeline", "longform-prep");
-  const tagsResult = await callOpenAI({
-    tier: "longform_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "YouTube SEO specialist. Generate a tag set for a long-form gaming video. " +
-          "Rules: 10-20 tags, mix of broad game/console tags and specific content tags, " +
-          "total ≤500 chars, ranked best-first by estimated search volume. " +
-          "Respond ONLY with a JSON array of strings.",
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${video.gameName}\n` +
-          `Title: ${title}\n` +
-          `Duration: ${durationMin} minutes\n` +
+          `Original description: ${video.description?.slice(0, 500) ?? "none"}\n` +
           `Existing tags: ${video.tags?.slice(0, 10).join(", ") ?? "none"}\n\n` +
-          "Generate the tag array.",
+          "Generate all video metadata fields.",
       },
     ],
-    maxTokens: 250,
+    maxTokens: 1200,
   });
+
+  // Parse batch response with per-field fallbacks
+  let publishScore = 70;
+  let title = video.title;
+  let description = "";
   let tags: string[] = [];
+  let chapters: ChapterMarker[] = [];
+
   try {
-    const raw = tagsResult.choices[0].message.content?.trim() ?? "[]";
-    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()) as string[];
-    let totalChars = 0;
-    tags = parsed.filter((t) => {
-      totalChars += t.length + 1;
-      return totalChars <= 500;
-    });
+    const raw = batchResult.choices[0].message.content?.trim() ?? "{}";
+    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    publishScore = typeof parsed.publishScore === "number" ? parsed.publishScore : 70;
+    title = (parsed.title?.trim() || video.title).slice(0, 100);
+    description = (parsed.description?.trim() || "").slice(0, 5000);
+    if (Array.isArray(parsed.tags)) {
+      let totalChars = 0;
+      tags = parsed.tags.filter((t: unknown) => {
+        totalChars += String(t).length + 1;
+        return totalChars <= 500;
+      });
+    }
+    if (Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
+      chapters = parsed.chapters;
+    }
   } catch {
-    log.warn(`[LongformPrepPipeline] Video ${video.id} tag parse failed — using fallback`);
+    log.warn(`[LongformPrepPipeline] Video ${video.id} batch parse failed — using source title`);
+    title = video.title;
+  }
+
+  if (!tags.length) {
     tags = [video.gameName, "Gaming", (video.gameName || "").replace(/\s+/g, ""), "NoCommentary", "Gameplay"];
   }
-
-  // Step 5 — Chapter markers (if video is long enough)
-  let chapters: ChapterMarker[] = [];
-  if (video.durationSec > 300) {
-    assertTierCapacity("longform_pipeline", "longform-prep");
-    const chaptersResult = await callOpenAI({
-      tier: "longform_pipeline",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Generate YouTube chapter markers for a no-commentary gaming video. " +
-            'Rules: first chapter MUST be "0:00 Intro", space chapters evenly, ' +
-            "4-8 chapters total, labels ≤30 chars each. " +
-            'Respond ONLY with JSON array: [{ "timestampSec": 0, "label": "Intro" }, ...]',
-        },
-        {
-          role: "user",
-          content:
-            `Game: ${video.gameName}\n` +
-            `Title: ${title}\n` +
-            `Total duration: ${durationMin} minutes (${video.durationSec}s)\n\n` +
-            "Generate chapter markers.",
-        },
-      ],
-      maxTokens: 200,
-    });
-    try {
-      const raw = chaptersResult.choices[0].message.content?.trim() ?? "[]";
-      chapters = JSON.parse(raw.replace(/```json|```/g, "").trim());
-    } catch {
-      chapters = [{ timestampSec: 0, label: "Intro" }];
-    }
+  if (!chapters.length && video.durationSec > 300) {
+    const step = Math.floor(video.durationSec / 5);
+    chapters = [
+      { timestampSec: 0, label: "Intro" },
+      { timestampSec: step, label: "Gameplay" },
+      { timestampSec: step * 2, label: "Mid Game" },
+      { timestampSec: step * 3, label: "Late Game" },
+      { timestampSec: step * 4, label: "Finale" },
+    ];
   }
+
+  log.info(
+    `[LongformPrepPipeline] Video ${video.id} score: ${publishScore}/100 | title: "${title}" | ` +
+    `${tags.length} tags | ${chapters.length} chapters | desc: ${description.length} chars`,
+  );
 
   // Step 6 — Thumbnail concept (Claude for visual reasoning)
   assertTierCapacity("longform_pipeline", "longform-prep");

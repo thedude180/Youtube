@@ -25,7 +25,7 @@ import cron from "node-cron";
 import { db } from "../db";
 import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
-import { eq, and, lte, sql, or } from "drizzle-orm";
+import { eq, and, lte, sql, or, asc, gt, inArray } from "drizzle-orm";
 import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
@@ -595,6 +595,35 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
 // real throttle; the loop itself drives work as fast as those gates allow.
 // ---------------------------------------------------------------------------
 
+// ─── Smart idle sleep ─────────────────────────────────────────────────────────
+// Instead of a fixed 2-minute poll, calculate exactly when the next long-form
+// item is due and sleep until 3 minutes before that time.  Eliminates hundreds
+// of unnecessary DB queries per hour when the schedule is fully pre-staged.
+async function msUntilNextScheduledLongForm(): Promise<number> {
+  try {
+    const now = new Date();
+    const [next] = await db
+      .select({ scheduledAt: autopilotQueue.scheduledAt })
+      .from(autopilotQueue)
+      .where(
+        and(
+          eq(autopilotQueue.status, "scheduled"),
+          gt(autopilotQueue.scheduledAt, now),
+          inArray(autopilotQueue.type, ["vod-long-form", "long-form-clip", "youtube_long_form"]),
+        ),
+      )
+      .orderBy(asc(autopilotQueue.scheduledAt))
+      .limit(1);
+    if (!next?.scheduledAt) return 10 * 60_000; // nothing scheduled → check in 10 min
+    const msUntilDue = new Date(next.scheduledAt).getTime() - Date.now();
+    // Wake up 3 min early; clamp between 2 min and 30 min
+    const sleepMs = msUntilDue - 3 * 60_000;
+    return Math.max(Math.min(sleepMs, 30 * 60_000), 2 * 60_000);
+  } catch {
+    return 10 * 60_000;
+  }
+}
+
 let _perpetualRunning = false;
 
 export function startPerpetualLongFormLoop(): void {
@@ -632,10 +661,11 @@ export function startPerpetualLongFormLoop(): void {
             // Give the engine 60 s to populate the queue before checking again
             await new Promise(r => setTimeout(r, 60_000));
           } else {
-            // Uploads are priority-one when not live — retry in 2 min.
-            // During a live stream back off to 10 min to save stream resources.
+            // Smart sleep: wake up exactly when the next long-form item is due (−3 min).
+            // Falls back to 10 min live / 10 min idle when nothing is scheduled.
             const { isLiveActive } = await import("../lib/live-gate");
-            const idleWaitMs = isLiveActive() ? 10 * 60_000 : 2 * 60_000;
+            const idleWaitMs = isLiveActive() ? 10 * 60_000 : await msUntilNextScheduledLongForm();
+            logger.info(`[LongFormPublisher] Queue idle — smart sleep ${(idleWaitMs / 60_000).toFixed(1)}m until next item`);
             await new Promise(r => setTimeout(r, idleWaitMs));
           }
         } else if (result.published === 0 && result.failed === 0) {
@@ -648,7 +678,7 @@ export function startPerpetualLongFormLoop(): void {
             `backing off to wait for channel reconnect`,
           );
           const { isLiveActive } = await import("../lib/live-gate");
-          const idleWaitMs = isLiveActive() ? 10 * 60_000 : 2 * 60_000;
+          const idleWaitMs = isLiveActive() ? 10 * 60_000 : await msUntilNextScheduledLongForm();
           await new Promise(r => setTimeout(r, idleWaitMs));
         } else {
           // Work was done — short pause then immediately check for more

@@ -65,99 +65,70 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
   log.info(`[ShortsPrepPipeline] Starting prep for clip ${clip.id} (video ${clip.videoId})`);
   const durationSec = clip.clipEndSec - clip.clipStartSec;
 
-  // Step 1 — Hook extraction + moment scoring
+  // Single batched AI call — all 4 metadata fields in one prompt (4× fewer API roundtrips)
   assertTierCapacity("shorts_pipeline", "shorts-prep");
-  const hookAnalysis = await callOpenAI({
+  const batchResult = await callOpenAI({
     tier: "shorts_pipeline",
     messages: [
       {
         role: "system",
         content:
-          "You are a YouTube Shorts analyst for a no-commentary PS5 gaming channel. " +
-          "Identify the single most compelling hook moment in a clip and write a " +
-          "punchy one-sentence description of what happens. Be specific and visual.",
+          "You are a YouTube Shorts content specialist for a no-commentary PS5 gaming channel. " +
+          "Generate all metadata for a Short in one response. " +
+          "Respond ONLY with valid JSON (no markdown, no explanation):\n" +
+          "{\n" +
+          '  "hookMoment": "one sentence — specific peak action, what happens, why visually striking",\n' +
+          '  "title": "≤100 chars, hook-first with emotion/curiosity in first 3 words, no clickbait, no ALL CAPS, no emojis",\n' +
+          '  "description": "150-300 chars: searchable keyword phrase first, 1-2 sentences describing clip, subscribe CTA, 3-5 hashtags including #Shorts",\n' +
+          '  "tags": ["8-15 tags, ≤500 total chars, ranked best-first by search volume"]\n' +
+          "}",
       },
       {
         role: "user",
         content:
           `Game: ${clip.gameName}\n` +
           `Source video: "${clip.sourceVideoTitle}"\n` +
-          `Clip duration: ${durationSec}s (${clip.clipStartSec}s–${clip.clipEndSec}s)\n` +
-          `Source description: ${clip.sourceVideoDescription?.slice(0, 400) ?? "none"}\n\n` +
-          "In one sentence, describe the peak action moment in this clip. " +
-          "Be specific: what happens, what the stakes feel like, why it is visually striking.",
+          `Clip: ${durationSec}s (${clip.clipStartSec}s–${clip.clipEndSec}s)\n` +
+          `Source description: ${clip.sourceVideoDescription?.slice(0, 400) ?? "none"}\n` +
+          `Channel: ${clip.channelName}\n` +
+          `Source tags: ${clip.sourceVideoTags?.slice(0, 10).join(", ") ?? "none"}\n\n` +
+          "Generate all Short metadata fields.",
       },
     ],
-    maxTokens: 120,
+    maxTokens: 620,
   });
-  const hookMoment = hookAnalysis.choices[0].message.content?.trim() ?? clip.sourceVideoTitle;
-  log.info(`[ShortsPrepPipeline] Clip ${clip.id} hook: "${hookMoment}"`);
 
-  // Step 2 — Title generation
-  assertTierCapacity("shorts_pipeline", "shorts-prep");
-  const titleResult = await callOpenAI({
-    tier: "shorts_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a YouTube Shorts title writer for a no-commentary PS5 gaming channel. " +
-          "Write titles that are ≤100 characters, hook-first (emotion or curiosity gap in " +
-          "the first 3 words), no clickbait, no ALL CAPS, no emojis. " +
-          "The title should make someone stop scrolling. " +
-          "Respond with ONLY the title, no quotes, no explanation.",
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${clip.gameName}\n` +
-          `Hook moment: ${hookMoment}\n` +
-          `Source title: ${clip.sourceVideoTitle}\n` +
-          `Duration: ${durationSec} seconds\n\n` +
-          "Write the YouTube Short title.",
-      },
-    ],
-    maxTokens: 60,
-  });
-  const title =
-    titleResult.choices[0].message.content?.trim().slice(0, 100) ?? clip.sourceVideoTitle;
-  log.info(`[ShortsPrepPipeline] Clip ${clip.id} title: "${title}"`);
+  // Parse batch response with per-field fallbacks
+  let hookMoment = clip.sourceVideoTitle;
+  let title = clip.sourceVideoTitle;
+  let description = "";
+  let tags: string[] = [];
 
-  // Step 3 — SEO description
-  assertTierCapacity("shorts_pipeline", "shorts-prep");
-  const descResult = await callOpenAI({
-    tier: "shorts_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an SEO specialist for a no-commentary PS5 gaming YouTube channel. " +
-          "Write a YouTube Short description that: " +
-          "(1) opens with the most searchable keyword phrase for this game and moment, " +
-          "(2) describes what happens in the clip in 1-2 sentences, " +
-          "(3) includes a subscribe CTA, " +
-          "(4) ends with 3-5 relevant hashtags including #Shorts. " +
-          "Total length: 150-300 characters. No filler phrases.",
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${clip.gameName}\n` +
-          `Title: ${title}\n` +
-          `Hook moment: ${hookMoment}\n` +
-          `Channel: ${clip.channelName}\n\n` +
-          "Write the YouTube Short description.",
-      },
-    ],
-    maxTokens: 200,
-  });
-  let description = descResult.choices[0].message.content?.trim().slice(0, 4800) ?? "";
-  log.info(
-    `[ShortsPrepPipeline] Clip ${clip.id} description ready (${description.length} chars)`
-  );
+  try {
+    const raw = batchResult.choices[0].message.content?.trim() ?? "{}";
+    const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    hookMoment = parsed.hookMoment?.trim() || clip.sourceVideoTitle;
+    title = (parsed.title?.trim() || clip.sourceVideoTitle).slice(0, 100);
+    description = (parsed.description?.trim() || "").slice(0, 4800);
+    if (Array.isArray(parsed.tags)) {
+      let totalChars = 0;
+      tags = parsed.tags.filter((t: unknown) => {
+        totalChars += String(t).length + 1;
+        return totalChars <= 500;
+      });
+    }
+  } catch {
+    log.warn(`[ShortsPrepPipeline] Clip ${clip.id} batch parse failed — using source title`);
+    title = clip.sourceVideoTitle;
+  }
+
+  if (!tags.length) {
+    tags = [clip.gameName, "Gaming", (clip.gameName || "").replace(/\s+/g, ""), "Shorts", "NoCommentary"];
+  }
+
+  log.info(`[ShortsPrepPipeline] Clip ${clip.id} hook: "${hookMoment}" | title: "${title}" | ${tags.length} tags`);
 
   // Append source-video back-link so viewers can find the full video.
-  // Lookup the source video's YouTube ID from the DB.
   if (clip.videoId) {
     try {
       const sourceVideo = await storage.getVideo(clip.videoId);
@@ -176,48 +147,6 @@ export async function prepareShortForUpload(clip: ClipRecord): Promise<ShortsRea
       log.warn(`[ShortsPrepPipeline] Clip ${clip.id} source video lookup failed:`, e);
     }
   }
-
-  // Step 4 — Tag set
-  assertTierCapacity("shorts_pipeline", "shorts-prep");
-  const tagsResult = await callOpenAI({
-    tier: "shorts_pipeline",
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a YouTube SEO specialist. Generate a tag set for a YouTube Short. " +
-          "Rules: (1) 8-15 tags, (2) mix of broad game tags and specific moment tags, " +
-          "(3) total character count ≤500 across all tags, " +
-          "(4) ranked best-first by estimated search volume, " +
-          "(5) respond with ONLY a JSON array of strings, no markdown.",
-      },
-      {
-        role: "user",
-        content:
-          `Game: ${clip.gameName}\n` +
-          `Title: ${title}\n` +
-          `Hook moment: ${hookMoment}\n` +
-          `Existing source tags: ${clip.sourceVideoTags?.slice(0, 10).join(", ") ?? "none"}\n\n` +
-          "Generate the tag array.",
-      },
-    ],
-    maxTokens: 200,
-  });
-  let tags: string[] = [];
-  try {
-    const raw = tagsResult.choices[0].message.content?.trim() ?? "[]";
-    const cleaned = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleaned) as string[];
-    let totalChars = 0;
-    tags = parsed.filter((t) => {
-      totalChars += t.length + 1;
-      return totalChars <= 500;
-    });
-  } catch {
-    log.warn(`[ShortsPrepPipeline] Clip ${clip.id} tag parse failed — using fallback tags`);
-    tags = [clip.gameName, "Gaming", (clip.gameName || "").replace(/\s+/g, ""), "Shorts", "NoCommentary"];
-  }
-  log.info(`[ShortsPrepPipeline] Clip ${clip.id} tags: [${tags.join(", ")}]`);
 
   // Step 5 — Claim a scheduled publish slot
   // Claiming happens here (pre-upload) so the output schedule stays coherent

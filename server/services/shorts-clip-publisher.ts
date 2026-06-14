@@ -34,7 +34,7 @@ import cron from "node-cron";
 import { db } from "../db";
 import { recordPublishOutcome } from "../lib/outcome-recorder";
 import { autopilotQueue, videos, channels } from "@shared/schema";
-import { eq, and, lte, inArray, or, sql } from "drizzle-orm";
+import { eq, and, lte, inArray, or, sql, asc, gt } from "drizzle-orm";
 import { getFocusGame } from "../lib/game-focus";
 import { createLogger } from "../lib/logger";
 import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
@@ -784,6 +784,37 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
 // real throttle; the loop itself just drives work as fast as those gates allow.
 // ---------------------------------------------------------------------------
 
+// ─── Smart idle sleep ─────────────────────────────────────────────────────────
+// Instead of a fixed 90-second poll, calculate exactly when the next Short is
+// due and sleep until 3 minutes before that time.  Eliminates hundreds of
+// unnecessary DB queries per hour when the schedule is fully pre-staged.
+async function msUntilNextScheduledShort(): Promise<number> {
+  try {
+    const now = new Date();
+    const [next] = await db
+      .select({ scheduledAt: autopilotQueue.scheduledAt })
+      .from(autopilotQueue)
+      .where(
+        and(
+          eq(autopilotQueue.status, "scheduled"),
+          gt(autopilotQueue.scheduledAt, now),
+          or(
+            inArray(autopilotQueue.type, ["auto-clip", "vod-short", "youtube_short", "platform_short"]),
+          ),
+        ),
+      )
+      .orderBy(asc(autopilotQueue.scheduledAt))
+      .limit(1);
+    if (!next?.scheduledAt) return 5 * 60_000; // nothing scheduled → check in 5 min
+    const msUntilDue = new Date(next.scheduledAt).getTime() - Date.now();
+    // Wake up 3 min early; clamp between 90 s and 30 min
+    const sleepMs = msUntilDue - 3 * 60_000;
+    return Math.max(Math.min(sleepMs, 30 * 60_000), 90_000);
+  } catch {
+    return 5 * 60_000;
+  }
+}
+
 let _perpetualRunning = false;
 
 export function startPerpetualShortsLoop(): void {
@@ -821,10 +852,11 @@ export function startPerpetualShortsLoop(): void {
             // Give the engine 60 s to populate the queue before checking again
             await new Promise(r => setTimeout(r, 60_000));
           } else {
-            // Uploads are priority-one when not live — retry in 90 s.
-            // During a live stream back off to 5 min to save stream resources.
+            // Smart sleep: wake up exactly when the next Short is due (−3 min).
+            // Falls back to 5 min live / 5 min idle when nothing is scheduled.
             const { isLiveActive } = await import("../lib/live-gate");
-            const idleWaitMs = isLiveActive() ? 5 * 60_000 : 90_000;
+            const idleWaitMs = isLiveActive() ? 5 * 60_000 : await msUntilNextScheduledShort();
+            logger.info(`[ShortsPublisher] Queue idle — smart sleep ${(idleWaitMs / 60_000).toFixed(1)}m until next item`);
             await new Promise(r => setTimeout(r, idleWaitMs));
           }
         } else if (result.published === 0 && result.failed === 0) {
@@ -837,7 +869,7 @@ export function startPerpetualShortsLoop(): void {
             `backing off to wait for channel reconnect`,
           );
           const { isLiveActive } = await import("../lib/live-gate");
-          const idleWaitMs = isLiveActive() ? 5 * 60_000 : 90_000;
+          const idleWaitMs = isLiveActive() ? 5 * 60_000 : await msUntilNextScheduledShort();
           await new Promise(r => setTimeout(r, idleWaitMs));
         } else {
           // Work was done — restart immediately to pick up the next batch

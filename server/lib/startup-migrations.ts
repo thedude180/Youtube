@@ -4232,7 +4232,16 @@ async function migration069CancelStaleStreamEditJobs(): Promise<void> {
     await setFlag(FLAG);
     log.info(`[Migration 069] Cancelled ${cancelled} stale queued stream_edit_jobs (>24h old)`);
   } catch (err: any) {
-    log.warn(`[Migration 069] Failed (non-fatal): ${err?.message}`);
+    // If stream_edit_jobs table doesn't exist (it may not in all environments),
+    // the migration goal is trivially achieved — nothing to cancel.
+    // Mark done so it stops retrying on every boot.
+    const msg = String(err?.message ?? "");
+    if (msg.includes("stream_edit_jobs") || msg.toLowerCase().includes("does not exist")) {
+      await setFlag(FLAG).catch(() => {});
+      log.info("[Migration 069] stream_edit_jobs table not found — migration N/A, marked done");
+    } else {
+      log.warn(`[Migration 069] Failed (non-fatal): ${err?.message}`);
+    }
   }
 }
 
