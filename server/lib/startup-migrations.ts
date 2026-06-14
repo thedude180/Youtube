@@ -4177,6 +4177,42 @@ async function migration070LogQuotaTripIncident(): Promise<void> {
   }
 }
 
+async function migration071ResetFocusGameToBF6(): Promise<void> {
+  const FLAG = "migration:071:reset_focus_game_to_bf6_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const { getFocusGame, setFocusGame } = await import("../lib/game-focus");
+    const currentFocus = await getFocusGame();
+    if (currentFocus.toLowerCase() !== "battlefield 6") {
+      log.info(`[Migration 071] Focus game was "${currentFocus}" — hard-resetting to "Battlefield 6"`);
+      await setFocusGame("Battlefield 6");
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET status = 'permanent_fail',
+            metadata = jsonb_set(
+              COALESCE(metadata, '{}'::jsonb),
+              '{failReason}',
+              '"migration-071: off-brand game content purged on focus reset"'
+            )
+        WHERE channel_id = 53
+          AND status IN ('scheduled', 'pending')
+          AND (
+            metadata->>'gameName' IS NOT NULL
+            AND metadata->>'gameName' NOT ILIKE '%battlefield%'
+            AND metadata->>'gameName' NOT ILIKE '%bf6%'
+            AND metadata->>'gameName' NOT ILIKE '%bf 6%'
+          )
+      `);
+    } else {
+      log.info(`[Migration 071] Focus game already "Battlefield 6" — no reset needed`);
+    }
+    await setFlag(FLAG);
+    log.info("[Migration 071] Focus game confirmed as Battlefield 6");
+  } catch (err: any) {
+    log.warn(`[Migration 071] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration069CancelStaleStreamEditJobs(): Promise<void> {
   const FLAG = "migration:069:cancel_stale_stream_edit_jobs_v1";
   if (await getFlag(FLAG)) return;
@@ -4274,6 +4310,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration068RebalanceCadencePileup();
     await migration069CancelStaleStreamEditJobs();
     await migration070LogQuotaTripIncident();
+    await migration071ResetFocusGameToBF6();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

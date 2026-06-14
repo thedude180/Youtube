@@ -20,7 +20,7 @@
 
 import { db } from "../db";
 import { streams, systemSettings } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, gte } from "drizzle-orm";
 import { storage } from "../storage";
 import { createLogger } from "./logger";
 
@@ -36,11 +36,17 @@ export const MIN_FOCUS_DAYS_AHEAD = 30;
  * Number of cataloged live streams a NEW game must reach before the focus
  * automatically switches to it.  Prevents a single one-off stream from
  * flipping the entire content pipeline.
+ *
+ * Raised to 3 to require a deliberate pattern, not a random pair of old sessions.
  */
-export const STREAM_SWITCH_THRESHOLD = 2;
+export const STREAM_SWITCH_THRESHOLD = 3;
 
 // How many recent streams to scan when deciding whether to auto-switch.
 const STREAM_SCAN_LIMIT = 30;
+
+// Only streams from the last N days count toward the switch threshold.
+// Old AC Valhalla / other past-game sessions must never trigger a focus switch.
+const STREAM_RECENCY_DAYS = 30;
 
 // ── Game aliases ──────────────────────────────────────────────────────────────
 
@@ -147,10 +153,11 @@ export async function autoSwitchFocusGameIfNeeded(userId: string): Promise<strin
   try {
     const currentFocus = await getFocusGame();
 
+    const recentCutoff = new Date(Date.now() - STREAM_RECENCY_DAYS * 24 * 60 * 60 * 1000);
     const recent = await db
       .select({ category: streams.category, title: streams.title })
       .from(streams)
-      .where(eq(streams.userId, userId))
+      .where(and(eq(streams.userId, userId), gte(streams.createdAt, recentCutoff)))
       .orderBy(desc(streams.createdAt))
       .limit(STREAM_SCAN_LIMIT);
 
