@@ -35,6 +35,7 @@ const BACKGROUND_MAX_QUEUE_DEPTH = 4;
 const _bootTime = Date.now();
 
 let _busy = false;
+let _busySince: number | null = null; // timestamp when slot was last acquired
 let _lastReleaseAt = 0;
 
 type WakeEntry = { resolve: () => void; reject: (e: Error) => void; background: boolean };
@@ -217,6 +218,7 @@ export async function acquireAISlot(): Promise<void> {
 
     if (!_busy) {
       _busy = true;
+      _busySince = Date.now();
       // Enforce inter-call gap
       const gap = MIN_INTER_CALL_DELAY_MS - (Date.now() - _lastReleaseAt);
       if (gap > 0) await _pause(gap);
@@ -252,6 +254,7 @@ export async function acquireAISlotBackground(): Promise<void> {
 
     if (!_busy) {
       _busy = true;
+      _busySince = Date.now();
       const gap = MIN_INTER_CALL_DELAY_MS - (Date.now() - _lastReleaseAt);
       if (gap > 0) await _pause(gap);
       return;
@@ -265,6 +268,7 @@ export async function acquireAISlotBackground(): Promise<void> {
 export function releaseAISlot(): void {
   _lastReleaseAt = Date.now();
   _busy = false;
+  _busySince = null;
   _preAcquiredToken = false; // clear any stale pre-acquire so it can't be misused
   // Wake ONE waiting caller (it will re-check circuit-breaker before proceeding).
   // Find the first non-background caller first (priority); fall back to background.
@@ -472,6 +476,33 @@ export function assertTierCapacity(tier: AiTier, module: string): void {
     );
   }
 }
+
+// ── Stuck-slot watchdog ──────────────────────────────────────────────────────
+// If a caller acquired the slot then crashed before calling releaseAISlot()
+// (e.g. an uncaught exception that bypassed the finally block), _busy stays
+// true indefinitely and every subsequent caller queues forever.
+// Check every 60 s: if the slot has been held for >8 min, force-release it.
+const STUCK_SLOT_TIMEOUT_MS = 8 * 60_000;
+setInterval(() => {
+  if (_busy && _busySince !== null && Date.now() - _busySince > STUCK_SLOT_TIMEOUT_MS) {
+    const heldMin = Math.round((Date.now() - _busySince) / 60_000);
+    logger.warn(
+      `[AI Semaphore] Stuck slot detected — held for ${heldMin} min without releaseAISlot() call. ` +
+      `Force-releasing to unblock ${_releaseListeners.length} queued caller(s).`,
+    );
+    // Log to incident system so the brain can learn from this pattern
+    logIncidentOnce({
+      category:  "ai_queue",
+      service:   "ai-semaphore / stuck-slot-watchdog",
+      severity:  "high",
+      rootCause: `AI slot held for ${heldMin} min — caller likely crashed before releaseAISlot(). ` +
+                 `${_releaseListeners.length} callers were blocked waiting for release.`,
+      lesson:    "Every acquireAISlot() call MUST be inside a try/finally that calls releaseAISlot(). " +
+                 "Missing finally blocks cause a system-wide AI freeze that lasts until server restart.",
+    }).catch(() => {});
+    releaseAISlot();
+  }
+}, 60_000).unref(); // unref so the interval doesn't prevent clean process exit
 
 /**
  * Snapshot of all three tier queues.

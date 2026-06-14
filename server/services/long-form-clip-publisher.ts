@@ -635,6 +635,20 @@ export function startPerpetualLongFormLoop(): void {
   const loop = async () => {
     while (_perpetualRunning) {
       try {
+        // Memory gate: long-form videos are large files (often >1 GB).
+        // If the container is under pressure, pause before attempting the upload
+        // rather than OOM-crashing mid-transfer and leaving the item stuck.
+        const { getContainerMemory } = await import("../lib/container-memory");
+        const { freeBytes } = getContainerMemory();
+        if (freeBytes < 150 * 1024 * 1024) {
+          logger.warn(
+            `[LongFormPublisher] Low memory (${Math.round(freeBytes / 1024 / 1024)}MB free) — ` +
+            `pausing 5 min before next upload attempt`,
+          );
+          await new Promise(r => setTimeout(r, 5 * 60_000));
+          continue;
+        }
+
         const result = await runLongFormClipPublisher();
 
         if (result.quotaExhausted) {

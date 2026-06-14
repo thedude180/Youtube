@@ -830,6 +830,20 @@ export function startPerpetualShortsLoop(): void {
   const loop = async () => {
     while (_perpetualRunning) {
       try {
+        // Memory gate: skip this publish attempt if the container is under pressure.
+        // Video uploads hold the full file in memory during multipart send.
+        // Back off 3 min to let other services (FFmpeg, vault downloads) finish.
+        const { getContainerMemory } = await import("../lib/container-memory");
+        const { freeBytes } = getContainerMemory();
+        if (freeBytes < 100 * 1024 * 1024) {
+          logger.warn(
+            `[ShortsPublisher] Low memory (${Math.round(freeBytes / 1024 / 1024)}MB free) — ` +
+            `pausing 3 min before next upload attempt`,
+          );
+          await new Promise(r => setTimeout(r, 3 * 60_000));
+          continue;
+        }
+
         const result = await runShortsClipPublisher();
 
         if (result.quotaExhausted) {

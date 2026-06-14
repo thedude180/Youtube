@@ -981,7 +981,19 @@ export function initPreEncoder(): void {
   async function loop(): Promise<void> {
     while (_preEncodeActive) {
       try {
-        await runPreEncodeCycle();
+        // Memory gate: FFmpeg is the largest per-process memory consumer.
+        // If the container is under pressure, skip this cycle entirely and
+        // let the 5-min pause give other services room to free up memory.
+        const { getContainerMemory } = await import("../lib/container-memory");
+        const { freeBytes } = getContainerMemory();
+        if (freeBytes < 250 * 1024 * 1024) {
+          logger.warn(
+            `[PreEncoder] Skipping cycle — only ${Math.round(freeBytes / 1024 / 1024)}MB container memory free (need 250MB). ` +
+            `FFmpeg deferred; will retry in 5 min.`,
+          );
+        } else {
+          await runPreEncodeCycle();
+        }
       } catch (err) {
         logger.error("[PreEncoder] Cycle error", { error: String(err) });
       }
