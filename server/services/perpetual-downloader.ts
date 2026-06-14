@@ -100,6 +100,10 @@ async function runCycle(): Promise<void> {
 
     logger.info(`[PerpetualDownloader] Starting download cycle — ${pending} video(s) pending for ${userId} (cap: ${MAX_DOWNLOADS_PER_CYCLE}/cycle)`);
 
+    // IO gate — only one download or upload at a time across the whole system.
+    // Waits for any active YouTube upload (shorts or long-form) to finish first.
+    const { acquireIOSlot, releaseIOSlot } = await import("../lib/io-gate");
+    await acquireIOSlot("perpetual-downloader");
     try {
       // Capped cycle: download at most MAX_DOWNLOADS_PER_CYCLE videos, then
       // yield.  The 3-minute inter-cycle timer picks up remaining items next
@@ -108,6 +112,8 @@ async function runCycle(): Promise<void> {
       logger.info(`[PerpetualDownloader] Cycle complete for ${userId}`);
     } catch (err: any) {
       logger.warn(`[PerpetualDownloader] Cycle error for ${userId}: ${err?.message?.slice(0, 200)}`);
+    } finally {
+      releaseIOSlot("perpetual-downloader");
     }
   }
 }

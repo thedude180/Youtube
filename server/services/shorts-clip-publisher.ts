@@ -844,7 +844,11 @@ export function startPerpetualShortsLoop(): void {
           continue;
         }
 
-        const result = await runShortsClipPublisher();
+        // IO gate — only one upload or download at a time across the whole system.
+        // Waits for any active vault download or long-form upload to finish first.
+        const { acquireIOSlot, releaseIOSlot } = await import("../lib/io-gate");
+        await acquireIOSlot("shorts-publisher");
+        const result = await runShortsClipPublisher().finally(() => releaseIOSlot("shorts-publisher"));
 
         if (result.quotaExhausted) {
           // YouTube daily quota is spent — sleep until midnight Pacific reset

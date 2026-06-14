@@ -649,7 +649,11 @@ export function startPerpetualLongFormLoop(): void {
           continue;
         }
 
-        const result = await runLongFormClipPublisher();
+        // IO gate — only one upload or download at a time across the whole system.
+        // Waits for any active vault download or shorts upload to finish first.
+        const { acquireIOSlot, releaseIOSlot } = await import("../lib/io-gate");
+        await acquireIOSlot("longform-publisher");
+        const result = await runLongFormClipPublisher().finally(() => releaseIOSlot("longform-publisher"));
 
         if (result.quotaExhausted) {
           // YouTube daily quota is spent — sleep until midnight Pacific reset
