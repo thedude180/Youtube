@@ -28,7 +28,9 @@ try {
 
 const MIN_DELAY_MS = 15_000;
 const MAX_DELAY_MS = 5 * 60_000;
-const IDLE_CHECK_MS = 5 * 60_000;
+// 30-min idle check prevents the timer from aligning with the hourly cron window
+// on a fixed boot time (5-min was causing a DB pool hit at exactly 08:00 UTC).
+const IDLE_CHECK_MS = 30 * 60_000;
 const POST_BATCH_DELAY_MS = 30_000;
 
 function getState(userId: string): UserLoopState {
@@ -119,6 +121,12 @@ async function cleanupExcessScheduledItems() {
 }
 
 export async function bootContentLoops() {
+  // Defense-in-depth: also check isEnabled here in case this function is called
+  // from a path that bypasses the index.ts guard (e.g. live-detection, route handler).
+  const { isEnabled } = await import("./config/service-gates");
+  if (!isEnabled("content-loop")) {
+    return;
+  }
   try {
     await cleanupExcessScheduledItems();
 

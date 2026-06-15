@@ -1217,6 +1217,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:075:cancel_ac_items_resurrected_by_boot_reset_v1", label: "075 — cancel 131 AC/off-brand items resurrected by boot full-queue-reset; use 'cancelled' status to survive future resets (Jun 14 2026)" },
   { flag: "migration:080:cancel_smart_edit_and_fix_ghost_channel_v1",   label: "080 — cancel smart-edit stub items (no publisher) + set needs_reconnect on channel 52 ghost (Jun 15 2026)" },
   { flag: "migration:081:seed_initial_prompt_versions_v1",               label: "081 — seed 7 BF6-tuned v1 prompt_versions for ASI pillar #3 prompt-self-improver (Jun 15 2026)" },
+  { flag: "migration:082:cancel_t4pkhdqpp0_resurrection_v1",             label: "082 — permanently cancel T4PKhDhQPp0 queue items (42305/42326) — geo-blocked, yt-dlp storm on every boot (Jun 15 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4637,6 +4638,40 @@ async function migration081SeedInitialPromptVersions(): Promise<void> {
   }
 }
 
+// ── Migration 082: Cancel T4PKhDhQPp0 resurrection loop ───────────────────────
+// Items 42305 and 42326 are auto-clip entries whose source video (T4PKhDhQPp0)
+// is permanently geo-blocked / DRM-protected.  Both are in permanent_fail status
+// but have NO failReason set.  The Wave 0.6 boot queue reset resets every
+// permanent_fail item where failReason IS NULL back to scheduled — so these two
+// items resurrect on every restart and trigger a 10-minute yt-dlp storm at T+4min
+// (5 InnerTube clients × multiple format fallbacks).
+//
+// Fix: set status='cancelled' + failReason='migration-082:...' on all autopilot_queue
+// rows whose sourceYoutubeId is T4PKhDhQPp0.  'cancelled' status is immune to the
+// Wave 0.6 boot reset; the migration-prefixed failReason is an additional guard.
+async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
+  const FLAG = "migration:082:cancel_t4pkhdqpp0_resurrection_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const result = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET   status   = 'cancelled',
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+              'failReason',
+              'migration-082: T4PKhDhQPp0 permanently geo-blocked/DRM — cancelled Jun 15 2026'
+            )
+      WHERE metadata->>'sourceYoutubeId' = 'T4PKhDhQPp0'
+        AND status NOT IN ('published', 'cancelled')
+    `);
+    const rows = (result as any)?.rowCount ?? 0;
+    log.info(`[Migration 082] Cancelled ${rows} T4PKhDhQPp0 resurrection items`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 082] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4858,6 +4893,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration079FailT4PKhDhQPp0GhostVaultRow();
     await migration080CancelSmartEditItemsAndFixGhostChannel();
     await migration081SeedInitialPromptVersions();
+    await migration082CancelT4PKhDhQPp0Items();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
