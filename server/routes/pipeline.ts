@@ -5,6 +5,7 @@ import { eq, and, desc, or, like } from "drizzle-orm";
 import { getUserId, parseNumericId } from "./helpers";
 import { storage } from "../storage";
 import { cached } from "../lib/cache";
+import { logIncidentOnce } from "../lib/incident-log";
 
 function requireAuth(req: Request, res: Response): string | null {
   if (!req.isAuthenticated()) {
@@ -212,6 +213,20 @@ export async function executePipelineInBackground(id: number, videoTitle: string
         .set({ status: "completed", errorMessage: "BF6-gate cancelled: off-brand content (channel is BF6-only)" })
         .where(eq(contentPipeline.id, id));
     } catch { /* ok — best-effort */ }
+    // Tell the brain: off-brand content tried to consume AI slots. Promoted to
+    // masterKnowledgeBank on next daily cycle so the orchestrator learns which
+    // non-BF6 games keep sneaking through and can tighten detection.
+    logIncidentOnce({
+      category: "ai_queue",
+      service:  "pipeline / BF6-gate",
+      severity: "medium",
+      rootCause: `Non-BF6 pipeline blocked at execution: "${videoTitle.slice(0, 80)}". ` +
+                 `Off-brand content was queued and attempted to consume a background AI slot on a BF6-only channel.`,
+      lesson: "Any pipeline caller (autopilot-monitor, drip-feed, direct boot kick) must pass the BF6 gate. " +
+              "Gate is inside executePipelineInBackground so ALL callers are covered. " +
+              "If this fires repeatedly, check game-detection accuracy and catalog-sync game labels.",
+      tags: ["bf6-gate", "off-brand", "ai-slot"],
+    }).catch(() => {});
     return;
   }
 

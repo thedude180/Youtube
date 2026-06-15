@@ -3,6 +3,7 @@ import { youtubeQuotaUsage } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 import { createLogger } from "../lib/logger";
+import { logIncidentOnce } from "../lib/incident-log";
 
 const logger = createLogger("youtube-quota-tracker");
 
@@ -663,6 +664,19 @@ export function tripGlobalQuotaBreaker(): void {
           "If quota consistently trips before noon Pacific, front-load all publishing to 07:00–10:00 Pacific immediately after the midnight quota reset.",
         debounce: false, // always record first trip of the day
       }).catch(() => {});
+    }).catch(() => {});
+
+    // Tell the brain — promoted to masterKnowledgeBank on next daily cycle so
+    // the orchestrator learns time-of-day quota patterns and can front-load publishing.
+    logIncidentOnce({
+      category: "quota_breach",
+      service:  "youtube-quota-tracker",
+      severity: "high",
+      rootCause: `YouTube Data API quota circuit breaker tripped for ${today} — all API calls blocked until midnight Pacific. ` +
+                 `First caller: ${callerStack.split("|")[0]?.trim().slice(0, 120) ?? "unknown"}.`,
+      lesson: "Quota trips daily if metadata sweeps or optimizer loops run within 2h of the quota-reset window without a headroom guard. " +
+              "Always gate bulk-write loops with canAffordOperation() requiring ≥2000 unit headroom before starting.",
+      tags:    ["quota", "circuit-breaker", "daily-trip"],
     }).catch(() => {});
   }
   _globalQuotaTripDate = today;

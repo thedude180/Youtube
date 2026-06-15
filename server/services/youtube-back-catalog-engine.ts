@@ -105,6 +105,7 @@ async function refreshFailedVaultIds(): Promise<void> {
 }
 import { createLogger } from "../lib/logger";
 import { storage } from "../storage";
+import { logIncidentOnce } from "../lib/incident-log";
 import {
   scoreBackCatalogVideo,
   computeChannelAverages,
@@ -737,6 +738,20 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
 
     if (!metaHeadroom) {
       logger.warn("[BackCatalog] Insufficient quota headroom for metadata sweep (< 2000 units remaining) — deferring to next cycle");
+      // Tell the brain: quota headroom was insufficient before sweep even started.
+      // Promoted to masterKnowledgeBank so the orchestrator learns to schedule
+      // metadata sweeps earlier in the day (well before the midnight Pacific window).
+      logIncidentOnce({
+        category: "quota_breach",
+        service:  "back-catalog-engine / metadata-sweep",
+        severity: "medium",
+        rootCause: "Metadata sweep deferred: fewer than 2000 YouTube Data API units remain. " +
+                   "Google Quota Sync restores quota on boot but other services deplete it before the sweep runs.",
+        lesson: "Metadata sweep headroom guard (canAffordOperation write×40 = 2000 units) is working correctly. " +
+                "If this fires daily, schedule the sweep earlier in the quota-day " +
+                "or reduce optimizer call frequency in the hours before midnight Pacific.",
+        tags: ["quota", "metadata-sweep", "headroom"],
+      }).catch(() => {});
     } else {
       for (const v of metaTargets) {
         if (metaQuotaCheck()) {

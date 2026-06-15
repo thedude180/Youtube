@@ -5,6 +5,7 @@ import { eq, and, lt, gte, sql, inArray } from "drizzle-orm";
 import { storage } from "../storage";
 import { notifyUser, type NotificationSeverity } from "./notifications";
 import { setJitteredInterval } from "../lib/timer-utils";
+import { logIncidentOnce } from "../lib/incident-log";
 
 interface HealthCheckResult {
   ok: boolean;
@@ -91,6 +92,20 @@ const systemChecks: SystemCheck[] = [
             restarted++;
           }
           logAutoFix(userId, "pipeline_health", `Re-executed ${restarted} stalled content pipelines`);
+          // Tell the brain: stalled pipelines were detected. If this fires frequently
+          // it means the server is crashing while pipelines are in-flight.
+          // Promoted to masterKnowledgeBank so the orchestrator learns crash-recovery patterns.
+          logIncidentOnce({
+            category: "ai_queue",
+            service:  "autopilot-monitor",
+            severity: "medium",
+            rootCause: `${restarted} stalled content pipeline(s) found in status=processing after a server restart. ` +
+                       `Pipelines crash mid-flight when the AI slot queue saturates and the container is OOM-killed.`,
+            lesson: "Stalled processing pipelines are a leading indicator of a crash-loop. " +
+                    "If autopilot-monitor finds stalled pipelines on consecutive days, " +
+                    "investigate AI slot convergence at T+10-20min and check MemoryGuardian logs.",
+            tags: ["crash-recovery", "stalled-pipeline", "ai-slot"],
+          }).catch(() => {});
         }
 
         const stalledStreamPipelines = await db.select().from(streamPipelines)
