@@ -247,6 +247,15 @@ async function generateAndUploadThumbnail(
   detectedGameName?: string
 ): Promise<boolean | "channel_disconnected"> {
   if (isChannelDisconnected(channelId)) return "channel_disconnected";
+  // Defense-in-depth quota breaker guard — prevents wasting DALL-E + GPT-4o-mini
+  // credits on prompt generation when the YouTube upload will be blocked anyway.
+  // All entry-point functions (runAutoThumbnailForUser, runAutoThumbnailGeneration,
+  // generateThumbnailForNewVideo, etc.) should also guard, but this catch-all
+  // ensures no caller can bypass it accidentally.
+  if (isQuotaBreakerTripped()) {
+    logger.debug("[AutoThumbnail] Skipping — quota breaker active", { videoDbId });
+    return false;
+  }
   try {
     let researchContext = "";
     try {
@@ -718,6 +727,12 @@ export async function runThumbnailBackfillSweep(userId: string): Promise<{ proce
 }
 
 export async function generateThumbnailForNewVideo(userId: string, videoDbId: number): Promise<boolean> {
+  // Skip all AI + YouTube work when the quota breaker is active.
+  // This function is called from 9+ callers (backlog-engine, smart-edit-engine,
+  // autopilot-engine, grinder, agent-events, etc.) — without this guard each
+  // caller would waste a full DALL-E + GPT-4o-mini call before failing at the
+  // YouTube upload step, burning AI credits and saturating background AI slots.
+  if (isQuotaBreakerTripped()) return false;
   try {
     const [video] = await db.select().from(videos).where(eq(videos.id, videoDbId));
     if (!video) return false;
@@ -791,6 +806,7 @@ const THUMBNAIL_REFRESH_COOLDOWN_DAYS = 14;
 export async function regenerateThumbnailsForUnderperformers(userId: string): Promise<number> {
   let regenerated = 0;
   try {
+    if (isQuotaBreakerTripped()) return 0;
     const ytChannels = await db.select().from(channels)
       .where(and(
         eq(channels.platform, "youtube"),

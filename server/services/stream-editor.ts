@@ -1224,10 +1224,29 @@ async function runJobInBackground(jobId: number): Promise<void> {
     }).catch(() => {});
   } catch (err: any) {
     logger.error(`[StreamEditor] Job ${jobId} failed:`, err?.message);
+    // Track repeated FFmpeg timeouts so orphan processes from previous container
+    // restarts (which survive across reboots and hit the 90-min wall again) cannot
+    // loop the same job indefinitely.  After 2 FFmpeg timeouts on the same job,
+    // permanently fail it so the user must manually retry via the UI.
+    // We read the job's current errorMessage from DB (not from the in-scope `job`
+    // variable, which is block-scoped inside the try) to detect repeat failures.
+    const isFFmpegTimeout = String(err?.message ?? "").includes("FFmpeg hard timeout");
+    let prevErrIsTimeout = false;
+    if (isFFmpegTimeout) {
+      try {
+        const [row] = await db.select({ errorMessage: streamEditJobs.errorMessage })
+          .from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
+        prevErrIsTimeout = String(row?.errorMessage ?? "").includes("FFmpeg hard timeout");
+      } catch { /* non-fatal — if we can't read, treat as first failure */ }
+    }
+    const finalStatus = prevErrIsTimeout ? "failed" : "error";
+    if (prevErrIsTimeout) {
+      logger.warn(`[StreamEditor] Job ${jobId} permanently failed — repeated FFmpeg timeout (orphan process suspected)`);
+    }
     await db.update(streamEditJobs).set({
-      status: "error",
+      status: finalStatus,
       errorMessage: String(err?.message ?? err).slice(0, 500),
-      currentStage: "Failed",
+      currentStage: prevErrIsTimeout ? "Permanently failed (repeated FFmpeg timeout)" : "Failed",
     }).where(eq(streamEditJobs.id, jobId)).catch(() => {});
   } finally {
     activeJobId = null;
