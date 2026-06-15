@@ -87,6 +87,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   65: { name: "Blacklist New Storm Videos",          category: "cleanup", description: "Hard-fails additional storm videos found in late June 2026" },
   66: { name: "Cancel Unresolvable Grinder Shorts",  category: "cleanup", description: "Cancels content-grinder Shorts with unresolvable source videos" },
   67: { name: "Seed SEO Templates",                  category: "seeding", description: "Seeds 15 BF6 SEO template principles into masterKnowledgeBank for all users" },
+  76: { name: "Create autonomous_action_log",         category: "schema",  description: "Creates autonomous_action_log table + 3 indexes if missing (community-auto-manager was erroring)" },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -4370,6 +4371,39 @@ async function migration075CancelACItemsResurrectedByBootReset(): Promise<void> 
   }
 }
 
+async function migration076CreateAutonomousActionLog(): Promise<void> {
+  const FLAG = "migration:076:create_autonomous_action_log_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // The autonomous_action_log table is defined in shared/schema.ts but was never
+    // created in the production database via db:push. community-auto-manager and
+    // other engines that log to this table were throwing "relation does not exist"
+    // on every run. Create the table + indexes idempotently so the service recovers
+    // on next boot without any manual intervention.
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS autonomous_action_log (
+        id serial PRIMARY KEY,
+        user_id text NOT NULL,
+        engine text NOT NULL,
+        action text NOT NULL,
+        reasoning text,
+        payload jsonb,
+        prompt text,
+        response text,
+        published_content text,
+        created_at timestamptz DEFAULT now()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS aal_user_idx    ON autonomous_action_log (user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS aal_engine_idx  ON autonomous_action_log (engine)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS aal_created_idx ON autonomous_action_log (created_at)`);
+    await setFlag(FLAG);
+    log.info("[Migration 076] autonomous_action_log table + indexes created (or already existed)");
+  } catch (err: any) {
+    log.warn(`[Migration 076] Failed (non-fatal): ${err?.message}`);
+  }
+}
+
 async function migration073BlockOffBrandStudioVideosAndFailBadVault(): Promise<void> {
   const FLAG = "migration:073:block_offbrand_studio_and_fail_bad_vault_v1";
   if (await getFlag(FLAG)) return;
@@ -4549,6 +4583,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration073BlockOffBrandStudioVideosAndFailBadVault();
     await migration074PurgeACShortsDeferStorm();
     await migration075CancelACItemsResurrectedByBootReset();
+    await migration076CreateAutonomousActionLog();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

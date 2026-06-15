@@ -483,6 +483,14 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
   _autoThumbnailRunning = true;
 
   try {
+    // Quota breaker guard — skip all YouTube API calls while the breaker is
+    // active.  The breaker self-clears at midnight Pacific via the quota-reset
+    // cron; thumbnails will resume automatically on the next scheduled run.
+    if (isQuotaBreakerTripped()) {
+      logger.info("[AutoThumbnail] Generation skipped — YouTube quota circuit breaker active");
+      return { generated, skipped };
+    }
+
     // Upload-first policy: thumbnails burn 50 units each. Getting videos onto
     // YouTube as private/scheduled content is always higher priority. Defer
     // until there are no pending video uploads left for the publisher to handle.
@@ -519,6 +527,8 @@ export async function runAutoThumbnailGeneration(): Promise<{ generated: number;
 
       for (const video of userVideos) {
         if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+        // Mid-batch quota guard — break immediately if the breaker trips during the loop.
+        if (isQuotaBreakerTripped()) break;
 
         const meta = (video.metadata as any) || {};
 

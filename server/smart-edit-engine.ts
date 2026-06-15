@@ -826,6 +826,14 @@ export async function processSmartEditQueue(userId: string, correlationId?: stri
     if (!kernelResult.success) {
       if (kernelResult.reason === "idempotent-skip") {
         logger.info("Smart edit job skipped (idempotent)", { userId, videoId: sourceVideoId, queueItemId: item.id });
+      } else if (kernelResult.reason === "trust-budget-exhausted") {
+        // Kernel trust budget exhausted — stop the whole queue loop and cool down
+        // for 1 hour.  Leave the item as pending so it retries after cooldown;
+        // the budgetExhaustedUntil guard at the top of processSmartEditQueue
+        // prevents external triggers (drip-feed, upload.detected) from re-entering.
+        budgetBlocked = true;
+        budgetExhaustedUntil.set(userId, Date.now() + BUDGET_EXHAUSTED_COOLDOWN_MS);
+        logger.warn("Smart edit blocked by kernel trust budget — cooling down 1 hour", { userId, videoId: sourceVideoId });
       } else {
         const reason = kernelResult.reason || kernelResult.error || "kernel-denied";
         logger.warn("Smart edit job denied by kernel", { userId, videoId: sourceVideoId, reason });

@@ -103,13 +103,21 @@ function isViralCapCachedExhausted(): boolean {
   return false;
 }
 
-function markViralCapExhausted(reason: string): void {
+function markViralCapExhausted(reason: string, hourlyOnly = false): void {
   if (_viralCapExhaustedUntil > 0) return;  // already cached
-  const utcMidnight = new Date();
-  utcMidnight.setUTCHours(24, 0, 0, 0);
-  _viralCapExhaustedUntil = utcMidnight.getTime();
+  const until = new Date();
+  if (hourlyOnly) {
+    // Hourly cap hit — suppress only until the next hour boundary (+5 min buffer).
+    // The hourly cap resets in <60 min; suppressing until midnight would waste a
+    // full day of viral-optimizer cycles for a transient per-hour limit.
+    until.setUTCHours(until.getUTCHours() + 1, 5, 0, 0);
+  } else {
+    until.setUTCHours(24, 0, 0, 0); // daily cap — suppress until midnight UTC
+  }
+  _viralCapExhaustedUntil = until.getTime();
   const minutesLeft = Math.round((_viralCapExhaustedUntil - Date.now()) / 60_000);
-  logger.warn(`[BacklogEngine] viral-optimizer ${reason} — suppressing all retries for ${minutesLeft}min until midnight UTC`);
+  const resetLabel = hourlyOnly ? "next hour" : "midnight UTC";
+  logger.warn(`[BacklogEngine] viral-optimizer ${reason} — suppressing all retries for ${minutesLeft}min until ${resetLabel}`);
 }
 
 registerCleanup("backlogSessions", () => {
@@ -927,7 +935,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   }
   const capCheck = checkTokenBudgets("viral-optimizer", 3000);
   if (!capCheck.allowed) {
-    markViralCapExhausted(capCheck.reason ?? "hourly cap reached");
+    markViralCapExhausted(capCheck.reason ?? "hourly cap reached", true);
     return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: capCheck.reason ?? `viral-optimizer token cap reached` };
   }
 
@@ -999,7 +1007,7 @@ export async function viralOptimizeVideo(userId: string, videoId: number): Promi
   {
     const postAcquireCap = checkTokenBudgets("viral-optimizer", 3000);
     if (!postAcquireCap.allowed) {
-      markViralCapExhausted(postAcquireCap.reason ?? "hourly cap reached post-acquire");
+      markViralCapExhausted(postAcquireCap.reason ?? "hourly cap reached post-acquire", true);
       _releaseViralOpt();
       return { optimized: false, youtubeUpdated: false, thumbnailQueued: false, seoScore: 0, error: postAcquireCap.reason ?? `viral-optimizer token cap reached post-acquire` };
     }
