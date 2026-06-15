@@ -4693,6 +4693,32 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 //   ShortsPublisher correctly rejects them but the status='failed' DB update
 //   can fail during pool exhaustion, leaving them in 'pending'/'scheduled'
 //   and picked up on every publisher loop indefinitely.
+// ── Migration 084: Delete ghost channel 52 (ET Gaming 247 / demo row) ─────────
+// channel 52 was created by the google_api_demo_reviewer seed user on 2026-06-03.
+// It has no OAuth token and no real data. Its only impact has been:
+//   - "lower id wins" queries picking channel 52 before the real channel 53
+//     (e.g. publisher/operator `.find(c => c.accessToken)` ghost-bypass bugs)
+//   - FK rows in `videos` (10,227 demo/catalog records from the seed)
+// Deletion order: videos first (FK child) → channels (FK parent).
+// All other FK tables (back_catalog_videos, compliance_records, etc.) are 0 rows.
+async function migration084DeleteGhostChannel52(): Promise<void> {
+  const FLAG = "migration:084:delete_ghost_channel_52_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r1 = await db.execute(sql`DELETE FROM videos WHERE channel_id = 52`);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+
+    const r2 = await db.execute(sql`DELETE FROM channels WHERE id = 52`);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+
+    log.info(`[Migration 084] Deleted ghost channel 52: removed ${rows1} video rows, ${rows2} channel row`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 084] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration083CancelNonBf6StreamEditJobsAndOversizedShorts(): Promise<void> {
   const FLAG = "migration:083:cancel_non_bf6_stream_edit_jobs_oversized_shorts_v1";
   if (await getFlag(FLAG)) return;
@@ -4952,6 +4978,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration081SeedInitialPromptVersions();
     await migration082CancelT4PKhDhQPp0Items();
     await migration083CancelNonBf6StreamEditJobsAndOversizedShorts();
+    await migration084DeleteGhostChannel52();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
