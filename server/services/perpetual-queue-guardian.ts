@@ -14,8 +14,8 @@
  */
 
 import { db } from "../db";
-import { eq, and, gte, lte, inArray, sql, count } from "drizzle-orm";
-import { autopilotQueue } from "@shared/schema";
+import { eq, and, gte, lte, inArray, isNotNull, sql, count } from "drizzle-orm";
+import { autopilotQueue, channels } from "@shared/schema";
 import { logger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { storage } from "../storage";
@@ -150,13 +150,23 @@ async function runGuardianCheck(): Promise<void> {
   if (isQuotaBreakerTripped()) return;
 
   try {
-    const users = await storage.getAllUsers().catch(() => [] as any[]);
-    const activeUsers = Array.isArray(users) && users.length > 0
-      ? users
-      : (await db.selectDistinct({ userId: autopilotQueue.userId }).from(autopilotQueue).limit(20)).map(r => ({ id: r.userId }));
+    // Use YouTube channels-with-token as the authoritative user source.
+    // Avoids iterating ghost/demo users (google_api_demo_reviewer, tiktok_* IDs)
+    // that appear in autopilot_queue or users table but have no real channel.
+    // Falls back to getAllUsers() only if the channels query itself fails.
+    const channelRows = await db
+      .selectDistinct({ userId: channels.userId })
+      .from(channels)
+      .where(and(eq(channels.platform, "youtube"), isNotNull(channels.accessToken)))
+      .catch(() => [] as { userId: string }[]);
+
+    const activeUsers: Array<{ id: string }> = channelRows.length > 0
+      ? channelRows.map(r => ({ id: r.userId }))
+      : ((await storage.getAllUsers().catch(() => [])) as any[]);
 
     for (const user of activeUsers) {
-      const uid = typeof user === "string" ? user : (user.id ?? user.userId ?? "");
+      const u = user as any;
+      const uid = typeof u === "string" ? u : (u.id ?? u.userId ?? "");
       if (uid) await checkUser(uid);
     }
   } catch (err: any) {

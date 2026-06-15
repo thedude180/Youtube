@@ -1436,9 +1436,9 @@ async function watchdogCheck(isStartup = false): Promise<void> {
     // immediately rather than waiting 5 hours for the normal threshold.
     // After startup: only reset jobs that have been running > 5 hours.
     const stuckQuery = isStartup
-      ? db.select({ id: streamEditJobs.id }).from(streamEditJobs)
+      ? db.select({ id: streamEditJobs.id, startedAt: streamEditJobs.startedAt }).from(streamEditJobs)
           .where(eq(streamEditJobs.status, "processing"))
-      : db.select({ id: streamEditJobs.id }).from(streamEditJobs)
+      : db.select({ id: streamEditJobs.id, startedAt: streamEditJobs.startedAt }).from(streamEditJobs)
           .where(
             and(
               eq(streamEditJobs.status, "processing"),
@@ -1451,28 +1451,76 @@ async function watchdogCheck(isStartup = false): Promise<void> {
     if (stuck.length === 0) return;
 
     const stuckIds = stuck.map((j) => j.id);
+
     if (isStartup) {
-      logger.warn(`[StreamEditor] Startup recovery: ${stuckIds.length} job(s) left in "processing" from previous run — resetting to queued: ${stuckIds.join(", ")}`);
+      // On startup, split by how long the job had been running when the crash occurred.
+      // A job that was processing for > 2 hours is almost certainly the *cause* of the
+      // crash (FFmpeg CPU-starvation → event-loop block → health-check timeout).
+      // Re-queuing it would restart the same FFmpeg run and crash the server again.
+      // A job that started recently (<2 h) is safe to retry — it was probably caught
+      // in a transient OOM or unrelated restart.
+      const LONG_RUN_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
+      const now = Date.now();
+      const longRunningIds: number[] = [];
+      const recentIds: number[] = [];
+      for (const j of stuck) {
+        const sa = j.startedAt ? new Date(j.startedAt as any).getTime() : null;
+        if (sa && (now - sa) > LONG_RUN_THRESHOLD_MS) {
+          longRunningIds.push(j.id);
+        } else {
+          recentIds.push(j.id);
+        }
+      }
+
+      if (longRunningIds.length > 0) {
+        logger.warn(
+          `[StreamEditor] Startup recovery: ${longRunningIds.length} long-running job(s) (>2h when crashed) — ` +
+          `cancelling permanently to prevent FFmpeg crash loop: ${longRunningIds.join(", ")}`,
+        );
+        await db
+          .update(streamEditJobs)
+          .set({
+            status: "cancelled",
+            errorMessage: "Cancelled on startup — was processing >2h when server crashed (FFmpeg event-loop starvation prevention)",
+            currentStage: "Cancelled (crash-loop prevention)",
+            completedAt: new Date(),
+          })
+          .where(inArray(streamEditJobs.id, longRunningIds));
+        if (activeJobId !== null && longRunningIds.includes(activeJobId)) activeJobId = null;
+      }
+
+      if (recentIds.length > 0) {
+        logger.warn(
+          `[StreamEditor] Startup recovery: ${recentIds.length} job(s) left in "processing" from previous run — ` +
+          `resetting to queued: ${recentIds.join(", ")}`,
+        );
+        await db
+          .update(streamEditJobs)
+          .set({
+            status: "queued",
+            errorMessage: "Reset on startup — server restarted while job was running",
+            currentStage: "Re-queued (restart recovery)",
+            startedAt: null,
+            completedAt: null,
+          })
+          .where(inArray(streamEditJobs.id, recentIds));
+        if (activeJobId !== null && recentIds.includes(activeJobId)) activeJobId = null;
+      }
     } else {
       logger.warn(`[StreamEditor] Watchdog: ${stuckIds.length} job(s) stuck in processing >5 hours — resetting to queued: ${stuckIds.join(", ")}`);
-    }
-
-    await db
-      .update(streamEditJobs)
-      .set({
-        status: "queued",
-        errorMessage: isStartup
-          ? "Reset on startup — server restarted while job was running"
-          : "Reset by watchdog — was stuck in processing >5 hours",
-        currentStage: "Re-queued (restart recovery)",
-        startedAt: null,
-        completedAt: null,
-      })
-      .where(inArray(streamEditJobs.id, stuckIds));
-
-    // Release the in-memory lock if it was held by one of the stuck jobs
-    if (activeJobId !== null && stuckIds.includes(activeJobId)) {
-      activeJobId = null;
+      await db
+        .update(streamEditJobs)
+        .set({
+          status: "queued",
+          errorMessage: "Reset by watchdog — was stuck in processing >5 hours",
+          currentStage: "Re-queued (restart recovery)",
+          startedAt: null,
+          completedAt: null,
+        })
+        .where(inArray(streamEditJobs.id, stuckIds));
+      if (activeJobId !== null && stuckIds.includes(activeJobId)) {
+        activeJobId = null;
+      }
     }
 
     await pickUpNextQueuedJob();

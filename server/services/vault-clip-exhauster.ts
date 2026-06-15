@@ -147,11 +147,17 @@ export async function runVaultExhaustSweep(batchSize = 50): Promise<void> {
       WHERE cvb.status = 'downloaded'
         AND cvb.youtube_id NOT LIKE 'local_%'
         AND cvb.youtube_id NOT LIKE 'clip_%'
+        AND (
+          cvb.game_name IS NULL
+          OR cvb.game_name ILIKE '%battlefield%'
+          OR cvb.game_name ILIKE '%bf6%'
+          OR cvb.game_name ILIKE '%bf 6%'
+        )
         AND NOT EXISTS (
           SELECT 1 FROM stream_edit_jobs sej
           WHERE sej.vault_entry_id = cvb.id
             AND sej.user_id = cvb.user_id
-            AND sej.status != 'error'
+            AND sej.status NOT IN ('error', 'cancelled')
         )
       LIMIT ${batchSize}
     `);

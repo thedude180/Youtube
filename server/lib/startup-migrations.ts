@@ -4672,6 +4672,63 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
   }
 }
 
+// ── Migration 083: Cancel non-BF6 stream_edit_jobs + oversized Short items ─────
+// Problem 1 — stream_edit_jobs crash loop:
+//   5,130+ stream_edit_jobs in 'queued'/'processing' status, ALL for non-BF6
+//   games (Assassin's Creed, Mass Effect, Shadow of Mordor) from April 2026.
+//   Job 50 (Mass Effect) has been the proximate cause of every recent crash:
+//     1. Server boots → startup recovery resets job 50 from 'processing' → 'queued'
+//     2. Stream editor picks it up → starts FFmpeg at 0.03x speed (very slow)
+//     3. FFmpeg runs for 5.5+ hours consuming 100% CPU
+//     4. Node.js event loop starved → DB connections time out → healthcheck fails
+//     5. Server crashes → goto 1
+//   Setting all non-BF6 jobs to 'cancelled' (NOT 'error') is the correct status:
+//     - Stream editor only picks up 'queued' jobs (cancelled is ignored)
+//     - Startup recovery only resets 'processing' jobs (cancelled is skipped)
+//     - Vault-clip-exhauster NOT EXISTS check finds 'cancelled' rows and skips
+//       recreation (it skips entries where any non-'error' job exists)
+//
+// Problem 2 — oversized Short items stuck in publisher loop:
+//   Items 42884 and 42943 (and any others) have endSec − startSec = 75s.
+//   ShortsPublisher correctly rejects them but the status='failed' DB update
+//   can fail during pool exhaustion, leaving them in 'pending'/'scheduled'
+//   and picked up on every publisher loop indefinitely.
+async function migration083CancelNonBf6StreamEditJobsAndOversizedShorts(): Promise<void> {
+  const FLAG = "migration:083:cancel_non_bf6_stream_edit_jobs_oversized_shorts_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r1 = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET   status        = 'cancelled',
+            error_message = 'migration-083: non-BF6 content — ET Gaming 274 is BF6-only (cancelled Jun 15 2026)',
+            completed_at  = NOW()
+      WHERE status IN ('queued', 'processing')
+    `);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET   status   = 'cancelled',
+            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+              'failReason',
+              'migration-083: segment duration > 60s — cannot be a YouTube Short'
+            )
+      WHERE type IN ('youtube_short', 'auto-clip', 'vod-short', 'platform_short')
+        AND status IN ('scheduled', 'pending', 'failed')
+        AND (metadata->>'endSec')   IS NOT NULL
+        AND (metadata->>'startSec') IS NOT NULL
+        AND ((metadata->>'endSec')::float - (metadata->>'startSec')::float) > 60
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+
+    log.info(`[Migration 083] Cancelled ${rows1} non-BF6 stream_edit_jobs, ${rows2} oversized Short items (>60s segment)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 083] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4894,6 +4951,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration080CancelSmartEditItemsAndFixGhostChannel();
     await migration081SeedInitialPromptVersions();
     await migration082CancelT4PKhDhQPp0Items();
+    await migration083CancelNonBf6StreamEditJobsAndOversizedShorts();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
