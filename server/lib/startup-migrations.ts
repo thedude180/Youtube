@@ -1216,6 +1216,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:074:purge_ac_shorts_defer_storm_v1", label: "074 — purge 132 AC Unity youtube_short items stuck in pre-encoder defer storm (migration-072 channel_id column bug — Jun 14 2026)" },
   { flag: "migration:075:cancel_ac_items_resurrected_by_boot_reset_v1", label: "075 — cancel 131 AC/off-brand items resurrected by boot full-queue-reset; use 'cancelled' status to survive future resets (Jun 14 2026)" },
   { flag: "migration:080:cancel_smart_edit_and_fix_ghost_channel_v1",   label: "080 — cancel smart-edit stub items (no publisher) + set needs_reconnect on channel 52 ghost (Jun 15 2026)" },
+  { flag: "migration:081:seed_initial_prompt_versions_v1",               label: "081 — seed 7 BF6-tuned v1 prompt_versions for ASI pillar #3 prompt-self-improver (Jun 15 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4542,6 +4543,100 @@ async function migration080CancelSmartEditItemsAndFixGhostChannel(): Promise<voi
   }
 }
 
+async function migration081SeedInitialPromptVersions(): Promise<void> {
+  // Seeds v1 baseline prompts for all 7 IMPROVABLE_KEYS so the prompt-self-improver
+  // (ASI pillar #3) has active prompts to evolve. Without at least one active row per
+  // key, runPromptSelfImprovement() exits immediately with "No improvable active prompts".
+  // These are channel-tuned BF6 baseline prompts; the self-improver evolves them further
+  // every weekly learning cycle using accumulated masterKnowledgeBank knowledge.
+  const FLAG = "migration:081:seed_initial_prompt_versions_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Only seed keys that have no active version yet (idempotent)
+    const existing = await db.execute(sql`
+      SELECT DISTINCT prompt_key FROM prompt_versions WHERE status = 'active'
+    `);
+    const existingKeys = new Set(
+      ((existing as any).rows ?? []).map((r: any) => r.prompt_key)
+    );
+
+    const MODEL = "gpt-4o-mini";
+    const seeds: Array<{ key: string; sys: string; tpl: string; temp: number; maxTok: number }> = [
+      {
+        key: "title_generation",
+        sys: "You are an expert YouTube title writer for ET Gaming 274, a Battlefield 6 (BF6) no-commentary gaming channel with 6K subscribers. Write high-CTR titles that are specific, curiosity-driven, and authentic to gameplay.",
+        tpl: "Write 5 YouTube title options for a BF6 clip described as: {{clipDescription}}. Focus on the action moment. Keep titles under 70 characters. No clickbait. Format: numbered list.",
+        temp: 0.8,
+        maxTok: 300,
+      },
+      {
+        key: "thumbnail_concept",
+        sys: "You are a YouTube thumbnail strategist for ET Gaming 274, a BF6 no-commentary channel. Design thumbnail concepts that show the peak moment with clear visual hierarchy: player action + result + minimal text.",
+        tpl: "Design 3 thumbnail concepts for this BF6 clip: {{clipDescription}}. For each: (1) key visual element, (2) background action, (3) text overlay (max 3 words). Channel style: clean, bold, dark atmosphere.",
+        temp: 0.75,
+        maxTok: 400,
+      },
+      {
+        key: "short_hook",
+        sys: "You are a YouTube Shorts hook writer for ET Gaming 274. The channel posts BF6 no-commentary gameplay clips as Shorts. The first 2 seconds must stop the scroll. Use the clip's peak moment as the hook.",
+        tpl: "Write a 2-second spoken hook (under 10 words) for a BF6 Short about: {{clipDescription}}. It should create instant curiosity or show off the best moment. Output 5 options.",
+        temp: 0.9,
+        maxTok: 200,
+      },
+      {
+        key: "description_generation",
+        sys: "You write YouTube video descriptions for ET Gaming 274, a BF6 no-commentary channel. Descriptions should be keyword-rich, include relevant tags, and give context about the gameplay without spoiling the action.",
+        tpl: "Write a YouTube description for a BF6 video: {{videoTitle}}. Include: (1) 2-sentence overview, (2) gameplay details, (3) 5 relevant hashtags, (4) CTA to subscribe. Keep under 300 words.",
+        temp: 0.7,
+        maxTok: 500,
+      },
+      {
+        key: "seo_tags",
+        sys: "You are a YouTube SEO specialist for gaming channels. Generate tags that maximize discoverability for BF6 content on ET Gaming 274. Mix broad gaming tags with specific BF6 terms.",
+        tpl: "Generate 30 YouTube tags for a BF6 video: {{videoTitle}}. Mix: BF6-specific terms, general FPS tags, gameplay style tags, and trending gaming terms. Output as comma-separated list, max 30 chars each.",
+        temp: 0.5,
+        maxTok: 300,
+      },
+      {
+        key: "clip_selection",
+        sys: "You are a video editor selecting the best clips from BF6 gameplay footage for ET Gaming 274. Prioritize: high-action moments, rare events, surprising outcomes, and clean technical play. No commentary clips.",
+        tpl: "Score these BF6 clip candidates for a Short (0-100): {{clipCandidates}}. Rate each on: action intensity, visual clarity, duration fit (15-60s), and virality potential. Output JSON with id, score, reason.",
+        temp: 0.6,
+        maxTok: 600,
+      },
+      {
+        key: "video_scoring",
+        sys: "You are a content quality analyst for ET Gaming 274, a BF6 YouTube channel. Score videos based on their performance potential: hook strength, gameplay quality, and audience retention signals.",
+        tpl: "Score this BF6 video for upload priority (0-100): {{videoMetadata}}. Rate: hook (0-30), gameplay quality (0-30), title strength (0-20), thumbnail potential (0-20). Output JSON: totalScore, breakdown, recommendation.",
+        temp: 0.5,
+        maxTok: 400,
+      },
+    ];
+
+    let seeded = 0;
+    for (const s of seeds) {
+      if (existingKeys.has(s.key)) {
+        log.info(`[Migration 081] Prompt key '${s.key}' already has active version — skipping`);
+        continue;
+      }
+      await db.execute(sql`
+        INSERT INTO prompt_versions (prompt_key, version, model, system_prompt, user_prompt_template, temperature, max_tokens, status, metadata)
+        VALUES (
+          ${s.key}, 1, ${MODEL}, ${s.sys}, ${s.tpl}, ${s.temp}, ${s.maxTok}, 'active',
+          '{"seededBy":"migration081","channel":"ET Gaming 274","game":"Battlefield 6"}'::jsonb
+        )
+      `);
+      seeded++;
+    }
+
+    log.info(`[Migration 081] Seeded ${seeded} initial prompt versions for ASI pillar #3 (prompt-self-improver)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 081] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4762,6 +4857,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration078CancelOffBrandContentPipelines();
     await migration079FailT4PKhDhQPp0GhostVaultRow();
     await migration080CancelSmartEditItemsAndFixGhostChannel();
+    await migration081SeedInitialPromptVersions();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

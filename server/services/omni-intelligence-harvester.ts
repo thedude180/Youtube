@@ -27,6 +27,7 @@ import fs from "fs";
 import { db } from "../db";
 import {
   users, channels, intelligenceSignals, predictiveTrends, growthStrategies, capabilityGaps,
+  systemSettings,
 } from "@shared/schema";
 import { eq, and, desc, gte, lt, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
@@ -682,8 +683,8 @@ async function synthesizeIntelligence(userId: string): Promise<void> {
     .orderBy(desc(intelligenceSignals.score))
     .limit(80);
 
-  if (signals.length < 5) {
-    logger.info("Not enough signals to synthesize — skipping", { userId: userId.slice(0, 8) });
+  if (signals.length < 3) {
+    logger.info("Not enough signals to synthesize — skipping", { userId: userId.slice(0, 8), signalCount: signals.length });
     return;
   }
 
@@ -992,6 +993,16 @@ export async function runIntelligenceCycle(): Promise<void> {
         logger.info("Harvest complete — running AI synthesis", { userId: userId.slice(0, 8), ...counts, total });
 
         await synthesizeIntelligence(userId);
+
+        // Record last-run timestamp so the dashboard / brain can report ASI health
+        try {
+          await db.insert(systemSettings)
+            .values({ key: `omni-intelligence:lastRun:${userId}`, value: JSON.stringify({ ranAt: new Date().toISOString(), counts }) })
+            .onConflictDoUpdate({
+              target: systemSettings.key,
+              set: { value: JSON.stringify({ ranAt: new Date().toISOString(), counts }) },
+            });
+        } catch { /* non-critical */ }
       } catch (err: any) {
         logger.error("Harvest cycle error for user", { userId: userId.slice(0, 8), err: err.message?.slice(0, 200) });
       }

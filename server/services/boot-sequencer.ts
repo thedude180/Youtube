@@ -23,6 +23,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { isEnabled } from "../config/service-gates";
 
 const logger = createLogger("boot-sequencer");
 
@@ -74,6 +75,10 @@ export function staggeredBoot(items: BootItem[], gapMs: number = 1_500): void {
   items.forEach(({ label, fn }, i) => {
     const offsetMs = i * gapMs;
     setTimeout(() => {
+      if (!isEnabled(label)) {
+        logger.debug(`[BootSeq] ⏭ ${label} — disabled in service-gates`);
+        return;
+      }
       try {
         logger.info(`[BootSeq] ▶ ${label}`, { offsetMs });
         fn();
@@ -104,6 +109,10 @@ export function staggeredBoot(items: BootItem[], gapMs: number = 1_500): void {
  */
 export async function sequentialBoot(items: BootItem[], gapMs: number = 1_500): Promise<void> {
   for (const { label, fn } of items) {
+    if (!isEnabled(label)) {
+      logger.debug(`[BootSeq] ⏭ ${label} — disabled in service-gates`);
+      continue; // skip gap too — no API call was made
+    }
     try {
       logger.info(`[BootSeq] ▶ ${label} (sequential)`);
       const result = fn();

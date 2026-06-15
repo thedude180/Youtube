@@ -68,10 +68,11 @@ const DISABLED_SERVICES = new Set<string>([
   "infinite-evolution-engine",
   "knowledge-mesh",
 
-  // ── Wave 10.5: ALL 18 deep meta-intelligence engines ─────────────────────
-  // Single key "meta-intelligence" gates the entire wave block.
-  // Individual keys listed too so they can be selectively re-enabled later.
-  "meta-intelligence",
+  // ── Wave 10.5: ASI meta-intelligence engines ─────────────────────────────
+  // "meta-intelligence" gates the wave block — keep enabled so the wave runs.
+  // Individual engines below are selectively enabled/disabled.
+  // ENABLED: omni-intelligence-harvester (feeds all 5 ASI pillars)
+  // All others remain disabled to avoid memory pressure.
   "engine-interval-tuner",
   "closed-loop-attribution",
   "prompt-evolution-engine",
@@ -84,7 +85,6 @@ const DISABLED_SERVICES = new Set<string>([
   "decision-chronicler",
   "autonomous-capability-engine",
   "internet-benchmark-engine",
-  "omni-intelligence-harvester",
   "niche-video-researcher",
   "generation-cohort-tracker",
   "viral-prediction-engine",
