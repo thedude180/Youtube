@@ -5218,6 +5218,211 @@ async function migration091FailInnerTube400Videos(): Promise<void> {
   }
 }
 
+// ── Migration 092: Re-do 090 Step 2 dead-zone guard with safe regex cast ──────
+// Migration 090 Step 2 failed because `::float` on arbitrary jsonb metadata
+// strings throws "invalid input syntax for type double precision" for any row
+// whose metadata field contains a non-numeric value (e.g. null, empty string).
+// Fix: use `~ '^[0-9]+(\.[0-9]+)?$'` regex to pre-filter rows before casting.
+// Uses sql.raw() to embed the pattern directly — no Drizzle array spreading.
+async function migration092CancelDeadZoneShortsV2(): Promise<void> {
+  const FLAG = "migration:092:cancel_dead_zone_shorts_v2";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-092: segment duration dead zone (>60s Short max, <480s long-form min)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-090:segment-duration-dead-zone"}'::jsonb
+      WHERE content_type IN ('youtube_short','auto-clip','vod-short','platform_short')
+        AND status NOT IN ('completed', 'cancelled')
+        AND (
+          (
+            metadata->>'endSec'   ~ '^[0-9]+(\\.[0-9]+)?$'
+            AND metadata->>'startSec' ~ '^[0-9]+(\\.[0-9]+)?$'
+            AND (metadata->>'endSec')::numeric - (metadata->>'startSec')::numeric BETWEEN 61 AND 479
+          )
+          OR (
+            metadata->>'segmentEndSec'   ~ '^[0-9]+(\\.[0-9]+)?$'
+            AND metadata->>'segmentStartSec' ~ '^[0-9]+(\\.[0-9]+)?$'
+            AND (metadata->>'segmentEndSec')::numeric - (metadata->>'segmentStartSec')::numeric BETWEEN 61 AND 479
+          )
+        )
+    `));
+    const rows = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 092] Dead-zone general guard: ${rows} Short(s) cancelled`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 092] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 093: Re-do 091 InnerTube-400 list with correct SQL ──────────────
+// Migration 091 failed because Drizzle's sql`` tag spreads a JS string[] as
+// individual params: ANY(($1,$2,…) ::text[]).  PostgreSQL cannot cast a row
+// constructor to text[].  Fix: use sql.raw() to embed the IN list as a literal.
+async function migration093FailInnerTube400VideosV2(): Promise<void> {
+  const FLAG = "migration:093:fail_innertube_400_videos_v2";
+  if (await getFlag(FLAG)) return;
+  try {
+    const BAD_IDS = [
+      'fasukGbacL4','YGeTO9XQS9o','6FKNVbVclfE','kAutnOJuZ9c',
+      '0PSExmaZYHc','_MDrY7r_nPo','tWcl8Dzwq1Y','uNO1-_CQjYQ',
+      'Vuw3XzGwXbw','uxUjyqr7Ojw','tY6sfE50OYA','vj5QqC52pH4',
+      'ZBccquH1QY4','fCueLH3d8YE','M1XrPfFv6LM','1Zgpjx9iQAs',
+    ];
+    const idsList = BAD_IDS.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+
+    const r1 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status   = 'failed',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"failCount":10,"permanentFail":true,"downloadError":"PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS","failedBy":"migration-091"}'::jsonb
+      WHERE youtube_id IN (${idsList})
+        AND status NOT IN ('downloaded')
+    `));
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+    log.info(`[Migration 093] Vault entries permanently failed: ${rows1} row(s)`);
+
+    const r2 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-093: source video permanently inaccessible (InnerTube HTTP 400 all clients)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-091:innertube-400-perm-unavailable"}'::jsonb
+      WHERE metadata->>'sourceYoutubeId' IN (${idsList})
+        AND status NOT IN ('completed', 'cancelled')
+    `));
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+    log.info(`[Migration 093] Queue items cancelled for HTTP-400 sources: ${rows2} row(s)`);
+
+    const r3 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET is_shorts_mined    = true,
+          is_long_form_mined = true
+      WHERE youtube_video_id IN (${idsList})
+    `));
+    const rows3 = (r3 as any)?.rowCount ?? 0;
+    log.info(`[Migration 093] Back-catalog videos marked fully mined: ${rows3} row(s)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 093] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 094: Cancel crash-loop stream_edit_job 18117 ───────────────────
+// Job 18117 is a 2h source video that OOM-crashes the container every 33 min.
+// Pattern: stream editor startup recovery resets it from processing→queued at
+// T+16min → FFmpeg runs for 20min → heap grows → MemoryGuardian triggers
+// process.exit(1) at T+33min → container restarts → repeat.
+// Cancelling it here (flagged) breaks this boot's cycle.
+// The non-flagged cancelLongStreamEditJobs() below ensures it stays cancelled
+// on every future boot regardless of migration flag state.
+async function migration094CancelJob18117(): Promise<void> {
+  const FLAG = "migration:094:cancel_job_18117_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET status = 'cancelled'
+      WHERE id = 18117
+        AND status IN ('queued','processing','failed')
+    `);
+    const rows = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 094] Cancelled crash-loop stream_edit_job 18117: ${rows} row(s)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 094] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 095: Permanently fail 6 new InnerTube HTTP-400 videos ──────────
+// Seen in production deployment logs Jun 15 2026 (post-migration 091 boot):
+// 51VZuzW1Qbc, 1w_7jiJf_PU, b01vc_9NaQE, SoHpza4Uqlo, jc1wEF6vDUo, SN6AkGAItu8
+// All returned "Request contains an invalid argument" (HTTP 400) from ANDROID
+// and IOS InnerTube clients.  Same pattern as migration 091 / 093.
+async function migration095FailNewInnerTube400Videos(): Promise<void> {
+  const FLAG = "migration:095:fail_new_innertube_400_videos_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const NEW_BAD_IDS = [
+      '51VZuzW1Qbc','1w_7jiJf_PU','b01vc_9NaQE',
+      'SoHpza4Uqlo','jc1wEF6vDUo','SN6AkGAItu8',
+    ];
+    const idsList = NEW_BAD_IDS.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+
+    const r1 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status   = 'failed',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"failCount":10,"permanentFail":true,"downloadError":"PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS","failedBy":"migration-095"}'::jsonb
+      WHERE youtube_id IN (${idsList})
+        AND status NOT IN ('downloaded')
+    `));
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+    log.info(`[Migration 095] New InnerTube-400 batch: vault entries failed: ${rows1} row(s)`);
+
+    const r2 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-095: source video permanently inaccessible (InnerTube HTTP 400 all clients)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-095:innertube-400-perm-unavailable"}'::jsonb
+      WHERE metadata->>'sourceYoutubeId' IN (${idsList})
+        AND status NOT IN ('completed', 'cancelled')
+    `));
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+    log.info(`[Migration 095] New InnerTube-400 batch: queue items cancelled: ${rows2} row(s)`);
+
+    const r3 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET is_shorts_mined    = true,
+          is_long_form_mined = true
+      WHERE youtube_video_id IN (${idsList})
+    `));
+    const rows3 = (r3 as any)?.rowCount ?? 0;
+    log.info(`[Migration 095] New InnerTube-400 batch: catalog videos marked fully mined: ${rows3} row(s)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 095] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Per-boot: cancel known OOM crash-loop stream_edit_jobs (non-flagged) ──────
+// Job 18117 is a 2h source video.  On every crash the job lands in 'processing'
+// state; the stream editor's startup recovery resets it to 'queued' at T+16min;
+// the editor re-processes it → OOM at T+33min → crash loop.
+// This non-flagged function runs at T+3s on every boot, cancelling the job
+// BEFORE the stream editor's startup recovery can re-queue it.
+// Add future problematic job IDs to LONG_STREAM_EDIT_JOB_IDS.
+const LONG_STREAM_EDIT_JOB_IDS = [18117];
+async function cancelLongStreamEditJobs(): Promise<void> {
+  try {
+    if (LONG_STREAM_EDIT_JOB_IDS.length === 0) return;
+    // Use sql.raw() so the int list is embedded as a literal — avoids the
+    // Drizzle array-spread bug that turns ${arr}::int[] into ($1,$2,…)::int[].
+    const idsSql = LONG_STREAM_EDIT_JOB_IDS.join(',');
+    const r = await db.execute(sql.raw(`
+      UPDATE stream_edit_jobs
+      SET status = 'cancelled'
+      WHERE id IN (${idsSql})
+        AND status IN ('queued','processing','failed')
+    `));
+    const rows = (r as any)?.rowCount ?? 0;
+    if (rows > 0) {
+      log.info(`[Boot] Cancelled ${rows} OOM crash-loop stream_edit_job(s): IDs ${LONG_STREAM_EDIT_JOB_IDS.join(',')}`);
+    }
+  } catch (err: any) {
+    log.warn(`[Boot] cancelLongStreamEditJobs failed (non-fatal): ${err?.message?.slice(0, 100)}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5313,6 +5518,10 @@ export async function runStartupMigrations(): Promise<void> {
     await migration089CreateServiceState();
     await migration090CancelDeadZoneShorts();
     await migration091FailInnerTube400Videos();
+    await migration092CancelDeadZoneShortsV2();
+    await migration093FailInnerTube400VideosV2();
+    await migration094CancelJob18117();
+    await migration095FailNewInnerTube400Videos();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -5327,6 +5536,12 @@ export async function runStartupMigrations(): Promise<void> {
 
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
+    // Non-flagged per-boot OOM crash-loop prevention — cancels known long
+    // stream_edit_jobs (e.g. job 18117, 2h source) BEFORE the stream editor's
+    // own startup recovery can reset them from processing→queued at T+16min.
+    // This must run every boot regardless of migration flags so the job stays
+    // cancelled across crash/restart cycles.
+    await cancelLongStreamEditJobs();
     // Non-flagged per-boot non-BF6 purge — removes any scheduled/pending queue
     // items whose gameName doesn't match the channel focus game.  Runs every
     // restart so contamination from content-maximizer, past-stream extraction,
