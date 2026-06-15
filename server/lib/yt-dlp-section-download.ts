@@ -44,10 +44,29 @@ const DOWNLOAD_FORMAT =
   "/best";                                   // absolute fallback
 
 // ---------------------------------------------------------------------------
-// Client strategies — only two, in order of reliability
+// Firefox user-agent pool — section downloads use the same Firefox-only pool
+// as the vault downloader so every yt-dlp process looks like a real browser.
+// Rotating across versions and OSes prevents a static fingerprint.
+// ---------------------------------------------------------------------------
+const SECTION_UA_POOL = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:132.0) Gecko/20100101 Firefox/132.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0",
+  "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:140.0) Gecko/20100101 Firefox/140.0",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0",
+];
+
+// ---------------------------------------------------------------------------
+// Client strategies — web first (Firefox uses YouTube's web player), iOS as
+// fallback for videos that the web client can't serve from datacenter IPs.
 // ---------------------------------------------------------------------------
 const CLIENT_STRATEGIES: Array<{ label: string; args: string[] }> = [
-  { label: "default", args: [] },
+  { label: "web", args: ["--extractor-args", "youtube:player_client=web"] },
   { label: "ios", args: ["--extractor-args", "youtube:player_client=ios"] },
 ];
 
@@ -232,6 +251,11 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
 
   const attempts: string[] = [];
 
+  // Pick a fresh Firefox UA for this download attempt.  Rotating per-attempt
+  // (not per-session) means two consecutive clip downloads from the same source
+  // never share an identical fingerprint.
+  const ua = SECTION_UA_POOL[Math.floor(Math.random() * SECTION_UA_POOL.length)];
+
   for (const client of CLIENT_STRATEGIES) {
     // Remove stale output before each attempt
     try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch {}
@@ -256,6 +280,26 @@ async function _downloadYouTubeSectionInner(opts: DownloadSectionOpts): Promise<
       // falls back to deno (not installed) and fails with "Failed to extract
       // any player response".
       "--js-runtimes", "node",
+      // ── Firefox browser identity ──────────────────────────────────────────
+      // Section downloads previously sent no browser headers at all — YouTube
+      // saw raw yt-dlp requests.  These headers make every section download
+      // look like a Firefox user clicking "save" in the browser.
+      "--user-agent", ua,
+      "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "--add-header", "Accept-Language:en-US,en;q=0.5",
+      "--add-header", "Accept-Encoding:gzip, deflate, br",
+      "--add-header", "DNT:1",
+      "--add-header", "Sec-Fetch-Dest:document",
+      "--add-header", "Sec-Fetch-Mode:navigate",
+      "--add-header", "Sec-Fetch-Site:none",
+      "--add-header", "Sec-Fetch-User:?1",
+      "--add-header", "Cache-Control:max-age=0",
+      "--add-header", "Upgrade-Insecure-Requests:1",
+      "--add-header", "TE:trailers",
+      "--referer", "https://www.youtube.com/",
+      // One fragment at a time — real browsers don't parallel-stream
+      "--concurrent-fragments", "1",
+      // ─────────────────────────────────────────────────────────────────────
       ...client.args,
     ];
     if (hasCookies) args.push("--cookies", resolvedCookiesPath);

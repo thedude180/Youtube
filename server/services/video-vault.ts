@@ -114,42 +114,49 @@ function humanVideoDelay(): number {
   return 15_000 + Math.random() * 30_000; // 15–45 s
 }
 
-// Pool of realistic desktop + mobile user-agents that rotate each download.
-// Mixing Windows/macOS/Android Chrome and Firefox means no two consecutive
-// requests share an identical fingerprint.
+// Firefox-only user-agent pool.  Every download looks like a real Firefox user
+// watching YouTube from a desktop browser.  We rotate across Windows, macOS,
+// and Linux and across a realistic spread of Firefox versions (ESR 128 + ESR 140
+// + current release channel) so no two consecutive downloads share an identical
+// fingerprint.  Using a single browser family is intentional: mixing Chrome/Edge/
+// Safari UAs with Firefox headers creates a detectable mismatch — a real browser
+// sends a consistent fingerprint across UA string, Accept headers, and TLS cipher
+// suites.  We send all Firefox headers to match, so the UA must also be Firefox.
 const BROWSER_UA_POOL = [
-  // Chrome on Windows
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-  // Chrome on macOS
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  // Edge on Windows
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
-  // Firefox on Windows
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
-  // Firefox on macOS
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5; rv:125.0) Gecko/20100101 Firefox/125.0",
-  // Chrome on Android
-  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.61 Mobile Safari/537.36",
-  // Safari on macOS
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+  // Firefox 128 ESR — Windows (LTS; common in stable/corporate environments)
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  // Firefox 128 ESR — macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0",
+  // Firefox 128 ESR — Linux
+  "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0",
+  // Firefox 132 — Windows (release channel, Oct 2024)
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0",
+  // Firefox 132 — macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.7; rv:132.0) Gecko/20100101 Firefox/132.0",
+  // Firefox 136 — Windows (release channel, Feb 2025)
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:136.0) Gecko/20100101 Firefox/136.0",
+  // Firefox 136 — Ubuntu Linux
+  "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:136.0) Gecko/20100101 Firefox/136.0",
+  // Firefox 140 ESR — Windows (next LTS after 128, Jun 2025)
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+  // Firefox 140 ESR — macOS
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:140.0) Gecko/20100101 Firefox/140.0",
+  // Firefox 148 — Windows (release channel, Feb 2026)
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:148.0) Gecko/20100101 Firefox/148.0",
 ];
 // yt-dlp client priority list.
 // "android_testsuite" and "mediaconnect" were added in yt-dlp 2025.01+ specifically
-// When an OAuth token is available, the `web` client plus an Authorization:Bearer
-// header is the most reliable path — YouTube validates the token and bypasses
-// po_token checking for authenticated sessions.  Fall back to the po_token-exempt
-// clients only if the authenticated path also fails.
+// When an OAuth token is available, `web` goes first — a real Firefox user hitting
+// YouTube.com uses the web player, and the OAuth Bearer authenticates it so
+// YouTube bypasses po_token enforcement entirely.  android_vr is confirmed working
+// in production and serves as the first non-browser fallback.
 // IMPORTANT: tv_embedded is intentionally NOT in either list.
 // In production, tv_embedded returns only storyboard images + 1 audio track —
 // no video streams — so every format selector (including "best") reports
 // "Requested format is not available".  Confirmed by --list-formats testing.
-//
-// android_vr is the default yt-dlp client and confirmed working in production.
-// It must appear early in both lists.
 const PLAYER_CLIENTS_WITH_AUTH = [
+  "web",               // Firefox uses the YouTube web player — primary with auth
   "android_vr",        // default yt-dlp client — confirmed working in production
-  "web",               // works well with an OAuth Bearer header
   "android_testsuite", // po_token-exempt (2025+) — backup
   "mediaconnect",      // po_token-exempt (2025+) — backup
   "ios",
@@ -157,8 +164,8 @@ const PLAYER_CLIENTS_WITH_AUTH = [
   "android",
 ];
 
-// Without a token, skip the auth-dependent clients and go straight to the
-// po_token-exempt list.
+// Without a token, android_vr is the most reliable from datacenter IPs because
+// the web client may trigger po_token challenges without an authenticated session.
 const PLAYER_CLIENTS_ANON = [
   "android_vr",        // default yt-dlp client — confirmed working in production
   "android_testsuite", // po_token-exempt (2025+)
@@ -1297,17 +1304,29 @@ async function tryYtDlpDownload(url: string, outputPath: string, playerClient: s
     "--concurrent-fragments", "1",
     // No .part temp files — reduces observable bot signals
     "--no-part",
-    // Rotate browser identity
+    // Rotate Firefox identity — UA and all headers stay consistent within one
+    // browser family so there is no detectable mismatch between UA string and
+    // header fingerprint (Chrome vs Firefox vs Safari each have distinct Accept
+    // and Accept-Encoding values that YouTube can cross-reference).
     "--user-agent", ua,
-    // Navigation context headers (Chromium Sec-Fetch-* suite)
+    // Firefox HTTP request headers (exactly as sent by Firefox 128+ on desktop).
+    // Differences from Chrome that matter for bot-detection:
+    //   • Accept omits image/apng and application/signed-exchange (Chrome-only)
+    //   • Accept-Language uses q=0.5 (Firefox) not q=0.9 (Chrome)
+    //   • Accept-Encoding: gzip, deflate, br — no zstd (Chrome 120+ adds zstd)
+    //   • DNT: 1 — Firefox enables Do Not Track by default in private browsing
+    //   • TE: trailers — Firefox-only HTTP/1.1 extension header
     "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "--add-header", "Accept-Language:en-US,en;q=0.9",
+    "--add-header", "Accept-Language:en-US,en;q=0.5",
+    "--add-header", "Accept-Encoding:gzip, deflate, br",
+    "--add-header", "DNT:1",
     "--add-header", "Sec-Fetch-Dest:document",
     "--add-header", "Sec-Fetch-Mode:navigate",
     "--add-header", "Sec-Fetch-Site:none",
     "--add-header", "Sec-Fetch-User:?1",
     "--add-header", "Cache-Control:max-age=0",
     "--add-header", "Upgrade-Insecure-Requests:1",
+    "--add-header", "TE:trailers",
     "--referer", "https://www.youtube.com/",
     "--extractor-args", `youtube:player_client=${playerClient}`,
     ...authArgs,
