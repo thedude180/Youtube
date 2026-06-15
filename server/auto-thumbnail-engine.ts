@@ -429,6 +429,11 @@ export async function runAutoThumbnailForUser(userId: string): Promise<number> {
 
       for (const video of userVideos) {
         if (generated >= MAX_THUMBNAILS_PER_RUN) break;
+        // Mid-batch quota guard — if the breaker trips during a long run (e.g.
+        // 500-video batch started before quota state was restored from DB), bail
+        // immediately instead of calling generateAndUploadThumbnail for every
+        // remaining video and logging an error for each one.
+        if (isQuotaBreakerTripped()) break;
         const meta = (video.metadata as any) || {};
         const youtubeId = meta.youtubeId;
         if (!youtubeId) continue;
