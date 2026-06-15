@@ -279,7 +279,24 @@ async function generateAndUploadThumbnail(
       const { generateImageBuffer: genImg } = await import("./replit_integrations/image/client");
       imageBuffer = await genImg(prompt, "1536x1024", "high");
     } catch (imgErr) {
-      logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: String(imgErr) });
+      const errStr = String(imgErr);
+      const isSafetyViolation = errStr.includes("safety_violations") || errStr.includes("safety system") || errStr.includes("content_policy") || errStr.includes("[illicit]");
+      if (isSafetyViolation) {
+        // OpenAI rejected the prompt — permanently skip this video so we never
+        // waste an AI slot on it again.  The autoThumbnailFailed flag is checked
+        // by all three thumbnail selection loops (runAutoThumbnailForUser /
+        // runAutoThumbnailGeneration / generateClipThumbnail).
+        logger.warn("Thumbnail generation blocked by AI safety system — permanently skipping", { videoDbId, youtubeId });
+        try {
+          const [row] = await db.select().from(videos).where(eq(videos.id, videoDbId));
+          const existMeta = (row?.metadata as any) || {};
+          await db.update(videos).set({
+            metadata: { ...existMeta, autoThumbnailFailed: "safety_violation" },
+          }).where(eq(videos.id, videoDbId));
+        } catch {}
+      } else {
+        logger.error("Image generation failed (AI integration may be unavailable)", { videoDbId, error: errStr });
+      }
       return false;
     }
 

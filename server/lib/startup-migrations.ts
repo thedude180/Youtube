@@ -89,6 +89,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   67: { name: "Seed SEO Templates",                  category: "seeding", description: "Seeds 15 BF6 SEO template principles into masterKnowledgeBank for all users" },
   76: { name: "Create autonomous_action_log",         category: "schema",  description: "Creates autonomous_action_log table + 3 indexes if missing (community-auto-manager was erroring)" },
   77: { name: "Cancel Dead Reset-Window Items",       category: "cleanup", description: "Cancels queue IDs 42262/42263/42264 (perm-fail vault source BX1eEq_x_AA) and 39018 (BF2042 platform_short)" },
+  78: { name: "Cancel Off-Brand Content Pipelines",  category: "cleanup", description: "Cancels pending/error content_pipeline rows for AC/non-BF6 videos (Assassin's Creed, Valhalla, Liberation, etc.)" },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -4405,6 +4406,46 @@ async function migration076CreateAutonomousActionLog(): Promise<void> {
   }
 }
 
+async function migration078CancelOffBrandContentPipelines(): Promise<void> {
+  // The back-catalog imported AC Valhalla, AC IV, AC Liberation videos before the
+  // BF6-only lock was applied.  Each back-catalog video created a "refresh" mode
+  // content_pipeline row.  The drip-feed has been advancing these — generating AI
+  // titles, descriptions, thumbnails, and clip suggestions for Assassin's Creed
+  // content on a BF6-only channel — at a rate of 24 pipelines/hour continuously.
+  // This one-shot migration cancels all pending/error rows with clearly off-brand
+  // titles so they never reach the drip-feed again.  A live gate was also added to
+  // the drip-feed (server/index.ts) to catch any new off-brand pipelines created
+  // after this migration runs.
+  const FLAG = "migration:078:cancel_offbrand_content_pipelines_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql`
+      UPDATE content_pipeline
+      SET
+        status        = 'completed',
+        error_message = 'migration-078: off-brand content — channel is BF6-only (AC/non-BF6 title detected)'
+      WHERE status IN ('pending', 'error')
+        AND (
+          video_title ILIKE '%assassin%'
+          OR video_title ILIKE '%creed%'
+          OR video_title ILIKE '%valhalla%'
+          OR video_title ILIKE '%liberation%'
+          OR video_title ILIKE '%call of duty%'
+          OR video_title ILIKE '%apex legend%'
+          OR video_title ILIKE '%fortnite%'
+          OR video_title ILIKE '%minecraft%'
+          OR video_title ILIKE '%roblox%'
+        )
+    `);
+    const count = (r as any).rowCount ?? 0;
+    log.info(`[Migration 078] Cancelled ${count} off-brand content pipeline(s) (AC/non-BF6 titles)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 078] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4622,6 +4663,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration075CancelACItemsResurrectedByBootReset();
     await migration076CreateAutonomousActionLog();
     await migration077CancelDeadResetWindowItems();
+    await migration078CancelOffBrandContentPipelines();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
