@@ -876,7 +876,31 @@ async function runJobInBackground(jobId: number): Promise<void> {
       }
     }
 
-    const clipSecs = smartCutDurationSec ?? ((job.clipDurationMins ?? 60) * 60);
+    // Large-source safety gate — re-encoding long segments from huge vault files
+    // (e.g. 6h stream × 45min clip) OOMs the container with the cinematic FFmpeg
+    // pass.  Cap the effective clip length to 20 min when source > 2h.
+    const LARGE_SOURCE_THRESHOLD_SEC = 2 * 3600;  // 2 h
+    const MAX_CLIP_SEC_FOR_LARGE     = 20 * 60;   // 20 min
+    if (probe.durationSecs > LARGE_SOURCE_THRESHOLD_SEC) {
+      if (smartCutDurationSec !== null && smartCutDurationSec > MAX_CLIP_SEC_FOR_LARGE) {
+        logger.warn(
+          `[StreamEditor] Job ${jobId}: source ${Math.round(probe.durationSecs / 3600)}h — ` +
+          `capping smart-cut ${Math.round(smartCutDurationSec / 60)}min → ${MAX_CLIP_SEC_FOR_LARGE / 60}min (OOM guard)`,
+        );
+        smartCutDurationSec = MAX_CLIP_SEC_FOR_LARGE;
+      }
+    }
+
+    const rawClipSecs = smartCutDurationSec ?? ((job!.clipDurationMins ?? 60) * 60);
+    const clipSecs    = (probe.durationSecs > LARGE_SOURCE_THRESHOLD_SEC && rawClipSecs > MAX_CLIP_SEC_FOR_LARGE)
+      ? (() => {
+          logger.warn(
+            `[StreamEditor] Job ${jobId}: source ${Math.round(probe.durationSecs / 3600)}h — ` +
+            `capping clip ${Math.round(rawClipSecs / 60)}min → ${MAX_CLIP_SEC_FOR_LARGE / 60}min (OOM guard)`,
+          );
+          return MAX_CLIP_SEC_FOR_LARGE;
+        })()
+      : rawClipSecs;
 
     // ── Tier 1: Audience-learned Short duration ───────────────────────────────
     // chooseBestShortDuration() reads historical performance data and returns the

@@ -4712,6 +4712,70 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 //   3. DELETE FROM videos            WHERE channel_id = 52  (10,227 rows)
 //   4. DELETE FROM channels          WHERE id = 52
 // After this, the only YouTube channel in the DB is channel 53 (ET Gaming 274).
+// ── Migration 087: Cancel crash-loop stream_edit_jobs + retry 086 Step 3 ──────
+// Job 18102 (V_fIPnGxHRs, 6h BF2042 stream, 1.5 GB vault file, clip_duration_mins=45)
+// was crashing production on every boot:
+//   • Stream-editor startup recovery resets it from 'processing' → 'queued' each boot
+//   • FFmpeg re-encoding a 45-min cinematic clip from a 6h file OOMs the container
+//   • Crash at T+22min; next boot picks it up again → infinite crash loop
+// Also cancels non-BF6 stream_edit_jobs missed by migration 083:
+//   • 18111: Ld07AcKauuI  (storm video)
+//   • 18114: fasukGbacL4  (Dragon Age: The Veilguard)
+//   • 18115: jn93rLq265M  (Mass Effect LE)
+//   • 18116: YGeTO9XQS9o  (Shadow of Mordor)
+// Finally retries migration 086 Step 3 (back_catalog_videos mining flag for
+// hBylGNbIT88) which failed with a DB connection timeout on the previous boot.
+async function migration087CancelCrashLoopJobs(): Promise<void> {
+  const FLAG = "migration:087:cancel_crash_loop_stream_edit_jobs_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Step 1 — Cancel job 18102: V_fIPnGxHRs 6h BF2042 OOM crash-loop source.
+    // Status = 'cancelled' is immune to the stream-editor startup recovery reset
+    // (which only resets 'processing' → 'queued').
+    const r1 = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET status        = 'cancelled',
+          current_stage = 'Cancelled by migration-087 — 6h source OOM guard (V_fIPnGxHRs)',
+          error_message = 'migration-087: source file 21709s / 1.5GB causes FFmpeg OOM on every boot'
+      WHERE id = 18102
+        AND status IN ('queued','processing','failed')
+    `);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+    log.info(`[Migration 087] Cancelled crash-loop job 18102: ${rows1} row(s)`);
+
+    // Step 2 — Cancel non-BF6 stream_edit_jobs missed by migration 083.
+    const r2 = await db.execute(sql`
+      UPDATE stream_edit_jobs
+      SET status        = 'cancelled',
+          current_stage = 'Cancelled by migration-087 — non-BF6 game (focus-gate)',
+          error_message = 'migration-087: non-BF6 content filtered by focus-game gate'
+      WHERE id IN (18111, 18114, 18115, 18116)
+        AND status IN ('queued','processing','failed')
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+    log.info(`[Migration 087] Cancelled non-BF6 stream_edit_jobs: ${rows2} row(s)`);
+
+    // Step 3 — Retry migration 086 Step 3: mark hBylGNbIT88 as fully mined in
+    // back_catalog_videos so the back-catalog engine never re-queues it.
+    // (The previous attempt timed out due to DB pool pressure at T+10min.)
+    try {
+      await db.execute(sql`
+        UPDATE back_catalog_videos
+        SET is_shorts_mined = true, is_long_form_mined = true
+        WHERE youtube_video_id = 'hBylGNbIT88'
+      `);
+      log.info("[Migration 087] back_catalog_videos mining flag set for hBylGNbIT88");
+    } catch (stepErr: any) {
+      log.warn(`[Migration 087] Step 3 (back_catalog_videos) non-fatal: ${stepErr?.message}`);
+    }
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 087] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration086HardFailHBylGNbIT88(): Promise<void> {
   const FLAG = "migration:086:hard_fail_hBylGNbIT88_v1";
   if (await getFlag(FLAG)) return;
@@ -5071,6 +5135,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration084DeleteGhostChannel52();
     await migration085DeleteGhostChannel52Cascade();
     await migration086HardFailHBylGNbIT88();
+    await migration087CancelCrashLoopJobs();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
