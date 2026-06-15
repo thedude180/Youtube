@@ -471,39 +471,59 @@ export function initQuotaResetCron(): void {
         // ready. Sequential execution (long-form → wait 3 s → shorts) guarantees the
         // DB write for the long-form upload commits before Shorts checks the gate.
 
-        logger.info("[QuotaReset] Running long-form publisher first…");
-        const longFormResult = await runLongFormClipPublisher()
-          .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
-        logger.info("[QuotaReset] Long-form result:", longFormResult);
+        // ── IO gate: exclusive bandwidth for the midnight publish window ──────────
+        // Acquire the single heavy-I/O slot so no vault download is running
+        // concurrently, stealing bandwidth while videos go up to YouTube.
+        // The perpetual downloader already skips its cycle in the ±15/30-min
+        // reset window, so in practice this acquires immediately — but we gate
+        // defensively so any edge-case download must yield before we upload.
+        const { acquireIOSlot, releaseIOSlot } = await import("../lib/io-gate");
+        logger.info("[QuotaReset] Acquiring IO slot — exclusive bandwidth for midnight publish");
+        await acquireIOSlot("quota-reset-cron");
 
-        // 3 s breathing room so the DB row is visible to the Shorts cadence gate
-        await new Promise(r => setTimeout(r, 3_000));
+        // Declare with let so the brain-snapshot block below can reference them
+        // after the IO slot has already been released.
+        let longFormResult: any = { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
+        let shortsResult:   any = { published: 0, failed: 0, skipped: 0, quotaExhausted: false };
+        let totalPublished = 0;
 
-        logger.info("[QuotaReset] Running shorts publisher…");
-        const shortsResult = await runShortsClipPublisher()
-          .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
-        logger.info("[QuotaReset] Shorts result:", shortsResult);
-
-        const totalPublished = (longFormResult.published ?? 0) + (shortsResult.published ?? 0);
-
-        // ── Zero-result safety net ─────────────────────────────────────────────
-        // If both publishers returned published=0 it usually means both perpetual
-        // loops held isRunning=true when we called them (lock contention at reset).
-        // Wait 2 minutes for those runs to finish, then try once more.
-        if (totalPublished === 0 && !(longFormResult as any).quotaExhausted && !(shortsResult as any).quotaExhausted) {
-          logger.info("[QuotaReset] Nothing published on first attempt — retrying in 2 min (probable isRunning contention)");
-          await new Promise(r => setTimeout(r, 2 * 60_000));
-          const retryLf = await runLongFormClipPublisher()
+        try {
+          logger.info("[QuotaReset] Running long-form publisher first…");
+          longFormResult = await runLongFormClipPublisher()
             .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
-          logger.info("[QuotaReset] Retry long-form:", retryLf);
+          logger.info("[QuotaReset] Long-form result:", longFormResult);
+
+          // 3 s breathing room so the DB row is visible to the Shorts cadence gate
           await new Promise(r => setTimeout(r, 3_000));
-          const retrySp = await runShortsClipPublisher()
+
+          logger.info("[QuotaReset] Running shorts publisher…");
+          shortsResult = await runShortsClipPublisher()
             .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
-          logger.info("[QuotaReset] Retry shorts:", retrySp);
-          const retryTotal = (retryLf.published ?? 0) + (retrySp.published ?? 0);
-          if (retryTotal === 0) {
-            logger.warn("[QuotaReset] Still 0 published after retry — queue may be empty or OAuth token missing");
+          logger.info("[QuotaReset] Shorts result:", shortsResult);
+
+          totalPublished = (longFormResult.published ?? 0) + (shortsResult.published ?? 0);
+
+          // ── Zero-result safety net ─────────────────────────────────────────────
+          // If both publishers returned published=0 it usually means both perpetual
+          // loops held isRunning=true when we called them (lock contention at reset).
+          // Wait 2 minutes for those runs to finish, then try once more.
+          if (totalPublished === 0 && !longFormResult.quotaExhausted && !shortsResult.quotaExhausted) {
+            logger.info("[QuotaReset] Nothing published on first attempt — retrying in 2 min (probable isRunning contention)");
+            await new Promise(r => setTimeout(r, 2 * 60_000));
+            const retryLf = await runLongFormClipPublisher()
+              .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+            logger.info("[QuotaReset] Retry long-form:", retryLf);
+            await new Promise(r => setTimeout(r, 3_000));
+            const retrySp = await runShortsClipPublisher()
+              .catch((e: unknown) => ({ published: 0, failed: 0, skipped: 0, quotaExhausted: false, error: String(e) }));
+            logger.info("[QuotaReset] Retry shorts:", retrySp);
+            const retryTotal = (retryLf.published ?? 0) + (retrySp.published ?? 0);
+            if (retryTotal === 0) {
+              logger.warn("[QuotaReset] Still 0 published after retry — queue may be empty or OAuth token missing");
+            }
           }
+        } finally {
+          releaseIOSlot("quota-reset-cron");
         }
 
         // ── Brain context snapshot ─────────────────────────────────────────────

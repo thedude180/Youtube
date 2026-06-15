@@ -78,6 +78,25 @@ async function pendingDownloadCount(userId: string): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function runCycle(): Promise<void> {
+  // ── Midnight reset window guard ─────────────────────────────────────────────
+  // Skip downloads for 15 min before midnight Pacific and 30 min after.
+  // This ensures no yt-dlp download is holding bandwidth or the IO slot when
+  // the quota reset cron fires publishers. The 3-min loop timer reschedules
+  // normally so downloads resume automatically once the window closes.
+  const { getNextResetTime } = await import("./youtube-quota-tracker");
+  const msUntilReset  = getNextResetTime().getTime() - Date.now();
+  const FULL_DAY_MS   = 24 * 60 * 60_000;
+  const PAUSE_BEFORE  = 15 * 60_000; // 15 min before midnight
+  const PAUSE_AFTER   = 30 * 60_000; // 30 min after midnight
+  if (msUntilReset < PAUSE_BEFORE || msUntilReset > FULL_DAY_MS - PAUSE_AFTER) {
+    logger.info(
+      `[PerpetualDownloader] Reset window — skipping download cycle ` +
+      `(${Math.round(msUntilReset / 60_000)} min until next reset). ` +
+      `Giving publishers exclusive bandwidth at midnight.`,
+    );
+    return;
+  }
+
   const userIds = await getEligibleUserIds();
   if (userIds.length === 0) return;
 
