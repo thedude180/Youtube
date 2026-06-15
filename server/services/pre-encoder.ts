@@ -525,6 +525,7 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
     const isLongForm = !isShortContent && (
       contentType === "long-form-clip" ||
       contentType === "vod_long_form" ||
+      contentType === "long-form-compilation" ||
       item.type === "auto-clip" ||
       item.type === "vod-long-form"
     );

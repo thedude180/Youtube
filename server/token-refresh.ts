@@ -3,7 +3,7 @@ import { OAUTH_CONFIGS } from "./oauth-config";
 import { db } from "./db";
 import { channels } from "@shared/schema";
 import { users as usersTable } from "@shared/models/auth";
-import { eq, lt, and, isNotNull, isNull, or } from "drizzle-orm";
+import { eq, lt, and, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
 
@@ -580,6 +580,11 @@ export async function repairNullTokenChannels(): Promise<{ repaired: number; ale
         or(isNull(channels.accessToken), eq(channels.accessToken, "")),
         or(isNull(channels.refreshToken), eq(channels.refreshToken, "")),
         eq(channels.platform, "youtube"),
+        // Skip channel 52 (ET Gaming 247 ghost channel) — no tokens exist and
+        // reconnect is impossible due to FK constraints preventing deletion.
+        // Migration 080 sets needs_reconnect=true but this guard ensures the
+        // 12h refresh cycle never retries it even if the flag drifts.
+        sql`${channels.id} != 52`,
       )
     );
 

@@ -1115,6 +1115,17 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
           OR metadata::text ILIKE '%"ACUnity"%'
           OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
           OR type = 'studio_auto_publish'
+          OR (
+            caption IS NOT NULL AND caption != ''
+            AND caption NOT ILIKE '%battlefield 6%'
+            AND caption NOT ILIKE '%bf6%'
+            AND caption NOT ILIKE '%bf 6%'
+            AND (
+              caption ILIKE '%assassin%'
+              OR caption ILIKE '%valhalla%'
+              OR caption ILIKE '%ac valhalla%'
+            )
+          )
         )
     `);
     const count = (r as unknown as { rowCount?: number }).rowCount ?? 0;
@@ -1204,6 +1215,7 @@ const EXPECTED_MIGRATION_FLAGS: ReadonlyArray<{ flag: string; label: string }> =
   { flag: "migration:073:block_offbrand_studio_and_fail_bad_vault_v1", label: "073 — block sv372/sv373 AC Valhalla hot loop + permanent-fail K5gAxqrF_7A/r0MWPGPqzFo inaccessible vault entries (Jun 14 2026)" },
   { flag: "migration:074:purge_ac_shorts_defer_storm_v1", label: "074 — purge 132 AC Unity youtube_short items stuck in pre-encoder defer storm (migration-072 channel_id column bug — Jun 14 2026)" },
   { flag: "migration:075:cancel_ac_items_resurrected_by_boot_reset_v1", label: "075 — cancel 131 AC/off-brand items resurrected by boot full-queue-reset; use 'cancelled' status to survive future resets (Jun 14 2026)" },
+  { flag: "migration:080:cancel_smart_edit_and_fix_ghost_channel_v1",   label: "080 — cancel smart-edit stub items (no publisher) + set needs_reconnect on channel 52 ghost (Jun 15 2026)" },
 ];
 
 export interface MigrationHealth {
@@ -4482,6 +4494,54 @@ async function migration079FailT4PKhDhQPp0GhostVaultRow(): Promise<void> {
   }
 }
 
+async function migration080CancelSmartEditItemsAndFixGhostChannel(): Promise<void> {
+  // smart-edit type items have no publisher — neither shorts-clip-publisher nor
+  // long-form-clip-publisher includes type='smart-edit' in their query filters.
+  // These stubs require the kernel smart-edit system to generate a clip file;
+  // without it they accumulate in the queue indefinitely.  Cancel them so the
+  // publisher loops skip past them cleanly.
+  //
+  // Also ensures channel 52 (ET Gaming 247 ghost channel) has needs_reconnect=true
+  // so token-guardian-hardened.ts auditTokensOnBoot() early-exits immediately
+  // instead of trying to repair a channel that can never be reconnected.
+  const FLAG = "migration:080:cancel_smart_edit_and_fix_ghost_channel_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r1 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status   = 'cancelled',
+        metadata = COALESCE(metadata, '{}'::jsonb)
+          || jsonb_build_object(
+               'failReason',
+               'migration-080: smart-edit type has no publisher — kernel smart-edit system not active'
+             )
+      WHERE type   = 'smart-edit'
+        AND status IN ('scheduled', 'pending', 'deferred', 'queued')
+        AND (metadata->>'clipFile') IS NULL
+    `);
+    const count1 = (r1 as any).rowCount ?? 0;
+    log.info(`[Migration 080] Cancelled ${count1} smart-edit stub items with no clip file`);
+
+    const r2 = await db.execute(sql`
+      UPDATE channels
+      SET needs_reconnect    = true,
+          reconnect_reason   = 'Ghost channel — cannot reconnect (migration-080)'
+      WHERE id = 52
+        AND NOT COALESCE(needs_reconnect, false)
+    `);
+    const count2 = (r2 as any).rowCount ?? 0;
+    if (count2 > 0) {
+      log.info(`[Migration 080] Set needs_reconnect=true for channel 52 (ET Gaming 247 ghost channel)`);
+    }
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 080] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4701,6 +4761,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration077CancelDeadResetWindowItems();
     await migration078CancelOffBrandContentPipelines();
     await migration079FailT4PKhDhQPp0GhostVaultRow();
+    await migration080CancelSmartEditItemsAndFixGhostChannel();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

@@ -299,10 +299,10 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     }
   }
 
-  if (durationSec >= 7200) {
+  if (durationSec >= 3600) {
     const longForms = moments.filter(m => m.type === "long-form");
     if (longForms.length === 0) {
-      const numLongForms = Math.floor(durationSec / 3600);
+      const numLongForms = Math.max(1, Math.floor(durationSec / 3600));
       for (let i = 0; i < numLongForms; i++) {
         const experimentDuration = pickExperimentalDuration("long-form", preference);
         const startSec = i * experimentDuration;
