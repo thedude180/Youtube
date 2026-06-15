@@ -1,4 +1,5 @@
 - [Hourly cron DB pool exhaustion pattern](hourly-cron-db-pool-crash.md) — idle-check timers with short intervals (5min) align with hourly cron window → thundering herd → pool exhaustion → healthcheck timeout → restart; fix: raise idle timers to ≥30min.
+- [Prod logs 2026-06-15](prod-logs-2026-06-15.md) — AI semaphore stuck every 9min (job 18102 root cause), 16 InnerTube-400 videos, 4 75s dead-zone items, publishing stopped, brain SQL fail, token exhaustion by 10am Pacific.
 - [Persistent learning data plane](persistent-learning-plane.md) — service_state table + event-log wiring; brain accumulates knowledge across deployments not just within one container session.
 - [Pipeline AI batching pattern](pipeline-ai-batching.md) — shorts prep: 4 sequential AI calls → 1 structured JSON call; longform prep: 5 OpenAI + 1 Claude → 1 OpenAI batch + 1 Claude; per-field fallbacks guard against JSON parse failure.
 - [Publisher smart idle sleep](publisher-smart-idle.md) — both perpetual publisher loops use msUntilNextScheduled*() to sleep until 3min before next item is due (clamp 90s–30min); eliminates ~95% of idle DB polls when queue is pre-staged.
