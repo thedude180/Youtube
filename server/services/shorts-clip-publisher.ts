@@ -746,6 +746,24 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                 scheduledAt: item.scheduledAt?.toISOString(),
               })
             ),
+            import("../lib/event-log").then(({ logEvent }) =>
+              logEvent({
+                eventType: "publish",
+                service:   "shorts-publisher",
+                title:     `Short published: ${((item.metadata as any)?.title ?? item.content ?? "untitled").slice(0, 120)}`,
+                detail: {
+                  youtubeVideoId: publishedYtId,
+                  queueId:        item.id,
+                  gameName:       gameName ?? "Gaming",
+                  durationSec:    clipDurationSec,
+                  postingWindow,
+                  scheduledAt:    item.scheduledAt?.toISOString(),
+                  contentType:    item.type ?? "auto-clip",
+                },
+                userId,
+                severity: "info",
+              })
+            ),
           ]).catch(() => {});
         }
       } else {

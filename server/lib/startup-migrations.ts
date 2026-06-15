@@ -4725,6 +4725,41 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 //   • 18116: YGeTO9XQS9o  (Shadow of Mordor)
 // Finally retries migration 086 Step 3 (back_catalog_videos mining flag for
 // hBylGNbIT88) which failed with a DB connection timeout on the previous boot.
+// ── Migration 088: Create system_event_log table ───────────────────────────────
+// Persistent cross-deployment audit trail — every significant system action
+// (publishes, heals, AI decisions, migrations, quota events, learning cycles)
+// is written here so the learning brain can query patterns across all boots and
+// deployments.  Unlike application logs which vanish on restart, this table
+// accumulates indefinitely (auto-pruned to 90-day rolling window by the brain).
+async function migration088CreateSystemEventLog(): Promise<void> {
+  const FLAG = "migration:088:create_system_event_log_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS system_event_log (
+        id          SERIAL PRIMARY KEY,
+        event_type  TEXT        NOT NULL,
+        service     TEXT        NOT NULL,
+        title       TEXT        NOT NULL,
+        detail      JSONB,
+        user_id     TEXT,
+        severity    TEXT        NOT NULL DEFAULT 'info',
+        occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS sel_event_type_idx  ON system_event_log (event_type)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS sel_service_idx      ON system_event_log (service)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS sel_occurred_at_idx  ON system_event_log (occurred_at DESC)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS sel_user_id_idx      ON system_event_log (user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS sel_severity_idx     ON system_event_log (severity)`);
+    log.info("[Migration 088] system_event_log table + indexes created");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 088] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration087CancelCrashLoopJobs(): Promise<void> {
   const FLAG = "migration:087:cancel_crash_loop_stream_edit_jobs_v1";
   if (await getFlag(FLAG)) return;
@@ -5136,6 +5171,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration085DeleteGhostChannel52Cascade();
     await migration086HardFailHBylGNbIT88();
     await migration087CancelCrashLoopJobs();
+    await migration088CreateSystemEventLog();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

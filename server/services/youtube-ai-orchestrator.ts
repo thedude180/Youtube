@@ -321,6 +321,18 @@ async function executeTask(
   const log = (outcome: string, approvalRequired = false) => {
     decisionLog.unshift({ ts: new Date().toISOString(), userId, task: taskName, outcome, approvalRequired });
     if (decisionLog.length > 200) decisionLog.splice(200);
+    // Persist to permanent event log so the brain can learn from decision patterns
+    // across all deployments (not just the current boot's in-memory decisionLog).
+    import("../lib/event-log").then(({ logEvent }) =>
+      logEvent({
+        eventType: "decision",
+        service:   "youtube-ai-orchestrator",
+        title:     `[${taskName}] ${outcome.slice(0, 200)}`,
+        detail:    { task: taskName, outcome, approvalRequired, cycleId: result.cycleId },
+        userId,
+        severity:  approvalRequired ? "warn" : "info",
+      })
+    ).catch(() => {});
   };
 
   try {

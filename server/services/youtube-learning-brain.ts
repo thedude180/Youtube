@@ -401,6 +401,133 @@ async function synthesizeSystemTelemetry(userId: string): Promise<void> {
   }
 }
 
+// ── Permanent event log synthesizer ───────────────────────────────────────────
+// Reads the last 30 days of system_event_log (the cross-deployment audit trail
+// written by every boot, publisher, and AI orchestrator call) and promotes
+// durable patterns to masterKnowledgeBank.
+// No AI calls — pure SQL aggregation + deterministic pattern logic.
+// Runs once per daily cycle, right after system telemetry synthesis.
+
+async function synthesizeEventLog(userId: string): Promise<void> {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+    const sevenDaysAgo  = new Date(Date.now() -  7 * 86_400_000);
+
+    // ── 1. Publish cadence — how many Shorts vs long-forms per day, trend ──────
+    const pubRows = await db.execute(sql`
+      SELECT
+        DATE(occurred_at AT TIME ZONE 'America/Los_Angeles') AS day,
+        SUM(CASE WHEN service = 'shorts-publisher'    THEN 1 ELSE 0 END) AS shorts,
+        SUM(CASE WHEN service = 'long-form-publisher' THEN 1 ELSE 0 END) AS longforms
+      FROM system_event_log
+      WHERE event_type = 'publish'
+        AND occurred_at >= ${thirtyDaysAgo}
+      GROUP BY 1
+      ORDER BY 1 DESC
+      LIMIT 30
+    `);
+    const pubDays = ((pubRows as any)?.rows ?? []) as Array<{day:string; shorts:string; longforms:string}>;
+    if (pubDays.length >= 3) {
+      const totalShorts    = pubDays.reduce((s,r) => s + Number(r.shorts),    0);
+      const totalLongforms = pubDays.reduce((s,r) => s + Number(r.longforms), 0);
+      const activeDays     = pubDays.filter(r => Number(r.shorts) + Number(r.longforms) > 0).length;
+      const principle =
+        `[event-log] Publishing: ${totalShorts} Shorts + ${totalLongforms} long-forms over ${pubDays.length}d (${activeDays} active days). ` +
+        `Avg ${(totalShorts / pubDays.length).toFixed(1)} Shorts/day, ${(totalLongforms / pubDays.length).toFixed(1)} long-forms/day.`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "event_log_intelligence",
+        principle,
+        sourceEngines:     ["event-log-synthesizer"],
+        evidenceCount:     pubDays.length,
+        confidenceScore:   Math.min(90, 50 + pubDays.length * 2),
+        isActive:          true,
+        metadata:          { generatedAt: new Date().toISOString(), totalShorts, totalLongforms, activeDays },
+      } as any).catch(() => {});
+    }
+
+    // ── 2. Boot health trend — how many items prod-heal is fixing each boot ────
+    const healRows = await db.execute(sql`
+      SELECT
+        (detail->>'processingJobsReset')::int  AS processing_reset,
+        (detail->>'pipelinesUnstuck')::int     AS pipelines_unstuck,
+        (detail->>'stuckDownloads')::int       AS stuck_downloads,
+        occurred_at
+      FROM system_event_log
+      WHERE event_type = 'heal'
+        AND service    = 'prod-heal'
+        AND occurred_at >= ${sevenDaysAgo}
+      ORDER BY occurred_at DESC
+      LIMIT 20
+    `);
+    const healData = ((healRows as any)?.rows ?? []) as Array<{processing_reset:string; pipelines_unstuck:string; stuck_downloads:string; occurred_at:string}>;
+    if (healData.length >= 2) {
+      const avgReset   = healData.reduce((s,r) => s + Number(r.processing_reset ?? 0), 0) / healData.length;
+      const avgPipeline = healData.reduce((s,r) => s + Number(r.pipelines_unstuck ?? 0), 0) / healData.length;
+      const avgStuck   = healData.reduce((s,r) => s + Number(r.stuck_downloads ?? 0), 0) / healData.length;
+      const severity   = avgReset > 1 ? "WARN: processing jobs keep getting stuck — investigate large stream jobs" : "Boot heal healthy";
+      const principle =
+        `[event-log] Boot health (last ${healData.length} boots): avg ${avgReset.toFixed(1)} processing→queued, ` +
+        `${avgPipeline.toFixed(1)} pipelines→pending, ${avgStuck.toFixed(1)} stuck downloads. ${severity}.`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "event_log_intelligence",
+        principle,
+        sourceEngines:     ["event-log-synthesizer"],
+        evidenceCount:     healData.length,
+        confidenceScore:   Math.min(85, 50 + healData.length * 4),
+        isActive:          true,
+        metadata:          { generatedAt: new Date().toISOString(), avgReset, avgPipeline, avgStuck },
+      } as any).catch(() => {});
+    }
+
+    // ── 3. AI orchestrator decisions — which tasks ran, approval-required rate ──
+    const decRows = await db.execute(sql`
+      SELECT
+        detail->>'task'             AS task,
+        COUNT(*)                    AS total,
+        SUM((detail->>'approvalRequired')::boolean::int) AS approval_needed
+      FROM system_event_log
+      WHERE event_type = 'decision'
+        AND user_id    = ${userId}
+        AND occurred_at >= ${sevenDaysAgo}
+      GROUP BY 1
+      ORDER BY 2 DESC
+      LIMIT 15
+    `);
+    const decData = ((decRows as any)?.rows ?? []) as Array<{task:string; total:string; approval_needed:string}>;
+    if (decData.length > 0) {
+      const summary = decData.slice(0, 6).map(r => `${r.task}×${r.total}`).join(", ");
+      const approvals = decData.reduce((s,r) => s + Number(r.approval_needed ?? 0), 0);
+      const principle =
+        `[event-log] Orchestrator (last 7d): ${decData.length} task types, top: ${summary}. ` +
+        `${approvals} approval-required decisions flagged.`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          "event_log_intelligence",
+        principle,
+        sourceEngines:     ["event-log-synthesizer"],
+        evidenceCount:     decData.reduce((s,r) => s + Number(r.total), 0),
+        confidenceScore:   70,
+        isActive:          true,
+        metadata:          { generatedAt: new Date().toISOString(), taskCount: decData.length, approvalCount: approvals },
+      } as any).catch(() => {});
+    }
+
+    // ── 4. Prune events older than 90 days (keep table bounded) ────────────────
+    const { pruneOldEvents } = await import("../lib/event-log");
+    const pruned = await pruneOldEvents(90);
+    if (pruned > 0) {
+      logger.info(`[Brain] Event log pruned: ${pruned} entries older than 90d removed`);
+    }
+
+    const signalCount = (pubDays.length >= 3 ? 1 : 0) + (healData.length >= 2 ? 1 : 0) + (decData.length > 0 ? 1 : 0);
+    logger.info(`[Brain] Event log synthesis: ${signalCount} pattern(s) → masterKnowledgeBank`);
+  } catch (err: any) {
+    logger.warn(`[Brain] Event log synthesis failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
 // ── Micro-signal harvester (4h) ────────────────────────────────────────────────
 // Lightweight harvester that runs every 4 hours between daily cycles.
 // No AI calls — pure DB observation → masterKnowledgeBank micro-signals.
@@ -550,6 +677,11 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   // into actionable masterKnowledgeBank recommendations. No AI calls — pure DB pattern logic.
   await synthesizeSystemTelemetry(userId);
 
+  // Synthesize the permanent cross-deployment event log — publish cadence, boot health
+  // trend, and orchestrator decision patterns from the last 30 days.
+  // No AI calls — pure SQL aggregation. Also prunes events older than 90 days.
+  await synthesizeEventLog(userId);
+
   // Step 0c: Read viewer comments from recent videos — direct audience voice.
   // Cost: 1 YouTube Data API quota unit per video, max 5 videos = ≤5 units/day.
   // Results flow into intelligenceSignals (source="viewer_comments") where
@@ -691,6 +823,30 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
     };
 
     logger.info(`[Brain] Daily cycle complete for ${userId.slice(0, 8)}: ${insights.length} insights, best=${bestBucket}`);
+
+    // Persist cycle completion to the permanent event log so there's a durable record
+    // of every brain run across all deployments — queryable for learning velocity trends.
+    import("../lib/event-log").then(({ logEventAsync }) =>
+      logEventAsync({
+        eventType: "learn",
+        service:   "learning-brain",
+        title:     `Daily cycle complete: ${insights.length} insights, best=${bestBucket}, window=${bestWindow}`,
+        detail: {
+          insightCount:        insights.length,
+          recommendationCount: recommendations.length,
+          bestDurationBucket:  bestBucket,
+          worstDurationBucket: worstBucket,
+          bestPostingWindow:   bestWindow,
+          avgPerformanceScore: +avgScore.toFixed(2),
+          totalUploads:        uploadStats?.total ?? 0,
+          totalShorts:         uploadStats?.shorts ?? 0,
+          totalLongForm:       uploadStats?.longForm ?? 0,
+          insights:            insights.slice(0, 5),
+        },
+        userId,
+        severity: "info",
+      })
+    ).catch(() => {});
 
     // 9. Compound the feedback loop — extract winning patterns from real metrics
     //    and write them into masterKnowledgeBank so every AI generator gets smarter.

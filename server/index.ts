@@ -1262,6 +1262,31 @@ async function healProductionPipeline(): Promise<void> {
       `[prod-heal] Pipeline self-heal complete: ${stuckCount} stuck downloads → indexed, ${fmtCount} format failures → indexed, ${botCount} HTTP-400 bot-detect failures → indexed, ${downloadedResetCount} stale-disk downloaded → indexed, ${jobCount} processing jobs → queued, ${dlFailCount} download-failed edit jobs → queued (vault retry), ${pipelineStuckCount} stuck pipelines → pending, ${pipeline401Count} AI-error pipelines → pending, ${farFutureQueueCount} far-future queue items → 24h, ${farFutureScheduleCount} far-future schedule items → 24h, VOD long-form cap → 2/day, ${vodOptPendingCount} vod-optimization pending → scheduled, ${vodCancelledCount} vod-long-form/short cancelled → scheduled\n`
     );
 
+    // Persist every boot's heal summary to the permanent event log so the brain
+    // can detect systemic patterns across all deployments (e.g. "job 18102 resets
+    // processing→queued on every boot" → learn to cancel oversized stream jobs earlier).
+    import("./lib/event-log").then(({ logEvent }) => logEvent({
+      eventType: "heal",
+      service:   "prod-heal",
+      title:     `Boot heal: ${stuckCount} stuck→indexed, ${jobCount} processing→queued, ${pipelineStuckCount} pipelines→pending, ${farFutureQueueCount} far-future→24h`,
+      detail: {
+        stuckDownloads:       stuckCount,
+        formatFailures:       fmtCount,
+        botDetectFailures:    botCount,
+        staleDiskReset:       downloadedResetCount,
+        processingJobsReset:  jobCount,
+        dlFailEditJobs:       dlFailCount,
+        pipelinesUnstuck:     pipelineStuckCount,
+        aiErrorPipelines:     pipeline401Count,
+        farFutureQueue:       farFutureQueueCount,
+        farFutureSchedule:    farFutureScheduleCount,
+        vodOptPending:        vodOptPendingCount,
+        vodCancelled:         vodCancelledCount,
+        bootTimestamp:        new Date().toISOString(),
+      },
+      severity: (stuckCount + jobCount + pipelineStuckCount) > 0 ? "warn" : "info",
+    })).catch(() => {});
+
     // 9. Catch-up: trigger the content maximizer on long-form catalog videos (≥60 min)
     //    that never produced experiment clips because the previous durationSec bug caused
     //    meta.duration ("PT10H7M21S") to shadow meta.durationSec (numeric seconds),

@@ -544,6 +544,25 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
                 queueId: item.id,
               })
             ),
+            import("../lib/event-log").then(({ logEvent }) =>
+              logEvent({
+                eventType: "publish",
+                service:   "long-form-publisher",
+                title:     `Long-form published: ${((item.metadata as any)?.title ?? item.content ?? "untitled").slice(0, 120)}`,
+                detail: {
+                  youtubeVideoId:      lfYtId,
+                  queueId:             item.id,
+                  gameName:            gameName.substring(0, 100),
+                  experimentDurationMin,
+                  durationSec:         experimentDurationSec,
+                  postingWindow:       postWin,
+                  scheduledAt:         lfScheduledAt?.toISOString(),
+                  contentType:         item.type ?? "long-form-clip",
+                },
+                userId:   item.userId,
+                severity: "info",
+              })
+            ),
           ]).catch(() => {});
         }
       } catch (err: any) {

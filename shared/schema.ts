@@ -10674,6 +10674,40 @@ export const systemIncidentLog = pgTable("system_incident_log", {
 ]);
 export type SystemIncident = typeof systemIncidentLog.$inferSelect;
 
+// ── System Event Log (Permanent Cross-Deployment Audit Trail) ─────────────────
+// Every significant system action — publishes, self-heals, AI decisions,
+// migrations, quota events, and learning cycles — is written here forever.
+// Unlike application logs (which vanish on reboot/redeploy), this table persists
+// in the database across ALL deployments and is directly queryable by the learning
+// brain during its daily cycle to detect patterns and grow smarter over time.
+//
+// Event types:
+//   publish    — a Short or long-form was successfully uploaded to YouTube
+//   heal       — the prod-heal / self-healing system fixed something on boot
+//   decision   — the AI orchestrator made a strategic decision
+//   migration  — a startup migration ran and what it changed
+//   quota      — a quota event (trip, reset, budget warning)
+//   error      — a service-level error worth tracking across deployments
+//   learn      — the learning brain completed a cycle or generated insights
+//   system     — general system-level event (boot complete, token refresh, etc.)
+export const systemEventLog = pgTable("system_event_log", {
+  id:         serial("id").primaryKey(),
+  eventType:  text("event_type").notNull(),
+  service:    text("service").notNull(),
+  title:      text("title").notNull(),
+  detail:     jsonb("detail").$type<Record<string, unknown>>(),
+  userId:     text("user_id"),
+  severity:   text("severity").notNull().default("info"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("sel_event_type_idx").on(t.eventType),
+  index("sel_service_idx").on(t.service),
+  index("sel_occurred_at_idx").on(t.occurredAt),
+  index("sel_user_id_idx").on(t.userId),
+  index("sel_severity_idx").on(t.severity),
+]);
+export type SystemEvent = typeof systemEventLog.$inferSelect;
+
 // ── Creative Library (Ever-expanding Asset Library) ───────────────────────────
 // Every music track, video filter, title template, hook pattern, and editing
 // preset that the system has ever generated or discovered lives here.
