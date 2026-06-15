@@ -88,6 +88,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   66: { name: "Cancel Unresolvable Grinder Shorts",  category: "cleanup", description: "Cancels content-grinder Shorts with unresolvable source videos" },
   67: { name: "Seed SEO Templates",                  category: "seeding", description: "Seeds 15 BF6 SEO template principles into masterKnowledgeBank for all users" },
   76: { name: "Create autonomous_action_log",         category: "schema",  description: "Creates autonomous_action_log table + 3 indexes if missing (community-auto-manager was erroring)" },
+  77: { name: "Cancel Dead Reset-Window Items",       category: "cleanup", description: "Cancels queue IDs 42262/42263/42264 (perm-fail vault source BX1eEq_x_AA) and 39018 (BF2042 platform_short)" },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -1105,7 +1106,7 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
           (
             metadata->>'gameName' IS NOT NULL
             AND metadata->>'gameName' != ''
-            AND metadata->>'gameName' NOT ILIKE '%battlefield%'
+            AND metadata->>'gameName' NOT ILIKE '%battlefield 6%'
             AND metadata->>'gameName' NOT ILIKE '%bf6%'
             AND metadata->>'gameName' NOT ILIKE '%bf 6%'
           )
@@ -4404,6 +4405,42 @@ async function migration076CreateAutonomousActionLog(): Promise<void> {
   }
 }
 
+async function migration077CancelDeadResetWindowItems(): Promise<void> {
+  // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
+  //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
+  //   runner queued them after boot so cleanupOrphanedQueueItems() (which runs at
+  //   T+3s) never had a chance to catch them.  They will never encode or publish.
+  // Item 39018: platform_short for source V_fIPnGxHRs with gameName="Battlefield 2042".
+  //   BF2042 slipped through cleanupNonBF6QueueItems() because that filter used
+  //   NOT ILIKE '%battlefield%' (too broad — "Battlefield 2042" contains "battlefield").
+  //   Fixed in parallel: filter now uses NOT ILIKE '%battlefield 6%' specifically.
+  // All four cancelled with failReason='migration-077:...' so the Wave 0.6 boot
+  // queue reset (which skips items with failReason LIKE 'migration-%') never
+  // reverts them back to scheduled.
+  const FLAG = "migration:077:cancel_dead_reset_window_items_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status = 'cancelled',
+        metadata = COALESCE(metadata, '{}'::jsonb)
+          || jsonb_build_object(
+               'failReason',
+               'migration-077: dead reset-window item — perm-failed vault source or off-brand game'
+             )
+      WHERE id IN (42262, 42263, 42264, 39018)
+        AND status IN ('scheduled', 'pending', 'deferred', 'queued')
+    `);
+    const count = (r as any).rowCount ?? 0;
+    log.info(`[Migration 077] Cancelled ${count} dead reset-window queue items (perm-fail source / BF2042)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 077] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration073BlockOffBrandStudioVideosAndFailBadVault(): Promise<void> {
   const FLAG = "migration:073:block_offbrand_studio_and_fail_bad_vault_v1";
   if (await getFlag(FLAG)) return;
@@ -4584,6 +4621,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration074PurgeACShortsDeferStorm();
     await migration075CancelACItemsResurrectedByBootReset();
     await migration076CreateAutonomousActionLog();
+    await migration077CancelDeadResetWindowItems();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
