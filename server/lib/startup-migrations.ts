@@ -90,6 +90,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   76: { name: "Create autonomous_action_log",         category: "schema",  description: "Creates autonomous_action_log table + 3 indexes if missing (community-auto-manager was erroring)" },
   77: { name: "Cancel Dead Reset-Window Items",       category: "cleanup", description: "Cancels queue IDs 42262/42263/42264 (perm-fail vault source BX1eEq_x_AA) and 39018 (BF2042 platform_short)" },
   78: { name: "Cancel Off-Brand Content Pipelines",  category: "cleanup", description: "Cancels pending/error content_pipeline rows for AC/non-BF6 videos (Assassin's Creed, Valhalla, Liberation, etc.)" },
+  86: { name: "Hard-Fail hBylGNbIT88 Storm Source",  category: "cleanup", description: "Sets failCount=10+permanentFail on vault entries for hBylGNbIT88 (HTTP-400 all-clients) and marks catalog fully mined so back-catalog engine never re-queues it" },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -4711,6 +4712,48 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 //   3. DELETE FROM videos            WHERE channel_id = 52  (10,227 rows)
 //   4. DELETE FROM channels          WHERE id = 52
 // After this, the only YouTube channel in the DB is channel 53 (ET Gaming 274).
+async function migration086HardFailHBylGNbIT88(): Promise<void> {
+  const FLAG = "migration:086:hard_fail_hBylGNbIT88_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Step 1 — stamp failCount=10 + permanentFail=true on both vault entries.
+    // These entries already have status=failed and permanentFail=true but failCount
+    // is NULL.  The pre-encoder gate uses (failCount ?? 1) which defaults to 1 < 3
+    // so it was bypassing the skip and attempting section downloads (10 yt-dlp procs).
+    await db.execute(sql`
+      UPDATE content_vault_backups
+      SET metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"failCount":10,"permanentFail":true}'::jsonb
+      WHERE youtube_id = 'hBylGNbIT88'
+        AND status = 'failed'
+    `);
+
+    // Step 2 — cancel any active autopilot_queue items referencing this video.
+    // Use 'cancelled' so the boot-queue-reset (which skips cancelled) doesn't undo it.
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status = 'cancelled',
+          metadata = metadata || '{"failReason":"migration-086:hBylGNbIT88-vault-failed"}'::jsonb
+      WHERE metadata::text LIKE '%hBylGNbIT88%'
+        AND status NOT IN ('completed','cancelled','failed','permanent_fail')
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+
+    // Step 3 — mark both mining flags so the back-catalog engine never re-queues it.
+    await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET is_shorts_mined = true, is_long_form_mined = true
+      WHERE youtube_video_id = 'hBylGNbIT88'
+    `);
+
+    log.info(`[Migration 086] hBylGNbIT88 hard-failed: vault failCount=10 stamped, ${rows2} queue item(s) cancelled, catalog marked mined`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 086] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration085DeleteGhostChannel52Cascade(): Promise<void> {
   const FLAG = "migration:085:delete_ghost_channel_52_cascade_v1";
   if (await getFlag(FLAG)) return;
@@ -5027,6 +5070,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration083CancelNonBf6StreamEditJobsAndOversizedShorts();
     await migration084DeleteGhostChannel52();
     await migration085DeleteGhostChannel52Cascade();
+    await migration086HardFailHBylGNbIT88();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

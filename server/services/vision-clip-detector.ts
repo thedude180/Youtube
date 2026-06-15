@@ -28,7 +28,8 @@ import type { ViralMoment } from "../shorts-pipeline-engine";
 const logger = createLogger("vision-clip-detector");
 const execFileAsync = promisify(execFile);
 
-const FRAME_INTERVAL_SEC = 60;   // sample one frame per minute
+const FRAME_INTERVAL_SEC = 60;   // base: sample one frame per minute
+const MAX_FRAMES = 60;           // hard cap — 6 GPT-4o batches max regardless of duration
 const FRAMES_PER_BATCH = 10;     // frames sent per GPT-4o call
 const FRAME_EXTRACT_PARALLEL = 6; // concurrent ffmpeg processes
 const MIN_INTENSITY = 6;          // 1-10 scale — anything below is not worth a clip
@@ -172,15 +173,24 @@ export async function extractViralMomentsFromVisionAI(
   }
 
   const SKIP_START = 30; // skip the very first 30 s (channel/match loading)
+  // For long videos, coarsen the sampling interval so total frames stay ≤ MAX_FRAMES.
+  // This caps vision AI at 6 GPT-4o batches (≈ 3–4 min) regardless of stream length.
+  // Without this a 3h stream → 180 frames → 18 batches → 13+ min of AI slot monopoly.
+  const effectiveRange = Math.max(1, durationSec - SKIP_START - 30);
+  const effectiveInterval = Math.max(
+    FRAME_INTERVAL_SEC,
+    Math.ceil(effectiveRange / MAX_FRAMES),
+  );
   const sampleTimes: number[] = [];
-  for (let t = SKIP_START; t < durationSec - 30; t += FRAME_INTERVAL_SEC) {
+  for (let t = SKIP_START; t < durationSec - 30; t += effectiveInterval) {
     sampleTimes.push(Math.round(t));
   }
   if (sampleTimes.length === 0) return [];
 
   logger.info(
     `[VisionClip] Sampling ${sampleTimes.length} frames from "${videoTitle}" ` +
-    `(${Math.round(durationSec / 60)} min) at ${FRAME_INTERVAL_SEC}s intervals`,
+    `(${Math.round(durationSec / 60)} min) at ${effectiveInterval}s intervals ` +
+    `(cap: ${MAX_FRAMES} frames max)`,
   );
 
   // ── Extract frames (parallel, capped) ──────────────────────────────────────

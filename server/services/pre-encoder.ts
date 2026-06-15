@@ -684,7 +684,12 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           continue;
         }
 
-        // Check for permanently failed vault entry — skip completely
+        // Check for permanently failed vault entry — skip completely.
+        // vault status='failed' means the downloader gave up on this video.
+        // Never attempt a section download for it — it will fail for the same
+        // reason the vault download failed (geo-block, 400 all-clients, etc.).
+        // Bug fixed: original code used (failCount ?? 1) which defaults null→1,
+        // so entries with permanentFail=true but no failCount were never skipped.
         const [failedEntry] = await vaultDb
           .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
           .from(contentVaultBackups)
@@ -694,12 +699,21 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           ))
           .limit(1);
         if (failedEntry) {
-          const failCount = ((failedEntry.metadata as Record<string, unknown>)?.failCount as number) ?? 1;
-          if (failCount >= 3) {
-            logger.info(`[PreEncoder] Skipping item ${item.id} — source ${resolvedSourceYoutubeId} permanently undownloadable (failed ${failCount} times in vault)`);
-            skipped++;
-            continue;
-          }
+          // vault status='failed' means the downloader definitively gave up.
+          // Section download fails for the same reason (HTTP 400 all-clients,
+          // geo-block, player response error, etc.) — never attempt it.
+          // Note: original code gated on (failCount ?? 1) >= 3 which defaulted
+          // null failCount to 1, silently bypassing this skip for entries like
+          // hBylGNbIT88 that have permanentFail=true but no failCount recorded.
+          const vaultMeta  = failedEntry.metadata as Record<string, unknown> | null;
+          const pf         = vaultMeta?.permanentFail === true;
+          const fc         = (vaultMeta?.failCount as number) ?? 0;
+          logger.info(
+            `[PreEncoder] Skipping item ${item.id} — source ${resolvedSourceYoutubeId} ` +
+            `vault=failed (permanentFail=${pf}, failCount=${fc}) — section-dl would fail`,
+          );
+          skipped++;
+          continue;
         }
       }
     } catch { /* non-fatal — continue to attempt the download */ }
