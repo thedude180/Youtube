@@ -4701,6 +4701,53 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 //   - FK rows in `videos` (10,227 demo/catalog records from the seed)
 // Deletion order: videos first (FK child) → channels (FK parent).
 // All other FK tables (back_catalog_videos, compliance_records, etc.) are 0 rows.
+// ── Migration 085: Cascade-delete ghost channel 52 (corrected) ────────────────
+// Migration 084 failed because videos has 2 non-empty FK child tables:
+//   content_pipeline: 1,474 rows (video_id → videos.id)
+//   playlist_items:   20 rows    (video_id → videos.id)
+// Neither of those tables has their own FK children, so the correct order is:
+//   1. DELETE FROM content_pipeline WHERE video_id IN (channel-52 video IDs)
+//   2. DELETE FROM playlist_items    WHERE video_id IN (channel-52 video IDs)
+//   3. DELETE FROM videos            WHERE channel_id = 52  (10,227 rows)
+//   4. DELETE FROM channels          WHERE id = 52
+// After this, the only YouTube channel in the DB is channel 53 (ET Gaming 274).
+async function migration085DeleteGhostChannel52Cascade(): Promise<void> {
+  const FLAG = "migration:085:delete_ghost_channel_52_cascade_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Step 1 — cascade through content_pipeline (1,474 rows, no FK children)
+    const r1 = await db.execute(sql`
+      DELETE FROM content_pipeline
+      WHERE video_id IN (SELECT id FROM videos WHERE channel_id = 52)
+    `);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+
+    // Step 2 — cascade through playlist_items (20 rows, no FK children)
+    const r2 = await db.execute(sql`
+      DELETE FROM playlist_items
+      WHERE video_id IN (SELECT id FROM videos WHERE channel_id = 52)
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+
+    // Step 3 — delete the 10,227 video rows (all FK children now cleared)
+    const r3 = await db.execute(sql`DELETE FROM videos WHERE channel_id = 52`);
+    const rows3 = (r3 as any)?.rowCount ?? 0;
+
+    // Step 4 — delete the ghost channel itself
+    const r4 = await db.execute(sql`DELETE FROM channels WHERE id = 52`);
+    const rows4 = (r4 as any)?.rowCount ?? 0;
+
+    log.info(
+      `[Migration 085] Ghost channel 52 deleted: ` +
+      `${rows1} content_pipeline, ${rows2} playlist_items, ${rows3} videos, ${rows4} channel rows removed`,
+    );
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 085] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration084DeleteGhostChannel52(): Promise<void> {
   const FLAG = "migration:084:delete_ghost_channel_52_v1";
   if (await getFlag(FLAG)) return;
@@ -4979,6 +5026,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration082CancelT4PKhDhQPp0Items();
     await migration083CancelNonBf6StreamEditJobsAndOversizedShorts();
     await migration084DeleteGhostChannel52();
+    await migration085DeleteGhostChannel52Cascade();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
