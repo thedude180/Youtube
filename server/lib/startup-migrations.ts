@@ -4446,6 +4446,42 @@ async function migration078CancelOffBrandContentPipelines(): Promise<void> {
   }
 }
 
+// ── Migration 079: Fail T4PKhDhQPp0 ghost "downloaded" vault row ──────────────
+// T4PKhDhQPp0 is confirmed permanently inaccessible (all 4 InnerTube clients +
+// yt-dlp returned errors).  The vault has two rows for this video:
+//   id=4087  status=downloaded  (no permanentFail) ← stale from a previous boot
+//   id=8546  status=failed      permanentFail=true  ← correct
+// On every restart the `downloaded` row (id=4087) is picked up by the
+// clip-video-processor which assumes the file is present on disk.  When the
+// file is gone (cleared from /tmp on container restart), it falls through to
+// re-download → tries all 4 clients × 5 formats = 20 yt-dlp processes → event
+// loop saturation at T+4-9min → node-cron misses → DB query timeouts.
+// Fix: set id=4087 to status=failed with permanentFail=true so it is never
+// retried again.  Also sweep any other "downloaded" rows for this youtube_id
+// that lack the permanentFail guard.
+async function migration079FailT4PKhDhQPp0GhostVaultRow(): Promise<void> {
+  const FLAG = "migration:079:fail_t4pkhdphqpp0_ghost_vault_row_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const r = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET
+        status         = 'failed',
+        metadata       = jsonb_set(COALESCE(metadata, '{}'), '{permanentFail}', 'true'::jsonb),
+        download_error = 'migration-079: video permanently inaccessible — all 4 InnerTube clients + yt-dlp failed; ghost downloaded row removed to prevent yt-dlp storm on each boot'
+      WHERE youtube_id = 'T4PKhDhQPp0'
+        AND status     = 'downloaded'
+        AND (metadata IS NULL OR (metadata->>'permanentFail') IS DISTINCT FROM 'true')
+    `);
+    const count = (r as any).rowCount ?? 0;
+    log.info(`[Migration 079] Marked ${count} ghost vault row(s) for T4PKhDhQPp0 as permanently failed`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 079] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration077CancelDeadResetWindowItems(): Promise<void> {
   // Items 42262/42263/42264: auto-clips whose source video BX1eEq_x_AA has
   //   vault status=failed + permanentFail=true (fail_count=10).  The back-catalog
@@ -4664,6 +4700,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration076CreateAutonomousActionLog();
     await migration077CancelDeadResetWindowItems();
     await migration078CancelOffBrandContentPipelines();
+    await migration079FailT4PKhDhQPp0GhostVaultRow();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

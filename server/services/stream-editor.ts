@@ -1236,7 +1236,14 @@ async function runJobInBackground(jobId: number): Promise<void> {
       try {
         const [row] = await db.select({ errorMessage: streamEditJobs.errorMessage })
           .from(streamEditJobs).where(eq(streamEditJobs.id, jobId)).limit(1);
-        prevErrIsTimeout = String(row?.errorMessage ?? "").includes("FFmpeg hard timeout");
+        const prevMsg = String(row?.errorMessage ?? "");
+        // Permanently fail if:
+        //  (a) already timed out before (repeated FFmpeg timeout), OR
+        //  (b) was reset from a crashed-in-progress state ("Reset on startup") —
+        //      orphan FFmpeg processes from the previous container are likely still
+        //      consuming CPU, so a timeout on the first retry is terminal.
+        prevErrIsTimeout = prevMsg.includes("FFmpeg hard timeout") ||
+                           prevMsg.includes("Reset on startup");
       } catch { /* non-fatal — if we can't read, treat as first failure */ }
     }
     const finalStatus = prevErrIsTimeout ? "failed" : "error";

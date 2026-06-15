@@ -198,12 +198,20 @@ let _activeChannelsCache: any[] | null = null;
 let _channelCacheAt = 0;
 const CHANNEL_USERS_CACHE_TTL_MS = 30 * 60 * 1000;
 
+// Demo/test user IDs that must never be included in production automation cycles.
+// Channel 52 (UCdemo_ETGaming247) belongs to google_api_demo_reviewer and cannot be
+// deleted due to FK constraints; filtering here prevents it from entering every
+// 4-hour backlog cron, the VideoOptimizer sweep, and all other per-user loops.
+const AUTOMATION_EXCLUDED_USERS = new Set(['google_api_demo_reviewer', 'dev_bypass_user']);
+
 async function getActiveUserIds(): Promise<string[]> {
   if (_activeUserIdsCache && Date.now() - _channelCacheAt < CHANNEL_USERS_CACHE_TTL_MS) {
     return _activeUserIdsCache;
   }
   const rows = await db.select({ userId: channels.userId }).from(channels);
-  _activeUserIdsCache = Array.from(new Set(rows.map(r => r.userId).filter(Boolean))) as string[];
+  _activeUserIdsCache = Array.from(new Set(
+    rows.map(r => r.userId).filter(id => Boolean(id) && !AUTOMATION_EXCLUDED_USERS.has(id!))
+  )) as string[];
   _channelCacheAt = Date.now();
   return _activeUserIdsCache;
 }

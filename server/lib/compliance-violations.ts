@@ -78,6 +78,12 @@ const VIOLATION_REGISTRY: Record<string, ComplianceFix> = {
     autoFixable: false,
     fixAction:   "Manual: appeal strike in YouTube Studio → Content → Strikes",
   },
+  incentivization_spam: {
+    type:        "incentivization_spam",
+    description: "Post may contain artificial-engagement incentives (sub4sub, view4view, like-for-like) in title or description",
+    autoFixable: false,
+    fixAction:   "Manual: review title/description for engagement-bait language and edit in YouTube Studio; check if a compliance_rule is flagging normal BF6 language as a false positive",
+  },
 };
 
 // ─── Result type ──────────────────────────────────────────────────────────────
