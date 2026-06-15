@@ -1224,7 +1224,7 @@ async function healProductionPipeline(): Promise<void> {
         // that created "refresh" pipelines before the BF6-only lock; without this
         // gate the drip-feed would burn AI slots generating AC titles, descriptions,
         // and thumbnails for a BF6-only channel indefinitely.
-        const _offBrandRx = /assassin|creed|valhalla|liberation|call.of.duty|\bcod\b|apex.legends|fortnite|minecraft|roblox/i;
+        const _offBrandRx = /assassin|creed|valhalla|liberation|freedom cry|aveline|black flag|\bac4\b|god of war|\bgowr?\b|call of duty|\bcod\b|apex legend|fortnite|minecraft|roblox/i;
         if (next.videoTitle && _offBrandRx.test(next.videoTitle)) {
           await db.update(contentPipeline)
             .set({ status: "completed", errorMessage: "Drip-feed cancelled: off-brand content — channel is BF6-only" })

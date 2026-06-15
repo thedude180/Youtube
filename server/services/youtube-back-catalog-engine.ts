@@ -720,18 +720,36 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
       .filter(v => !v.isShort && (!gameFilter || gameFilter(v)))
       .slice(0, 25);
 
-    const { isQuotaBreakerTripped: metaQuotaCheck } = await import("../services/youtube-quota-tracker");
-    for (const v of metaTargets) {
-      if (metaQuotaCheck()) {
-        logger.warn("[BackCatalog] Quota breaker tripped mid-loop — stopping metadata refresh");
-        break;
-      }
-      try {
-        const { queueMetadataUpdate } = await import("./youtube-existing-video-optimizer");
-        const res = await queueMetadataUpdate(userId, v.youtubeVideoId);
-        if (res.queued) result.metadataQueued++;
-      } catch (err: any) {
-        logger.debug(`[BackCatalog] Metadata queue error ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
+    const { isQuotaBreakerTripped: metaQuotaCheck, canAffordOperation } = await import("../services/youtube-quota-tracker");
+
+    // Pre-sweep quota headroom guard — require at least 2,000 units of headroom
+    // (40 videos × 50 units/video) before entering the metadata sweep.  Without
+    // this check, the Google Quota Sync restores the real daily usage on every
+    // boot (often ~8,750 units late in the UTC day).  The breaker is not yet
+    // tripped at that point, so the sweep runs, burns ~1,250 units on 25 videos,
+    // and trips the breaker — blocking ALL YouTube API calls for hours before
+    // the midnight Pacific reset.  With this guard the sweep simply defers to
+    // the next 12h cycle instead of burning the last usable headroom.
+    let metaHeadroom = true;
+    try {
+      metaHeadroom = await canAffordOperation(userId, "write", 40); // 40 videos.update × 50 units = 2000 units headroom
+    } catch { /* ok — default to allowing the sweep */ }
+
+    if (!metaHeadroom) {
+      logger.warn("[BackCatalog] Insufficient quota headroom for metadata sweep (< 2000 units remaining) — deferring to next cycle");
+    } else {
+      for (const v of metaTargets) {
+        if (metaQuotaCheck()) {
+          logger.warn("[BackCatalog] Quota breaker tripped mid-loop — stopping metadata refresh");
+          break;
+        }
+        try {
+          const { queueMetadataUpdate } = await import("./youtube-existing-video-optimizer");
+          const res = await queueMetadataUpdate(userId, v.youtubeVideoId);
+          if (res.queued) result.metadataQueued++;
+        } catch (err: any) {
+          logger.debug(`[BackCatalog] Metadata queue error ${v.youtubeVideoId}: ${err.message?.slice(0, 100)}`);
+        }
       }
     }
 

@@ -194,7 +194,27 @@ async function recordOptimizationHistory(
   }
 }
 
+// BF6-only content gate — matches game titles / DLC names that are definitively
+// NOT Battlefield 6.  This regex is intentionally broad: if a title slips
+// through it's more likely an unoptimized new AC/GoW game than legitimate BF6
+// content.  All execution paths (drip-feed, autopilot-monitor, initial boot kick)
+// go through this function, so placing the gate here is the single chokepoint.
+const _OFFBRAND_PIPELINE_RX =
+  /assassin|creed|valhalla|liberation|freedom cry|aveline|black flag|\bac4\b|god of war|\bgowr?\b|call of duty|\bcod\b|apex legend|fortnite|minecraft|roblox/i;
+
 export async function executePipelineInBackground(id: number, videoTitle: string, mode: string, existingResults: Record<string, any>, existingCompleted: string[]) {
+  // BF6-only gate: cancel immediately before any step runs if the title is
+  // clearly off-brand.  Prevents AI slots from being consumed on AC / GoW /
+  // CoD content on a BF6-only channel.
+  if (videoTitle && _OFFBRAND_PIPELINE_RX.test(videoTitle)) {
+    try {
+      await db.update(contentPipeline)
+        .set({ status: "completed", errorMessage: "BF6-gate cancelled: off-brand content (channel is BF6-only)" })
+        .where(eq(contentPipeline.id, id));
+    } catch { /* ok — best-effort */ }
+    return;
+  }
+
   const currentResults = { ...existingResults };
   const completedSteps = [...existingCompleted];
 
