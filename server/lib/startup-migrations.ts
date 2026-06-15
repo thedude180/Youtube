@@ -4731,6 +4731,29 @@ async function migration082CancelT4PKhDhQPp0Items(): Promise<void> {
 // is written here so the learning brain can query patterns across all boots and
 // deployments.  Unlike application logs which vanish on restart, this table
 // accumulates indefinitely (auto-pruned to 90-day rolling window by the brain).
+async function migration089CreateServiceState(): Promise<void> {
+  const FLAG = "migration:089:create_service_state_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS service_state (
+        id         SERIAL PRIMARY KEY,
+        service    TEXT        NOT NULL,
+        key        TEXT        NOT NULL,
+        value      JSONB       NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS service_state_svc_key_uq ON service_state (service, key)`);
+    await db.execute(sql`CREATE INDEX        IF NOT EXISTS service_state_svc_idx    ON service_state (service)`);
+    log.info("[Migration 089] service_state table + indexes created");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 089] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 async function migration088CreateSystemEventLog(): Promise<void> {
   const FLAG = "migration:088:create_system_event_log_v1";
   if (await getFlag(FLAG)) return;
@@ -5172,6 +5195,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration086HardFailHBylGNbIT88();
     await migration087CancelCrashLoopJobs();
     await migration088CreateSystemEventLog();
+    await migration089CreateServiceState();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

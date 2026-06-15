@@ -222,6 +222,27 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
   lastRunAt = new Date();
   lastRunResult = { usersRun, errors };
 
+  // Persist last run time so the brain can detect gaps across deployments
+  import('../lib/service-state').then(({ setState }) =>
+    setState('back-catalog-runner', 'lastRunAt', {
+      ms:         Date.now(),
+      iso:        new Date().toISOString(),
+      usersRun,
+      errors,
+    })
+  ).catch(() => {});
+
+  // Record cycle completion to the permanent event log
+  import('../lib/event-log').then(({ logEvent }) =>
+    logEvent({
+      eventType: 'system',
+      service:   'back-catalog-runner',
+      title:     `Back-catalog runner cycle complete — ${usersRun} user(s), ${errors} error(s)`,
+      detail:    { usersRun, errors },
+      severity:  errors > 0 ? 'warn' : 'info',
+    })
+  ).catch(() => {});
+
   logger.info(`[BackCatalogRunner] All users complete — ran: ${usersRun}, errors: ${errors}`);
   return { usersRun, errors };
 }

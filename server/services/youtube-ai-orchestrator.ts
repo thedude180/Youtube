@@ -622,7 +622,20 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
     logger.warn(`[YouTubeAI] Approval required: ${result.tasksApprovalRequired.join("; ")}`);
   }
 
-  if (fullCycle) lastFullCycleAt = new Date();
+  if (fullCycle) {
+    lastFullCycleAt = new Date();
+    // Persist so the brain can detect gaps across deployments
+    import('../lib/service-state').then(({ setState }) =>
+      setState('ai-orchestrator', `lastFullCycleAt:${userId}`, {
+        ms:  Date.now(),
+        iso: new Date().toISOString(),
+        tasksRun:             result.tasksRun.length,
+        approvalRequired:     result.tasksApprovalRequired.length,
+        shortsQueued:         result.shortsQueued,
+        longFormQueued:       result.longFormQueued,
+      })
+    ).catch(() => {});
+  }
   return result;
 }
 

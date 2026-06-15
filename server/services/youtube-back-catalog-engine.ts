@@ -1869,6 +1869,15 @@ export async function runBackCatalogMonetizationCycle(userId: string): Promise<{
   rankedCount: number;
   skippedReason?: string;
 }> {
+  // Restore persistent last-cycle time on first call after each boot so the
+  // 22-hour interval is honoured across deployments, not just within one container session.
+  if (!_lastCycleAt.has(userId)) {
+    try {
+      const { getState } = await import('../lib/service-state');
+      const stored = await getState<{ ms: number }>('back-catalog-engine', `lastCycleAt:${userId}`);
+      if (stored?.ms) _lastCycleAt.set(userId, stored.ms);
+    } catch { /* non-fatal */ }
+  }
   const last = _lastCycleAt.get(userId) ?? 0;
   if (Date.now() - last < CYCLE_INTERVAL_MS) {
     return {
@@ -1881,6 +1890,10 @@ export async function runBackCatalogMonetizationCycle(userId: string): Promise<{
     };
   }
   _lastCycleAt.set(userId, Date.now());
+  // Persist immediately so the next boot knows this cycle already ran
+  import('../lib/service-state').then(({ setState }) =>
+    setState('back-catalog-engine', `lastCycleAt:${userId}`, { ms: Date.now(), iso: new Date().toISOString() })
+  ).catch(() => {});
 
   logger.info(`[BackCatalog] Starting monetization cycle for ${userId.slice(0, 8)}`);
 

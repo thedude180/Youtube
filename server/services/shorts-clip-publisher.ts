@@ -772,6 +772,16 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
           .set({ status: "failed", errorMessage: result.error })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
+        import("../lib/event-log").then(({ logEvent }) =>
+          logEvent({
+            eventType: "error",
+            service:   "shorts-publisher",
+            title:     `Short publish failed: ${result.error?.slice(0, 120) ?? "unknown error"}`,
+            detail:    { queueItemId: item.id, platform, error: result.error?.slice(0, 300) },
+            userId,
+            severity:  "warn",
+          })
+        ).catch(() => {});
       }
     }
   } finally {

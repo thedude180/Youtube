@@ -528,6 +528,87 @@ async function synthesizeEventLog(userId: string): Promise<void> {
   }
 }
 
+// ── Service health synthesis ───────────────────────────────────────────────────
+// Reads service_state to check when each long-running service last completed a
+// full cycle.  Writes a health snapshot to masterKnowledgeBank
+// (category="service_health") so the brain can reason about pipeline gaps and
+// alert the orchestrator when a critical service has gone quiet.
+// No AI calls — pure DB observation + deterministic threshold logic.
+
+async function synthesizeServiceHealth(userId: string): Promise<void> {
+  try {
+    const { getState } = await import('../lib/service-state');
+    const now = Date.now();
+
+    const watched = [
+      { service: 'learning-brain',     key: `lastCycleAt:${userId}`,     expectedH: 20, label: 'Learning brain'     },
+      { service: 'back-catalog-runner', key: 'lastRunAt',                 expectedH: 24, label: 'Back-catalog runner' },
+      { service: 'back-catalog-engine', key: `lastCycleAt:${userId}`,     expectedH: 22, label: 'Back-catalog engine' },
+      { service: 'ai-orchestrator',     key: `lastFullCycleAt:${userId}`, expectedH: 24, label: 'AI orchestrator'    },
+    ] as const;
+
+    const lines:  string[] = [];
+    const overdue: string[] = [];
+
+    for (const w of watched) {
+      const stored = await getState<{ ms: number }>(w.service, w.key);
+      if (!stored?.ms) {
+        lines.push(`${w.label}: no persistent record yet (first run after feature deploy)`);
+        continue;
+      }
+      const hoursSince = (now - stored.ms) / 3_600_000;
+      const ago = hoursSince < 1
+        ? `${Math.round(hoursSince * 60)}m ago`
+        : `${hoursSince.toFixed(1)}h ago`;
+      if (hoursSince > w.expectedH * 1.5) {
+        lines.push(`${w.label}: OVERDUE — last ran ${ago}, expected every <${w.expectedH}h`);
+        overdue.push(w.label);
+      } else {
+        lines.push(`${w.label}: healthy — last ran ${ago}`);
+      }
+    }
+
+    const principle = `Service health snapshot:\n${lines.join('\n')}`;
+    const recommendation = overdue.length > 0
+      ? `ALERT — ${overdue.join(', ')} overdue. Check logs for crash loops or quota locks that may have stalled the pipeline.`
+      : `All monitored services completed cycles within expected intervals. Pipeline is healthy.`;
+
+    await db.insert(masterKnowledgeBank).values({
+      userId,
+      category:          'service_health',
+      principle,
+      sourceEngines:     ['service-state', 'learning-brain'],
+      evidenceCount:     watched.length,
+      confidenceScore:   overdue.length === 0 ? 90 : 40,
+      applicableEngines: ['youtube-ai-orchestrator', 'back-catalog-runner', 'learning-brain'],
+      isActive:          true,
+      metadata: {
+        overdueServices: overdue,
+        snapshotAt:      new Date().toISOString(),
+        lines,
+      },
+    } as any).onConflictDoUpdate?.({
+      target: [masterKnowledgeBank.userId, masterKnowledgeBank.category],
+      set:    {
+        principle,
+        confidenceScore:   overdue.length === 0 ? 90 : 40,
+        evidenceCount:     watched.length,
+        metadata: {
+          overdueServices: overdue,
+          snapshotAt:      new Date().toISOString(),
+          lines,
+        },
+      },
+    }).catch(() => {});
+
+    logger.info(
+      `[Brain] Service health synthesis: ${overdue.length === 0 ? 'all healthy' : `${overdue.length} overdue: ${overdue.join(', ')}`}`,
+    );
+  } catch (err: any) {
+    logger.warn(`[Brain] Service health synthesis failed (non-fatal): ${err?.message?.slice(0, 120)}`);
+  }
+}
+
 // ── Micro-signal harvester (4h) ────────────────────────────────────────────────
 // Lightweight harvester that runs every 4 hours between daily cycles.
 // No AI calls — pure DB observation → masterKnowledgeBank micro-signals.
@@ -657,12 +738,25 @@ export interface DailyLearningReport {
 }
 
 export async function runDailyLearningCycle(userId: string): Promise<DailyLearningReport | null> {
+  // Restore persistent state on first call after each boot so the 20-hour
+  // interval is honoured across deployments (not just within one container session).
+  if (!_lastCycleAt.has(userId)) {
+    try {
+      const { getState } = await import('../lib/service-state');
+      const stored = await getState<{ ms: number }>('learning-brain', `lastCycleAt:${userId}`);
+      if (stored?.ms) _lastCycleAt.set(userId, stored.ms);
+    } catch { /* non-fatal */ }
+  }
   const last = _lastCycleAt.get(userId) ?? 0;
   if (Date.now() - last < CYCLE_INTERVAL_MS) {
     logger.debug(`[Brain] Daily cycle skipped for ${userId.slice(0, 8)} — ran recently`);
     return null;
   }
   _lastCycleAt.set(userId, Date.now());
+  // Persist immediately so the next boot knows this cycle already ran
+  import('../lib/service-state').then(({ setState }) =>
+    setState('learning-brain', `lastCycleAt:${userId}`, { ms: Date.now(), iso: new Date().toISOString() })
+  ).catch(() => {});
 
   logger.info(`[Brain] Starting daily learning cycle for ${userId.slice(0, 8)}`);
 
@@ -681,6 +775,11 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   // trend, and orchestrator decision patterns from the last 30 days.
   // No AI calls — pure SQL aggregation. Also prunes events older than 90 days.
   await synthesizeEventLog(userId);
+
+  // Synthesize service_state snapshots — detects any long-running service that
+  // hasn't completed a cycle within its expected interval and writes a health
+  // report to masterKnowledgeBank (category="service_health").
+  await synthesizeServiceHealth(userId);
 
   // Step 0c: Read viewer comments from recent videos — direct audience voice.
   // Cost: 1 YouTube Data API quota unit per video, max 5 videos = ≤5 units/day.

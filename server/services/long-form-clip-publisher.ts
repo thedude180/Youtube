@@ -572,6 +572,16 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
           .set({ status: "failed", errorMessage: errMsg })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
+        import("../lib/event-log").then(({ logEvent }) =>
+          logEvent({
+            eventType: "error",
+            service:   "longform-publisher",
+            title:     `Long-form publish failed: ${errMsg.slice(0, 120)}`,
+            detail:    { queueId: item.id, error: errMsg.slice(0, 300) },
+            userId:    item.userId,
+            severity:  "warn",
+          })
+        ).catch(() => {});
       } finally {
         // Clean up the pre-encoded file after upload (success or failure)
         if (encodedPath && fs.existsSync(encodedPath)) fs.unlinkSync(encodedPath);

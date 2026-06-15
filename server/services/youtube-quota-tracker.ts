@@ -678,6 +678,21 @@ export function tripGlobalQuotaBreaker(): void {
               "Always gate bulk-write loops with canAffordOperation() requiring ≥2000 unit headroom before starting.",
       tags:    ["quota", "circuit-breaker", "daily-trip"],
     }).catch(() => {});
+
+    // Write to permanent event log — brain queries quota trip frequency and time-of-day
+    import("../lib/event-log").then(({ logEvent }) =>
+      logEvent({
+        eventType: "quota",
+        service:   "quota-tracker",
+        title:     `YouTube quota circuit breaker tripped for ${today} at ~${tripHour}:xx Pacific`,
+        detail:    {
+          tripDate:    today,
+          pacificHour: parseInt(tripHour, 10),
+          caller:      callerStack.split("|")[0]?.trim().slice(0, 100) ?? "unknown",
+        },
+        severity:  "warn",
+      })
+    ).catch(() => {});
   }
   _globalQuotaTripDate = today;
 }

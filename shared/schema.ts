@@ -10839,3 +10839,20 @@ export const shadowChannelAnalytics = pgTable("shadow_channel_analytics", {
   uniqueIndex("sca_user_date_uq").on(t.userId, t.date),
 ]);
 export type ShadowChannelAnalytics = typeof shadowChannelAnalytics.$inferSelect;
+
+// ── Service State ─────────────────────────────────────────────────────────────
+// Persistent key-value store for service runtime state that must survive
+// container reboots and deployments.  Replaces in-memory Maps for _lastCycleAt,
+// lastRunAt, lastFullCycleAt and similar operational timestamps.
+// API: server/lib/service-state.ts → getState / setState / setStateAsync
+export const serviceState = pgTable("service_state", {
+  id:        serial("id").primaryKey(),
+  service:   text("service").notNull(),
+  key:       text("key").notNull(),
+  value:     jsonb("value").$type<Record<string, unknown>>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("service_state_svc_key_uq").on(t.service, t.key),
+  index("service_state_svc_idx").on(t.service),
+]);
+export type ServiceState = typeof serviceState.$inferSelect;
