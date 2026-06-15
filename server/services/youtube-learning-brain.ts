@@ -198,8 +198,8 @@ async function ingestPipelineIntelligence(userId: string): Promise<void> {
       SELECT
         game_name,
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE score IS NOT NULL AND score >= 60) AS high_score,
-        ROUND(AVG(score)::numeric, 1) AS avg_score
+        COUNT(*) FILTER (WHERE total_revival_score IS NOT NULL AND total_revival_score >= 60) AS high_score,
+        ROUND(AVG(total_revival_score)::numeric, 1) AS avg_score
       FROM back_catalog_videos
       WHERE channel_id = 53
       GROUP BY game_name

@@ -87,8 +87,9 @@ const GENRE_EQ: Record<GameGenre, string> = {
 // All windows skip the first 8% (max 10 min) to avoid stream intros / lobby waits.
 
 // SHORTS_TARGET_SEC is a fallback only — runtime calls chooseBestShortDuration() for the
-// audience-learned optimal length.  179s = hard ceiling (YouTube Shorts max).
-const SHORTS_TARGET_SEC_DEFAULT = 75;
+// audience-learned optimal length.  Must be < 60s — the Shorts publisher hard-rejects
+// any item with endSec-startSec >= 60s.  58s gives a safe 2s margin.
+const SHORTS_TARGET_SEC_DEFAULT = 58;
 const LONG_STREAM_THRESHOLD_SEC = 10_800; // 3 h — add a second long-form segment above this
 
 interface PlatformSegment {

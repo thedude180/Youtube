@@ -5103,6 +5103,121 @@ async function migration069CancelStaleStreamEditJobs(): Promise<void> {
   }
 }
 
+// ── Migration 090: Cancel 75s dead-zone Shorts ────────────────────────────────
+// Items with segment duration 61–479s are in a dead zone: too long for the
+// Shorts guard (<60s) and far too short for long-form (≥480s / 8 min).
+// The publisher already set them to 'failed', but the boot queue reset can
+// flip them back to 'scheduled'.  'cancelled' + failReason='migration-090:…'
+// is immune to the boot reset (reset skips items where failReason LIKE 'migration-%').
+async function migration090CancelDeadZoneShorts(): Promise<void> {
+  const FLAG = "migration:090:cancel_dead_zone_shorts_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Step 1 — cancel the four specific stuck items identified in prod logs 2026-06-15.
+    const r1 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-090: segment duration 75s — dead zone (>60s Short max, <480s long-form min)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-090:75s-dead-zone"}'::jsonb
+      WHERE id IN (42943, 43040, 43044, 43140)
+        AND status NOT IN ('completed', 'cancelled')
+    `);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+    log.info(`[Migration 090] Cancelled 4 known 75s dead-zone items: ${rows1} row(s)`);
+
+    // Step 2 — general guard: cancel any Short-type items where the segment
+    // duration computed from metadata falls between 61s and 479s.
+    // Covers both startSec/endSec (grinder shape) and segmentStartSec/segmentEndSec
+    // (back-catalog shape) metadata layouts.
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-090: segment duration dead zone — too long for Shorts (<60s), too short for long-form (≥480s)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-090:segment-duration-dead-zone"}'::jsonb
+      WHERE content_type IN ('youtube_short','auto-clip','vod-short','platform_short')
+        AND status NOT IN ('completed', 'cancelled')
+        AND (
+          (
+            (metadata->>'endSec') IS NOT NULL AND (metadata->>'startSec') IS NOT NULL AND
+            ((metadata->>'endSec')::float - (metadata->>'startSec')::float) BETWEEN 61 AND 479
+          ) OR (
+            (metadata->>'segmentEndSec') IS NOT NULL AND (metadata->>'segmentStartSec') IS NOT NULL AND
+            ((metadata->>'segmentEndSec')::float - (metadata->>'segmentStartSec')::float) BETWEEN 61 AND 479
+          )
+        )
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+    log.info(`[Migration 090] General dead-zone guard cancelled: ${rows2} row(s)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 090] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 091: Permanently fail 16 confirmed InnerTube HTTP-400 videos ───
+// These video IDs returned "Request contains an invalid argument" (HTTP 400)
+// from the ANDROID InnerTube client on 2026-06-15.  All InnerTube clients
+// return 400 → video is permanently inaccessible.  Sets failCount=10 +
+// permanentFail=true so the vault downloader skips them without yt-dlp fallback
+// (same pattern as migrations 028 and 056).
+async function migration091FailInnerTube400Videos(): Promise<void> {
+  const FLAG = "migration:091:fail_innertube_400_videos_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const BAD_IDS = [
+      'fasukGbacL4','YGeTO9XQS9o','6FKNVbVclfE','kAutnOJuZ9c',
+      '0PSExmaZYHc','_MDrY7r_nPo','tWcl8Dzwq1Y','uNO1-_CQjYQ',
+      'Vuw3XzGwXbw','uxUjyqr7Ojw','tY6sfE50OYA','vj5QqC52pH4',
+      'ZBccquH1QY4','fCueLH3d8YE','M1XrPfFv6LM','1Zgpjx9iQAs',
+    ];
+
+    // Step 1 — mark vault entries as permanently failed so the downloader skips them.
+    const r1 = await db.execute(sql`
+      UPDATE content_vault_backups
+      SET status   = 'failed',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"failCount":10,"permanentFail":true,"downloadError":"PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS","failedBy":"migration-091"}'::jsonb
+      WHERE youtube_id = ANY(${BAD_IDS}::text[])
+        AND status NOT IN ('downloaded')
+    `);
+    const rows1 = (r1 as any)?.rowCount ?? 0;
+    log.info(`[Migration 091] Vault entries permanently failed: ${rows1} row(s)`);
+
+    // Step 2 — cancel any autopilot_queue items whose metadata references these IDs,
+    // so publishers don't try to encode/upload them.
+    const r2 = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-091: source video permanently inaccessible (InnerTube HTTP 400 all clients)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-091:innertube-400-perm-unavailable"}'::jsonb
+      WHERE metadata->>'sourceYoutubeId' = ANY(${BAD_IDS}::text[])
+        AND status NOT IN ('completed', 'cancelled')
+    `);
+    const rows2 = (r2 as any)?.rowCount ?? 0;
+    log.info(`[Migration 091] Queue items cancelled for HTTP-400 sources: ${rows2} row(s)`);
+
+    // Step 3 — mark catalog entries as fully mined so they are never re-queued.
+    const r3 = await db.execute(sql`
+      UPDATE back_catalog_videos
+      SET is_shorts_mined    = true,
+          is_long_form_mined = true
+      WHERE youtube_video_id = ANY(${BAD_IDS}::text[])
+    `);
+    const rows3 = (r3 as any)?.rowCount ?? 0;
+    log.info(`[Migration 091] Back-catalog videos marked fully mined: ${rows3} row(s)`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 091] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5196,6 +5311,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration087CancelCrashLoopJobs();
     await migration088CreateSystemEventLog();
     await migration089CreateServiceState();
+    await migration090CancelDeadZoneShorts();
+    await migration091FailInnerTube400Videos();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
