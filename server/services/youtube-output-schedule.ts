@@ -797,7 +797,10 @@ export async function countUploadedLongFormForDate(
     .where(and(
       eq(autopilotQueue.userId, userId),
       inArray(autopilotQueue.status, ["processing", "published"]),
-      sql`${autopilotQueue.metadata}->>'contentType' = 'long-form-clip'`,
+      inArray(
+        sql`${autopilotQueue.metadata}->>'contentType'` as any,
+        ["long-form-clip", "long-form", "vod_long_form", "long-form-compilation"],
+      ),
       gte(autopilotQueue.scheduledAt, start),
       lte(autopilotQueue.scheduledAt, end),
     ));

@@ -91,6 +91,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   77: { name: "Cancel Dead Reset-Window Items",       category: "cleanup", description: "Cancels queue IDs 42262/42263/42264 (perm-fail vault source BX1eEq_x_AA) and 39018 (BF2042 platform_short)" },
   78: { name: "Cancel Off-Brand Content Pipelines",  category: "cleanup", description: "Cancels pending/error content_pipeline rows for AC/non-BF6 videos (Assassin's Creed, Valhalla, Liberation, etc.)" },
   86: { name: "Hard-Fail hBylGNbIT88 Storm Source",  category: "cleanup", description: "Sets failCount=10+permanentFail on vault entries for hBylGNbIT88 (HTTP-400 all-clients) and marks catalog fully mined so back-catalog engine never re-queues it" },
+  96: { name: "Fix Reset Cadence and LF Overflow",   category: "cleanup", description: "Cancels BF2042 Short (39018) and undownloadable LF (39534); redistributes Jun 22/23 LF overflow (6 items) to Jun 24-29 for clean 1/day cadence" },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -1096,11 +1097,11 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
   try {
     const r = await db.execute(sql`
       UPDATE autopilot_queue
-      SET status = 'permanent_fail',
+      SET status = 'cancelled',
           metadata = jsonb_set(
             COALESCE(metadata, '{}'::jsonb),
             '{failReason}',
-            '"per-boot-cleanup: off-brand content removed — channel is BF6-only"'
+            '"migration-per-boot: off-brand content cancelled — channel is BF6-only"'
           )
       WHERE user_id IN (SELECT user_id FROM channels WHERE id = 53)
         AND status IN ('scheduled', 'pending')
@@ -5423,6 +5424,90 @@ async function cancelLongStreamEditJobs(): Promise<void> {
   }
 }
 
+// ── Migration 096 ─────────────────────────────────────────────────────────────
+// Fixes two classes of cadence problems discovered during the Jun 16 reset window
+// analysis:
+//
+// 1. CANCEL off-brand / undownloadable items stuck in 'scheduled':
+//    - id=39018: BF2042 platform_short at 07:05 UTC Jun 16. Migration 077 missed
+//      it because cleanupNonBF6QueueItems() had already set it to 'permanent_fail'
+//      before m077's WHERE clause ran (which only matched 'scheduled/pending').
+//      Wave 0.6 boot reset then cycled it back to 'scheduled' on every restart.
+//      Fix: 'cancelled' (immune to boot reset).
+//    - id=39534: BF6 long-form-clip at 15:56 UTC Jun 16 with
+//      failReason='source_no_dash_format_undownloadable'. Will never encode or
+//      publish; would waste the Jun 17/18/19 LF slot while it soft-fails 3×.
+//    - ids=43179, 43180: BF2042 long-form-compilations at Jul 1-2.
+//
+// 2. REDISTRIBUTE June 22-23 LF overflow to June 24-29 (1 LF/day cadence):
+//    - Jun 22 Pacific has 4 LF items: keep id=43142 (earliest), reschedule
+//      43143→Jun 24, 43144→Jun 25, 43146→Jun 26 (all at 23:00 UTC, ~4 PM PDT).
+//    - Jun 23 Pacific has 4 LF items: keep id=43147 (earliest), reschedule
+//      43148→Jun 27, 43149→Jun 28, 43150→Jun 29 (same 23:00 UTC slot).
+//    Jun 24-29 are empty of LF content — this fills the week with 1/day, which
+//    is exactly the channel's target cadence.
+
+async function migration096FixResetCadenceAndLFOverflow(): Promise<void> {
+  const FLAG = "migration:096:fix_reset_cadence_lf_overflow_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // Step 1 — Cancel BF2042 items and the undownloadable Jun 16 LF
+    const cancelR = await db.execute(sql`
+      UPDATE autopilot_queue
+      SET
+        status   = 'cancelled',
+        metadata = COALESCE(metadata, '{}'::jsonb)
+          || jsonb_build_object(
+               'failReason',
+               'migration-096: cancelled — BF2042 off-brand or undownloadable source'
+             )
+      WHERE id IN (39018, 39534, 43179, 43180)
+        AND status IN ('scheduled', 'pending', 'permanent_fail', 'deferred')
+    `);
+    log.info(`[Migration 096] Cancelled ${(cancelR as any).rowCount ?? 0} off-brand/undownloadable item(s)`);
+
+    // Step 2 — Redistribute Jun 22 overflow (3 excess items → Jun 24-26)
+    const lf22 = [
+      { id: 43143, ts: "2026-06-24 23:00:00+00" },
+      { id: 43144, ts: "2026-06-25 23:00:00+00" },
+      { id: 43146, ts: "2026-06-26 23:00:00+00" },
+    ];
+    for (const { id, ts } of lf22) {
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET scheduled_at = ${ts}::timestamptz,
+            status       = 'scheduled',
+            error_message = NULL
+        WHERE id = ${id}
+          AND status IN ('scheduled', 'pending')
+      `);
+    }
+
+    // Step 3 — Redistribute Jun 23 overflow (3 excess items → Jun 27-29)
+    const lf23 = [
+      { id: 43148, ts: "2026-06-27 23:00:00+00" },
+      { id: 43149, ts: "2026-06-28 23:00:00+00" },
+      { id: 43150, ts: "2026-06-29 23:00:00+00" },
+    ];
+    for (const { id, ts } of lf23) {
+      await db.execute(sql`
+        UPDATE autopilot_queue
+        SET scheduled_at = ${ts}::timestamptz,
+            status       = 'scheduled',
+            error_message = NULL
+        WHERE id = ${id}
+          AND status IN ('scheduled', 'pending')
+      `);
+    }
+
+    log.info(`[Migration 096] Redistributed 6 LF overflow items to Jun 24-29 (1/day cadence)`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 096] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5522,6 +5607,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration093FailInnerTube400VideosV2();
     await migration094CancelJob18117();
     await migration095FailNewInnerTube400Videos();
+    await migration096FixResetCadenceAndLFOverflow();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
