@@ -92,6 +92,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   78: { name: "Cancel Off-Brand Content Pipelines",  category: "cleanup", description: "Cancels pending/error content_pipeline rows for AC/non-BF6 videos (Assassin's Creed, Valhalla, Liberation, etc.)" },
   86: { name: "Hard-Fail hBylGNbIT88 Storm Source",  category: "cleanup", description: "Sets failCount=10+permanentFail on vault entries for hBylGNbIT88 (HTTP-400 all-clients) and marks catalog fully mined so back-catalog engine never re-queues it" },
   96: { name: "Fix Reset Cadence and LF Overflow",   category: "cleanup", description: "Cancels BF2042 Short (39018) and undownloadable LF (39534); redistributes Jun 22/23 LF overflow (6 items) to Jun 24-29 for clean 1/day cadence" },
+  97: { name: "Bump Pre-Reset Items Into Pacific Day", category: "cleanup", description: "Prod-heal rescheduled all items to 01:31 UTC (Jun 15 Pacific bucket). Bumps LF→24h slots from 07:30 UTC Jun 16, Shorts→8h slots from 07:05 UTC Jun 16 so cadence gate counts them correctly." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5508,6 +5509,79 @@ async function migration096FixResetCadenceAndLFOverflow(): Promise<void> {
   }
 }
 
+// ── Migration 097 ─────────────────────────────────────────────────────────────
+// Root cause: prod-heal "far-future → 24h" + back-catalog runner rescheduled all
+// queued items to ~01:31 UTC Jun 16 on deploy boot.  01:31 UTC Jun 16 = 18:31 PDT
+// Jun 15 = June 15 Pacific.  The cadence gate queries scheduledAt BETWEEN
+// [07:00 UTC Jun 16 = midnight Pacific] AND [next midnight].  Items in the Jun 15
+// Pacific bucket are invisible to the gate — at reset the publisher would drain
+// ALL past-due items (13 LF + 22 Shorts) without any daily-cap enforcement.
+//
+// Fix: one-time reassignment so every item lands in a proper post-reset slot:
+//   • LF (long-form-clip / long-form-compilation / etc): sequential 24h slots
+//     from 07:30 UTC Jun 16, ordered by id (earliest id = earliest slot).
+//   • Shorts (auto-clip youtube-short / platform_short / vod-short): sequential
+//     8h slots from 07:05 UTC Jun 16 — 3 per Pacific day, naturally rate-limited
+//     by the cadence gate.
+// Items with scheduledAt >= 07:00 UTC Jun 16 are already in the correct Pacific
+// bucket and are left untouched.
+async function migration097BumpPreResetItemsIntoPacificDay(): Promise<void> {
+  const FLAG = "migration:097:bump_pre_reset_items_pacific_day_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // ── Long-form items ──────────────────────────────────────────────────────
+    // Assign each past-due LF item a slot: base + (rn * 24h), ordered by id.
+    const lfResult = await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (ORDER BY id) - 1 AS rn
+        FROM autopilot_queue
+        WHERE status IN ('scheduled', 'pending')
+          AND scheduled_at < '2026-06-16 07:00:00+00'::timestamptz
+          AND metadata->>'contentType' IN (
+            'long-form-clip', 'long-form', 'vod_long_form', 'long-form-compilation'
+          )
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at  = '2026-06-16 07:30:00+00'::timestamptz
+                          + (ranked.rn || ' days')::interval,
+          error_message = NULL
+      FROM ranked
+      WHERE q.id = ranked.id
+    `);
+    log.info(`[Migration 097] Bumped ${(lfResult as any).rowCount ?? 0} LF item(s) into post-reset 24h slots`);
+
+    // ── Short items ──────────────────────────────────────────────────────────
+    // Assign each past-due Short a slot: base + (rn * 8h), ordered by id.
+    // 3 slots per Pacific day → natural 3/day cadence once gate can see them.
+    const shortResult = await db.execute(sql`
+      WITH ranked AS (
+        SELECT id,
+               ROW_NUMBER() OVER (ORDER BY id) - 1 AS rn
+        FROM autopilot_queue
+        WHERE status IN ('scheduled', 'pending')
+          AND scheduled_at < '2026-06-16 07:05:00+00'::timestamptz
+          AND type IN ('auto-clip', 'youtube_short', 'platform_short', 'vod-short')
+          AND COALESCE(metadata->>'contentType', '') NOT IN (
+            'long-form-clip', 'long-form', 'vod_long_form', 'long-form-compilation'
+          )
+      )
+      UPDATE autopilot_queue q
+      SET scheduled_at  = '2026-06-16 07:05:00+00'::timestamptz
+                          + (ranked.rn * 8 || ' hours')::interval,
+          error_message = NULL
+      FROM ranked
+      WHERE q.id = ranked.id
+    `);
+    log.info(`[Migration 097] Bumped ${(shortResult as any).rowCount ?? 0} Short item(s) into post-reset 8h slots`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 097] Failed (non-fatal): ${err?.message}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5608,6 +5682,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration094CancelJob18117();
     await migration095FailNewInnerTube400Videos();
     await migration096FixResetCadenceAndLFOverflow();
+    await migration097BumpPreResetItemsIntoPacificDay();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
