@@ -20,6 +20,17 @@
  *      re-learning each to incorporate new data that has accumulated.
  *
  * All knowledge survives restarts — everything lives in the DB.
+ *
+ * ENDLESS GROWTH MODE
+ * When the initial 42-skill curriculum is fully mastered, the brain does NOT
+ * loop back.  Instead it calls generateNewSkill() — an AI function that reads
+ * all existing knowledge, identifies the biggest unseen gap or most valuable
+ * adjacent domain in ALL of human knowledge (science, philosophy, history,
+ * psychology, technology, arts, economics, mathematics, linguistics … anything)
+ * and creates a brand-new skill to start learning immediately.  This repeats
+ * forever: the brain proposes → learns → masters → proposes again.  Every 5th
+ * generated skill is a SYNTHESIS skill that fuses two already-mastered domains
+ * into a new emergent meta-knowledge domain.
  */
 
 import { db } from "../db";
@@ -496,28 +507,292 @@ async function getOrAssignActiveSkill(userId: string) {
     return { ...next[0], status: "learning" };
   }
 
-  // 3. All skills mastered — restart in "refresh" mode (lowest masteredAt first)
-  const oldest = await db
+  // 3. All skills mastered — ENDLESS GROWTH MODE.
+  //    Every 5th generated skill: synthesise two mastered domains into a new
+  //    emergent meta-skill.  Every other cycle: generate a brand-new domain
+  //    from anywhere in all of human knowledge.
+  //    20% fallback: refresh the stalest mastered skill so nothing goes stale.
+  const masteredCount = await db
+    .select({ id: brainSkills.id })
+    .from(brainSkills)
+    .where(and(eq(brainSkills.userId, userId), eq(brainSkills.status, "mastered")));
+
+  const totalGenerated = await db
+    .select({ id: brainSkills.id })
+    .from(brainSkills)
+    .where(and(
+      eq(brainSkills.userId, userId),
+      sql`(brain_skills.metadata->>'aiGenerated')::boolean IS TRUE`,
+    ));
+
+  const genCount = totalGenerated.length;
+  const roll     = Math.random();
+
+  // 20% chance: refresh oldest mastered skill (keeps existing knowledge current)
+  if (roll < 0.20 && masteredCount.length > 0) {
+    const oldest = await db
+      .select()
+      .from(brainSkills)
+      .where(and(eq(brainSkills.userId, userId), eq(brainSkills.status, "mastered")))
+      .orderBy(brainSkills.masteredAt)
+      .limit(1);
+
+    if (oldest[0]) {
+      await db.update(brainSkills)
+        .set({
+          status:       "learning",
+          masteryScore: Math.max(0, (oldest[0].masteryScore ?? 0) - 20),
+          updatedAt:    new Date(),
+          metadata:     { ...(oldest[0].metadata ?? {}), refreshStartedAt: new Date().toISOString() },
+        })
+        .where(eq(brainSkills.id, oldest[0].id));
+      logger.info(`[SkillLearner] REFRESH — re-learning "${oldest[0].name}" with updated knowledge`);
+      return { ...oldest[0], status: "learning" };
+    }
+  }
+
+  // 80% (or fallback from above): generate a brand-new skill
+  // Every 5th generated skill is a SYNTHESIS of two mastered domains.
+  const isSynthesisCycle = genCount > 0 && genCount % 5 === 4;
+
+  try {
+    const newSkill = isSynthesisCycle
+      ? await generateSynthesisSkill(userId)
+      : await generateNewSkill(userId);
+
+    if (newSkill) {
+      logger.info(`[SkillLearner] ENDLESS GROWTH — new skill "${newSkill.name}" (${isSynthesisCycle ? "synthesis" : "discovery"} #${genCount + 1})`);
+      return newSkill;
+    }
+  } catch (err: any) {
+    logger.warn(`[SkillLearner] generateNewSkill failed: ${err?.message?.slice(0, 100)} — falling back to refresh`);
+  }
+
+  // Hard fallback: refresh oldest mastered skill
+  const fallbackOldest = await db
     .select()
     .from(brainSkills)
     .where(and(eq(brainSkills.userId, userId), eq(brainSkills.status, "mastered")))
     .orderBy(brainSkills.masteredAt)
     .limit(1);
 
-  if (oldest[0]) {
+  if (fallbackOldest[0]) {
     await db.update(brainSkills)
       .set({
-        status: "learning",
-        masteryScore: Math.max(0, (oldest[0].masteryScore ?? 0) - 15), // reset slightly
-        updatedAt: new Date(),
-        metadata: { ...(oldest[0].metadata ?? {}), refreshStartedAt: new Date().toISOString() },
+        status:       "learning",
+        masteryScore: Math.max(0, (fallbackOldest[0].masteryScore ?? 0) - 15),
+        updatedAt:    new Date(),
+        metadata:     { ...(fallbackOldest[0].metadata ?? {}), refreshStartedAt: new Date().toISOString() },
       })
-      .where(eq(brainSkills.id, oldest[0].id));
-    logger.info(`[SkillLearner] All skills mastered — refreshing "${oldest[0].name}"`);
-    return { ...oldest[0], status: "learning" };
+      .where(eq(brainSkills.id, fallbackOldest[0].id));
+    logger.info(`[SkillLearner] REFRESH (fallback) — re-learning "${fallbackOldest[0].name}"`);
+    return { ...fallbackOldest[0], status: "learning" };
   }
 
   return null;
+}
+
+// ── Endless growth: AI-generated skill discovery ──────────────────────────────
+//
+// When the brain has mastered everything it knows, it asks itself:
+//   "Given everything I know, what should I learn next?"
+//
+// The answer can be ANYTHING in all of human knowledge.  No topic is off-limits.
+// The AI reads the full list of mastered domains, finds the most valuable unseen
+// gap, and proposes a new skill with a rich description.
+
+async function generateNewSkill(userId: string): Promise<typeof brainSkills.$inferSelect | null> {
+  // Pull every skill the brain already knows about
+  const existing = await db
+    .select({ name: brainSkills.name, domain: brainSkills.domain, status: brainSkills.status, masteryScore: brainSkills.masteryScore })
+    .from(brainSkills)
+    .where(eq(brainSkills.userId, userId))
+    .orderBy(brainSkills.priority);
+
+  const knownNames   = existing.map(s => s.name);
+  const masteredList = existing.filter(s => s.status === "mastered").map(s => `• ${s.name} (${s.domain})`).join("\n");
+  const allList      = existing.map(s => `• ${s.name}`).join("\n");
+
+  const maxPriority = existing.length > 0
+    ? Math.max(...existing.map((_, i) => i + 1)) + existing.length
+    : 100;
+
+  const prompt = `You are an ASI-level curiosity engine embedded in a creative AI system.
+You have mastered the following knowledge domains:
+${masteredList || "(none yet)"}
+
+All domains already in curriculum (DO NOT repeat these):
+${allList || "(none)"}
+
+YOUR TASK: Propose ONE brand-new skill domain to learn next.
+
+Rules:
+- It must NOT be any domain already listed above (exact or very similar).
+- It can be about LITERALLY ANYTHING in all of human knowledge:
+  sciences, mathematics, philosophy, history, linguistics, arts, music theory,
+  architecture, economics, neuroscience, biology, physics, chemistry, astronomy,
+  anthropology, law, ethics, military strategy, game theory, cryptography,
+  rhetoric, mythology, semiotics, consciousness studies, complex systems,
+  information theory, evolutionary biology, cognitive science, political science,
+  geography, sociology, medicine, engineering disciplines, material science,
+  ancient civilisations, future technology — any domain, no matter how niche or
+  how broad, is fair game.
+- Choose the domain that would most expand this AI system's model of the world
+  AND have meaningful application to a creative/content/strategy context.
+- Be specific and intellectually ambitious.  Not "Science" — "Quantum Information Theory".
+  Not "History" — "The collapse dynamics of historical empires".
+
+Respond with ONLY a valid JSON object (no markdown, no explanation):
+{
+  "name": "short memorable skill name (3-6 words)",
+  "domain": "single snake_case category word",
+  "description": "2-3 sentences: what this domain covers, what the AI will learn, and why it matters",
+  "masteryThreshold": <integer 78-90>
+}`;
+
+  const acquired = tryAcquireAISlotNow();
+  if (!acquired) {
+    logger.debug("[SkillLearner] AI slot busy — deferring skill generation");
+    return null;
+  }
+
+  let raw = "";
+  try {
+    const resp = await openai.chat.completions.create({
+      model:       "gpt-4o-mini",
+      temperature: 0.9,
+      max_tokens:  400,
+      messages:    [{ role: "user", content: prompt }],
+    });
+    raw = resp.choices[0]?.message?.content?.trim() ?? "";
+  } finally {
+    releaseAISlot();
+  }
+
+  const def = parseSkillJson(raw, knownNames);
+  if (!def) return null;
+
+  return insertGeneratedSkill(userId, def, existing.length + 1, false);
+}
+
+// ── Synthesis skill: fuse two mastered domains into a new meta-knowledge ──────
+
+async function generateSynthesisSkill(userId: string): Promise<typeof brainSkills.$inferSelect | null> {
+  const mastered = await db
+    .select({ name: brainSkills.name, domain: brainSkills.domain, description: brainSkills.description })
+    .from(brainSkills)
+    .where(and(eq(brainSkills.userId, userId), eq(brainSkills.status, "mastered")));
+
+  if (mastered.length < 2) return generateNewSkill(userId); // not enough to synthesise
+
+  const all = await db
+    .select({ name: brainSkills.name })
+    .from(brainSkills)
+    .where(eq(brainSkills.userId, userId));
+  const knownNames = all.map(s => s.name);
+
+  // Pick two random mastered skills to synthesise
+  const shuffled = [...mastered].sort(() => Math.random() - 0.5);
+  const a = shuffled[0], b = shuffled[1];
+
+  const prompt = `You are an ASI-level synthesis engine.
+You have deeply mastered two knowledge domains:
+
+DOMAIN A: "${a.name}" — ${a.description}
+DOMAIN B: "${b.name}" — ${b.description}
+
+YOUR TASK: Create ONE new emergent "synthesis skill" that represents the
+intersection, interaction, and combined insight of BOTH domains.
+
+A synthesis skill is NOT just "A + B".  It is the genuinely new understanding
+that ONLY exists because you know BOTH deeply — emergent patterns, shared
+principles, cross-domain techniques, and novel frameworks that neither domain
+alone could produce.
+
+Existing skills (DO NOT repeat):
+${knownNames.map(n => `• ${n}`).join("\n")}
+
+Respond with ONLY a valid JSON object (no markdown):
+{
+  "name": "synthesis skill name (max 6 words)",
+  "domain": "synthesis",
+  "description": "2-3 sentences explaining the emergent insight at the intersection of ${a.name} and ${b.name}, what new knowledge is unlocked, and how it applies.",
+  "masteryThreshold": 82
+}`;
+
+  const acquired2 = tryAcquireAISlotNow();
+  if (!acquired2) return generateNewSkill(userId);
+
+  let raw = "";
+  try {
+    const resp = await openai.chat.completions.create({
+      model:       "gpt-4o-mini",
+      temperature: 0.85,
+      max_tokens:  350,
+      messages:    [{ role: "user", content: prompt }],
+    });
+    raw = resp.choices[0]?.message?.content?.trim() ?? "";
+  } finally {
+    releaseAISlot();
+  }
+
+  const all2 = await db.select({ name: brainSkills.name }).from(brainSkills).where(eq(brainSkills.userId, userId));
+  const def = parseSkillJson(raw, all2.map(s => s.name));
+  if (!def) return null;
+
+  const existingCount = await db.select({ id: brainSkills.id }).from(brainSkills).where(eq(brainSkills.userId, userId));
+  return insertGeneratedSkill(userId, def, existingCount.length + 1, true, [a.name, b.name]);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseSkillJson(raw: string, knownNames: string[]): SkillDefinition | null {
+  try {
+    const cleaned = raw.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    const parsed  = JSON.parse(cleaned);
+    if (!parsed.name || !parsed.domain || !parsed.description) return null;
+    if (knownNames.some(n => n.toLowerCase() === parsed.name.toLowerCase())) {
+      logger.debug(`[SkillLearner] AI proposed duplicate skill "${parsed.name}" — skipping`);
+      return null;
+    }
+    return {
+      name:             String(parsed.name).slice(0, 100),
+      domain:           String(parsed.domain).replace(/[^a-z_]/gi, "_").toLowerCase().slice(0, 50),
+      description:      String(parsed.description).slice(0, 600),
+      priority:         9999,
+      masteryThreshold: Math.min(90, Math.max(75, Number(parsed.masteryThreshold) || 82)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function insertGeneratedSkill(
+  userId:      string,
+  def:         SkillDefinition,
+  nextPriority: number,
+  isSynthesis: boolean,
+  sourceSkills?: string[],
+): Promise<typeof brainSkills.$inferSelect | null> {
+  const [inserted] = await db.insert(brainSkills).values({
+    userId,
+    name:              def.name,
+    domain:            def.domain,
+    description:       def.description,
+    priority:          nextPriority,
+    masteryThreshold:  def.masteryThreshold,
+    status:            "learning",  // start immediately
+    masteryScore:      0,
+    learningCycleCount: 0,
+    metadata: {
+      aiGenerated:     true,
+      isSynthesis,
+      sourceSkills:    sourceSkills ?? [],
+      generatedAt:     new Date().toISOString(),
+    },
+  } as any).onConflictDoNothing().returning();
+
+  return inserted ?? null;
 }
 
 // ── Evidence gathering ─────────────────────────────────────────────────────────
