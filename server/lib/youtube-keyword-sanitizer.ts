@@ -21,7 +21,7 @@ import { createLogger } from "./logger";
 
 const log = createLogger("youtube-keyword-sanitizer");
 
-const MAX_TAG_CHARS   = 30;   // YouTube Studio per-tag hard limit
+const MAX_TAG_CHARS   = 30;   // YouTube API limit is STRICTLY LESS than 30 chars (< 30, not ≤ 30)
 const MAX_TOTAL_CHARS = 500;
 
 const PROHIBITED_CHARS = /[<>"'\\#@&%]/g;
@@ -43,7 +43,7 @@ export function sanitizeYouTubeTags(rawTags: string[]): string[] {
         .replace(PROHIBITED_CHARS, "")
         .trim()
     )
-    .filter(t => t.length > 0 && !isUrlLike(t) && t.length <= MAX_TAG_CHARS);
+    .filter(t => t.length > 0 && !isUrlLike(t) && t.length < MAX_TAG_CHARS);
 
   let totalChars = 0;
   const sanitized: string[] = [];

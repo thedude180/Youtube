@@ -96,6 +96,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   98: { name: "Perm-fail Jun 16 InnerTube-400 Batch 3", category: "cleanup", description: "37 video IDs that returned HTTP 400 'Request contains an invalid argument' from all InnerTube clients in Jun 16 2026 deployment logs (03:48–04:36 UTC). Cancels queue items + marks catalog fully mined." },
   99: { name: "Delete Ghost User Vault Rows", category: "cleanup", description: "Removes all content_vault_backups rows owned by 3 ghost/fake user IDs (tiktok_, google_api_demo_reviewer, ffc4776c UUID). All 4,400 rows were indexed/never downloaded. These accumulated from old multi-platform era." },
   100: { name: "Skip Competitor Vault Entries", category: "cleanup", description: "Marks ~7,357 non-channel competitor videos (AC Valhalla, Mass Effect, Spider-Man etc.) as permanently skipped in the vault for the real user. Cancels associated autopilot_queue items. Focuses vault 100% on ET Gaming 274's own back-catalog." },
+  101: { name: "Purge Ghost-User Vault Rows + GoQ Storm", category: "cleanup", description: "Deletes ALL non-real-user vault rows (ghost/demo/tiktok_ accounts whose indexed rows still feed InnerTube 400 storms). Cancels 18 scheduled GoQ-za4UPn4 queue items that survived the PERM_UNAVAILABLE cascade. Marks GoQ-za4UPn4 permanently failed." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5719,6 +5720,63 @@ async function migration100SkipCompetitorVaultEntries(): Promise<void> {
   }
 }
 
+async function migration101PurgeGhostVaultRowsAndGoQStorm(): Promise<void> {
+  const FLAG = "migration:101:purge_ghost_vault_rows_and_goq_storm_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+
+    // ── Step 1: Delete ALL vault rows that don't belong to the real user ──────
+    // These are ghost/demo/tiktok_- rows left behind by previous migrations.
+    // They all have status='indexed' or similar active states, which causes
+    // processVaultDownloads to call InnerTube for them → mass HTTP 400 storms.
+    // Migration 099 only deleted rows for 3 known ghost user IDs; this sweeps
+    // every remaining non-real-user row unconditionally.
+    const r1 = await db.execute(sql.raw(`
+      DELETE FROM content_vault_backups
+      WHERE user_id != '${REAL_USER}'
+    `));
+    log.info(`[Migration 101] Ghost-user vault rows deleted: ${(r1 as any)?.rowCount ?? 0}`);
+
+    // ── Step 2: Cancel all scheduled/pending GoQ-za4UPn4 queue items ──────────
+    // The PERM_UNAVAILABLE cascade cancelled the first 4 items but 18 remained
+    // in 'scheduled' state with future scheduledAt dates.  Every retry attempt
+    // spawns 2 yt-dlp processes that fail with "Failed to extract any player
+    // response", wasting yt-dlp gate slots and AI slots.
+    const r2 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-101: GoQ-za4UPn4 permanently inaccessible — all yt-dlp clients fail',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-101:GoQ-za4UPn4-permanently-inaccessible"}'::jsonb
+      WHERE metadata->>'sourceYoutubeId' = 'GoQ-za4UPn4'
+        AND status IN ('scheduled','pending','processing')
+    `));
+    log.info(`[Migration 101] GoQ-za4UPn4 queue items cancelled: ${(r2 as any)?.rowCount ?? 0}`);
+
+    // ── Step 3: Mark GoQ-za4UPn4 vault entry for real user as permanentFail ──
+    // The real-user vault row shows status='downloaded' but yt-dlp section
+    // downloads fail with "Failed to extract any player response" on all clients.
+    // Marking it permanentFail prevents any future queue items being generated
+    // from this source.
+    const r3 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status         = 'failed',
+          download_error = 'migration-101: all yt-dlp clients fail with Failed to extract any player response',
+          metadata       = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"failCount":10,"failedBy":"migration-101"}'::jsonb
+      WHERE youtube_id = 'GoQ-za4UPn4'
+        AND user_id    = '${REAL_USER}'
+    `));
+    log.info(`[Migration 101] GoQ-za4UPn4 vault marked permanentFail: ${(r3 as any)?.rowCount ?? 0}`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 101] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged: delete files on disk for permanently skipped vault entries ───
 // Runs every boot after migration 100 so the 1,683 downloaded competitor files
 // are cleaned off disk progressively without holding up boot.
@@ -5860,6 +5918,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration098FailJun16InnerTube400Batch3();
     await migration099DeleteGhostUserVaultRows();
     await migration100SkipCompetitorVaultEntries();
+    await migration101PurgeGhostVaultRowsAndGoQStorm();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
