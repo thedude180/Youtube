@@ -613,6 +613,13 @@ export class DatabaseStorage implements IStorage {
         if (existing.length === 0) {
           const contentType = video.type === "short" ? "short" : video.type === "stream" ? "stream" : "video";
           const gameName = extractGameName(video.title);
+          // BF6 focus gate — only vault channel-relevant content.
+          // If a game name is detected and it doesn't match BF6/Battlefield,
+          // skip the vault entry (benefit of doubt for null/empty game names).
+          const bf6Rx = /battlefield|bf6|bf\s*6/i;
+          if (gameName && !bf6Rx.test(gameName)) {
+            // Non-focus game — do not add to vault
+          } else
           await db.insert(contentVaultBackups).values({
             userId,
             youtubeId,
@@ -1200,6 +1207,11 @@ export class DatabaseStorage implements IStorage {
         ));
       if (existing.length === 0) {
         const gameName = extractGameName(sourceTitle);
+        // BF6 focus gate — skip vault entry for non-channel-relevant clips
+        const bf6Rx = /battlefield|bf6|bf\s*6/i;
+        if (gameName && !bf6Rx.test(gameName)) {
+          // Non-focus game clip — do not add to vault
+        } else {
         const durationSec = Math.round((c.endTime ?? 30) - (c.startTime ?? 0));
         await db.insert(contentVaultBackups).values({
           userId,
@@ -1218,6 +1230,7 @@ export class DatabaseStorage implements IStorage {
           },
           status: "indexed",
         });
+        } // end else (BF6 gate)
       }
     } catch (e) {
     }

@@ -94,6 +94,8 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   96: { name: "Fix Reset Cadence and LF Overflow",   category: "cleanup", description: "Cancels BF2042 Short (39018) and undownloadable LF (39534); redistributes Jun 22/23 LF overflow (6 items) to Jun 24-29 for clean 1/day cadence" },
   97: { name: "Bump Pre-Reset Items Into Pacific Day", category: "cleanup", description: "Prod-heal rescheduled all items to 01:31 UTC (Jun 15 Pacific bucket). Bumps LF→24h slots from 07:30 UTC Jun 16, Shorts→8h slots from 07:05 UTC Jun 16 so cadence gate counts them correctly." },
   98: { name: "Perm-fail Jun 16 InnerTube-400 Batch 3", category: "cleanup", description: "37 video IDs that returned HTTP 400 'Request contains an invalid argument' from all InnerTube clients in Jun 16 2026 deployment logs (03:48–04:36 UTC). Cancels queue items + marks catalog fully mined." },
+  99: { name: "Delete Ghost User Vault Rows", category: "cleanup", description: "Removes all content_vault_backups rows owned by 3 ghost/fake user IDs (tiktok_, google_api_demo_reviewer, ffc4776c UUID). All 4,400 rows were indexed/never downloaded. These accumulated from old multi-platform era." },
+  100: { name: "Skip Competitor Vault Entries", category: "cleanup", description: "Marks ~7,357 non-channel competitor videos (AC Valhalla, Mass Effect, Spider-Man etc.) as permanently skipped in the vault for the real user. Cancels associated autopilot_queue items. Focuses vault 100% on ET Gaming 274's own back-catalog." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5644,6 +5646,116 @@ async function migration098FailJun16InnerTube400Batch3(): Promise<void> {
   }
 }
 
+async function migration099DeleteGhostUserVaultRows(): Promise<void> {
+  const FLAG = "migration:099:delete_ghost_user_vault_rows_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    // 3 ghost/fake user IDs that accumulated vault rows from the old
+    // multi-platform era (TikTok, Google demo reviewer, unknown UUID).
+    // All rows are status='indexed', zero downloads — safe to DELETE.
+    const r1 = await db.execute(sql.raw(`
+      DELETE FROM content_vault_backups
+      WHERE user_id IN (
+        'tiktok_-000hfXLzkfKJGE24wvR-qZP9Pw6iwxLWyeM',
+        'google_api_demo_reviewer',
+        'ffc4776c-64d1-4715-baf5-e110062b4e87'
+      )
+    `));
+    log.info(`[Migration 099] Ghost user vault rows deleted: ${(r1 as any)?.rowCount ?? 0}`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 099] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+async function migration100SkipCompetitorVaultEntries(): Promise<void> {
+  const FLAG = "migration:100:skip_competitor_vault_entries_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+
+    // Mark every vault entry that is NOT one of the channel's own back-catalog
+    // videos as permanently skipped.  This covers ~7,357 competitor videos
+    // (AC Valhalla, Mass Effect, Spider-Man, etc.) that were indexed from the
+    // pre-BF6-focus era.  The 'downloaded' ones will have their files cleaned
+    // up by the non-flagged cleanupSkippedVaultFiles() that runs every boot.
+    const r1 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status         = 'skipped',
+          download_error = 'migration-100: non-channel competitor video, permanently excluded',
+          metadata       = COALESCE(metadata, '{}'::jsonb)
+                        || '{"permanentFail":true,"permanentSkip":true,"failCount":10,"failedBy":"migration-100"}'::jsonb
+      WHERE user_id = '${REAL_USER}'
+        AND youtube_id IS NOT NULL
+        AND status NOT IN ('skipped')
+        AND NOT EXISTS (
+          SELECT 1 FROM back_catalog_videos b
+          WHERE b.youtube_video_id = content_vault_backups.youtube_id
+        )
+    `));
+    log.info(`[Migration 100] Competitor vault entries marked skipped: ${(r1 as any)?.rowCount ?? 0}`);
+
+    // Cancel any autopilot_queue items whose source video is not from the channel
+    const r2 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-100: source is competitor/non-channel video',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-100:competitor-video-purge"}'::jsonb
+      WHERE status NOT IN ('completed', 'cancelled')
+        AND metadata->>'sourceYoutubeId' IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM back_catalog_videos b
+          WHERE b.youtube_video_id = autopilot_queue.metadata->>'sourceYoutubeId'
+        )
+    `));
+    log.info(`[Migration 100] Queue items from competitor sources cancelled: ${(r2 as any)?.rowCount ?? 0}`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 100] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Non-flagged: delete files on disk for permanently skipped vault entries ───
+// Runs every boot after migration 100 so the 1,683 downloaded competitor files
+// are cleaned off disk progressively without holding up boot.
+async function cleanupSkippedVaultFiles(): Promise<void> {
+  try {
+    const { default: fs } = await import("fs");
+    const rows = await db.execute(sql.raw(`
+      SELECT id, file_path
+      FROM content_vault_backups
+      WHERE status = 'skipped'
+        AND file_path IS NOT NULL
+        AND metadata->>'permanentFail' = 'true'
+      LIMIT 200
+    `));
+    const toClean = (rows as any)?.rows ?? [];
+    if (toClean.length === 0) return;
+    let deleted = 0;
+    for (const row of toClean) {
+      try {
+        if (row.file_path && fs.existsSync(row.file_path)) {
+          fs.unlinkSync(row.file_path);
+          deleted++;
+        }
+      } catch { /* file already gone */ }
+      // Clear file_path regardless of whether unlink succeeded
+      await db.execute(sql.raw(`
+        UPDATE content_vault_backups SET file_path = NULL WHERE id = ${row.id}
+      `));
+    }
+    if (toClean.length > 0) {
+      log.info(`[VaultFileCleanup] Processed ${toClean.length} skipped entries, deleted ${deleted} files from disk`);
+    }
+  } catch (err: any) {
+    log.warn(`[VaultFileCleanup] Non-fatal error: ${err?.message?.slice(0, 200)}`);
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5746,6 +5858,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration096FixResetCadenceAndLFOverflow();
     await migration097BumpPreResetItemsIntoPacificDay();
     await migration098FailJun16InnerTube400Batch3();
+    await migration099DeleteGhostUserVaultRows();
+    await migration100SkipCompetitorVaultEntries();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -5777,6 +5891,10 @@ export async function runStartupMigrations(): Promise<void> {
     // entry is permanently failed.  This is the structural guard that ensures
     // no yt-dlp storm can persist across multiple crash/restart cycles.
     await cleanupOrphanedQueueItems();
+    // Non-flagged per-boot cleanup — deletes files on disk for permanently
+    // skipped vault entries (e.g. competitor videos marked by migration 100).
+    // Processes up to 200 per boot so it never stalls startup.
+    await cleanupSkippedVaultFiles();
     await verifyAllMigrationFlags();
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
