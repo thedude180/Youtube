@@ -1505,6 +1505,28 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
             },
           })
           .where(eq(contentVaultBackups.id, vaultEntry.id));
+        // Cascade: cancel any queue items that source from this video and mark the
+        // back-catalog row as fully mined so the engine never re-generates clips.
+        // Fire-and-forget — don't block the vault downloader on cleanup.
+        db.execute(
+          sql.raw(`
+            UPDATE autopilot_queue
+            SET status        = 'cancelled',
+                error_message = 'vault-perm-unavailable: source video is private/deleted/age-restricted',
+                metadata      = COALESCE(metadata, '{}'::jsonb)
+                             || '{"failReason":"perm-unavailable:innertube-400-all-clients"}'::jsonb
+            WHERE metadata->>'sourceYoutubeId' = '${youtubeId.replace(/'/g, "''")}'
+              AND status NOT IN ('completed','cancelled')
+          `)
+        ).catch(() => {});
+        db.execute(
+          sql.raw(`
+            UPDATE back_catalog_videos
+            SET is_shorts_mined    = true,
+                is_long_form_mined = true
+            WHERE youtube_video_id = '${youtubeId.replace(/'/g, "''")}'
+          `)
+        ).catch(() => {});
         return false;
       }
       logger.warn(`[Vault] InnerTube failed for ${youtubeId}: ${msg} — falling back to yt-dlp clients`);
@@ -1608,15 +1630,29 @@ async function downloadSingleVideo(vaultEntry: typeof contentVaultBackups.$infer
   }
 
   const existingMeta = (vaultEntry.metadata as Record<string, any>) || {};
-  const failCount = (existingMeta.failCount || 0) + 1;
+  const priorFailCount = existingMeta.failCount ?? 0;
+  const failCount = priorFailCount + 1;
+  // "Failed to extract any player response" is a stale-yt-dlp signature error, NOT a
+  // bad video.  On the FIRST occurrence (priorFailCount==0) use a short 15-min retry
+  // window instead of the standard 2h cooldown so a freshly-updated yt-dlp binary
+  // can retry immediately on the next processVaultDownloads cycle.
+  // After the first attempt, fall back to the normal 2h cooldown to avoid hot-spin.
+  const isStaleYtdlpError = lastErr.includes("Failed to extract any player response");
+  const lastFailedAt = (isStaleYtdlpError && priorFailCount === 0)
+    ? new Date(Date.now() - (2 * 60 * 60 * 1000 - 15 * 60 * 1000)).toISOString()  // expire in 15min
+    : new Date().toISOString();
   await db.update(contentVaultBackups)
     .set({
       status: "failed",
       downloadError: lastErr.substring(0, 500),
-      metadata: { ...existingMeta, lastFailedAt: new Date().toISOString(), failCount },
+      metadata: { ...existingMeta, lastFailedAt, failCount },
     })
     .where(eq(contentVaultBackups.id, vaultEntry.id));
-  logger.error(`[Vault] All clients failed for ${youtubeId} (attempt ${failCount}): ${lastErr.substring(0, 100)}`);
+  if (isStaleYtdlpError && priorFailCount === 0) {
+    logger.warn(`[Vault] Stale yt-dlp detected for ${youtubeId} (first attempt) — short 15min retry window set`);
+  } else {
+    logger.error(`[Vault] All clients failed for ${youtubeId} (attempt ${failCount}): ${lastErr.substring(0, 100)}`);
+  }
   logIncidentOnce({
     category:  "storm_video",
     service:   "video-vault / downloadSingleVideo",

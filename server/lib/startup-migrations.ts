@@ -93,6 +93,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   86: { name: "Hard-Fail hBylGNbIT88 Storm Source",  category: "cleanup", description: "Sets failCount=10+permanentFail on vault entries for hBylGNbIT88 (HTTP-400 all-clients) and marks catalog fully mined so back-catalog engine never re-queues it" },
   96: { name: "Fix Reset Cadence and LF Overflow",   category: "cleanup", description: "Cancels BF2042 Short (39018) and undownloadable LF (39534); redistributes Jun 22/23 LF overflow (6 items) to Jun 24-29 for clean 1/day cadence" },
   97: { name: "Bump Pre-Reset Items Into Pacific Day", category: "cleanup", description: "Prod-heal rescheduled all items to 01:31 UTC (Jun 15 Pacific bucket). Bumps LF→24h slots from 07:30 UTC Jun 16, Shorts→8h slots from 07:05 UTC Jun 16 so cadence gate counts them correctly." },
+  98: { name: "Perm-fail Jun 16 InnerTube-400 Batch 3", category: "cleanup", description: "37 video IDs that returned HTTP 400 'Request contains an invalid argument' from all InnerTube clients in Jun 16 2026 deployment logs (03:48–04:36 UTC). Cancels queue items + marks catalog fully mined." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5582,6 +5583,67 @@ async function migration097BumpPreResetItemsIntoPacificDay(): Promise<void> {
   }
 }
 
+// ── Migration 098: Perm-fail Jun 16 2026 InnerTube-400 videos (batch 3) ──────
+// 37 video IDs that returned HTTP 400 "Request contains an invalid argument"
+// from both ANDROID and IOS InnerTube clients in the Jun 16 2026 deployment
+// window (03:48–04:36 UTC).  These are private/deleted/age-restricted videos.
+// The runtime PERM_UNAVAILABLE path already marks vault entries as skipped;
+// this migration handles the downstream cleanup: cancels autopilot_queue items
+// that source from these videos (so the schedule slots are freed) and marks
+// the back_catalog_videos rows as fully mined (so the back-catalog engine
+// never re-generates clips from them).
+async function migration098FailJun16InnerTube400Batch3(): Promise<void> {
+  const FLAG = "migration:098:fail_jun16_innertube400_batch3_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const BAD_IDS = [
+      'WQnZ4fpDfcY','tAVes5nI4o8','zF3IX5x9eSg','i1ZfMOOKzOk','NmaNrm-AMvQ',
+      '7r9rYsDGL-s','KpvyB2Y1mG4','lprA8kablzI','2n9INKUklb4','v5zBVh5AtGk',
+      'GIIqwP-mCmA','ZxNBTK4NLcI','lHi1eCPxGug','hIl4L_j1G7Y','1t_b6oGPVvc',
+      'QfdvwvRkRbk','LOy3ZE0PvXE','JPTWgQL-WiA','w9IuqhkHcKA','ebzrEUXHfzo',
+      'Sooua-vkynA','e7RPu-Na4TQ','oqdItmWm9B8','pISpa56n8KU','f96pnlR7WcY',
+      'vq0nWk9VpJs','-CF-suy8VLo','sHNTxHVZXzU','SjiancWNf9c','mFWyXf5m28E',
+      'AYjgiTwoPo4','GOFcxIOste4','b84Z6akj3fs','JSSUcmWV4ds','YFsccyIWNtY',
+      'cv1B-1TRLEM','Ka3t0vIsVJw',
+    ];
+    const idsList = BAD_IDS.map(id => `'${id.replace(/'/g, "''")}'`).join(',');
+
+    const r1 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status   = 'skipped',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"failCount":10,"permanentFail":true,"permanentSkip":true,"downloadError":"PERM_UNAVAILABLE:HTTP_400_ALL_CLIENTS","failedBy":"migration-098"}'::jsonb
+      WHERE youtube_id IN (${idsList})
+        AND status NOT IN ('downloaded')
+    `));
+    log.info(`[Migration 098] Vault entries marked skipped: ${(r1 as any)?.rowCount ?? 0}`);
+
+    const r2 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-098: source video permanently inaccessible (InnerTube HTTP 400 all clients)',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-098:innertube-400-perm-unavailable"}'::jsonb
+      WHERE metadata->>'sourceYoutubeId' IN (${idsList})
+        AND status NOT IN ('completed', 'cancelled')
+    `));
+    log.info(`[Migration 098] Queue items cancelled: ${(r2 as any)?.rowCount ?? 0}`);
+
+    const r3 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET is_shorts_mined    = true,
+          is_long_form_mined = true
+      WHERE youtube_video_id IN (${idsList})
+    `));
+    log.info(`[Migration 098] Catalog videos marked fully mined: ${(r3 as any)?.rowCount ?? 0}`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 098] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 export async function runStartupMigrations(): Promise<void> {
@@ -5683,6 +5745,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration095FailNewInnerTube400Videos();
     await migration096FixResetCadenceAndLFOverflow();
     await migration097BumpPreResetItemsIntoPacificDay();
+    await migration098FailJun16InnerTube400Batch3();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
