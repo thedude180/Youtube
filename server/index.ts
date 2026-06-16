@@ -4036,6 +4036,20 @@ httpServer.listen(
       // Staggered 17–26min after Wave 11 fires (T+57–66min total) so they
       // never converge with the back-catalog runner or grinder OOM windows.
 
+      // ASI Skill Learner — runs every 4h per user.  Picks one skill domain,
+      // hammers it with learning cycles until mastered, then advances to the
+      // next.  All memories live in brain_skill_memories (permanent across
+      // restarts).  Top-confidence memories auto-promote to masterKnowledgeBank
+      // so every content generator benefits.  First cycle at T+~58min
+      // (18min after Wave 11 fires) to avoid converging with publishers.
+      setTimeout(async () => {
+        try {
+          const { initSkillLearner } = await import("./services/brain-skill-learner");
+          initSkillLearner();
+          logger.info("[Boot] ASI SkillLearner initialized");
+        } catch (e: any) { logger.error("[Boot] initSkillLearner failed", { error: e?.message }); }
+      }, 18 * 60_000);
+
       // Community Auto Manager — 8-hour per-user cycle: polls, comment
       // replies, hearts on recent videos.
       setTimeout(async () => {

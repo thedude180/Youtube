@@ -10856,3 +10856,56 @@ export const serviceState = pgTable("service_state", {
   index("service_state_svc_idx").on(t.service),
 ]);
 export type ServiceState = typeof serviceState.$inferSelect;
+
+// ── ASI Skill Learning System ─────────────────────────────────────────────────
+// The brain masters one skill domain at a time.  For each skill it runs
+// accelerated learning cycles (every 4h) — gathering all available evidence,
+// extracting new memories, self-assessing mastery.  When mastery score crosses
+// the threshold AND enough memories exist it marks the skill mastered and
+// immediately starts the next.  There is always a next skill.
+
+export const brainSkills = pgTable("brain_skills", {
+  id:                 serial("id").primaryKey(),
+  userId:             text("user_id").notNull(),
+  name:               text("name").notNull(),
+  domain:             text("domain").notNull(),
+  description:        text("description").notNull(),
+  status:             text("status").notNull().default("pending"),
+  masteryScore:       integer("mastery_score").notNull().default(0),
+  masteryThreshold:   integer("mastery_threshold").notNull().default(80),
+  learningCycleCount: integer("learning_cycle_count").notNull().default(0),
+  currentFocusArea:   text("current_focus_area"),
+  priority:           integer("priority").notNull().default(0),
+  masteredAt:         timestamp("mastered_at"),
+  lastCycleAt:        timestamp("last_cycle_at"),
+  metadata:           jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:          timestamp("created_at").defaultNow(),
+  updatedAt:          timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bs_user_idx").on(t.userId),
+  index("bs_status_idx").on(t.status),
+  index("bs_priority_idx").on(t.priority),
+  uniqueIndex("bs_user_name_uq").on(t.userId, t.name),
+]);
+export type BrainSkill = typeof brainSkills.$inferSelect;
+
+export const brainSkillMemories = pgTable("brain_skill_memories", {
+  id:               serial("id").primaryKey(),
+  userId:           text("user_id").notNull(),
+  skillId:          integer("skill_id").notNull(),
+  skillName:        text("skill_name").notNull(),
+  fact:             text("fact").notNull(),
+  confidence:       integer("confidence").notNull().default(50),
+  evidenceCount:    integer("evidence_count").notNull().default(1),
+  source:           text("source").notNull().default("reasoning"),
+  applicationCount: integer("application_count").notNull().default(0),
+  lastValidatedAt:  timestamp("last_validated_at"),
+  metadata:         jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:        timestamp("created_at").defaultNow(),
+  updatedAt:        timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("bsm_user_idx").on(t.userId),
+  index("bsm_skill_idx").on(t.skillId),
+  index("bsm_confidence_idx").on(t.confidence),
+]);
+export type BrainSkillMemory = typeof brainSkillMemories.$inferSelect;

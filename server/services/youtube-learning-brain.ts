@@ -1119,6 +1119,27 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Goal progress measurement non-fatal: ${gpErr?.message?.slice(0, 80)}`);
     }
 
+    // 9k. ASI Skill Learning — the brain masters one skill domain at a time.
+    //     Runs a dedicated learning cycle: gathers all available evidence,
+    //     extracts new memories, self-assesses mastery, and advances to the next
+    //     skill when the threshold is reached.  All memories stored permanently
+    //     in brain_skill_memories → top-confidence ones auto-promoted to
+    //     masterKnowledgeBank so every content generator benefits immediately.
+    //     Independent 4h cycle also runs via initSkillLearner() in index.ts.
+    try {
+      const { runSkillLearningCycle } = await import("./brain-skill-learner");
+      const result = await runSkillLearningCycle(userId);
+      if (result) {
+        logger.info(
+          `[Brain] Skill learning: "${result.skillName}" mastery=${result.masteryScore}/100 ` +
+          `+${result.newMemories} memories${result.advanced ? " → MASTERED, advancing" : ""}` +
+          (result.knowledgeGap ? ` | gap: "${result.knowledgeGap.slice(0, 60)}"` : ""),
+        );
+      }
+    } catch (sklErr: any) {
+      logger.debug(`[Brain] Skill learning non-fatal: ${sklErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
