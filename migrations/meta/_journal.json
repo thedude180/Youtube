@@ -379,6 +379,13 @@
       "when": 1781543259020,
       "tag": "0053_wandering_agent_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1781577137239,
+      "tag": "0054_goofy_professor_monster",
+      "breakpoints": true
     }
   ]
 }
