@@ -41,6 +41,7 @@ import { uploadVideoToYouTube, verifyUploadedToYouTube } from "../youtube";
 import { recordHeartbeat } from "./engine-heartbeat";
 import { getOpenAIClientBackground } from "../lib/openai";
 import { MAX_SHORTS_PER_DAY, countUploadedShortsForDate, countUploadedLongFormForDate, getNextShortPublishTime, clearShortScheduleSaturation } from "./youtube-output-schedule";
+import { getVariantForItem, stripDescriptionHashtags, ensureHashtagExperimentRegistered } from "../lib/hashtag-ab-test";
 
 const logger = createLogger("shorts-publisher");
 
@@ -424,6 +425,13 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
       const sourceYoutubeId = typeof itemMeta.sourceYoutubeId === "string" ? itemMeta.sourceYoutubeId : undefined;
       const hookLine = typeof itemMeta.hookLine === "string" ? itemMeta.hookLine : undefined;
 
+      // ── Hashtag A/B experiment ────────────────────────────────────────────────
+      // Assign this item to "hashtags" or "no-hashtags" based on item ID parity.
+      // Even IDs → variant A (with hashtags), odd IDs → variant B (no hashtags).
+      // Once the learning brain declares a winner the same call always returns
+      // the winning variant, so the experiment self-terminates automatically.
+      const hashtagVariant = await getVariantForItem(item.id);
+
       // ── Guard: clip must be a genuine Short (< 60 seconds) ──────────────────
       // Hard-reject items where the segment is 60 seconds or longer — those are
       // long-form clips that must go through the long-form publisher, not here.
@@ -599,6 +607,12 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                     ? `${rawYtDesc}\n\n📺 Full video → https://youtu.be/${resolvedYoutubeId}`
                     : rawYtDesc;
 
+                // A/B variant B: strip all hashtags from the description.
+                // The title always keeps #Shorts (YouTube classification signal).
+                const finalYtDesc = hashtagVariant === "no-hashtags"
+                  ? stripDescriptionHashtags(ytDesc)
+                  : ytDesc;
+
                 const preBuiltTags = Array.isArray(itemMeta.seoTags) ? itemMeta.seoTags as string[] : null;
 
                 const shortScheduledAt = effectiveScheduledAt;
@@ -621,7 +635,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                 result = await uploadToYouTube({
                   channelId: ytChannel.id,
                   title: safeTitle,
-                  description: ytDesc.slice(0, 5000),
+                  description: finalYtDesc.slice(0, 5000),
                   tags: preBuiltTags ?? [...tags.slice(0, 12), "Shorts", "Gaming", "PS5"],
                   videoFilePath: encodedPath,
                   // Pass the item's original scheduledAt so YouTube publishes it
@@ -732,6 +746,7 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               ...itemMeta,
               youtubeVideoId: uploadedYtId,
               publishedPostId: result.postId,
+              hashtagVariant,
             } as any,
           })
           .where(eq(autopilotQueue.id, item.id));
@@ -960,6 +975,17 @@ export function startPerpetualShortsLoop(): void {
 }
 
 export function initShortsClipPublisher(): void {
+  // Register the hashtag A/B experiment once on startup (idempotent)
+  import("../lib/hashtag-ab-test").then(({ ensureHashtagExperimentRegistered }) => {
+    db.select().from(channels)
+      .where(and(eq(channels.platform, "youtube")))
+      .limit(1)
+      .then(([ch]) => {
+        if (ch?.userId) ensureHashtagExperimentRegistered(ch.userId).catch(() => {});
+      })
+      .catch(() => {});
+  }).catch(() => {});
+
   // Cron kept as a safety net in case perpetual loop crashes
   cron.schedule("5,35 * * * *", async () => {
     if (_perpetualRunning) return; // perpetual loop already handles this

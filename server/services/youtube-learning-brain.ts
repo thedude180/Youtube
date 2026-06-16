@@ -896,7 +896,12 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       } catch { /* ok if duplicate */ }
     }
 
-    // 8. Record the cycle completion
+    // 8. Evaluate the hashtag A/B experiment — non-fatal, never blocks the cycle
+    await import("../lib/hashtag-ab-test").then(({ evaluateHashtagExperiment }) =>
+      evaluateHashtagExperiment(userId)
+    ).catch(err => logger.warn(`[Brain] Hashtag A/B evaluation failed (non-fatal): ${err?.message?.slice(0, 80)}`));
+
+    // 9. Record the cycle completion
     await recordLearningEvent(userId, "daily_cycle_complete", {
       sourceAgent: "learning-brain",
       bestBucket,
