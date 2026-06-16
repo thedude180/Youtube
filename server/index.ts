@@ -4036,6 +4036,17 @@ httpServer.listen(
       // Staggered 17–26min after Wave 11 fires (T+57–66min total) so they
       // never converge with the back-catalog runner or grinder OOM windows.
 
+      // YouTube Draft Cleanup — one-time boot service (guarded by flag).
+      // Finds stuck draft AC4/non-BF6 videos uploaded by older system versions
+      // (no publishAt set → "Draft" in Studio), deletes them from YouTube, and
+      // cancels the DB records.  Runs at T+3min so OAuth tokens are refreshed.
+      setTimeout(async () => {
+        try {
+          const { cleanupYouTubeDraftVideos } = await import("./services/youtube-draft-cleanup");
+          await cleanupYouTubeDraftVideos();
+        } catch (e: any) { logger.warn("[Boot] cleanupYouTubeDraftVideos failed (non-fatal)", { error: e?.message }); }
+      }, 3 * 60_000);
+
       // ASI Skill Learner — runs every 4h per user.  Picks one skill domain,
       // hammers it with learning cycles until mastered, then advances to the
       // next.  All memories live in brain_skill_memories (permanent across

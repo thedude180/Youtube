@@ -654,8 +654,32 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
                           logger.info(
                             `[ShortsPublisher] ✓ Verified on YouTube — videoId=${verifyYtId}` +
                             ` uploadStatus=${verifyResult.uploadStatus ?? "unknown"}` +
-                            ` privacy=${verifyResult.privacyStatus ?? "unknown"}`,
+                            ` privacy=${verifyResult.privacyStatus ?? "unknown"}` +
+                            ` publishAt=${verifyResult.publishAt ?? "none"}`,
                           );
+
+                          // ── Draft heal ──────────────────────────────────────
+                          // If the upload was meant to be scheduled (private+publishAt)
+                          // but YouTube stored it without publishAt → it's a draft.
+                          // Automatically repair it so it never lands in Studio as Draft.
+                          if (
+                            shortIsScheduled &&
+                            shortScheduledAt &&
+                            verifyResult.privacyStatus === "private" &&
+                            !verifyResult.publishAt
+                          ) {
+                            logger.warn(
+                              `[ShortsPublisher] ⚠ Draft detected — video ${verifyYtId} uploaded as private but has no publishAt. ` +
+                              `Repairing publishAt → ${shortScheduledAt.toISOString()}`,
+                            );
+                            try {
+                              const { repairVideoPublishAt } = await import("../youtube");
+                              await repairVideoPublishAt(ytChannel.id, verifyYtId, shortScheduledAt.toISOString());
+                              logger.info(`[ShortsPublisher] ✓ Draft healed — video ${verifyYtId} is now scheduled for ${shortScheduledAt.toISOString()}`);
+                            } catch (healErr: any) {
+                              logger.warn(`[ShortsPublisher] Draft heal failed (non-fatal): ${healErr?.message?.slice(0, 120)}`);
+                            }
+                          }
                         } else {
                           logger.warn(
                             `[ShortsPublisher] ⚠ Upload accepted by API but Short not yet visible via videos.list — ` +

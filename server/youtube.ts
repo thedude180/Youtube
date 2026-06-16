@@ -906,6 +906,50 @@ export async function updateYouTubeVideo(
   }
 }
 
+/**
+ * Repair a stuck draft: set the video's publishAt on YouTube without
+ * touching snippet fields.  Costs 50 quota units (videos.update).
+ * Call this when a scheduled Short lands as a private draft (publishAt=null).
+ */
+export async function repairVideoPublishAt(
+  channelId: number,
+  videoId: string,
+  publishAt: string,
+): Promise<void> {
+  const { oauth2Client } = await getAuthenticatedClient(channelId);
+  const yt = google.youtube({ version: "v3", auth: oauth2Client });
+
+  // Fetch current status so we can spread it cleanly.
+  const current = await yt.videos.list({ part: ["status"], id: [videoId] });
+  const existingStatus = current.data.items?.[0]?.status ?? {};
+
+  await yt.videos.update({
+    part: ["status"],
+    requestBody: {
+      id: videoId,
+      status: {
+        ...existingStatus,
+        privacyStatus: "private",
+        publishAt,
+      },
+    },
+  });
+
+  ytLogger.info(`[RepairDraft] Set publishAt=${publishAt} on video ${videoId}`);
+
+  // Track quota cost (50 units for write + 1 for the preflight read)
+  let resolvedUserId: string | undefined;
+  try {
+    const [ch] = await db.select({ userId: channelsTable.userId })
+      .from(channelsTable).where(eq(channelsTable.id, channelId)).limit(1);
+    resolvedUserId = ch?.userId;
+  } catch { /* non-fatal */ }
+  if (resolvedUserId) {
+    await trackQuotaUsage(resolvedUserId, "read").catch(() => {});
+    await trackQuotaUsage(resolvedUserId, "write").catch(() => {});
+  }
+}
+
 export async function uploadVideoToYouTube(
   channelId: number,
   options: {
@@ -1075,7 +1119,7 @@ export async function verifyUploadedToYouTube(
   channelId: number,
   youtubeVideoId: string,
   { maxAttempts = 3, pollIntervalMs = 6_000 }: { maxAttempts?: number; pollIntervalMs?: number } = {},
-): Promise<{ verified: boolean; uploadStatus?: string; privacyStatus?: string }> {
+): Promise<{ verified: boolean; uploadStatus?: string; privacyStatus?: string; publishAt?: string | null }> {
   // Resolve userId for quota tracking
   let resolvedUserId: string | undefined;
   try {
@@ -1105,6 +1149,10 @@ export async function verifyUploadedToYouTube(
           verified: true,
           uploadStatus: (item.status as any)?.uploadStatus ?? undefined,
           privacyStatus: item.status?.privacyStatus ?? undefined,
+          // publishAt is null/undefined when the video is a permanent draft
+          // (private with no scheduled publish time).  Publishers use this to
+          // detect and repair stuck drafts after a successful upload.
+          publishAt: (item.status as any)?.publishAt ?? null,
         };
       }
 

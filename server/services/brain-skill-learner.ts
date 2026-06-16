@@ -66,6 +66,8 @@ interface SkillDefinition {
 }
 
 const SKILL_CURRICULUM: SkillDefinition[] = [
+
+  // ── PLATFORM & ALGORITHM INTELLIGENCE ─────────────────────────────────────
   {
     name: "YouTube Algorithm Mechanics",
     domain: "platform",
@@ -75,57 +77,67 @@ const SKILL_CURRICULUM: SkillDefinition[] = [
       "How YouTube decides to recommend, suppress, or surface a video. Click-through triggers, watch-time thresholds, re-watch signals, the Shorts vs long-form ranking split, velocity windows, browse-vs-search weighting.",
   },
   {
-    name: "BF6 Game Mastery",
-    domain: "game_knowledge",
+    name: "Shorts Algorithm & Vertical Discovery",
+    domain: "platform",
     priority: 2,
-    masteryThreshold: 80,
+    masteryThreshold: 83,
     description:
-      "Battlefield 6 maps, modes, weapons, loadout meta, seasonal shifts, viral in-game moments, community lore, meme vocabulary, and what BF6 fans specifically seek in YouTube content.",
+      "How YouTube Shorts feed works independently from long-form: swipe-away rate vs completion rate tradeoffs, loop count signals, Shorts→channel subscriber conversion, the 'first 1,000 views' velocity window, hashtag surfacing, language-regional boost mechanics.",
   },
   {
-    name: "Thumbnail Psychology",
-    domain: "content_craft",
+    name: "Cross-Platform Algorithm Intelligence",
+    domain: "platform",
     priority: 3,
-    masteryThreshold: 82,
+    masteryThreshold: 80,
     description:
-      "What makes viewers click.  Visual hierarchy, emotion triggers, contrast and colour theory, curiosity gaps, face-vs-gameplay tradeoffs, text overlay rules, thumbnail–title synergy patterns.",
+      "How TikTok For You Page, Instagram Reels, X/Twitter video, Reddit, and Facebook feed algorithms differ from YouTube. Repurposing strategy that maximises reach on each platform without violating their unique ranking signals.",
   },
+  {
+    name: "Search Engine Intelligence",
+    domain: "platform",
+    priority: 4,
+    masteryThreshold: 80,
+    description:
+      "Google search ranking for videos, YouTube search vs suggested traffic mix, how AI Overviews and Google SGE affect video discovery, intent-matching between query types and video formats, and how gaming queries differ from tutorial vs entertainment intent.",
+  },
+  {
+    name: "Trend Forecasting & Viral Signal Detection",
+    domain: "platform",
+    priority: 5,
+    masteryThreshold: 80,
+    description:
+      "How to identify trends 24–72 hours before peak: Google Trends signals, Reddit r/battlefield velocity patterns, Twitter/X hashtag acceleration, YouTube trending tab gaming category, seasonal game launch cycles, patch-note announcement spikes.",
+  },
+
+  // ── CONTENT CRAFT ──────────────────────────────────────────────────────────
   {
     name: "Hook Craft",
     domain: "content_craft",
-    priority: 4,
+    priority: 6,
     masteryThreshold: 85,
     description:
       "First 3–5 seconds: open loops, pattern interrupts, re-hook beats, audio cues, pacing.  Shorts hooks vs long-form hooks.  How to promise the viewer something within 2 seconds without spoiling the payoff.",
   },
   {
+    name: "Thumbnail Psychology",
+    domain: "content_craft",
+    priority: 7,
+    masteryThreshold: 82,
+    description:
+      "What makes viewers click.  Visual hierarchy, emotion triggers, contrast and colour theory, curiosity gaps, face-vs-gameplay tradeoffs, text overlay rules, thumbnail–title synergy patterns.",
+  },
+  {
     name: "Watch Time & Retention",
     domain: "content_craft",
-    priority: 5,
+    priority: 8,
     masteryThreshold: 83,
     description:
       "Pacing, editing rhythm, re-engagement markers at audience-drop points, chapter structure, background music psychology, when silence works, cliffhanger placement, and how to extend average view duration on no-commentary gameplay.",
   },
   {
-    name: "Title Engineering",
-    domain: "seo",
-    priority: 6,
-    masteryThreshold: 80,
-    description:
-      "Search+browse hybrid titles.  Keyword placement, power-word triggers, number psychology, character count sweet spots, capitalisation effects, A/B patterns from top BF6 channels, how titles interact with thumbnails.",
-  },
-  {
-    name: "SEO & Keyword Strategy",
-    domain: "seo",
-    priority: 7,
-    masteryThreshold: 80,
-    description:
-      "Search volume, keyword competition, semantic clustering, long-tail opportunities, tag strategy, description keyword density, how YouTube's search differs from Google's, and gaming-niche specific keyword patterns.",
-  },
-  {
     name: "Shorts Formula",
     domain: "content_craft",
-    priority: 8,
+    priority: 9,
     masteryThreshold: 82,
     description:
       "Vertical storytelling, hook density (re-hook every 3–5 seconds), loop mechanics, optimal duration buckets (15s / 30s / 58s), CTA placement, when to use text overlays vs raw gameplay, Shorts-specific algorithm signals.",
@@ -133,23 +145,107 @@ const SKILL_CURRICULUM: SkillDefinition[] = [
   {
     name: "Long-form Structure",
     domain: "content_craft",
-    priority: 9,
+    priority: 10,
     masteryThreshold: 80,
     description:
       "Act-break theory for gameplay videos, peak placement, mid-roll ad timing, callout moments, chapter optimisation, how to build emotional narrative arc from raw FPS footage, compilation vs single-session tradeoffs.",
   },
   {
+    name: "Storytelling & Narrative Architecture",
+    domain: "content_craft",
+    priority: 11,
+    masteryThreshold: 80,
+    description:
+      "Joseph Campbell's hero journey applied to gaming content, 3-act structure for FPS highlights, tension-and-release mechanics, the 'promise-deliver-callback' loop, how no-commentary gameplay creates implicit narrative, emotional peaks and valleys in a 10-minute clip.",
+  },
+  {
+    name: "Video Production Science",
+    domain: "content_craft",
+    priority: 12,
+    masteryThreshold: 78,
+    description:
+      "Cinematography principles applied to gameplay capture: camera angle psychology, rule of thirds, color grading for emotional tone, contrast and saturation for viewer attention, audio mixing ratios, scene pacing theory, motion blur tradeoffs, and why certain editing cuts feel satisfying vs jarring.",
+  },
+  {
+    name: "Music & Audio Psychology",
+    domain: "content_craft",
+    priority: 13,
+    masteryThreshold: 78,
+    description:
+      "How background music tempo, key, and energy level affect viewer engagement and watch time. Emotional priming effects, the 'audio-visual congruence' principle, when silence is more powerful than music, how audio cues create anticipation, and royalty-free music selection science.",
+  },
+
+  // ── GAME & COMMUNITY INTELLIGENCE ─────────────────────────────────────────
+  {
+    name: "BF6 Game Mastery",
+    domain: "game_knowledge",
+    priority: 14,
+    masteryThreshold: 80,
+    description:
+      "Battlefield 6 maps, modes, weapons, loadout meta, seasonal shifts, viral in-game moments, community lore, meme vocabulary, patch note impacts, weapon tier lists, what BF6 fans specifically seek in YouTube content.",
+  },
+  {
+    name: "Gaming Culture & Meme Intelligence",
+    domain: "game_knowledge",
+    priority: 15,
+    masteryThreshold: 78,
+    description:
+      "FPS gaming community language, inside jokes, community heroes and villains, how gaming memes propagate, the lifecycle of a gaming meme from niche discord to mainstream YouTube, what content feels 'authentic' vs 'try-hard' to gaming audiences, speedrun culture, esports cross-pollination.",
+  },
+  {
     name: "Audience Psychology",
     domain: "audience",
-    priority: 10,
+    priority: 16,
     masteryThreshold: 80,
     description:
       "What BF6 fans specifically want from a YouTube channel: escapism, skill inspiration, community identity, outrage/hype triggers, loyalty mechanics, what makes a viewer subscribe vs just watch, comment sentiment patterns.",
   },
   {
+    name: "Community Building",
+    domain: "audience",
+    priority: 17,
+    masteryThreshold: 75,
+    description:
+      "Comment reply strategy, pinned comment effects, poll frequency and topics, membership perks, live-chat community dynamics, how to build a loyal core audience rather than just view counts, and subscriber–viewer ratio optimisation.",
+  },
+
+  // ── SEO & DISTRIBUTION ────────────────────────────────────────────────────
+  {
+    name: "Title Engineering",
+    domain: "seo",
+    priority: 18,
+    masteryThreshold: 80,
+    description:
+      "Search+browse hybrid titles.  Keyword placement, power-word triggers, number psychology, character count sweet spots, capitalisation effects, A/B patterns from top BF6 channels, how titles interact with thumbnails.",
+  },
+  {
+    name: "SEO & Keyword Strategy",
+    domain: "seo",
+    priority: 19,
+    masteryThreshold: 80,
+    description:
+      "Search volume, keyword competition, semantic clustering, long-tail opportunities, tag strategy, description keyword density, how YouTube's search differs from Google's, and gaming-niche specific keyword patterns.",
+  },
+  {
+    name: "Description & Metadata",
+    domain: "seo",
+    priority: 20,
+    masteryThreshold: 75,
+    description:
+      "Description keyword placement, timestamp chapters, hashtag strategy (how many, which ones), end screen logic, card placement, playlist assignment, community-post cross-linking, and how metadata affects both search and browse.",
+  },
+  {
+    name: "Upload Timing & Cadence",
+    domain: "platform",
+    priority: 21,
+    masteryThreshold: 78,
+    description:
+      "When to publish for maximum initial velocity: day-of-week patterns, hour-of-day by geography, how upload cadence (3 Shorts + 1 long-form per day) interacts with algorithmic favour, and quota-aware scheduling optimisation.",
+  },
+  {
     name: "Monetization Intelligence",
     domain: "business",
-    priority: 11,
+    priority: 22,
     masteryThreshold: 78,
     description:
       "RPM by content type and duration, ad density rules, which audience demographics earn more, sponsorship readiness signals, Super Thanks patterns, membership conversion triggers, how monetization-safe vs risky content differs.",
@@ -157,34 +253,170 @@ const SKILL_CURRICULUM: SkillDefinition[] = [
   {
     name: "Competitor Intelligence",
     domain: "business",
-    priority: 12,
+    priority: 23,
     masteryThreshold: 78,
     description:
       "Top BF6 / FPS channels: what they do well, their content gaps, upload cadence, thumbnail styles, title formulas, sub-niche positioning, and what ET Gaming 274 can do that they cannot or do not.",
   },
+
+  // ── BRAND & GROWTH ────────────────────────────────────────────────────────
   {
-    name: "Upload Timing & Cadence",
-    domain: "platform",
-    priority: 13,
+    name: "Personal Brand & Authority Building",
+    domain: "brand",
+    priority: 24,
     masteryThreshold: 78,
     description:
-      "When to publish for maximum initial velocity: day-of-week patterns, hour-of-day by geography, how upload cadence (3 Shorts + 1 long-form per day) interacts with algorithmic favour, and quota-aware scheduling optimisation.",
+      "How creators build expertise positioning and parasocial relationships without showing their face. Channel identity signals (name, logo, banner, channel trailer, about section), consistency heuristics that make a channel feel 'authoritative', and the psychological mechanics of subscriber loyalty.",
   },
   {
-    name: "Description & Metadata",
-    domain: "seo",
-    priority: 14,
-    masteryThreshold: 75,
+    name: "Marketing Science & Growth Loops",
+    domain: "brand",
+    priority: 25,
+    masteryThreshold: 78,
     description:
-      "Description keyword placement, timestamp chapters, hashtag strategy (how many, which ones), end screen logic, card placement, playlist assignment, community-post cross-linking, and how metadata affects both search and browse.",
+      "Positioning theory (Blue Ocean vs head-to-head competition), growth loop design (content → subscriber → share → new viewer), viral coefficient mechanics, launch vs sustain content strategies, how top gaming channels use cross-promotion and collaborations to compound growth.",
   },
   {
-    name: "Community Building",
-    domain: "audience",
-    priority: 15,
+    name: "Network Effects & Viral Growth",
+    domain: "brand",
+    priority: 26,
     masteryThreshold: 75,
     description:
-      "Comment reply strategy, pinned comment effects, poll frequency and topics, membership perks, live-chat community dynamics, how to build a loyal core audience rather than just view counts, and subscriber–viewer ratio optimisation.",
+      "Metcalfe's Law applied to community growth, tipping point dynamics (Gladwell), diffusion of innovations in gaming content niches, how playlist strategy creates compounding watch sessions, and the mathematics of subscriber-to-viewer conversion ratios over time.",
+  },
+
+  // ── BUSINESS & FINANCE ────────────────────────────────────────────────────
+  {
+    name: "Business Strategy Fundamentals",
+    domain: "business",
+    priority: 27,
+    masteryThreshold: 78,
+    description:
+      "Porter's Five Forces applied to YouTube niches, Blue Ocean Strategy for content positioning, OKR framework for channel growth goals, SWOT analysis for content decisions, unit economics of a YouTube channel (cost-per-video vs revenue-per-video), and how to build defensible competitive moats.",
+  },
+  {
+    name: "Financial Intelligence & Unit Economics",
+    domain: "business",
+    priority: 28,
+    masteryThreshold: 75,
+    description:
+      "P&L fundamentals for a media business, AdSense RPM vs CPM mechanics, revenue diversification (ads + sponsorship + merch + memberships), break-even analysis per content type, cash flow timing (AdSense payment delays), and how to value a YouTube channel as an asset.",
+  },
+  {
+    name: "Sales & Persuasion Science",
+    domain: "business",
+    priority: 29,
+    masteryThreshold: 75,
+    description:
+      "Cialdini's 6 principles of influence (reciprocity, commitment, social proof, authority, liking, scarcity) applied to YouTube CTAs and channel growth. SPIN selling framework adapted for brand deals and sponsorship pitches. Conversion psychology and how to negotiate sponsorship rates.",
+  },
+  {
+    name: "Legal & Copyright Intelligence",
+    domain: "business",
+    priority: 30,
+    masteryThreshold: 75,
+    description:
+      "YouTube's Content ID system and how to avoid false strikes, DMCA safe harbors and fair use doctrine for gaming content, music licensing in gameplay videos, how EA/DICE's streaming policy affects Battlefield content, contract basics for sponsorships, and monetization compliance requirements.",
+  },
+
+  // ── HUMAN INTELLIGENCE ────────────────────────────────────────────────────
+  {
+    name: "Psychology & Cognitive Biases",
+    domain: "human_intelligence",
+    priority: 31,
+    masteryThreshold: 80,
+    description:
+      "The 20 most impactful cognitive biases for content creators: availability heuristic, confirmation bias, bandwagon effect, the Dunning-Kruger effect, sunk cost fallacy, anchoring. How to design thumbnails, titles, and content that work WITH human psychology rather than against it.",
+  },
+  {
+    name: "Neuroscience of Learning & Creativity",
+    domain: "human_intelligence",
+    priority: 32,
+    masteryThreshold: 78,
+    description:
+      "Flow state science (Csikszentmihalyi) and how to engineer creative flow for content production. Spaced repetition and how AI systems can use it to compound knowledge retention. Divergent vs convergent thinking modes. The neuroscience of dopamine, novelty-seeking, and how gaming content hijacks reward pathways.",
+  },
+  {
+    name: "Communication, Rhetoric & Negotiation",
+    domain: "human_intelligence",
+    priority: 33,
+    masteryThreshold: 78,
+    description:
+      "Aristotle's ethos/pathos/logos applied to video titles and descriptions. Framing effects in communication. Harvard negotiation principles (BATNA, principled negotiation) for brand deals. The pyramid principle for structuring ideas. How to communicate technical gaming concepts to casual audiences.",
+  },
+  {
+    name: "Leadership & Organizational Dynamics",
+    domain: "human_intelligence",
+    priority: 34,
+    masteryThreshold: 75,
+    description:
+      "Situational leadership theory, Tuckman's team development stages, management by objectives, culture as a competitive moat (Horowitz), how to delegate and systematize content operations, and the psychology of autonomous AI systems managing creative work without human oversight.",
+  },
+  {
+    name: "Health & Performance Optimization",
+    domain: "human_intelligence",
+    priority: 35,
+    masteryThreshold: 75,
+    description:
+      "Sleep science and its impact on cognitive performance and creativity (Walker), nutrition and brain function, exercise neuroplasticity effects, how physical state affects decision quality in both gaming and content creation, ergonomics for long gaming sessions, and sustainable creative output.",
+  },
+  {
+    name: "Cultural Intelligence & Trend Science",
+    domain: "human_intelligence",
+    priority: 36,
+    masteryThreshold: 78,
+    description:
+      "How cultural moments emerge and die: the anatomy of a viral trend, meme lifecycle phases (creation → peak → irony → death → nostalgia), cultural zeitgeist reading, how geopolitical events affect gaming content appetite, generational differences in content consumption (Gen Z vs Millennial gaming audiences).",
+  },
+
+  // ── UNIVERSAL INTELLIGENCE ────────────────────────────────────────────────
+  {
+    name: "AI & Machine Learning Intelligence",
+    domain: "universal",
+    priority: 37,
+    masteryThreshold: 80,
+    description:
+      "Current LLM capabilities and limitations (GPT-4o, Claude, Gemini), prompt engineering science, AI image generation for thumbnails, AI audio/voice tools, how AI will reshape content creation over 2025–2028, automation displacement patterns, and how to use AI as a compounding capability multiplier.",
+  },
+  {
+    name: "Technology Trends & Disruption Patterns",
+    domain: "universal",
+    priority: 38,
+    masteryThreshold: 78,
+    description:
+      "Gartner Hype Cycle applied to gaming tech, how new gaming platforms disrupt content niches (PS6, next-gen Xbox, cloud gaming), the history of platform disruptions (console → PC → mobile → streaming), technology adoption S-curves, and how early movers in new platforms build permanent audience advantages.",
+  },
+  {
+    name: "Data Science & Statistical Thinking",
+    domain: "universal",
+    priority: 39,
+    masteryThreshold: 78,
+    description:
+      "A/B testing design and statistical significance (p-values, sample sizes), cohort analysis for subscriber retention, regression to the mean in viral video performance, survivorship bias in studying successful channels, Bayesian updating of content strategy hypotheses, and how to distinguish signal from noise in analytics.",
+  },
+  {
+    name: "Economics & Market Dynamics",
+    domain: "universal",
+    priority: 40,
+    masteryThreshold: 75,
+    description:
+      "Supply and demand applied to YouTube content niches, game theory and the 'race to the bottom' in content saturation, incentive structures and how they shape creator behaviour, the attention economy (Goldhaber), micro vs macro economic cycles and their effect on gaming/entertainment spending, and platform economics (aggregation theory).",
+  },
+  {
+    name: "History & Power Patterns",
+    domain: "universal",
+    priority: 41,
+    masteryThreshold: 75,
+    description:
+      "Historical cycles in media (radio → TV → internet → social → AI), how dominant platforms fell (MySpace, Vine, Google+), the pattern of creative destruction in technology, military strategy applied to competitive content positioning (Sun Tzu, Clausewitz), and historical case studies of creators who built lasting empires.",
+  },
+  {
+    name: "Philosophy, Systems Thinking & First Principles",
+    domain: "universal",
+    priority: 42,
+    masteryThreshold: 75,
+    description:
+      "First-principles reasoning (Elon Musk's approach) for breaking assumptions about content creation, Stoic philosophy for handling algorithmic volatility and view count anxiety, systems thinking (Senge's Fifth Discipline) for understanding the channel as a complex adaptive system, mental models from Munger's latticework, and how philosophical frameworks produce better creative decisions.",
   },
 ];
 
@@ -195,17 +427,27 @@ const _lastCycleAt = new Map<string, number>();
 
 export async function initSkillCurriculum(userId: string): Promise<void> {
   try {
+    // Always attempt to insert every curriculum skill.  The unique index
+    // (userId, name) causes onConflictDoNothing to silently skip skills the
+    // user already has, so this is safe to call on every boot — it only adds
+    // skills that are new in the curriculum.
     const existing = await db
-      .select({ id: brainSkills.id })
+      .select({ name: brainSkills.name })
       .from(brainSkills)
-      .where(eq(brainSkills.userId, userId))
-      .limit(1);
+      .where(eq(brainSkills.userId, userId));
 
-    if (existing.length > 0) return; // already seeded
+    const existingNames = new Set(existing.map(r => r.name));
+    const toAdd = SKILL_CURRICULUM.filter(s => !existingNames.has(s.name));
 
-    logger.info(`[SkillLearner] Seeding skill curriculum for ${userId.slice(0, 8)} (${SKILL_CURRICULUM.length} skills)`);
+    if (toAdd.length === 0) return; // nothing new to add
 
-    for (const s of SKILL_CURRICULUM) {
+    // Determine whether any skill is already in "learning" state so new
+    // high-priority ones start as "pending" (don't interrupt active learning).
+    const hasActive = existing.length > 0;
+
+    logger.info(`[SkillLearner] Adding ${toAdd.length} new skill(s) to curriculum for ${userId.slice(0, 8)}`);
+
+    for (const s of toAdd) {
       await db.insert(brainSkills).values({
         userId,
         name:             s.name,
@@ -213,13 +455,14 @@ export async function initSkillCurriculum(userId: string): Promise<void> {
         description:      s.description,
         priority:         s.priority,
         masteryThreshold: s.masteryThreshold,
-        status:           s.priority === 1 ? "learning" : "pending",
+        // First skill ever → start learning immediately; otherwise pending
+        status:           (!hasActive && s.priority === 1) ? "learning" : "pending",
         masteryScore:     0,
         learningCycleCount: 0,
       } as any).onConflictDoNothing();
     }
 
-    logger.info(`[SkillLearner] Curriculum seeded — starting with "${SKILL_CURRICULUM[0].name}"`);
+    logger.info(`[SkillLearner] Added ${toAdd.length} skill(s). Curriculum now has ${SKILL_CURRICULUM.length} domains.`);
   } catch (err: any) {
     logger.warn(`[SkillLearner] initSkillCurriculum failed: ${err?.message?.slice(0, 120)}`);
   }
