@@ -1079,11 +1079,17 @@ async function healProductionPipeline(): Promise<void> {
       process.stdout.write(`[prod-heal] Warning: backlog recovery failed: ${backlogErr?.message}\n`);
     }
 
-    // 8b. Downgrade AI/disclosure compliance rules that were incorrectly marked
-    //     "critical" — they block every post with AI-optimized descriptions/thumbnails.
-    //     Real synthetic-media enforcement (deepfakes, AI avatars) is handled by the
-    //     platform itself; blocking at the queue level creates false positives for a
-    //     gaming channel whose descriptions are AI-assisted but footage is real gameplay.
+    // 8b. Downgrade compliance rules that were incorrectly marked "critical".
+    //     This covers:
+    //     (a) AI/disclosure rules — they block posts with AI-optimized descriptions.
+    //         Real synthetic-media enforcement is handled by YouTube itself; false
+    //         positives at the queue level only stop our own legitimate uploads.
+    //     (b) AI-generated TOS-monitor rules — the TOS compliance monitor uses GPT to
+    //         invent rule names like "incentivization_spam", "3rd_party_content",
+    //         "misleading_metadata" and marks them "critical".  These rules match
+    //         ordinary BF6 gaming descriptions and block every queue item.  Only
+    //         hard-coded policy-pack rules (with well-defined keyword lists) should
+    //         ever be "critical"; AI-invented rules are always advisory.
     //     Also resets any autopilot posts that were blocked by these over-strict rules.
     try {
       const complianceDowngradeResult = await db.execute(sql`
@@ -1099,6 +1105,13 @@ async function healProductionPipeline(): Promise<void> {
             OR rule_name ILIKE '%reused_content%'
             OR rule_name ILIKE '%reels_content_disclosure%'
             OR rule_name ILIKE '%branded_content_disclosure%'
+            OR rule_name ILIKE '%incentivization_spam%'
+            OR rule_name ILIKE '%incentivization%'
+            OR rule_name ILIKE '%3rd_party_content%'
+            OR rule_name ILIKE '%third_party_content%'
+            OR rule_name ILIKE '%misleading_metadata%'
+            OR rule_name ILIKE '%new_restriction%'
+            OR rule_name ILIKE '%new_requirement%'
           )
       `);
       const downgradeCount = (complianceDowngradeResult as any)?.rowCount ?? "?";

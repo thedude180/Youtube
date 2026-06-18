@@ -338,10 +338,18 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
       ))
       .limit(1);
 
+    // AI-generated rules must NEVER be "critical" — critical severity causes the
+    // autopilot engine to permanently fail queue items before publishers can act.
+    // Only hard-coded policy-pack rules with well-defined keyword lists are trusted
+    // enough to block publishing.  AI-invented rules are always advisory ("warning").
+    const safeSeverity = (change.severity === "critical" || change.severity === "high")
+      ? "warning"
+      : (change.severity as any);
+
     if (existingRule.length > 0) {
       await db.update(complianceRules).set({
         description: `${sanitizeForPrompt(change.summary)} | Impact: ${sanitizeForPrompt(change.impact)} | Action: ${sanitizeForPrompt(change.requiredAction)}`,
-        severity: change.severity as any,
+        severity: safeSeverity,
         lastUpdated: new Date(),
       }).where(eq(complianceRules.id, existingRule[0].id));
     } else {
@@ -350,7 +358,7 @@ async function recordPolicyChange(change: PolicyChange): Promise<void> {
         ruleCategory: change.area,
         ruleName: `${sanitizeForPrompt(change.area)} - ${sanitizeForPrompt(change.changeType)}`,
         description: `${sanitizeForPrompt(change.summary)} | Impact: ${sanitizeForPrompt(change.impact)} | Action: ${sanitizeForPrompt(change.requiredAction)}`,
-        severity: change.severity as any,
+        severity: safeSeverity,
         keywords: change.affectedEngines || [],
         isActive: true,
       });
