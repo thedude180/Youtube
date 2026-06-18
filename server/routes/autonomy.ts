@@ -3,6 +3,7 @@ import { getAutonomyStatus, getStealthReport, getAutonomyDecisionLog } from "../
 import { humanizeText, getStealthAnalysis, humanizeBatch } from "../ai-humanizer-engine";
 import { getUserId } from "./helpers";
 import { createLogger } from "../lib/logger";
+import { getRouteASIContext } from "../lib/route-asi-context";
 
 const logger = createLogger("autonomy-routes");
 
@@ -17,8 +18,11 @@ export function registerAutonomyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const status = await getAutonomyStatus(userId);
-      res.json(status);
+      const [status, asiCtx] = await Promise.all([
+        getAutonomyStatus(userId),
+        getRouteASIContext(userId, "autonomy"),
+      ]);
+      res.json({ ...status, ...asiCtx });
     } catch (err: any) {
       logger.error("Autonomy status error", { error: err.message });
       res.status(500).json({ error: "Failed to fetch autonomy status" });
@@ -89,8 +93,11 @@ export function registerAutonomyRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     try {
-      const status = await getAutonomyStatus(userId);
-      res.json({ engines: status.engines });
+      const [status, asiCtx] = await Promise.all([
+        getAutonomyStatus(userId),
+        getRouteASIContext(userId, "autonomy"),
+      ]);
+      res.json({ engines: status.engines, ...asiCtx });
     } catch (err: any) {
       logger.error("Engines status error", { error: err.message });
       res.status(500).json({ error: "Failed to fetch engine status" });

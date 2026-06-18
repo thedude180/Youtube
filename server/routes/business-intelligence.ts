@@ -17,6 +17,7 @@ import { computeRevenueVelocity } from "../business/revenue-velocity";
 import { computeEstatePlan } from "../business/estate-succession";
 import { computeBusinessLearning } from "../business/business-learning";
 import { getRevenueTruthSummary } from "../business/revenue-reconciliation";
+import { getRouteASIContext } from "../lib/route-asi-context";
 
 export const scenarioAnalysisSchema = z.object({
   scenario: z.string().min(1).max(500),
@@ -176,13 +177,14 @@ export function registerBusinessIntelligenceRoutes(app: Express) {
   app.get("/api/business/dashboard-summary", asyncHandler(async (req, res) => {
     const userId = requireAuth(req, res);
     if (!userId) return;
-    const [truth, sellability, valuation, risk, velocity, capital] = await Promise.all([
+    const [truth, sellability, valuation, risk, velocity, capital, asiCtx] = await Promise.all([
       getRevenueTruthSummary(userId),
       computeSellabilityScore(userId),
       computeDynamicValuation(userId),
       computeRiskIntelligence(userId),
       computeRevenueVelocity(userId),
       computeCapitalAllocation(userId),
+      getRouteASIContext(userId, "revenue"),
     ]);
     res.json({
       revenueTruth: {
@@ -209,6 +211,7 @@ export function registerBusinessIntelligenceRoutes(app: Express) {
         maturityLevel: velocity.infrastructure.maturityLevel,
       },
       capitalHealth: capital.budgetHealth,
+      ...asiCtx,
     });
   }));
 

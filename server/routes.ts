@@ -53,6 +53,7 @@ import { registerChannelLaunchRoutes } from "./routes/channel-launch";
 import { registerDemoRoutes, DEMO_USER_ID, DEMO_USER_CLAIMS } from "./routes/demo";
 import { registerOpsHealthRoutes } from "./routes/ops-health";
 import { registerPhase7IntelligenceRoutes } from "./routes/phase7-intelligence";
+import { registerASIRoutes } from "./routes/asi";
 import { registerResolutionIntelligenceRoutes } from "./routes/resolution-intelligence";
 import { registerStudioRoutes } from "./routes/studio";
 import { registerStreamEditorRoutes } from "./routes/stream-editor";
@@ -456,6 +457,7 @@ export async function registerRoutes(
   registerChannelLaunchRoutes(app);
   registerOpsHealthRoutes(app);
   registerPhase7IntelligenceRoutes(app);
+  registerASIRoutes(app);
   registerResolutionIntelligenceRoutes(app);
   registerStudioRoutes(app);
   registerStreamEditorRoutes(app);

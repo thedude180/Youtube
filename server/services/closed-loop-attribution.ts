@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { contentPerformanceLoops, discoveredStrategies, users, videos, channels } from "@shared/schema";
+import { contentPerformanceLoops, discoveredStrategies, users, videos, channels, masterKnowledgeBank } from "@shared/schema";
 import { eq, and, lte, desc, gte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
@@ -162,6 +162,23 @@ In 1-2 sentences, what is THE key lesson from this result? Should the strategy b
         `views=${actualViews}, ctr=${actualCtr || "?"}, score=${performanceScore}, strategy=${loop.strategyUsed || "none"}`,
         performanceScore,
       );
+
+      // Write prediction calibration to masterKnowledgeBank so the orchestrator
+      // knows whether its own forecasts are accurate over time.
+      if (loop.predictedViews && loop.predictedViews > 0) {
+        const viewsRatioStr = (actualViews / loop.predictedViews).toFixed(2);
+        const calibrationText = `Prediction calibration: predicted ${loop.predictedViews} views, got ${actualViews} (${viewsRatioStr}× accuracy). ${lessonLearned.slice(0, 150)}`;
+        db.insert(masterKnowledgeBank).values({
+          userId,
+          category: "prediction_calibration",
+          principle: calibrationText.slice(0, 500),
+          evidence: `title="${video.title?.slice(0, 60)}", platform=${loop.platform}, score=${performanceScore}/100`,
+          applicableEngines: ["closed-loop-attribution", "youtube-ai-orchestrator", "analytics-intelligence"],
+          confidenceScore: Math.min(95, 40 + Math.round(Math.abs(1 - actualViews / loop.predictedViews) * 10)),
+          isActive: true,
+          createdAt: new Date(),
+        } as any).catch(() => {});
+      }
 
       logger.info(`Attribution complete: ${video.title?.substring(0, 40)} → score ${performanceScore}`, { userId: userId.substring(0, 8) });
     } catch (err) {

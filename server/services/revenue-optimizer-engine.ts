@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { users, videos, channels, discoveredStrategies, contentPerformanceLoops } from "@shared/schema";
+import { users, videos, channels, discoveredStrategies, contentPerformanceLoops, masterKnowledgeBank } from "@shared/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { createEngineStore, registerUserQueries, getUserData, invalidateUserData } from "../lib/engine-store";
@@ -89,6 +89,24 @@ async function optimizeRevenueForUser(userId: string): Promise<void> {
   const strategies = await getUserData(revStore, userId, "strategies") as any[];
   const masterWisdom = await getMasterKnowledgeForPrompt(userId, 5);
 
+  // Read orchestrator's current strategic directive so revenue decisions stay
+  // aligned with channel-level strategy (e.g. "double-down on BF6 long-form").
+  let strategicDirective = "";
+  try {
+    const directiveRows = await db.select({ principle: masterKnowledgeBank.principle })
+      .from(masterKnowledgeBank)
+      .where(and(
+        eq(masterKnowledgeBank.userId, userId),
+        eq(masterKnowledgeBank.isActive, true),
+        eq(masterKnowledgeBank.category, "strategic_directive"),
+      ))
+      .orderBy(desc(masterKnowledgeBank.createdAt))
+      .limit(1);
+    if (directiveRows.length > 0) {
+      strategicDirective = `\nCURRENT STRATEGIC DIRECTIVE: ${directiveRows[0].principle}`;
+    }
+  } catch { /* non-fatal */ }
+
   if (!recentVideos?.length || recentVideos.length < 3) return;
 
   const gamePerformance: Record<string, { totalViews: number; count: number; avgWatchTime: number; titles: string[] }> = {};
@@ -134,7 +152,7 @@ ${sortedGames.map(([game, data]) => `  ${game}: ${data.count} videos, avg ${Math
 
 Recent attribution scores: ${attributionResults?.slice(0, 5).map((a: any) => `${a.platform}:${a.performanceScore}/100`).join(", ") || "none yet"}
 
-${masterWisdom}
+${masterWisdom}${strategicDirective}
 
 Output JSON with revenue optimization recommendations:
 {
@@ -188,6 +206,22 @@ Output JSON with revenue optimization recommendations:
 
     logger.info(`Revenue optimization: ${parsed.shiftStrategy}`, { userId: userId.substring(0, 8) });
     invalidateUserData(revStore, userId, "strategies");
+
+    // Write the top revenue insight back to masterKnowledgeBank so the orchestrator
+    // can factor it into the next full strategy cycle (category="revenue_feedback").
+    try {
+      const insightText = `Revenue: ${parsed.shiftStrategy} — Double down: ${parsed.doubleDown?.slice(0, 2).join(", ") || "current content"}. Expected: ${parsed.estimatedImpact}`;
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category: "revenue_feedback",
+        principle: insightText.slice(0, 500),
+        evidence: `Top game: ${topGame[0]} (avg ${topAvgViews} views). Confidence: ${parsed.confidence || 60}%`,
+        applicableEngines: ["revenue-optimizer", "youtube-ai-orchestrator", "content-grinder"],
+        confidenceScore: parsed.confidence || 60,
+        isActive: true,
+        createdAt: new Date(),
+      } as any);
+    } catch { /* non-fatal */ }
   } catch (err) {
     logger.error("Revenue optimization AI call failed", { err: String(err) });
   }

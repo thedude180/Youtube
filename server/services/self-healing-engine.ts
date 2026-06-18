@@ -243,6 +243,17 @@ async function stageLevel3(
   };
   await persistAction(a);
   log.warn(`[SelfHeal] Level 3 action staged for ${module}: ${classification.code} — human review needed`);
+
+  // Teach the brain about Level 3 failures — these are hard blockers the AI
+  // should factor into future strategy (e.g. token missing = avoid dependent tasks).
+  const userId = String(context.userId ?? "");
+  if (userId && userId !== "dev_bypass_user") {
+    import("./youtube-learning-brain").then(({ recordNegativePattern }) =>
+      recordNegativePattern(userId, module, classification.code,
+        `Level 3 blocked: ${classification.message.slice(0, 200)}`)
+    ).catch(() => {});
+  }
+
   return a;
 }
 
@@ -314,6 +325,17 @@ export const SelfHealingEngine = {
 
     // No repair applied — still record the raw event so the pattern accumulates
     await recordError(err, module, context);
+
+    // Record unmapped errors as negative patterns so the brain learns about
+    // recurring unclassified failures that the engine can't auto-fix yet.
+    const userId = String(context.userId ?? "");
+    if (userId && userId !== "dev_bypass_user") {
+      import("./youtube-learning-brain").then(({ recordNegativePattern }) =>
+        recordNegativePattern(userId, module, classification.code,
+          `Unresolved error (no repair policy): ${classification.message.slice(0, 200)}`)
+      ).catch(() => {});
+    }
+
     return null;
   },
 

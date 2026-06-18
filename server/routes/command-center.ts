@@ -5,6 +5,7 @@ import {
   startCommandCenterSession, endCommandCenterSession, getCommandCenterState,
   executeCommandCenterAction, getRecentActions, getCommandCenterScores
 } from "../live-ops/command-center-service";
+import { getRouteASIContext } from "../lib/route-asi-context";
 
 export function registerCommandCenterRoutes(app: Express): void {
   app.post("/api/command-center/start", isAuthenticated, async (req: Request, res: Response) => {
@@ -34,8 +35,11 @@ export function registerCommandCenterRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const state = await getCommandCenterState(userId);
-      res.json(state || { active: false });
+      const [state, asiCtx] = await Promise.all([
+        getCommandCenterState(userId),
+        getRouteASIContext(userId, "stream"),
+      ]);
+      res.json({ ...(state || { active: false }), ...asiCtx });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -69,8 +73,11 @@ export function registerCommandCenterRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
-      const scores = await getCommandCenterScores(userId);
-      res.json(scores);
+      const [scores, asiCtx] = await Promise.all([
+        getCommandCenterScores(userId),
+        getRouteASIContext(userId, "stream"),
+      ]);
+      res.json({ ...scores, ...asiCtx });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

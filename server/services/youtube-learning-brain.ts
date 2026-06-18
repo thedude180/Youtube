@@ -1155,6 +1155,124 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] ingestNegativePatternsIntoBrain non-fatal: ${npErr?.message?.slice(0, 80)}`);
     }
 
+    // 9m. Self-healing actions synthesis — count resolution rates per error type and
+    //     write trends to masterKnowledgeBank so the orchestrator knows which modules
+    //     are generating recurring hard failures.
+    try {
+      const healStats = await db.execute(sql`
+        SELECT error_code, status, COUNT(*)::int AS cnt
+        FROM self_healing_actions
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY error_code, status
+        ORDER BY cnt DESC
+        LIMIT 20
+      `);
+      const rows = (healStats as any)?.rows ?? [];
+      if (rows.length > 0) {
+        const topFailures = rows.filter((r: any) => r.status === "staged" || r.status === "failed")
+          .slice(0, 5);
+        for (const row of topFailures) {
+          const principle = `Recurring system failure [${row.error_code}]: ${row.cnt}× in last 7 days, status=${row.status} — strategy should avoid workflows that depend on this module`;
+          await db.insert(masterKnowledgeBank).values({
+            userId,
+            category: "system_lesson",
+            principle: principle.slice(0, 500),
+            evidence: `error_code=${row.error_code}, count=${row.cnt}, status=${row.status}`,
+            applicableEngines: ["youtube-ai-orchestrator", "self-improvement", "predictive-guardian"],
+            confidenceScore: Math.min(90, 50 + Math.min(40, row.cnt * 2)),
+            isActive: true,
+            createdAt: new Date(),
+          } as any).catch(() => {});
+        }
+        logger.debug(`[Brain] self_healing synthesis: ${topFailures.length} failure patterns promoted`);
+      }
+    } catch (healErr: any) {
+      logger.debug(`[Brain] self-healing synthesis non-fatal: ${healErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9n. Content performance loops synthesis — extract the top 3 highest-attribution
+    //     content patterns and write them as masterKnowledgeBank principles.
+    try {
+      const topLoops = await db.execute(sql`
+        SELECT strategy_used, platform,
+               AVG(performance_score)::int AS avg_score,
+               COUNT(*)::int AS cnt,
+               AVG(actual_views)::int AS avg_views
+        FROM content_performance_loops
+        WHERE user_id = ${userId}
+          AND attribution_complete = true
+          AND performance_score IS NOT NULL
+          AND created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY strategy_used, platform
+        HAVING COUNT(*) >= 2
+        ORDER BY AVG(performance_score) DESC
+        LIMIT 5
+      `);
+      const loopRows = (topLoops as any)?.rows ?? [];
+      for (const row of loopRows.slice(0, 3)) {
+        if (!row.strategy_used) continue;
+        const principle = `High-performing strategy "${row.strategy_used}" on ${row.platform}: avg score ${row.avg_score}/100 across ${row.cnt} videos (avg ${row.avg_views} views)`;
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category: "content_pattern",
+          principle: principle.slice(0, 500),
+          evidence: `cnt=${row.cnt}, avg_score=${row.avg_score}, platform=${row.platform}`,
+          applicableEngines: ["content-grinder", "youtube-ai-orchestrator", "closed-loop-attribution"],
+          confidenceScore: Math.min(90, 50 + row.cnt * 3),
+          isActive: true,
+          createdAt: new Date(),
+        } as any).catch(() => {});
+      }
+      if (loopRows.length > 0) {
+        logger.debug(`[Brain] content_performance_loops synthesis: ${Math.min(3, loopRows.length)} patterns promoted`);
+      }
+    } catch (loopErr: any) {
+      logger.debug(`[Brain] content-loops synthesis non-fatal: ${loopErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9o. Discovered strategies evaluation — any strategy with status "active" and
+    //     >7 days old without promotion gets its effectiveness checked vs recent
+    //     performance data and is archived if effectiveness < 25.
+    try {
+      const staleStrategies = await db.execute(sql`
+        SELECT id, title, strategy_type, effectiveness, times_applied
+        FROM discovered_strategies
+        WHERE user_id = ${userId}
+          AND is_active = true
+          AND effectiveness < 35
+          AND times_applied >= 3
+          AND created_at < NOW() - INTERVAL '7 days'
+        ORDER BY effectiveness ASC
+        LIMIT 10
+      `);
+      const staleRows = (staleStrategies as any)?.rows ?? [];
+      let archived = 0;
+      for (const row of staleRows) {
+        await db.execute(sql`
+          UPDATE discovered_strategies
+          SET is_active = false, updated_at = NOW()
+          WHERE id = ${row.id} AND user_id = ${userId}
+        `).catch(() => {});
+        archived++;
+        // Record the failure as a negative pattern so others don't repeat it
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category: "negative_pattern",
+          principle: `[AVOID] Strategy "${row.title}" (type: ${row.strategy_type}) was tried ${row.times_applied}× and achieved only ${row.effectiveness}% effectiveness — do not re-apply`,
+          evidence: `effectiveness=${row.effectiveness}, times_applied=${row.times_applied}`,
+          applicableEngines: ["youtube-ai-orchestrator", "self-improvement", "growth-flywheel"],
+          confidenceScore: 72,
+          isActive: true,
+          createdAt: new Date(),
+        } as any).catch(() => {});
+      }
+      if (archived > 0) {
+        logger.debug(`[Brain] discovered_strategies: archived ${archived} low-effectiveness strategies`);
+      }
+    } catch (stratErr: any) {
+      logger.debug(`[Brain] discovered-strategies synthesis non-fatal: ${stratErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];

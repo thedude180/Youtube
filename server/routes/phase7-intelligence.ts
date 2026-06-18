@@ -1,13 +1,18 @@
 import { type Express } from "express";
+import { getRouteASIContext } from "../lib/route-asi-context";
 
 function getUserId(req: any): string {
   return (req as any).userId || req.headers["x-user-id"] || "anonymous";
 }
 
 export function registerPhase7IntelligenceRoutes(app: Express) {
-  app.get("/api/intelligence/graph/snapshot", async (_req, res) => {
-    const { getGraphSnapshot } = await import("../kernel/creator-intelligence-graph");
-    res.json(getGraphSnapshot());
+  app.get("/api/intelligence/graph/snapshot", async (req, res) => {
+    const userId = getUserId(req);
+    const [{ getGraphSnapshot }, asiCtx] = await Promise.all([
+      import("../kernel/creator-intelligence-graph"),
+      getRouteASIContext(userId, "dashboard"),
+    ]);
+    res.json({ ...getGraphSnapshot(), ...asiCtx });
   });
 
   app.get("/api/intelligence/graph/stats", async (_req, res) => {
