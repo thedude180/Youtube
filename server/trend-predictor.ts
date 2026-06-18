@@ -77,7 +77,8 @@ Respond as JSON:
   const content = response.content;
   if (!content) throw new Error("No response from AI for trend scan");
 
-  const result = JSON.parse(content);
+  const stripped1 = content.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+  const result = JSON.parse(stripped1);
   const inserted = [];
 
   for (const trend of result.trends) {
@@ -198,7 +199,8 @@ Respond as JSON:
   const content = response.content;
   if (!content) throw new Error("No response from AI for trend content");
 
-  const result = JSON.parse(content);
+  const stripped2 = content.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+  const result = JSON.parse(stripped2);
 
   sendSSEEvent(userId, "trend_content_generated", {
     trendId,

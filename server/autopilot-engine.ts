@@ -22,6 +22,10 @@ const commentQuotaCooldown = new Map<string, number>();
 // 70+ times in ~2 minutes, drowning out real errors in the log stream and
 // making the AI queue saturation harder to diagnose.
 let _viralBudgetWarnedAt = 0;
+// When the AI integration returns 401, suppress per-video viral-optimizer calls
+// for 30 min (same window as the backlog-engine circuit breaker) to prevent the
+// per-video catch from spam-logging the same auth failure for every video.
+let _viralAuth401BackoffUntil = 0;
 
 function isCommentQuotaOnCooldown(userId: string): boolean {
   const hitAt = commentQuotaCooldown.get(userId);
@@ -300,7 +304,8 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
       // Without the hourly check, a 47-video bulk import passes the daily gate for
       // all 47 videos simultaneously, floods the semaphore queue, and each waiter
       // logs a cap-hit when it acquires the slot → "×47 this hour" spam.
-      // Log at most once per hour for each cap type.
+      // Also skip immediately if we're in the 30-min AI 401 backoff window.
+      if (_viralAuth401BackoffUntil > Date.now()) return;
       if (!tokenBudget.checkBudget("viral-optimizer", 3000)) {
         const now = Date.now();
         if (now - _viralBudgetWarnedAt > 60 * 60_000) {
@@ -330,10 +335,27 @@ export async function processNewVideoUpload(userId: string, videoId: number) {
           }
         })
         .catch(err => {
+          // Normalize error to a plain string — some transports wrap the message
+          // in an object {value: "..."}, which breaks plain .includes() checks.
+          const rawMsg = (err as any)?.message?.value ?? (err as any)?.message ?? err;
+          const msg = String(rawMsg ?? err ?? '');
+
+          // AI 401 = Replit integration auth failure.  Set a 30-min module-level
+          // backoff so every subsequent per-video call is silently skipped instead
+          // of spam-logging the same auth failure for every video in the upload batch.
+          if (msg.includes('401 status code') || msg.includes('AI_401_CIRCUIT_OPEN')) {
+            _viralAuth401BackoffUntil = Date.now() + 30 * 60_000;
+            const now2 = Date.now();
+            if (now2 - _viralBudgetWarnedAt > 60 * 60_000) {
+              logger.warn(`[Autopilot] 🛑 Viral optimization aborted — AI 401 auth failure (all per-video calls suppressed 30 min)`);
+              _viralBudgetWarnedAt = now2;
+            }
+            return;
+          }
+
           // Budget can deplete MID-batch (pre-check passed but subsequent calls
           // exhaust it).  Apply the same once-per-hour dedup suppression rather
           // than emitting a per-video warn line for every remaining video.
-          const msg = String(err);
           if (
             msg.includes("budget exhausted") ||
             msg.includes("Will retry tomorrow") ||

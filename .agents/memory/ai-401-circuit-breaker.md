@@ -18,9 +18,20 @@ breaker ALL AI slots are consumed by timeout waits.
   wrap `openai.create()` in try/catch → call `tripAI401Circuit(context)` on 401, then rethrow
 - In any loop that calls AI: catch the `AI_401_CIRCUIT_OPEN` error (or check `err.status===401`)
   and immediately `break` the loop (not `continue`)
-- Pattern: `err.status === 401 || err.message?.includes('401 status code') || err.message?.includes('AI_401_CIRCUIT_OPEN')`
+- **CRITICAL: normalize `err.message` before `.includes()`.** Some logger transports
+  wrap the message as an object `{value: "401 status code (no body)"}` instead of a
+  plain string — `err.message?.includes('...')` silently returns undefined/false.
+  Always normalize first:
+  ```ts
+  const errMsg = typeof err?.message === 'string'
+    ? err.message
+    : String(err?.message?.value ?? err?.message ?? err ?? '');
+  const is401 = (err as any)?.status === 401 || errMsg.includes('401 status code') || errMsg.includes('AI_401_CIRCUIT_OPEN');
+  ```
+- Same normalization applies in any `.catch()` that checks for 401 or budget messages.
 - Applied to: `generateVideoMetadata` + `runAgentTask` in server/ai-engine.ts;
-  backlog-engine processBacklogAsync() catch block
+  backlog-engine processBacklogAsync() catch block;
+  autopilot-engine viral optimizer per-video catch (with _viralAuth401BackoffUntil 30-min backoff)
 
 ## Backlog-engine specific
 `markViralCapExhausted(reason, true)` with `hourlyOnly=true` tells the backlog-engine

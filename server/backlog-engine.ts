@@ -470,10 +470,15 @@ async function processBacklogAsync(
       // Without this, the engine iterates 78k+ videos at ~20 s/video (4 s
       // pacing delay + 15 s TCP timeout per 401) → weeks of useless spinning
       // that saturates AI slots and blocks the pre-encoder for BF6 clips.
+      // err.message can be an object {value: "401 status code (no body)"} (from
+      // some logger-wrapped errors), so normalize to a plain string first.
+      const errMsg = typeof err?.message === 'string'
+        ? err.message
+        : String(err?.message?.value ?? err?.message ?? err ?? '');
       const is401 =
         (err as any)?.status === 401 ||
-        err.message?.includes('401 status code') ||
-        err.message?.includes('AI_401_CIRCUIT_OPEN');
+        errMsg.includes('401 status code') ||
+        errMsg.includes('AI_401_CIRCUIT_OPEN');
       if (is401) {
         markViralCapExhausted('AI integration 401 — stopping backlog loop (resumes next hour)', true);
         logger.error(
