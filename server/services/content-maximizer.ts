@@ -6,7 +6,7 @@ import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/o
 import { createLogger } from "../lib/logger";
 import { isAutonomousMode, logAutonomousAction } from "../lib/autonomous";
 import { getFocusGame } from "../lib/game-focus";
-import { getMasterKnowledgeForPrompt } from "./knowledge-mesh";
+import { getFullASIContextForPrompt } from "./knowledge-mesh";
 
 const logger = createLogger("content-maximizer");
 const openai = getOpenAIClientBackground();
@@ -208,8 +208,6 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
   // doesn't match the Battlefield family.
   const gameName = /battlefield|bf6|bf 6/i.test(rawGameName) ? rawGameName : focusGame;
   const preference = await getOptimalDurations(userId);
-  const _brainCtx = await getMasterKnowledgeForPrompt(userId, 5).catch(() => "");
-
   logger.info("Content maximizer starting", {
     videoId,
     durationMin,
@@ -219,7 +217,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     confidence: preference.confidence,
   });
 
-  const moments = await identifyAllUsableMoments(video, durationSec, gameName, preference, _brainCtx);
+  const moments = await identifyAllUsableMoments(userId, video, durationSec, gameName, preference);
 
   let shortsQueued = 0;
   let longFormsQueued = 0;
@@ -438,62 +436,128 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
   return { shortsQueued, longFormsQueued, experimentsCreated };
 }
 
+// Pulls real channel performance data to inform what moments to extract next.
+// Returns a context string describing top-performing and low-performing clips.
+async function getPastPerformanceContext(userId: string): Promise<string> {
+  try {
+    const ctx: string[] = [];
+
+    const topRes = await db.execute(sql`
+      SELECT caption,
+             metadata->>'viralScore' AS viral_score,
+             metadata->>'intensity'  AS intensity,
+             type
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND status = 'published'
+        AND type IN ('auto-clip','youtube_short','platform_short','vod-short')
+        AND (metadata->>'viralScore') IS NOT NULL
+        AND (metadata->>'viralScore')::numeric > 0
+      ORDER BY (metadata->>'viralScore')::numeric DESC
+      LIMIT 6
+    `);
+    const topRows = (topRes as any).rows ?? [];
+    if (topRows.length > 0) {
+      ctx.push("TOP PERFORMING CLIPS (highest viral scores — extract similar moments):\n" +
+        topRows.map((r: any) =>
+          `• "${String(r.caption ?? "").slice(0, 65)}" — score ${r.viral_score ?? "?"}, intensity ${r.intensity ?? "?"}`
+        ).join("\n"));
+    }
+
+    const lowRes = await db.execute(sql`
+      SELECT caption
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND status = 'published'
+        AND type IN ('auto-clip','youtube_short','platform_short','vod-short')
+        AND (metadata->>'viralScore') IS NOT NULL
+        AND (metadata->>'viralScore')::numeric < 30
+        AND created_at >= NOW() - INTERVAL '45 days'
+      ORDER BY (metadata->>'viralScore')::numeric ASC
+      LIMIT 4
+    `);
+    const lowRows = (lowRes as any).rows ?? [];
+    if (lowRows.length > 0) {
+      ctx.push("LOW PERFORMING CLIPS (avoid these title/moment patterns):\n" +
+        lowRows.map((r: any) => `✗ "${String(r.caption ?? "").slice(0, 65)}"`).join("\n"));
+    }
+
+    return ctx.join("\n\n");
+  } catch {
+    return "";
+  }
+}
+
 async function identifyAllUsableMoments(
+  userId: string,
   video: any,
   durationSec: number,
   gameName: string,
   preference: DurationPreference,
-  brainContext = "",
 ): Promise<ExtractedMoment[]> {
   const durationMin = Math.floor(durationSec / 60);
   const maxShorts = Math.min(Math.floor(durationMin / 5), 20);
   const isOver2Hours = durationSec >= 7200;
 
-  const prompt = `You are a content extraction expert for a NO COMMENTARY PS5 gaming YouTube channel.
+  // ASI: gather rich context in parallel — channel intelligence + real performance data
+  const [brainCtx, perfCtx] = await Promise.all([
+    getFullASIContextForPrompt(userId, { engine: "content-grinder", maxItems: 12 }).catch(() => ""),
+    getPastPerformanceContext(userId),
+  ]);
 
-VIDEO: "${sanitizeForPrompt(video.title)}" (${sanitizeForPrompt(gameName)})
-Total duration: ${durationMin} minutes
-Channel style: Pure gameplay, NO commentary, NO talking — viewers come for immersive, uninterrupted gameplay.
+  const perfSection = perfCtx
+    ? `\n\nREAL CHANNEL PERFORMANCE DATA:\n${perfCtx}`
+    : "";
+  const brainSection = brainCtx
+    ? `\n\nCHANNEL INTELLIGENCE (ASI brain — validated across all engines):\n${brainCtx}`
+    : "";
 
-YOUR JOB: Extract EVERY usable moment from this video. Be aggressive — find as many quality clips as possible.
+  const prompt = `You are an ASI-level content extraction specialist for ET Gaming 274 — a no-commentary, no-facecam PS5 gaming YouTube channel (6.14K subscribers). Brand: "No talking. Just gameplay. 92 BPM cadence." Game: ${sanitizeForPrompt(gameName, 60)}.
 
-SHORTS (target: ${maxShorts} clips):
-- Find EVERY standout moment: boss fights, clutch plays, epic fails, satisfying kills, beautiful scenery, intense action sequences, rare events, close calls, impressive combos
-- Each short should be a complete mini-story (setup → payoff)
-- Test different durations: some ${preference.shortOptimalSec}s (proven optimal), but also experiment with 15s, 30s, 45s, and 59s clips
-- The first 1-2 seconds must be visually explosive (no menus, no loading screens)
-- Space moments throughout the video — don't cluster all from the same section
+VIDEO: "${sanitizeForPrompt(video.title, 100)}"
+Total duration: ${durationMin} minutes${perfSection}${brainSection}
 
-${isOver2Hours ? `LONG-FORM COMPILATIONS (target: ${Math.floor(durationSec / 3600)} videos):
-- Split the ${durationMin}-minute stream into standalone ${Math.round(preference.longFormOptimalSec / 60)}-minute videos
-- Each must have a unique angle/theme (e.g., "Boss Rush", "Full Story Chapter", "Best Combat Moments")
-- Also experiment with different lengths: 20min, 30min, 45min, 60min
-- Each compilation must feel like a complete, standalone video — not "Part 1 of X"` : ""}
+STEP 1 — ANALYSIS: Consider what gameplay moments drive retention on a no-commentary channel. Which sections of this ${durationMin}-minute stream have peak action density?
 
-CRITICAL RULES:
-- ALL timestamps must be within 0-${durationMin} minutes
-- NO overlapping moments
-- Titles must include game name and imply no commentary (use words like "pure gameplay", "ambient", "immersive")
-- Rate intensity 1-10 for each moment${brainContext ? `\n\nCHANNEL INTELLIGENCE (AI brain learned from analytics + internet signals):\n${brainContext}` : ""}
+STEP 2 — EXTRACT ALL USABLE MOMENTS:
+
+SHORTS (target: ${maxShorts} clips, 10–59 seconds each):
+• Prioritize: explosive action openings, clutch moments, vehicle sequences, multi-kill streaks, close-call escapes, objective turns, final-ticket pressure, satisfying headshots
+• First 2 seconds = hook — must be visually explosive (zero dead air, no menus, no loading)
+• Test a RANGE of durations: ${preference.shortOptimalSec}s (data-proven optimal), but also 15s, 22s, 38s, 45s, 58s
+• Space moments across the FULL video — do not cluster all in one section
+• Titles: CTR psychology — action verbs, numbers, outcome-first. E.g.: "78 Kill Streak No Commentary", "Squad Wiped in 12 Seconds", "This Is Why BF6 Is Insane"
+• Only include moments with intensity ≥ 6 — weak moments hurt the channel
+${isOver2Hours ? `
+LONG-FORM COMPILATIONS (target: ${Math.floor(durationSec / 3600)} videos):
+• Split the ${durationMin}-minute stream into ${Math.round(preference.longFormOptimalSec / 60)}-minute standalone videos
+• Each with a unique theme: "Vehicle Rampage", "Squad Annihilation", "Infantry Dominance", "Full AoW Match", "Final Tickets Chaos"
+• Each must feel self-contained — never "Part 1 of X"` : ""}
+
+QUALITY GATES: Only moments you'd genuinely stop scrolling for. All timestamps within 0–${durationSec} seconds. Zero overlapping moments.
 
 Return ONLY valid JSON:
 {
-  "shorts": [{"startSec": number, "endSec": number, "title": "string", "intensity": number, "reasoning": "string"}],
-  ${isOver2Hours ? '"longForms": [{"startSec": number, "endSec": number, "title": "string", "intensity": number, "reasoning": "string"}],' : ""}
-  "analysis": "brief summary of what makes this video rich for content"
+  "analysis": "2-sentence: what makes this video clip-rich and which section is the goldmine",
+  "shorts": [{"startSec": number, "endSec": number, "title": "string", "intensity": number, "reasoning": "string"}]${isOver2Hours ? `,
+  "longForms": [{"startSec": number, "endSec": number, "title": "string", "intensity": number, "reasoning": "string"}]` : ""}
 }`;
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
-      max_completion_tokens: 4000,
-      temperature: 0.8,
+      max_completion_tokens: 5000,
+      temperature: 0.75,
     });
 
     const content = resp.choices[0]?.message?.content || "{}";
     const parsed = JSON.parse(content);
+
+    if (parsed.analysis) {
+      logger.info(`[Maximizer] Analysis: ${String(parsed.analysis).slice(0, 120)}`);
+    }
 
     const moments: ExtractedMoment[] = [];
 
@@ -503,6 +567,7 @@ Return ONLY valid JSON:
       if (s.endSec <= s.startSec) continue;
       if (s.endSec - s.startSec > 59) s.endSec = s.startSec + 59;
       if (s.endSec - s.startSec < 10) continue;
+      if ((s.intensity ?? 5) < 5) continue;
       moments.push({
         startSec: Math.max(0, s.startSec),
         endSec: Math.min(durationSec, s.endSec),
@@ -531,7 +596,11 @@ Return ONLY valid JSON:
     }
 
     moments.sort((a, b) => b.intensity - a.intensity);
-    logger.info("AI identified usable moments", { shorts: moments.filter(m => m.type === "short").length, longForms: moments.filter(m => m.type === "long-form").length });
+    logger.info("AI identified usable moments", {
+      shorts: moments.filter(m => m.type === "short").length,
+      longForms: moments.filter(m => m.type === "long-form").length,
+      model: "gpt-4o",
+    });
     return moments;
   } catch (err: any) {
     logger.error("AI moment identification failed", { error: err.message?.substring(0, 200) });

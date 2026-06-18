@@ -25,8 +25,8 @@
  */
 
 import { db } from "../db";
-import { channels, autopilotQueue } from "@shared/schema";
-import { eq, and, isNotNull, inArray, sql } from "drizzle-orm";
+import { channels, autopilotQueue, masterKnowledgeBank } from "@shared/schema";
+import { eq, and, isNotNull, inArray, sql, gte } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { isQuotaBreakerTripped } from "./youtube-quota-tracker";
 import { CommandCenter } from "../lib/command-center";
@@ -45,6 +45,7 @@ import { buildInternalLinkingPlan } from "./youtube-internal-linking-engine";
 import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
 import { linkWatchNextForUser } from "./youtube-watch-next-linker";
 import { linkSourcesToPublishedShorts } from "./youtube-source-linker";
+import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
 
 const logger = createLogger("youtube-ai-orchestrator");
 
@@ -521,6 +522,81 @@ async function executeTask(
 
 // ── Core cycle ────────────────────────────────────────────────────────────────
 
+// ── ASI: Strategic channel synthesis ──────────────────────────────────────────
+// Calls Claude Sonnet at the start of every full cycle to reason about the
+// channel's current state and produce a data-driven strategic directive that's
+// logged to the decision log and used to calibrate task priorities.
+
+async function synthesizeChannelStrategy(userId: string): Promise<string> {
+  try {
+    const [catalogStatus, goalCtx, backlogRes, recentRes] = await Promise.all([
+      getBackCatalogStatus(userId).catch(() => null),
+      getGoalContext(userId).catch(() => ""),
+      db.select({ cnt: sql<number>`COUNT(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          inArray(autopilotQueue.status as any, ["scheduled", "pending"]),
+        )),
+      db.select({ cnt: sql<number>`COUNT(*)::int` })
+        .from(autopilotQueue)
+        .where(and(
+          eq(autopilotQueue.userId, userId),
+          eq(autopilotQueue.status, "published"),
+          gte(autopilotQueue.scheduledAt, new Date(Date.now() - 7 * 86400_000)),
+        )),
+    ]);
+
+    const backlog  = Number(backlogRes[0]?.cnt ?? 0);
+    const recent   = Number(recentRes[0]?.cnt ?? 0);
+    const catalog  = catalogStatus?.totalVideos ?? 0;
+    const longVids = catalogStatus?.over60Min  ?? 0;
+
+    const result = await callClaudeBackground({
+      system: "You are the strategic brain for an autonomous YouTube channel AI. Output actionable, specific directives only. Max 4 sentences. No filler.",
+      prompt: `You are the strategic AI brain for ET Gaming 274, a no-commentary PS5 gaming YouTube channel (6.14K subscribers, primary game: Battlefield 6).
+
+CURRENT CHANNEL STATE:
+• Catalog videos indexed: ${catalog} (${longVids} over 60 min — rich clip sources)
+• Items in queue (scheduled/pending): ${backlog}
+• Published in the last 7 days: ${recent} videos
+• Channel goals: ${goalCtx || "grow to 10K subscribers — Shorts-first strategy"}
+
+WRITE A 3-4 SENTENCE STRATEGIC DIRECTIVE for the next 24-hour automated cycle:
+1. What single action has the highest growth leverage right now?
+2. What content gap or operational risk needs addressing?
+3. What should AI engines double down on or avoid this cycle?`,
+      model: CLAUDE_MODELS.sonnet,
+      maxTokens: 320,
+      temperature: 0.35,
+    });
+
+    const directive = result.content?.trim() ?? "";
+    if (directive) {
+      logger.info(`[YouTubeAI] Strategic directive for ${userId.slice(0, 8)}: ${directive.slice(0, 120)}...`);
+      // Write to masterKnowledgeBank so all engines can read it this cycle
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category: "strategic_directive",
+        principle: `[CYCLE DIRECTIVE] ${directive.slice(0, 400)}`,
+        sourceEngines: ["youtube-ai-orchestrator"],
+        evidenceCount: 1,
+        confidenceScore: 88,
+        applicableEngines: [
+          "content-maximizer", "back-catalog-engine",
+          "vod-seo-optimizer", "shorts-pipeline-engine",
+        ],
+        isActive: true,
+        metadata: { generatedAt: new Date().toISOString(), fullCycle: true },
+      } as any).catch(() => {});
+    }
+    return directive;
+  } catch (err: any) {
+    logger.debug(`[YouTubeAI] synthesizeChannelStrategy non-fatal: ${err?.message?.slice(0, 80)}`);
+    return "";
+  }
+}
+
 export async function runYouTubeAICycle(userId: string, reason = "scheduled", fullCycle = false): Promise<YouTubeAICycleResult> {
   if (activeCycles.has(userId)) {
     logger.warn(`[YouTubeAI] Cycle already active for ${userId.slice(0, 8)} — skipping`);
@@ -573,6 +649,11 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
   };
 
   try {
+    // ASI: synthesize strategic directive before building execution plan (full cycles only)
+    if (fullCycle) {
+      await synthesizeChannelStrategy(userId).catch((e: any) =>
+        logger.debug(`[YouTubeAI] Strategy synthesis non-fatal: ${e?.message?.slice(0, 80)}`));
+    }
     const plan = await buildExecutionPlan(userId, fullCycle);
     logger.info(`[YouTubeAI] Plan generated: ${plan.tasks.filter(t => t.allowedToRun).length} task(s) to run`);
 

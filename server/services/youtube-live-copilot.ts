@@ -62,6 +62,14 @@ interface ClassifiedMessage {
 
 // ── Per-stream state (in-memory) ──────────────────────────────────────────────
 
+interface ViewerContext {
+  questions: string[];
+  replyCount: number;
+  firstSeenAt: number;
+  sentiment: "positive" | "neutral" | "negative";
+  isRegular: boolean;
+}
+
 const _streamState = new Map<number, {
   mode: CopilotMode;
   pinnedMessage: string;
@@ -70,6 +78,7 @@ const _streamState = new Map<number, {
   replyCount: number;
   lastReplyAt: number;
   faqAnswers: Record<string, string>;
+  viewerMemory: Map<string, ViewerContext>;
 }>();
 
 function getStreamState(streamId: number) {
@@ -82,6 +91,7 @@ function getStreamState(streamId: number) {
       replyCount: 0,
       lastReplyAt: 0,
       faqAnswers: {},
+      viewerMemory: new Map(),
     });
   }
   return _streamState.get(streamId)!;
@@ -434,21 +444,26 @@ export async function processLiveCopilotMessage(
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     const gameCtx = stream?.category ? `Playing: ${stream.category}` : "";
 
+    // Build viewer context from in-stream memory
+    const viewerCtx = state.viewerMemory.get(author);
+    const viewerHistory = viewerCtx && viewerCtx.questions.length > 0
+      ? `\nVIEWER ${author}: ${viewerCtx.questions.length} msg(s) this stream, sentiment: ${viewerCtx.sentiment}.${viewerCtx.isRegular ? " [REGULAR — extra warmth OK]" : ""}${viewerCtx.questions.length > 1 ? ` Earlier: "${viewerCtx.questions.at(-2)?.slice(0, 50)}"` : ""}`
+      : "";
+
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `You ARE the streamer responding in YouTube live chat. You're actively gaming. ${gameCtx}
-RULES: 1 sentence max. Sound like you glanced at chat. First person. Never sound like a bot.
-Never repeat what you've already said. Internet shorthand OK.${noRepeat}`,
+RULES: 1 sentence max. Sound like you glanced at chat mid-game. First person. Never sound like a bot. Internet shorthand OK.${viewerHistory}${noRepeat}`,
         },
         {
           role: "user",
           content: `${author} says: "${sanitizeForPrompt(message, 200)}"\n\nYour reply (output ONLY the reply, no quotes):`,
         },
       ],
-      max_completion_tokens: 80,
+      max_completion_tokens: 90,
     });
     releaseAISlot();
 
@@ -478,6 +493,26 @@ Never repeat what you've already said. Internet shorthand OK.${noRepeat}`,
     state.replyCount++;
     if (state.recentReplies.length >= 6) state.recentReplies.shift();
     state.recentReplies.push(reply);
+
+    // Update per-viewer memory for richer future context
+    const vMem = state.viewerMemory.get(author) ?? {
+      questions: [] as string[],
+      replyCount: 0,
+      firstSeenAt: Date.now(),
+      sentiment: "neutral" as const,
+      isRegular: false,
+    };
+    vMem.questions.push(message.slice(0, 100));
+    if (vMem.questions.length > 8) vMem.questions.shift();
+    vMem.replyCount++;
+    if (vMem.replyCount >= 3) vMem.isRegular = true;
+    const msgLow = message.toLowerCase();
+    if (["thanks","thx","nice","love","great","amazing","insane","poggers","goated","fire","w"].some(w => msgLow.includes(w))) {
+      vMem.sentiment = "positive";
+    } else if (["bad","trash","boring","garbage","skill issue","awful"].some(w => msgLow.includes(w))) {
+      vMem.sentiment = "negative";
+    }
+    state.viewerMemory.set(author, vMem);
 
     await db.insert(liveChatMessages).values({
       userId, streamId, platform, author: "You", message: reply,

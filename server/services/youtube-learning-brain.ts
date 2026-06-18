@@ -1698,3 +1698,177 @@ async function generateAndStoreDigest(
     releaseAISlot();
   }
 }
+
+// ── ASI: Negative pattern recording ───────────────────────────────────────────
+// Called by any engine when a content pattern is confirmed to have failed.
+// Writes an explicit AVOID principle to masterKnowledgeBank at low confidence
+// so every AI prompt can factor in what NOT to do on this channel.
+
+export async function recordNegativePattern(
+  userId: string,
+  category: string,
+  pattern: string,
+  evidence?: string,
+): Promise<void> {
+  try {
+    await db.insert(masterKnowledgeBank).values({
+      userId,
+      category: "negative_pattern",
+      principle: `[AVOID] ${pattern.slice(0, 300)}`,
+      sourceEngines: ["learning-brain", category],
+      evidenceCount: 1,
+      confidenceScore: 38,
+      applicableEngines: [
+        "content-maximizer", "shorts-pipeline-engine",
+        "vod-seo-optimizer", "youtube-ai-orchestrator",
+      ],
+      isActive: true,
+      metadata: {
+        category,
+        evidence: evidence?.slice(0, 200),
+        recordedAt: new Date().toISOString(),
+      },
+    } as any);
+    logger.debug(`[Brain] Negative pattern recorded: ${pattern.slice(0, 80)}`);
+  } catch (err: any) {
+    logger.debug(`[Brain] recordNegativePattern non-fatal: ${err?.message?.slice(0, 80)}`);
+  }
+}
+
+// ── ASI: Online milestone learning ────────────────────────────────────────────
+// Call when a published video hits a view milestone (100, 1K, 10K, 100K).
+// Immediately records a positive principle into masterKnowledgeBank so the
+// learning feedback loop closes within minutes instead of waiting for daily cycles.
+
+export async function onVideoMilestone(
+  userId: string,
+  youtubeVideoId: string,
+  milestone: 100 | 1000 | 10000 | 100000,
+): Promise<void> {
+  try {
+    const [queueItem] = await db
+      .select({ caption: autopilotQueue.caption, metadata: autopilotQueue.metadata, type: autopilotQueue.type })
+      .from(autopilotQueue)
+      .where(and(
+        eq(autopilotQueue.userId, userId),
+        sql`${autopilotQueue.metadata}->>'youtubeVideoId' = ${youtubeVideoId}`,
+      ))
+      .limit(1);
+
+    const meta = (queueItem?.metadata ?? {}) as Record<string, any>;
+    const title       = queueItem?.caption ?? youtubeVideoId;
+    const gameName    = meta.gameName ?? "Battlefield 6";
+    const durationSec = meta.targetDurationSec ?? meta.actualDurationSec ?? 0;
+    const contentType = queueItem?.type ?? "unknown";
+    const ms_k        = milestone >= 1000 ? `${Math.round(milestone / 1000)}K` : String(milestone);
+
+    await db.insert(masterKnowledgeBank).values({
+      userId,
+      category: "performance_milestone",
+      principle: `[MILESTONE-${ms_k}] "${title.slice(0, 80)}" (${contentType}, ${Math.round(durationSec)}s, ${gameName}) hit ${ms_k} views — replicate this content pattern`,
+      sourceEngines: ["learning-brain", "milestone-tracker"],
+      evidenceCount: 1,
+      confidenceScore: Math.min(92, 60 + Math.floor(Math.log10(milestone) * 10)),
+      applicableEngines: [
+        "content-maximizer", "shorts-pipeline-engine",
+        "vod-seo-optimizer", "youtube-ai-orchestrator",
+      ],
+      isActive: true,
+      metadata: {
+        youtubeVideoId,
+        milestone,
+        title: title.slice(0, 100),
+        gameName,
+        durationSec,
+        contentType,
+        recordedAt: new Date().toISOString(),
+      },
+    } as any);
+
+    await db.insert(learningEvents).values({
+      userId,
+      eventType: "video_milestone",
+      sourceAgent: "learning-brain",
+      data: { youtubeVideoId, milestone, title: title.slice(0, 100), gameName, contentType },
+      outcome: "success",
+    });
+
+    logger.info(`[Brain] Milestone ${ms_k} views recorded for "${title.slice(0, 60)}"`);
+  } catch (err: any) {
+    logger.debug(`[Brain] onVideoMilestone non-fatal: ${err?.message?.slice(0, 80)}`);
+  }
+}
+
+// ── ASI: Ingest negative performance patterns ──────────────────────────────────
+// Finds permanently failed queue items and high-churn patterns, synthesises
+// explicit AVOID principles and writes them to masterKnowledgeBank.
+// Should be called as part of the daily learning cycle.
+
+export async function ingestNegativePatternsIntoBrain(userId: string): Promise<void> {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400_000);
+
+    // 1. Content types with >40% permanent failure rate (last 30d, ≥5 items)
+    const failRes = await db.execute(sql`
+      SELECT type,
+             COUNT(*) FILTER (WHERE status = 'permanent_fail') AS failed,
+             COUNT(*)                                           AS total
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND created_at >= ${thirtyDaysAgo}
+      GROUP BY type
+      HAVING COUNT(*) >= 5
+        AND (COUNT(*) FILTER (WHERE status = 'permanent_fail')::float / COUNT(*)) > 0.4
+      ORDER BY failed DESC
+      LIMIT 5
+    `);
+    const failRows = (failRes as any).rows ?? [];
+    for (const r of failRows) {
+      const failRate = Math.round((Number(r.failed) / Number(r.total)) * 100);
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category: "negative_pattern",
+        principle: `[AVOID] Content type "${r.type}" has ${failRate}% permanent failure rate (${r.failed}/${r.total} failed last 30d) — investigate pipeline or reduce queuing`,
+        sourceEngines: ["learning-brain", "autopilot-queue"],
+        evidenceCount: Number(r.total),
+        confidenceScore: Math.min(88, 50 + Math.floor(failRate / 2)),
+        applicableEngines: ["youtube-ai-orchestrator", "content-maximizer", "back-catalog-engine"],
+        isActive: true,
+        metadata: { type: r.type, failRate, failed: r.failed, total: r.total, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    // 2. Items deferred ≥4 times — stuck content signals pipeline bottleneck
+    const deferRes = await db.execute(sql`
+      SELECT type,
+             ROUND(AVG((metadata->>'deferCount')::int), 1) AS avg_defers,
+             COUNT(*)                                        AS cnt
+      FROM autopilot_queue
+      WHERE user_id = ${userId}
+        AND status IN ('scheduled','pending')
+        AND (metadata->>'deferCount')::int >= 4
+        AND created_at >= ${thirtyDaysAgo}
+      GROUP BY type
+      ORDER BY avg_defers DESC
+      LIMIT 4
+    `);
+    const deferRows = (deferRes as any).rows ?? [];
+    for (const r of deferRows) {
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category: "negative_pattern",
+        principle: `[SIGNAL] Type "${r.type}" has ${Number(r.cnt)} items stuck (avg ${Number(r.avg_defers).toFixed(1)} deferrals each) — likely pipeline bottleneck or metadata issue`,
+        sourceEngines: ["learning-brain", "autopilot-queue"],
+        evidenceCount: Number(r.cnt),
+        confidenceScore: 42,
+        applicableEngines: ["youtube-ai-orchestrator", "back-catalog-engine"],
+        isActive: true,
+        metadata: { type: r.type, avgDefers: r.avg_defers, cnt: r.cnt, intakeAt: new Date().toISOString() },
+      } as any).catch(() => {});
+    }
+
+    logger.info(`[Brain] Negative pattern intake: ${failRows.length + deferRows.length} pattern(s) written`);
+  } catch (err: any) {
+    logger.warn(`[Brain] ingestNegativePatternsIntoBrain non-fatal: ${err?.message?.slice(0, 120)}`);
+  }
+}

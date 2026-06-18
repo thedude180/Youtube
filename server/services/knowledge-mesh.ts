@@ -226,17 +226,126 @@ export async function getEngineKnowledgeForContext(engineName: string, userId: s
   }
 }
 
-export async function getMasterKnowledgeForPrompt(userId: string, maxItems = 8): Promise<string> {
+export async function getMasterKnowledgeForPrompt(userId: string, maxItems = 12): Promise<string> {
   try {
     ensureMeshUserRegistered(userId);
     const masterWisdom = await getUserData<any>(meshStore, userId, "master_bank");
     if (masterWisdom.length === 0) return "";
 
-    const top = masterWisdom.slice(0, maxItems);
-    return "MASTER KNOWLEDGE BANK (proven principles from all engines):\n" +
-      top.map((m: any) => `• [${m.confidenceScore}%] ${m.principle} (from: ${(m.sourceEngines || []).join(",")})`).join("\n");
+    const wins = masterWisdom
+      .filter((m: any) => m.category !== "negative_pattern" && m.confidenceScore >= 55)
+      .slice(0, maxItems);
+    const avoids = masterWisdom
+      .filter((m: any) => m.category === "negative_pattern" || m.confidenceScore <= 40)
+      .slice(0, 4);
+
+    let result = "MASTER KNOWLEDGE BANK (proven principles from all engines):\n" +
+      wins.map((m: any) => `• [${m.confidenceScore}%] ${m.principle}`).join("\n");
+    if (avoids.length > 0) {
+      result += "\n\nAVOID (confirmed failures on this channel):\n" +
+        avoids.map((m: any) => `✗ ${m.principle}`).join("\n");
+    }
+    return result;
   } catch {
     return "";
+  }
+}
+
+// Returns explicit negative patterns from masterKnowledgeBank for injection into prompts.
+// These are categories of content/approach that have been confirmed as failures on this channel.
+export async function getNegativePatternsForPrompt(userId: string, maxItems = 5): Promise<string> {
+  try {
+    const negatives = await db.select({
+      principle: masterKnowledgeBank.principle,
+      confidenceScore: masterKnowledgeBank.confidenceScore,
+    }).from(masterKnowledgeBank)
+      .where(and(
+        eq(masterKnowledgeBank.userId, userId),
+        eq(masterKnowledgeBank.isActive, true),
+        eq(masterKnowledgeBank.category, "negative_pattern"),
+      ))
+      .orderBy(desc(masterKnowledgeBank.confidenceScore))
+      .limit(maxItems);
+
+    if (negatives.length === 0) return "";
+    return "AVOID PATTERNS (confirmed failures on this channel):\n" +
+      negatives.map((m: any) => `✗ ${m.principle}`).join("\n");
+  } catch {
+    return "";
+  }
+}
+
+// Full ASI-level context injection. Richer than getMasterKnowledgeForPrompt — includes:
+//   1. Top proven wins (filtered to the calling engine if specified)
+//   2. Engine-specific local knowledge
+//   3. Recent cross-engine teachings
+//   4. Negative patterns to avoid
+// Use this for the most important creative/strategic AI calls.
+export async function getFullASIContextForPrompt(
+  userId: string,
+  options?: { engine?: string; maxItems?: number },
+): Promise<string> {
+  try {
+    const maxItems = options?.maxItems ?? 14;
+    ensureMeshUserRegistered(userId);
+
+    const [masterWisdom, allKnowledge, recentTeachings] = await Promise.all([
+      getUserData<any>(meshStore, userId, "master_bank"),
+      getUserData<any>(meshStore, userId, "local_knowledge"),
+      getUserData<any>(meshStore, userId, "recent_teachings"),
+    ]);
+
+    const sections: string[] = [];
+
+    // 1. Master wins relevant to this engine (or top by confidence if no engine specified)
+    if (masterWisdom.length > 0) {
+      const relevantWins = masterWisdom.filter((m: any) =>
+        m.category !== "negative_pattern" &&
+        m.confidenceScore >= 55 &&
+        (!options?.engine ||
+          (m.applicableEngines || []).includes(options.engine) ||
+          m.confidenceScore >= 75),
+      );
+      const topWins = relevantWins.slice(0, maxItems);
+      if (topWins.length > 0) {
+        sections.push("PROVEN CHANNEL INTELLIGENCE (validated across all engines):\n" +
+          topWins.map((m: any) => `• [${m.confidenceScore}%] ${m.principle}`).join("\n"));
+      }
+    }
+
+    // 2. Engine-specific local knowledge
+    if (options?.engine && allKnowledge.length > 0) {
+      const engineSpecific = allKnowledge
+        .filter((k: any) => k.engineName === options.engine && k.confidenceScore >= 60)
+        .slice(0, 5);
+      if (engineSpecific.length > 0) {
+        sections.push(`THIS ENGINE'S SPECIFIC KNOWLEDGE (${options.engine}):\n` +
+          engineSpecific.map((k: any) => `• [${k.confidenceScore}%] ${k.insight} (${k.topic})`).join("\n"));
+      }
+    }
+
+    // 3. Recent cross-engine teachings
+    if (recentTeachings.length > 0) {
+      const relevant = options?.engine
+        ? recentTeachings.filter((t: any) =>
+            t.targetEngine === options.engine || t.sourceEngine === options.engine)
+        : recentTeachings;
+      const top = relevant.slice(0, 5);
+      if (top.length > 0) {
+        sections.push("RECENT CROSS-ENGINE INTELLIGENCE:\n" +
+          top.map((t: any) =>
+            `• ${t.sourceEngine}→${t.targetEngine}: ${(t.lesson || "").slice(0, 130)}`).join("\n"));
+      }
+    }
+
+    // 4. Explicit negative patterns
+    const negText = await getNegativePatternsForPrompt(userId, 5);
+    if (negText) sections.push(negText);
+
+    if (sections.length === 0) return getMasterKnowledgeForPrompt(userId, maxItems);
+    return sections.join("\n\n");
+  } catch {
+    return getMasterKnowledgeForPrompt(userId, options?.maxItems ?? 12).catch(() => "");
   }
 }
 
