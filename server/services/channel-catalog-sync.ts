@@ -504,6 +504,20 @@ export async function processUnprocessedCatalog(userId: string): Promise<{
 
   for (const link of unprocessed) {
     try {
+      // Skip Shorts — they are autopilot-published output, not source material.
+      // Mark them completed immediately so they don't block the processing queue.
+      const linkDuration = link.durationSec || 0;
+      if (link.videoType === 'short' || (linkDuration > 0 && linkDuration <= 62)) {
+        await db.update(videoCatalogLinks).set({
+          editingStatus: "completed",
+          editingCompletedAt: new Date(),
+          editingResult: { skipped: true, reason: "short_video_autopilot_output" } as any,
+          updatedAt: new Date(),
+        }).where(eq(videoCatalogLinks.id, link.id));
+        processed++;
+        continue;
+      }
+
       await db.update(videoCatalogLinks).set({
         editingStatus: "processing",
         editingStartedAt: new Date(),

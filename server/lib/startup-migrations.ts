@@ -97,6 +97,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   99: { name: "Delete Ghost User Vault Rows", category: "cleanup", description: "Removes all content_vault_backups rows owned by 3 ghost/fake user IDs (tiktok_, google_api_demo_reviewer, ffc4776c UUID). All 4,400 rows were indexed/never downloaded. These accumulated from old multi-platform era." },
   100: { name: "Skip Competitor Vault Entries", category: "cleanup", description: "Marks ~7,357 non-channel competitor videos (AC Valhalla, Mass Effect, Spider-Man etc.) as permanently skipped in the vault for the real user. Cancels associated autopilot_queue items. Focuses vault 100% on ET Gaming 274's own back-catalog." },
   101: { name: "Purge Ghost-User Vault Rows + GoQ Storm", category: "cleanup", description: "Deletes ALL non-real-user vault rows (ghost/demo/tiktok_ accounts whose indexed rows still feed InnerTube 400 storms). Cancels 18 scheduled GoQ-za4UPn4 queue items that survived the PERM_UNAVAILABLE cascade. Marks GoQ-za4UPn4 permanently failed." },
+  102: { name: "Fix Game Mismatches + Purge Short Contamination", category: "data", description: "Corrects 3 wrong game_name values (Dragon Age/GTA-V→Assassin's Creed). Removes 232 autopilot-published Shorts from back_catalog_videos (they are channel output, not source material). Marks their vault entries as skipped." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5777,6 +5778,97 @@ async function migration101PurgeGhostVaultRowsAndGoQStorm(): Promise<void> {
   }
 }
 
+// ── Migration 102: Fix game mismatches + purge Short contamination ────────────
+async function migration102FixGameMismatchesAndPurgeShortContamination(): Promise<void> {
+  const FLAG = "migration:102:fix_game_mismatches_and_purge_short_contamination_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+
+    // ── Step 1: Fix 3 confirmed game metadata mismatches ─────────────────────
+    // PWJjYjU_EGs — "Assassin's Creed IV Secrets" title, wrongly tagged Dragon Age
+    const r1 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET game_name = 'Assassin''s Creed IV: Black Flag', updated_at = NOW()
+      WHERE youtube_video_id = 'PWJjYjU_EGs'
+        AND user_id = '${REAL_USER}'
+    `));
+    log.info(`[Migration 102] PWJjYjU_EGs game fixed: ${(r1 as any)?.rowCount ?? 0}`);
+
+    // GZPTeqIsKW0 — "Unlock Secret Assassin's Creed Tips" title, wrongly tagged Dragon Age
+    const r2 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET game_name = 'Assassin''s Creed', updated_at = NOW()
+      WHERE youtube_video_id = 'GZPTeqIsKW0'
+        AND user_id = '${REAL_USER}'
+    `));
+    log.info(`[Migration 102] GZPTeqIsKW0 game fixed: ${(r2 as any)?.rowCount ?? 0}`);
+
+    // A72vRgZO7Zs — 6-hour Assassin's Creed stream, wrongly tagged Grand Theft Auto V
+    const r3 = await db.execute(sql.raw(`
+      UPDATE back_catalog_videos
+      SET game_name = 'Assassin''s Creed', updated_at = NOW()
+      WHERE youtube_video_id = 'A72vRgZO7Zs'
+        AND user_id = '${REAL_USER}'
+    `));
+    log.info(`[Migration 102] A72vRgZO7Zs game fixed: ${(r3 as any)?.rowCount ?? 0}`);
+
+    // ── Step 2: Mark vault entries for Short back_catalog_videos as skipped ──
+    // These are autopilot-published Shorts (15–60s) that were re-imported as
+    // source material by the back-catalog engine before the duration filter was
+    // added.  Their vault entries must be skipped so the downloader never retries
+    // them.  The back_catalog_videos rows are deleted in Step 3.
+    const r4 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups cvb
+      SET status = 'skipped',
+          download_error = 'migration-102: Short video (≤62s) is autopilot output, not source material'
+      FROM back_catalog_videos bcv
+      WHERE bcv.youtube_video_id = cvb.youtube_id
+        AND bcv.user_id = '${REAL_USER}'
+        AND cvb.user_id = '${REAL_USER}'
+        AND bcv.duration_sec > 0
+        AND bcv.duration_sec <= 62
+        AND cvb.status NOT IN ('failed', 'skipped')
+    `));
+    log.info(`[Migration 102] Short vault entries marked skipped: ${(r4 as any)?.rowCount ?? 0}`);
+
+    // ── Step 3: Delete Short entries from back_catalog_videos ─────────────────
+    // These 232 entries (15–62s duration) are autopilot-published Shorts that
+    // were incorrectly imported as source material.  The back-catalog engine now
+    // skips Shorts during import, so this is a one-time cleanup of existing data.
+    const r5 = await db.execute(sql.raw(`
+      DELETE FROM back_catalog_videos
+      WHERE user_id = '${REAL_USER}'
+        AND duration_sec > 0
+        AND duration_sec <= 62
+    `));
+    log.info(`[Migration 102] Short back_catalog_videos deleted: ${(r5 as any)?.rowCount ?? 0}`);
+
+    // ── Step 4: Cancel autopilot_queue items sourced from deleted Shorts ──────
+    // Any queue item whose sourceYoutubeId belonged to one of these Short videos
+    // must be cancelled.  The underlying vault entry is already skipped (Step 2),
+    // so these items would fail on first processing attempt anyway.
+    const r6 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-102: source is autopilot Short (≤62s), not valid source material'
+      WHERE user_id = '${REAL_USER}'
+        AND status IN ('scheduled','pending','processing')
+        AND metadata->>'sourceYoutubeId' IN (
+          SELECT youtube_id FROM content_vault_backups
+          WHERE user_id = '${REAL_USER}'
+            AND download_error LIKE 'migration-102:%'
+        )
+    `));
+    log.info(`[Migration 102] Short-sourced queue items cancelled: ${(r6 as any)?.rowCount ?? 0}`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 102] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged: skip non-BF6 indexed vault entries every boot ───────────────
 // Root cause of yt-dlp slot starvation: 133 non-BF6 vault entries (AC Valhalla,
 // Dragon Age, God of War, etc.) sit in status='indexed' and get picked up by the
@@ -5998,6 +6090,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration099DeleteGhostUserVaultRows();
     await migration100SkipCompetitorVaultEntries();
     await migration101PurgeGhostVaultRowsAndGoQStorm();
+    await migration102FixGameMismatchesAndPurgeShortContamination();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips

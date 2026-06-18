@@ -358,13 +358,24 @@ export async function runBackCatalogImport(userId: string): Promise<{
     for (const channel of userChannels) {
       try {
         const { fetchYouTubeVideos } = await import("../youtube");
-        const ytVideos = await fetchYouTubeVideos(channel.id, 500);
+        // Fetch up to 5000 videos so we capture all long-form source material
+        // on large channels (ET Gaming 274 has 4,422+ uploads).
+        const ytVideos = await fetchYouTubeVideos(channel.id, 5000);
 
         for (const ytv of ytVideos) {
           try {
             const durationSec = parseDurationSec(ytv.duration);
             const isShort = durationSec > 0 && durationSec <= 62;
             const isLongForm = !isShort;
+
+            // Skip Shorts — they are autopilot-published output, NOT source
+            // material for clipping.  Importing them into back_catalog_videos
+            // pollutes the source pool with 15–60s clips that can never be
+            // meaningfully re-clipped and cause endless yt-dlp failures.
+            if (isShort) {
+              result.skipped++;
+              continue;
+            }
             const isOver60Min = durationSec > LONG_FORM_MIN_SOURCE_SEC;
             const isVod = !!(ytv.title?.toLowerCase().match(/\bvod\b|stream replay|full stream|live replay/));
 
