@@ -1145,6 +1145,16 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Skill learning non-fatal: ${sklErr?.message?.slice(0, 80)}`);
     }
 
+    // 9l. Ingest negative patterns — reads all recordNegativePattern() entries
+    //     accumulated since the last cycle and promotes them into masterKnowledgeBank
+    //     as cautionary "AVOID" principles so every future AI generator skips known
+    //     failure modes.  Non-fatal; no quota cost.
+    try {
+      await ingestNegativePatternsIntoBrain(userId);
+    } catch (npErr: any) {
+      logger.debug(`[Brain] ingestNegativePatternsIntoBrain non-fatal: ${npErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
