@@ -90,7 +90,8 @@ Return ONLY valid JSON matching this structure:
         fullPrompt
       );
 
-      const growthPlanResult = JSON.parse(result.content || "{}");
+      const rawGrowthContent = (result.content || "{}").replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      const growthPlanResult = JSON.parse(rawGrowthContent || "{}");
 
       // 3. Save Growth Plan
       await db.insert(growthPlans).values({

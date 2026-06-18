@@ -68,7 +68,7 @@ let isRunning = false;
 // Main publish function
 // ---------------------------------------------------------------------------
 
-export async function runLongFormClipPublisher(): Promise<{ published: number; failed: number; skipped: number; quotaExhausted: boolean }> {
+export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boolean }): Promise<{ published: number; failed: number; skipped: number; quotaExhausted: boolean }> {
   if (isRunning) {
     logger.debug("Long-form publisher already running — skipping");
     return { published: 0, failed: 0, skipped: 1, quotaExhausted: false };
@@ -138,9 +138,13 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
       return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: false };
     }
 
-    // Check YouTube API quota once — stop the whole batch if tripped
+    // Check YouTube API quota once — stop the whole batch if tripped.
+    // bypassBreakerCheck=true is only passed by the midnight quota-reset cron, which
+    // has already cleared the breaker.  We skip this gate because a concurrent service
+    // (e.g. quota-reset-audit) can re-trip the breaker in the same clock-second as the
+    // reset, causing the midnight publish window to be silently skipped every night.
     const { isQuotaBreakerTripped, canAffordOperation } = await import("./youtube-quota-tracker");
-    if (isQuotaBreakerTripped()) {
+    if (isQuotaBreakerTripped() && !opts?.bypassBreakerCheck) {
       logger.warn("YouTube quota breaker active — skipping long-form batch");
       return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: true };
     }

@@ -728,9 +728,18 @@ export async function initAutomationEngine() {
   // Runs at exactly midnight Pacific every night. Re-indexes the vault with the
   // fresh YouTube API quota, validates tokens, warms analytics, and logs a
   // complete health summary so real data is ready for the morning session.
+  //
+  // IMPORTANT: we delay 5 minutes before running the audit.  Both this cron and
+  // the quota-reset cron in youtube-quota-tracker.ts fire at 00:00 Pacific.
+  // The audit calls indexAllChannelVideos() + fetchViewsByDayAndHour() which hit
+  // the YouTube API.  If Google's quota hasn't fully propagated yet those calls
+  // return QUOTA_EXCEEDED, re-trip the global breaker, and block the publishers.
+  // Waiting 5 min lets the publishers complete their midnight batch first and
+  // gives Google's backend time to reset the quota counter.
   cron.schedule("0 0 * * *", async () => {
-    await withCronLock("QuotaResetAudit", 30 * 60 * 1000, async () => {
+    await withCronLock("QuotaResetAudit", 35 * 60 * 1000, async () => {
       await selfHealingCore("QuotaResetAudit", async () => {
+        await new Promise(r => setTimeout(r, 5 * 60_000));
         const { runQuotaResetAudit } = await import("./services/quota-reset-audit");
         await runQuotaResetAudit();
       });

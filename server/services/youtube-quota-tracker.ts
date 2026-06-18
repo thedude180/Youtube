@@ -517,8 +517,15 @@ export function initQuotaResetCron(): void {
           // ── Phase 1: drain long-form (normally 1/day; cap 5 rounds) ──────────
           // All long-form items go out FIRST so the Shorts cadence gate sees the
           // daily long-form count before any short is published.
+          // Re-clear the breaker right before each publisher phase.
+          // A concurrent service (quota-reset-audit, analytics warm-up) can
+          // re-trip it in the same clock-second as the midnight reset.
+          // Both publisher calls also receive bypassBreakerCheck:true so they
+          // proceed even if another race-trip happens between here and their
+          // internal breaker check.
+          clearQuotaBreaker();
           logger.info("[QuotaReset] Phase 1 — draining long-form queue…");
-          longFormResult = await drainPublisher("long-form", runLongFormClipPublisher, 5);
+          longFormResult = await drainPublisher("long-form", () => runLongFormClipPublisher({ bypassBreakerCheck: true }), 5);
           logger.info(`[QuotaReset] Long-form drain complete: ${longFormResult.published} published`);
 
           // 3 s breathing room so the DB write is visible to the Shorts cadence gate
@@ -529,8 +536,9 @@ export function initQuotaResetCron(): void {
           // back-catalog; BF6 first; then scheduledAt ASC; then viralScore DESC).
           // Every due item at reset goes out in sequence — 1, 2, 3 — before the
           // IO gate is released or any download can restart.
+          clearQuotaBreaker();
           logger.info("[QuotaReset] Phase 2 — draining shorts queue…");
-          shortsResult = await drainPublisher("shorts", runShortsClipPublisher, 10);
+          shortsResult = await drainPublisher("shorts", () => runShortsClipPublisher({ bypassBreakerCheck: true }), 10);
           logger.info(`[QuotaReset] Shorts drain complete: ${shortsResult.published} published`);
 
           totalPublished = (longFormResult.published ?? 0) + (shortsResult.published ?? 0);
@@ -543,10 +551,12 @@ export function initQuotaResetCron(): void {
             logger.info("[QuotaReset] Nothing published on first attempt — retrying in 2 min (probable isRunning contention)");
             await new Promise(r => setTimeout(r, 2 * 60_000));
 
-            const retryLf = await drainPublisher("retry long-form", runLongFormClipPublisher, 5);
+            clearQuotaBreaker();
+            const retryLf = await drainPublisher("retry long-form", () => runLongFormClipPublisher({ bypassBreakerCheck: true }), 5);
             logger.info("[QuotaReset] Retry long-form drain:", retryLf);
             await new Promise(r => setTimeout(r, 3_000));
-            const retrySp = await drainPublisher("retry shorts", runShortsClipPublisher, 10);
+            clearQuotaBreaker();
+            const retrySp = await drainPublisher("retry shorts", () => runShortsClipPublisher({ bypassBreakerCheck: true }), 10);
             logger.info("[QuotaReset] Retry shorts drain:", retrySp);
 
             longFormResult.published = (longFormResult.published ?? 0) + (retryLf.published ?? 0);
