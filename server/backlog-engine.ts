@@ -267,6 +267,14 @@ async function processBacklogAsync(
   // and preventing the token-stampede that burned 121 K / 150 K tokens on boot.
   const INTER_VIDEO_DELAY_MS = 4_000;
 
+  // Circuit breaker for "No response from AI" — each failing call hangs for
+  // ~60 s before timing out, tying up memory and contributing to OOM at T+33min
+  // when the AI semaphore is fully saturated by other services.  After 3
+  // consecutive failures we break the batch (same pattern as the 401 breaker)
+  // and set a 15-min cooldown so downstream services can drain the queue.
+  let consecutiveAiNoResponse = 0;
+  const AI_NO_RESPONSE_BREAK_THRESHOLD = 3;
+
   for (const video of videos) {
     const currentSession = sessions.get(userId);
     if (!currentSession || currentSession.state === "paused") {
@@ -465,6 +473,9 @@ async function processBacklogAsync(
       chainResult.optimizationScore = updatedMeta.optimizationScore;
       chainResult.completedAt = new Date();
 
+      // Successful video — reset the consecutive-failure counter.
+      consecutiveAiNoResponse = 0;
+
     } catch (err: any) {
       // AI 401 = Replit integration auth failure — the ENTIRE loop must stop.
       // Without this, the engine iterates 78k+ videos at ~20 s/video (4 s
@@ -488,6 +499,34 @@ async function processBacklogAsync(
         );
         break;
       }
+
+      // "No response from AI" means the OpenAI call returned empty content —
+      // typically caused by the background AI semaphore being fully saturated
+      // while other services (back-catalog runner, orchestrator, grinder) hold
+      // all 8 slots.  Each failing call blocks for ~60 s before throwing, so
+      // 4 consecutive failures = 4 held TCP connections + ~4 min of stalled
+      // memory that pushes the container into MemoryGuardian territory.
+      // After 3 in a row we break (same pattern as 401) and set a 15-min
+      // cooldown so the saturated queue has time to drain.
+      const isNoResponse = errMsg.includes('No response from AI');
+      if (isNoResponse) {
+        consecutiveAiNoResponse++;
+        if (consecutiveAiNoResponse >= AI_NO_RESPONSE_BREAK_THRESHOLD) {
+          markViralCapExhausted(
+            `AI no-response × ${consecutiveAiNoResponse} consecutive — pausing batch (resumes next hour)`,
+            true,  // hourlyOnly — same as 401 breaker; resets after ~1h, not full day
+          );
+          logger.warn(
+            `[BacklogEngine] ⏸ ${consecutiveAiNoResponse} consecutive "No response from AI" — ` +
+            `breaking batch at video ${video.id} (${videos.length - completed - 1} remaining). ` +
+            `AI semaphore likely saturated; backlog resumes after 15-min cooldown.`
+          );
+          break;
+        }
+      } else {
+        consecutiveAiNoResponse = 0;
+      }
+
       logger.error(`Failed to process video ${video.id}:`, err.message);
       currentSession.errors.push({
         videoId: video.id,
