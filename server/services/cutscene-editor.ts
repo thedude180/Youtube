@@ -19,7 +19,6 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createLogger } from "../lib/logger";
-import { acquireAISlotBackground, releaseAISlot } from "../lib/ai-semaphore";
 import { getOpenAIClientBackground } from "../lib/openai";
 
 const execFileAsync = promisify(execFile);
@@ -144,7 +143,6 @@ Rules:
 - If no characters visible: "characters": []
 - If NOT a cutscene, still detect characters if visible`;
 
-  await acquireAISlotBackground();
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-5",
@@ -159,8 +157,6 @@ Rules:
   } catch (err: any) {
     logger.warn(`[CutsceneEditor] Frame analysis failed: ${err?.message?.slice(0, 120)}`);
     return frames.map(f => ({ sec: f.sec, isCutscene: false, description: "", characters: [] }));
-  } finally {
-    releaseAISlot();
   }
 }
 

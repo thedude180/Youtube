@@ -19,10 +19,6 @@ import { contentVaultBackups } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { getOpenAIClientBackground } from "../lib/openai";
-import {
-  acquireAISlotBackground,
-  releaseAISlot,
-} from "../lib/ai-semaphore";
 import type { ViralMoment } from "../shorts-pipeline-engine";
 
 const logger = createLogger("vision-clip-detector");
@@ -101,7 +97,6 @@ For each frame rate ACTION INTENSITY 1-10:
 Return ONLY valid JSON — an array of exactly ${frames.length} objects, nothing else:
 [{"sec":<timestamp as number>,"score":<1-10>,"description":"<10 words max describing what is visible>"}]`;
 
-  await acquireAISlotBackground();
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-5",
@@ -122,8 +117,6 @@ Return ONLY valid JSON — an array of exactly ${frames.length} objects, nothing
   } catch (err: any) {
     logger.warn(`[VisionClip] Batch analysis failed: ${err?.message}`);
     return frames.map(f => ({ sec: f.sec, score: 0, description: "" }));
-  } finally {
-    releaseAISlot();
   }
 }
 

@@ -87,10 +87,17 @@ export function getOpenAIClient(): OpenAI {
     const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
 
     (baseClient.chat.completions as any).create = async function(params: any, ...args: any[]) {
-      // gpt-5 only supports the default temperature (1.0); strip any custom value
-      if (params?.model === "gpt-5" && "temperature" in params) {
-        const { temperature: _t, ...rest } = params;
-        params = rest;
+      // gpt-5 only supports the default temperature (1.0); strip any custom value.
+      // gpt-5 also requires max_completion_tokens instead of max_tokens.
+      if (params?.model === "gpt-5") {
+        if ("temperature" in params) {
+          const { temperature: _t, ...rest } = params;
+          params = rest;
+        }
+        if ("max_tokens" in params) {
+          const { max_tokens, ...rest } = params;
+          params = { ...rest, max_completion_tokens: max_tokens };
+        }
       }
       const start = Date.now();
       const endpoint = params?.model || "unknown";
@@ -137,10 +144,17 @@ export function getOpenAIClientBackground(): OpenAI {
     const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
 
     (baseClient.chat.completions as any).create = async function(params: any, ...args: any[]) {
-      // gpt-5 only supports the default temperature (1.0); strip any custom value
-      if (params?.model === "gpt-5" && "temperature" in params) {
-        const { temperature: _t, ...rest } = params;
-        params = rest;
+      // gpt-5 only supports the default temperature (1.0); strip any custom value.
+      // gpt-5 also requires max_completion_tokens instead of max_tokens.
+      if (params?.model === "gpt-5") {
+        if ("temperature" in params) {
+          const { temperature: _t, ...rest } = params;
+          params = rest;
+        }
+        if ("max_tokens" in params) {
+          const { max_tokens, ...rest } = params;
+          params = { ...rest, max_completion_tokens: max_tokens };
+        }
       }
       const start = Date.now();
       const endpoint = params?.model || "unknown";

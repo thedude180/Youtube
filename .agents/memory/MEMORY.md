@@ -1,3 +1,5 @@
+- [Factory client + manual slot acquire deadlock](vision-deadlock-pattern.md) — calling acquireAISlotBackground() then getOpenAIClientBackground() double-acquires the semaphore → 8-9 min deadlock; factory clients manage their own slot.
+- [gpt-5 max_tokens rejection](gpt5-max-tokens.md) — gpt-5 rejects max_tokens (HTTP 400); must use max_completion_tokens; remap applied at factory-client layer in openai.ts alongside temperature strip.
 - [AI client request timeout](ai-client-request-timeout.md) — OpenAI/Anthropic constructors had no timeout (SDK default 600s) → 8-min AI slot holds when HTTP hangs; fix: timeout:90_000 on all text clients, timeout:120_000 on image client.
 - [Wave startup DB contention window](wave-startup-db-contention-window.md) — services inside Wave 8/9 firing at T+90s hit peak DB pool contention at T+21-23min; must use ≥5min initial delay instead.
 - [Full learning loop closure](full-learning-loop.md) — Steps 9r/9s/9t close remaining gaps: brain→service_state for non-AI runtime config; aiModelRoutingLogs (previously unread) synthesised daily; source video CTR direct score boost in back_catalog_videos.
