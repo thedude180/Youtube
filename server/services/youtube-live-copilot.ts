@@ -751,10 +751,38 @@ export function markClipMoment(streamId: number, label: string, startSec: number
 export async function getCopilotStatus(userId: string, streamId?: number) {
   const mode = await getCopilotMode(userId);
   const state = streamId ? getStreamState(streamId) : null;
+
+  const viewerEntries = state ? Array.from(state.viewerMemory.entries()) : [];
+  const viewerValues = viewerEntries.map(([, v]) => v);
+  const totalViewersEngaged = viewerValues.length;
+  const returningCount = viewerValues.filter(v => v.isRegular).length;
+  const returningViewerPct = totalViewersEngaged > 0
+    ? Math.round((returningCount / totalViewersEngaged) * 100)
+    : 0;
+  const mostAskedTopics = viewerEntries
+    .flatMap(([author, v]) => v.questions.slice(-1).map(q => ({ author, question: q })))
+    .filter(x => x.question)
+    .slice(0, 3)
+    .map(x => x.question);
+
+  const sentimentCounts: Record<string, number> = {};
+  for (const v of viewerValues) {
+    sentimentCounts[v.sentiment] = (sentimentCounts[v.sentiment] ?? 0) + 1;
+  }
+  const topViewerSentiment = viewerValues.length > 0
+    ? (Object.entries(sentimentCounts).sort(([,a],[,b]) => b - a)[0]?.[0] ?? null)
+    : null;
+
   return {
     mode,
     clipMomentsCount: state?.clipMoments.length ?? 0,
     replyCount: state?.replyCount ?? 0,
     lastReplyAt: state?.lastReplyAt ? new Date(state.lastReplyAt) : null,
+    chatRepliesThisHour: state?.replyCount ?? 0,
+    totalViewersEngaged,
+    viewerMemoryCount: totalViewersEngaged,
+    returningViewerPct,
+    mostAskedTopics,
+    topViewerSentiment,
   };
 }

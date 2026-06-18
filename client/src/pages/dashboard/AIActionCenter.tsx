@@ -35,7 +35,12 @@ function DecisionLogSection() {
 
   const acknowledgeMutation = useMutation({
     mutationFn: (task: string) =>
-      apiRequest("POST", "/api/youtube/ai-orchestrator/decision-log/acknowledge", { task }),
+      apiRequest("POST", "/api/youtube/ai-orchestrator/decision-log/acknowledge", { task, action: "approve" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (task: string) =>
+      apiRequest("POST", "/api/youtube/ai-orchestrator/decision-log/acknowledge", { task, action: "reject" }),
   });
 
   const pending = (data ?? []).filter(d => d.approvalRequired && !dismissed.has(d.task)).slice(0, 3);
@@ -82,9 +87,13 @@ function DecisionLogSection() {
                   size="sm"
                   variant="ghost"
                   className="h-6 px-2 text-[10px] text-muted-foreground hover:bg-muted/30"
-                  onClick={() => setDismissed(prev => new Set([...prev, entry.task]))}
+                  disabled={rejectMutation.isPending || acknowledgeMutation.isPending}
+                  onClick={() => {
+                    rejectMutation.mutate(entry.task);
+                    setDismissed(prev => new Set([...prev, entry.task]));
+                  }}
                 >
-                  <X className="w-3 h-3 mr-0.5" />Dismiss
+                  <X className="w-3 h-3 mr-0.5" />Reject
                 </Button>
               </div>
             </div>

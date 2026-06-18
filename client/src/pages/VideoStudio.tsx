@@ -68,6 +68,7 @@ interface StudioVideo {
   metadata: StudioVideoMetadata | null;
   createdAt: string;
   updatedAt: string;
+  totalRevivalScore?: number | null;
 }
 
 interface ContentVideo {
@@ -895,7 +896,7 @@ export default function VideoStudio() {
   usePageTitle("Video Studio");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [videoToDelete, setVideoToDelete] = useState<{ id: number; title: string } | null>(null);
-  const [studioSortByScore, setStudioSortByScore] = useState(false);
+  const [studioSortByScore, setStudioSortByScore] = useState(true);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1028,12 +1029,22 @@ export default function VideoStudio() {
             {[...studioVideos]
               .sort((a, b) => {
                 if (!studioSortByScore) return 0;
-                const aScore = (a.metadata as any)?.seoScore ?? 0;
-                const bScore = (b.metadata as any)?.seoScore ?? 0;
+                const aScore = a.totalRevivalScore ?? ((a.metadata as any)?.seoScore ?? 0) / 10;
+                const bScore = b.totalRevivalScore ?? ((b.metadata as any)?.seoScore ?? 0) / 10;
                 return bScore - aScore;
               })
               .map((video) => {
+                const revivalScore = video.totalRevivalScore ?? null;
                 const seoScore = (video.metadata as any)?.seoScore as number | undefined;
+                const whyTooltip = revivalScore != null
+                  ? revivalScore >= 8
+                    ? `ASI Opportunity Score: ${revivalScore.toFixed(1)}/10 — High revival potential: strong view velocity, high retention, and subscriber conversion in your back catalog. Why? AI ranks this based on historical performance in your channel analytics.`
+                    : revivalScore >= 5
+                    ? `ASI Opportunity Score: ${revivalScore.toFixed(1)}/10 — Medium revival potential: consistent performance, good opportunity for Shorts repurposing. Why? AI ranks this based on historical performance in your channel analytics.`
+                    : `ASI Opportunity Score: ${revivalScore.toFixed(1)}/10 — Lower revival potential: limited views or retention data available. Why? AI ranks this based on historical performance in your channel analytics.`
+                  : seoScore != null
+                  ? `ASI SEO Score: ${seoScore}/100 — AI-assigned packaging quality score based on title, tags, description, and hook strength.`
+                  : undefined;
                 return (
                   <Card
                     key={video.id}
@@ -1060,13 +1071,13 @@ export default function VideoStudio() {
                       </div>
                       <div className="absolute top-2 right-2 flex items-center gap-1">
                         <StatusBadge status={video.status} />
-                        {seoScore != null && (
+                        {whyTooltip != null && (
                           <span
-                            className="bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            className="bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium cursor-help"
                             data-testid={`badge-asi-score-${video.id}`}
-                            title={`ASI SEO Score: ${seoScore}/100 — AI-assigned packaging quality score based on title, tags, description, and hook strength`}
+                            title={whyTooltip}
                           >
-                            ASI {seoScore}
+                            {revivalScore != null ? `⚡ ${revivalScore.toFixed(1)}` : `ASI ${seoScore}`}
                           </span>
                         )}
                       </div>

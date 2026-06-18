@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
-import { Brain, ChevronDown, ChevronUp, Zap, AlertTriangle, BookOpen, Activity } from "lucide-react";
+import { Brain, Zap, AlertTriangle, BookOpen, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -39,7 +38,6 @@ function healthDot(lastCycleAt: string | null): {
 
 function ASIStatusStripInner() {
   const { user } = useAuth();
-  const [expanded, setExpanded] = useState(false);
 
   const { data, isLoading } = useQuery<ASIStatus>({
     queryKey: ["/api/asi/status"],
@@ -61,7 +59,15 @@ function ASIStatusStripInner() {
 
   const knowledgeItems = data.totalKnowledgeItems ?? 0;
   const negPatterns   = data.negativePatternCount ?? 0;
-  const topInsights   = data.topInsights ?? [];
+  const topInsightText = data.topInsights?.[0]?.principle ?? data.topInsight ?? null;
+
+  function openDigest() {
+    window.dispatchEvent(new CustomEvent("open-intelligence-digest"));
+    setTimeout(() => {
+      document.querySelector('[data-testid="card-intelligence-digest"]')
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 60);
+  }
 
   return (
     <div
@@ -71,8 +77,9 @@ function ASIStatusStripInner() {
       <button
         type="button"
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none hover:bg-purple-500/5 transition-colors"
-        onClick={() => setExpanded(v => !v)}
+        onClick={openDigest}
         data-testid="button-asi-strip-toggle"
+        title="Open Intelligence Digest"
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 shrink-0">
@@ -88,11 +95,12 @@ function ASIStatusStripInner() {
             <span className="text-xs font-semibold text-purple-400">ASI Brain</span>
           </div>
 
-          {data.strategicDirective && (
-            <span className="text-xs text-muted-foreground truncate hidden sm:block" data-testid="text-asi-directive">
-              {data.strategicDirective.length > 90
-                ? data.strategicDirective.slice(0, 90) + "…"
-                : data.strategicDirective}
+          {topInsightText && (
+            <span
+              className="text-[10px] text-purple-300/80 bg-purple-500/10 border border-purple-500/20 rounded-full px-2 py-0.5 truncate hidden sm:block max-w-xs"
+              data-testid="chip-asi-top-insight"
+            >
+              💡 {topInsightText.length > 60 ? topInsightText.slice(0, 60) + "…" : topInsightText}
             </span>
           )}
         </div>
@@ -111,51 +119,9 @@ function ASIStatusStripInner() {
           <span className="text-[10px] text-muted-foreground/50 hidden md:block">
             {timeAgo(data.lastCycleAt ?? data.lastOrchestration)}
           </span>
-          {expanded
-            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground/40" />
-            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40" />}
+          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/40" />
         </div>
       </button>
-
-      {expanded && (
-        <div className="border-t border-purple-500/15 px-4 py-3 space-y-3" data-testid="asi-strip-expanded">
-          {data.strategicDirective && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5">
-                <Zap className="h-3 w-3 text-purple-400" />
-                <span className="text-[11px] font-semibold text-purple-400 uppercase tracking-wide">Strategic Directive</span>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed" data-testid="text-asi-directive-full">
-                {data.strategicDirective}
-              </p>
-            </div>
-          )}
-
-          {topInsights.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Activity className="h-3 w-3 text-purple-400" />
-                <span className="text-[11px] font-semibold text-purple-400 uppercase tracking-wide">Top Insights</span>
-              </div>
-              {topInsights.map((ins, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs" data-testid={`asi-top-insight-${i}`}>
-                  <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-purple-400/60 mt-1" />
-                  <span className="text-muted-foreground leading-snug">{ins.principle}</span>
-                  <span className="text-[9px] text-purple-400/60 shrink-0 tabular-nums ml-auto">{ins.confidence}%</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {data.topInsight && (
-            <div className="rounded-md bg-purple-500/10 border border-purple-500/20 p-2.5">
-              <p className="text-[11px] text-purple-300/80 leading-relaxed" data-testid="text-asi-top-insight">
-                💡 {data.topInsight}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

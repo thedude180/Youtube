@@ -63,7 +63,35 @@ export function registerStudioRoutes(app: Express) {
     const userId = requireAuth(req, res);
     if (!userId) return;
     const studioVids = await storage.getStudioVideos(userId);
-    res.json(studioVids);
+
+    let revivalScoreMap: Record<string, number> = {};
+    try {
+      const { db: _db } = await import("../db");
+      const { backCatalogVideos } = await import("@shared/schema");
+      const { inArray } = await import("drizzle-orm");
+      const ytIds = studioVids
+        .flatMap(v => [v.youtubeId, (v.metadata as any)?.sourceYoutubeId])
+        .filter((id): id is string => typeof id === "string" && id.length > 0);
+      if (ytIds.length > 0) {
+        const rows = await _db.select({
+          youtubeVideoId: backCatalogVideos.youtubeVideoId,
+          totalRevivalScore: backCatalogVideos.totalRevivalScore,
+        }).from(backCatalogVideos).where(inArray(backCatalogVideos.youtubeVideoId, ytIds));
+        for (const r of rows) {
+          if (r.youtubeVideoId && r.totalRevivalScore != null) {
+            revivalScoreMap[r.youtubeVideoId] = r.totalRevivalScore;
+          }
+        }
+      }
+    } catch { /* non-critical */ }
+
+    const result = studioVids.map(v => ({
+      ...v,
+      totalRevivalScore: revivalScoreMap[v.youtubeId ?? ""]
+        ?? revivalScoreMap[(v.metadata as any)?.sourceYoutubeId ?? ""]
+        ?? null,
+    }));
+    res.json(result);
   }));
 
   app.get("/api/studio/edit-copies", asyncHandler(async (req, res) => {

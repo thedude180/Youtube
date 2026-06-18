@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Brain, ChevronDown, ChevronUp, TrendingUp, Target, Zap, Lightbulb, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -110,6 +110,18 @@ function ASIDirectivePill({ userId }: { userId?: string }) {
 function IntelligenceDigestInner() {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = () => {
+      setExpanded(true);
+      setTimeout(() => {
+        containerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
+    };
+    window.addEventListener("open-intelligence-digest", handler);
+    return () => window.removeEventListener("open-intelligence-digest", handler);
+  }, []);
 
   const { data: digest, isLoading } = useQuery<DigestRecord | null>({
     queryKey: ["/api/youtube/daily-digest"],
@@ -146,7 +158,7 @@ function IntelligenceDigestInner() {
     : null;
 
   return (
-    <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-3" data-testid="card-intelligence-digest">
+    <div ref={containerRef} className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 space-y-3" data-testid="card-intelligence-digest">
       <button
         type="button"
         className="w-full flex items-center justify-between gap-2 text-left focus-visible:outline-none"

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, BookOpen, ChevronDown, ChevronUp, Brain, TrendingUp } from "lucide-react";
+import { Sparkles, BookOpen, ChevronDown, ChevronUp, Brain, TrendingUp, AlertTriangle } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import ASIInsightPanel from "@/components/ASIInsightPanel";
 
@@ -81,6 +81,54 @@ function ASIBrainStateCard() {
                   <Badge variant="outline" className="text-[10px] shrink-0">{ins.confidence}%</Badge>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+        {data.negativePatternSample && (
+          <div className="space-y-1.5" data-testid="section-negative-pattern">
+            <p className="text-xs font-medium text-red-400 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3" />Avoid
+            </p>
+            <div className="p-2 rounded bg-red-500/10 border border-red-500/20">
+              <p className="text-xs text-muted-foreground line-clamp-2" data-testid="text-negative-pattern-sample">{data.negativePatternSample}</p>
+            </div>
+          </div>
+        )}
+        {(data.successDnaCount > 0 || data.successDnaTopPattern) && (
+          <div className="space-y-1.5" data-testid="section-success-dna">
+            <p className="text-xs font-medium text-emerald-400 flex items-center gap-1">
+              <TrendingUp className="h-3 w-3" />Success DNA
+              {data.successDnaCount > 0 && (
+                <Badge variant="secondary" className="ml-auto text-[10px]">{data.successDnaCount} patterns</Badge>
+              )}
+            </p>
+            {data.successDnaTopPattern && (
+              <div className="p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                <p className="text-[10px] text-muted-foreground mb-0.5 capitalize" data-testid="text-success-dna-type">
+                  {data.successDnaTopPattern.patternType} · {data.successDnaTopPattern.confidence}% confidence
+                </p>
+                <p className="text-xs font-medium line-clamp-1" data-testid="text-success-dna-pattern">{data.successDnaTopPattern.pattern}</p>
+              </div>
+            )}
+          </div>
+        )}
+        {(data.cycleHistory?.length ?? 0) > 0 && (
+          <div className="space-y-1.5" data-testid="section-cycle-history">
+            <p className="text-xs text-muted-foreground">Last 7-day insight activity</p>
+            <div className="flex items-end gap-1 h-10">
+              {([...data.cycleHistory] as Array<{ day: string; count: number }>).reverse().map((c, i) => {
+                const maxCount = Math.max(...(data.cycleHistory as Array<{ count: number }>).map(x => x.count), 1);
+                const pct = Math.round((c.count / maxCount) * 100);
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 bg-primary/40 rounded-t min-h-[4px]"
+                    style={{ height: `${Math.max(pct, 8)}%` }}
+                    title={`${new Date(c.day).toLocaleDateString()} — ${c.count} insights`}
+                    data-testid={`cycle-bar-${i}`}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

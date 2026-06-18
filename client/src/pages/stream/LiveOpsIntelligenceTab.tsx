@@ -280,25 +280,29 @@ function CopilotStatusCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         {copilot && (
-          <div className="grid grid-cols-2 gap-3">
-            {copilot.chatRepliesThisHour != null && (
-              <div className="space-y-0.5" data-testid="stat-copilot-replies">
-                <div className="text-[10px] text-muted-foreground">Chat replies/hr</div>
-                <div className="text-lg font-bold">{copilot.chatRepliesThisHour}<span className="text-xs text-muted-foreground">/8 max</span></div>
-              </div>
-            )}
-            {copilot.viewerMemoryCount != null && (
-              <div className="space-y-0.5" data-testid="stat-viewer-memory">
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-0.5" data-testid="stat-total-viewers">
                 <div className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Users className="h-3 w-3" />Viewer memory
+                  <Users className="h-3 w-3" />Engaged
                 </div>
-                <div className="text-lg font-bold">{copilot.viewerMemoryCount}</div>
+                <div className="text-lg font-bold">{copilot.totalViewersEngaged ?? 0}</div>
               </div>
-            )}
-            {copilot.topViewerSentiment && (
-              <div className="col-span-2 space-y-0.5" data-testid="stat-viewer-sentiment">
-                <div className="text-[10px] text-muted-foreground">Top sentiment</div>
-                <div className="text-xs">{copilot.topViewerSentiment}</div>
+              <div className="space-y-0.5" data-testid="stat-returning-viewer-pct">
+                <div className="text-[10px] text-muted-foreground">Returning</div>
+                <div className="text-lg font-bold">{copilot.returningViewerPct ?? 0}<span className="text-xs text-muted-foreground">%</span></div>
+              </div>
+              <div className="space-y-0.5" data-testid="stat-copilot-replies">
+                <div className="text-[10px] text-muted-foreground">Replies/hr</div>
+                <div className="text-lg font-bold">{copilot.chatRepliesThisHour ?? 0}<span className="text-xs text-muted-foreground">/8</span></div>
+              </div>
+            </div>
+            {(copilot.mostAskedTopics?.length ?? 0) > 0 && (
+              <div className="space-y-1 pt-1" data-testid="stat-most-asked-topics">
+                <div className="text-[10px] text-muted-foreground font-medium">Top asked this stream</div>
+                {(copilot.mostAskedTopics as string[]).slice(0, 3).map((topic, i) => (
+                  <p key={i} className="text-[11px] text-muted-foreground/80 pl-2 border-l-2 border-primary/30 line-clamp-1" data-testid={`copilot-topic-${i}`}>{topic}</p>
+                ))}
               </div>
             )}
           </div>

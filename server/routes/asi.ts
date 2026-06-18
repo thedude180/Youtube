@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { db } from "../db";
-import { masterKnowledgeBank, engineKnowledge } from "@shared/schema";
+import { masterKnowledgeBank, engineKnowledge, channelSuccessDna } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth } from "./helpers";
 import { getLearningSummary } from "../services/youtube-learning-brain";
@@ -97,6 +97,42 @@ export function registerASIRoutes(app: Express): void {
           eq(engineKnowledge.isActive, true),
         ));
 
+      const negativePatternSampleRows = await db.select({ principle: masterKnowledgeBank.principle })
+        .from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.isActive, true),
+          eq(masterKnowledgeBank.category, "negative_pattern"),
+        ))
+        .orderBy(desc(masterKnowledgeBank.confidenceScore))
+        .limit(1);
+
+      const successDnaCountRow = await db.select({ count: sql<number>`COUNT(*)::int` })
+        .from(channelSuccessDna)
+        .where(eq(channelSuccessDna.userId, userId));
+
+      const successDnaTopRow = await db.select({
+        pattern: channelSuccessDna.pattern,
+        patternType: channelSuccessDna.patternType,
+        confidenceScore: channelSuccessDna.confidenceScore,
+      }).from(channelSuccessDna)
+        .where(eq(channelSuccessDna.userId, userId))
+        .orderBy(desc(channelSuccessDna.confidenceScore))
+        .limit(1);
+
+      const cycleHistoryRows = await db.select({
+        day: sql<string>`date_trunc('day', ${masterKnowledgeBank.createdAt})::text`,
+        count: sql<number>`COUNT(*)::int`,
+      }).from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.isActive, true),
+          sql`${masterKnowledgeBank.createdAt} >= NOW() - INTERVAL '7 days'`,
+        ))
+        .groupBy(sql`date_trunc('day', ${masterKnowledgeBank.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${masterKnowledgeBank.createdAt}) DESC`)
+        .limit(7);
+
       res.json({
         lastCycleAt: (learningSummary as any)?.lastUpdated ?? null,
         strategicDirective: strategicDirective[0]?.principle ?? null,
@@ -106,12 +142,23 @@ export function registerASIRoutes(app: Express): void {
           category: i.category ?? "general",
         })),
         negativePatternCount: Number(negativeCount[0]?.count ?? 0),
+        negativePatternSample: negativePatternSampleRows[0]?.principle ?? null,
         totalKnowledgeItems: Number(totalKnowledge[0]?.count ?? 0),
         orchestratorRunning: orchestratorStatus ? !orchestratorStatus.activeCycleRunning : false,
         lastOrchestration: orchestratorStatus?.lastFullCycleAt ?? null,
         topInsight: (learningSummary as any)?.topInsight ?? null,
         predictionAccuracy,
         categoryBreakdown,
+        successDnaCount: Number(successDnaCountRow[0]?.count ?? 0),
+        successDnaTopPattern: successDnaTopRow[0] ? {
+          pattern: successDnaTopRow[0].pattern,
+          patternType: successDnaTopRow[0].patternType,
+          confidence: Math.round((successDnaTopRow[0].confidenceScore ?? 0) * 100),
+        } : null,
+        cycleHistory: cycleHistoryRows.map(r => ({
+          day: r.day,
+          count: Number(r.count),
+        })),
       });
     } catch (err: any) {
       res.status(500).json({ error: "Failed to fetch ASI status", detail: err.message });
