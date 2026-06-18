@@ -83,6 +83,7 @@ export function getClaudeClient(): Anthropic {
   return new Anthropic({
     apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
     baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+    timeout: 90_000,
   });
 }
 

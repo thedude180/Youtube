@@ -3854,9 +3854,12 @@ httpServer.listen(
       // production queue items (dev and prod share the same DB).
       if (process.env.NODE_ENV === "production") {
         import("./services/stream-editor-auto-publisher").then(m => {
-          // First run: 90 s after boot — after DB pool has stabilised from the
-          // wave 7/8 thundering herd. Subsequent runs every ~5 min as before.
-          setTimeout(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue startup")), 90_000);
+          // First run: 5 min after wave start (~T+25min) so the DB pool has
+          // fully settled past the wave 7/8/9 thundering herd window. The 90s
+          // delay was firing at exactly the peak-contention point (T+21.5min)
+          // and reliably failing. 5 min matches the setInterval period so the
+          // startup and interval cadence are aligned.
+          setTimeout(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue startup")), 5 * 60_000);
           const iv = setInterval(() => m.processAutoPublishQueue().catch(slog("processAutoPublishQueue")), jitter(5 * 60_000));
           backgroundIntervals.push(iv);
         }).catch(slog("stream-editor-auto-publisher import"));

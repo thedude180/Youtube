@@ -132,6 +132,7 @@ export function getOpenAIClientBackground(): OpenAI {
     const baseClient = new OpenAI({
       apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
       baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      timeout: 90_000,
     });
     const originalCreate = baseClient.chat.completions.create.bind(baseClient.chat.completions);
 
@@ -171,6 +172,7 @@ function getRawOpenAIClient(): OpenAI {
     _client = new OpenAI({
       apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
       baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      timeout: 90_000,
     });
   }
   return _client;
@@ -188,6 +190,7 @@ export function getRawOpenAIClientForDirectUse(): OpenAI {
     _rawDirectClient = new OpenAI({
       apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
       baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      timeout: 90_000,
     });
   }
   return _rawDirectClient;
