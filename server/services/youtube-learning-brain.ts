@@ -609,9 +609,97 @@ async function synthesizeServiceHealth(userId: string): Promise<void> {
   }
 }
 
-// ── Micro-signal harvester (4h) ────────────────────────────────────────────────
-// Lightweight harvester that runs every 4 hours between daily cycles.
-// No AI calls — pure DB observation → masterKnowledgeBank micro-signals.
+// ── 48h Attribution Loop ───────────────────────────────────────────────────────
+// Picks up audience_calibration signals created by the publishers after
+// ≥48h (enough time for YouTube Analytics to reflect real performance) and
+// graduates high-performers to category="audience_insight" with a raised
+// confidence score.  Low/mid performers get their score updated and stay as
+// audience_calibration so later cycles can see them.
+// No AI calls — pure DB + YouTube Analytics API, runs quickly.
+async function followUpAudienceCalibrations(userId: string): Promise<void> {
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 3_600_000);
+
+  // Find pending calibration signals (confidenceScore ≤ 35 = not yet followed up)
+  const pending = await db.execute(sql`
+    SELECT id, principle, metadata, created_at
+    FROM master_knowledge_bank
+    WHERE user_id    = ${userId}
+      AND category   = 'audience_calibration'
+      AND is_active  = true
+      AND (confidence_score IS NULL OR confidence_score <= 35)
+      AND created_at < ${fortyEightHoursAgo}
+    ORDER BY created_at ASC
+    LIMIT 10
+  `);
+  const rows = (pending as any)?.rows ?? [];
+  if (rows.length === 0) return;
+
+  logger.info(`[Brain] Audience calibration follow-up: ${rows.length} pending signal(s)`);
+
+  const { fetchVideoAnalytics } = await import("./youtube-analytics");
+
+  for (const row of rows) {
+    try {
+      // youtubeVideoId is stored in the metadata JSONB column
+      const meta = (typeof row.metadata === "string" ? JSON.parse(row.metadata) : row.metadata) ?? {};
+      const youtubeVideoId: string | undefined = meta.youtubeVideoId;
+      if (!youtubeVideoId) continue;
+
+      const analytics = await fetchVideoAnalytics(userId, youtubeVideoId);
+      if (!analytics || Object.keys(analytics).length === 0) continue;
+
+      const views  = (analytics as any).views   ?? 0;
+      const ctr    = (analytics as any).ctr     ?? (analytics as any).impressionClickThroughRate ?? 0;
+      const avd    = (analytics as any).averageViewDurationSec ?? 0;
+      const avgPct = (analytics as any).averageViewPercent ?? 0;
+
+      // Score 0–100 from three signals (equal thirds):
+      //  • Views: 0–1000+ → 0–33 pts
+      //  • CTR:   0–8%    → 0–33 pts
+      //  • AVD %: 0–60%   → 0–34 pts
+      const viewScore  = Math.min(33, Math.round((views / 300) * 33));
+      const ctrScore   = Math.min(33, Math.round((ctr   / 0.08) * 33));
+      const avdScore   = Math.min(34, Math.round((avgPct / 60)  * 34));
+      const totalScore = viewScore + ctrScore + avdScore;
+
+      const newConfidence = 40 + Math.round((totalScore / 100) * 50); // range 40–90
+      const newCategory   = newConfidence >= 70 ? "audience_insight" : "audience_calibration";
+
+      const updatedPrinciple = (
+        (newConfidence >= 70 ? "[Insight] " : "[Updated] ") +
+        `Video ${youtubeVideoId}: ` +
+        `${views} views, CTR=${(ctr * 100).toFixed(1)}%, AVD=${avd}s (${avgPct.toFixed(0)}%)` +
+        `. Audience engagement score: ${totalScore}/100.`
+      ).slice(0, 500);
+
+      const updatedMeta = {
+        ...meta,
+        views, ctrPct: parseFloat((ctr * 100).toFixed(2)),
+        avdSec: avd, avdPct: parseFloat(avgPct.toFixed(1)),
+        attributionScore: totalScore,
+        attributionFollowedUpAt: new Date().toISOString(),
+      };
+
+      await db.execute(sql`
+        UPDATE master_knowledge_bank
+        SET
+          category         = ${newCategory},
+          principle        = ${updatedPrinciple},
+          metadata         = ${JSON.stringify(updatedMeta)}::jsonb,
+          confidence_score = ${newConfidence},
+          updated_at       = NOW()
+        WHERE id = ${row.id}
+      `);
+
+      logger.info(`[Brain] Calibration ${row.id} → ${newCategory} (score=${totalScore}, conf=${newConfidence})`, {
+        youtubeVideoId, views, ctrPct: (ctr * 100).toFixed(1), avdPct: avgPct.toFixed(1),
+      });
+    } catch (err: any) {
+      logger.debug(`[Brain] Calibration follow-up row ${row.id} non-fatal: ${err?.message?.slice(0, 80)}`);
+    }
+  }
+}
+
 // Every publish, failure, and pipeline event in the last 4h becomes a
 // living signal so the brain accumulates knowledge continuously, not just
 // once per day.
@@ -780,6 +868,13 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
   // hasn't completed a cycle within its expected interval and writes a health
   // report to masterKnowledgeBank (category="service_health").
   await synthesizeServiceHealth(userId);
+
+  // Step 0d: 48h attribution loop — pick up any pending audience calibration
+  // signals that are now old enough to have YouTube Analytics data and graduate
+  // them to confirmed audience insights.  Pure DB + Analytics API, no AI calls.
+  await followUpAudienceCalibrations(userId).catch(err =>
+    logger.warn(`[Brain] Audience calibration follow-up non-fatal: ${err?.message?.slice(0, 80)}`)
+  );
 
   // Step 0c: Read viewer comments from recent videos — direct audience voice.
   // Cost: 1 YouTube Data API quota unit per video, max 5 videos = ≤5 units/day.

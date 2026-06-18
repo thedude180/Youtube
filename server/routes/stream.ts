@@ -1702,6 +1702,107 @@ export function registerStreamRoutes(app: Express) {
     res.json(await getUpcomingSchedule(userId, days));
   }));
 
+  // ── AI Learning Activity ─────────────────────────────────────────────────────
+  // Returns the live learning state: recent engine-cycle telemetry, the current
+  // strategic directive from the strategy bus, validated strategies, stream
+  // intelligence, and pending audience calibration signals.
+  app.get("/api/youtube/ai-learning", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { db: _db }            = await import("../db");
+      const { systemEventLog, masterKnowledgeBank } = await import("@shared/schema");
+      const { eq, desc, and, inArray } = await import("drizzle-orm");
+
+      // 1. Recent engine_cycle events (last 20)
+      const engineCycles = await _db
+        .select({
+          id:         systemEventLog.id,
+          service:    systemEventLog.service,
+          title:      systemEventLog.title,
+          detail:     systemEventLog.detail,
+          occurredAt: systemEventLog.occurredAt,
+          severity:   systemEventLog.severity,
+        })
+        .from(systemEventLog)
+        .where(eq(systemEventLog.eventType, "engine_cycle"))
+        .orderBy(desc(systemEventLog.occurredAt))
+        .limit(20);
+
+      // 2. Top validated + discovered strategies (confidenceScore ≥ 50)
+      const validatedStrategies = await _db
+        .select({
+          id:              masterKnowledgeBank.id,
+          category:        masterKnowledgeBank.category,
+          principle:       masterKnowledgeBank.principle,
+          metadata:        masterKnowledgeBank.metadata,
+          confidenceScore: masterKnowledgeBank.confidenceScore,
+          updatedAt:       masterKnowledgeBank.updatedAt,
+        })
+        .from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          inArray(masterKnowledgeBank.category, ["validated_strategy", "discovered_strategy"]),
+          eq(masterKnowledgeBank.isActive, true),
+        ))
+        .orderBy(desc(masterKnowledgeBank.confidenceScore))
+        .limit(8);
+
+      // 3. Recent stream intelligence entries (last 5)
+      const streamIntelligence = await _db
+        .select({
+          id:              masterKnowledgeBank.id,
+          principle:       masterKnowledgeBank.principle,
+          metadata:        masterKnowledgeBank.metadata,
+          confidenceScore: masterKnowledgeBank.confidenceScore,
+          createdAt:       masterKnowledgeBank.createdAt,
+        })
+        .from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.category, "stream_intelligence"),
+          eq(masterKnowledgeBank.isActive, true),
+        ))
+        .orderBy(desc(masterKnowledgeBank.createdAt))
+        .limit(5);
+
+      // 4. Audience calibration signals (pending + graduated)
+      const audienceCalibrations = await _db
+        .select({
+          id:              masterKnowledgeBank.id,
+          category:        masterKnowledgeBank.category,
+          principle:       masterKnowledgeBank.principle,
+          metadata:        masterKnowledgeBank.metadata,
+          confidenceScore: masterKnowledgeBank.confidenceScore,
+          createdAt:       masterKnowledgeBank.createdAt,
+        })
+        .from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          inArray(masterKnowledgeBank.category, ["audience_calibration", "audience_insight"]),
+        ))
+        .orderBy(desc(masterKnowledgeBank.createdAt))
+        .limit(8);
+
+      // 5. Current strategic directive from the in-process strategy bus
+      const { getLatestDirective, getDirectiveAgeMs } = await import("../lib/strategy-bus");
+      const currentDirective = getLatestDirective(userId);
+      const directiveAgeMs   = getDirectiveAgeMs(userId);
+
+      res.json({
+        engineCycles,
+        validatedStrategies,
+        streamIntelligence,
+        audienceCalibrations,
+        currentDirective,
+        directiveAgeMs: directiveAgeMs === Infinity ? null : directiveAgeMs,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to fetch AI learning data", detail: String(err?.message ?? err) });
+    }
+  }));
+
   // ── YouTube Quota Status (dedicated endpoint) ────────────────────────────────
   app.get("/api/youtube/quota-status", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;

@@ -41,6 +41,7 @@ import CreativeLibrary from "./dashboard/CreativeLibrary";
 import ContentPipelinePanel from "./dashboard/ContentPipelinePanel";
 import SocialExpansionPanel from "./dashboard/SocialExpansionPanel";
 import ASIStatusStrip from "./dashboard/ASIStatusStrip";
+import AILearningPanel from "./dashboard/AILearningPanel";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const AGENT_ROSTER = [
@@ -1080,6 +1081,18 @@ export default function TeamDashboard() {
         <InfinityMachine />
 
         <SuccessDNA />
+
+        {/* ── AI Learning Activity ──────────────────────────────────────────── */}
+        <div className="rounded-xl border border-border/30 bg-card/20 overflow-hidden" data-testid="section-ai-learning">
+          <div className="px-4 pt-4 pb-2 flex items-center gap-2 border-b border-border/20">
+            <Brain className="h-4 w-4 text-violet-400" />
+            <h3 className="text-sm font-semibold text-foreground/90">AI Learning</h3>
+            <span className="ml-auto text-[10px] text-muted-foreground/50">live closed-loop intelligence</span>
+          </div>
+          <div className="p-4">
+            <AILearningPanel />
+          </div>
+        </div>
 
         <CreativeLibrary />
 
