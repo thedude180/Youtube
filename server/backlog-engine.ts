@@ -466,6 +466,23 @@ async function processBacklogAsync(
       chainResult.completedAt = new Date();
 
     } catch (err: any) {
+      // AI 401 = Replit integration auth failure — the ENTIRE loop must stop.
+      // Without this, the engine iterates 78k+ videos at ~20 s/video (4 s
+      // pacing delay + 15 s TCP timeout per 401) → weeks of useless spinning
+      // that saturates AI slots and blocks the pre-encoder for BF6 clips.
+      const is401 =
+        (err as any)?.status === 401 ||
+        err.message?.includes('401 status code') ||
+        err.message?.includes('AI_401_CIRCUIT_OPEN');
+      if (is401) {
+        markViralCapExhausted('AI integration 401 — stopping backlog loop (resumes next hour)', true);
+        logger.error(
+          `[BacklogEngine] 🛑 AI 401 detected at video ${video.id} — ` +
+          `breaking loop (${videos.length - completed - 1} videos remaining skipped). ` +
+          `Backlog will resume automatically after circuit resets.`
+        );
+        break;
+      }
       logger.error(`Failed to process video ${video.id}:`, err.message);
       currentSession.errors.push({
         videoId: video.id,

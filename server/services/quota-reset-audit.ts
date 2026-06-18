@@ -52,12 +52,18 @@ export async function runQuotaResetAudit(): Promise<void> {
         logger.info(`[QuotaResetAudit] ✓ YouTube channel found: ${ytCh.channelId}`);
         results[`${uid.substring(0, 8)}_channel`] = "ok";
       } else {
-        logger.warn(`[QuotaResetAudit] No YouTube channel for user ${uid.substring(0, 8)}`);
+        logger.warn(`[QuotaResetAudit] No YouTube channel for user ${uid.substring(0, 8)} — skipping vault/analytics steps`);
         results[`${uid.substring(0, 8)}_channel`] = "warn";
+        // Ghost users (no real UC channel) must skip the vault + analytics steps.
+        // Without this continue the audit would call indexAllChannelVideos() and
+        // fetchViewsByDayAndHour() for every ghost user — both hit YouTube APIs
+        // that require a real channel, generating spurious errors and wasting quota.
+        continue;
       }
     } catch (err: any) {
       logger.error(`[QuotaResetAudit] Channel check failed for ${uid.substring(0, 8)}`, { error: err.message });
       results[`${uid.substring(0, 8)}_channel`] = "fail";
+      continue; // also skip expensive steps for users whose channel DB query failed
     }
 
     // 3b. Token validity check

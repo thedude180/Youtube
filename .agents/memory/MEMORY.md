@@ -1,3 +1,5 @@
+- [AI 401 circuit breaker](ai-401-circuit-breaker.md) — Replit AI 401 → global 1h backoff; backlog-engine must break loop on 401 not continue; server/lib/ai-auth-guard.ts.
+- [Vault yt-dlp slot starvation](vault-ytdlp-slot-starvation.md) — non-BF6 indexed vault entries fill all 4 yt-dlp slots → pre-encoder blocked; fix: cleanupNonBF6IndexedVaultEntries() per-boot non-flagged cleanup.
 - [Hourly cron DB pool exhaustion pattern](hourly-cron-db-pool-crash.md) — idle-check timers with short intervals (5min) align with hourly cron window → thundering herd → pool exhaustion → healthcheck timeout → restart; fix: raise idle timers to ≥30min.
 - [Prod logs 2026-06-15](prod-logs-2026-06-15.md) — AI semaphore stuck every 9min (job 18102 root cause), 16 InnerTube-400 videos, 4 75s dead-zone items, publishing stopped, brain SQL fail, token exhaustion by 10am Pacific.
 - [Drizzle sql tag array spread bug](drizzle-sql-array-spread.md) — `${jsArray}::text[]` in sql`` tag → Drizzle spreads to `($1,$2,…)::text[]` (row-constructor, invalid PG cast); use sql.raw() IN list or `ANY($1::text[])` with single array param.

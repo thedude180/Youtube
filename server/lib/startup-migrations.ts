@@ -5777,6 +5777,85 @@ async function migration101PurgeGhostVaultRowsAndGoQStorm(): Promise<void> {
   }
 }
 
+// ── Non-flagged: skip non-BF6 indexed vault entries every boot ───────────────
+// Root cause of yt-dlp slot starvation: 133 non-BF6 vault entries (AC Valhalla,
+// Dragon Age, God of War, etc.) sit in status='indexed' and get picked up by the
+// perpetual downloader, filling all 4 yt-dlp slots → pre-encoder can't acquire a
+// slot → 689 BF6 clips stay stuck in 'pending' indefinitely.
+//
+// These videos ARE in back_catalog_videos (the channel played them before the
+// BF6-only pivot), so migration 100's NOT EXISTS guard didn't mark them skipped.
+// This non-flagged cleanup runs every boot and marks them skipped before any
+// downloader or publisher fires.  BF6 indexed entries are left untouched — they
+// proceed to download normally.
+async function cleanupNonBF6IndexedVaultEntries(): Promise<void> {
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+    const r = await db.execute(sql.raw(`
+      UPDATE content_vault_backups cvb
+      SET status = 'skipped',
+          download_error = 'per-boot: non-BF6 game vault entry — skipped for BF6-only pipeline',
+          metadata = COALESCE(cvb.metadata, '{}'::jsonb)
+                  || '{"permanentSkip":true,"permanentFail":true,"failCount":10,"skippedBy":"cleanupNonBF6IndexedVault"}'::jsonb
+      FROM back_catalog_videos bcv
+      WHERE cvb.user_id = '${REAL_USER}'
+        AND cvb.status = 'indexed'
+        AND bcv.youtube_video_id = cvb.youtube_id
+        AND NOT (
+          bcv.game_name ILIKE '%battlefield%'
+          OR bcv.game_name ILIKE '%bf6%'
+          OR bcv.game_name ILIKE '%bf 6%'
+        )
+    `));
+    const cleaned = (r as any)?.rowCount ?? 0;
+    if (cleaned > 0) {
+      log.info(`[VaultNonBF6Cleanup] Marked ${cleaned} non-BF6 indexed vault entries as skipped — yt-dlp slots freed for BF6`);
+    }
+    // Also skip indexed vault entries that have no back_catalog_videos entry at
+    // all AND have no downloaded file yet — these are ghost rows from the ghost
+    // user or stale index operations and should not consume yt-dlp slots.
+    const r2 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status = 'skipped',
+          download_error = 'per-boot: indexed entry has no catalog record — skipped',
+          metadata = COALESCE(metadata, '{}'::jsonb)
+                  || '{"permanentSkip":true,"permanentFail":true,"failCount":10,"skippedBy":"cleanupOrphanedIndexedVault"}'::jsonb
+      WHERE user_id = '${REAL_USER}'
+        AND status = 'indexed'
+        AND file_path IS NULL
+        AND youtube_id NOT IN (
+          SELECT youtube_video_id FROM back_catalog_videos WHERE user_id = '${REAL_USER}'
+        )
+    `));
+    const orphaned = (r2 as any)?.rowCount ?? 0;
+    if (orphaned > 0) {
+      log.info(`[VaultNonBF6Cleanup] Marked ${orphaned} orphaned indexed vault entries (no catalog record) as skipped`);
+    }
+    // Sweep vault entries that are still 'indexed' or 'downloading' despite having
+    // permanentFail=true in their metadata — migration031 missed some (e.g.
+    // hBylGNbIT88: failCount=10, permanentFail=true, status=indexed).
+    // Without this, those entries consume yt-dlp slots AND their autopilot_queue
+    // items stay pending indefinitely (cleanupOrphanedQueueItems only looks at
+    // status='failed' vault entries).
+    const r3 = await db.execute(sql.raw(`
+      UPDATE content_vault_backups
+      SET status = 'failed',
+          download_error = 'per-boot: permanentFail=true in metadata but status was indexed/downloading — corrected',
+          metadata = metadata || '{"failCount":10,"correctedByBoot":true}'::jsonb
+      WHERE user_id = '${REAL_USER}'
+        AND status IN ('indexed', 'downloading')
+        AND file_path IS NULL
+        AND metadata->>'permanentFail' = 'true'
+    `));
+    const permFailed = (r3 as any)?.rowCount ?? 0;
+    if (permFailed > 0) {
+      log.info(`[VaultNonBF6Cleanup] Fixed ${permFailed} vault entries stuck as indexed/downloading despite permanentFail=true`);
+    }
+  } catch (err: any) {
+    log.warn(`[VaultNonBF6Cleanup] Non-fatal: ${err?.message?.slice(0, 200)}`);
+  }
+}
+
 // ── Non-flagged: delete files on disk for permanently skipped vault entries ───
 // Runs every boot after migration 100 so the 1,683 downloaded competitor files
 // are cleaned off disk progressively without holding up boot.
@@ -5944,6 +6023,11 @@ export async function runStartupMigrations(): Promise<void> {
     // restart so contamination from content-maximizer, past-stream extraction,
     // or back-catalog engine race conditions is always cleared before publishers fire.
     await cleanupNonBF6QueueItems();
+    // Non-flagged per-boot vault non-BF6 indexed cleanup — runs every restart.
+    // Marks all non-BF6 indexed vault entries as skipped so they don't consume
+    // yt-dlp slots, freeing the pipeline for BF6 Shorts/long-form clip encoding.
+    // Must run BEFORE cleanupOrphanedQueueItems so slot starvation doesn't occur.
+    await cleanupNonBF6IndexedVaultEntries();
     // Non-flagged per-boot vault storm prevention — runs every restart.
     // Fails active vault entries with failCount >= 2, stamps permanentFail on all
     // failed entries, and cancels any autopilot_queue items whose source vault

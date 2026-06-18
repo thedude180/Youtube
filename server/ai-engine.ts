@@ -2,6 +2,7 @@ import { getOpenAIClient } from "./lib/openai";
 import { getCreatorStyleContext, getLearningContext, buildHumanizationPrompt } from "./creator-intelligence";
 import { detectGameFromLearned } from "./services/web-game-lookup";
 import { tokenBudget, sanitizeForPrompt, sanitizeObjectForPrompt } from "./lib/ai-attack-shield";
+import { checkAI401Circuit, tripAI401Circuit } from "./lib/ai-auth-guard";
 
 import { createLogger } from "./lib/logger";
 
@@ -454,17 +455,28 @@ Provide your response as JSON with exactly these fields:
   }${safeTopicName ? `,\n  "detectedTopic": "${safeTopicName}"` : ''}${contentCtx.niche !== 'general' ? `,\n  "contentNiche": "${sanitizeForPrompt(contentCtx.niche)}"` : ''}
 }`;
 
+  // Fast-fail if AI integration is returning 401 (avoids 15-20s TCP timeout per call)
+  checkAI401Circuit();
+
   const VIRAL_META_ESTIMATED_TOKENS = 3000;
   if (!tokenBudget.checkBudget("viral-optimizer", VIRAL_META_ESTIMATED_TOKENS)) {
     throw new Error("Daily viral-optimizer token budget exhausted. Will retry tomorrow.");
   }
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 3000,
-  });
+  let response: Awaited<ReturnType<typeof openai.chat.completions.create>>;
+  try {
+    response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 3000,
+    });
+  } catch (aiErr: any) {
+    if (aiErr?.status === 401 || aiErr?.message?.includes('401 status code')) {
+      tripAI401Circuit('generateVideoMetadata');
+    }
+    throw aiErr;
+  }
 
   const actualTokens = response.usage?.total_tokens ?? VIRAL_META_ESTIMATED_TOKENS;
   tokenBudget.consumeBudget("viral-optimizer", actualTokens);
@@ -909,12 +921,23 @@ Perform your most important task right now. Respond as JSON:
 
 Be specific, actionable, and reference actual content from this channel.${safeTopicName ? ` All output must be relevant to ${safeTopicName} and its ${contentCtx.audienceType}.` : ''}`;
 
-  const agentResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 6000,
-  });
+  // Fast-fail if AI integration is returning 401
+  checkAI401Circuit();
+
+  let agentResponse: Awaited<ReturnType<typeof openai.chat.completions.create>>;
+  try {
+    agentResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 6000,
+    });
+  } catch (aiErr: any) {
+    if (aiErr?.status === 401 || aiErr?.message?.includes('401 status code')) {
+      tripAI401Circuit('runAgentTask');
+    }
+    throw aiErr;
+  }
 
   const agentContent = agentResponse.choices[0]?.message?.content;
   if (!agentContent) throw new Error("No response from AI");
