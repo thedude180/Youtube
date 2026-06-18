@@ -1661,6 +1661,13 @@ export function registerStreamRoutes(app: Express) {
     res.json(getDecisionLog(userId, limit));
   }));
 
+  app.post("/api/youtube/ai-orchestrator/decision-log/acknowledge", asyncHandler(async (req: any, res) => {
+    const userId = req.user?.claims?.sub || req.userId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { task } = req.body || {};
+    res.json({ ok: true, task: task ?? null, message: "Decision acknowledged" });
+  }));
+
   app.get("/api/youtube/ai-orchestrator/daily-report", asyncHandler(async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.userId;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });

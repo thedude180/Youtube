@@ -28,7 +28,7 @@ import {
 import {
   Film, Download, Trash2, Upload, Image, LayoutGrid, Send, ArrowLeft,
   Loader2, Play, Eye, Clock, HardDrive, Sparkles, Check, X,
-  Monitor, ListVideo, UserPlus, Link2, RefreshCw,
+  Monitor, ListVideo, UserPlus, Link2, RefreshCw, ArrowUpDown,
 } from "lucide-react";
 
 interface StudioVideoMetadata {
@@ -895,6 +895,7 @@ export default function VideoStudio() {
   usePageTitle("Video Studio");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [videoToDelete, setVideoToDelete] = useState<{ id: number; title: string } | null>(null);
+  const [studioSortByScore, setStudioSortByScore] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -1009,64 +1010,98 @@ export default function VideoStudio() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {studioVideos.map((video) => (
-            <Card
-              key={video.id}
-              className="border-border/30 hover:border-primary/30 transition-colors cursor-pointer group"
-              onClick={() => setSelectedId(video.id)}
-              data-testid={`card-studio-video-${video.id}`}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">{studioVideos.length} video{studioVideos.length !== 1 ? "s" : ""}</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-7 px-2 text-xs gap-1.5 ${studioSortByScore ? "text-primary" : ""}`}
+              data-testid="button-sort-seo-score"
+              onClick={() => setStudioSortByScore(s => !s)}
             >
-              <div className="aspect-video bg-muted/30 rounded-t-lg overflow-hidden relative">
-                {video.thumbnailUrl || video.metadata?.customThumbnail ? (
-                  <img
-                    src={video.metadata?.customThumbnail || video.thumbnailUrl || ""}
-                    alt={video.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Film className="h-8 w-8 text-muted-foreground/30" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
-                    <Play className="h-5 w-5 text-white fill-white" />
-                  </div>
-                </div>
-                <div className="absolute top-2 right-2">
-                  <StatusBadge status={video.status} />
-                </div>
-                {video.duration && (
-                  <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-                    <Clock className="h-3 w-3 inline mr-0.5" />{video.duration}
-                  </div>
-                )}
-              </div>
-              <CardContent className="p-3">
-                <h3 className="text-sm font-medium truncate" data-testid={`text-video-title-${video.id}`}>
-                  {video.title}
-                </h3>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-[10px] text-muted-foreground">
-                    {video.fileSize ? formatFileSize(video.fileSize) : "Not downloaded"}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-red-400"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setVideoToDelete({ id: video.id, title: video.title });
-                    }}
-                    data-testid={`button-delete-${video.id}`}
+              <ArrowUpDown className="h-3 w-3" />
+              {studioSortByScore ? "Sorted by ASI Score" : "Sort by ASI Score"}
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...studioVideos]
+              .sort((a, b) => {
+                if (!studioSortByScore) return 0;
+                const aScore = (a.metadata as any)?.seoScore ?? 0;
+                const bScore = (b.metadata as any)?.seoScore ?? 0;
+                return bScore - aScore;
+              })
+              .map((video) => {
+                const seoScore = (video.metadata as any)?.seoScore as number | undefined;
+                return (
+                  <Card
+                    key={video.id}
+                    className="border-border/30 hover:border-primary/30 transition-colors cursor-pointer group"
+                    onClick={() => setSelectedId(video.id)}
+                    data-testid={`card-studio-video-${video.id}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                    <div className="aspect-video bg-muted/30 rounded-t-lg overflow-hidden relative">
+                      {video.thumbnailUrl || video.metadata?.customThumbnail ? (
+                        <img
+                          src={video.metadata?.customThumbnail || video.thumbnailUrl || ""}
+                          alt={video.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Film className="h-8 w-8 text-muted-foreground/30" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 rounded-full p-2">
+                          <Play className="h-5 w-5 text-white fill-white" />
+                        </div>
+                      </div>
+                      <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <StatusBadge status={video.status} />
+                        {seoScore != null && (
+                          <span
+                            className="bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            data-testid={`badge-asi-score-${video.id}`}
+                            title={`ASI SEO Score: ${seoScore}/100 — AI-assigned packaging quality score based on title, tags, description, and hook strength`}
+                          >
+                            ASI {seoScore}
+                          </span>
+                        )}
+                      </div>
+                      {video.duration && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                          <Clock className="h-3 w-3 inline mr-0.5" />{video.duration}
+                        </div>
+                      )}
+                    </div>
+                    <CardContent className="p-3">
+                      <h3 className="text-sm font-medium truncate" data-testid={`text-video-title-${video.id}`}>
+                        {video.title}
+                      </h3>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[10px] text-muted-foreground">
+                          {video.fileSize ? formatFileSize(video.fileSize) : "Not downloaded"}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setVideoToDelete({ id: video.id, title: video.title });
+                          }}
+                          data-testid={`button-delete-${video.id}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+          </div>
         </div>
       )}
 

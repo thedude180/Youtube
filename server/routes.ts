@@ -1046,10 +1046,33 @@ export async function registerRoutes(
         .limit(limit)
         .offset(offset);
 
+      // Fetch totalRevivalScore from back_catalog_videos via sourceYoutubeId
+      const sourceYtIds = rows.map(r => ((r.metadata ?? {}) as any).sourceYoutubeId).filter(Boolean) as string[];
+      let revivalScoreMap: Record<string, number> = {};
+      if (sourceYtIds.length > 0) {
+        try {
+          const { backCatalogVideos } = await import("@shared/schema");
+          const scoreRows = await db
+            .select({ youtubeVideoId: backCatalogVideos.youtubeVideoId, totalRevivalScore: backCatalogVideos.totalRevivalScore })
+            .from(backCatalogVideos)
+            .where(inArray(backCatalogVideos.youtubeVideoId, sourceYtIds));
+          for (const sr of scoreRows) {
+            if (sr.youtubeVideoId && sr.totalRevivalScore != null) {
+              revivalScoreMap[sr.youtubeVideoId] = sr.totalRevivalScore;
+            }
+          }
+        } catch { /* ignore — revival scores are best-effort */ }
+      }
+
       const items = rows.map(r => {
         const meta = (r.metadata ?? {}) as Record<string, any>;
         const hasSeo       = !!meta.seoTitle;
         const hasThumbnail = !!meta.thumbnailPath;
+        const sourceYtId   = meta.sourceYoutubeId as string | undefined;
+        const rawRevival   = sourceYtId ? revivalScoreMap[sourceYtId] : undefined;
+        const totalRevivalScore = rawRevival != null
+          ? Math.max(1, Math.min(10, Math.round(rawRevival / 10)))
+          : null;
         return {
           id:          r.id,
           title:       meta.seoTitle || r.caption || meta.title || meta.gameName || "Gaming clip",
@@ -1062,6 +1085,7 @@ export async function registerRoutes(
           hasThumbnail,
           isComplete:  hasSeo && hasThumbnail,
           thumbnailUrl: hasThumbnail ? `/api/youtube/shadow/thumbnail/${r.id}` : null,
+          totalRevivalScore,
         };
       });
 

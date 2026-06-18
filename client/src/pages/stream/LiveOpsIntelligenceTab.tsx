@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Shield, Heart, AlertTriangle,
-  Radio, Zap, CheckCircle2, XCircle,
+  Radio, Zap, CheckCircle2, XCircle, Users, Brain,
 } from "lucide-react";
 import ASIInsightPanel from "@/components/ASIInsightPanel";
 
@@ -232,6 +234,101 @@ function DegradationPlaybooksCard() {
   );
 }
 
+function CopilotStatusCard() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/youtube/output-status"],
+    staleTime: 2 * 60_000,
+    refetchInterval: 2 * 60_000,
+  });
+
+  const modeMutation = useMutation({
+    mutationFn: (mode: string) => apiRequest("POST", "/api/youtube/copilot/mode", { mode }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/youtube/output-status"] }),
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="card-empire" data-testid="card-copilot-loading">
+        <CardHeader className="pb-3"><Skeleton className="h-5 w-40" /></CardHeader>
+        <CardContent><Skeleton className="h-32 w-full" /></CardContent>
+      </Card>
+    );
+  }
+
+  const copilot = data?.copilot;
+  const learning = data?.learning;
+
+  if (!copilot && !learning) return null;
+
+  const mode = copilot?.mode ?? "standby";
+  const modeColors: Record<string, string> = {
+    standby: "text-muted-foreground",
+    active:  "text-emerald-400",
+    post:    "text-blue-400",
+  };
+
+  return (
+    <Card className="card-empire" data-testid="card-copilot-status">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Brain className="h-4 w-4 text-primary" />
+          Copilot &amp; Viewer Memory
+          <Badge variant="outline" className={`ml-auto text-[10px] ${modeColors[mode] ?? ""}`}>
+            {mode}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {copilot && (
+          <div className="grid grid-cols-2 gap-3">
+            {copilot.chatRepliesThisHour != null && (
+              <div className="space-y-0.5" data-testid="stat-copilot-replies">
+                <div className="text-[10px] text-muted-foreground">Chat replies/hr</div>
+                <div className="text-lg font-bold">{copilot.chatRepliesThisHour}<span className="text-xs text-muted-foreground">/8 max</span></div>
+              </div>
+            )}
+            {copilot.viewerMemoryCount != null && (
+              <div className="space-y-0.5" data-testid="stat-viewer-memory">
+                <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Users className="h-3 w-3" />Viewer memory
+                </div>
+                <div className="text-lg font-bold">{copilot.viewerMemoryCount}</div>
+              </div>
+            )}
+            {copilot.topViewerSentiment && (
+              <div className="col-span-2 space-y-0.5" data-testid="stat-viewer-sentiment">
+                <div className="text-[10px] text-muted-foreground">Top sentiment</div>
+                <div className="text-xs">{copilot.topViewerSentiment}</div>
+              </div>
+            )}
+          </div>
+        )}
+        {learning?.topInsight && (
+          <div className="p-2 rounded bg-muted/30" data-testid="stat-learning-insight">
+            <div className="text-[10px] text-muted-foreground mb-0.5">Latest brain insight</div>
+            <p className="text-xs line-clamp-2">{learning.topInsight}</p>
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap" data-testid="copilot-mode-controls">
+          {["standby", "active", "post"].map(m => (
+            <Button
+              key={m}
+              data-testid={`button-copilot-mode-${m}`}
+              size="sm"
+              variant={mode === m ? "default" : "outline"}
+              className="h-7 px-3 text-xs capitalize"
+              disabled={modeMutation.isPending}
+              onClick={() => modeMutation.mutate(m)}
+            >
+              {m}
+            </Button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LiveOpsIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="live-ops-intelligence-tab">
@@ -250,6 +347,7 @@ export default function LiveOpsIntelligenceTab() {
         <BurnoutCard />
         <DegradationPlaybooksCard />
       </div>
+      <CopilotStatusCard />
     </div>
   );
 }

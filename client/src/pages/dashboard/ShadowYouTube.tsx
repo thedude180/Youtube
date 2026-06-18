@@ -26,6 +26,7 @@ interface ShadowItem {
   hasThumbnail: boolean;
   isComplete: boolean;
   thumbnailUrl: string | null;
+  totalRevivalScore: number | null;
 }
 
 interface LibraryResponse {
@@ -112,12 +113,24 @@ function ThumbnailPane({ item }: { item: ShadowItem }) {
 
 // ── ASI rank score helper ──────────────────────────────────────────────────────
 
-function pkgReadiness(item: ShadowItem): { score: number; label: string; color: string } {
+function pkgReadiness(item: ShadowItem): { score: number; label: string; color: string; tooltip: string } {
+  // Use totalRevivalScore (1–10) from back_catalog_videos if available
+  if (item.totalRevivalScore != null) {
+    const s = item.totalRevivalScore;
+    const base = { score: s * 10, label: `Revival ${s}/10` };
+    const tooltip = `Back-catalog revival score ${s}/10 — derived from view velocity, engagement rate, and monetisation readiness`;
+    if (s >= 8) return { ...base, color: "bg-emerald-900/50 text-emerald-400 border-emerald-800", tooltip };
+    if (s >= 6) return { ...base, color: "bg-blue-900/50 text-blue-400 border-blue-800", tooltip };
+    if (s >= 4) return { ...base, color: "bg-amber-900/50 text-amber-400 border-amber-800", tooltip };
+    return { ...base, color: "bg-red-900/50 text-red-400 border-red-800", tooltip };
+  }
+  // Fallback: derive from packaging completeness (SEO 40 + Thumbnail 30 + Complete 30)
   const pts = (item.hasSeo ? 40 : 0) + (item.hasThumbnail ? 30 : 0) + (item.isComplete ? 30 : 0);
-  if (pts >= 90) return { score: pts, label: "Ready A+", color: "bg-emerald-900/50 text-emerald-400 border-emerald-800" };
-  if (pts >= 70) return { score: pts, label: `Ready ${pts}%`, color: "bg-blue-900/50 text-blue-400 border-blue-800" };
-  if (pts >= 40) return { score: pts, label: `Pkg ${pts}%`, color: "bg-amber-900/50 text-amber-400 border-amber-800" };
-  return { score: pts, label: `Pkg ${pts}%`, color: "bg-red-900/50 text-red-400 border-red-800" };
+  const tooltip = `Packaging readiness: SEO ${item.hasSeo ? "✓" : "✗"} (40pts) · Thumbnail ${item.hasThumbnail ? "✓" : "✗"} (30pts) · Complete ${item.isComplete ? "✓" : "✗"} (30pts)`;
+  if (pts >= 90) return { score: pts, label: "Ready A+", color: "bg-emerald-900/50 text-emerald-400 border-emerald-800", tooltip };
+  if (pts >= 70) return { score: pts, label: `Ready ${pts}%`, color: "bg-blue-900/50 text-blue-400 border-blue-800", tooltip };
+  if (pts >= 40) return { score: pts, label: `Pkg ${pts}%`, color: "bg-amber-900/50 text-amber-400 border-amber-800", tooltip };
+  return { score: pts, label: `Pkg ${pts}%`, color: "bg-red-900/50 text-red-400 border-red-800", tooltip };
 }
 
 // ── Video card ────────────────────────────────────────────────────────────────
@@ -155,7 +168,7 @@ function VideoCard({ item }: { item: ShadowItem }) {
           <Badge
             className={`text-[10px] px-1.5 py-0 ml-auto ${asi.color}`}
             data-testid={`asi-rank-${item.id}`}
-            title="Packaging Readiness: SEO (40pts) + Thumbnail (30pts) + Complete (30pts)"
+            title={asi.tooltip}
           >
             {asi.label}
           </Badge>

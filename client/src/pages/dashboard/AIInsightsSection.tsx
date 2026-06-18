@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { safeArray } from "@/lib/safe-data";
@@ -20,7 +21,81 @@ import {
   Newspaper,
   Lightbulb,
   MessageSquare,
+  Brain,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+
+function MasterKnowledgeBankCard() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/asi/status"],
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+
+  if (isLoading) return (
+    <SectionErrorBoundary fallbackTitle="Knowledge bank unavailable">
+      <Card data-testid="card-mkb-loading">
+        <CardHeader className="pb-2"><Skeleton className="h-5 w-48" /></CardHeader>
+        <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+      </Card>
+    </SectionErrorBoundary>
+  );
+
+  if (!data) return null;
+
+  const accuracy = data.predictionAccuracy as number | null;
+  const topInsights = (data.topInsights ?? []) as Array<{ principle: string; confidence: number; category: string }>;
+
+  if (!topInsights.length && accuracy == null) return null;
+
+  return (
+    <SectionErrorBoundary fallbackTitle="Knowledge bank unavailable">
+      <Card data-testid="card-master-knowledge-bank">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Brain className="w-4 h-4 text-primary" />
+            Master Knowledge Bank
+            {data.totalKnowledgeItems != null && (
+              <Badge variant="secondary" className="ml-auto text-xs">{data.totalKnowledgeItems} items</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {accuracy != null && (
+            <div data-testid="stat-mkb-prediction-accuracy">
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <TrendingUp className="h-3 w-3" />Prediction accuracy
+                </span>
+                <span className="font-semibold text-emerald-400">{accuracy.toFixed(1)}%</span>
+              </div>
+              <Progress value={accuracy} className="h-1.5" />
+            </div>
+          )}
+          {topInsights.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Top knowledge (by confidence)</p>
+              <div className="space-y-2">
+                {topInsights.slice(0, 5).map((ins, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2 rounded-md bg-muted/30" data-testid={`mkb-insight-${i}`}>
+                    <span className="text-[10px] font-bold text-muted-foreground/50 w-5 shrink-0 mt-0.5">#{i + 1}</span>
+                    <p className="text-xs flex-1 line-clamp-2">{ins.principle}</p>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{ins.confidence}%</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {data.lastCycleAt && (
+            <p className="text-[10px] text-muted-foreground" data-testid="stat-mkb-last-cycle">
+              Last cycle: {new Date(data.lastCycleAt).toLocaleString()}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </SectionErrorBoundary>
+  );
+}
 
 type AIResponse = any;
 
@@ -135,6 +210,8 @@ export default function AIInsightsSection() {
         defaultExpanded={true}
         maxItems={4}
       />
+
+      <MasterKnowledgeBankCard />
 
       {(aiMilestones || aiMilestonesLoading) && (
         <SectionErrorBoundary fallbackTitle="AI Milestones failed to load">

@@ -300,6 +300,123 @@ function DemandInsightsCard() {
   );
 }
 
+function DurationIntelligenceCard() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/youtube/output-status"],
+    staleTime: 3 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Card className="card-empire" data-testid="card-duration-intelligence-loading">
+        <CardHeader className="pb-3"><Skeleton className="h-5 w-40" /></CardHeader>
+        <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+      </Card>
+    );
+  }
+
+  const buckets = data?.learning?.buckets ?? [];
+  const bestDuration = data?.learning?.bestDurationBucket;
+  const bestShort = data?.learning?.bestShortBucket;
+  const bestWindow = data?.learning?.bestPostingWindow;
+
+  if (!data) return null;
+
+  return (
+    <Card className="card-empire" data-testid="card-duration-intelligence">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Gauge className="h-4 w-4 text-primary" />
+          Duration Intelligence
+          {bestDuration && (
+            <Badge variant="outline" className="ml-auto text-[10px] text-emerald-400 border-emerald-500/30">
+              Best: {bestDuration}
+            </Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {buckets.length > 0 ? (
+          <div className="space-y-2">
+            {bestShort && (
+              <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30" data-testid="stat-best-short-bucket">
+                <span className="text-muted-foreground">Best Short duration</span>
+                <Badge variant="secondary" className="text-[10px]">{bestShort}</Badge>
+              </div>
+            )}
+            {bestWindow && (
+              <div className="flex items-center justify-between text-xs p-2 rounded bg-muted/30" data-testid="stat-best-posting-window">
+                <span className="text-muted-foreground">Best posting window</span>
+                <Badge variant="secondary" className="text-[10px]">{bestWindow}</Badge>
+              </div>
+            )}
+            {buckets.slice(0, 4).map((b: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-xs p-2 rounded bg-muted/30" data-testid={`duration-bucket-${i}`}>
+                <span className="font-medium">{b.bucket}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{b.avgViews != null ? `${Number(b.avgViews).toFixed(0)} avg views` : "—"}</span>
+                  {i === 0 && <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-400">Best</Badge>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center py-4">
+            No duration data yet — needs published long-form videos
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function HookRankingCard() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/asi/intelligence", "content"],
+    queryFn: () => fetch("/api/asi/intelligence?context=content").then(r => r.json()),
+    staleTime: 10 * 60_000,
+  });
+
+  const hooks = (data?.intelligence ?? []).filter((i: any) =>
+    i.category === "content-grinder" || i.category === "prompt-evolution" || i.category === "performance",
+  ).slice(0, 5);
+
+  if (isLoading) {
+    return (
+      <Card className="card-empire" data-testid="card-hook-ranking-loading">
+        <CardHeader className="pb-3"><Skeleton className="h-5 w-40" /></CardHeader>
+        <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+      </Card>
+    );
+  }
+
+  if (!hooks.length) return null;
+
+  return (
+    <Card className="card-empire" data-testid="card-hook-ranking">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          Hook Intelligence Ranking
+          <Badge variant="outline" className="ml-auto text-[10px]">{hooks.length} signals</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          {hooks.map((item: any, i: number) => (
+            <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30" data-testid={`hook-rank-${i}`}>
+              <span className="text-[10px] font-bold text-muted-foreground/50 w-5 shrink-0 mt-0.5">#{i + 1}</span>
+              <p className="text-xs line-clamp-2 flex-1">{item.principle}</p>
+              <Badge variant="outline" className="text-[10px] shrink-0">{item.confidence}%</Badge>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ContentIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="content-intelligence-tab">
@@ -316,6 +433,10 @@ export default function ContentIntelligenceTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DecisionFeedCard />
         <ContentVelocityCard />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DurationIntelligenceCard />
+        <HookRankingCard />
       </div>
       <DemandInsightsCard />
       <AIToolsTab />

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,6 @@ import {
   Server,
 } from "lucide-react";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
-import ASIInsightPanel from "@/components/ASIInsightPanel";
 
 interface Diagnosis {
   rootCause?: string;
@@ -347,6 +347,24 @@ export default function MissionControl() {
     staleTime: 60_000,
   });
 
+  const { data: asiIntelligence } = useQuery<{ intelligence: Array<{ principle: string; confidence: number; engines: string[] }> }>({
+    queryKey: ["/api/asi/intelligence", "settings"],
+    queryFn: () => fetch("/api/asi/intelligence?context=settings").then(r => r.json()),
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+
+  const engineInsightMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const item of asiIntelligence?.intelligence ?? []) {
+      for (const eng of item.engines ?? []) {
+        const key = eng.toLowerCase();
+        if (!map[key]) map[key] = item.principle;
+      }
+    }
+    return map;
+  }, [asiIntelligence]);
+
   if (healthLoading && enginesLoading) {
     return <MissionControlSkeleton />;
   }
@@ -477,6 +495,11 @@ export default function MissionControl() {
             {enginesData.engines.map((engine: any, i: number) => {
               const engineSlug = engine.name?.toLowerCase().replace(/\s+/g, "-") ?? String(i);
               const isOk = ["healthy", "ok", "up"].includes(engine.status?.toLowerCase());
+              const engineKey = engine.name?.toLowerCase() ?? "";
+              const engineInsight = engineInsightMap[engineKey] ??
+                Object.entries(engineInsightMap).find(
+                  ([k]) => engineKey.includes(k) || k.includes(engineKey.split("-")[0] ?? ""),
+                )?.[1] ?? null;
               return (
                 <div
                   key={engine.name ?? i}
@@ -508,6 +531,15 @@ export default function MissionControl() {
                       <span className="text-xs text-muted-foreground tabular-nums">{formatTs(engine.lastRun)}</span>
                     </div>
                   )}
+                  {engineInsight && (
+                    <p
+                      className="text-[10px] text-muted-foreground/60 italic line-clamp-2 border-t border-muted/20 pt-1.5"
+                      data-testid={`engine-insight-${engineSlug}`}
+                      title={engineInsight}
+                    >
+                      {engineInsight}
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -526,13 +558,6 @@ export default function MissionControl() {
         </Card>
       )}
 
-      <ASIInsightPanel
-        context="settings"
-        title="System Intelligence — Last Brain Insights"
-        defaultExpanded={false}
-        maxItems={3}
-        compact
-      />
     </div>
   );
 }

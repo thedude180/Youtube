@@ -5,10 +5,94 @@ import { safeArray } from "@/lib/safe-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, BookOpen, ChevronDown, ChevronUp, Brain, TrendingUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
 import ASIInsightPanel from "@/components/ASIInsightPanel";
+
+function ASIBrainStateCard() {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/asi/status"],
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Card data-testid="card-asi-brain-loading">
+        <CardHeader className="pb-2"><Skeleton className="h-5 w-48" /></CardHeader>
+        <CardContent><Skeleton className="h-32 w-full" /></CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) return null;
+
+  const accuracy = data.predictionAccuracy as number | null;
+  const categories = (data.categoryBreakdown ?? {}) as Record<string, number>;
+  const topInsights = (data.topInsights ?? []) as Array<{ principle: string; confidence: number; category: string }>;
+  const totalKnowledge = data.totalKnowledgeItems as number | null;
+  const lastCycle = data.lastCycleAt as string | null;
+
+  return (
+    <Card data-testid="card-asi-brain-state">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Brain className="h-4 w-4 text-primary" />
+          ASI Brain State
+          {totalKnowledge != null && (
+            <Badge variant="secondary" className="ml-auto text-xs">{totalKnowledge} items</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {accuracy != null && (
+          <div data-testid="stat-prediction-accuracy">
+            <div className="flex items-center justify-between text-xs mb-1">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <TrendingUp className="h-3 w-3" />Prediction accuracy
+              </span>
+              <span className="font-semibold">{accuracy.toFixed(1)}%</span>
+            </div>
+            <Progress value={accuracy} className="h-1.5" />
+          </div>
+        )}
+        {Object.keys(categories).length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Knowledge by category</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {Object.entries(categories).sort(([,a],[,b]) => (b as number)-(a as number)).slice(0, 6).map(([cat, cnt]) => (
+                <div key={cat} className="flex items-center justify-between p-1.5 rounded bg-muted/30 text-xs" data-testid={`category-${cat}`}>
+                  <span className="capitalize text-muted-foreground truncate">{cat}</span>
+                  <span className="font-semibold ml-1">{cnt as number}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {topInsights.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Top insights</p>
+            <div className="space-y-1.5">
+              {topInsights.slice(0, 3).map((ins, i) => (
+                <div key={i} className="flex items-start gap-2 p-2 rounded bg-muted/30" data-testid={`brain-insight-${i}`}>
+                  <p className="text-xs flex-1 line-clamp-2">{ins.principle}</p>
+                  <Badge variant="outline" className="text-[10px] shrink-0">{ins.confidence}%</Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {lastCycle && (
+          <p className="text-[10px] text-muted-foreground" data-testid="stat-last-cycle">
+            Last cycle: {new Date(lastCycle).toLocaleString()}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 type AIResponse = any;
 
@@ -144,6 +228,7 @@ function LearningTab() {
         defaultExpanded={true}
         maxItems={4}
       />
+      <ASIBrainStateCard />
       {aiAcademyLoading ? (
         <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-academy" />
       ) : aiAcademy ? (

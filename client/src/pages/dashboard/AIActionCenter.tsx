@@ -1,8 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, CheckCircle2, TrendingUp, Brain, AlertTriangle } from "lucide-react";
+import { Sparkles, CheckCircle2, TrendingUp, Brain, AlertTriangle, Check, X } from "lucide-react";
 import { safeArray } from "@/lib/safe-data";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
@@ -21,6 +24,8 @@ interface AIActionCenterProps {
 }
 
 function DecisionLogSection() {
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
   const { data, isLoading } = useQuery<DecisionEntry[]>({
     queryKey: ["/api/youtube/ai-orchestrator/decision-log"],
     staleTime: 2 * 60_000,
@@ -28,7 +33,12 @@ function DecisionLogSection() {
     retry: 1,
   });
 
-  const pending = (data ?? []).filter(d => d.approvalRequired).slice(0, 3);
+  const acknowledgeMutation = useMutation({
+    mutationFn: (task: string) =>
+      apiRequest("POST", "/api/youtube/ai-orchestrator/decision-log/acknowledge", { task }),
+  });
+
+  const pending = (data ?? []).filter(d => d.approvalRequired && !dismissed.has(d.task)).slice(0, 3);
   const recent = (data ?? []).filter(d => !d.approvalRequired).slice(0, 3);
 
   if (isLoading) return <Skeleton className="h-8 w-full mt-2" />;
@@ -53,6 +63,30 @@ function DecisionLogSection() {
               <p className="text-[9px] text-muted-foreground/50">
                 {new Date(entry.ts).toLocaleString()}
               </p>
+              <div className="flex gap-1 mt-1.5 justify-end">
+                <Button
+                  data-testid={`button-approve-${i}`}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[10px] text-emerald-400 hover:bg-emerald-500/10"
+                  disabled={acknowledgeMutation.isPending}
+                  onClick={() => {
+                    acknowledgeMutation.mutate(entry.task);
+                    setDismissed(prev => new Set([...prev, entry.task]));
+                  }}
+                >
+                  <Check className="w-3 h-3 mr-0.5" />Approve
+                </Button>
+                <Button
+                  data-testid={`button-dismiss-${i}`}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[10px] text-muted-foreground hover:bg-muted/30"
+                  onClick={() => setDismissed(prev => new Set([...prev, entry.task]))}
+                >
+                  <X className="w-3 h-3 mr-0.5" />Dismiss
+                </Button>
+              </div>
             </div>
           ))}
         </>

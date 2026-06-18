@@ -42,7 +42,7 @@ export function registerASIRoutes(app: Express): void {
           eq(masterKnowledgeBank.isActive, true),
         ))
         .orderBy(desc(masterKnowledgeBank.confidenceScore))
-        .limit(3);
+        .limit(5);
 
       const negativeCount = await db.select({ count: sql<number>`COUNT(*)` })
         .from(masterKnowledgeBank)
@@ -51,6 +51,34 @@ export function registerASIRoutes(app: Express): void {
           eq(masterKnowledgeBank.isActive, true),
           eq(masterKnowledgeBank.category, "negative_pattern"),
         ));
+
+      const predCalibRows = await db.select({
+        confidenceScore: masterKnowledgeBank.confidenceScore,
+      }).from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.isActive, true),
+          eq(masterKnowledgeBank.category, "prediction_calibration"),
+        ))
+        .limit(20);
+
+      const predictionAccuracy = predCalibRows.length > 0
+        ? Math.round(predCalibRows.reduce((s, r) => s + (r.confidenceScore ?? 50), 0) / predCalibRows.length)
+        : null;
+
+      const categoryRows = await db.select({
+        category: masterKnowledgeBank.category,
+        cnt: sql<number>`COUNT(*)::int`,
+      }).from(masterKnowledgeBank)
+        .where(and(
+          eq(masterKnowledgeBank.userId, userId),
+          eq(masterKnowledgeBank.isActive, true),
+        ))
+        .groupBy(masterKnowledgeBank.category);
+
+      const categoryBreakdown = Object.fromEntries(
+        categoryRows.map(r => [r.category ?? "unknown", Number(r.cnt)]),
+      );
 
       const strategicDirective = await db.select({ principle: masterKnowledgeBank.principle })
         .from(masterKnowledgeBank)
@@ -82,6 +110,8 @@ export function registerASIRoutes(app: Express): void {
         orchestratorRunning: orchestratorStatus ? !orchestratorStatus.activeCycleRunning : false,
         lastOrchestration: orchestratorStatus?.lastFullCycleAt ?? null,
         topInsight: (learningSummary as any)?.topInsight ?? null,
+        predictionAccuracy,
+        categoryBreakdown,
       });
     } catch (err: any) {
       res.status(500).json({ error: "Failed to fetch ASI status", detail: err.message });
