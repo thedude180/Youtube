@@ -98,6 +98,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   100: { name: "Skip Competitor Vault Entries", category: "cleanup", description: "Marks ~7,357 non-channel competitor videos (AC Valhalla, Mass Effect, Spider-Man etc.) as permanently skipped in the vault for the real user. Cancels associated autopilot_queue items. Focuses vault 100% on ET Gaming 274's own back-catalog." },
   101: { name: "Purge Ghost-User Vault Rows + GoQ Storm", category: "cleanup", description: "Deletes ALL non-real-user vault rows (ghost/demo/tiktok_ accounts whose indexed rows still feed InnerTube 400 storms). Cancels 18 scheduled GoQ-za4UPn4 queue items that survived the PERM_UNAVAILABLE cascade. Marks GoQ-za4UPn4 permanently failed." },
   102: { name: "Fix Game Mismatches + Purge Short Contamination", category: "data", description: "Corrects 3 wrong game_name values (Dragon Age/GTA-V→Assassin's Creed). Removes 232 autopilot-published Shorts from back_catalog_videos (they are channel output, not source material). Marks their vault entries as skipped." },
+  103: { name: "Cancel YstycEObOiU Storm + Reset Stale Downloaded Vault", category: "cleanup", description: "Cancels all autopilot_queue items sourced from YstycEObOiU (vault=skipped/permanentFail, all yt-dlp clients fail). Resets oOvbZwsaeKI/njNPrR65YBs/vwrQy2LdGJU vault entries from 'downloaded' to 'indexed' (file lost across container restart) so vault downloader re-fetches them and pre-encoder can use vault-first trim path." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -5923,6 +5924,115 @@ async function migration102FixGameMismatchesAndPurgeShortContamination(): Promis
   }
 }
 
+// ── Migration 103: Cancel YstycEObOiU storm + reset stale downloaded vault ───
+async function migration103CancelYstycAndResetStaleVault(): Promise<void> {
+  const FLAG = "migration:103:cancel_ystyceoboiu_reset_stale_vault_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+
+    // ── Step 1: Cancel all scheduled YstycEObOiU queue items ─────────────────
+    // vault status='skipped' with failCount=10/permanentFail=true.
+    // The pre-encoder was not checking for 'skipped' vault status (only 'failed')
+    // so it fell through to section download → "Failed to extract any player
+    // response" on every item every cycle.
+    const r1 = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-103: YstycEObOiU vault=skipped/permanentFail — all yt-dlp clients fail',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-103:YstycEObOiU-permanently-inaccessible"}'::jsonb
+      WHERE user_id = '${REAL_USER}'
+        AND metadata->>'sourceYoutubeId' = 'YstycEObOiU'
+        AND status IN ('scheduled','pending','processing')
+    `));
+    log.info(`[Migration 103] YstycEObOiU queue items cancelled: ${(r1 as any)?.rowCount ?? 0}`);
+
+    // ── Step 2: Reset stale 'downloaded' vault entries for the 3 videos ──────
+    // oOvbZwsaeKI, njNPrR65YBs, vwrQy2LdGJU: vault DB says 'downloaded' with
+    // a file_path, but the physical files were lost when the container restarted
+    // after the last deployment.  Pre-encoder found the DB record, got false
+    // from fs.existsSync, fell through to section download → "Failed to extract
+    // any player response" (YouTube rejecting bot-like section-dl requests).
+    // Fix: reset these 3 entries to 'indexed' so the vault downloader re-fetches
+    // the full source videos.  Once downloaded, the pre-encoder will use the
+    // vault-first (FFmpeg trim) path instead of yt-dlp section download.
+    const STALE_IDS = ['oOvbZwsaeKI', 'njNPrR65YBs', 'vwrQy2LdGJU'];
+    let resetCount = 0;
+    for (const ytId of STALE_IDS) {
+      const r = await db.execute(sql.raw(`
+        UPDATE content_vault_backups
+        SET status         = 'indexed',
+            file_path      = NULL,
+            download_error = NULL,
+            metadata       = COALESCE(metadata, '{}'::jsonb)
+                          || '{"resetBy":"migration-103","resetReason":"file-missing-post-restart"}'::jsonb
+        WHERE youtube_id = '${ytId}'
+          AND user_id    = '${REAL_USER}'
+          AND status     = 'downloaded'
+      `));
+      const n = (r as any)?.rowCount ?? 0;
+      resetCount += n;
+      if (n > 0) log.info(`[Migration 103] Reset vault for ${ytId} → indexed (${n} row)`);
+    }
+    log.info(`[Migration 103] Total stale-downloaded vault entries reset: ${resetCount}`);
+
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 103] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Non-flagged per-boot: reset stale 'downloaded' vault entries ─────────────
+// When the production container restarts after a new deployment, vault files on
+// ephemeral local disk are lost.  Any vault entry that says status='downloaded'
+// with a file_path pointing to a now-missing file will cause the pre-encoder to
+// fall through to yt-dlp section download, which fails with "Failed to extract
+// any player response".  This non-flagged cleanup detects and resets those
+// entries every boot so the vault downloader can re-fetch them.
+async function resetStaleDownloadedVaultEntries(): Promise<void> {
+  try {
+    const { existsSync } = await import("fs");
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+
+    // Query all downloaded vault entries for the real user that have a file_path
+    const result = await db.execute(sql.raw(`
+      SELECT id, youtube_id, file_path
+      FROM content_vault_backups
+      WHERE user_id = '${REAL_USER}'
+        AND status  = 'downloaded'
+        AND file_path IS NOT NULL
+      LIMIT 500
+    `));
+    const rows = (result as any)?.rows ?? [];
+
+    let resetCount = 0;
+    for (const row of rows) {
+      const filePath = row.file_path as string | null;
+      if (!filePath || existsSync(filePath)) continue;
+      // File missing on disk — reset to indexed for re-download
+      await db.execute(sql.raw(`
+        UPDATE content_vault_backups
+        SET status         = 'indexed',
+            file_path      = NULL,
+            download_error = NULL,
+            metadata       = COALESCE(metadata, '{}'::jsonb)
+                          || '{"resetBy":"resetStaleDownloadedVault","resetReason":"file-missing-post-restart"}'::jsonb
+        WHERE id     = ${Number(row.id)}
+          AND status = 'downloaded'
+      `));
+      resetCount++;
+    }
+
+    if (resetCount > 0) {
+      log.info(`[VaultStaleReset] Reset ${resetCount} stale 'downloaded' vault entries to 'indexed' (file missing on disk) — vault downloader will re-fetch`);
+    }
+  } catch (err: any) {
+    log.warn(`[VaultStaleReset] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+  }
+}
+
 // ── Non-flagged: skip non-BF6 indexed vault entries every boot ───────────────
 // Root cause of yt-dlp slot starvation: 133 non-BF6 vault entries (AC Valhalla,
 // Dragon Age, God of War, etc.) sit in status='indexed' and get picked up by the
@@ -6149,6 +6259,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration100SkipCompetitorVaultEntries();
     await migration101PurgeGhostVaultRowsAndGoQStorm();
     await migration102FixGameMismatchesAndPurgeShortContamination();
+    await migration103CancelYstycAndResetStaleVault();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6161,6 +6272,11 @@ export async function runStartupMigrations(): Promise<void> {
       log.warn(`[StartupMigrations] Creative library seed failed (non-fatal): ${err?.message}`);
     }
 
+    // Non-flagged per-boot: reset stale 'downloaded' vault entries whose files
+    // are missing from disk (lost across container restart/deployment).  Runs
+    // BEFORE any downloader or publisher starts so they get 'indexed' entries
+    // that the vault downloader can re-fetch immediately.
+    await resetStaleDownloadedVaultEntries();
     // Non-flagged boot cleanup — runs every restart, resets stuck pending items
     await cleanupStuckPendingItems();
     // Non-flagged per-boot OOM crash-loop prevention — cancels known long
@@ -6200,11 +6316,12 @@ export async function runStartupMigrations(): Promise<void> {
       logEvent({
         eventType: "migration",
         service:   "startup-migrations",
-        title:     `Boot-heal complete — ${102} migrations registered, per-boot cleanups ran`,
+        title:     `Boot-heal complete — ${103} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  102,
+          totalMigrations:  103,
           perBootCleanups: [
+            "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",
             "cleanupNonBF6QueueItems",
             "cleanupNonBF6IndexedVaultEntries",

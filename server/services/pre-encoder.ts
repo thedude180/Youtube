@@ -731,6 +731,36 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
 
       if (downloadedEntry?.filePath && fs.existsSync(downloadedEntry.filePath)) {
         vaultFilePath = downloadedEntry.filePath;
+      } else if (downloadedEntry?.filePath) {
+        // ── Stale 'downloaded' entry — file lost across container restart ──────
+        // The vault DB says 'downloaded' with a filePath, but the physical file
+        // no longer exists on disk (typical after a new deployment wipes the
+        // container filesystem).  Attempting a yt-dlp section download in this
+        // state always fails with "Failed to extract any player response" because
+        // YouTube now requires cookies/auth for section-dl on these videos.
+        // Fix: reset vault back to 'indexed' so the perpetual vault downloader
+        // re-fetches the full video; defer this encode item for the next cycle.
+        logger.warn(
+          `[PreEncoder] Vault for ${resolvedSourceYoutubeId} says 'downloaded' but ` +
+          `file missing on disk (${downloadedEntry.filePath}) — resetting to 'indexed' for re-download`,
+        );
+        try {
+          const { sql: vSql } = await import("drizzle-orm");
+          await vaultDb.execute(vSql.raw(
+            `UPDATE content_vault_backups SET status='indexed', file_path=NULL, download_error=NULL ` +
+            `WHERE youtube_id='${resolvedSourceYoutubeId}' AND status='downloaded'`,
+          ));
+          const { queueVaultDownloadForSource } = await import("./video-vault");
+          queueVaultDownloadForSource(item.userId as string, resolvedSourceYoutubeId).catch(() => {});
+        } catch (_) {}
+        try {
+          const prevDeferred = typeof meta.preEncoderDeferCount === "number" ? meta.preEncoderDeferCount : 0;
+          await db.update(autopilotQueue)
+            .set({ metadata: { ...meta, preEncoderDeferCount: prevDeferred + 1, preEncoderLastDeferred: new Date().toISOString() } as any })
+            .where(and(eq(autopilotQueue.id, item.id), inArray(autopilotQueue.status, ["scheduled", "pending"])));
+        } catch (_) {}
+        skipped++;
+        continue;
       } else {
         // No downloaded file — check if indexed (vault knows about it but hasn't downloaded yet)
         const [indexedEntry] = await vaultDb
@@ -771,33 +801,25 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
           continue;
         }
 
-        // Check for permanently failed vault entry — skip completely.
-        // vault status='failed' means the downloader gave up on this video.
-        // Never attempt a section download for it — it will fail for the same
-        // reason the vault download failed (geo-block, 400 all-clients, etc.).
-        // Bug fixed: original code used (failCount ?? 1) which defaults null→1,
-        // so entries with permanentFail=true but no failCount were never skipped.
-        const [failedEntry] = await vaultDb
-          .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata })
+        // Check for permanently failed OR skipped vault entry — skip completely.
+        // vault status='failed'/'skipped' means the downloader definitively gave up
+        // or the video was explicitly excluded.  Never attempt a section download —
+        // it will fail for the same reason (HTTP 400 all-clients, geo-block, etc.).
+        const [pFailEntry] = await vaultDb
+          .select({ id: contentVaultBackups.id, metadata: contentVaultBackups.metadata, status: contentVaultBackups.status })
           .from(contentVaultBackups)
           .where(vAnd(
             vEq(contentVaultBackups.youtubeId, resolvedSourceYoutubeId),
-            vEq(contentVaultBackups.status, "failed"),
+            sql`${contentVaultBackups.status} IN ('failed', 'skipped')`,
           ))
           .limit(1);
-        if (failedEntry) {
-          // vault status='failed' means the downloader definitively gave up.
-          // Section download fails for the same reason (HTTP 400 all-clients,
-          // geo-block, player response error, etc.) — never attempt it.
-          // Note: original code gated on (failCount ?? 1) >= 3 which defaulted
-          // null failCount to 1, silently bypassing this skip for entries like
-          // hBylGNbIT88 that have permanentFail=true but no failCount recorded.
-          const vaultMeta  = failedEntry.metadata as Record<string, unknown> | null;
-          const pf         = vaultMeta?.permanentFail === true;
-          const fc         = (vaultMeta?.failCount as number) ?? 0;
+        if (pFailEntry) {
+          const vaultMeta = pFailEntry.metadata as Record<string, unknown> | null;
+          const pf        = vaultMeta?.permanentFail === true;
+          const fc        = (vaultMeta?.failCount as number) ?? 0;
           logger.info(
             `[PreEncoder] Skipping item ${item.id} — source ${resolvedSourceYoutubeId} ` +
-            `vault=failed (permanentFail=${pf}, failCount=${fc}) — section-dl would fail`,
+            `vault=${pFailEntry.status} (permanentFail=${pf}, failCount=${fc}) — section-dl would fail`,
           );
           skipped++;
           continue;
@@ -957,7 +979,10 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
         errMsg.includes("Requested format is not available") ||
         errMsg.includes("format is not available") ||
         errMsg.includes("This video is not available") ||
-        errMsg.includes("Video unavailable");
+        errMsg.includes("Video unavailable") ||
+        errMsg.includes("Failed to extract any player response") ||
+        errMsg.includes("No video formats found") ||
+        errMsg.includes("Unable to extract");
 
       const prevCount = typeof meta.preEncoderFailCount === "number" ? meta.preEncoderFailCount : 0;
 

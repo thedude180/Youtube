@@ -38,7 +38,7 @@ export async function runChannelBackupSweep(): Promise<{ created: number; total:
     const [countRow] = await db.execute(sql`
       SELECT COUNT(*) AS n FROM back_catalog_videos
       WHERE youtube_video_id IS NOT NULL AND youtube_video_id != ''
-    `) as any[];
+    `) as unknown as any[];
     const total = parseInt(countRow?.n ?? "0", 10);
 
     // Insert vault entries for every catalog video not yet in the vault.
@@ -123,7 +123,7 @@ export async function getChannelBackupStatus(userId: string): Promise<{
       SELECT COUNT(*) AS n FROM back_catalog_videos
       WHERE user_id = ${userId}
         AND youtube_video_id IS NOT NULL AND youtube_video_id != ''
-    `) as any[];
+    `) as unknown as any[];
     const totalChannelVideos = parseInt(totalRow?.n ?? "0", 10);
 
     const [statsRow] = await db.execute(sql`
@@ -135,7 +135,7 @@ export async function getChannelBackupStatus(userId: string): Promise<{
       FROM content_vault_backups
       WHERE user_id = ${userId}
         AND (metadata->>'backupOnly')::boolean = true
-    `) as any[];
+    `) as unknown as any[];
 
     const backedUp         = parseInt(statsRow?.backed_up  ?? "0", 10);
     const queued           = parseInt(statsRow?.queued      ?? "0", 10);
@@ -153,7 +153,7 @@ export async function getChannelBackupStatus(userId: string): Promise<{
         AND status = 'downloaded'
       ORDER BY downloaded_at DESC NULLS LAST
       LIMIT 12
-    `) as any[];
+    `) as unknown as any[];
 
     const rows = (recentRows as any).rows ?? recentRows;
     const recentDownloads = (Array.isArray(rows) ? rows : []).map((r: any) => ({
