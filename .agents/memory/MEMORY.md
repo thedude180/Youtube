@@ -1,3 +1,4 @@
+- [gpt-5 temperature rejection](gpt5-temperature.md) — gpt-5 rejects any temperature≠default with HTTP 400; strip at client layer in openai.ts (both factories) so 40+ callers are fixed in one place.
 - [Cutscene editor + Shorts pipeline](cutscene-editor-shorts-pipeline.md) — cutscene-editor.ts: GPT-4o vision detects cutscenes, 3 modes (single/all-on-screen/dialog-flip); encodeShort uses _skipCutsceneDetection flag to prevent recursion on fallback; backupOnly vault tag exempts channel Short backups from BF6 cleanup; Phase E in growth engine for Shorts SEO.
 - [AI 401 circuit breaker](ai-401-circuit-breaker.md) — Replit AI 401 → global 1h backoff; backlog-engine must break loop on 401 not continue; server/lib/ai-auth-guard.ts.
 - [Midnight quota-reset race](midnight-quota-race.md) — quota-reset-audit re-trips breaker at midnight before publishers run; fix: bypassBreakerCheck:true + 5-min audit delay.

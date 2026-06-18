@@ -32,9 +32,10 @@ interface TaskMapping {
 
 const TASK_MAPPINGS: Record<string, TaskMapping> = {
   // Fast background tasks — gpt-5 is right for these (high volume, low latency, no quality gap)
-  quick_suggestion:       { model: "gpt-5",              maxTokens: 512,  temperature: 0.7, priority: "low" },
-  memory_distillation:    { model: "gpt-5",              maxTokens: 2048, temperature: 0.3, priority: "low" },
-  quality_scoring:        { model: "gpt-5",              maxTokens: 1024, temperature: 0.2, priority: "medium" },
+  // NOTE: gpt-5 only supports the default temperature (1.0) — do not set temperature here
+  quick_suggestion:       { model: "gpt-5",              maxTokens: 512,  priority: "low" },
+  memory_distillation:    { model: "gpt-5",              maxTokens: 2048, priority: "low" },
+  quality_scoring:        { model: "gpt-5",              maxTokens: 1024, priority: "medium" },
 
   // Content & optimization tasks — Claude Sonnet: best-in-class writing and SEO intelligence
   title_optimization:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
@@ -145,15 +146,19 @@ export async function executeRoutedAICall(
       tokensUsed = result.inputTokens + result.outputTokens;
     } else {
       const client = getOpenAIClientBackground();
-      const response = await client.chat.completions.create({
+      const oaiParams: Parameters<typeof client.chat.completions.create>[0] = {
         model: routing.model,
         max_completion_tokens: routing.maxTokens,
-        temperature: routing.temperature,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-      });
+      };
+      // gpt-5 only supports the default temperature (1.0); omit the parameter entirely
+      if (routing.model !== "gpt-5" && routing.temperature !== undefined) {
+        (oaiParams as any).temperature = routing.temperature;
+      }
+      const response = await client.chat.completions.create(oaiParams);
       content = response.choices[0]?.message?.content || "";
       tokensUsed = response.usage?.total_tokens || 0;
       promptTokens = response.usage?.prompt_tokens || 0;

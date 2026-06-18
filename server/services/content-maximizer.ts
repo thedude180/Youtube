@@ -607,7 +607,6 @@ Return ONLY valid JSON:
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 5000,
-      temperature: 0.75,
     });
 
     const content = resp.choices[0]?.message?.content || "{}";
