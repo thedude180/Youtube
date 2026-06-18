@@ -5458,24 +5458,23 @@ async function cancelLongStreamEditJobs(): Promise<void> {
       );
     }
 
-    // Layer C: cancel any queued job whose source video exceeds 2 hours.
-    // These are the root cause of the 33-min MemoryGuardian OOM cycle — FFmpeg
-    // on a 2h+ source holds peak memory for ~20 min → MemoryGuardian trips.
-    // source_duration_secs is a direct column (not metadata JSON), so this
-    // is a fast, safe query.  Short jobs (<= 7200s) are unaffected and will
-    // be processed normally by the stream editor after startup recovery.
+    // Layer C: detect long-source queued jobs (log only — do NOT cancel).
+    // The stream editor now processes long videos in 20-min segments using a
+    // per-run time gate.  completedClips + outputFiles persist as the resume
+    // cursor so each boot picks up where the last one left off.  Blanket
+    // cancellation here would delete that progress; we log for observability only.
     const rLong = await db.execute(sql.raw(`
-      UPDATE stream_edit_jobs
-      SET status = 'cancelled'
+      SELECT COUNT(*) AS cnt
+      FROM stream_edit_jobs
       WHERE status = 'queued'
         AND source_duration_secs IS NOT NULL
         AND source_duration_secs > 7200
     `));
-    const cancelledLong = (rLong as any)?.rowCount ?? 0;
-    if (cancelledLong > 0) {
+    const longQueued = Number((rLong as any)?.rows?.[0]?.cnt ?? 0);
+    if (longQueued > 0) {
       log.info(
-        `[Boot] Cancelled ${cancelledLong} long-source queued stream_edit_job(s) ` +
-        `(source_duration_secs > 7200 → prevents MemoryGuardian OOM cycle)`
+        `[Boot] ${longQueued} long-source queued stream_edit_job(s) detected ` +
+        `(source_duration_secs > 7200 → will auto-segment in 20-min runs)`
       );
     }
   } catch (err: any) {

@@ -4,7 +4,7 @@ import { spawn } from "child_process";
 import { getFocusGame } from "../lib/game-focus";
 import { db } from "../db";
 import { streamEditJobs, contentVaultBackups } from "@shared/schema";
-import { eq, and, or, sql, inArray } from "drizzle-orm";
+import { eq, and, or, sql, inArray, notInArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { packageClips } from "./stream-editor-packager";
 import {
@@ -15,6 +15,16 @@ import {
 } from "./clip-intelligence";
 
 const logger = createLogger("stream-editor");
+
+// Per-run encoding limit: pause and requeue after this many ms of active encoding.
+// Keeps any single container run well under MemoryGuardian's ~33-min OOM threshold.
+// completedClips + outputFiles persist in the DB as the resume cursor so the job
+// continues from where it left off on the next boot — nothing is lost.
+const PER_RUN_LIMIT_MS = 20 * 60 * 1000; // 20 min
+
+// Jobs paused mid-run this session. pickUpNextQueuedJob() skips these so they
+// don't immediately re-run and OOM — they resume on the next container boot.
+const _pausedJobIdsThisSession = new Set<number>();
 
 const FFMPEG_BIN = "ffmpeg";
 const FFPROBE_BIN = "ffprobe";
@@ -546,9 +556,14 @@ async function pickUpNextQueuedJob(): Promise<void> {
     // download go last — they must wait for the vault download processor to pull
     // the video before encoding can start, and letting them cut the queue blocks
     // all the ready-to-encode jobs behind them.
+    const pausedIds = [..._pausedJobIdsThisSession];
     const waiting = await db.select({ id: streamEditJobs.id })
       .from(streamEditJobs)
-      .where(eq(streamEditJobs.status, "queued"))
+      .where(
+        pausedIds.length > 0
+          ? and(eq(streamEditJobs.status, "queued"), notInArray(streamEditJobs.id, pausedIds))
+          : eq(streamEditJobs.status, "queued")
+      )
       .orderBy(
         sql`CASE WHEN ${streamEditJobs.downloadFirst} = false THEN 0 ELSE 1 END`,
         streamEditJobs.createdAt,
@@ -1050,15 +1065,18 @@ async function runJobInBackground(jobId: number): Promise<void> {
       return;
     }
 
-    const totalTasks     = jobSegments.length;
-    let completedTasks   = 0;
+    const totalTasks    = jobSegments.length;
+    // Resume logic: completedClips and outputFiles persist across reboots in the DB.
+    // On first run both are 0 / []. On a resume, we start from where we left off.
+    const resumeFromIdx = Math.min(job!.completedClips ?? 0, totalTasks - 1 < 0 ? 0 : totalTasks - 1);
+    let completedTasks  = resumeFromIdx > 0 ? resumeFromIdx : 0;
     const outputFiles: Array<{
       platform: string; clipIndex: number; label: string;
       filePath: string; fileSize: number; durationSecs: number;
       startSec?: number;
       extractedThumbnailPath?: string;
       studioVideoId?: number; scheduledPublishAt?: string;
-    }> = [];
+    }> = resumeFromIdx > 0 ? [...((job!.outputFiles as any[]) ?? [])] : [];
 
     const genre = detectGenre(gameName);
     logger.info(
@@ -1081,7 +1099,19 @@ async function runJobInBackground(jobId: number): Promise<void> {
     // Tier 3: low-motion guard probes each segment before encoding — static scenes
     // (menus, loading, lobby) skip the colour grade so the LUT isn't applied to
     // frames that are already black or UI-only.
+    const runStartedAt = Date.now();
+    if (resumeFromIdx > 0) {
+      logger.info(`[StreamEditor] Job ${jobId}: ▶ resuming from clip ${resumeFromIdx + 1}/${totalTasks} (${totalTasks - resumeFromIdx} remaining)`);
+    }
+    let segIdx = 0;
     for (const seg of jobSegments) {
+      // Skip segments already encoded in a prior run
+      if (segIdx < resumeFromIdx) {
+        segIdx++;
+        continue;
+      }
+      segIdx++;
+
       const profile  = PLATFORM_PROFILES[seg.platform];
       const clipRef  = seg.label;
       logger.info(`[StreamEditor] Job ${jobId}: [3/6→4/6] ${clipRef} · ${Math.round(seg.startSec / 60)}–${Math.round((seg.startSec + seg.durationSec) / 60)}min`);
@@ -1145,6 +1175,40 @@ async function runJobInBackground(jobId: number): Promise<void> {
         progress: Math.round((completedTasks / totalTasks) * 100),
         outputFiles,
       }).where(eq(streamEditJobs.id, jobId));
+
+      // ── Per-run time gate ────────────────────────────────────────────────────
+      // If we've been encoding for > PER_RUN_LIMIT_MS and there are still clips
+      // left, pause now.  The job is reset to 'queued' with completedClips and
+      // outputFiles already persisted above — the next boot resumes exactly here.
+      const segmentsRemaining = totalTasks - completedTasks;
+      if (segmentsRemaining > 0 && (Date.now() - runStartedAt) > PER_RUN_LIMIT_MS) {
+        const elapsedMin = Math.round((Date.now() - runStartedAt) / 60000);
+        const sourceMins = Math.round(probe.durationSecs / 60);
+        await db.update(streamEditJobs).set({
+          status: "queued",
+          currentStage: `⏸ Paused — ${completedTasks}/${totalTasks} clips done (resumes next boot)`,
+        }).where(eq(streamEditJobs.id, jobId));
+        _pausedJobIdsThisSession.add(jobId);
+        // Fire-and-forget: log so learning brain picks this up in its daily cycle
+        import("../lib/incident-log").then(({ logSystemIncident }) =>
+          logSystemIncident({
+            category: "oom_crash",
+            service: "stream-editor",
+            severity: "low",
+            rootCause: `${sourceMins}min source video hit ${PER_RUN_LIMIT_MS / 60000}min per-run encoding limit (${elapsedMin}min elapsed)`,
+            fixDescription: `Job ${jobId} auto-segmented: ${completedTasks}/${totalTasks} clips this run; ${segmentsRemaining} resume next boot`,
+            lesson: `Long-source edit jobs segment across container reboots. completedClips + outputFiles are the resume cursor. PER_RUN_LIMIT_MS=${PER_RUN_LIMIT_MS / 60000}min prevents OOM.`,
+            status: "resolved",
+            autoDetected: true,
+            tags: ["stream-editor", "long-source", "auto-segmented"],
+          }).catch(() => {})
+        ).catch(() => {});
+        logger.info(
+          `[StreamEditor] Job ${jobId}: ⏸ paused after ${elapsedMin}min — ` +
+          `${completedTasks}/${totalTasks} clips done, ${segmentsRemaining} remaining (resumes next boot)`
+        );
+        return;
+      }
     }
 
     // ── Tier 3: Chapter markers for long-form ─────────────────────────────────
