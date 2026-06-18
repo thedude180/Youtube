@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
-import { Brain, ChevronDown, ChevronUp, TrendingUp, Target, Zap, Lightbulb } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, TrendingUp, Target, Zap, Lightbulb, AlertTriangle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
@@ -33,6 +34,50 @@ function StatPill({ icon: Icon, value, label, color }: {
       <Icon className={`h-3 w-3 ${color.includes("yellow") ? "text-yellow-400" : color.includes("blue") ? "text-blue-400" : color.includes("orange") ? "text-orange-400" : "text-emerald-400"}`} />
       <span className="text-[11px] font-semibold text-foreground">{value}</span>
       <span className="text-[10px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+interface ASIStatus {
+  strategicDirective: string | null;
+  negativePatternCount: number;
+  totalKnowledgeItems: number;
+  topInsight: string | null;
+}
+
+function ASIDirectivePill({ userId }: { userId?: string }) {
+  const { data } = useQuery<ASIStatus>({
+    queryKey: ["/api/asi/status"],
+    staleTime: 5 * 60_000,
+    enabled: !!userId,
+  });
+  if (!data?.strategicDirective && !data?.topInsight) return null;
+  return (
+    <div className="pt-1 border-t border-purple-500/20 space-y-1.5" data-testid="digest-asi-directive">
+      <div className="flex items-center gap-1.5">
+        <Brain className="h-3 w-3 text-purple-400 shrink-0" />
+        <span className="text-[10px] font-semibold text-purple-400 uppercase tracking-wide">ASI Brain</span>
+        {(data?.totalKnowledgeItems ?? 0) > 0 && (
+          <Badge variant="outline" className="text-[9px] border-purple-500/25 text-purple-400/60 ml-auto">
+            {data.totalKnowledgeItems} known
+          </Badge>
+        )}
+        {(data?.negativePatternCount ?? 0) > 0 && (
+          <Badge variant="outline" className="text-[9px] border-red-500/25 text-red-400/60 flex items-center gap-0.5">
+            <AlertTriangle className="h-2 w-2" />{data.negativePatternCount} avoid
+          </Badge>
+        )}
+      </div>
+      {data?.strategicDirective && (
+        <p className="text-[11px] text-purple-300/70 leading-relaxed" data-testid="text-digest-asi-directive">
+          {data.strategicDirective.length > 120 ? data.strategicDirective.slice(0, 120) + "…" : data.strategicDirective}
+        </p>
+      )}
+      {data?.topInsight && !data.strategicDirective && (
+        <p className="text-[11px] text-muted-foreground/70 leading-relaxed italic" data-testid="text-digest-asi-insight">
+          {data.topInsight}
+        </p>
+      )}
     </div>
   );
 }
@@ -137,6 +182,7 @@ function IntelligenceDigestInner() {
               )}
             </div>
           )}
+          <ASIDirectivePill userId={user?.id} />
         </>
       )}
     </div>

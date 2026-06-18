@@ -780,6 +780,21 @@ function VideoEditor({
                   </a>
                 </div>
               )}
+              {studioVideo.metadata?.seoScore != null && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">AI SEO Score</span>
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      studioVideo.metadata.seoScore >= 80 ? "text-emerald-400"
+                      : studioVideo.metadata.seoScore >= 55 ? "text-amber-400"
+                      : "text-red-400"
+                    }`}
+                    data-testid="text-asi-seo-score"
+                  >
+                    {studioVideo.metadata.seoScore}/100
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Imported</span>
                 <span>{new Date(studioVideo.createdAt).toLocaleDateString()}</span>

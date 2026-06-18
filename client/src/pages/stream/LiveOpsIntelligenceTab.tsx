@@ -6,6 +6,7 @@ import {
   Shield, Heart, AlertTriangle,
   Radio, Zap, CheckCircle2, XCircle,
 } from "lucide-react";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 
 function ErrorCard({ title, icon }: { title: string; icon: React.ReactNode }) {
   return (
@@ -234,6 +235,13 @@ function DegradationPlaybooksCard() {
 export default function LiveOpsIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="live-ops-intelligence-tab">
+      <ASIInsightPanel
+        context="stream"
+        title="Stream Intelligence"
+        defaultExpanded={true}
+        maxItems={3}
+        compact
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <LiveOpsSummaryCard />
         <TrustBudgetCard />

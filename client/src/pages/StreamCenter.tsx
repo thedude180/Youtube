@@ -33,6 +33,7 @@ import { LiveChatPanel } from "@/components/LiveChatPanel";
 import { UpgradeTabGate } from "@/components/UpgradeGate";
 import { safeArray } from '@/lib/safe-data';
 import { useTranslation } from "react-i18next";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 
 interface AIStreamRecsResponse {
   optimalTimes?: string[];
@@ -821,6 +822,17 @@ export default function StreamCenter() {
 
   return (
     <div className="p-3 lg:p-4 space-y-3 max-w-5xl mx-auto page-enter">
+      {/* ─── ASI Pre-Stream Brief (idle/prep only) ─── */}
+      {!streamAgent?.isLive && (
+        <ASIInsightPanel
+          context="stream"
+          title="Pre-Stream Intelligence Brief"
+          defaultExpanded={false}
+          maxItems={3}
+          compact
+        />
+      )}
+
       {/* ─── Stream Agent ─── */}
       <div className="card-empire rounded-2xl overflow-hidden" data-testid="stream-agent-card">
         {streamAgent?.enabled ? (

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PlatformBadge } from "@/components/PlatformIcon";
 import { Skeleton } from "@/components/ui/skeleton";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 import {
   Sparkles,
   Trophy,
@@ -128,6 +129,13 @@ export default function AIInsightsSection() {
 
   return (
     <>
+      <ASIInsightPanel
+        context="dashboard"
+        title="What the Brain Knows"
+        defaultExpanded={true}
+        maxItems={4}
+      />
+
       {(aiMilestones || aiMilestonesLoading) && (
         <SectionErrorBoundary fallbackTitle="AI Milestones failed to load">
         <Card data-testid="card-ai-milestones">

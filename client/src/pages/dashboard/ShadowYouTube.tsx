@@ -110,9 +110,21 @@ function ThumbnailPane({ item }: { item: ShadowItem }) {
   );
 }
 
+// ── ASI rank score helper ──────────────────────────────────────────────────────
+
+function asiReadiness(item: ShadowItem): { score: number; label: string; color: string } {
+  const pts = (item.hasSeo ? 40 : 0) + (item.hasThumbnail ? 30 : 0) + (item.isComplete ? 30 : 0);
+  if (pts >= 90) return { score: pts, label: "ASI: A+", color: "bg-emerald-900/50 text-emerald-400 border-emerald-800" };
+  if (pts >= 70) return { score: pts, label: `ASI: ${pts}`, color: "bg-blue-900/50 text-blue-400 border-blue-800" };
+  if (pts >= 40) return { score: pts, label: `ASI: ${pts}`, color: "bg-amber-900/50 text-amber-400 border-amber-800" };
+  return { score: pts, label: `ASI: ${pts}`, color: "bg-red-900/50 text-red-400 border-red-800" };
+}
+
 // ── Video card ────────────────────────────────────────────────────────────────
 
 function VideoCard({ item }: { item: ShadowItem }) {
+  const asi = asiReadiness(item);
+
   return (
     <Card
       data-testid={`shadow-card-${item.id}`}
@@ -140,6 +152,13 @@ function VideoCard({ item }: { item: ShadowItem }) {
               <Package className="w-2.5 h-2.5 mr-0.5" /> Packaging
             </Badge>
           )}
+          <Badge
+            className={`text-[10px] px-1.5 py-0 ml-auto ${asi.color}`}
+            data-testid={`asi-rank-${item.id}`}
+            title="ASI Readiness Score: SEO (40) + Thumbnail (30) + Complete (30)"
+          >
+            {asi.label}
+          </Badge>
         </div>
 
         <div className="flex items-center gap-1 text-[11px] text-zinc-500 mt-auto">

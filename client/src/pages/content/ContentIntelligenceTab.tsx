@@ -6,6 +6,7 @@ import {
   Shield, Brain, Activity, Crosshair, Eye,
   TrendingUp, AlertTriangle, CheckCircle2, Gauge,
 } from "lucide-react";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 import AIToolsTab from "./AIToolsTab";
 
 function GovernanceSummaryCard() {
@@ -302,6 +303,12 @@ function DemandInsightsCard() {
 export default function ContentIntelligenceTab() {
   return (
     <div className="space-y-4" data-testid="content-intelligence-tab">
+      <ASIInsightPanel
+        context="content"
+        title="Content Brain Intelligence"
+        defaultExpanded={true}
+        maxItems={3}
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <GovernanceSummaryCard />
         <BrandProfileCard />

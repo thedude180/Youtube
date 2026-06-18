@@ -40,6 +40,7 @@ import SuccessDNA from "./dashboard/SuccessDNA";
 import CreativeLibrary from "./dashboard/CreativeLibrary";
 import ContentPipelinePanel from "./dashboard/ContentPipelinePanel";
 import SocialExpansionPanel from "./dashboard/SocialExpansionPanel";
+import ASIStatusStrip from "./dashboard/ASIStatusStrip";
 import { QueryErrorReset } from "@/components/QueryErrorReset";
 
 const AGENT_ROSTER = [
@@ -1061,6 +1062,8 @@ export default function TeamDashboard() {
         )}
 
         <IntelligenceDigest />
+
+        <ASIStatusStrip />
 
         <YouTubeAutopilotStatus />
 

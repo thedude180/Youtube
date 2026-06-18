@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, BookOpen, ChevronDown, ChevronUp } from "lucide-react";
 import { CollapsibleToolbox } from "@/components/CollapsibleToolbox";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 
 type AIResponse = any;
 
@@ -137,6 +138,12 @@ function LearningTab() {
 
   return (
     <div className="space-y-6">
+      <ASIInsightPanel
+        context="settings"
+        title="ASI Knowledge State"
+        defaultExpanded={true}
+        maxItems={4}
+      />
       {aiAcademyLoading ? (
         <Skeleton className="h-64 rounded-xl" data-testid="skeleton-ai-academy" />
       ) : aiAcademy ? (
