@@ -129,7 +129,7 @@ async function reviveForUser(userId: string): Promise<void> {
       .join("; ");
 
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `Write a YouTube community post for ET Gaming 274, a PS5 ${focusGame} no-commentary channel.

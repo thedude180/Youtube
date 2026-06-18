@@ -127,7 +127,7 @@ Respond with ONLY valid JSON in this exact format:
 }`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     max_tokens: 1200,

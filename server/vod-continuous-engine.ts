@@ -76,7 +76,7 @@ async function getTodayUploadCount(userId: string, type: "long" | "short"): Prom
 async function aiEditVideo(video: any): Promise<{ title: string; description: string; tags: string[]; thumbnailConcept: string }> {
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "system",
         content: `You are the world's #1 YouTube content editor. Given a video, produce an optimized title, SEO description, tags, and thumbnail concept that maximise CTR and watch time. Return JSON: { title: string, description: string, tags: string[], thumbnailConcept: string }.`,
@@ -96,7 +96,7 @@ async function aiEditVideo(video: any): Promise<{ title: string; description: st
 async function aiExtractShorts(video: any): Promise<Array<{ title: string; startSec: number; endSec: number; hook: string; viralScore: number }>> {
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "system",
         content: `You are a viral Shorts/TikTok extraction AI. Identify 3 viral-worthy moments from this video. Each must be 15-59 seconds, start with a strong hook, end with a cliffhanger or punchline. Return JSON: { shorts: [{ title, startSec, endSec, hook, viralScore }] }.`,

@@ -47,7 +47,7 @@ export async function scanForCompoundingOpportunities(userId: string) {
   }));
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `You are a content compounding strategist. Your job is to find older videos that can be refreshed to ride current trends and regain algorithmic momentum.
@@ -231,7 +231,7 @@ export async function measureCompoundingImpact(jobId: number) {
   const likesAfter = currentMetrics.likes || 0;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `You are a content performance analyst. Evaluate the impact of a content compounding refresh.

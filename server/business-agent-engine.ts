@@ -148,7 +148,7 @@ async function runSingleAgentTask(userId: string, agentConfig: typeof BUSINESS_A
   try {
     const openai = getOpenAIClientBackground();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: agentConfig.systemPrompt },
         { role: "user", content: "Run your autonomous business audit scan now and report your findings." },

@@ -331,7 +331,7 @@ async function generateStrategicDirectives(
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `You are the head of a YouTube media company managing a no-commentary PS5 gaming channel.

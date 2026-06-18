@@ -431,7 +431,7 @@ Message:`
 
   try {
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 80,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.9,

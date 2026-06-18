@@ -440,7 +440,7 @@ export async function routeCommand(
       whatChanged: options.decisionTheater?.whatChanged || actionType,
       whyChanged: options.decisionTheater?.whyChanged || "auto-triggered",
       evidenceUsed: options.decisionTheater?.evidenceUsed || {},
-      modelVersion: options.decisionTheater?.modelVersion || "gpt-4o-mini",
+      modelVersion: options.decisionTheater?.modelVersion || "gpt-5",
       promptVersion: options.decisionTheater?.promptVersion || "1.0",
       confidenceScore: options.confidence ?? null,
       governedConfidence: governedConfidenceData,

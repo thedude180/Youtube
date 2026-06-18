@@ -104,7 +104,7 @@ Return ONLY valid JSON — an array of exactly ${frames.length} objects, nothing
   await acquireAISlotBackground();
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5",
       max_tokens: 600,
       messages: [
         {

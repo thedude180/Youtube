@@ -185,7 +185,7 @@ async function generateOptimizedTitle(
       : "stable";
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 80,
       temperature: 0.85,
       messages: [{
@@ -224,7 +224,7 @@ async function generateViralSurgeTitle(
   try {
     const growthPct = Math.round(((currentViewers - prevViewers) / Math.max(prevViewers, 1)) * 100);
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 80,
       temperature: 0.9,
       messages: [{
@@ -520,7 +520,7 @@ async function runPostStreamVodOptimization(
   let vodDescription = "";
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 300,
       temperature: 0.8,
       messages: [{
@@ -638,7 +638,7 @@ async function generateBroadcastBeat(
   if (beatIndex % 3 === 2) {
     try {
       const resp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         max_completion_tokens: 60,
         temperature: 0.9,
         messages: [{

@@ -9,7 +9,7 @@ const openai = getOpenAIClientBackground();
 
 export async function scanForAnomalies(userId: string, platform: string) {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",
@@ -113,7 +113,7 @@ export async function generateRecoveryPlan(anomalyId: number) {
   if (!anomaly) throw new Error(`Anomaly ${anomalyId} not found`);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",
@@ -171,7 +171,7 @@ Create a detailed recovery plan. Return JSON:
 
 export async function checkShadowBanStatus(userId: string, platform: string) {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",

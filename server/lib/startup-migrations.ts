@@ -4569,7 +4569,7 @@ async function migration081SeedInitialPromptVersions(): Promise<void> {
       ((existing as any).rows ?? []).map((r: any) => r.prompt_key)
     );
 
-    const MODEL = "gpt-4o-mini";
+    const MODEL = "gpt-5";
     const seeds: Array<{ key: string; sys: string; tpl: string; temp: number; maxTok: number }> = [
       {
         key: "title_generation",

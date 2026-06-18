@@ -469,7 +469,7 @@ Return JSON: { beatsApplied: array of {beatType: string, beatName: string, times
   const systemMsg = `${baseRole}${retentionSystemBoost}${contentCtx}${creatorCtx}\n\nCRITICAL: Adapt ALL outputs to the SPECIFIC content of this video. Do not give generic advice — every recommendation must reference what actually happened in this content. Always respond with valid JSON only, no markdown.`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       { role: "system", content: systemMsg },
       { role: "user", content: prompt },
@@ -681,7 +681,7 @@ async function generateVodCutsInternal(
   const lengthDescriptions = targetLengths.map(t => `${sanitizeForPrompt(t.category)}: ${t.length}s`).join(", ");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "system",
@@ -1277,7 +1277,7 @@ export function registerDualPipelineRoutes(app: Express) {
 
     const openai = await getOpenAI();
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",

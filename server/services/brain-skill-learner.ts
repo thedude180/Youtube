@@ -659,7 +659,7 @@ Respond with ONLY a valid JSON object (no markdown, no explanation):
   let raw = "";
   try {
     const resp = await openai.chat.completions.create({
-      model:       "gpt-4o-mini",
+      model:       "gpt-5",
       temperature: 0.9,
       max_tokens:  400,
       messages:    [{ role: "user", content: prompt }],
@@ -726,7 +726,7 @@ Respond with ONLY a valid JSON object (no markdown):
   let raw = "";
   try {
     const resp = await openai.chat.completions.create({
-      model:       "gpt-4o-mini",
+      model:       "gpt-5",
       temperature: 0.85,
       max_tokens:  350,
       messages:    [{ role: "user", content: prompt }],
@@ -1075,7 +1075,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 }`;
 
     const resp = await openai.chat.completions.create({
-      model:       "gpt-4o-mini",
+      model:       "gpt-5",
       max_tokens:  900,
       temperature: 0.4,
       messages:    [{ role: "user", content: prompt }],

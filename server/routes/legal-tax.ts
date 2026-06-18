@@ -150,7 +150,7 @@ export function registerLegalTaxRoutes(app: Express) {
     try {
       const openai = getOpenAIClient();
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           { role: "system", content: advisor.systemPrompt },
           {

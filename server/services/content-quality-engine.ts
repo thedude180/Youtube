@@ -27,7 +27,7 @@ export async function scoreContentQuality(userId: string, videoId: number): Prom
   const openai = getOpenAIClientBackground();
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "system",
@@ -75,7 +75,7 @@ Respond with this exact JSON structure:
     seoScore,
     engagementPrediction,
     improvements,
-    modelUsed: "gpt-4o-mini",
+    modelUsed: "gpt-5",
   });
 
   return { overallScore, titleScore, descriptionScore, seoScore, engagementPrediction, improvements };
@@ -117,7 +117,7 @@ export async function smartSchedule(userId: string, contentType: string, platfor
   const openai = getOpenAIClientBackground();
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "system",

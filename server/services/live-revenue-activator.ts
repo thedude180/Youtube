@@ -56,7 +56,7 @@ async function generateMilestoneContent(
 ): Promise<{ discordPost: string; communityPost: string } | null> {
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 500,
       messages: [{
         role: "system",
@@ -89,7 +89,7 @@ async function generateMembershipPrompt(session: RevenueSession): Promise<{
   const streamMins = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 300,
       messages: [{
         role: "user",
@@ -134,7 +134,7 @@ async function checkMilestones(session: RevenueSession): Promise<void> {
             scheduledAt: new Date(),
             metadata: {
               contentType: "viewer_milestone",
-              aiModel: "gpt-4o-mini",
+              aiModel: "gpt-5",
               humanScore: 88,
               isRecycled: false,
             },
@@ -235,7 +235,7 @@ async function runMembershipPrompt(session: RevenueSession): Promise<void> {
       scheduledAt: new Date(),
       metadata: {
         contentType: "membership_prompt",
-        aiModel: "gpt-4o-mini",
+        aiModel: "gpt-5",
         humanScore: 82,
         isRecycled: false,
       },

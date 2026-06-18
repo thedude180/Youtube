@@ -98,7 +98,7 @@ async function runPipelineStep(pipelineId: number, step: string, videoTitle: str
 
   const openai = await getOpenAI();
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       { role: "system", content: systemMsg },
       { role: "user", content: prompt },

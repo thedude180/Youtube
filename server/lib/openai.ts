@@ -245,7 +245,7 @@ export async function callOpenAI({
   tier,
   messages,
   maxTokens = 500,
-  model = "gpt-4o-mini",
+  model = "gpt-5",
 }: {
   tier: "shorts_pipeline" | "longform_pipeline" | "background";
   messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;

@@ -93,7 +93,7 @@ Requirements:
     tokenBudget.consumeBudget("repurpose-engine", 4000);
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
@@ -218,7 +218,7 @@ Provide 8-12 diverse B-roll suggestions that would enhance viewer retention and 
     tokenBudget.consumeBudget("repurpose-engine", 2000);
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 2000,

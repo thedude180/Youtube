@@ -80,7 +80,7 @@ export class AnomalyResponder {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini", // fallback to 4o-mini as gpt-4o-mini doesn't exist yet
+          model: "gpt-5", // fallback to 4o-mini as gpt-5 doesn't exist yet
           messages: [
             {
               role: "system",

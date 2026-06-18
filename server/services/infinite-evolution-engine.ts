@@ -233,7 +233,7 @@ async function improveSystem(userId: string, system: SystemAudit): Promise<void>
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `You are an AI system architect that continuously improves itself. You are analyzing the "${sanitizeForPrompt(domainConfig.label)}" subsystem.
@@ -430,12 +430,12 @@ async function evolveAIPrompts(userId: string): Promise<void> {
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `You are a prompt engineering expert. You are responsible for improving the AI prompts used across an autonomous YouTube gaming channel OS.
 
-The system uses gpt-4o-mini for:
+The system uses gpt-5 for:
 1. Title generation (viral, high-CTR, curiosity gap)
 2. Description writing (SEO-optimized, hook-first)
 3. Thumbnail design guidance (visual composition instructions)
@@ -548,7 +548,7 @@ async function crossSystemLearning(userId: string, systemHealth: SystemAudit[]):
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `You are a systems architect. Analyze what makes strong systems strong and apply those patterns to weak systems.

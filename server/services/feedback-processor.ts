@@ -50,7 +50,7 @@ export async function processFeedback(feedbackId: number, userId: string, messag
 
   try {
     const response = await getOpenAI().chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",

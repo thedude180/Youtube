@@ -477,7 +477,7 @@ Return JSON only:
 
     try {
       const resp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{ role: "user", content: chunkPrompt }],
         response_format: { type: "json_object" },
         max_completion_tokens: 1800,
@@ -699,7 +699,7 @@ YouTube Shorts optimization:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,
@@ -813,7 +813,7 @@ Return as JSON:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
@@ -886,7 +886,7 @@ Return as JSON:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 500,
@@ -1000,7 +1000,7 @@ Create a compilation plan as JSON:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 1000,
@@ -1236,7 +1236,7 @@ Return as JSON:
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 4000,

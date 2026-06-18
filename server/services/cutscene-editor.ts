@@ -147,7 +147,7 @@ Rules:
   await acquireAISlotBackground();
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5",
       max_tokens: 1600,
       messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageContent] }],
     });

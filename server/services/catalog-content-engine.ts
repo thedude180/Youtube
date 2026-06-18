@@ -94,7 +94,7 @@ async function aiAnalyzeCatalog(videos: any[], evolvedSystemPrompt?: string | nu
     const systemContent = evolvedSystemPrompt ?? JAMIE_SYSTEM_PROMPT;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 4000,
       messages: [
         { role: "system", content: systemContent },
@@ -229,7 +229,7 @@ export async function runCatalogCycle(userId: string): Promise<void> {
           scheduledAt: opp.urgency === "immediate" ? new Date() : catalogSlot(i),
           metadata: {
             contentType: opp.repurposeType,
-            aiModel: "gpt-4o-mini",
+            aiModel: "gpt-5",
             humanScore: opp.estimatedViralScore,
             isRecycled: true,
           },

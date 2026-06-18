@@ -315,7 +315,7 @@ export async function lookupGameWithAI(title: string, description: string): Prom
     const text = `Title: ${sanitizeForPrompt(title)}\nDescription: ${(description || "").substring(0, 500)}`;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 200,
       messages: [
         {

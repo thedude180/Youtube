@@ -88,7 +88,7 @@ async function generateOptimizations(vods: any[], userId?: string): Promise<VodO
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",
@@ -202,7 +202,7 @@ async function queueOptimizations(userId: string, optimizations: VodOptimization
         })(),
         metadata: {
           style: "vod-refresh",
-          aiModel: "gpt-4o-mini",
+          aiModel: "gpt-5",
           retentionBeatsApplied: true,
           regenerateThumbnail: true,
         },

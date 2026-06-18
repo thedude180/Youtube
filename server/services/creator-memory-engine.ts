@@ -8,7 +8,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("creator-memory-engine");
-const MODEL = "gpt-4o-mini";
+const MODEL = "gpt-5";
 
 export async function getCreatorContext(userId: string): Promise<string> {
   try {

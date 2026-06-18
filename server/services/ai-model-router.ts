@@ -31,10 +31,10 @@ interface TaskMapping {
 }
 
 const TASK_MAPPINGS: Record<string, TaskMapping> = {
-  // Fast background tasks — gpt-4o-mini is right for these (high volume, low latency, no quality gap)
-  quick_suggestion:       { model: "gpt-4o-mini",              maxTokens: 512,  temperature: 0.7, priority: "low" },
-  memory_distillation:    { model: "gpt-4o-mini",              maxTokens: 2048, temperature: 0.3, priority: "low" },
-  quality_scoring:        { model: "gpt-4o-mini",              maxTokens: 1024, temperature: 0.2, priority: "medium" },
+  // Fast background tasks — gpt-5 is right for these (high volume, low latency, no quality gap)
+  quick_suggestion:       { model: "gpt-5",              maxTokens: 512,  temperature: 0.7, priority: "low" },
+  memory_distillation:    { model: "gpt-5",              maxTokens: 2048, temperature: 0.3, priority: "low" },
+  quality_scoring:        { model: "gpt-5",              maxTokens: 1024, temperature: 0.2, priority: "medium" },
 
   // Content & optimization tasks — Claude Sonnet: best-in-class writing and SEO intelligence
   title_optimization:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
@@ -59,8 +59,8 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
 };
 
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
-  "gpt-4o-mini":        { inputPer1k: 0.00015, outputPer1k: 0.0006 },
-  "gpt-4o":             { inputPer1k: 0.0025,  outputPer1k: 0.01 },
+  "gpt-5":        { inputPer1k: 0.00015, outputPer1k: 0.0006 },
+  "gpt-5":             { inputPer1k: 0.0025,  outputPer1k: 0.01 },
   "claude-opus-4-6":    { inputPer1k: 0.015,   outputPer1k: 0.075 },
   "claude-sonnet-4-6":  { inputPer1k: 0.003,   outputPer1k: 0.015 },
   "claude-haiku-4-5":   { inputPer1k: 0.0008,  outputPer1k: 0.004 },
@@ -83,36 +83,36 @@ export function routeAIRequest(config: AIRouterConfig): AIRouterResult {
   const priority = config.priority || mapping?.priority || "medium";
 
   let provider: "openai" | "claude" = mapping?.provider || "openai";
-  let model = mapping?.model || "gpt-4o-mini";
+  let model = mapping?.model || "gpt-5";
   let maxTokens = config.maxTokens || mapping?.maxTokens || 2048;
   let temperature = config.temperature ?? mapping?.temperature ?? 0.7;
   let reason = `Task type '${config.taskType}' mapped to ${provider}/${model}`;
 
   if (provider === "openai") {
     if (tierGroup === "free") {
-      if (model === "gpt-4o") {
-        model = "gpt-4o-mini";
-        reason = `Downgraded to gpt-4o-mini for ${tier} tier`;
+      if (model === "gpt-5") {
+        model = "gpt-5";
+        reason = `Downgraded to gpt-5 for ${tier} tier`;
       }
     } else if (tierGroup === "starter") {
-      if (model === "gpt-4o" && priority !== "critical") {
-        model = "gpt-4o-mini";
-        reason = `Downgraded to gpt-4o-mini for starter tier (non-critical task)`;
-      } else if (model === "gpt-4o" && priority === "critical") {
-        reason = `gpt-4o allowed for starter tier critical task`;
+      if (model === "gpt-5" && priority !== "critical") {
+        model = "gpt-5";
+        reason = `Downgraded to gpt-5 for starter tier (non-critical task)`;
+      } else if (model === "gpt-5" && priority === "critical") {
+        reason = `gpt-5 allowed for starter tier critical task`;
       }
     } else if (tierGroup === "premium") {
       if (priority === "high" || priority === "critical") {
-        model = "gpt-4o";
-        reason = `Upgraded to gpt-4o for ${tier} tier high-priority task`;
+        model = "gpt-5";
+        reason = `Upgraded to gpt-5 for ${tier} tier high-priority task`;
       }
     }
   }
 
   if (!mapping) {
     provider = "openai";
-    model = "gpt-4o-mini";
-    reason = `Unknown task type '${config.taskType}', defaulting to openai/gpt-4o-mini`;
+    model = "gpt-5";
+    reason = `Unknown task type '${config.taskType}', defaulting to openai/gpt-5`;
   }
 
   return { provider, model, maxTokens, temperature, reason };
@@ -185,7 +185,7 @@ export async function executeRoutedAICall(
   }
 
   const latencyMs = Date.now() - startTime;
-  const pricing = MODEL_PRICING[routing.model] || MODEL_PRICING["gpt-4o-mini"];
+  const pricing = MODEL_PRICING[routing.model] || MODEL_PRICING["gpt-5"];
   const costUsd = (promptTokens / 1000) * pricing.inputPer1k + (completionTokens / 1000) * pricing.outputPer1k;
 
   try {

@@ -376,7 +376,7 @@ Generate a 1-sentence autonomous finding about your domain. Start with an action
       : "Run your autonomous company cycle task now.";
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: contextMessage },

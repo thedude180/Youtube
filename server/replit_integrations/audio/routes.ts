@@ -11,7 +11,7 @@ const audioBodyParser = express.json({ limit: "50mb" });
 export function registerAudioRoutes(app: Express): void {
   // Send voice message and get streaming audio response
   // Auto-detects audio format and converts WebM/MP4/OGG to WAV
-  // Uses gpt-4o-mini-transcribe for STT, gpt-audio for voice response
+  // Uses gpt-5-transcribe for STT, gpt-audio for voice response
   app.post("/api/conversations/:id/voice-messages", audioBodyParser, async (req: Request, res: Response) => {
     try {
       const conversationId = parseInt(req.params.id as string);

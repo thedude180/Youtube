@@ -203,7 +203,7 @@ async function processChatCycle(session: ChatSession): Promise<void> {
       const type = ev.snippet?.type || "";
 
       const aiRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         max_completion_tokens: 80,
         temperature: 0.9,
         messages: [{
@@ -266,7 +266,7 @@ Bad responses (DO NOT do this):
         const recentChat = session.recentContext.slice(-3).join("\n");
 
         const aiRes = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-5",
           max_completion_tokens: 150,
           temperature: 0.85,
           messages: [{

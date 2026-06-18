@@ -44,7 +44,7 @@ export async function seedAgentExplanationContract(): Promise<void> {
         },
         modelVersion: {
           type: "string",
-          description: "AI model identifier (e.g. gpt-4o-mini)",
+          description: "AI model identifier (e.g. gpt-5)",
         },
         promptVersion: {
           type: "string",

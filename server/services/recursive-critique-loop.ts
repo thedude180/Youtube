@@ -16,7 +16,7 @@
  * Design constraints:
  *  - Max ONE additional AI round-trip (critique+refine is one call)
  *  - Skipped gracefully if AI semaphore slot unavailable — never blocks publish
- *  - Uses gpt-4o-mini (same tier as content generators)
+ *  - Uses gpt-5 (same tier as content generators)
  *  - Per-content token budget capped at 800 tokens
  */
 
@@ -91,7 +91,7 @@ Rules:
 }`;
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: "You are a ruthless YouTube title critic who always improves what you critique. Return valid JSON only." },
         { role: "user", content: prompt },

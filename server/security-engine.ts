@@ -351,7 +351,7 @@ export async function learnFromAttack(eventId: number) {
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",

@@ -321,7 +321,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
 
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5",
       messages,
       tools: toolDefinitions,
       max_completion_tokens: 4000,
@@ -354,7 +354,7 @@ export async function processCopilotMessage(userId: string, sessionId: string, m
       }
 
       const followUp = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-5",
         messages: toolMessages,
         max_completion_tokens: 4000
       });

@@ -10,31 +10,31 @@ interface FallbackChainEntry {
 
 const FALLBACK_CHAINS: Record<string, FallbackChainEntry[]> = {
   openai_primary: [
-    { provider: "openai", model: "gpt-4o" },
-    { provider: "openai", model: "gpt-4o-mini" },
+    { provider: "openai", model: "gpt-5" },
+    { provider: "openai", model: "gpt-5" },
     { provider: "claude", model: CLAUDE_MODELS.sonnet },
     { provider: "claude", model: CLAUDE_MODELS.haiku },
   ],
   openai_mini: [
-    { provider: "openai", model: "gpt-4o-mini" },
+    { provider: "openai", model: "gpt-5" },
     { provider: "claude", model: CLAUDE_MODELS.haiku },
     { provider: "claude", model: CLAUDE_MODELS.sonnet },
   ],
   claude_primary: [
     { provider: "claude", model: CLAUDE_MODELS.opus },
     { provider: "claude", model: CLAUDE_MODELS.sonnet },
-    { provider: "openai", model: "gpt-4o" },
-    { provider: "openai", model: "gpt-4o-mini" },
+    { provider: "openai", model: "gpt-5" },
+    { provider: "openai", model: "gpt-5" },
   ],
   claude_light: [
     { provider: "claude", model: CLAUDE_MODELS.sonnet },
     { provider: "claude", model: CLAUDE_MODELS.haiku },
-    { provider: "openai", model: "gpt-4o-mini" },
+    { provider: "openai", model: "gpt-5" },
   ],
   ultra_resilient: [
-    { provider: "openai", model: "gpt-4o" },
+    { provider: "openai", model: "gpt-5" },
     { provider: "claude", model: CLAUDE_MODELS.opus },
-    { provider: "openai", model: "gpt-4o-mini" },
+    { provider: "openai", model: "gpt-5" },
     { provider: "claude", model: CLAUDE_MODELS.sonnet },
     { provider: "claude", model: CLAUDE_MODELS.haiku },
   ],

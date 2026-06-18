@@ -45,7 +45,7 @@ async function generateMomentBlast(session: ClipSession): Promise<{
   try {
     const streamMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 400,
       messages: [{
         role: "system",
@@ -111,7 +111,7 @@ async function runClipCycle(session: ClipSession): Promise<void> {
       scheduledAt: await getNextShortPublishTime(session.userId),
       metadata: {
         contentType: "live_clip_blast",
-        aiModel: "gpt-4o-mini",
+        aiModel: "gpt-5",
         humanScore: moment.viralScore,
         isRecycled: false,
         originalPostDate: timestamp,

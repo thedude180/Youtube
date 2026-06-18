@@ -176,7 +176,7 @@ async function runAICopyrightReview(
   const issuesSummary = keywordIssues.map(i => `- [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     max_completion_tokens: 800,
     temperature: 0.1,
     messages: [

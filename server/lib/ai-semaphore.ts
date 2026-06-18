@@ -20,7 +20,7 @@ import { logIncidentOnce } from "./incident-log";
 
 const logger = createLogger("ai-semaphore");
 
-// 2 s between calls → 30 calls/min cap, well within OpenAI gpt-4o-mini limits
+// 2 s between calls → 30 calls/min cap, well within OpenAI gpt-5 limits
 // (previously 3 s / 20 calls/min — too conservative for 10+ autonomous agents).
 export const MIN_INTER_CALL_DELAY_MS = 2_000;
 const STARTUP_HOLD_MS = 40_000;

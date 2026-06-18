@@ -146,7 +146,7 @@ async function runTitleOptimization(userId: string): Promise<any> {
     if (i > 0) await new Promise(r => setTimeout(r, 6000));
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{
           role: "system",
           content: `You are the world's #1 YouTube title optimization AI. Generate 3 A/B test title variants that maximize CTR. Use power words, numbers, curiosity gaps, and emotional triggers. Return JSON: {variants: [{title, strategy, expectedCtrLift}], analysis: string}.`
@@ -193,7 +193,7 @@ async function runDescriptionSeo(userId: string): Promise<any> {
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{
           role: "system",
           content: `You are a YouTube SEO master. Optimize this video description for maximum search ranking. Include: keyword-rich first 2 lines, timestamps if applicable, relevant hashtags, call-to-action, and social links placeholder.
@@ -242,7 +242,7 @@ async function runThumbnailRefresh(userId: string): Promise<any> {
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{
           role: "system",
           content: `You are a world-class thumbnail design AI. Analyze this video and suggest 3 thumbnail concepts that maximize CTR. Consider: bold text overlays, expressive faces, bright colors, contrast, curiosity elements. Return JSON: {concepts: [{description, textOverlay, colorScheme, emotionalTrigger, expectedCtrLift}]}.`
@@ -282,7 +282,7 @@ async function runShortsExtraction(userId: string): Promise<any> {
   for (const video of unprocessed.slice(0, 3)) {
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{
           role: "system",
           content: `You are a YouTube Shorts expert for the gaming niche (PS5 gameplay). Your job is to identify the top 3 most viral gaming moments for the YouTube Shorts shelf. Rules you MUST follow:
@@ -483,7 +483,7 @@ async function runVodLearningAdaptation(userId: string): Promise<any> {
     const totalShorts = allMetrics.reduce((sum: number, m: any) => sum + (m.shortsViews || 0), 0);
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "system",
         content: `You are an AI learning engine for VOD optimization. Analyze performance data and generate actionable adaptations. Return JSON: {patterns: string[], adaptations: string[], nextPriorities: string[], confidenceScore: number}.`

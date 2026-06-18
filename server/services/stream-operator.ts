@@ -194,7 +194,7 @@ export const streamOperator = {
 
       const openai = getOpenAIClient();
       const aiResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{ role: "user", content: promptWithVoice }],
         max_completion_tokens: 100,
       });
@@ -292,7 +292,7 @@ export const streamOperator = {
       const promptWithVoice = await withCreatorVoice(userId, `Humanize this engagement prompt while keeping it short: "${sanitizeForPrompt(engagementMessage)}"`);
       const openai = getOpenAIClient();
       const aiResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{ role: "user", content: promptWithVoice }],
         max_completion_tokens: 100,
       });

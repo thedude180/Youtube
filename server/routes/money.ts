@@ -825,7 +825,7 @@ export function registerMoneyRoutes(app: Express) {
     const { getOpenAIClient } = await import("../lib/openai");
     const openai = getOpenAIClient();
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       response_format: { type: "json_object" },
       messages: [{
         role: "user",

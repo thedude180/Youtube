@@ -77,7 +77,7 @@ Respond with ONLY valid JSON (no markdown, no wrapping):
 {"title":"...","description":"...","tags":["tag1","tag2","tag3","tag4","tag5","tag6","tag7","tag8","tag9","tag10"]}`;
 
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       max_completion_tokens: 500,
       response_format: { type: "json_object" },

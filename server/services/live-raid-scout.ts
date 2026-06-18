@@ -48,7 +48,7 @@ async function generateRaidList(session: RaidSession): Promise<RaidTarget[]> {
   const streamMinutes = Math.round((Date.now() - session.startedAt.getTime()) / 60000);
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 800,
       messages: [{
         role: "system",

@@ -406,7 +406,7 @@ async function generateBatchPlan(
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",
@@ -616,7 +616,7 @@ async function queueBatchContent(
             contentType: "long-form-clip",
             contentCategory: "video",
             style: "highlight-reel",
-            aiModel: "gpt-4o-mini",
+            aiModel: "gpt-5",
             sourceStreamId: stream.stream.id,
             segmentStartSec: segStartMin * 60,
             segmentEndSec: segEndMin * 60,
@@ -662,7 +662,7 @@ async function queueBatchContent(
           contentType: "youtube-short",
           contentCategory: "video",
           style: "short-clip",
-          aiModel: "gpt-4o-mini",
+          aiModel: "gpt-5",
           sourceStreamId: stream.stream.id,
           startSec: short.startMinute * 60,
           // Hard cap: Shorts MUST be ≤58 seconds regardless of what the AI returned.
@@ -720,7 +720,7 @@ async function queueBatchContent(
             contentType: "video-clip",
             contentCategory: "video",
             style: "short-clip",
-            aiModel: "gpt-4o-mini",
+            aiModel: "gpt-5",
             sourceStreamId: stream.stream.id,
             segmentStartMin: short.startMinute,
             segmentEndMin: short.endMinute,
@@ -775,7 +775,7 @@ async function queueBatchContent(
             contentType: "text-announcement",
             contentCategory: "text",
             style: "announcement",
-            aiModel: "gpt-4o-mini",
+            aiModel: "gpt-5",
             sourceStreamId: stream.stream.id,
             batchNumber,
             crossPlatformGroupId: groupId,
@@ -808,7 +808,7 @@ async function queueBatchContent(
             contentType: "text-teaser",
             contentCategory: "text",
             style: "teaser",
-            aiModel: "gpt-4o-mini",
+            aiModel: "gpt-5",
             sourceStreamId: stream.stream.id,
             segmentStartMin: short.startMinute,
             segmentEndMin: short.endMinute,

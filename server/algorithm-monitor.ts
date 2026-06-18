@@ -9,7 +9,7 @@ const openai = getOpenAIClientBackground();
 
 export async function scanAlgorithmChanges(platform: string) {
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",
@@ -92,7 +92,7 @@ export async function generateAdaptationStrategy(signalId: number) {
   if (!signal) throw new Error(`Algorithm signal ${signalId} not found`);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",
@@ -146,7 +146,7 @@ export async function autoAdaptPipeline(userId: string, signalId: number) {
   if (!signal) throw new Error(`Algorithm signal ${signalId} not found`);
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [
       {
         role: "user",

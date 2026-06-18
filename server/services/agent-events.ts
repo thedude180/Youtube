@@ -199,7 +199,7 @@ async function optimizeLiveStreamSEO(userId: string, videoId: string | number, g
   } catch {}
 
   const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `You are a YouTube live stream SEO expert for a NO COMMENTARY PS5 gaming channel. Optimize the stream metadata for maximum discoverability.

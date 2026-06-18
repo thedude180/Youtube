@@ -142,7 +142,7 @@ Craft a platform-native caption that will go viral on ${platform.toUpperCase()}.
 Respond in JSON: { "hook": "<first 3-6 words that stop the scroll>", "caption": "<the full caption copy, platform-ready>", "hashtags": ["<hashtag>", ...] }`;
 
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 600,

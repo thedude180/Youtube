@@ -504,7 +504,7 @@ async function generateWithAI(prompt: string, systemMsg: string): Promise<string
   _aiCallInFlight = true;
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: systemMsg },
         { role: "user", content: prompt },

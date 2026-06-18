@@ -84,7 +84,7 @@ export async function detectTrendFromStream(userId: string, stream: typeof strea
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "system",
         content: `You are a trend analysis expert. Determine if "${sanitizeForPrompt(topic)}" is currently trending or recently released. Consider:

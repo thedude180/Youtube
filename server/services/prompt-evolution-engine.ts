@@ -134,7 +134,7 @@ Analyze this prompt and suggest a SPECIFIC improvement. Output JSON:
       await db.insert(promptVersions).values({
         promptKey,
         version: newVersion,
-        model: currentPrompt.model || "gpt-4o-mini",
+        model: currentPrompt.model || "gpt-5",
         systemPrompt: parsed.improvedSystemPrompt || currentPrompt.systemPrompt,
         userPromptTemplate: parsed.improvedTemplate || currentPrompt.userPromptTemplate,
         temperature: currentPrompt.temperature || 0.7,

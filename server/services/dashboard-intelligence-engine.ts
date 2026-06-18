@@ -113,7 +113,7 @@ Return 3-6 insights and 2-4 opportunities. Return ONLY valid JSON.`;
       const timeoutMs = 8_000;
       const response = await Promise.race([
         openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-5",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.7,
           response_format: { type: "json_object" },
@@ -229,7 +229,7 @@ Return ONLY valid JSON with a "trends" array.`;
     const timeoutMs = 8_000;
     const response = await Promise.race([
       openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
         response_format: { type: "json_object" },

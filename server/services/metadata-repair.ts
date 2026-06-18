@@ -6,7 +6,7 @@
  *   "Replay: 🔴 LIVE: Intense Battlefield 6 Gameplay | Epic Action Battles Now! | PS5 Ga..."
  *
  * For each bad title it:
- *   1. Uses gpt-4o-mini to generate a BF6-correct replacement title
+ *   1. Uses gpt-5 to generate a BF6-correct replacement title
  *   2. Builds a structured description from seo-templates part builders
  *   3. Pushes corrected title + description + tags to YouTube via Data API
  *   4. Marks the DB record so the same video is never re-processed
@@ -92,7 +92,7 @@ async function generateBetterTitle(
           '"AI Did Something IMPOSSIBLE in Battlefield 6 | No Commentary". Max 80 chars.';
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_tokens: 60,
       messages: [
         {

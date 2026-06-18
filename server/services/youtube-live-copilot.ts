@@ -224,7 +224,7 @@ export async function prepareLiveStream(
   if (tryAcquireAISlotNow()) {
     try {
       const resp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           {
             role: "system",
@@ -451,7 +451,7 @@ export async function processLiveCopilotMessage(
       : "";
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         {
           role: "system",

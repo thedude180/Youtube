@@ -123,7 +123,7 @@ Examples of BAD titles (do NOT write these):
 Respond with ONLY the title text. No JSON, no quotes, no explanation.`;
 
     const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       max_completion_tokens: 120,
     });

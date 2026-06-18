@@ -190,7 +190,7 @@ Return this exact JSON structure:
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
@@ -247,7 +247,7 @@ Return this exact JSON structure:
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           { role: "system", content: LIVESTREAM_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
@@ -323,7 +323,7 @@ Return this exact JSON structure:
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           { role: "system", content: MINING_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },

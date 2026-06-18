@@ -203,7 +203,7 @@ async function _researchThumbnailsForGame(userId: string, gameName: string): Pro
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{
         role: "user",
         content: `You are a world-class YouTube thumbnail analyst specialising in PS5 no-commentary gaming channels. You've been given reference materials from the web about thumbnails for "${sanitizeForPrompt(gameName)}" and YouTube gaming in general.

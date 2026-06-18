@@ -122,7 +122,7 @@ async function createBroadcast(userId: string, channelId: number, slot: Date): P
   const openai = getOpenAIClientBackground();
 
   const titleRes = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `Write a YouTube Live title for ET Gaming 274, a PS5 no-commentary gaming channel, playing ${focusGame}. Make it specific and exciting (e.g. "Battlefield 6 Live — Squad Conquest PS5"). Max 80 characters. Return the title only.`,
@@ -134,7 +134,7 @@ async function createBroadcast(userId: string, channelId: number, slot: Date): P
     ?? `${focusGame} Live — PS5 Gameplay`;
 
   const descRes = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `Write a YouTube Live stream description for ET Gaming 274 playing ${focusGame} on PS5. Mention: no commentary, pure gameplay, join live. 150–200 chars total. End with 2–3 hashtags.`,
@@ -198,7 +198,7 @@ async function postAnnouncement(userId: string, slot: Date): Promise<void> {
   const openai = getOpenAIClientBackground();
 
   const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{
       role: "user",
       content: `Write a short YouTube community post (max 280 chars) for ET Gaming 274 announcing a live ${focusGame} stream on PS5 happening tonight. Conversational tone, hype it up, mention no commentary pure gameplay. No hashtags.`,

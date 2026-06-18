@@ -124,7 +124,7 @@ async function generateFullFix(
     const issueList = detectedIssues.map(i => `• [${sanitizeForPrompt(i.severity)}] ${sanitizeForPrompt(i.description)}`).join("\n");
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 1200,
       temperature: 0.3,
       messages: [

@@ -297,7 +297,7 @@ Respond with JSON:
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     max_completion_tokens: 4000,
@@ -331,7 +331,7 @@ Respond with JSON:
       targetEngagementRate: 0.05,
     },
     metadata: {
-      aiModel: "gpt-4o-mini",
+      aiModel: "gpt-5",
       generatedAt: new Date().toISOString(),
       retentionBeatsApplied: true,
     },
@@ -451,7 +451,7 @@ Respond with JSON:
   }
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-5",
     messages: [{ role: "user", content: prompt }],
     response_format: { type: "json_object" },
     max_completion_tokens: 4000,
@@ -486,7 +486,7 @@ Respond with JSON:
       targetCpm: (plan.campaigns || []).reduce((sum: number, c: any) => sum + (c.expectedResults?.cpm || 0), 0) / Math.max(1, (plan.campaigns || []).length),
     },
     metadata: {
-      aiModel: "gpt-4o-mini",
+      aiModel: "gpt-5",
       generatedAt: new Date().toISOString(),
       retentionBeatsApplied: true,
       adPlatform: enabledAdPlatforms.join(","),

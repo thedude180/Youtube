@@ -253,7 +253,7 @@ export async function fetchLatestPlatformPolicies(): Promise<{
         : "No rules currently stored.";
 
       const response = await getOpenAI().chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           {
             role: "system",

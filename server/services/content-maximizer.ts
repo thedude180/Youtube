@@ -260,7 +260,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
           contentType: "youtube-short",
           contentCategory: "video",
           style: "short-clip",
-          aiModel: "gpt-4o-mini",
+          aiModel: "gpt-5",
           sourceYoutubeId: youtubeId,
           segmentStartMin: Math.floor(moment.startSec / 60),
           segmentEndMin: Math.ceil(adjustedEnd / 60),
@@ -326,7 +326,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
               contentType: "long-form-compilation",
               contentCategory: "video",
               style: "highlight-reel",
-              aiModel: "gpt-4o-mini",
+              aiModel: "gpt-5",
               sourceYoutubeId: youtubeId,
               segmentStartMin: Math.floor(startSec / 60),
               segmentEndMin: Math.ceil(endSec / 60),
@@ -383,7 +383,7 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
               contentType: "long-form-compilation",
               contentCategory: "video",
               style: "highlight-reel",
-              aiModel: "gpt-4o-mini",
+              aiModel: "gpt-5",
               sourceYoutubeId: youtubeId,
               segmentStartMin: Math.floor(moment.startSec / 60),
               segmentEndMin: Math.ceil(moment.endSec / 60),
@@ -545,7 +545,7 @@ Return ONLY valid JSON:
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 5000,
@@ -599,7 +599,7 @@ Return ONLY valid JSON:
     logger.info("AI identified usable moments", {
       shorts: moments.filter(m => m.type === "short").length,
       longForms: moments.filter(m => m.type === "long-form").length,
-      model: "gpt-4o",
+      model: "gpt-5",
     });
     return moments;
   } catch (err: any) {

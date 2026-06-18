@@ -127,7 +127,7 @@ Return ONLY valid JSON, no markdown.`;
     const liveContext = await fetchLiveYouTubeContext(session);
 
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_completion_tokens: 2000,
       messages: [
         { role: "system", content: systemPrompt },
@@ -179,7 +179,7 @@ async function queueSocialPost(
       scheduledAt: new Date(),
       metadata: {
         contentType: "live_social_blast",
-        aiModel: "gpt-4o-mini",
+        aiModel: "gpt-5",
         humanScore: 90,
         isRecycled: false,
       },

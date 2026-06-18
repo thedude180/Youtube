@@ -178,7 +178,7 @@ export async function detectGameFromFrames(videoPath: string, title: string, des
       }));
 
       const resp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         messages: [
           {
             role: "system",
@@ -230,7 +230,7 @@ async function detectGameNameFromText(title: string, description: string): Promi
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: `Extract the PS5 game name ONLY if it is explicitly mentioned in the title or description. Do NOT guess or infer a game that is not clearly named. If the game name is not clearly stated in the text, return exactly "Unknown". Return ONLY the official game name as a plain string.` },
         { role: "user", content: `Title: ${sanitizeForPrompt(title)}\nDescription: ${(description || "").slice(0, 300)}` },
@@ -293,7 +293,7 @@ Return ONLY valid JSON array:
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 800,
@@ -452,7 +452,7 @@ Return JSON: {"title": "...", "description": "...", "tags": ["..."]}`;
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       max_completion_tokens: 600,

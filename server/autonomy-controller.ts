@@ -110,7 +110,7 @@ async function runEngineWithAI(engineName: string, userId: string): Promise<{ ac
   let response;
   try {
     response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: "You are an autonomous AI engine for a content creator platform. Analyze and make decisions to optimize growth, engagement, and revenue. Always respond with valid JSON only." },
         { role: "user", content: prompt }

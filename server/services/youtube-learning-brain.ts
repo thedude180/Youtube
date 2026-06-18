@@ -858,7 +858,7 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
     if (insights.length && tryAcquireAISlotNow()) {
       try {
         const resp = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-5",
           messages: [
             {
               role: "system",
@@ -1410,7 +1410,7 @@ async function runWeeklySynthesis(userId: string): Promise<void> {
 
     try {
       const resp = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5",
         max_tokens: 600,
         messages: [
           {
@@ -1783,7 +1783,7 @@ async function generateAndStoreDigest(
 
   try {
     const resp = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       max_tokens: 160,
       messages: [
         {
