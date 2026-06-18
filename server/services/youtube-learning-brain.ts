@@ -1446,6 +1446,209 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] discovered-strategies synthesis non-fatal: ${stratErr?.message?.slice(0, 80)}`);
     }
 
+    // ── Closed-loop extensions ────────────────────────────────────────────────
+    // These three steps close the remaining gaps in the "one big closed loop"
+    // architecture so every signal generated anywhere in the system eventually
+    // reaches every decision-maker.
+
+    // 9r. Brain → service_state operational config.
+    //     masterKnowledgeBank only reaches AI prompts.  Non-AI services (publishers,
+    //     scheduler, back-catalog engine) need the brain's conclusions as structured
+    //     key/value config they can read with getState() at runtime — no LLM required.
+    //     Written every daily cycle so config stays fresh across deployments.
+    try {
+      const { setState } = await import('../lib/service-state');
+
+      // Best Short duration — publishers and content generators read this
+      if (bestBucket) {
+        const BUCKET_TARGET_SEC: Record<string, number> = {
+          "0-15s": 12, "15-30s": 22, "30-60s": 45, "40-60s": 50,
+          "60-90s": 75, "0-30s": 25, "0-60s": 45,
+        };
+        setState('brain', 'best_short_duration', {
+          bucket:     bestBucket,
+          targetSec:  BUCKET_TARGET_SEC[bestBucket] ?? 50,
+          confidence: Math.min(90, 50 + (buckets[0]?.sampleCount ?? 1) * 3),
+          updatedAt:  new Date().toISOString(),
+        });
+      }
+
+      // Best posting window — orchestrator and scheduler read this
+      if (bestWindow) {
+        const WINDOW_UTC_HOUR: Record<string, number> = {
+          morning: 8, afternoon: 14, evening: 19, night: 22, "late-night": 1,
+        };
+        setState('brain', 'best_publish_window', {
+          window:     bestWindow,
+          utcHour:    WINDOW_UTC_HOUR[bestWindow] ?? 19,
+          confidence: Math.min(88, 50 + (windows[0]?.sampleCount ?? 1) * 3),
+          updatedAt:  new Date().toISOString(),
+        });
+      }
+
+      // Quota safe batch window — based on historical quota exhaustion at ~17:00 UTC
+      // (10 AM Pacific). Services should schedule heavy batch work in 00:00–15:00 UTC.
+      setState('brain', 'quota_safe_window', {
+        safeBatchStartUtcHour:  0,
+        safeBatchEndUtcHour:    15,
+        quotaResetUtcHour:      0,
+        quotaExhaustionUtcHour: 17,
+        note:     "Quota resets at 00:00 UTC; exhaust around 17:00 UTC (10 AM Pacific). Batch heavy work in 00:00–15:00 UTC window.",
+        updatedAt: new Date().toISOString(),
+      });
+
+      logger.debug(`[Brain] Step 9r: operational config written → service_state (best_short_duration, best_publish_window, quota_safe_window)`);
+    } catch (srErr: any) {
+      logger.debug(`[Brain] Step 9r service-state write non-fatal: ${srErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9s. aiModelRoutingLogs → Brain synthesis.
+    //     The AI model router logs every call with model, latency, cost, and failover
+    //     reason to ai_model_routing_logs — but the brain NEVER read this table.
+    //     This step closes that gap: per-model reliability/cost/latency data from the
+    //     last 24h is synthesised into masterKnowledgeBank warning principles so the
+    //     orchestrator knows which models are struggling and can plan accordingly.
+    try {
+      const routingRaw = await db.execute(sql`
+        SELECT
+          model_selected,
+          COUNT(*)::int                                                     AS total_calls,
+          ROUND(AVG(latency_ms)::numeric, 0)::int                          AS avg_latency_ms,
+          ROUND(SUM(cost_usd)::numeric, 6)::float                          AS total_cost_usd,
+          SUM(CASE WHEN reason ILIKE '%failover%' THEN 1 ELSE 0 END)::int  AS failover_count,
+          ROUND(AVG(tokens_used)::numeric, 0)::int                         AS avg_tokens
+        FROM ai_model_routing_logs
+        WHERE user_id = ${userId}
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY model_selected
+        ORDER BY total_calls DESC
+        LIMIT 15
+      `);
+      const rRows = (routingRaw as any)?.rows ?? [];
+      if (rRows.length > 0) {
+        const totalCalls24h = rRows.reduce((s: number, r: any) => s + (r.total_calls ?? 0), 0);
+        const totalCost24h  = rRows.reduce((s: number, r: any) => s + (r.total_cost_usd ?? 0), 0);
+
+        // Write summary to service_state so dashboard + orchestrator can read it
+        const { setState } = await import('../lib/service-state');
+        setState('brain', 'ai_routing_summary_24h', {
+          models: rRows.map((r: any) => ({
+            model:       r.model_selected,
+            calls:       r.total_calls,
+            failoverPct: r.total_calls > 0 ? Math.round((r.failover_count / r.total_calls) * 100) : 0,
+            avgLatencyMs: r.avg_latency_ms,
+            costUsd:     r.total_cost_usd,
+          })),
+          totalCalls: totalCalls24h,
+          totalCostUsd: Math.round(totalCost24h * 10000) / 10000,
+          updatedAt: new Date().toISOString(),
+        });
+
+        // Warning principle for any model with ≥25% failover rate
+        for (const r of rRows) {
+          const failPct = r.total_calls > 0 ? Math.round((r.failover_count / r.total_calls) * 100) : 0;
+          if (failPct >= 25 && r.total_calls >= 5) {
+            await db.insert(masterKnowledgeBank).values({
+              userId,
+              category:          "system_lesson",
+              principle:         `[AI Reliability] Model "${r.model_selected}" hit ${failPct}% failover rate in last 24h (${r.failover_count}/${r.total_calls} calls) — orchestrator should reduce reliance on this model for critical tasks`,
+              sourceEngines:     ["ai-model-router", "learning-brain"],
+              evidenceCount:     r.total_calls,
+              confidenceScore:   75,
+              applicableEngines: ["youtube-ai-orchestrator", "content-grinder", "backlog-engine"],
+              isActive:          true,
+              metadata: {
+                model: r.model_selected, failoverPct: failPct,
+                totalCalls: r.total_calls, avgLatencyMs: r.avg_latency_ms,
+                promotedAt: new Date().toISOString(),
+              },
+            } as any).catch(() => {});
+          }
+        }
+
+        // Cost/efficiency summary principle
+        if (totalCalls24h > 0) {
+          const costPerCall = totalCost24h / totalCalls24h;
+          await db.insert(masterKnowledgeBank).values({
+            userId,
+            category:          "system_lesson",
+            principle:         `[AI Efficiency] ${totalCalls24h} AI calls in last 24h — $${totalCost24h.toFixed(4)} total ($${costPerCall.toFixed(5)}/call). Reduce calls if approaching rate limits; prefer batching where possible.`,
+            sourceEngines:     ["ai-model-router", "learning-brain"],
+            evidenceCount:     totalCalls24h,
+            confidenceScore:   80,
+            applicableEngines: ["youtube-ai-orchestrator"],
+            isActive:          true,
+            metadata: { totalCalls24h, totalCostUsd: totalCost24h, models: rRows.length, promotedAt: new Date().toISOString() },
+          } as any).catch(() => {});
+        }
+
+        logger.info(`[Brain] Step 9s: ${rRows.length} model(s) synthesised from ai_model_routing_logs — ${totalCalls24h} calls, $${totalCost24h.toFixed(4)}`);
+      }
+    } catch (routingErr: any) {
+      logger.debug(`[Brain] Step 9s AI routing synthesis non-fatal: ${routingErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9t. Source video CTR direct feedback → back_catalog_videos score boost.
+    //     When a Short earns strong CTR (>8%, ≥50 impressions), its source video's
+    //     shorts_opportunity_score is bumped (+8) so the back-catalog engine mines
+    //     MORE clips from that same source first.  This is the direct virtuous cycle:
+    //     great Short → source video prioritised → more clips → more great Shorts.
+    //     The existing loop only updates game/duration patterns (indirect); this step
+    //     adds the direct source-video-to-Short-CTR feedback link.
+    try {
+      const highCtrRaw = await db.execute(sql`
+        SELECT source_video_id,
+               COUNT(*)::int                          AS short_count,
+               ROUND(AVG(ctr)::numeric, 2)::float     AS avg_ctr,
+               SUM(views)::int                        AS total_views
+        FROM youtube_output_metrics
+        WHERE user_id    = ${userId}
+          AND source_video_id IS NOT NULL
+          AND ctr        > 8
+          AND impressions >= 50
+          AND measured_at >= NOW() - INTERVAL '30 days'
+          AND content_type ILIKE '%short%'
+        GROUP BY source_video_id
+        HAVING AVG(ctr) > 8
+        ORDER BY AVG(ctr) DESC
+        LIMIT 20
+      `);
+      const ctrRows = (highCtrRaw as any)?.rows ?? [];
+      const sourceIds = ctrRows.map((r: any) => Number(r.source_video_id)).filter((n: number) => n > 0);
+      if (sourceIds.length > 0) {
+        // Direct DB bump — boost scores for high-performing source videos
+        await db.execute(sql.raw(`
+          UPDATE back_catalog_videos
+          SET shorts_opportunity_score = LEAST(100, COALESCE(shorts_opportunity_score, 0) + 8),
+              total_revival_score      = LEAST(100, COALESCE(total_revival_score, 0) + 5),
+              updated_at               = NOW()
+          WHERE id IN (${sourceIds.join(",")})
+        `));
+
+        // Write as a principle so AI agents also learn the pattern
+        const topAvgCtr = ctrRows[0]?.avg_ctr ?? 8;
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:          "performance",
+          principle:         `[Source Priority] ${sourceIds.length} source video(s) produced Shorts averaging >${topAvgCtr}% CTR — their back_catalog scores have been boosted for deeper mining. Mining these sources first maximises channel CTR.`,
+          sourceEngines:     ["learning-brain", "youtube-output-metrics"],
+          evidenceCount:     ctrRows.reduce((s: number, r: any) => s + (r.short_count ?? 0), 0),
+          confidenceScore:   82,
+          applicableEngines: ["back-catalog-runner", "youtube-ai-orchestrator", "content-grinder"],
+          isActive:          true,
+          metadata: {
+            sourceVideoIds: sourceIds,
+            avgCtr:         topAvgCtr,
+            updatedAt:      new Date().toISOString(),
+          },
+        } as any).catch(() => {});
+
+        logger.info(`[Brain] Step 9t: boosted ${sourceIds.length} source video(s) via direct CTR feedback (avg ${topAvgCtr}% CTR)`);
+      }
+    } catch (ctrErr: any) {
+      logger.debug(`[Brain] Step 9t CTR feedback non-fatal: ${ctrErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
