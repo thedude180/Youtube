@@ -5402,28 +5402,60 @@ async function migration095FailNewInnerTube400Videos(): Promise<void> {
 }
 
 // ── Per-boot: cancel known OOM crash-loop stream_edit_jobs (non-flagged) ──────
-// Job 18117 is a 2h source video.  On every crash the job lands in 'processing'
-// state; the stream editor's startup recovery resets it to 'queued' at T+16min;
-// the editor re-processes it → OOM at T+33min → crash loop.
-// This non-flagged function runs at T+3s on every boot, cancelling the job
-// BEFORE the stream editor's startup recovery can re-queue it.
-// Add future problematic job IDs to LONG_STREAM_EDIT_JOB_IDS.
-const LONG_STREAM_EDIT_JOB_IDS = [18117];
+// Stream edit job crash-loop prevention.
+//
+// The crash loop pattern:
+//   1. A stream_edit_job runs → server OOMs or crashes → job stays 'processing'
+//   2. On the next boot the stream editor's startup recovery resets it:
+//      processing → queued (at T+10-16min)
+//   3. The editor re-processes it → crashes again at T+15-33min → loop forever
+//
+// Two-layer defence (both run at T+3s, before the startup recovery):
+//
+//  Layer A — cancel ALL jobs currently in 'processing' status.
+//            Any job in 'processing' at boot was definitely running when the
+//            last crash happened.  These should never be re-queued; cancelling
+//            them pre-empts the startup recovery's WHERE status='processing' sweep
+//            so it finds 0 rows → no crash-causing job gets re-queued.
+//
+//  Layer B — cancel explicitly known crash-causing jobs by ID (in any eligible
+//            status), as a belt-and-suspenders guard for jobs that may have been
+//            reset to 'queued' by a recovery pass that ran before this function.
+//            18117: 2h source video (original OOM crash-loop culprit).
+//            18229: current active crash-loop job (15-min reboot cycle 2026-06-18).
+//            Add future problematic IDs here.
+//
+const LONG_STREAM_EDIT_JOB_IDS = [18117, 18229];
 async function cancelLongStreamEditJobs(): Promise<void> {
   try {
-    if (LONG_STREAM_EDIT_JOB_IDS.length === 0) return;
-    // Use sql.raw() so the int list is embedded as a literal — avoids the
-    // Drizzle array-spread bug that turns ${arr}::int[] into ($1,$2,…)::int[].
+    // Layer A: cancel every job that was mid-run when the server crashed.
+    const rProcessing = await db.execute(sql.raw(`
+      UPDATE stream_edit_jobs
+      SET status = 'cancelled'
+      WHERE status = 'processing'
+    `));
+    const cancelledProcessing = (rProcessing as any)?.rowCount ?? 0;
+    if (cancelledProcessing > 0) {
+      log.info(
+        `[Boot] Cancelled ${cancelledProcessing} mid-run stream_edit_job(s) ` +
+        `(status=processing → cancelled; prevents startup-recovery re-queue crash loop)`
+      );
+    }
+
+    // Layer B: cancel known crash-loop job IDs in any eligible state.
     const idsSql = LONG_STREAM_EDIT_JOB_IDS.join(',');
-    const r = await db.execute(sql.raw(`
+    const rIds = await db.execute(sql.raw(`
       UPDATE stream_edit_jobs
       SET status = 'cancelled'
       WHERE id IN (${idsSql})
         AND status IN ('queued','processing','failed')
     `));
-    const rows = (r as any)?.rowCount ?? 0;
-    if (rows > 0) {
-      log.info(`[Boot] Cancelled ${rows} OOM crash-loop stream_edit_job(s): IDs ${LONG_STREAM_EDIT_JOB_IDS.join(',')}`);
+    const cancelledIds = (rIds as any)?.rowCount ?? 0;
+    if (cancelledIds > 0) {
+      log.info(
+        `[Boot] Cancelled ${cancelledIds} known-OOM stream_edit_job(s) ` +
+        `by ID: ${LONG_STREAM_EDIT_JOB_IDS.join(',')}`
+      );
     }
   } catch (err: any) {
     log.warn(`[Boot] cancelLongStreamEditJobs failed (non-fatal): ${err?.message?.slice(0, 100)}`);
