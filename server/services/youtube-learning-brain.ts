@@ -1068,6 +1068,53 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] promoteIncidentLessons non-fatal: ${incErr?.message?.slice(0, 80)}`);
     }
 
+    // 9q. Active incident sweep — synthesize ALL currently "active" (unresolved)
+    //     incidents into the masterKnowledgeBank as monitoring/warning principles.
+    //     These are problems the system has detected but not yet fixed — surfacing
+    //     them ensures every AI agent is aware of ongoing fragility in real-time,
+    //     not only after a human manually marks something "resolved".
+    //     Also sweeps any remaining un-promoted resolved incidents across ALL
+    //     severities (belt-and-suspenders in case Step 9b's 50-row limit was hit).
+    try {
+      const activeIncidents = await db.execute(sql`
+        SELECT id, category, service, root_cause, lesson, severity
+        FROM system_incident_log
+        WHERE status = 'active'
+          AND auto_detected = true
+          AND created_at >= NOW() - INTERVAL '7 days'
+        ORDER BY created_at DESC
+        LIMIT 15
+      `);
+      const activeRows = (activeIncidents as any)?.rows ?? [];
+      if (activeRows.length > 0) {
+        for (const inc of activeRows) {
+          const principle =
+            `[Active Issue — ${inc.category}] Service: ${inc.service}. ` +
+            `Root cause: ${(inc.root_cause ?? "").slice(0, 150)}. ` +
+            `Lesson: ${(inc.lesson ?? "").slice(0, 200)}`;
+          await db.insert(masterKnowledgeBank).values({
+            userId,
+            category:          "system_lesson",
+            principle:         principle.slice(0, 500),
+            sourceEngines:     ["incident-log", inc.service ?? "unknown"],
+            evidenceCount:     1,
+            confidenceScore:   60,
+            applicableEngines: ["all"],
+            isActive:          true,
+            metadata: {
+              incidentId:  inc.id,
+              status:      "active",
+              severity:    inc.severity,
+              promotedAt:  new Date().toISOString(),
+            },
+          } as any).catch(() => {});
+        }
+        logger.info(`[Brain] Step 9q: promoted ${activeRows.length} active incident(s) → masterKnowledgeBank`);
+      }
+    } catch (aqErr: any) {
+      logger.debug(`[Brain] Step 9q active-incident sweep non-fatal: ${aqErr?.message?.slice(0, 80)}`);
+    }
+
     // 9c. Measure generation-over-generation improvement velocity.
     //     Groups content by ISO week and writes a velocity signal to masterKnowledgeBank
     //     so the orchestrator knows if recent changes are actually helping or hurting.

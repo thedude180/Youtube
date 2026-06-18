@@ -6190,6 +6190,33 @@ export async function runStartupMigrations(): Promise<void> {
     // Processes up to 200 per boot so it never stalls startup.
     await cleanupSkippedVaultFiles();
     await verifyAllMigrationFlags();
+
+    // Emit a boot-heal summary to system_event_log so the learning brain's
+    // Step 0 (synthesizeEventLog) can track how many migrations ran on this boot
+    // and whether any per-boot cleanups fired.  This is the "startup migration
+    // outcome" signal that was previously invisible to the brain.
+    try {
+      const { logEvent } = await import("./event-log");
+      logEvent({
+        eventType: "migration",
+        service:   "startup-migrations",
+        title:     `Boot-heal complete — ${102} migrations registered, per-boot cleanups ran`,
+        severity:  "info",
+        detail: {
+          totalMigrations:  102,
+          perBootCleanups: [
+            "cancelLongStreamEditJobs",
+            "cleanupNonBF6QueueItems",
+            "cleanupNonBF6IndexedVaultEntries",
+            "cleanupOrphanedQueueItems",
+            "cleanupSkippedVaultFiles",
+            "cleanupStuckPendingItems",
+          ],
+          bootAt: new Date().toISOString(),
+        },
+      });
+    } catch { /* non-fatal */ }
+
   } catch (err: any) {
     log.warn(`[StartupMigrations] Unexpected error (non-fatal): ${err?.message}`);
   }

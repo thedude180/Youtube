@@ -4484,6 +4484,20 @@ httpServer.listen(
 
     if (status >= 500) {
       logger.error("Internal Server Error", { error: String(err), requestId });
+      // Auto-feed the learning brain: every unhandled 500 becomes an active incident.
+      // The brain's daily Step 9q will synthesize recurring routes into masterKnowledgeBank
+      // so the orchestrator and AI generators learn which endpoints are fragile.
+      import("./lib/incident-log").then(({ logIncidentOnce }) =>
+        logIncidentOnce({
+          category:  "other",
+          service:   `express:${_req.method}:${(_req.path ?? "").slice(0, 60)}`,
+          rootCause: (err?.message ?? "Unknown 500 error").slice(0, 200),
+          lesson:    `Unhandled 500 on ${_req.method} ${(_req.path ?? "").slice(0, 80)}: ${(err?.message ?? "").slice(0, 150)}`,
+          severity:  "medium",
+          status:    "active",
+          tags:      ["auto-detected", "express-500", "unhandled-error"],
+        }).catch(() => {})
+      ).catch(() => {});
     }
 
     const shouldStripErrors = isProduction;

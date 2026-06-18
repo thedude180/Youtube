@@ -163,40 +163,53 @@ export async function logMigrationResolution(opts: {
 
 // ── promoteIncidentLessonsToKnowledge ─────────────────────────────────────────
 // Called by the learning brain's daily cycle.
-// Reads all un-promoted resolved incidents with severity critical|high and writes
-// their lessons into masterKnowledgeBank (category="system_lesson") so every AI
-// generator and orchestrator agent gets smarter about the system's failure modes.
+// Reads ALL un-promoted resolved incidents (every severity) and writes their
+// lessons into masterKnowledgeBank so every AI generator learns from every fix,
+// not just critical/high ones.  Low/medium incidents carry useful patterns too
+// (e.g. auto-segmented stream-edit runs, per-boot focus-gate slippage fixes).
+// Confidence scores are proportional to severity so the brain weighs them correctly.
 
 export async function promoteIncidentLessonsToKnowledge(userId: string): Promise<number> {
   try {
     const unpromoted = await db
       .select({
-        id:       systemIncidentLog.id,
-        category: systemIncidentLog.category,
-        service:  systemIncidentLog.service,
-        lesson:   systemIncidentLog.lesson,
-        severity: systemIncidentLog.severity,
+        id:           systemIncidentLog.id,
+        category:     systemIncidentLog.category,
+        service:      systemIncidentLog.service,
+        lesson:       systemIncidentLog.lesson,
+        severity:     systemIncidentLog.severity,
         crashesPerDay: systemIncidentLog.crashesPerDay,
+        rootCause:    systemIncidentLog.rootCause,
       })
       .from(systemIncidentLog)
       .where(
         and(
           eq(systemIncidentLog.promotedToKnowledge, false),
           eq(systemIncidentLog.status, "resolved"),
-          inArray(systemIncidentLog.severity, ["critical", "high"]),
+          // ALL severities — critical, high, medium, AND low
+          // (the old filter only included critical|high, causing low/medium
+          //  auto-detected incidents to permanently pile up never reaching the brain)
         ),
       )
-      .limit(20);
+      .limit(50);
 
     if (unpromoted.length === 0) return 0;
+
+    // Confidence scores by severity — lower severity = lower weight, but still flows in
+    const SEVERITY_CONFIDENCE: Record<string, number> = {
+      critical: 95,
+      high:     85,
+      medium:   70,
+      low:      55,
+    };
 
     let promoted = 0;
     for (const inc of unpromoted) {
       try {
-        const severityWeight = inc.severity === "critical" ? 95 : 85;
+        const confidence = SEVERITY_CONFIDENCE[inc.severity ?? "high"] ?? 75;
         const principle =
-          `[System Lesson — ${inc.category}] Service: ${inc.service}. ` +
-          `Rule: ${inc.lesson}`;
+          `[System Lesson — ${inc.category} | ${inc.severity ?? "high"}] ` +
+          `Service: ${inc.service}. Rule: ${inc.lesson}`;
 
         await db.insert(masterKnowledgeBank).values({
           userId,
@@ -204,13 +217,15 @@ export async function promoteIncidentLessonsToKnowledge(userId: string): Promise
           principle,
           sourceEngines:     ["incident-log", inc.service],
           evidenceCount:     inc.crashesPerDay ?? 1,
-          confidenceScore:   severityWeight,
+          confidenceScore:   confidence,
           applicableEngines: ["all"],
           isActive:          true,
           metadata: {
             incidentId:    inc.id,
             incidentCat:   inc.category,
             service:       inc.service,
+            severity:      inc.severity,
+            rootCause:     inc.rootCause?.slice(0, 200),
             promotedAt:    new Date().toISOString(),
           },
         } as any);
@@ -227,7 +242,7 @@ export async function promoteIncidentLessonsToKnowledge(userId: string): Promise
     }
 
     if (promoted > 0) {
-      log.info(`[IncidentLog] Promoted ${promoted} system lessons → masterKnowledgeBank`);
+      log.info(`[IncidentLog] Promoted ${promoted} system lessons → masterKnowledgeBank (all severities)`);
     }
     return promoted;
   } catch (err: any) {
