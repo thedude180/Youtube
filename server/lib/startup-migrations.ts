@@ -5813,15 +5813,17 @@ async function migration102FixGameMismatchesAndPurgeShortContamination(): Promis
     `));
     log.info(`[Migration 102] A72vRgZO7Zs game fixed: ${(r3 as any)?.rowCount ?? 0}`);
 
-    // ── Step 2: Mark vault entries for Short back_catalog_videos as skipped ──
-    // These are autopilot-published Shorts (15–60s) that were re-imported as
-    // source material by the back-catalog engine before the duration filter was
-    // added.  Their vault entries must be skipped so the downloader never retries
-    // them.  The back_catalog_videos rows are deleted in Step 3.
+    // ── Step 2: Tag Short vault entries as backup-only (NOT skipped) ─────────
+    // These are autopilot-published Shorts (15–60s).  The user wants them
+    // downloaded to the vault for backup purposes.  We tag them backupOnly=true
+    // so the non-BF6 cleanup and orphan cleanup both exempt them, but we do NOT
+    // change their status to 'skipped' — they should remain downloadable.
+    // No new clips will ever be made from them because Step 3 deletes their
+    // back_catalog_videos rows (the engine requires a BCV row to make clips).
     const r4 = await db.execute(sql.raw(`
       UPDATE content_vault_backups cvb
-      SET status = 'skipped',
-          download_error = 'migration-102: Short video (≤62s) is autopilot output, not source material'
+      SET metadata = COALESCE(cvb.metadata, '{}'::jsonb)
+                  || '{"backupOnly":true,"source":"channel_short_backup"}'::jsonb
       FROM back_catalog_videos bcv
       WHERE bcv.youtube_video_id = cvb.youtube_id
         AND bcv.user_id = '${REAL_USER}'
@@ -5830,7 +5832,7 @@ async function migration102FixGameMismatchesAndPurgeShortContamination(): Promis
         AND bcv.duration_sec <= 62
         AND cvb.status NOT IN ('failed', 'skipped')
     `));
-    log.info(`[Migration 102] Short vault entries marked skipped: ${(r4 as any)?.rowCount ?? 0}`);
+    log.info(`[Migration 102] Short vault entries tagged backupOnly: ${(r4 as any)?.rowCount ?? 0}`);
 
     // ── Step 3: Delete Short entries from back_catalog_videos ─────────────────
     // These 232 entries (15–62s duration) are autopilot-published Shorts that
@@ -5898,6 +5900,7 @@ async function cleanupNonBF6IndexedVaultEntries(): Promise<void> {
           OR bcv.game_name ILIKE '%bf6%'
           OR bcv.game_name ILIKE '%bf 6%'
         )
+        AND (cvb.metadata->>'backupOnly') IS DISTINCT FROM 'true'
     `));
     const cleaned = (r as any)?.rowCount ?? 0;
     if (cleaned > 0) {
@@ -5906,6 +5909,8 @@ async function cleanupNonBF6IndexedVaultEntries(): Promise<void> {
     // Also skip indexed vault entries that have no back_catalog_videos entry at
     // all AND have no downloaded file yet — these are ghost rows from the ghost
     // user or stale index operations and should not consume yt-dlp slots.
+    // Exempt backupOnly entries: these are channel Shorts being downloaded for
+    // backup purposes; they have no BCV row by design (deleted in migration 102).
     const r2 = await db.execute(sql.raw(`
       UPDATE content_vault_backups
       SET status = 'skipped',
@@ -5915,6 +5920,7 @@ async function cleanupNonBF6IndexedVaultEntries(): Promise<void> {
       WHERE user_id = '${REAL_USER}'
         AND status = 'indexed'
         AND file_path IS NULL
+        AND (metadata->>'backupOnly') IS DISTINCT FROM 'true'
         AND youtube_id NOT IN (
           SELECT youtube_video_id FROM back_catalog_videos WHERE user_id = '${REAL_USER}'
         )

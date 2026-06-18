@@ -331,6 +331,169 @@ async function runPlaylistPhase(userId: string): Promise<{ created: number; adde
   }
 }
 
+// ── Phase E: Analytics-driven Shorts Optimization ────────────────────────────
+// For every Short already on the channel (from video_catalog_links), fetch its
+// real analytics and push AI-improved title/description/tags back to YouTube.
+// These are PUBLISHED Shorts — they are NOT used as source material for new clips.
+// The goal is purely to improve discoverability: better hooks, better keywords.
+//
+// Limits: 5/cycle, 7-day cooldown per video (tracked in back_catalog_derivatives
+// with derivative_type = 'channel_short_seo').
+
+const MAX_SHORTS_SEO_PER_CYCLE = 5;
+const SHORTS_SEO_COOLDOWN_DAYS = 7;
+
+async function runChannelShortsOptimization(userId: string, channelId: number): Promise<number> {
+  if (isQuotaBreakerTripped()) return 0;
+
+  // Fetch channel Shorts from video_catalog_links that haven't been optimized recently.
+  // Cooldown = 7 days, limit = 5/cycle (hardcoded to avoid Drizzle INTERVAL param issues).
+  const rows = await db.execute(sql`
+    SELECT
+      vcl.youtube_id,
+      vcl.title,
+      vcl.view_count,
+      vcl.like_count,
+      vcl.published_at
+    FROM video_catalog_links vcl
+    WHERE vcl.user_id       = ${userId}
+      AND vcl.video_type    = 'short'
+      AND vcl.youtube_id    IS NOT NULL
+      AND vcl.title         IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM back_catalog_derivatives bcd
+        WHERE bcd.user_id                = ${userId}
+          AND bcd.derivative_type        = 'channel_short_seo'
+          AND bcd.derivative_youtube_id  = vcl.youtube_id
+          AND bcd.created_at             > NOW() - INTERVAL '7 days'
+      )
+    ORDER BY vcl.view_count DESC NULLS LAST
+    LIMIT 5
+  `);
+
+  const shorts = (rows.rows as any[]).filter(r => !!r.youtube_id && !!r.title);
+  if (!shorts.length) {
+    logger.info("[BCGrowth] Phase E — all channel Shorts recently optimized");
+    return 0;
+  }
+
+  const focusGame = await getFocusGame();
+  let updated = 0;
+
+  for (const short of shorts) {
+    if (isQuotaBreakerTripped()) break;
+    try {
+      const ytId   = short.youtube_id as string;
+      const views  = (short.view_count as number) ?? 0;
+      const likes  = (short.like_count  as number) ?? 0;
+      const safeTitle = sanitizeForPrompt(short.title as string, 200);
+      const safeGame  = sanitizeForPrompt(focusGame, 80);
+
+      const prompt = `You are an analytics-driven YouTube SEO expert for "ET Gaming 274" (no-commentary gaming channel, 6.1K subs, primarily Battlefield 6).
+
+Analyze this SHORT already published on the channel and suggest IMPROVED metadata to drive MORE views and subscribers:
+
+Current title: ${safeTitle}
+Current stats: ${views.toLocaleString()} views, ${likes.toLocaleString()} likes
+
+Your goal: maximize Click-Through Rate (CTR) and Watch Time. This is a SHORT (vertical, ≤60s).
+
+Return a JSON object with EXACTLY these keys:
+1. "title": 50–60 chars — punchy hook, ends with #Shorts, includes game name or moment type, NO clickbait
+2. "description": 150–300 chars — strong opening line, game name, "no commentary", relevant hashtags (#BF6 #Battlefield6 #Shorts)
+3. "tags": array of 15–20 tags (no # sign) — prioritize trending gaming terms
+
+RULES:
+- NEVER mention AI, ChatGPT, Claude, or any AI tool
+- Make the hook specific to the gameplay moment (e.g. "insane sniper kill" not "great moment")
+- Study what made high-view Shorts work: specificity + curiosity gap`;
+
+      const aiResult = await executeRoutedAICall(
+        { taskType: "vod_seo", userId, priority: "low" },
+        "You are an SEO expert for YouTube. Respond with valid JSON only.",
+        prompt,
+      );
+
+      const parsed = safeParseJSON(aiResult.content, {} as Record<string, unknown>);
+      const newTitle = (parsed.title as string | undefined)?.slice(0, 100);
+      const newDesc  = (parsed.description as string | undefined)?.slice(0, 5000);
+      const newTags  = Array.isArray(parsed.tags) ? (parsed.tags as string[]).slice(0, 30) : [];
+
+      if (!newTitle || !newDesc) {
+        logger.warn(`[BCGrowth] Phase E — SEO parse failed for Short ${ytId}`);
+        continue;
+      }
+
+      await updateYouTubeVideo(channelId, ytId, {
+        title: newTitle,
+        description: newDesc,
+        tags: newTags,
+      }, "backlogWrite");
+
+      // Record cooldown so this Short isn't re-processed for 7 days
+      await db.insert(backCatalogDerivatives).values({
+        userId,
+        backCatalogVideoId: undefined,
+        sourceYoutubeId: null,
+        derivativeYoutubeId: ytId,
+        derivativeType: "channel_short_seo",
+        transformationType: "channel_short_seo",
+        createdAt: new Date(),
+      } as any).onConflictDoNothing().catch(() => {});
+
+      updated++;
+      logger.info(`[BCGrowth] Phase E — Short ${ytId} SEO updated: "${newTitle.slice(0, 60)}"`);
+    } catch (err: any) {
+      logger.warn(`[BCGrowth] Phase E — failed for ${short.youtube_id}: ${err?.message?.slice(0, 120)}`);
+    }
+  }
+
+  return updated;
+}
+
+// ── Per-boot: seed vault entries for channel Shorts (backup only) ─────────────
+// The user's 2,775 published Shorts should be backed up to the vault.
+// We create vault entries for any Short in video_catalog_links that doesn't
+// have one yet, marked backupOnly=true so:
+//   1. The perpetual downloader downloads them (backup copy on disk)
+//   2. The BF6/non-BF6 vault cleanup exempts them (not source material)
+//   3. The pre-encoder and back-catalog engine ignore them (no clips made)
+// Rate-limited: seed at most 20 per cycle to avoid spamming the DB on boot.
+
+export async function seedChannelShortsVaultEntries(userId: string): Promise<void> {
+  try {
+    const result = await db.execute(sql`
+      INSERT INTO content_vault_backups
+        (user_id, youtube_id, status, metadata, created_at, updated_at)
+      SELECT
+        vcl.user_id,
+        vcl.youtube_id,
+        'indexed',
+        '{"backupOnly":true,"source":"channel_short_backup"}'::jsonb,
+        NOW(),
+        NOW()
+      FROM video_catalog_links vcl
+      WHERE vcl.user_id    = ${userId}
+        AND vcl.video_type = 'short'
+        AND vcl.youtube_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM content_vault_backups cvb
+          WHERE cvb.user_id    = ${userId}
+            AND cvb.youtube_id = vcl.youtube_id
+        )
+      ORDER BY vcl.published_at DESC NULLS LAST
+      LIMIT 20
+      ON CONFLICT DO NOTHING
+    `);
+    const seeded = (result as any)?.rowCount ?? 0;
+    if (seeded > 0) {
+      logger.info(`[BCGrowth] Seeded ${seeded} channel Short vault backup entries`);
+    }
+  } catch (err: any) {
+    logger.warn(`[BCGrowth] Short vault seeding failed: ${err?.message?.slice(0, 120)}`);
+  }
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export interface BackCatalogGrowthResult {
@@ -339,6 +502,7 @@ export interface BackCatalogGrowthResult {
   commentsPosted: number;
   playlistsCreated: number;
   videosAddedToPlaylists: number;
+  shortsOptimized?: number;
   skipped?: string;
 }
 
@@ -349,6 +513,7 @@ export async function runBackCatalogGrowthEngine(userId: string): Promise<BackCa
     commentsPosted: 0,
     playlistsCreated: 0,
     videosAddedToPlaylists: 0,
+    shortsOptimized: 0,
   };
 
   const autonomous = await isAutonomousMode(userId);
@@ -361,7 +526,10 @@ export async function runBackCatalogGrowthEngine(userId: string): Promise<BackCa
 
   logger.info(`[BCGrowth] Starting growth engine cycle for ${userId.slice(0, 8)}`);
 
-  // Phase A — SEO
+  // Seed vault entries for channel Shorts backup (non-blocking, 20/cycle max)
+  seedChannelShortsVaultEntries(userId).catch(() => {});
+
+  // Phase A — SEO sweep for published clips (autopilot_queue origin)
   const seoUpdated = await runSEOSweep(userId, channelId);
 
   // Phase B — Thumbnails
@@ -373,10 +541,15 @@ export async function runBackCatalogGrowthEngine(userId: string): Promise<BackCa
   // Phase D — Playlist funnels
   const { created: playlistsCreated, added: videosAddedToPlaylists } = await runPlaylistPhase(userId);
 
+  // Phase E — Analytics-driven Shorts optimization (channel Shorts from video_catalog_links)
+  // Only pushes metadata improvements to existing published Shorts — no new clips made
+  const shortsOptimized = await runChannelShortsOptimization(userId, channelId);
+
   logger.info(
     `[BCGrowth] Cycle complete — SEO: ${seoUpdated}, thumbs: ${thumbnailsGenerated}, ` +
-    `comments: ${commentsPosted}, playlists: ${playlistsCreated}, playlist videos: ${videosAddedToPlaylists}`,
+    `comments: ${commentsPosted}, playlists: ${playlistsCreated}, playlist videos: ${videosAddedToPlaylists}, ` +
+    `shorts optimized: ${shortsOptimized}`,
   );
 
-  return { seoUpdated, thumbnailsGenerated, commentsPosted, playlistsCreated, videosAddedToPlaylists };
+  return { seoUpdated, thumbnailsGenerated, commentsPosted, playlistsCreated, videosAddedToPlaylists, shortsOptimized };
 }

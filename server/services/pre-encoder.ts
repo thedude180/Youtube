@@ -121,16 +121,103 @@ async function trimRawFromFile(
   ]);
 }
 
-async function encodeShort(rawPath: string, durationSec: number, outputPath: string, channelId?: number): Promise<boolean> {
+async function encodeShort(
+  rawPath: string,
+  durationSec: number,
+  outputPath: string,
+  channelId?: number,
+  clipTitle?: string,
+  _skipCutsceneDetection = false,
+): Promise<boolean> {
   // Keep native game audio (sound effects, ambient, cutscene dialogue).
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
+
+  // ── ASI-level cutscene detection ─────────────────────────────────────────
+  // Sample frames with GPT-4o vision to detect cutscene content and compute
+  // a character-aware crop instead of the default center crop.
+  // _skipCutsceneDetection=true prevents re-running detection on the fallback
+  // call after a dialog-flip encode failure (avoids infinite recursion).
+  let cutsceneVideoFilter: string | null = null;
+  let dialogFlipPlan: import("./cutscene-editor").DialogFlipPlan | null = null;
+  if (!_skipCutsceneDetection) try {
+    const { analyzeCutscene, buildCharacterCropFilter, buildDialogFlipFilterComplex } =
+      await import("./cutscene-editor");
+    const analysis = await analyzeCutscene(rawPath, durationSec, clipTitle ?? "Gameplay clip");
+    if (analysis?.isCutscene) {
+      if (analysis.mode === "dialog-flip" && analysis.dialogSegments.length >= 2) {
+        const plan = buildDialogFlipFilterComplex(analysis.dialogSegments, analysis.srcW, analysis.srcH);
+        if (plan.segCount >= 2) {
+          dialogFlipPlan = plan;
+          logger.info(
+            `[PreEncoder] Cutscene dialog-flip: ${plan.segCount} speaker segments ` +
+            `(conf=${analysis.confidence.toFixed(2)})`,
+          );
+        }
+      }
+      if (!dialogFlipPlan) {
+        cutsceneVideoFilter = buildCharacterCropFilter(analysis.cropXFrac, analysis.srcW, analysis.srcH);
+        logger.info(
+          `[PreEncoder] Cutscene ${analysis.mode}: cropXFrac=${analysis.cropXFrac.toFixed(2)} ` +
+          `(conf=${analysis.confidence.toFixed(2)})`,
+        );
+      }
+    }
+  } catch (csErr: any) {
+    // Non-fatal — fall back to standard center crop
+    logger.debug(`[PreEncoder] Cutscene detection skipped: ${csErr?.message?.slice(0, 80)}`);
+  }
 
   // Narrative music: short_arc tracks have a baked-in story arc (quiet→build→peak→resolve)
   // channelId enables library-aware track selection (best-performing track wins)
   const musicPath = await assembleMusicScore(durationSec, true, channelId);
 
-  const videoFilter = [
+  // ── Dialog-flip path: trim+crop+concat filter_complex ─────────────────────
+  if (dialogFlipPlan) {
+    const { filterComplex } = dialogFlipPlan;
+    const codecArgs = [
+      "-c:v", "libx264", "-profile:v", "high", "-level:v", "5.1",
+      "-crf", "18", "-preset", "fast",
+      "-c:a", "aac", "-b:a", "192k",
+      "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-threads", "2",
+    ];
+    try {
+      if (musicPath) {
+        // Mix music with the dialog-flip concat output
+        const musicFc = filterComplex.replace("[outa]", "[dialogouta]") +
+          `;[1:a]volume=0.15[bg];[dialogouta][bg]amix=inputs=2:duration=first:normalize=0[outa]`;
+        await runCmd("ffmpeg", [
+          "-y", "-i", rawPath,
+          "-stream_loop", "-1", "-i", musicPath,
+          "-filter_complex", musicFc,
+          "-map", "[outv]", "-map", "[outa]",
+          "-t", String(durationSec),
+          ...codecArgs, outputPath,
+        ]);
+      } else {
+        await runCmd("ffmpeg", [
+          "-y", "-i", rawPath,
+          "-filter_complex", filterComplex,
+          "-map", "[outv]", "-map", "[outa]",
+          ...codecArgs, outputPath,
+        ]);
+      }
+      if (fs.existsSync(outputPath)) {
+        cleanupMusicScore(musicPath);
+        return musicPath !== null;
+      }
+    } catch (err: any) {
+      logger.warn(`[PreEncoder] Dialog-flip encode failed, falling back to standard: ${err?.message?.slice(0, 120)}`);
+    } finally {
+      cleanupMusicScore(musicPath);
+    }
+    // Fall through to standard center-crop encode if dialog-flip failed
+    // Pass _skipCutsceneDetection=true to prevent re-running the same detection
+    return encodeShort(rawPath, durationSec, outputPath, channelId, undefined, true);
+  }
+
+  // ── Standard (or character-aware single-crop) path ─────────────────────────
+  const videoFilter = cutsceneVideoFilter ?? [
     "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
     "crop=2160:3840",
     "pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black",
@@ -779,7 +866,11 @@ export async function runPreEncodeCycle(): Promise<{ encoded: number; skipped: n
       if (isLongForm) {
         hasMusicMixed = await encodeLongForm(rawPath, durationSec, outputPath, musicChannelId);
       } else {
-        hasMusicMixed = await encodeShort(rawPath, durationSec, outputPath, musicChannelId);
+        // Pass clip title for ASI-level cutscene detection (character tracking / dialog flip)
+        const clipTitle = (meta.sourceTitle as string | undefined)
+          ?? (meta.title as string | undefined)
+          ?? "";
+        hasMusicMixed = await encodeShort(rawPath, durationSec, outputPath, musicChannelId, clipTitle);
       }
 
       if (!fs.existsSync(outputPath)) throw new Error("ffmpeg produced no output");
