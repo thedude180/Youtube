@@ -43,6 +43,7 @@ interface ASIStatus {
   negativePatternCount: number;
   totalKnowledgeItems: number;
   topInsight: string | null;
+  topInsights: Array<{ principle: string; confidence: number; category: string }>;
 }
 
 function ASIDirectivePill({ userId }: { userId?: string }) {
@@ -77,6 +78,30 @@ function ASIDirectivePill({ userId }: { userId?: string }) {
         <p className="text-[11px] text-muted-foreground/70 leading-relaxed italic" data-testid="text-digest-asi-insight">
           {data.topInsight}
         </p>
+      )}
+      {(data?.topInsights ?? []).filter(i => i.category === "performance" || i.category === "content_pattern").length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide flex items-center gap-1">
+            <TrendingUp className="h-2.5 w-2.5" />Success Patterns
+          </span>
+          {(data!.topInsights).filter(i => i.category === "performance" || i.category === "content_pattern").slice(0, 2).map((ins, i) => (
+            <p key={i} className="text-[11px] text-muted-foreground/70 leading-snug line-clamp-2 pl-3.5">
+              {ins.principle}
+            </p>
+          ))}
+        </div>
+      )}
+      {(data?.negativePatternCount ?? 0) > 0 && (data?.topInsights ?? []).filter(i => i.category === "negative_pattern").length > 0 && (
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wide flex items-center gap-1">
+            <AlertTriangle className="h-2.5 w-2.5" />Avoid
+          </span>
+          {(data!.topInsights).filter(i => i.category === "negative_pattern").slice(0, 1).map((ins, i) => (
+            <p key={i} className="text-[11px] text-red-300/60 leading-snug line-clamp-2 pl-3.5">
+              {ins.principle}
+            </p>
+          ))}
+        </div>
       )}
     </div>
   );

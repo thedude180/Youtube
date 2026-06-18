@@ -18,6 +18,7 @@ import {
   Server,
 } from "lucide-react";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import ASIInsightPanel from "@/components/ASIInsightPanel";
 
 interface Diagnosis {
   rootCause?: string;
@@ -524,6 +525,14 @@ export default function MissionControl() {
           </CardContent>
         </Card>
       )}
+
+      <ASIInsightPanel
+        context="settings"
+        title="System Intelligence — Last Brain Insights"
+        defaultExpanded={false}
+        maxItems={3}
+        compact
+      />
     </div>
   );
 }

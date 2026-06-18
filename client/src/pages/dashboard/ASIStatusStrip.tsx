@@ -27,6 +27,16 @@ function timeAgo(iso: string | null): string {
   return `${Math.round(diffH / 24)}d ago`;
 }
 
+function healthDot(lastCycleAt: string | null): {
+  dot: string; ping: string; label: string
+} {
+  if (!lastCycleAt) return { dot: "bg-red-400", ping: "bg-red-400", label: "No cycle yet" };
+  const diffH = (Date.now() - new Date(lastCycleAt).getTime()) / 3_600_000;
+  if (diffH < 6)  return { dot: "bg-emerald-400", ping: "bg-emerald-400", label: "Active" };
+  if (diffH < 24) return { dot: "bg-amber-400",   ping: "bg-amber-400",   label: "Idle" };
+  return { dot: "bg-red-400", ping: "bg-red-400", label: "Stale" };
+}
+
 function ASIStatusStripInner() {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
@@ -66,10 +76,15 @@ function ASIStatusStripInner() {
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-50" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-purple-400" />
-            </span>
+            {(() => {
+              const hd = healthDot(data.lastCycleAt ?? data.lastOrchestration ?? null);
+              return (
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${hd.ping} opacity-50`} />
+                  <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${hd.dot}`} />
+                </span>
+              );
+            })()}
             <span className="text-xs font-semibold text-purple-400">ASI Brain</span>
           </div>
 

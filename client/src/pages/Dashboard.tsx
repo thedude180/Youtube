@@ -1034,6 +1034,8 @@ export default function TeamDashboard() {
             </Button>
           </div>
         )}
+        <ASIStatusStrip />
+
         <FirstLiveMission />
 
         {statsError ? (
@@ -1062,8 +1064,6 @@ export default function TeamDashboard() {
         )}
 
         <IntelligenceDigest />
-
-        <ASIStatusStrip />
 
         <YouTubeAutopilotStatus />
 

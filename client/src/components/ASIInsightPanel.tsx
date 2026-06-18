@@ -94,7 +94,6 @@ export default function ASIInsightPanel({
   }
 
   const items = (data?.intelligence ?? []).slice(0, maxItems);
-  if (items.length === 0) return null;
 
   return (
     <Card
@@ -124,7 +123,15 @@ export default function ASIInsightPanel({
         </button>
       </CardHeader>
 
-      {expanded && (
+      {expanded && items.length === 0 && (
+        <CardContent className={compact ? "px-3 pb-3" : ""}>
+          <p className="text-[11px] text-muted-foreground/60 italic text-center py-2" data-testid={`asi-empty-${context}`}>
+            Brain learning — check back after first cycle
+          </p>
+        </CardContent>
+      )}
+
+      {expanded && items.length > 0 && (
         <CardContent className={compact ? "px-3 pb-3 space-y-1.5" : "space-y-2"}>
           {items.map((item, i) => {
             const style = getCategoryStyle(item.category);
@@ -137,7 +144,7 @@ export default function ASIInsightPanel({
               >
                 <Icon className="h-3 w-3 shrink-0 mt-0.5 text-purple-400/70" />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <p className={`${compact ? "text-[11px]" : "text-xs"} text-foreground/85 leading-snug`}>
+                  <p className={`${compact ? "text-[11px]" : "text-xs"} text-foreground/85 leading-snug line-clamp-2`}>
                     {item.principle}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
