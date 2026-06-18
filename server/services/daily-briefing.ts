@@ -135,13 +135,17 @@ export class DailyBriefing {
    */
   scheduleAt9am() {
     setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 9 && now.getMinutes() === 0) {
-        logger.info("Running scheduled daily briefings (9 AM)");
-        const activeUsers = await db.execute(sql`SELECT DISTINCT user_id FROM user_autonomous_settings WHERE autonomous_mode = true`);
-        for (const row of activeUsers.rows) {
-          await this.generateAndSend(row.user_id as string);
+      try {
+        const now = new Date();
+        if (now.getHours() === 9 && now.getMinutes() === 0) {
+          logger.info("Running scheduled daily briefings (9 AM)");
+          const activeUsers = await db.execute(sql`SELECT DISTINCT user_id FROM user_autonomous_settings WHERE autonomous_mode = true`);
+          for (const row of activeUsers.rows) {
+            await this.generateAndSend(row.user_id as string);
+          }
         }
+      } catch (err: any) {
+        logger.error("Daily briefing scheduler error", { error: String(err) });
       }
     }, 60_000); // Check every minute
   }

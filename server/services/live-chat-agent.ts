@@ -385,7 +385,7 @@ async function startChatSession(userId: string, channelDbId: number, streamTitle
 
   session.timer = setInterval(async () => {
     const current = activeSessions.get(userId);
-    if (current) await processChatCycle(current);
+    if (current) await processChatCycle(current).catch(err => logger.error(`[${userId}] chatTimer error`, { error: String(err) }));
   }, CHAT_INTERVAL_MS);
 
   await storage.createAgentActivity({

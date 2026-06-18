@@ -316,12 +316,12 @@ async function startLiveGrowthSession(
 
   session.seoTimer = setInterval(async () => {
     const current = activeSessions.get(userId);
-    if (current) await runSeoUpdate(current);
+    if (current) await runSeoUpdate(current).catch(err => logger.error(`[${userId}] seoTimer error`, { error: String(err) }));
   }, SEO_INTERVAL_MS);
 
   session.socialTimer = setInterval(async () => {
     const current = activeSessions.get(userId);
-    if (current) await runSocialBlast(current);
+    if (current) await runSocialBlast(current).catch(err => logger.error(`[${userId}] socialTimer error`, { error: String(err) }));
   }, SOCIAL_BLAST_INTERVAL_MS);
 
   logger.info(`[${userId}] Live growth session active — broadcast: ${broadcastId}, title: "${sanitizeForPrompt(streamTitle)}"`);

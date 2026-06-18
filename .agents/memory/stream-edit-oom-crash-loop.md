@@ -18,7 +18,7 @@ description: Long stream_edit_jobs (≥2h source) cause a repeating 33-min Memor
 - 33-min cycle: MemoryGuardian OOM pattern (long 2h+ FFmpeg jobs)
 - 15-min cycle: shorter crash from AI queue saturation + FFmpeg combined pressure
 
-**Fix (Jun 2026 update) — two-layer protection in `cancelLongStreamEditJobs()`:**
+**Fix (Jun 2026 update) — three-layer protection in `cancelLongStreamEditJobs()`:**
 
 Layer A (general): Cancel ALL `processing` jobs on every boot.
 - Any job in `processing` at boot was running when the last crash happened.
@@ -27,6 +27,11 @@ Layer A (general): Cancel ALL `processing` jobs on every boot.
 Layer B (specific): Keep `LONG_STREAM_EDIT_JOB_IDS` list for belt-and-suspenders.
 - Handles jobs already reset to `queued` before cancelLongStreamEditJobs() ran.
 - Current list: `[18117, 18229]` — add future crash-loop job IDs here.
+
+Layer C (duration-based): Cancel ALL `queued` jobs where `source_duration_secs > 7200`.
+- Prevents the stream editor from picking up long-source jobs from the backlog at T+16min.
+- `source_duration_secs` is a direct column (not metadata JSON) — fast, reliable query.
+- Short jobs (≤7200s) are unaffected and process normally.
 
 **How to identify a crash-loop job:**
 Look for `[StreamEditor] Startup recovery: 1 job(s) left in "processing" from previous run — resetting to queued: XXXXX` in production deployment logs. The same job ID on every boot = the crash driver. Add it to `LONG_STREAM_EDIT_JOB_IDS` AND ensure Layer A handles it going forward.

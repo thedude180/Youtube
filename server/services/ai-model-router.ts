@@ -32,10 +32,10 @@ interface TaskMapping {
 
 const TASK_MAPPINGS: Record<string, TaskMapping> = {
   // Fast background tasks — gpt-5 is right for these (high volume, low latency, no quality gap)
-  // NOTE: gpt-5 only supports the default temperature (1.0) — do not set temperature here
-  quick_suggestion:       { model: "gpt-5",              maxTokens: 512,  priority: "low" },
-  memory_distillation:    { model: "gpt-5",              maxTokens: 2048, priority: "low" },
-  quality_scoring:        { model: "gpt-5",              maxTokens: 1024, priority: "medium" },
+  // NOTE: gpt-5 only supports the default temperature (1.0); the execute path strips it for gpt-5.
+  quick_suggestion:       { model: "gpt-5",              maxTokens: 512,  temperature: 1.0, priority: "low" },
+  memory_distillation:    { model: "gpt-5",              maxTokens: 2048, temperature: 1.0, priority: "low" },
+  quality_scoring:        { model: "gpt-5",              maxTokens: 1024, temperature: 1.0, priority: "medium" },
 
   // Content & optimization tasks — Claude Sonnet: best-in-class writing and SEO intelligence
   title_optimization:     { provider: "claude", model: CLAUDE_MODELS.sonnet, maxTokens: 1024, temperature: 0.8, priority: "medium" },
@@ -158,7 +158,7 @@ export async function executeRoutedAICall(
       if (routing.model !== "gpt-5" && routing.temperature !== undefined) {
         (oaiParams as any).temperature = routing.temperature;
       }
-      const response = await client.chat.completions.create(oaiParams);
+      const response = await client.chat.completions.create(oaiParams) as any;
       content = response.choices[0]?.message?.content || "";
       tokensUsed = response.usage?.total_tokens || 0;
       promptTokens = response.usage?.prompt_tokens || 0;
