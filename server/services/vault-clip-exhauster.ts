@@ -96,6 +96,12 @@ export async function exhaustVaultEntry(
       return { queued: [], skipped: [...ALL_PLATFORMS] };
     }
 
+    // backupOnly entries are pure safety copies — no clip generation ever.
+    if ((entry.metadata as any)?.backupOnly === true) {
+      logger.debug(`[Exhauster] Entry ${vaultEntryId} is backup-only — skipping clip creation`);
+      return { queued: [], skipped: [...ALL_PLATFORMS] };
+    }
+
     const missing = await getMissingPlatforms(userId, vaultEntryId);
     if (missing.length === 0) {
       logger.debug(`[Exhauster] Entry ${vaultEntryId} already covered on all platforms`);
@@ -147,6 +153,7 @@ export async function runVaultExhaustSweep(batchSize = 50): Promise<void> {
       WHERE cvb.status = 'downloaded'
         AND cvb.youtube_id NOT LIKE 'local_%'
         AND cvb.youtube_id NOT LIKE 'clip_%'
+        AND (cvb.metadata->>'backupOnly' IS NULL OR cvb.metadata->>'backupOnly' != 'true')
         AND (
           cvb.game_name IS NULL
           OR cvb.game_name ILIKE '%battlefield%'

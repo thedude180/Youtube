@@ -81,6 +81,19 @@ interface GrowthProgram {
   applicationStatus: string; applicationUrl: string | null; eligibilityMet: boolean;
 }
 
+interface ChannelBackupStatus {
+  totalChannelVideos: number;
+  backedUp: number;
+  queued: number;
+  failed: number;
+  totalSizeBytes: number;
+  percentComplete: number;
+  recentDownloads: Array<{
+    youtubeId: string; title: string; fileSize: number | null;
+    downloadedAt: string | null; gameName: string | null;
+  }>;
+}
+
 interface VaultDoc {
   id: number | null;
   userId: string;
@@ -638,6 +651,183 @@ function MonetizationProgramsBanner() {
   );
 }
 
+// ── Channel Backup Panel ──────────────────────────────────────────────────────
+
+function fmtBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const gb = bytes / 1e9;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / 1e6;
+  if (mb >= 1) return `${mb.toFixed(0)} MB`;
+  return `${(bytes / 1e3).toFixed(0)} KB`;
+}
+
+function ChannelBackupPanel({ status, isLoading }: { status?: ChannelBackupStatus; isLoading: boolean }) {
+  const { toast } = useToast();
+  const triggerMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/vault/backup-trigger"),
+    onSuccess: (data: any) => {
+      toast({ title: "Backup sweep triggered", description: `Created ${data.created ?? 0} new backup entries from ${data.total ?? 0} channel videos.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/vault/backup-status"] });
+    },
+    onError: (e: any) => toast({ title: "Sweep failed", description: e?.message, variant: "destructive" }),
+  });
+
+  if (isLoading) return (
+    <div className="space-y-3">
+      {[...Array(3)].map((_, i) => <Card key={i} className="animate-pulse"><CardContent className="p-4 h-20"/></Card>)}
+    </div>
+  );
+
+  const pct       = status?.percentComplete ?? 0;
+  const remaining = (status?.totalChannelVideos ?? 0) - (status?.backedUp ?? 0);
+
+  return (
+    <div className="space-y-4" data-testid="panel-channel-backup">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Shield className="h-5 w-5 text-emerald-500"/>
+            Channel Backup
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+              {pct}% Complete
+            </Badge>
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Full offline copy of every ET Gaming 274 video — insurance against bans, strikes, or takedowns
+          </p>
+        </div>
+        <Button
+          size="sm" variant="outline"
+          onClick={() => triggerMutation.mutate()}
+          disabled={triggerMutation.isPending}
+          data-testid="button-trigger-backup-sweep"
+        >
+          {triggerMutation.isPending
+            ? <Loader2 className="h-4 w-4 animate-spin mr-1.5"/>
+            : <RefreshCw className="h-4 w-4 mr-1.5"/>}
+          Sync Now
+        </Button>
+      </div>
+
+      {/* Progress bar */}
+      <Card className="border-emerald-500/20 bg-emerald-500/5">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">
+              {status?.backedUp ?? 0} of {status?.totalChannelVideos ?? 0} videos backed up
+            </span>
+            <span className="text-muted-foreground">{fmtBytes(status?.totalSizeBytes ?? 0)} stored</span>
+          </div>
+          <Progress value={pct} className="h-2.5" />
+          <div className="flex items-center gap-4 text-xs flex-wrap">
+            <span className="flex items-center gap-1 text-emerald-400">
+              <CheckCircle2 className="h-3 w-3"/>{status?.backedUp ?? 0} downloaded
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Clock className="h-3 w-3"/>{status?.queued ?? 0} queued
+            </span>
+            {(status?.failed ?? 0) > 0 && (
+              <span className="flex items-center gap-1 text-red-400">
+                <AlertCircle className="h-3 w-3"/>{status?.failed} failed
+              </span>
+            )}
+            {remaining > 0 && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Download className="h-3 w-3"/>{remaining} remaining
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* How it works */}
+      <Card className="border-border/40">
+        <CardContent className="p-4">
+          <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-muted-foreground"/>How It Works
+          </h3>
+          <div className="space-y-1.5 text-xs text-muted-foreground">
+            <p>• Every video on the ET Gaming 274 channel is indexed and downloaded to local storage automatically</p>
+            <p>• Downloads run quietly in the background — editorial content (clips, Shorts) is always prioritised first</p>
+            <p>• Backup copies are <strong className="text-foreground">never used for clip generation</strong> — they exist only as a safety net</p>
+            <p>• If the channel is banned or a video is taken down, the original file is preserved here indefinitely</p>
+            <p>• Sweeper runs automatically every 24 h to index new uploads. Click <em>Sync Now</em> to run it immediately</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent downloads */}
+      {(status?.recentDownloads?.length ?? 0) > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500"/>Recently Backed Up
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(status?.recentDownloads ?? []).map(v => (
+              <Card key={v.youtubeId} className="border-border/40 overflow-hidden" data-testid={`card-backup-${v.youtubeId}`}>
+                <CardContent className="p-3 flex gap-3">
+                  <div className="relative flex-shrink-0 w-24 h-14 rounded overflow-hidden bg-muted">
+                    <img
+                      src={`https://i.ytimg.com/vi/${v.youtubeId}/mqdefault.jpg`}
+                      alt={v.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <a
+                      href={`https://www.youtube.com/watch?v=${v.youtubeId}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50"
+                      data-testid={`link-yt-backup-${v.youtubeId}`}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-white"/>
+                    </a>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium line-clamp-2 leading-snug">{v.title || v.youtubeId}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {v.gameName && (
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{v.gameName}</span>
+                      )}
+                      {v.fileSize !== null && (
+                        <span className="text-[10px] text-emerald-400">{fmtBytes(v.fileSize)}</span>
+                      )}
+                    </div>
+                    {v.downloadedAt && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {new Date(v.downloadedAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {(status?.backedUp ?? 0) === 0 && !isLoading && (
+        <Card className="border-border/40">
+          <CardContent className="p-8 text-center space-y-3">
+            <HardDrive className="h-8 w-8 text-muted-foreground mx-auto opacity-40"/>
+            <div>
+              <p className="text-sm font-medium">Backup initialising</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {(status?.queued ?? 0) > 0
+                  ? `${status?.queued} videos queued — perpetual downloader will begin shortly`
+                  : `Click "Sync Now" to index all ${status?.totalChannelVideos ?? ""} channel videos and start the backup`}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Vault() {
@@ -660,6 +850,11 @@ export default function Vault() {
   const { data: games, isLoading: gamesLoading, error: gamesError } = useQuery<VaultGame[]>({
     queryKey: ["/api/vault/games"],
     refetchInterval: 60_000,
+  });
+
+  const { data: backupStatus, isLoading: backupLoading } = useQuery<ChannelBackupStatus>({
+    queryKey: ["/api/vault/backup-status"],
+    refetchInterval: activeTab === "backup" ? 15_000 : 120_000,
   });
 
   const { data: entries, isLoading: entriesLoading } = useQuery<VaultEntry[]>({
@@ -1458,6 +1653,17 @@ export default function Vault() {
                 <BookOpen className="h-3.5 w-3.5 mr-1"/>Documents
                 <Badge className="ml-1.5 text-[10px] px-1.5 py-0 bg-purple-500/20 text-purple-300 border-purple-500/30">{docsReadyCount}/{docsTotal}</Badge>
               </TabsTrigger>
+              <TabsTrigger value="backup" data-testid="tab-backup">
+                <Shield className="h-3.5 w-3.5 mr-1"/>Backup
+                {(backupStatus?.percentComplete ?? 0) < 100 && (backupStatus?.totalChannelVideos ?? 0) > 0 && (
+                  <Badge className="ml-1.5 text-[10px] px-1.5 py-0 bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    {backupStatus?.percentComplete ?? 0}%
+                  </Badge>
+                )}
+                {(backupStatus?.percentComplete ?? 0) >= 100 && (
+                  <CheckCircle2 className="ml-1 h-3 w-3 text-emerald-400"/>
+                )}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -1566,6 +1772,8 @@ export default function Vault() {
                 </div>
               )}
             </div>
+          ) : activeTab === "backup" ? (
+            <ChannelBackupPanel status={backupStatus} isLoading={backupLoading} />
           ) : activeTab === "edited" ? (
             <div className="space-y-3">
               <h2 className="text-lg font-semibold flex items-center gap-2"><Scissors className="h-5 w-5 text-yellow-500"/>Edited Clips ({editedClipCount})</h2>

@@ -1846,6 +1846,12 @@ export async function processVaultDownloads(userId: string, maxDownloads = Infin
             )
           )`,
         ))
+        // Prioritise editorial content (backupOnly=false/null) before pure safety backups.
+        // This ensures clip/Short generation is never starved by the backup queue.
+        .orderBy(
+          sql`CASE WHEN (${contentVaultBackups.metadata}->>'backupOnly')::boolean = true THEN 1 ELSE 0 END`,
+          contentVaultBackups.createdAt,
+        )
         .limit(1);
 
       if (!next) {

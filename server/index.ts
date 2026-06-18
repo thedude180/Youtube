@@ -4006,6 +4006,17 @@ httpServer.listen(
         m.runWatchdogSweep().catch(slog("initialWatchdogSweep"));
       }).catch(slog("notificationWatchdog"));
 
+      // Channel backup sweeper — creates vault entries for ALL channel videos as a
+      // full-channel safety backup. Runs 2 min after Wave 11 (T+~42.5min) so the
+      // back-catalog-runner catalog import at T+35min has already completed.
+      // Then repeats every 24 h to pick up new uploads. backupOnly entries are
+      // downloaded by the perpetual-downloader but never generate clips/Shorts.
+      setTimeout(() => import("./services/channel-backup-sweeper")
+        .then(m => m.initChannelBackupSweeper())
+        .catch(slog("channel-backup-sweeper")),
+        2 * 60_000,
+      );
+
       // Video momentum tracker — no API key needed; uses InnerTube (unauth).
       // Polls every 2h per video; first sweep 5min after this wave fires (T+~46min).
       import("./services/video-momentum-tracker").then(m => {

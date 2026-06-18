@@ -2578,6 +2578,32 @@ export async function registerPlatformRoutes(app: Express) {
     });
   }
 
+  // ── Channel backup status / trigger ────────────────────────────────────────
+  app.get("/api/vault/backup-status", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { getChannelBackupStatus } = await import("../services/channel-backup-sweeper");
+      res.json(await getChannelBackupStatus(userId));
+    } catch (err: any) {
+      logger.warn("[BackupStatus] Error:", err?.message);
+      res.status(500).json({ error: "Failed to get backup status" });
+    }
+  });
+
+  app.post("/api/vault/backup-trigger", async (req: any, res) => {
+    const userId = requireAuth(req, res);
+    if (!userId) return;
+    try {
+      const { runChannelBackupSweep } = await import("../services/channel-backup-sweeper");
+      const result = await runChannelBackupSweep();
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      logger.warn("[BackupTrigger] Error:", err?.message);
+      res.status(500).json({ error: "Failed to trigger backup sweep" });
+    }
+  });
+
   // DEV-ONLY: Directly toggle the in-memory live gate + seed a live stream row.
   // Used by the testing harness to simulate an active livestream without going
   // through the full YouTube broadcast flow. Blocked in production.

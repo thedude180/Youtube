@@ -1,3 +1,4 @@
+- [Channel backup sweeper](channel-backup-sweeper.md) — backupOnly vault entries download all channel videos without triggering clip generation; editorial downloads always prioritised first via ORDER BY in processVaultDownloads.
 - [Factory client + manual slot acquire deadlock](vision-deadlock-pattern.md) — calling acquireAISlotBackground() then getOpenAIClientBackground() double-acquires the semaphore → 8-9 min deadlock; factory clients manage their own slot.
 - [gpt-5 max_tokens rejection](gpt5-max-tokens.md) — gpt-5 rejects max_tokens (HTTP 400); must use max_completion_tokens; remap applied at factory-client layer in openai.ts alongside temperature strip.
 - [AI client request timeout](ai-client-request-timeout.md) — OpenAI/Anthropic constructors had no timeout (SDK default 600s) → 8-min AI slot holds when HTTP hangs; fix: timeout:90_000 on all text clients, timeout:120_000 on image client.
