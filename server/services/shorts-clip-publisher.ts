@@ -436,16 +436,16 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
       // the winning variant, so the experiment self-terminates automatically.
       const hashtagVariant = await getVariantForItem(item.id);
 
-      // ── Guard: clip must be a genuine Short (< 60 seconds) ──────────────────
-      // Hard-reject items where the segment is 60 seconds or longer — those are
-      // long-form clips that must go through the long-form publisher, not here.
-      // We check the raw requested duration; the encoder would clamp to 60s but
-      // we want a clean fail rather than a silent truncated long-form upload.
+      // ── Guard: clip must be within YouTube Shorts limit (≤ 180 seconds) ──────
+      // YouTube Shorts allows up to 3 minutes (180s) as of 2024.
+      // Hard-reject items longer than 180s — those must go through the long-form
+      // publisher instead.  Items between 60–180s are valid Shorts.
       const requestedDurationSec = endSec - startSec;
-      if (requestedDurationSec >= 60) {
-        logger.warn(`[ShortsPublisher] Item ${item.id} has segment duration ${Math.round(requestedDurationSec)}s — must be <60s for Shorts. Rejecting.`);
+      const MAX_SHORTS_SEC = 180;
+      if (requestedDurationSec > MAX_SHORTS_SEC) {
+        logger.warn(`[ShortsPublisher] Item ${item.id} has segment duration ${Math.round(requestedDurationSec)}s — exceeds YouTube Shorts max (${MAX_SHORTS_SEC}s). Rejecting.`);
         await db.update(autopilotQueue)
-          .set({ status: "failed", errorMessage: `Shorts guard: segment is ${Math.round(requestedDurationSec)}s — Shorts must be <60 seconds. Re-queue via long-form publisher if ≥8 min.` })
+          .set({ status: "failed", errorMessage: `Shorts guard: segment is ${Math.round(requestedDurationSec)}s — YouTube Shorts max is ${MAX_SHORTS_SEC}s. Re-queue via long-form publisher if ≥8 min.` })
           .where(eq(autopilotQueue.id, item.id));
         failed++;
         continue;

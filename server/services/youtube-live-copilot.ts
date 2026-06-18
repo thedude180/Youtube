@@ -615,9 +615,19 @@ export async function afterStreamCopilot(
   let longFormQueued = 0;
   const clipMomentsFound = state.clipMoments.length;
 
-  // Queue Shorts from clip-worthy moments (up to 3, which is today's Short budget)
+  // Queue Shorts from clip-worthy moments (up to 3, which is today's Short budget).
+  // Rank by analytics signal quality before picking top 3:
+  //   1. copilotScore (AI-assigned during stream — chat velocity, retention spike)
+  //   2. chatVelocity at the moment (higher = more audience engagement)
+  //   3. recency as tiebreaker (more recent = fresher content)
+  // This ensures the best 3 moments go out, not just the last 3.
   const sortedMoments = [...state.clipMoments]
-    .sort((a, b) => b.markedAt.getTime() - a.markedAt.getTime())
+    .sort((a, b) => {
+      const scoreA = ((a as any).copilotScore ?? 0) + ((a as any).chatVelocity ?? 0) * 0.5;
+      const scoreB = ((b as any).copilotScore ?? 0) + ((b as any).chatVelocity ?? 0) * 0.5;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return b.markedAt.getTime() - a.markedAt.getTime();
+    })
     .slice(0, 3);
 
   for (const moment of sortedMoments) {
@@ -652,7 +662,10 @@ export async function afterStreamCopilot(
     } catch { /* continue */ }
   }
 
-  // Queue long-form if stream was > 60 min.
+  // Queue long-form if stream was > 30 min (matches back-catalog engine threshold).
+  // The old 60-min guard was too conservative — a 35-min BF6 session with great
+  // gameplay is a valid long-form VOD (8–60 min range).  The long-form publisher
+  // enforces the hard 8-min floor so nothing under that sneaks through.
   // Start at 300 s (BF6_STREAM_OPEN_SEC equivalent) to skip pre-game lobby,
   // audio checks, and the first loading screen — straight into match footage.
   const streamDurationMs = stream?.endedAt && stream?.startedAt
@@ -660,8 +673,9 @@ export async function afterStreamCopilot(
     : 0;
   const streamDurationSec = streamDurationMs / 1000;
   const LF_SKIP_OPEN_SEC = 300; // skip first 5 min (pre-game / loading screen)
+  const MIN_STREAM_FOR_LONG_FORM_SEC = 1800; // 30 min minimum
 
-  if (streamDurationSec > 3600) {
+  if (streamDurationSec > MIN_STREAM_FOR_LONG_FORM_SEC) {
     try {
       // Live stream long-form also takes nearest slot (minDaysAhead = 0 default)
       const scheduledAt = await getNextLongFormPublishTime(userId);

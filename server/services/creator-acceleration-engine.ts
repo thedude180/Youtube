@@ -36,7 +36,7 @@ import { isShortScheduleSaturated, getNextShortPublishTime } from "./youtube-out
 
 const logger = createLogger("creator-acceleration");
 
-const CYCLE_INTERVAL_MS      = 2  * 60 * 60 * 1000; // 2h
+const CYCLE_INTERVAL_MS      = 2  * 60 * 60 * 1000; // 2h (standard cadence)
 const STARTUP_DELAY_MS       = 32 * 60 * 1000;       // T+32min (after Wave 11 services settle)
 const HOT_STREAK_MULTIPLIER  = 2.0;   // 2× channel avg = hot streak
 const COLD_THRESHOLD_MULT    = 0.25;  // <25% channel avg = cold
@@ -45,8 +45,17 @@ const MAX_CLIPS_PER_HOT      = 2;     // max new clips queued per hot streak tri
 const MIN_DAYS_AHEAD         = 1;     // don't publish same-day (respect schedule)
 const MAX_DAYS_AHEAD         = 14;    // don't schedule too far out
 
+// Early rapid-fire feedback: for the first 6h after a video publishes, run
+// the feedback cycle every 30min instead of every 2h.  This surfaces hot/cold
+// signals while the algorithm momentum window is still open — same session as
+// the publish, not the next morning.
+const RAPID_FIRE_WINDOW_MS   = 6  * 60 * 60 * 1000; // 6h post-publish window
+const RAPID_FIRE_INTERVAL_MS = 30 * 60 * 1000;       // check every 30min within that window
+
 // Guard: don't re-process the same hot streak video within 40h
 const _hotStreakProcessed = new Map<string, number>();
+// Track when the last early-publish was detected so we can fast-track the cycle
+let _lastEarlyPublishDetectedAt = 0;
 
 // ── Helper: channel average views for Shorts (30-day baseline) ───────────────
 
@@ -363,6 +372,28 @@ export async function runAccelerationCycle(): Promise<void> {
     logger.debug(`[Accel] Step 1: runRapidFeedback24h`);
     await runRapidFeedback24h(userId);
 
+    // Check for recently published videos (< 6h old) to enable rapid-fire mode.
+    // If any exist, schedule an extra feedback pass at 30min instead of waiting 2h.
+    try {
+      const sixHoursAgo = new Date(Date.now() - RAPID_FIRE_WINDOW_MS);
+      const [recentPublish] = await db
+        .select({ publishedAt: youtubeOutputMetrics.publishedAt })
+        .from(youtubeOutputMetrics)
+        .where(sql`${youtubeOutputMetrics.publishedAt} >= ${sixHoursAgo}`)
+        .orderBy(desc(youtubeOutputMetrics.publishedAt))
+        .limit(1);
+      if (recentPublish?.publishedAt) {
+        const msSincePublish = Date.now() - new Date(recentPublish.publishedAt).getTime();
+        if (msSincePublish < RAPID_FIRE_WINDOW_MS) {
+          _lastEarlyPublishDetectedAt = Date.now();
+          logger.debug(
+            `[Accel] Early publish detected (${Math.round(msSincePublish / 60000)}min ago) — ` +
+            `rapid-fire mode active; next feedback in 30min`
+          );
+        }
+      }
+    } catch { /* non-fatal — continue with standard cycle */ }
+
     // Step 2: Channel average (needed for hot streak + cold detection)
     const channelAvg = await getChannelAvgViews(userId);
     if (channelAvg < 10) {
@@ -412,12 +443,37 @@ export async function runAccelerationCycle(): Promise<void> {
 // ── Public init ───────────────────────────────────────────────────────────────
 
 let _interval: ReturnType<typeof setInterval> | null = null;
+let _rapidFireTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Schedule a rapid-fire pass 30min from now if we're still inside the 6h
+// early-publish window.  Guards against double-scheduling.
+function _scheduleRapidFireIfNeeded(): void {
+  if (_rapidFireTimeout) return; // already scheduled
+  if (Date.now() - _lastEarlyPublishDetectedAt > RAPID_FIRE_WINDOW_MS) return;
+  _rapidFireTimeout = setTimeout(async () => {
+    _rapidFireTimeout = null;
+    logger.debug(`[Accel] ⚡ Rapid-fire 30min feedback pass`);
+    await runAccelerationCycle();
+    // Re-schedule if still within the 6h window
+    _scheduleRapidFireIfNeeded();
+  }, RAPID_FIRE_INTERVAL_MS);
+  (_rapidFireTimeout as any)?.unref?.();
+}
+
+// Wrap the standard cycle to trigger rapid-fire scheduling after each run
+async function _runCycleAndMaybeRapidFire(): Promise<void> {
+  await runAccelerationCycle();
+  _scheduleRapidFireIfNeeded();
+}
 
 export function initCreatorAccelerationEngine(): ReturnType<typeof setInterval> {
-  logger.info(`[Accel] Creator acceleration engine starting in ${STARTUP_DELAY_MS / 60000}min`);
+  logger.info(
+    `[Accel] Creator acceleration engine starting in ${STARTUP_DELAY_MS / 60000}min ` +
+    `(standard: every 2h; rapid-fire: every 30min for 6h after each publish)`
+  );
   const timeout = setTimeout(async () => {
-    await runAccelerationCycle();
-    _interval = setInterval(runAccelerationCycle, CYCLE_INTERVAL_MS);
+    await _runCycleAndMaybeRapidFire();
+    _interval = setInterval(_runCycleAndMaybeRapidFire, CYCLE_INTERVAL_MS);
   }, STARTUP_DELAY_MS);
   (timeout as any).unref?.();
   // Return a dummy interval handle for backgroundIntervals array compatibility
@@ -428,4 +484,5 @@ export function initCreatorAccelerationEngine(): ReturnType<typeof setInterval> 
 
 export function stopCreatorAccelerationEngine(): void {
   if (_interval) { clearInterval(_interval); _interval = null; }
+  if (_rapidFireTimeout) { clearTimeout(_rapidFireTimeout); _rapidFireTimeout = null; }
 }
