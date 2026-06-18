@@ -708,6 +708,67 @@ export async function afterStreamCopilot(
 
   logger.info(`[Copilot] After-stream: ${shortsQueued} Shorts queued, ${longFormQueued} long-form queued, ${clipMomentsFound} moments found`, { userId: userId.slice(0, 8) });
 
+  // ── Post-stream mini learning cycle ────────────────────────────────────────
+  // Capture viewer memory BEFORE state is deleted, then fire async brain sync.
+  {
+    const postState      = getStreamState(streamId);
+    const viewerEntries  = Array.from(postState.viewerMemory.entries());
+    const viewerCount    = viewerEntries.length;
+    const engagedViewers = viewerEntries.filter(([, v]) => ((v as any).chatMessages ?? 0) >= 3);
+
+    // Fire-and-forget brain sync with a short delay so YouTube can start
+    // processing the VOD before we harvest micro-signals.
+    setTimeout(async () => {
+      try {
+        // 1. Export engaged-viewer personalities to masterKnowledgeBank so
+        //    audience-intelligence and content-maximizer can personalise content.
+        if (engagedViewers.length > 0) {
+          const { db: _db }           = await import("../db");
+          const { masterKnowledgeBank } = await import("@shared/schema");
+          const topNames = engagedViewers
+            .sort((a, b) => ((b[1] as any).chatMessages ?? 0) - ((a[1] as any).chatMessages ?? 0))
+            .slice(0, 5)
+            .map(([name]) => name);
+          const principle =
+            `[Stream ${streamId}] Audience personality: ${engagedViewers.length} engaged viewers out of ` +
+            `${viewerCount} seen. Top chatters: ${topNames.join(", ")}. Shorts=${shortsQueued}, LF=${longFormQueued}.`;
+          await _db.insert(masterKnowledgeBank).values({
+            userId,
+            category:          "audience_personality",
+            principle:         principle.slice(0, 500),
+            evidence:          `streamId=${streamId}, engagedViewers=${engagedViewers.length}, totalViewers=${viewerCount}`,
+            applicableEngines: ["live-copilot", "audience-intelligence", "content-maximizer"],
+            confidenceScore:   Math.min(85, 40 + engagedViewers.length * 2),
+            isActive:          true,
+            createdAt:         new Date(),
+          } as any).catch(() => {});
+        }
+
+        // 2. Run harvestMicroSignals to promote any newly-emitted signals
+        //    (clip moments, chat spikes, viewer retention cues) into the brain.
+        const { harvestMicroSignals } = await import("./youtube-learning-brain");
+        await harvestMicroSignals(userId);
+
+        // 3. Persist state so the brain can detect post-stream sync across deployments.
+        const { setState } = await import("../lib/service-state");
+        await setState("live-copilot", `post_stream_brain_sync:${userId}`, {
+          streamId,
+          syncedAt:        new Date().toISOString(),
+          viewersObserved: viewerCount,
+          engagedViewers:  engagedViewers.length,
+          shortsQueued,
+          longFormQueued,
+        });
+
+        logger.info(`[Copilot] Post-stream brain sync complete — engaged=${engagedViewers.length}/${viewerCount}`, {
+          userId: userId.slice(0, 8),
+        });
+      } catch (err: any) {
+        logger.warn(`[Copilot] Post-stream brain sync failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+      }
+    }, 30_000); // 30 s after stream end — non-blocking
+  }
+
   // Clear stream state
   _streamState.delete(streamId);
 

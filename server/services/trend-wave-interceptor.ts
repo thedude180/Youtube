@@ -255,6 +255,15 @@ async function runTrendWaveInterceptorCycle(userId: string): Promise<void> {
   }
 
   logger.info(`[TrendWave] Cycle complete — queued=${queued} noMatch=${noMatch}`);
+
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("trend-wave-interceptor", userId, {
+      processed: rising.length,
+      succeeded: queued,
+      skipped:   noMatch,
+      keyInsight: `queued=${queued} trends, no-match=${noMatch}`,
+    })
+  ).catch(() => {});
 }
 
 // ── Internal userId lookup ─────────────────────────────────────────────────────

@@ -651,8 +651,17 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
   try {
     // ASI: synthesize strategic directive before building execution plan (full cycles only)
     if (fullCycle) {
-      await synthesizeChannelStrategy(userId).catch((e: any) =>
-        logger.debug(`[YouTubeAI] Strategy synthesis non-fatal: ${e?.message?.slice(0, 80)}`));
+      const directive = await synthesizeChannelStrategy(userId).catch((e: any) => {
+        logger.debug(`[YouTubeAI] Strategy synthesis non-fatal: ${e?.message?.slice(0, 80)}`);
+        return "";
+      });
+      // Publish to the in-process strategy bus so all running engines can read
+      // the new directive on their next cycle tick without polling the DB.
+      if (directive) {
+        import("../lib/strategy-bus").then(({ publishDirective }) =>
+          publishDirective(userId, directive)
+        ).catch(() => {});
+      }
     }
     const plan = await buildExecutionPlan(userId, fullCycle);
     logger.info(`[YouTubeAI] Plan generated: ${plan.tasks.filter(t => t.allowedToRun).length} task(s) to run`);
@@ -702,6 +711,16 @@ export async function runYouTubeAICycle(userId: string, reason = "scheduled", fu
   if (result.tasksApprovalRequired.length > 0) {
     logger.warn(`[YouTubeAI] Approval required: ${result.tasksApprovalRequired.join("; ")}`);
   }
+
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("youtube-ai-orchestrator", userId, {
+      processed: result.tasksRun.length + result.tasksSkipped.length + result.errors.length,
+      succeeded: result.tasksRun.length,
+      failed:    result.errors.length,
+      skipped:   result.tasksSkipped.length,
+      keyInsight: `shorts=${result.shortsQueued} lf=${result.longFormQueued} fullCycle=${fullCycle}`,
+    })
+  ).catch(() => {});
 
   if (fullCycle) {
     lastFullCycleAt = new Date();

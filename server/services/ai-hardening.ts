@@ -57,7 +57,6 @@ export function getCacheStats(): { hits: number; misses: number; size: number; h
 }
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "gpt-5": { input: 0.00015, output: 0.0006 },
   "gpt-5": { input: 0.005, output: 0.015 },
 };
 

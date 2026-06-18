@@ -247,6 +247,15 @@ export async function runGrindCycle(): Promise<{ clipsQueued: number; longFormQu
     }
   } catch { /* non-fatal */ }
 
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("content-grinder", null, {
+      processed: totalClips + totalLongForm,
+      succeeded: totalClips + totalLongForm,
+      failed:    0,
+      keyInsight: `shorts=${totalClips} longForm=${totalLongForm}`,
+    })
+  ).catch(() => {});
+
   return { clipsQueued: totalClips, longFormQueued: totalLongForm };
 }
 

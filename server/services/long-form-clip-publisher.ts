@@ -564,6 +564,12 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
               })
             ),
           ]).catch(() => {});
+          // Fire-and-forget audience soul model calibration — records a pending
+          // calibration signal that the brain's daily cycle will follow up on
+          // after 48 h when YouTube analytics become available.
+          import("./audience-intelligence-engine").then(({ calibrateAudienceSoulModel }) =>
+            calibrateAudienceSoulModel(item.userId, lfYtId)
+          ).catch(() => {});
         }
       } catch (err: any) {
         const errMsg = err?.message?.slice(0, 500) ?? "unknown error";
@@ -607,6 +613,16 @@ export async function runLongFormClipPublisher(): Promise<{ published: number; f
     contentType: "long-form-clip",
     quotaExhausted,
   }).catch(() => {});
+
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("long-form-publisher", cycleUserId || null, {
+      processed: published + failed + skipped,
+      succeeded: published,
+      failed,
+      skipped,
+      keyInsight: quotaExhausted ? "quota exhausted" : `published=${published}`,
+    })
+  ).catch(() => {});
 
   return { published, failed, skipped, quotaExhausted };
 }

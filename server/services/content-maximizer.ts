@@ -1,6 +1,6 @@
 import { sanitizeForPrompt } from "../lib/ai-attack-shield";
 import { db } from "../db";
-import { videos, channels, autopilotQueue, contentExperiments } from "@shared/schema";
+import { videos, channels, autopilotQueue, contentExperiments, contentPerformanceLoops } from "@shared/schema";
 import { eq, and, desc, gte, sql, max } from "drizzle-orm";
 import { getOpenAIClientBackground as getOpenAIClientBackground } from "../lib/openai";
 import { createLogger } from "../lib/logger";
@@ -37,6 +37,52 @@ const NO_COMMENTARY_DESC_HEADER = "Pure PS5 gameplay — no commentary, no distr
 // Full 15–179 s experiment range — mirrors SHORT_BUCKETS_SEC in the learner
 const SHORT_DURATIONS_TO_TEST = [22, 45, 75, 105, 135, 165];
 const LONG_FORM_DURATIONS_TO_TEST = [480, 600, 900, 1200, 1800, 2700, 3600];
+
+// ── Attribution pattern cache ──────────────────────────────────────────────
+// Returns the top N highest-performing content strategies from the closed-loop
+// attribution table.  Results are cached 2 h to avoid per-invocation DB queries.
+// Called by maximizeContentFromVideo() before enqueuing new clips so the
+// best-performing strategy name is stamped onto each new queue item's metadata.
+
+const _attributionCache = new Map<string, { patterns: string[]; cachedAt: number }>();
+const ATTRIBUTION_CACHE_TTL_MS = 2 * 3_600_000; // 2 h
+
+export async function getTopAttributionPatterns(userId: string, limit = 3): Promise<string[]> {
+  const cached = _attributionCache.get(userId);
+  if (cached && Date.now() - cached.cachedAt < ATTRIBUTION_CACHE_TTL_MS) return cached.patterns;
+  try {
+    const rows = await db
+      .select({
+        strategyUsed:     contentPerformanceLoops.strategyUsed,
+        performanceScore: contentPerformanceLoops.performanceScore,
+        lessonLearned:    contentPerformanceLoops.lessonLearned,
+        platform:         contentPerformanceLoops.platform,
+      })
+      .from(contentPerformanceLoops)
+      .where(and(
+        eq(contentPerformanceLoops.userId, userId),
+        eq(contentPerformanceLoops.attributionComplete, true),
+      ))
+      .orderBy(desc(contentPerformanceLoops.performanceScore))
+      .limit(limit * 3);
+
+    const patterns = rows
+      .filter(r => r.strategyUsed || r.lessonLearned)
+      .slice(0, limit)
+      .map(r => {
+        const parts: string[] = [];
+        if (r.strategyUsed)     parts.push(`Strategy: "${r.strategyUsed}"`);
+        if (r.performanceScore) parts.push(`score=${r.performanceScore}/100`);
+        if (r.lessonLearned)    parts.push(r.lessonLearned.slice(0, 120));
+        return parts.join(" — ");
+      });
+
+    _attributionCache.set(userId, { patterns, cachedAt: Date.now() });
+    return patterns;
+  } catch {
+    return [];
+  }
+}
 
 function parseDurationSec(raw: any): number {
   if (typeof raw === "number") return raw;
@@ -217,6 +263,17 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
     confidence: preference.confidence,
   });
 
+  // Fetch the top attribution patterns from closed-loop performance data.
+  // The best-performing strategy name is stamped on every new queue item so
+  // contentPerformanceLoops can track whether it outperforms unattributed content.
+  const topAttribution = await getTopAttributionPatterns(userId).catch(() => [] as string[]);
+  if (topAttribution.length > 0) {
+    logger.info("Content maximizer: top attribution pattern applied", {
+      userId:     userId.slice(0, 8),
+      topPattern: topAttribution[0]?.slice(0, 80) ?? "",
+    });
+  }
+
   const moments = await identifyAllUsableMoments(userId, video, durationSec, gameName, preference);
 
   let shortsQueued = 0;
@@ -272,7 +329,8 @@ export async function maximizeContentFromVideo(userId: string, videoId: number):
           tags: [...NO_COMMENTARY_TAGS, gameName, "gaming", "ps5", "shorts"],
           maximizerGenerated: true,
           intensity: moment.intensity,
-        },
+          topAttributionPattern: topAttribution[0] ?? undefined,
+        } as any,
       });
       shortsQueued++;
 

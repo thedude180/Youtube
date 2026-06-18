@@ -804,6 +804,12 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
               })
             ),
           ]).catch(() => {});
+          // Fire-and-forget audience soul model calibration — records a pending
+          // calibration signal that the brain's daily cycle will follow up on
+          // after 48 h when YouTube analytics become available.
+          import("./audience-intelligence-engine").then(({ calibrateAudienceSoulModel }) =>
+            calibrateAudienceSoulModel(userId, publishedYtId)
+          ).catch(() => {});
         }
       } else {
         logger.warn("Short publish failed", { queueItemId: item.id, platform, error: result.error });
@@ -843,6 +849,16 @@ export async function runShortsClipPublisher(): Promise<{ published: number; fai
     contentType: "youtube-short",
     quotaExhausted,
   }).catch(() => {});
+
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("shorts-publisher", cycleUserId || null, {
+      processed: published + failed + skipped,
+      succeeded: published,
+      failed,
+      skipped,
+      keyInsight: quotaExhausted ? "quota exhausted" : `published=${published}`,
+    })
+  ).catch(() => {});
 
   return { published, failed, skipped, quotaExhausted };
 }

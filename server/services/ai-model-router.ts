@@ -59,7 +59,6 @@ const TASK_MAPPINGS: Record<string, TaskMapping> = {
 };
 
 const MODEL_PRICING: Record<string, { inputPer1k: number; outputPer1k: number }> = {
-  "gpt-5":        { inputPer1k: 0.00015, outputPer1k: 0.0006 },
   "gpt-5":             { inputPer1k: 0.0025,  outputPer1k: 0.01 },
   "claude-opus-4-6":    { inputPer1k: 0.015,   outputPer1k: 0.075 },
   "claude-sonnet-4-6":  { inputPer1k: 0.003,   outputPer1k: 0.015 },

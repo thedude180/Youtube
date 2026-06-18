@@ -303,6 +303,31 @@ export async function processStreamLearning(metrics: StreamEndMetrics): Promise<
     logger.warn(`[${userId.slice(0, 8)}] Failed to log activity: ${err.message}`);
   }
 
+  // ── Persist top 3 stream insights to masterKnowledgeBank ─────────────────
+  // Ensures stream performance patterns flow into the central prompt context
+  // used by every content-generation AI call (via getMasterKnowledgeForPrompt).
+  try {
+    const { db: _db }            = await import("../db");
+    const { masterKnowledgeBank } = await import("@shared/schema");
+    const chatLabel = `${chat} chat msg in ${durationMin}min (${chatRate.toFixed(1)}/min)`;
+    const principle = [
+      `Stream "${metrics.streamTitle || "Untitled"}" [${new Date().toISOString().substring(0, 10)}]: `,
+      `grade=${grade}, peak=${peak} viewers, ${chatLabel}.`,
+      highlights.length > 0 ? ` Highlights: ${highlights.slice(0, 2).join("; ")}.` : "",
+      tips.length > 0 ? ` Tip: ${tips[0].slice(0, 120)}.` : "",
+    ].join("").slice(0, 500);
+    await _db.insert(masterKnowledgeBank).values({
+      userId,
+      category:          "stream_intelligence",
+      principle,
+      evidence:          `streamId=${metrics.streamId ?? "n/a"}, platform=${metrics.platform}, sentiment=${metrics.chatSentiment || "neutral"}`,
+      applicableEngines: ["live-copilot", "content-maximizer", "audience-intelligence"],
+      confidenceScore:   grade <= "B" ? 80 : grade <= "C" ? 65 : 50,
+      isActive:          true,
+      createdAt:         new Date(),
+    } as any).catch(() => {});
+  } catch { /* non-fatal */ }
+
   logger.info(`[${userId.slice(0, 8)}] Stream learning complete — grade: ${grade}, ${tips.length} tips, trend fed to knowledge mesh`);
 }
 

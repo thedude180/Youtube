@@ -80,6 +80,14 @@ export async function runRevenueOptimizationCycle(): Promise<void> {
       logger.error(`Revenue optimization failed for user ${user.id.substring(0, 8)}`, { err: String(err) });
     }
   }
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("revenue-optimizer", allUsers[0]?.id ?? null, {
+      processed: allUsers.length,
+      succeeded: allUsers.length,
+      failed:    0,
+      keyInsight: `checked ${allUsers.length} user(s)`,
+    })
+  ).catch(() => {});
 }
 
 async function optimizeRevenueForUser(userId: string): Promise<void> {

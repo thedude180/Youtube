@@ -45,12 +45,50 @@ export function initAudienceIntelligenceEngine(): ReturnType<typeof setInterval>
 
 export async function runAudienceIntelligenceCycle(): Promise<void> {
   const allUsers = await db.select({ id: users.id }).from(users).limit(50);
+  let processed = 0, failed = 0;
   for (const user of allUsers) {
     try {
       await analyzeAudienceForUser(user.id);
+      processed++;
     } catch (err) {
       logger.error(`Audience intelligence failed for user ${user.id.substring(0, 8)}`, { err: String(err) });
+      failed++;
     }
+  }
+  import("../lib/event-log").then(({ logServiceCycle }) =>
+    logServiceCycle("audience-intelligence", allUsers[0]?.id ?? null, { processed, failed })
+  ).catch(() => {});
+}
+
+/**
+ * Write a soul-model calibration signal to masterKnowledgeBank for a recently
+ * published video.  Call fire-and-forget after a successful upload so the
+ * brain's daily cycle can cross-reference predicted vs actual performance after
+ * 48 h and refine the channel's audience personality model over time.
+ *
+ * Note: audienceSoulModels table does not exist in the current schema —
+ * calibration signals are persisted in masterKnowledgeBank (category =
+ * "audience_calibration") which is read by all AI prompts via getMasterKnowledgeForPrompt().
+ */
+export async function calibrateAudienceSoulModel(
+  userId: string,
+  youtubeVideoId: string,
+): Promise<void> {
+  try {
+    const { db: _db }            = await import("../db");
+    const { masterKnowledgeBank } = await import("@shared/schema");
+    await _db.insert(masterKnowledgeBank).values({
+      userId,
+      category:          "audience_calibration",
+      principle:         `[Calibration pending] Video ${youtubeVideoId} just published — check analytics at 48 h to compare predicted vs actual audience behaviour and update soul-model confidence.`,
+      evidence:          `youtubeVideoId=${youtubeVideoId}, queuedAt=${new Date().toISOString()}`,
+      applicableEngines: ["audience-intelligence", "content-maximizer", "learning-brain"],
+      confidenceScore:   30, // low until real analytics arrive
+      isActive:          true,
+      createdAt:         new Date(),
+    } as any).catch(() => {});
+  } catch {
+    // non-fatal — never block the publisher
   }
 }
 

@@ -1269,6 +1269,37 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       if (archived > 0) {
         logger.debug(`[Brain] discovered_strategies: archived ${archived} low-effectiveness strategies`);
       }
+
+      // Also promote high-effectiveness validated strategies as positive principles
+      // so the orchestrator and content generators actively apply them.
+      const goodStrategies = await db.execute(sql`
+        SELECT id, title, strategy_type, effectiveness, times_applied
+        FROM discovered_strategies
+        WHERE user_id = ${userId}
+          AND is_active = true
+          AND effectiveness >= 65
+          AND times_applied >= 2
+          AND created_at < NOW() - INTERVAL '7 days'
+        ORDER BY effectiveness DESC
+        LIMIT 5
+      `);
+      const goodRows = (goodStrategies as any)?.rows ?? [];
+      for (const row of goodRows) {
+        const principle = `[DO] Strategy "${row.title}" (${row.strategy_type}) validated: ${row.effectiveness}% effectiveness after ${row.times_applied} applications — continue using this approach`;
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:          "validated_strategy",
+          principle:         principle.slice(0, 500),
+          evidence:          `effectiveness=${row.effectiveness}, times_applied=${row.times_applied}`,
+          applicableEngines: ["youtube-ai-orchestrator", "content-grinder", "growth-flywheel"],
+          confidenceScore:   Math.min(90, 50 + Math.round(row.effectiveness / 3)),
+          isActive:          true,
+          createdAt:         new Date(),
+        } as any).catch(() => {});
+      }
+      if (goodRows.length > 0) {
+        logger.debug(`[Brain] discovered_strategies: promoted ${goodRows.length} high-effectiveness strategies`);
+      }
     } catch (stratErr: any) {
       logger.debug(`[Brain] discovered-strategies synthesis non-fatal: ${stratErr?.message?.slice(0, 80)}`);
     }

@@ -233,13 +233,12 @@ export async function runBackCatalogForAllEligibleUsers(): Promise<{ usersRun: n
   ).catch(() => {});
 
   // Record cycle completion to the permanent event log
-  import('../lib/event-log').then(({ logEvent }) =>
-    logEvent({
-      eventType: 'system',
-      service:   'back-catalog-runner',
-      title:     `Back-catalog runner cycle complete — ${usersRun} user(s), ${errors} error(s)`,
-      detail:    { usersRun, errors },
-      severity:  errors > 0 ? 'warn' : 'info',
+  import('../lib/event-log').then(({ logServiceCycle }) =>
+    logServiceCycle('back-catalog-runner', null, {
+      processed: usersRun + errors,
+      succeeded: usersRun,
+      failed:    errors,
+      keyInsight: `${usersRun} user(s) completed`,
     })
   ).catch(() => {});
 
