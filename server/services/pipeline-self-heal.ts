@@ -11,7 +11,8 @@ import {
 } from "@shared/schema";
 import { and, eq, lt, or, like, isNull, isNotNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { logIncidentOnce } from "../lib/incident-log";
+import { logIncidentOnce, logSystemIncident } from "../lib/incident-log";
+import { runHealthMonitor } from "./system-health-monitor";
 import { refreshExpiringTokens } from "../token-refresh";
 import { processBacklog } from "./youtube-push-backlog";
 
@@ -431,15 +432,37 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const elapsed = Date.now() - t0;
 
   if (totalRecovered > 0) {
-    logger.info(
-      `[self-heal] Recovered ${totalRecovered} items in ${elapsed}ms — ` +
+    const summary =
       `pipeline[stuck:${pipelineStuck} err:${pipelineErrored}] ` +
       `backlog[${backlogFixed}] ` +
       `editJobs[stuck:${editStuck} transient:${editTransient} missing:${editMissing}] ` +
       `clips[${clipsFixed}] studio[${studioFixed}] ` +
       `autopilot[${autopilotFixed}] jobs[${jobsFixed}] ` +
-      `vault[stuck:${vaultStuck} failed:${vaultFailed} retired:${vaultRetired}]`
-    );
+      `vault[stuck:${vaultStuck} failed:${vaultFailed} retired:${vaultRetired}]`;
+
+    logger.info(`[self-heal] Recovered ${totalRecovered} items in ${elapsed}ms — ${summary}`);
+
+    // Log to system_incident_log so the brain learns which tables get stuck and when.
+    // Uses logSystemIncident (non-deduped) so every recovery is recorded — the brain
+    // will spot frequency patterns across days and promote them to masterKnowledgeBank.
+    logSystemIncident({
+      category:      "other",
+      service:       "pipeline-self-heal/recovery",
+      severity:      "low",
+      status:        "resolved",
+      autoDetected:  true,
+      rootCause:
+        `Self-heal recovered ${totalRecovered} stuck item(s) from the previous session/crash. ` +
+        `Breakdown: ${summary}`,
+      fixDescription:
+        `Automatically reset to pending/queued. Items were stuck in 'processing' from a previous container crash or timeout.`,
+      lesson:
+        "Items left in 'processing' state are a normal consequence of container restarts. " +
+        "The T+5s early self-heal resets them before publishers start. " +
+        "If the same table shows high recovery counts repeatedly, investigate that service for OOM crashes, " +
+        "timeout patterns, or hot-loop behaviour causing unclean shutdowns.",
+      tags: ["self-heal", "recovery", "boot"],
+    }).catch(() => {});
   } else {
     logger.info(`[self-heal] All clear in ${elapsed}ms — no stuck or errored items found`);
   }
@@ -447,6 +470,14 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   if (deep) {
     await runDeepAudit();
   }
+
+  // App-wide health monitor — runs after every heal cycle.
+  // Detects publishing stalls, queue failure spikes, vault blockages, dead engines,
+  // and quota breaker state.  Issues are logged to system_incident_log (deduped 24h)
+  // and flow into the brain's daily cycle → masterKnowledgeBank → all AI prompts.
+  await runHealthMonitor().catch(err =>
+    logger.warn("[self-heal] Health monitor threw (non-fatal):", err?.message),
+  );
 }
 
 // ─── Deep audit (startup + every 6h) ─────────────────────────────────────────
