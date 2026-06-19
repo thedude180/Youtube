@@ -1,0 +1,1 @@
+ALTER TABLE "playlist_funnels" ADD COLUMN "added_video_ids" jsonb DEFAULT '[]'::jsonb;
