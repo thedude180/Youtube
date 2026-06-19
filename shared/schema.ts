@@ -10931,10 +10931,10 @@ export const platformComplianceRules = pgTable("platform_compliance_rules", {
   createdAt:    timestamp("created_at").notNull().defaultNow(),
   updatedAt:    timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
-  index("pcr_user_idx").on(t.userId),
-  index("pcr_platform_idx").on(t.platform),
-  index("pcr_severity_idx").on(t.severity),
-  index("pcr_category_idx").on(t.category),
+  index("compliance_rule_user_idx").on(t.userId),
+  index("compliance_rule_platform_idx").on(t.platform),
+  index("compliance_rule_severity_idx").on(t.severity),
+  index("compliance_rule_category_idx").on(t.category),
 ]);
 export type PlatformComplianceRule = typeof platformComplianceRules.$inferSelect;
 
