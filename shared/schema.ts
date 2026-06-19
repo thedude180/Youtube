@@ -10910,3 +10910,101 @@ export const brainSkillMemories = pgTable("brain_skill_memories", {
   index("bsm_confidence_idx").on(t.confidence),
 ]);
 export type BrainSkillMemory = typeof brainSkillMemories.$inferSelect;
+
+// ── Platform Compliance Rules (Immune System) ─────────────────────────────────
+// Stores the system's living model of what each platform allows/forbids.
+// Hard-blocked rules prevent publishing outright; warnings are logged and noted.
+// Seeds from AI on first boot; refreshed weekly; updated when violations occur.
+export const platformComplianceRules = pgTable("platform_compliance_rules", {
+  id:           serial("id").primaryKey(),
+  userId:       text("user_id").notNull(),
+  platform:     text("platform").notNull().default("youtube"),
+  category:     text("category").notNull(), // monetization|copyright|community|spam|shorts|gaming
+  rule:         text("rule").notNull(),
+  severity:     text("severity").notNull().default("warning"), // hard_block|warning
+  matchPattern: text("match_pattern"), // optional regex/keyword pattern for auto-matching
+  source:       text("source").notNull().default("ai_seeded"),
+  isActive:     boolean("is_active").notNull().default(true),
+  triggerCount: integer("trigger_count").notNull().default(0),
+  lastTriggered: timestamp("last_triggered"),
+  metadata:     jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:    timestamp("created_at").notNull().defaultNow(),
+  updatedAt:    timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("pcr_user_idx").on(t.userId),
+  index("pcr_platform_idx").on(t.platform),
+  index("pcr_severity_idx").on(t.severity),
+  index("pcr_category_idx").on(t.category),
+]);
+export type PlatformComplianceRule = typeof platformComplianceRules.$inferSelect;
+
+// ── Service Proposals (Self-Architect) ────────────────────────────────────────
+// When the system identifies a capability gap it cannot fill with existing
+// services, the self-architect writes a structured proposal here.
+// A human reviews and approves before any code is actually built.
+export const serviceProposals = pgTable("service_proposals", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  title:           text("title").notNull(),
+  problem:         text("problem").notNull(),
+  proposedService: text("proposed_service").notNull(),
+  scaffold:        text("scaffold").notNull(), // TypeScript file skeleton
+  rationale:       text("rationale").notNull(),
+  evidenceSources: text("evidence_sources").array().notNull().default([]),
+  priority:        integer("priority").notNull().default(5),
+  status:          text("status").notNull().default("pending"), // pending|approved|rejected|built
+  reviewedAt:      timestamp("reviewed_at"),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  metadata:        jsonb("metadata").$type<Record<string, any>>().default({}),
+}, (t) => [
+  index("sp_user_idx").on(t.userId),
+  index("sp_status_idx").on(t.status),
+]);
+export type ServiceProposal = typeof serviceProposals.$inferSelect;
+
+// ── Service Performance Metrics (Architecture Critic) ─────────────────────────
+// Tracks each background service's contribution to real outcomes.
+// Services that haven't contributed in 7+ days are flagged for review.
+export const servicePerformanceMetrics = pgTable("service_performance_metrics", {
+  id:                    serial("id").primaryKey(),
+  service:               text("service").notNull(),
+  lastRunAt:             timestamp("last_run_at"),
+  outputsGenerated:      integer("outputs_generated").notNull().default(0),
+  knowledgeEntriesAdded: integer("knowledge_entries_added").notNull().default(0),
+  quotaConsumed:         integer("quota_consumed").notNull().default(0),
+  errorCount:            integer("error_count").notNull().default(0),
+  contributionScore:     integer("contribution_score").notNull().default(50),
+  critiquedAt:           timestamp("critiqued_at"),
+  critiqueSummary:       text("critique_summary"),
+  metadata:              jsonb("metadata").$type<Record<string, any>>().default({}),
+  updatedAt:             timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("spm_service_uq").on(t.service),
+]);
+export type ServicePerformanceMetric = typeof servicePerformanceMetrics.$inferSelect;
+
+// ── Hypotheses ─────────────────────────────────────────────────────────────────
+// The hypothesis engine writes testable questions here.
+// The autonomous-experimenter picks them up and runs controlled tests.
+// Confirmed or rejected hypotheses feed back to masterKnowledgeBank.
+export const hypotheses = pgTable("hypotheses", {
+  id:              serial("id").primaryKey(),
+  userId:          text("user_id").notNull(),
+  statement:       text("statement").notNull(),
+  domain:          text("domain").notNull(), // timing|format|hook|seo|thumbnail|engagement
+  rationale:       text("rationale").notNull(),
+  confidence:      integer("confidence").notNull().default(30),
+  evidenceFor:     integer("evidence_for").notNull().default(0),
+  evidenceAgainst: integer("evidence_against").notNull().default(0),
+  status:          text("status").notNull().default("untested"), // untested|testing|confirmed|rejected
+  experimentId:    integer("experiment_id"),
+  testedAt:        timestamp("tested_at"),
+  metadata:        jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt:       timestamp("created_at").notNull().defaultNow(),
+  updatedAt:       timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("hyp_user_idx").on(t.userId),
+  index("hyp_status_idx").on(t.status),
+  index("hyp_domain_idx").on(t.domain),
+]);
+export type Hypothesis = typeof hypotheses.$inferSelect;

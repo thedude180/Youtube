@@ -412,6 +412,34 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
           logger.info(`[YouTubeSchedule] Long-form scheduled for ${lfScheduledAt.toISOString()}`, { itemId: item.id });
         }
 
+        // ── Compliance immune-system gate ────────────────────────────────────
+        // Blocks upload if platform-compliance-brain flags a hard violation.
+        // Warnings are logged but do not block. All errors are non-fatal so a
+        // compliance-brain bug can never stop the whole publisher.
+        try {
+          const { checkCompliance } = await import("./platform-compliance-brain");
+          const cr = await checkCompliance(ytChannel.userId, {
+            title,
+            description: description.slice(0, 500),
+            tags: (preBuiltTagsLF ?? []).slice(0, 15),
+            contentType: "long-form",
+          });
+          if (!cr.pass) {
+            logger.warn(`[LFPublisher] Compliance HARD BLOCK on item ${item.id}: ${cr.hardBlocks.join("; ").slice(0, 200)}`);
+            await db.update(autopilotQueue).set({
+              status: "permanent_fail",
+              metadata: { ...itemMeta, failReason: `compliance:policy`, complianceViolations: cr.hardBlocks } as any,
+            }).where(eq(autopilotQueue.id, item.id));
+            failed++;
+            continue;
+          }
+          if (cr.warnings.length) {
+            logger.info(`[LFPublisher] Compliance warnings (non-blocking) for item ${item.id}: ${cr.warnings.join("; ").slice(0, 160)}`);
+          }
+        } catch (cErr: any) {
+          logger.debug(`[LFPublisher] Compliance check non-fatal error: ${cErr?.message?.slice(0, 80)}`);
+        }
+
         const uploadResult = await uploadVideoToYouTube(ytChannel.id, {
           title,
           description,

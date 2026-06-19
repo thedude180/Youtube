@@ -979,4 +979,65 @@ export function registerAdminRoutes(app: Express) {
       res.status(500).json({ ok: false, error: err?.message ?? String(err) });
     }
   });
+
+  // ── Self-Architect: Service Proposals ─────────────────────────────────────
+  // The self-architect generates these. A human reviews and approves/rejects.
+  // Approved proposals must be implemented manually — nothing auto-deploys.
+
+  app.get("/api/admin/service-proposals", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const { db: dbInstance } = await import("../db");
+      const { serviceProposals } = await import("@shared/schema");
+      const { desc } = await import("drizzle-orm");
+      const proposals = await dbInstance.select()
+        .from(serviceProposals)
+        .orderBy(desc(serviceProposals.createdAt))
+        .limit(50);
+      res.json({ ok: true, proposals });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+    }
+  });
+
+  app.patch("/api/admin/service-proposals/:id", adminRateLimit, async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ ok: false, error: "Invalid proposal ID" });
+    const { status } = req.body as { status?: string };
+    if (!["approved", "rejected", "built"].includes(status ?? "")) {
+      return res.status(400).json({ ok: false, error: "status must be approved|rejected|built" });
+    }
+    try {
+      const { db: dbInstance } = await import("../db");
+      const { serviceProposals } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      await dbInstance.update(serviceProposals)
+        .set({ status: status!, reviewedAt: new Date(), metadata: { reviewedBy: userId, reviewedAt: new Date().toISOString() } as any })
+        .where(eq(serviceProposals.id, id));
+      res.json({ ok: true, id, status });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+    }
+  });
+
+  app.get("/api/admin/compliance-rules", async (req, res) => {
+    const userId = requireAdmin(req, res);
+    if (!userId) return;
+    try {
+      const { db: dbInstance } = await import("../db");
+      const { platformComplianceRules } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const rules = await dbInstance.select()
+        .from(platformComplianceRules)
+        .where(eq(platformComplianceRules.isActive, true))
+        .orderBy(desc(platformComplianceRules.severity), platformComplianceRules.category)
+        .limit(100);
+      res.json({ ok: true, rules, total: rules.length });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message ?? String(err) });
+    }
+  });
 }

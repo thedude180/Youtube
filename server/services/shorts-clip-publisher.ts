@@ -667,6 +667,30 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
                   ? truncated
                   : (titleCaption.slice(0, 100 - shortsTag.length) + shortsTag);
 
+                // ── Compliance immune-system gate ────────────────────────────
+                // Hard violations block the upload; warnings are logged only.
+                // Non-fatal — a compliance-brain bug never stops the publisher.
+                try {
+                  const { checkCompliance } = await import("./platform-compliance-brain");
+                  const cr = await checkCompliance(userId, {
+                    title:       safeTitle,
+                    description: finalYtDesc.slice(0, 300),
+                    tags:        (preBuiltTags ?? tags).slice(0, 15),
+                    contentType: "short",
+                  });
+                  if (!cr.pass) {
+                    logger.warn(`[ShortsPublisher] Compliance HARD BLOCK on item ${item.id}: ${cr.hardBlocks.join("; ").slice(0, 200)}`);
+                    result = { success: false, error: `compliance:policy` };
+                    failed++;
+                    continue;
+                  }
+                  if (cr.warnings.length) {
+                    logger.info(`[ShortsPublisher] Compliance warnings for item ${item.id}: ${cr.warnings.join("; ").slice(0, 160)}`);
+                  }
+                } catch (cErr: any) {
+                  logger.debug(`[ShortsPublisher] Compliance check non-fatal: ${cErr?.message?.slice(0, 80)}`);
+                }
+
                 result = await uploadToYouTube({
                   channelId: ytChannel.id,
                   title: safeTitle,

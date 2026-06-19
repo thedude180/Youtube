@@ -3989,6 +3989,14 @@ httpServer.listen(
         { label: "viral-prediction-engine",     fn: () => import("./services/viral-prediction-engine").then(m => { backgroundIntervals.push(...m.initViralPredictionEngine()); }).catch(slog("initViralPredictionEngine")) },
         { label: "trend-wave-interceptor",      fn: () => import("./services/trend-wave-interceptor").then(m => { backgroundIntervals.push(...m.initTrendWaveInterceptor()); }).catch(slog("initTrendWaveInterceptor")) },
         { label: "competitor-gap-scanner",      fn: () => import("./services/competitor-gap-scanner").then(m => { backgroundIntervals.push(...m.initCompetitorGapScanner()); }).catch(slog("initCompetitorGapScanner")) },
+        // ── ASI closed-loop trinity extensions ──────────────────────────────
+        { label: "platform-compliance-brain",  fn: () => import("./services/platform-compliance-brain").then(m => m.initPlatformComplianceBrain("7210ff92-76dd-4d0a-80bb-9eb5be27508b")).catch(slog("initPlatformComplianceBrain")) },
+        { label: "bayesian-knowledge-engine",  fn: () => import("./services/bayesian-knowledge").then(() => { /* Runs as brain step 9y — no interval needed */ }).catch(slog("bayesian-knowledge-engine")) },
+        { label: "algorithm-model-learner",    fn: () => import("./services/algorithm-model-learner").then(m => { backgroundIntervals.push(m.initAlgorithmModelLearner("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initAlgorithmModelLearner")) },
+        { label: "goal-discovery",             fn: () => import("./services/goal-discovery").then(m => { backgroundIntervals.push(m.initGoalDiscovery("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initGoalDiscovery")) },
+        { label: "architecture-critic",        fn: () => import("./services/architecture-critic").then(m => { backgroundIntervals.push(m.initArchitectureCritic("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initArchitectureCritic")) },
+        { label: "hypothesis-engine",          fn: () => import("./services/hypothesis-engine").then(m => { backgroundIntervals.push(m.initHypothesisEngine("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initHypothesisEngine")) },
+        { label: "self-architect",             fn: () => import("./services/self-architect").then(m => { backgroundIntervals.push(m.initSelfArchitect("7210ff92-76dd-4d0a-80bb-9eb5be27508b")); }).catch(slog("initSelfArchitect")) },
       ], 15_000);
     });
 

@@ -1810,6 +1810,73 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Step 9w growth milestone non-fatal: ${gmErr?.message?.slice(0, 80)}`);
     }
 
+    // Step 9x: Compliance state → masterKnowledgeBank
+    // Reads active hard-block rules and injects them as high-confidence principles
+    // so every AI prompt is aware of what the system must never do.
+    try {
+      const { getComplianceContext } = await import("./platform-compliance-brain");
+      const compCtx = await getComplianceContext(userId);
+      if (compCtx) {
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:         "platform_compliance",
+          principle:        `COMPLIANCE SUMMARY: ${compCtx.slice(0, 400)}`,
+          sourceEngines:    ["platform-compliance-brain", "learning-brain"],
+          evidenceCount:    1,
+          confidenceScore:  95,
+          applicableEngines: ["shorts-publisher", "long-form-publisher", "youtube-ai-orchestrator"],
+          isActive:         true,
+          metadata:         { refreshedAt: new Date().toISOString() } as any,
+        } as any).onConflictDoNothing();
+        logger.debug("[Brain] Step 9x: compliance context written to masterKnowledgeBank");
+      }
+    } catch (cxErr: any) {
+      logger.debug(`[Brain] Step 9x compliance context non-fatal: ${cxErr?.message?.slice(0, 80)}`);
+    }
+
+    // Step 9y: Bayesian knowledge reweighting
+    // Updates confidence scores across all masterKnowledgeBank entries based on
+    // real outcome data — entries with contradicting evidence get penalised.
+    try {
+      const { runBayesianReweighting } = await import("./bayesian-knowledge");
+      const bResult = await runBayesianReweighting(userId);
+      if (bResult.total > 0) {
+        logger.info(`[Brain] Step 9y: Bayesian reweighted ${bResult.total} entries — ↑${bResult.increased} ↓${bResult.decreased}, avg confidence ${bResult.avgConfidence}%`);
+      } else {
+        logger.debug("[Brain] Step 9y: Bayesian reweighting skipped (cooldown or no entries)");
+      }
+    } catch (byErr: any) {
+      logger.debug(`[Brain] Step 9y Bayesian reweighting non-fatal: ${byErr?.message?.slice(0, 80)}`);
+    }
+
+    // Step 9z: Algorithm model → masterKnowledgeBank
+    // Reads the channel-specific timing model (if fresh) and injects the best
+    // publish window as a high-confidence principle for publisher guidance.
+    try {
+      const { getBestPublishWindow } = await import("./algorithm-model-learner");
+      const bestWindow = await getBestPublishWindow(userId);
+      if (bestWindow && bestWindow.confidence >= 50) {
+        const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const principle = `ALGORITHM MODEL: Best publish window is ${DAY_NAMES[bestWindow.dayOfWeek] ?? "Unknown"} at ${bestWindow.hour}:00 UTC (model confidence ${bestWindow.confidence}%). Publishers should target this window for maximum impressions.`;
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:         "algorithm_model",
+          principle,
+          sourceEngines:    ["algorithm-model-learner", "learning-brain"],
+          evidenceCount:    1,
+          confidenceScore:  bestWindow.confidence,
+          applicableEngines: ["shorts-publisher", "long-form-publisher"],
+          isActive:         true,
+          metadata:         { dayOfWeek: bestWindow.dayOfWeek, hour: bestWindow.hour } as any,
+        } as any).onConflictDoNothing();
+        logger.debug(`[Brain] Step 9z: algorithm model timing principle written (${DAY_NAMES[bestWindow.dayOfWeek]} ${bestWindow.hour}:00 UTC, confidence ${bestWindow.confidence}%)`);
+      } else {
+        logger.debug("[Brain] Step 9z: algorithm model not yet ready (insufficient data or no model)");
+      }
+    } catch (azErr: any) {
+      logger.debug(`[Brain] Step 9z algorithm model non-fatal: ${azErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];

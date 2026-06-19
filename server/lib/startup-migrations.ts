@@ -6046,6 +6046,113 @@ async function migration105AddFunnelVideoIds(): Promise<void> {
   }
 }
 
+// ── Migration 106: Create ASI tables ─────────────────────────────────────────
+// Creates platform_compliance_rules, service_proposals, and hypotheses tables.
+// These back the immune system, self-architect, and hypothesis engine.
+async function migration106CreateASITables(): Promise<void> {
+  const FLAG = "migration:106:asi_tables_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS platform_compliance_rules (
+        id            serial PRIMARY KEY,
+        user_id       text NOT NULL,
+        platform      text NOT NULL DEFAULT 'youtube',
+        category      text NOT NULL,
+        rule          text NOT NULL,
+        severity      text NOT NULL DEFAULT 'warning',
+        match_pattern text,
+        source        text NOT NULL DEFAULT 'ai_seeded',
+        is_active     boolean NOT NULL DEFAULT true,
+        trigger_count integer NOT NULL DEFAULT 0,
+        last_triggered timestamp,
+        metadata      jsonb DEFAULT '{}'::jsonb,
+        created_at    timestamp NOT NULL DEFAULT NOW(),
+        updated_at    timestamp NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS service_proposals (
+        id               serial PRIMARY KEY,
+        user_id          text NOT NULL,
+        title            text NOT NULL,
+        problem          text NOT NULL,
+        proposed_service text NOT NULL,
+        scaffold         text NOT NULL DEFAULT '',
+        rationale        text NOT NULL DEFAULT '',
+        evidence_sources text[] NOT NULL DEFAULT '{}',
+        priority         integer NOT NULL DEFAULT 5,
+        status           text NOT NULL DEFAULT 'pending',
+        reviewed_at      timestamp,
+        created_at       timestamp NOT NULL DEFAULT NOW(),
+        metadata         jsonb DEFAULT '{}'::jsonb
+      )
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS hypotheses (
+        id               serial PRIMARY KEY,
+        user_id          text NOT NULL,
+        statement        text NOT NULL,
+        domain           text NOT NULL,
+        rationale        text NOT NULL DEFAULT '',
+        confidence       integer NOT NULL DEFAULT 30,
+        evidence_for     integer NOT NULL DEFAULT 0,
+        evidence_against integer NOT NULL DEFAULT 0,
+        status           text NOT NULL DEFAULT 'untested',
+        experiment_id    integer,
+        tested_at        timestamp,
+        metadata         jsonb DEFAULT '{}'::jsonb,
+        created_at       timestamp NOT NULL DEFAULT NOW(),
+        updated_at       timestamp DEFAULT NOW()
+      )
+    `));
+    // Indexes
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS pcr_user_idx ON platform_compliance_rules (user_id)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS pcr_severity_idx ON platform_compliance_rules (severity)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS sp_user_idx ON service_proposals (user_id)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS sp_status_idx ON service_proposals (status)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS hyp_user_idx ON hypotheses (user_id)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS hyp_status_idx ON hypotheses (status)`));
+    log.info("[Migration 106] ASI tables created: platform_compliance_rules, service_proposals, hypotheses");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 106] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
+// ── Migration 107: Create service_performance_metrics table ──────────────────
+// Backs the architecture critic. Tracks per-service contribution over time.
+async function migration107CreateServicePerformanceMetrics(): Promise<void> {
+  const FLAG = "migration:107:service_performance_metrics_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS service_performance_metrics (
+        id                     serial PRIMARY KEY,
+        service                text NOT NULL,
+        last_run_at            timestamp,
+        outputs_generated      integer NOT NULL DEFAULT 0,
+        knowledge_entries_added integer NOT NULL DEFAULT 0,
+        quota_consumed         integer NOT NULL DEFAULT 0,
+        error_count            integer NOT NULL DEFAULT 0,
+        contribution_score     integer NOT NULL DEFAULT 50,
+        critiqued_at           timestamp,
+        critique_summary       text,
+        metadata               jsonb DEFAULT '{}'::jsonb,
+        updated_at             timestamp NOT NULL DEFAULT NOW(),
+        UNIQUE (service)
+      )
+    `));
+    await db.execute(sql.raw(`CREATE UNIQUE INDEX IF NOT EXISTS spm_service_uq ON service_performance_metrics (service)`));
+    log.info("[Migration 107] service_performance_metrics table created");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 107] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: reset stale 'downloaded' vault entries ─────────────
 // When the production container restarts after a new deployment, vault files on
 // ephemeral local disk are lost.  Any vault entry that says status='downloaded'
@@ -6324,6 +6431,8 @@ export async function runStartupMigrations(): Promise<void> {
     await migration103CancelYstycAndResetStaleVault();
     await migration104CancelBF2042Items();
     await migration105AddFunnelVideoIds();
+    await migration106CreateASITables();
+    await migration107CreateServicePerformanceMetrics();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6383,7 +6492,7 @@ export async function runStartupMigrations(): Promise<void> {
         title:     `Boot-heal complete — ${105} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  105,
+          totalMigrations:  107,
           perBootCleanups: [
             "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",

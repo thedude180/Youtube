@@ -22,7 +22,8 @@ import { invalidatePromptCache } from "../lib/prompt-loader";
 
 const logger = createLogger("prompt-self-improver");
 
-// Only auto-improve these safe domains (never touch auth, publishing, or quota prompts)
+// Safe domains for auto-improvement (never touch auth, publishing-gate, or quota prompts)
+// Expanded from original 7 to 12 domains — includes new compliance + engagement domains
 const IMPROVABLE_KEYS = [
   "title_generation",
   "thumbnail_concept",
@@ -31,6 +32,11 @@ const IMPROVABLE_KEYS = [
   "seo_tags",
   "clip_selection",
   "video_scoring",
+  "engagement_hook",
+  "hook_generation",
+  "content_scoring",
+  "viral_prediction",
+  "performance_analysis",
 ];
 
 export async function runPromptSelfImprovement(userId: string): Promise<number> {
@@ -78,7 +84,7 @@ export async function runPromptSelfImprovement(userId: string): Promise<number> 
 
   const improvable = activePrompts.filter(p =>
     IMPROVABLE_KEYS.some(key => p.promptKey.includes(key))
-  ).slice(0, 3); // max 3 per weekly run (AI budget)
+  ).slice(0, 5); // max 5 per weekly run (raised from 3 — more domains now covered)
 
   if (improvable.length === 0) {
     logger.debug("[PromptImprover] No improvable active prompts found in DB");
