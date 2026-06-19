@@ -315,7 +315,7 @@ export function buildDialogFlipFilterComplex(
 ): DialogFlipPlan {
   const cropW = Math.round(srcH * 9 / 16);
   const maxX = Math.max(0, srcW - cropW);
-  const scaleChain = "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos,crop=2160:3840,pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60";
+  const scaleChain = "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos,crop=2160:3840,pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60,eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
 
   const validSegs = segments.filter(s => s.endSec - s.startSec >= 0.5);
   if (validSegs.length < 2) return { filterComplex: "", segCount: 0 };

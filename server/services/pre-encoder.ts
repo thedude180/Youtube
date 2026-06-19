@@ -202,7 +202,7 @@ async function encodeShort(
     const codecArgs = [
       "-c:v", "libx264", "-profile:v", "high", "-level:v", "5.2",
       "-crf", "16", "-preset", "medium",
-      "-c:a", "aac", "-b:a", "192k",
+      "-c:a", "aac", "-b:a", "256k",
       "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-threads", "2",
     ];
     try {
@@ -241,13 +241,20 @@ async function encodeShort(
   }
 
   // ── Standard (or character-aware single-crop) path ─────────────────────────
-  const videoFilter = cutsceneVideoFilter ?? [
+  // Post-upscale enhancement applied to every Shorts code path (standard center-crop,
+  // character-aware crop, and dialog-flip fallback).
+  //   eq: subtle +5% contrast, +8% saturation — colours pop on screen without looking processed.
+  //   unsharp: 5×5 kernel, 0.8 luma — recovers perceived crispness lost in Lanczos upscale;
+  //     chroma amount=0 avoids colour fringing.
+  const ENHANCE = "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+  const baseFilter = cutsceneVideoFilter ?? [
     "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
     "crop=2160:3840",
     "pad=2160:3840:(ow-iw)/2:(oh-ih)/2:black",
     "setsar=1",
     "fps=60",
   ].join(",");
+  const videoFilter = `${baseFilter},${ENHANCE}`;
 
   // Level 5.2: required for 4K@60fps (level 5.1 exceeds macroblock limit at 2160×3840@60).
   // CRF 16: lower than 18 → more bits per frame → better source for YouTube's transcoder.
@@ -259,7 +266,7 @@ async function encodeShort(
     "-crf", "16",
     "-preset", "medium",
     "-c:a", "aac",
-    "-b:a", "192k",
+    "-b:a", "256k",
     "-movflags", "+faststart",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
@@ -414,7 +421,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     "-crf", "16",
     "-preset", "fast",
     "-c:a", "aac",
-    "-b:a", "192k",
+    "-b:a", "256k",
     "-movflags", "+faststart",
     "-pix_fmt", "yuv420p",
     "-threads", "2",
@@ -431,7 +438,8 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     // ── Simple path (no dead time) ──────────────────────────────────────────
     const videoFilter =
       "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60";
+      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60," +
+      "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
 
     if (musicPath) {
       await runCmd("ffmpeg", [
@@ -508,7 +516,8 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Scale/pad video to 4K letterbox
   filterParts.push(
     "[cv]scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60[outv]",
+    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60," +
+    "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0[outv]",
   );
 
   // Audio: normalise game audio, then mix with background music (if available)
