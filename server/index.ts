@@ -2575,6 +2575,20 @@ httpServer.listen(
       );
     });
 
+    // ── WAVE 0.52: Early full pipeline self-heal ──────────────────────────────
+    // Runs the complete 7-healer audit at T+5s, immediately after startup-migrations
+    // and before any publisher or service starts processing.  This cleans stuck
+    // processing rows, stalled stream-edit jobs, and bad queue states from the
+    // previous crash/deploy so publishers start at T+4min with a clean slate.
+    // The periodic heal system (initPipelineSelfHeal) still starts in Wave 8 at
+    // T+20min to keep things healthy throughout the day.
+    wave(async () => {
+      await sleep(5_000); // T+5s
+      await import("./services/pipeline-self-heal")
+        .then(m => m.runPipelineSelfHeal(true))
+        .catch(err => logger.warn("[Boot] Early pipeline self-heal failed (non-fatal):", err?.message));
+    });
+
     // ── WAVE 0.55: Restore hourly token counters from DB ─────────────────────
     // Must run before engines start so post-reboot bursts respect the cap on
     // tokens already consumed earlier in the same hour.
