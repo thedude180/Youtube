@@ -435,6 +435,7 @@ export async function extractViralMomentsFromTranscript(
   youtubeId: string,
   _durationSec: number,
   maxMoments: number = 15,
+  gameName?: string,
 ): Promise<ViralMoment[]> {
   let transcript: string | null = null;
   try {
@@ -458,24 +459,25 @@ export async function extractViralMomentsFromTranscript(
     const startMin = Math.round(chunk.startSec / 60);
     const endMin   = Math.round(chunk.endSec   / 60);
 
-    const chunkPrompt = `You are the world's best viral gaming clip detector operating at ASI level. You understand Battlefield 6 deeply — its maps, weapons, game modes, and what creates stop-scroll moments for no-commentary PS5 gaming content.
+    const activeGame = gameName || "the game";
+    const chunkPrompt = `You are the world's best viral gaming clip detector operating at ASI level. You deeply understand ${activeGame} — its gameplay patterns, what creates stop-scroll moments, and what no-commentary PS5 gaming audiences respond to.
 
 Scan this ${endMin - startMin}-minute segment (video minutes ${startMin}–${endMin}) and identify EVERY moment with genuine viral potential as a YouTube Short.
 
 TRANSCRIPT:
 ${chunk.text.slice(0, 5500)}
 
-BATTLEFIELD 6 VIRAL PATTERN LIBRARY — these are proven stop-scroll moments:
-• INFANTRY INTENSITY: Full squad wipe, clutch 1v3+ win, no-scope/flick shot, knife kill, revenge kill sequence, perfect grenade timing
-• VEHICLE DOMINANCE: Helicopter gunship streak, tank rampage, jet kill, vehicle destruction chain, epic vehicle escape
-• OBJECTIVE PRESSURE: Final-ticket comeback, flag capture under fire, bomb plant/defuse clutch, overtime capture
-• CHAOS MOMENTS: Unexpected team save, enemy team collapse, massive environmental explosion, C4 trap execution
-• SPECTACLE: Insane distance kill, physics ragdoll, simultaneous multi-kill, 100-0 health reversal, impossible angle
+${activeGame} VIRAL PATTERN LIBRARY — proven stop-scroll moment categories:
+• ELIMINATION INTENSITY: Multi-kill sequence, clutch 1v3+ win, no-scope/trick shot, knife/melee kill, revenge chain, perfect ability/grenade timing
+• VEHICLE/POWER PLAY: Any vehicle kill streak, power ability activation, environmental destruction chain, escape from impossible odds
+• OBJECTIVE CLUTCH: Final-second capture, bomb plant/defuse under fire, overtime moment, comeback from losing position
+• CHAOS & SURPRISE: Unexpected team save, massive explosion/destruction, gadget/ability trap payoff, enemy collapse, physics moment
+• SPECTACLE: Insane long-range kill, simultaneous multi-kill, 100-0 health reversal, impossible angle, "wait for it" payoff
 
 INTENSITY SCORING GUIDE (score 1–10):
-• 9–10: Multi-kill + hype reaction, clutch comeback, insane trick shot — will STOP THE SCROLL
-• 7–8: Single clean kill with good setup, objective capture under fire, vehicle kill — STRONG content
-• 5–6: Normal kill sequence with some action — ACCEPTABLE if unique
+• 9–10: Multi-kill + visible reaction, clutch comeback, insane trick shot — will STOP THE SCROLL
+• 7–8: Single clean kill with great setup, objective clutch, vehicle kill — STRONG content
+• 5–6: Normal kill sequence with some action — ACCEPTABLE if unique to ${activeGame}
 • 1–4: Static gameplay, menu, lobby, spectating, idle — DO NOT INCLUDE
 
 MANDATORY RULES:
@@ -484,12 +486,12 @@ MANDATORY RULES:
 • PICK: action callouts, kill reactions, hype/frustration/surprise, enemy descriptions, clutch moment narration
 • Each clip: ${VIRAL_MIN_DUR_SEC}–${VIRAL_MAX_DUR_SEC} seconds. Hook must land in first 2 seconds.
 • startSec = exact second from VIDEO START (not segment start)
-• viralScore = your honest 1–100 estimate of stop-scroll probability for a BF6 gaming audience
-• title = CTR-optimized (outcome-first, action verb, specific: "78-Kill Streak No Commentary" not "Amazing Gaming Moment")
+• viralScore = your honest 1–100 estimate of stop-scroll probability for a ${activeGame} gaming audience
+• title = CTR-optimized (outcome-first, action verb, specific result: "Wiped 4 Players in 8 Seconds" not "Amazing Gaming Moment")
 • If no moments score ≥ 60 in this segment, return {"moments":[]}
 
 Return JSON only:
-{"moments":[{"startSec":120,"endSec":158,"viralScore":88,"title":"Squad Wiped in 4 Seconds | BF6","reason":"Instant 4-kill sequence opening + chaos continues throughout — zero dead frames"}]}`;
+{"moments":[{"startSec":120,"endSec":158,"viralScore":88,"title":"Squad Wiped in 4 Seconds | ${activeGame}","reason":"Instant 4-kill sequence opening + chaos continues — zero dead frames"}]}`;
 
     try {
       const resp = await openai.chat.completions.create({

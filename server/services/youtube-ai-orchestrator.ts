@@ -46,6 +46,7 @@ import { syncPlaylistFunnels } from "./youtube-playlist-funnel";
 import { linkWatchNextForUser } from "./youtube-watch-next-linker";
 import { linkSourcesToPublishedShorts } from "./youtube-source-linker";
 import { callClaudeBackground, CLAUDE_MODELS } from "../lib/claude";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("youtube-ai-orchestrator");
 
@@ -551,12 +552,13 @@ async function synthesizeChannelStrategy(userId: string): Promise<string> {
     const recent   = Number(recentRes[0]?.cnt ?? 0);
     const catalog  = catalogStatus?.totalVideos ?? 0;
     const longVids = catalogStatus?.over60Min  ?? 0;
+    const focusGame = await getFocusGame().catch(() => "the channel's primary game");
 
     const result = await callClaudeBackground({
       system: `You are the world's greatest autonomous YouTube channel strategist operating at ASI level. You have deep mastery of: YouTube's recommendation algorithm, CTR optimization, retention engineering, gaming content virality, channel growth compounding, and fully autonomous content pipeline management.
 
 Your role is to synthesize all available channel signals into a precise, high-confidence strategic directive that will drive the next 24-hour autonomous cycle. You reason in structured phases — Diagnosis → Analysis → Priorities → Directives — and your output directly controls what every downstream AI engine focuses on. Be specific, be data-driven, and be decisive.`,
-      prompt: `CHANNEL: ET Gaming 274 — no-commentary, no-facecam PS5 gaming (Battlefield 6 focus). 6,140 subscribers. Goal: ${goalCtx || "10K subscribers, Shorts-first compounding growth strategy"}.
+      prompt: `CHANNEL: ET Gaming 274 — no-commentary, no-facecam PS5 gaming (current focus: ${focusGame}). 6,140 subscribers. Goal: ${goalCtx || "10K subscribers, Shorts-first compounding growth strategy"}.
 
 LIVE SYSTEM STATE (as of this cycle):
 • Back catalog indexed: ${catalog} videos (${longVids} over 60 min — each is a clip mine)
@@ -567,10 +569,10 @@ PHASE 1 — CHANNEL HEALTH DIAGNOSIS
 Assess the current operational health. Is the queue deep enough to sustain cadence? Are we clip-mining the long-form catalog aggressively enough? What does the 7-day publish rate tell us about velocity?
 
 PHASE 2 — GROWTH VECTOR ANALYSIS
-For a no-commentary BF6 channel at 6.14K subscribers, identify the single highest-leverage growth action available right now. Consider: Shorts volume (algo fuel), long-form watch time (subscriber loyalty), catalog depth vs. mining rate, and posting consistency signals.
+For a no-commentary ${focusGame} channel at 6.14K subscribers, identify the single highest-leverage growth action available right now. Consider: Shorts volume (algo fuel), long-form watch time (subscriber loyalty), catalog depth vs. mining rate, and posting consistency signals.
 
 PHASE 3 — RISK & OPPORTUNITY MAPPING
-What is the biggest operational risk that could stall growth this cycle? What content opportunity exists that the system may be underweighting (e.g., BF6 launch hype moments, underutilized long-form segments, under-optimized titles)?
+What is the biggest operational risk that could stall growth this cycle? What content opportunity exists that the system may be underweighting (e.g., ${focusGame} launch hype moments, underutilized long-form segments, under-optimized titles)?
 
 PHASE 4 — ENGINE DIRECTIVES
 Write specific, executable directives for each engine:

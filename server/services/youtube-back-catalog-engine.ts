@@ -986,7 +986,7 @@ export async function queueBackCatalogRevivalWork(userId: string): Promise<{
                 } else {
                   // Priority 2: Full-transcript AI — fallback for commentary streams
                   // or new videos without analytics history yet.
-                  moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO);
+                  moments = await extractViralMomentsFromTranscript(v.youtubeVideoId, dur, MAX_SHORTS_PER_VIDEO, v.gameName ?? undefined);
                   if (moments.length > 0) {
                     clipTimestamps = moments.map(m => ({ startSec: m.startSec, endSec: m.endSec, title: m.title }));
                     logger.info(`[BackCatalog] Transcript-AI: ${clipTimestamps.length} moments in ${v.youtubeVideoId} ("${v.title?.slice(0, 50)}")`);

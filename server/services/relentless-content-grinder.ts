@@ -653,7 +653,7 @@ async function extractUntappedMoments(userId: string, video: any, maxClips = 10)
   try {
     const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
-      prompt: `You are the world's best viral content extraction AI, operating at ASI level. You specialize in no-commentary PS5 military FPS gameplay and understand deeply what makes Battlefield 6 clips stop-scroll on YouTube Shorts and stand out in the main feed.
+      prompt: `You are the world's best viral content extraction AI, operating at ASI level. You deeply understand ${sanitizeForPrompt(gameName, 100)} and what makes its clips stop-scroll on YouTube Shorts and stand out in the main feed for no-commentary PS5 gaming.
 
 VIDEO: "${sanitizeForPrompt(video.title, 200)}" (${sanitizeForPrompt(gameName, 100)})
 Duration: ${Math.floor(durSec / 60)} minutes
@@ -664,27 +664,27 @@ Already covered time ranges: ${JSON.stringify(sanitizeObjectForPrompt(coveredRan
 
 SCAN THE UNCOVERED TIME RANGES FOR VIRAL MOMENTS.
 
-BATTLEFIELD 6 VIRAL MOMENT TAXONOMY (ranked by stop-scroll power):
+${sanitizeForPrompt(gameName, 100)} VIRAL MOMENT TAXONOMY (ranked by stop-scroll power):
 TIER 1 — GUARANTEED VIRAL (score 9-10):
 • Squad wipe: 3+ enemies eliminated in a single engagement sequence
-• Clutch survival: near-death health reversal with kill (100→5→kill)
-• Vehicle chaos: helicopter/tank elimination chain or spectacular destruction
-• Overtime capture: final objective secured under maximum pressure
-• Impossibly long-range or no-scope elimination
-• C4 ambush execution or trap payoff
+• Clutch survival: near-death health reversal with kill — player almost dies then gets the kill
+• Vehicle/power play: any vehicle kill chain, power ability activation, or spectacular vehicle destruction
+• Overtime/final-moment capture: final objective secured under maximum pressure
+• Impossibly long-range, no-scope, or trick-shot elimination
+• Gadget/ability ambush trap payoff
 
 TIER 2 — STRONG CONTENT (score 7-8):
-• Clean 1v2 or 1v3 infantry win with strong setup
-• Flag capture under sustained fire
-• Knife kill or melee execution
-• Perfect grenade throw multi-kill
-• Jet kill or vehicle-vs-vehicle combat
-• Rush bomb plant/defuse with clutch timing
+• Clean 1v2 or 1v3 win with strong setup — outnumbered and wins
+• Objective capture or defense under sustained fire
+• Knife/melee or stylish execution kill
+• Perfect thrown ability/item multi-kill
+• Vehicle-vs-vehicle confrontation or escape
+• Objective plant/capture/defuse clutch timing
 
 TIER 3 — SOLID FILLER (score 5-6):
-• Clean 2-3 kill sequence with good pacing
-• Satisfying objective interaction with action
-• Environmental explosion spectacle
+• Clean 2-3 kill sequence with good pacing and no dead time
+• Satisfying objective interaction with continuous action
+• Impressive environmental destruction or physics moment
 
 SKIP (score 1-4): Standing still, killcam >5s, respawn screen, menu, inventory, walking with no combat${retentionContext}${seoContext}${brainContext ? `\n\nCHANNEL INTELLIGENCE (from analytics + learning brain):\n${brainContext}` : ""}
 
@@ -706,7 +706,7 @@ Return raw JSON only (no markdown code blocks):
       "hookDescription": "string — exactly what the viewer sees in the first 2 seconds",
       "payoff": "string — the peak moment that justifies watching",
       "viralScore": 1-10,
-      "retentionStrategy": "string — specific reason a BF6 viewer watches to the end"
+      "retentionStrategy": "string — specific reason a ${sanitizeForPrompt(gameName, 60)} viewer watches to the end"
     }
   ],
   "exhaustionEstimate": 0-100
@@ -845,7 +845,7 @@ async function extractLongFormMoments(userId: string, video: any): Promise<numbe
   try {
     const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
-      prompt: `You are the world's best YouTube long-form content editor for military FPS gaming, operating at ASI level. You understand what keeps no-commentary Battlefield 6 viewers watching for ${targetMin}+ minutes — and you know exactly how to find those segments in raw stream footage.
+      prompt: `You are the world's best YouTube long-form content editor for no-commentary gaming, operating at ASI level. You understand what keeps ${sanitizeForPrompt(gameName, 100)} viewers watching for ${targetMin}+ minutes — and you know exactly how to find those segments in raw stream footage.
 
 VIDEO: "${sanitizeForPrompt(video.title, 200)}"
 GAME: "${sanitizeForPrompt(gameName, 100)}"
@@ -855,14 +855,14 @@ TOTAL DURATION: ${Math.floor(durSec / 60)} minutes
 
 TARGET: Find the single best ~${targetMin}-minute (${targetSec}s) standalone segment.
 
-BATTLEFIELD 6 LONG-FORM SEGMENT TYPES (ranked by viewer retention):
-1. CONQUEST OVERTIME — final tickets, everything on the line, maximum pressure (8-15min ideal)
-2. RUSH MODE — bomb plant → defuse cycle with escalating tension (10-20min)
-3. VEHICLE DOMINANCE RUN — sustained gunship/tank streak across multiple engagements (5-12min)
-4. COMEBACK BATTLE — losing team fights back from the brink (any duration)
-5. FULL MAP CONQUEST — single flag-to-flag push with continuous action
-6. KILL STREAK SHOWCASE — sustained high-performance infantry play (8-15min)
-7. SQUAD COORDINATION — multiple coordinated kills/captures (any duration)
+${sanitizeForPrompt(gameName, 100)} LONG-FORM SEGMENT TYPES (ranked by viewer retention):
+1. FINAL STAGE / OVERTIME — everything on the line, maximum pressure, tight finish (8-15min ideal)
+2. ELIMINATION OBJECTIVE MODE — plant/defuse or attack/defend cycle with escalating tension (10-20min)
+3. POWER PLAY STREAK — sustained vehicle, ability, or weapon streak across multiple engagements (5-12min)
+4. COMEBACK BATTLE — losing position fights back from the brink with a win (any duration)
+5. FULL PUSH / SWEEP — end-to-end objective advance or map clear with continuous action
+6. KILL STREAK SHOWCASE — sustained high-performance play with minimal dead time (8-15min)
+7. COORDINATED TEAMWORK — multiple coordinated kills/captures showing tactical mastery (any duration)
 
 WHAT KILLS WATCH TIME (avoid these as start/end points):
 - Loading screens, spawn selection, menus, scoreboards, long killcams
@@ -881,7 +881,7 @@ Return raw JSON only (no markdown):
   "endSec": number,
   "title": "string — high-impact YouTube title under 80 chars, outcome-first, names the game",
   "description": "string — 2-sentence hook that creates curiosity about what happens in the segment",
-  "reasonThisWorks": "string — the specific arc of this segment and why BF6 viewers stay till the end",
+  "reasonThisWorks": "string — the specific arc of this segment and why ${sanitizeForPrompt(gameName, 60)} viewers stay till the end",
   "contentQualityScore": 1-10
 }`,
       maxTokens: 600,
@@ -976,7 +976,7 @@ async function viralSEORefresh(userId: string, video: any): Promise<boolean> {
   try {
     const resp = await callClaudeBackground({
       model: CLAUDE_MODELS.sonnet,
-      prompt: `You are the world's best YouTube SEO strategist for military FPS no-commentary gaming, operating at ASI level. You understand the exact search behavior of Battlefield 6 audiences, how YouTube's ranking algorithm weighs title + thumbnail CTR, and what description structures maximize watch time signals.
+      prompt: `You are the world's best YouTube SEO strategist for no-commentary gaming channels, operating at ASI level. You understand the exact search behavior of ${sanitizeForPrompt(gameName, 100)} audiences, how YouTube's ranking algorithm weighs title + thumbnail CTR, and what description structures maximize watch time signals.
 
 CURRENT TITLE: "${sanitizeForPrompt(video.title, 200)}"
 CURRENT DESCRIPTION: "${sanitizeForPrompt(video.description || "", 500)}"
@@ -992,23 +992,23 @@ OPTIMIZATION FRAMEWORK:
    a) Name the game or a recognizable game element
    b) Lead with OUTCOME or MOMENT (not "gameplay" or "let's play")
    c) Create a curiosity gap that makes not clicking feel like missing out
-   BF6 TITLE FORMULAS THAT WORK:
-   • "I Destroyed the Entire Enemy Team in [X] Seconds | BF6"
-   • "This [weapon/vehicle] is BROKEN in Battlefield 6"
-   • "Solo vs Full Squad — Battlefield 6 No Commentary"
-   • "[Kill count]-Kill Match with ZERO Deaths | BF6"
-   NEVER: generic terms like "gameplay", "let's play", "PS5 gaming"
+   PROVEN TITLE FORMULAS FOR ${sanitizeForPrompt(gameName, 60).toUpperCase()}:
+   • "I Destroyed the Entire Enemy Team in [X] Seconds | ${sanitizeForPrompt(gameName, 40)}"
+   • "This [weapon/ability] is BROKEN in ${sanitizeForPrompt(gameName, 40)}"
+   • "Solo vs Full Squad — ${sanitizeForPrompt(gameName, 40)} No Commentary"
+   • "[Kill count]-Kill Match with ZERO Deaths | ${sanitizeForPrompt(gameName, 40)}"
+   NEVER: generic terms like "gameplay", "let's play", "PS5 gaming" as standalone descriptors
 
 2. DESCRIPTION — structure for maximum search + watch time:
    Line 1-2 (shown in search): Bold hook statement or question about what happens
-   Body: Natural keyword density for BF6 + PS5 + No Commentary search
+   Body: Natural keyword density for ${sanitizeForPrompt(gameName, 60)} + PS5 + No Commentary search terms
    Timestamps: Name chapters as outcomes/cliffhangers ("12:34 — The Kill That Shouldn't Have Worked")
-   CTA: Ask one specific question to drive comments
+   CTA: Ask one specific question relevant to ${sanitizeForPrompt(gameName, 60)} players to drive comments
 
 3. TAGS (20 tags): Layer from specific → broad
-   Specific: "Battlefield 6 no commentary", "BF6 PS5 gameplay", specific weapon/map names
-   Mid: "Battlefield 6", "PS5 FPS gameplay", "military FPS"  
-   Broad: "no commentary gaming", "PS5 gameplay 2024", "FPS gameplay"
+   Specific: "${sanitizeForPrompt(gameName, 60)} no commentary", "${sanitizeForPrompt(gameName, 40)} PS5 gameplay", specific weapon/ability/map names
+   Mid: "${sanitizeForPrompt(gameName, 60)}", "PS5 gameplay", "no commentary gaming"
+   Broad: "PS5 gameplay 2025", "gaming highlights", "no commentary"
 
 4. CHAPTERS: Every timestamp must create "I need to see this" urgency
 
@@ -1019,7 +1019,7 @@ Return raw JSON only (no markdown code blocks):
   "tags": ["string"],
   "chapters": [{"time": "MM:SS", "label": "string — outcome/cliffhanger wording"}],
   "seoScore": 1-100,
-  "viralPotential": "string — specific reason this will rank and get clicks for BF6 search terms"
+  "viralPotential": "string — specific reason this will rank and get clicks for ${sanitizeForPrompt(gameName, 60)} search terms"
 }`,
       maxTokens: 2000,
       temperature: 0.6,

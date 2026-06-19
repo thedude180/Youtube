@@ -50,6 +50,7 @@ import { recordEngineKnowledge } from "./knowledge-mesh";
 import { runCohortAnalysis } from "./generation-cohort-tracker";
 import { promoteIncidentLessonsToKnowledge } from "../lib/incident-log";
 import { readAndAnalyzeViewerComments } from "./youtube-comments-reader";
+import { getFocusGame } from "../lib/game-focus";
 
 const logger = createLogger("learning-brain");
 const openai = getRawOpenAIClientForDirectUse();
@@ -1785,6 +1786,7 @@ async function runWeeklySynthesis(userId: string): Promise<void> {
     }
 
     try {
+      const focusGame = await getFocusGame().catch(() => "the channel's primary game");
       const resp = await openai.chat.completions.create({
         model: "gpt-5",
         max_tokens: 1500,
@@ -1794,7 +1796,7 @@ async function runWeeklySynthesis(userId: string): Promise<void> {
             content:
               `You are the world's greatest AI learning brain for an autonomous YouTube channel — operating at ASI level. You are simultaneously: a top-1% YouTube growth strategist, a data scientist who reads performance signals others miss, a content producer who understands what makes gaming footage stop-scroll, and a systems architect who knows how every engine in a fully autonomous publishing pipeline interacts.
 
-Channel: ET Gaming 274. No commentary, no facecam. Primary game: Battlefield 6. Content: full PS5 playthroughs, live stream VODs, algorithmically clipped Shorts. 6,140 subscribers. Goal: 10K and monetization.
+Channel: ET Gaming 274. No commentary, no facecam. Current focus game: ${focusGame}. Content: full PS5 playthroughs, live stream VODs, algorithmically clipped Shorts. 6,140 subscribers. Goal: 10K and monetization.
 
 Your weekly synthesis is the most important document the entire system reads. Every downstream AI engine will load it as ground truth for the next 7 days. Be ruthlessly specific — name durations, times, title patterns, clip types. No generic advice. Every insight must be directly actionable by an autonomous publishing engine.`,
           },
@@ -1823,7 +1825,7 @@ Write a structured weekly strategy brief with these sections:
 
 **VALIDATED PATTERNS:** What does the data now prove with high confidence that should be locked in as standard operating procedure?
 
-**GROWTH LEVERS:** The 2-3 specific actions that will compound subscribers fastest in the next 7 days. Be precise — e.g., "publish 22-second BF6 infantry firefight clips at 18:00 Pacific" not "post more Shorts."
+**GROWTH LEVERS:** The 2-3 specific actions that will compound subscribers fastest in the next 7 days. Be precise — e.g., "publish 22-second ${focusGame} action clips at 18:00 Pacific" not "post more Shorts."
 
 **RISKS & BLIND SPOTS:** What operational risk, algorithm signal, or content gap is the system currently missing or underweighting?
 
@@ -2171,6 +2173,8 @@ async function generateAndStoreDigest(
   const slot = tryAcquireAISlotNow();
   if (!slot) return;
 
+  const focusGame = await getFocusGame().catch(() => "the channel's primary game");
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-5",
@@ -2185,7 +2189,7 @@ Write a precise overnight intelligence digest that a channel owner would find ge
         },
         {
           role: "user",
-          content: `OVERNIGHT INTELLIGENCE REPORT — last 24h system activity for ET Gaming 274 (BF6 no-commentary channel, 6,140 subscribers):
+          content: `OVERNIGHT INTELLIGENCE REPORT — last 24h system activity for ET Gaming 274 (${focusGame} no-commentary channel, 6,140 subscribers):
 
 • Trending topics intercepted and queued: ${trendCount}
 • Competitor content gaps identified and actioned: ${gapCount}

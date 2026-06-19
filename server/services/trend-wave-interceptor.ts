@@ -103,7 +103,7 @@ Return ONLY the title string. No quotes, no explanation, no punctuation at start
   try {
     const result = await executeRoutedAICall(
       { taskType: "content_generation", userId, maxTokens: 80 },
-      `You are the world's best YouTube Short title writer for military FPS gaming channels. You specialize in ET Gaming 274 — a no-commentary PS5 Battlefield 6 channel with 6,140 subscribers growing toward 10K. Your titles consistently achieve 8-14% CTR on the Shorts shelf. Return only the title string — no quotes, no explanation.`,
+      `You are the world's best YouTube Short title writer for no-commentary gaming channels. You specialize in ET Gaming 274 — a no-commentary PS5 ${gameName ?? await getFocusGame().catch(() => "gaming")} channel with 6,140 subscribers growing toward 10K. Your titles consistently achieve 8-14% CTR on the Shorts shelf. Return only the title string — no quotes, no explanation.`,
       prompt,
     );
     const title = result.content.trim().replace(/^["']|["']$/g, "");
