@@ -266,6 +266,7 @@ export async function processBacklog(): Promise<{
         const errMsg = String(err.message || err);
         const isQuotaError = err.code === 403 || errMsg.includes("quota") || err.code === "QUOTA_EXCEEDED";
         const isDisconnected = errMsg.includes("not connected") || errMsg.includes("missing access token");
+        const isChannelGone = errMsg.includes("Channel not found") || errMsg.includes("channel not found");
 
         if (isDisconnected) {
           disconnectedChannelIds.add(item.channelId);
@@ -273,6 +274,17 @@ export async function processBacklog(): Promise<{
             .set({ status: "queued", attempts, lastError: "channel_disconnected", updatedAt: new Date() })
             .where(eq(youtubePushBacklog.id, item.id));
           pushLogger.info("Channel disconnected, skipping remaining items for this channel", { channelId: item.channelId });
+          continue;
+        }
+
+        // Channel row deleted or was a ghost — no amount of retries will fix this.
+        // Fail immediately to avoid burning 3× quota on dead entries.
+        if (isChannelGone) {
+          await db.update(youtubePushBacklog)
+            .set({ status: "failed", attempts, lastError: errMsg, updatedAt: new Date() })
+            .where(eq(youtubePushBacklog.id, item.id));
+          failed++;
+          pushLogger.warn("Backlog item failed permanently (channel gone)", { youtubeVideoId: item.youtubeVideoId, attempts, error: errMsg.substring(0, 120) });
           continue;
         }
 

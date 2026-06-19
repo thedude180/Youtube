@@ -719,15 +719,17 @@ export function initVodShortsLoopEngine() {
     await runShortsPipelineForAllUsers();
   });
 
-  // ── Startup warm-up run: 8-minute delay so other engines settle first ──
-  // Gives the YouTube catalog sync, vault exhauster, and smart-edit engine
-  // time to boot before the VOD loop adds AI load.
+  // ── Startup warm-up run: 20-minute delay so other engines settle first ──
+  // Wave 7 inits at T+15min; 20min internal delay → first run at T+35min.
+  // This avoids the T+23min AI-slot convergence with vision-clip-detector,
+  // cutscene-editor, and back-catalog engine which all fire in the T+20–30min
+  // window.  The cron at :20 past every 4h handles subsequent runs.
   setTimeout(async () => {
     logger.info("VOD Shorts Loop engine warm-up run starting");
     await runVodShortsForAllUsers();
-    // Shorts pipeline 2 minutes after VOD loop to further stagger AI load
-    setTimeout(() => runShortsPipelineForAllUsers().catch(() => {}), 2 * 60_000);
-  }, 8 * 60_000);
+    // Shorts pipeline 3 minutes after VOD loop to further stagger AI load
+    setTimeout(() => runShortsPipelineForAllUsers().catch(() => {}), 3 * 60_000);
+  }, 20 * 60_000);
 
-  logger.info("VOD Shorts Loop Engine initialised — VOD loop every 4h at :20, pipeline every 6h at :45, warm-up in 8 min");
+  logger.info("VOD Shorts Loop Engine initialised — VOD loop every 4h at :20, pipeline every 6h at :45, warm-up in 20 min (T+35min total)");
 }

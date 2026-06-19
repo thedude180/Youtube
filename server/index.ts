@@ -2746,7 +2746,7 @@ httpServer.listen(
                   AND (caption ILIKE '%battlefield%' OR caption ILIKE '%bf6%')
               )
               UPDATE autopilot_queue q
-              SET scheduled_at = NOW() + ((r.rn - 1) * INTERVAL '8 hours') + INTERVAL '1 hour'
+              SET scheduled_at = NOW() + ((r.rn - 1)::int * INTERVAL '8 hours') + INTERVAL '1 hour'
               FROM ranked r
               WHERE q.id = r.id`
         )
