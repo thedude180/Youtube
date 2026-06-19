@@ -1650,6 +1650,62 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Step 9t CTR feedback non-fatal: ${ctrErr?.message?.slice(0, 80)}`);
     }
 
+    // 9u. Loop Conductor snapshot → brain system health synthesis.
+    //     Reads the most recent loop-conductor state snapshot (written every 30 min)
+    //     and synthesises a system-health masterKnowledgeBank principle.  This closes
+    //     Loop 4: snapshot → brain → masterKnowledgeBank → every AI prompt.
+    //     The principle is UPSERTED by deleting any existing "loop-conductor" principle
+    //     first so only one live entry exists at a time (no crowding effect).
+    try {
+      const { getState: lcGetState } = await import('../lib/service-state');
+      const snap = await lcGetState<Record<string, unknown>>('loop-conductor', 'snapshot');
+      if (snap && typeof snap.healthScore === 'number') {
+        const hs         = snap.healthScore as number;
+        const vel        = (snap.publishingCompletions4h as number) ?? 0;
+        const boosts     = (snap.revivalBoostsApplied as number) ?? 0;
+        const pending    = (snap.pendingShortsCount as number) ?? 0;
+        const quota      = snap.quotaUsedToday as number ?? 0;
+        const quotaLim   = snap.quotaLimit as number ?? 10_000;
+        const breaker    = snap.quotaBreakerTripped as boolean ?? false;
+
+        const principle = hs >= 80
+          ? `[System Health] Pipeline healthy (score ${hs}/100) — ${vel} completions in last 4h, ` +
+            `${pending} Shorts queued, quota ${quota}/${quotaLim}. ` +
+            (boosts > 0
+              ? `${boosts} source video(s) received viral-Short revival boosts this cycle — mine these sources aggressively for more clips.`
+              : `No viral Short boosts this cycle — continue normal mining cadence.`)
+          : `[System Health] Pipeline degraded (score ${hs}/100). ` +
+            `${vel === 0 ? "ZERO publishing completions in 4h — check quota, token, and publisher loop. " : ""}` +
+            `Quota: ${quota}/${quotaLim}${breaker ? " [BREAKER TRIPPED]" : ""}. ` +
+            `Active incidents: ${snap.activeIncidentCount ?? "unknown"}. ` +
+            `Dead engines: ${snap.deadEngineCount ?? 0}. Prioritise system recovery over content generation.`;
+
+        // Remove any stale loop-conductor health principles before inserting fresh one
+        await db.execute(sql`
+          DELETE FROM master_knowledge_bank
+          WHERE user_id  = ${userId}
+            AND principle ILIKE '[System Health]%'
+            AND source_engines::text ILIKE '%loop-conductor%'
+        `);
+
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:          hs >= 70 ? 'strategy' : 'system_lesson',
+          principle,
+          sourceEngines:     ['learning-brain', 'loop-conductor'],
+          evidenceCount:     1,
+          confidenceScore:   75,
+          applicableEngines: ['youtube-ai-orchestrator', 'back-catalog-runner', 'content-grinder', 'shorts-publisher'],
+          isActive:          true,
+          metadata:          snap,
+        } as any).catch(() => {});
+
+        logger.info(`[Brain] Step 9u: system health principle written (score=${hs}/100, boosts=${boosts})`);
+      }
+    } catch (snapErr: any) {
+      logger.debug(`[Brain] Step 9u loop-conductor snapshot non-fatal: ${snapErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];

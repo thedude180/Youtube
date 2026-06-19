@@ -3953,6 +3953,7 @@ httpServer.listen(
         { label: "infinite-evolution-engine", fn: () => import("./services/infinite-evolution-engine").then(m => m.startInfiniteEvolution()).catch(slog("startInfiniteEvolution")) },
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
         { label: "youtube-cadence-guard",     fn: () => import("./services/youtube-cadence-guard").then(m => { backgroundIntervals.push(m.initCadenceGuard()); }).catch(slog("initCadenceGuard")) },
+        { label: "loop-conductor",            fn: () => import("./services/loop-conductor").then(m => m.initLoopConductor()).catch(slog("initLoopConductor")) },
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 
