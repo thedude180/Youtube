@@ -48,6 +48,24 @@ const MAX_ITEMS_PER_RUN = 20;   // items per cycle (pipeline runs continuously)
 const MIN_FREE_DISK_GB  = 2;    // skip cycle if less than this much space free
 const MAX_FILE_AGE_MS   = 7 * 24 * 3_600_000; // purge unused pre-encoded files after 7 days
 
+/**
+ * Professional 4-stage audio master chain applied to every encode.
+ *
+ *  1. highpass=f=80        — remove sub-80Hz rumble (game engine noise, controller vibration artifacts)
+ *  2. acompressor          — dynamic range compression: tames explosion spikes, lifts quiet footsteps;
+ *                            threshold=-18dB (0.125 linear), 4:1 ratio, 5ms attack, 100ms release,
+ *                            +2dB makeup gain — standard for no-commentary gaming content
+ *  3. equalizer=f=3000     — +2dB presence boost at 3kHz: adds clarity and "cut-through" so gunfire
+ *                            and environmental audio feel immediate and present on any speaker/headphone
+ *  4. loudnorm             — final LUFS normalization to YouTube spec (-16 LUFS, -1.5 TP, LRA=11)
+ */
+const AUDIO_MASTER = [
+  "highpass=f=80",
+  "acompressor=threshold=0.125:ratio=4:attack=5:release=100:makeup=2",
+  "equalizer=f=3000:width_type=q:width=1.5:g=2",
+  "loudnorm=I=-16:TP=-1.5:LRA=11",
+].join(",");
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function ensureDir(): void {
@@ -241,12 +259,16 @@ async function encodeShort(
   }
 
   // ── Standard (or character-aware single-crop) path ─────────────────────────
-  // Post-upscale enhancement applied to every Shorts code path (standard center-crop,
-  // character-aware crop, and dialog-flip fallback).
-  //   eq: subtle +5% contrast, +8% saturation — colours pop on screen without looking processed.
-  //   unsharp: 5×5 kernel, 0.8 luma — recovers perceived crispness lost in Lanczos upscale;
-  //     chroma amount=0 avoids colour fringing.
-  const ENHANCE = "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+  // ASI-level adaptive visual grade — GPT-4o-mini analyzes actual frames from THIS clip
+  // and returns optimal eq+unsharp parameters for its specific lighting and scene content
+  // (dark night map vs bright outdoor, heavy action vs composed tactical moment).
+  // Non-fatal: falls back to studio defaults on any error.
+  let enhance = "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+  try {
+    const { analyzeVisualGrade } = await import("./cutscene-editor");
+    enhance = await analyzeVisualGrade(rawPath, durationSec);
+  } catch { /* non-fatal */ }
+
   const baseFilter = cutsceneVideoFilter ?? [
     "scale=2160:3840:force_original_aspect_ratio=increase:flags=lanczos",
     "crop=2160:3840",
@@ -254,7 +276,7 @@ async function encodeShort(
     "setsar=1",
     "fps=60",
   ].join(",");
-  const videoFilter = `${baseFilter},${ENHANCE}`;
+  const videoFilter = `${baseFilter},${enhance}`;
 
   // Level 5.2: required for 4K@60fps (level 5.1 exceeds macroblock limit at 2160×3840@60).
   // CRF 16: lower than 18 → more bits per frame → better source for YouTube's transcoder.
@@ -282,7 +304,7 @@ async function encodeShort(
         "-stream_loop", "-1", "-i", musicPath,
         "-filter_complex", [
           `[0:v]${videoFilter}[outv]`,
-          "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
+          `[0:a]${AUDIO_MASTER}[game]`,
           `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
           "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
         ].join(";"),
@@ -299,7 +321,7 @@ async function encodeShort(
         "-i", rawPath,
         "-t", String(durationSec),
         "-vf", videoFilter,
-        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+        "-af", AUDIO_MASTER,
         ...codecArgs,
         outputPath,
       ]);
@@ -412,6 +434,14 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Music mixing disabled — raw game audio only (copyright + monetization safety).
   const musicPath: string | null = null;
 
+  // ASI-level adaptive visual grade — same world-class colorist analysis as Shorts.
+  // Non-fatal: falls back to studio defaults on any error.
+  let lfEnhance = "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+  try {
+    const { analyzeVisualGrade } = await import("./cutscene-editor");
+    lfEnhance = await analyzeVisualGrade(rawPath, durationSec);
+  } catch { /* non-fatal */ }
+
   // Level 5.2: correct for 4K content. CRF 16: richer source for YouTube's transcoder.
   // Preset fast kept for long-form: hours of content; medium would add hours of encoding time.
   const codecArgs = [
@@ -438,8 +468,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     // ── Simple path (no dead time) ──────────────────────────────────────────
     const videoFilter =
       "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60," +
-      "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+      `pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60,${lfEnhance}`;
 
     if (musicPath) {
       await runCmd("ffmpeg", [
@@ -448,7 +477,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
         "-stream_loop", "-1", "-i", musicPath,
         "-filter_complex", [
           `[0:v]${videoFilter}[outv]`,
-          "[0:a]loudnorm=I=-16:TP=-1.5:LRA=11[game]",
+          `[0:a]${AUDIO_MASTER}[game]`,
           `[1:a]volume=${MUSIC_BG_VOLUME}[bg]`,
           "[game][bg]amix=inputs=2:duration=first:normalize=0[outa]",
         ].join(";"),
@@ -464,7 +493,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
         "-i", rawPath,
         "-t", String(durationSec),
         "-vf", videoFilter,
-        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+        "-af", AUDIO_MASTER,
         ...codecArgs,
         outputPath,
       ]);
@@ -516,18 +545,17 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Scale/pad video to 4K letterbox
   filterParts.push(
     "[cv]scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60," +
-    "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0[outv]",
+    `pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60,${lfEnhance}[outv]`,
   );
 
   // Audio: normalise game audio, then mix with background music (if available)
   const musicInputIdx = 1; // music is always input [1] when present
   if (musicPath) {
-    filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[game]");
+    filterParts.push(`[ca]${AUDIO_MASTER}[game]`);
     filterParts.push(`[${musicInputIdx}:a]volume=${MUSIC_BG_VOLUME}[bg]`);
     filterParts.push("[game][bg]amix=inputs=2:duration=first:normalize=0[outa]");
   } else {
-    filterParts.push("[ca]loudnorm=I=-16:TP=-1.5:LRA=11[outa]");
+    filterParts.push(`[ca]${AUDIO_MASTER}[outa]`);
   }
 
   const ffmpegArgs = ["-y", "-i", rawPath];

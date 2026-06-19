@@ -118,19 +118,23 @@ async function analyzeFramesForCutscene(
 
   const timestamps = frames.map(f => `${f.sec.toFixed(1)}s`).join(", ");
 
-  const prompt = `You are an ASI-level video editor analyzing frames from: "${videoTitle}".
-Frames (in order) at: ${timestamps}
+  const prompt = `You are the world's greatest video editor and director, operating at ASI level — your understanding of narrative, composition, emotional impact, and pacing exceeds every human editor alive.
 
-For EACH frame determine:
-1. Is it a CUTSCENE? (true = no game HUD/crosshair/minimap, cinematic camera, characters talking/animated in story moment; false = gameplay with HUD visible)
-2. Identify each visible character's horizontal center position
-3. Which character is currently speaking/most animated
+You are analyzing frames from a Battlefield 6 gaming video: "${videoTitle}".
+Frames captured at: ${timestamps}
+
+For EACH frame, apply your mastery to determine:
+1. Is it a CUTSCENE? (cinematic mode: no HUD/crosshair/minimap, controlled camera, story-driven character animation. Pure gameplay with HUD visible = NOT a cutscene.)
+2. Identify each visible character — their horizontal position and who commands the viewer's attention
+3. The dominant emotional register of this frame (tension, action, relief, anticipation, quiet)
+
+Think like a master editor: where is the visual weight? Who is the subject? What is the narrative moment?
 
 Return ONLY valid JSON — array of exactly ${frames.length} objects:
 [{
   "sec": <number>,
   "isCutscene": <true|false>,
-  "description": "<10 words max>",
+  "description": "<12 words: composition + emotional register + dominant action>",
   "characters": [
     { "id": "char_a", "xFrac": <0.0-1.0>, "isSpeaking": <true|false> }
   ]
@@ -139,9 +143,9 @@ Return ONLY valid JSON — array of exactly ${frames.length} objects:
 Rules:
 - Keep SAME "id" for the SAME character across all frames (char_a = first character seen, char_b = second, etc.)
 - xFrac: 0.0 = far left edge, 0.5 = center, 1.0 = far right edge
-- Mark isSpeaking=true for the character who appears to be talking or most expressively animated
+- Mark isSpeaking=true for the character commanding the most visual attention / most expressively animated
 - If no characters visible: "characters": []
-- If NOT a cutscene, still detect characters if visible`;
+- If NOT a cutscene: still detect characters, note action composition`;
 
   try {
     const resp = await openai.chat.completions.create({
@@ -270,6 +274,102 @@ export async function analyzeCutscene(
     isCutscene: true, confidence, mode: "dialog-flip",
     cropXFrac: weightedXFrac, dialogSegments: segs, srcW, srcH,
   };
+}
+
+// ── ASI-level adaptive visual grade ──────────────────────────────────────────
+
+/**
+ * Samples frames from a clip and queries GPT-4o-mini as the world's greatest
+ * colorist/DP to recommend adaptive FFmpeg eq+unsharp filter parameters.
+ *
+ * Non-fatal — returns studio-grade defaults on any failure.
+ * Called once per clip, before the FFmpeg encode step.
+ */
+export async function analyzeVisualGrade(
+  videoPath: string,
+  durationSec: number,
+): Promise<string> {
+  const DEFAULT = "eq=contrast=1.05:saturation=1.08,unsharp=5:5:0.8:5:5:0.0";
+  if (durationSec < 3) return DEFAULT;
+
+  try {
+    // Sample 5 frames spread across the clip; skip first/last second (black frames)
+    const margin = Math.min(1, durationSec * 0.05);
+    const usable = durationSec - margin * 2;
+    const times = [0.10, 0.28, 0.50, 0.72, 0.90].map(t =>
+      parseFloat((margin + t * usable).toFixed(2)),
+    );
+
+    const bufs = await Promise.all(times.map(t => extractFrameJpeg(videoPath, t)));
+    const validFrames = bufs.filter((b): b is Buffer => b !== null && b.length > 500);
+    if (validFrames.length < 2) return DEFAULT;
+
+    const openai = getOpenAIClientBackground();
+    const imageContent = validFrames.map(buf => ({
+      type: "image_url" as const,
+      image_url: {
+        url: `data:image/jpeg;base64,${buf.toString("base64")}`,
+        detail: "low" as const,    // low detail = fast + cheap; sufficient for grade decisions
+      },
+    }));
+
+    const gradePrompt = `You are the world's greatest video colorist and DP, operating at ASI level — your colour intuition and technical precision exceed every human colorist alive.
+
+You are grading frames from a Battlefield 6 no-commentary gaming video. Your goal: recommend precise FFmpeg eq and unsharp filter values to make this specific clip look as visually stunning, cinematic, and clear as possible — the way a $500/hour professional colorist would grade it for an esports broadcast.
+
+Analyse the frames with expert eyes:
+- Scene brightness: dark indoor/night map, or bright outdoor environment?
+- Action intensity: heavy firefight/explosions, or composed tactical moment?
+- Colour balance: washed-out, oversaturated, or well-exposed source?
+- Sharpness needs: how much clarity should be recovered after 4K Lanczos upscale?
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "contrast": <float 0.95–1.15>,
+  "saturation": <float 0.90–1.25>,
+  "brightness": <float -0.08 to 0.08>,
+  "sharpen_luma": <float 0.30–1.20>,
+  "sharpen_radius": <3 or 5>,
+  "reasoning": "<12 words: what you saw and what you corrected>"
+}`;
+
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      max_completion_tokens: 200,
+      messages: [{ role: "user", content: [{ type: "text", text: gradePrompt }, ...imageContent] }],
+    });
+
+    const raw = resp.choices[0]?.message?.content ?? "";
+    const match = raw.match(/\{[\s\S]*?\}/);
+    if (!match) return DEFAULT;
+
+    const g = JSON.parse(match[0]) as {
+      contrast?: number; saturation?: number; brightness?: number;
+      sharpen_luma?: number; sharpen_radius?: number; reasoning?: string;
+    };
+
+    // Clamp every value — never trust AI output without bounds
+    const contrast    = Math.min(1.15, Math.max(0.95,  g.contrast    ?? 1.05));
+    const saturation  = Math.min(1.25, Math.max(0.90,  g.saturation  ?? 1.08));
+    const brightness  = Math.min(0.08, Math.max(-0.08, g.brightness  ?? 0));
+    const sharpenLuma = Math.min(1.20, Math.max(0.30,  g.sharpen_luma ?? 0.80));
+    const sharpenR    = g.sharpen_radius === 3 ? 3 : 5;
+
+    logger.info(
+      `[VisualGrade] ${g.reasoning ?? "–"} → ` +
+      `contrast=${contrast} sat=${saturation} bright=${brightness} ` +
+      `sharp=${sharpenLuma}r${sharpenR}`,
+    );
+
+    return [
+      `eq=contrast=${contrast}:saturation=${saturation}:brightness=${brightness}`,
+      `unsharp=${sharpenR}:${sharpenR}:${sharpenLuma}:${sharpenR}:${sharpenR}:0.0`,
+    ].join(",");
+
+  } catch (err: any) {
+    logger.debug(`[VisualGrade] Skipped (non-fatal): ${err?.message?.slice(0, 80)}`);
+    return DEFAULT;
+  }
 }
 
 // ── FFmpeg filter builders ────────────────────────────────────────────────────
