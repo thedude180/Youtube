@@ -200,8 +200,8 @@ async function encodeShort(
   if (dialogFlipPlan) {
     const { filterComplex } = dialogFlipPlan;
     const codecArgs = [
-      "-c:v", "libx264", "-profile:v", "high", "-level:v", "5.1",
-      "-crf", "18", "-preset", "fast",
+      "-c:v", "libx264", "-profile:v", "high", "-level:v", "5.2",
+      "-crf", "16", "-preset", "medium",
       "-c:a", "aac", "-b:a", "192k",
       "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-threads", "2",
     ];
@@ -249,12 +249,15 @@ async function encodeShort(
     "fps=60",
   ].join(",");
 
+  // Level 5.2: required for 4K@60fps (level 5.1 exceeds macroblock limit at 2160×3840@60).
+  // CRF 16: lower than 18 → more bits per frame → better source for YouTube's transcoder.
+  // Preset medium: better compression quality vs fast; acceptable for 30-60s Shorts.
   const codecArgs = [
     "-c:v", "libx264",
     "-profile:v", "high",
-    "-level:v", "5.1",
-    "-crf", "18",
-    "-preset", "fast",
+    "-level:v", "5.2",
+    "-crf", "16",
+    "-preset", "medium",
     "-c:a", "aac",
     "-b:a", "192k",
     "-movflags", "+faststart",
@@ -402,11 +405,13 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Music mixing disabled — raw game audio only (copyright + monetization safety).
   const musicPath: string | null = null;
 
+  // Level 5.2: correct for 4K content. CRF 16: richer source for YouTube's transcoder.
+  // Preset fast kept for long-form: hours of content; medium would add hours of encoding time.
   const codecArgs = [
     "-c:v", "libx264",
     "-profile:v", "high",
-    "-level:v", "5.1",
-    "-crf", "18",
+    "-level:v", "5.2",
+    "-crf", "16",
     "-preset", "fast",
     "-c:a", "aac",
     "-b:a", "192k",
@@ -426,7 +431,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
     // ── Simple path (no dead time) ──────────────────────────────────────────
     const videoFilter =
       "scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1";
+      "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60";
 
     if (musicPath) {
       await runCmd("ffmpeg", [
@@ -503,7 +508,7 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Scale/pad video to 4K letterbox
   filterParts.push(
     "[cv]scale=3840:2160:force_original_aspect_ratio=decrease:flags=lanczos," +
-    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1[outv]",
+    "pad=3840:2160:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=60[outv]",
   );
 
   // Audio: normalise game audio, then mix with background music (if available)
