@@ -10415,6 +10415,7 @@ export const playlistFunnels = pgTable("playlist_funnels", {
   videoCount: integer("video_count").default(0),
   shortsCount: integer("shorts_count").default(0),
   longFormCount: integer("long_form_count").default(0),
+  addedVideoIds: jsonb("added_video_ids").$type<string[]>().default(sql`'[]'::jsonb`),
   lastVideoAddedAt: timestamp("last_video_added_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

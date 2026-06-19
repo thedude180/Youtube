@@ -474,6 +474,14 @@ export async function runLongFormClipPublisher(opts?: { bypassBreakerCheck?: boo
               addUploadToPlaylist(item.userId, ytChannel.id, lfYtIdForPlaylist, gameName, "longform")
             )
             .catch(e => logger.warn(`[LongFormPublisher] Playlist assignment failed for ${lfYtIdForPlaylist}: ${e?.message}`));
+          // Also add to the mixed funnel playlist immediately (Shorts → Long-form watch path)
+          if (gameName) {
+            import("./youtube-playlist-funnel")
+              .then(({ addToFunnelPlaylistImmediate }) =>
+                addToFunnelPlaylistImmediate(item.userId, ytChannel.id, lfYtIdForPlaylist, gameName, false)
+              )
+              .catch(e => logger.warn(`[LongFormPublisher] Funnel add failed (non-fatal) for ${lfYtIdForPlaylist}: ${e?.message}`));
+          }
         }
 
         // Upload pre-generated thumbnail immediately after video upload — fire and forget

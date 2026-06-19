@@ -756,6 +756,14 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
                         addUploadToPlaylist(userId, ytChannel.id, uploadedYtIdForPlaylist, gameName ?? "Gaming", "short")
                       )
                       .catch(e => logger.warn("[ShortsPublisher] Playlist assignment failed", { error: e?.message }));
+                    // Also add to the mixed funnel playlist immediately (Shorts → Long-form watch path)
+                    if (gameName) {
+                      import("./youtube-playlist-funnel")
+                        .then(({ addToFunnelPlaylistImmediate }) =>
+                          addToFunnelPlaylistImmediate(userId, ytChannel.id, uploadedYtIdForPlaylist, gameName, true)
+                        )
+                        .catch(e => logger.warn("[ShortsPublisher] Funnel add failed (non-fatal)", { error: e?.message }));
+                    }
                   }
                 }
                 logger.info("YouTube Short upload", { channelId: ytChannel.id, success: result.success, userId });

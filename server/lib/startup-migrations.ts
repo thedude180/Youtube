@@ -6025,6 +6025,27 @@ async function migration104CancelBF2042Items(): Promise<void> {
   }
 }
 
+// ── Migration 105: add added_video_ids column to playlist_funnels ─────────────
+// The playlist funnel now tracks exactly which YouTube IDs have been added
+// (set-based dedup) instead of the old count-based positional approach.
+// This allows both back_catalog_videos AND autopilot_queue clips to be mixed
+// safely without re-adding duplicates on every 4h batch sync cycle.
+async function migration105AddFunnelVideoIds(): Promise<void> {
+  const FLAG = "migration:105:playlist_funnels_added_video_ids_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    await db.execute(sql.raw(`
+      ALTER TABLE playlist_funnels
+        ADD COLUMN IF NOT EXISTS added_video_ids jsonb DEFAULT '[]'::jsonb
+    `));
+    log.info("[Migration 105] added_video_ids column added to playlist_funnels");
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 105] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: reset stale 'downloaded' vault entries ─────────────
 // When the production container restarts after a new deployment, vault files on
 // ephemeral local disk are lost.  Any vault entry that says status='downloaded'
@@ -6302,6 +6323,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration102FixGameMismatchesAndPurgeShortContamination();
     await migration103CancelYstycAndResetStaleVault();
     await migration104CancelBF2042Items();
+    await migration105AddFunnelVideoIds();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6358,10 +6380,10 @@ export async function runStartupMigrations(): Promise<void> {
       logEvent({
         eventType: "migration",
         service:   "startup-migrations",
-        title:     `Boot-heal complete — ${104} migrations registered, per-boot cleanups ran`,
+        title:     `Boot-heal complete — ${105} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  104,
+          totalMigrations:  105,
           perBootCleanups: [
             "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",
