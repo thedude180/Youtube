@@ -2584,9 +2584,11 @@ httpServer.listen(
     // T+20min to keep things healthy throughout the day.
     wave(async () => {
       await sleep(5_000); // T+5s
+      logger.info("[Boot] Wave 0.52: running early pipeline self-heal (deep audit)");
       await import("./services/pipeline-self-heal")
         .then(m => m.runPipelineSelfHeal(true))
-        .catch(err => logger.warn("[Boot] Early pipeline self-heal failed (non-fatal):", err?.message));
+        .then(() => logger.info("[Boot] Wave 0.52: early pipeline self-heal complete"))
+        .catch(err => logger.warn("[Boot] Wave 0.52: early pipeline self-heal failed (non-fatal):", err?.message));
     });
 
     // ── WAVE 0.55: Restore hourly token counters from DB ─────────────────────

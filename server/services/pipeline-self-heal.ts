@@ -357,6 +357,8 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const t0 = Date.now();
   let totalRecovered = 0;
 
+  logger.info(`[self-heal] Starting ${deep ? "deep" : "regular"} audit — scanning all pipeline tables`);
+
   // Run all heals in parallel — use allSettled so one failing step
   // never crashes the entire run (e.g., transient DB lock contention).
   const settled = await Promise.allSettled([
@@ -385,10 +387,23 @@ export async function runPipelineSelfHeal(deep = false): Promise<void> {
   const autopilotFixed    = safeNum(settled[5] as PromiseSettledResult<number>);
   const jobsFixed         = safeNum(settled[6] as PromiseSettledResult<number>);
 
+  // Log per-step results so each fix is visible in real-time (not just the summary).
+  const STEP_NAMES = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs"] as const;
+  settled.forEach((r, i) => {
+    const name = STEP_NAMES[i];
+    if (r.status === "fulfilled") {
+      const val = r.value;
+      const count = Array.isArray(val) ? (val as number[]).reduce((a, b) => a + b, 0) : (val as number);
+      if (count > 0) {
+        const detail = Array.isArray(val) ? `[${(val as number[]).join("/")}]` : `${val}`;
+        logger.info(`[self-heal] ${name}: recovered ${count} item(s) ${detail}`);
+      }
+    }
+  });
   // Log any individual heal failures so they're visible without crashing the run.
   settled.forEach((r, i) => {
     if (r.status === "rejected") {
-      const name = ["pipeline","backlog","editJobs","clips","studio","autopilot","jobs"][i];
+      const name = STEP_NAMES[i];
       logger.warn(`[self-heal] Heal step "${name}" failed (non-fatal): ${r.reason?.message ?? r.reason}`);
       logIncidentOnce({
         category:  "other",
