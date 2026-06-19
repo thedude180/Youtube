@@ -80,24 +80,30 @@ async function generateTrendTitle(
   gameName: string | null,
   urgencyDays: number,
 ): Promise<string> {
-  const prompt = `You are writing a YouTube Short title for ET Gaming 274.
+  const prompt = `TRENDING TOPIC: "${topic}" (search volume peaks in ~${urgencyDays} day${urgencyDays === 1 ? "" : "s"} — act now or miss the window)
+SOURCE VIDEO: "${sourceTitle}"
+GAME: ${gameName ?? "Battlefield 6"}
+CHANNEL: ET Gaming 274 — no commentary, PS5 gameplay, Battlefield 6 focus
 
-TRENDING NOW: "${topic}" (peaks in ~${urgencyDays} day${urgencyDays === 1 ? "" : "s"})
-SOURCE VIDEO: "${sourceTitle}" | Game: ${gameName ?? "Unknown"}
+Write ONE YouTube Short title (≤ 60 chars) that:
+1. Leads with the trending topic or game element that hooks the BF6 audience
+2. Implies urgency without being dishonest — use timing signals when the trend is genuinely peaking
+3. Creates a curiosity gap specific to the gameplay moment (outcome-first, not activity-first)
+4. Sounds like breaking news for the BF6 community — not a generic gaming title
+5. NEVER uses: "PS5 Gameplay", "No Commentary", "Let's Play", "Gaming" as standalone words
 
-Write ONE title (≤ 60 chars) that:
-- Opens with the trending topic or game name
-- Uses urgency language ("RIGHT NOW", "2026", "INSANE", "FINALLY", "OMG")
-- Is in ALL CAPS for the key hook phrase
-- No clickbait promises we can't keep
-- Ends with a strong emotional hook
+PROVEN BF6 SHORT TITLE PATTERNS:
+• "They NERFED [weapon] and I Did This..." → highlights a consequence
+• "This is Why [weapon/tactic] is BROKEN in BF6" → controversy hook
+• "First [X] Players to [Achievement] in BF6 Right Now" → scarcity + timing
+• "[Kill count] Kills Before They Fixed This" → urgency + outcome
 
-Return ONLY the title string, no quotes, no explanation.`;
+Return ONLY the title string. No quotes, no explanation, no punctuation at start.`;
 
   try {
     const result = await executeRoutedAICall(
-      { taskType: "content_generation", userId, maxTokens: 60 },
-      "You are a viral YouTube title writer. Return only the title string.",
+      { taskType: "content_generation", userId, maxTokens: 80 },
+      `You are the world's best YouTube Short title writer for military FPS gaming channels. You specialize in ET Gaming 274 — a no-commentary PS5 Battlefield 6 channel with 6,140 subscribers growing toward 10K. Your titles consistently achieve 8-14% CTR on the Shorts shelf. Return only the title string — no quotes, no explanation.`,
       prompt,
     );
     const title = result.content.trim().replace(/^["']|["']$/g, "");

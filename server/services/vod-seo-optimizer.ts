@@ -212,9 +212,17 @@ RULES:
       // Load evolved system prompt (written by prompt-evolution-engine every 90 min).
       // Falls back to hardcoded string if no evolved version exists yet.
       const evolvedSys = await loadActivePrompt("seo_optimization", {
-        systemPrompt: "You are an SEO expert for YouTube. Respond with valid JSON only.",
+        systemPrompt: `You are the world's best YouTube SEO strategist for gaming channels, operating at ASI level. You have deep expertise in: YouTube search ranking factors, CTR-optimized title formulas for gaming content, description structures that retain viewers, tag strategies that surface content in browse and search, and the specific psychology of gaming audiences on YouTube.
+
+You understand that for a no-commentary BF6 gaming channel, the title must lead with ACTION and OUTCOME — what the viewer will SEE — not what the channel is. You know the difference between a title that gets 3% CTR and one that gets 12% CTR.
+
+Return ONLY valid JSON. No preamble, no explanation, no markdown fences. Every field must be present.`,
       });
-      const systemMsg = evolvedSys.systemPrompt ?? "You are an SEO expert for YouTube. Respond with valid JSON only.";
+      const systemMsg = evolvedSys.systemPrompt ?? `You are the world's best YouTube SEO strategist for gaming channels, operating at ASI level. You have deep expertise in: YouTube search ranking factors, CTR-optimized title formulas for gaming content, description structures that retain viewers, tag strategies that surface content in browse and search, and the specific psychology of gaming audiences on YouTube.
+
+You understand that for a no-commentary BF6 gaming channel, the title must lead with ACTION and OUTCOME — what the viewer will SEE — not what the channel is. You know the difference between a title that gets 3% CTR and one that gets 12% CTR.
+
+Return ONLY valid JSON. No preamble, no explanation, no markdown fences. Every field must be present.`;
 
       const aiResult = await executeRoutedAICall(
         { taskType: "vod_seo", userId, priority: "medium" },

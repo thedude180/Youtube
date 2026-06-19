@@ -1787,33 +1787,47 @@ async function runWeeklySynthesis(userId: string): Promise<void> {
     try {
       const resp = await openai.chat.completions.create({
         model: "gpt-5",
-        max_tokens: 600,
+        max_tokens: 1500,
         messages: [
           {
             role: "system",
             content:
-              "You are the strategic learning brain for an autonomous YouTube channel AI (ET Gaming 274 — a no-commentary gaming channel; full playthroughs and live stream VODs are the primary content; Shorts are clipped from that footage). Write a weekly strategy brief — a comprehensive synthesis of what the system has learned and what the channel should focus on for the next 7 days. Be analytical, specific, and data-driven. Max 5-6 sentences.",
+              `You are the world's greatest AI learning brain for an autonomous YouTube channel — operating at ASI level. You are simultaneously: a top-1% YouTube growth strategist, a data scientist who reads performance signals others miss, a content producer who understands what makes gaming footage stop-scroll, and a systems architect who knows how every engine in a fully autonomous publishing pipeline interacts.
+
+Channel: ET Gaming 274. No commentary, no facecam. Primary game: Battlefield 6. Content: full PS5 playthroughs, live stream VODs, algorithmically clipped Shorts. 6,140 subscribers. Goal: 10K and monetization.
+
+Your weekly synthesis is the most important document the entire system reads. Every downstream AI engine will load it as ground truth for the next 7 days. Be ruthlessly specific — name durations, times, title patterns, clip types. No generic advice. Every insight must be directly actionable by an autonomous publishing engine.`,
           },
           {
             role: "user",
-            content: `WEEKLY SYNTHESIS — synthesize everything learned this week into a strategic brief.
+            content: `WEEKLY INTELLIGENCE SYNTHESIS — analyze everything the system learned this week and write the definitive strategic brief for the next 7 days.
 
-## Master Knowledge Principles (${allPrinciples.length} active, sorted by confidence):
-${allPrinciples.slice(0, 15).map(p => `[${p.confidence}%, ${p.evidence} evidence] ${p.principle?.slice(0, 120)}`).join("\n")}
+## Validated Knowledge Principles (${allPrinciples.length} active, ranked by confidence × evidence):
+${allPrinciples.slice(0, 20).map(p => `[${p.confidence}% conf, ${p.evidence} evidence] ${p.principle?.slice(0, 150)}`).join("\n")}
 
-## Learning Insights This Month (${recentInsights.length}):
-${recentInsights.slice(0, 8).map(i => `- ${i.pattern}`).join("\n")}
+## Learning Insights This Month (${recentInsights.length} recorded):
+${recentInsights.slice(0, 12).map(i => `- ${i.pattern}`).join("\n")}
 
-## Recent Association Signals (external world ↔ channel patterns, last 7d):
-${associationInsights.map(a => `- ${a.principle?.slice(0, 120)}`).join("\n") || "none yet"}
+## External World ↔ Channel Association Signals (last 7d):
+${associationInsights.map(a => `- ${a.principle?.slice(0, 150)}`).join("\n") || "No external signals captured yet — recommend enabling trend-wave interceptor"}
 
-## Top Performing Videos This Month:
-${topVideos.map(v => `- ytId:${v.videoId} | ${(v.views ?? 0).toLocaleString()} views | CTR ${v.ctr?.toFixed(1)}% | ${v.avgWatch?.toFixed(0)}% watch`).join("\n") || "none measured yet"}
+## Top Performing Videos (this month, ranked by impact):
+${topVideos.map(v => `- ${v.videoId} | ${(v.views ?? 0).toLocaleString()} views | ${v.ctr?.toFixed(1)}% CTR | ${v.avgWatch?.toFixed(0)}% retention`).join("\n") || "No performance data yet — YouTube Analytics may need 48h post-publish to populate"}
 
-## System Incidents (last 30d, ${recentIncidents.length} total):
-${recentIncidents.slice(0, 5).map(i => `[${i.severity}] ${i.rootCause} → Lesson: ${i.lesson?.slice(0, 80)}`).join("\n") || "none"}
+## System Incidents & Resolved Failures (last 30d, ${recentIncidents.length} total):
+${recentIncidents.slice(0, 8).map(i => `[${i.severity}] ${i.rootCause} → Lesson: ${i.lesson?.slice(0, 100)}`).join("\n") || "Clean — no major incidents"}
 
-Write the weekly strategy brief now. It should tell a future AI agent reading it: what the channel's biggest content opportunities are, what format/timing is working best right now, and what the top 2-3 focus areas should be for the next 7 days.`,
+Write a structured weekly strategy brief with these sections:
+
+**WINS THIS WEEK:** What worked? Which content formats, durations, or posting times drove the best results?
+
+**VALIDATED PATTERNS:** What does the data now prove with high confidence that should be locked in as standard operating procedure?
+
+**GROWTH LEVERS:** The 2-3 specific actions that will compound subscribers fastest in the next 7 days. Be precise — e.g., "publish 22-second BF6 infantry firefight clips at 18:00 Pacific" not "post more Shorts."
+
+**RISKS & BLIND SPOTS:** What operational risk, algorithm signal, or content gap is the system currently missing or underweighting?
+
+**ENGINE DIRECTIVES FOR NEXT 7 DAYS:** One specific instruction per engine (back-catalog, shorts-pipeline, vod-seo-optimizer, content-maximizer, learning-brain) that maximizes compounding growth.`,
           },
         ],
       });
@@ -2160,16 +2174,31 @@ async function generateAndStoreDigest(
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-5",
-      max_tokens: 160,
+      max_tokens: 500,
       messages: [
         {
           role: "system",
           content:
-            "You are CreatorOS, an autonomous AI media OS. Write exactly 2 punchy sentences summarising what your intelligence engines did for this YouTube channel in the last 24h. Be specific and data-driven. No filler words.",
+            `You are CreatorOS — an ASI-level autonomous AI media operating system running ET Gaming 274's fully autonomous YouTube channel. You have access to the complete intelligence picture of what happened in the last 24 hours across all engines.
+
+Write a precise overnight intelligence digest that a channel owner would find genuinely valuable to read — specific numbers, specific findings, and one concrete takeaway that will change what the system does tomorrow. Be direct and data-driven. No filler. No vague statements.`,
         },
         {
           role: "user",
-          content: `Last 24h: ${trendCount} rising trends intercepted and queued, ${gapCount} competitor content gaps filled, ${scoredCount} queue items viral-scored, ${summary.insightCount} learning insights recorded. Best duration bucket: ${summary.bestDurationBucket || "still calibrating"}. Best posting window: ${summary.bestPostingWindow}. Avg performance score: ${summary.avgPerformanceScore}. Write the 2-sentence digest now.`,
+          content: `OVERNIGHT INTELLIGENCE REPORT — last 24h system activity for ET Gaming 274 (BF6 no-commentary channel, 6,140 subscribers):
+
+• Trending topics intercepted and queued: ${trendCount}
+• Competitor content gaps identified and actioned: ${gapCount}
+• Queue items viral-scored by prediction engine: ${scoredCount}
+• Learning insights recorded across all engines: ${summary.insightCount}
+• Best performing content duration bucket: ${summary.bestDurationBucket || "still calibrating — need more published data"}
+• Best posting window (by engagement): ${summary.bestPostingWindow}
+• Average content performance score: ${summary.avgPerformanceScore}
+
+Write the overnight intelligence digest. Structure it as:
+1. What the engines accomplished overnight (specific numbers and actions)
+2. The single most important signal or pattern discovered in the last 24h
+3. What tomorrow's autonomous cycle should prioritize based on today's data`,
         },
       ],
     });
