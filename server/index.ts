@@ -3954,6 +3954,9 @@ httpServer.listen(
         { label: "knowledge-mesh",            fn: () => import("./services/knowledge-mesh").then(m => { const ivs = m.initKnowledgeMesh(); backgroundIntervals.push(...ivs); }).catch(slog("initKnowledgeMesh")) },
         { label: "youtube-cadence-guard",     fn: () => import("./services/youtube-cadence-guard").then(m => { backgroundIntervals.push(m.initCadenceGuard()); }).catch(slog("initCadenceGuard")) },
         { label: "loop-conductor",            fn: () => import("./services/loop-conductor").then(m => m.initLoopConductor()).catch(slog("initLoopConductor")) },
+        { label: "adaptive-mode-engine",      fn: () => import("./services/adaptive-mode-engine").then(m => m.initAdaptiveModeEngine()).catch(slog("initAdaptiveModeEngine")) },
+        { label: "fast-learner",              fn: () => import("./services/fast-learner").then(m => m.initFastLearner()).catch(slog("initFastLearner")) },
+        { label: "growth-milestone-engine",   fn: () => import("./services/growth-milestone-engine").then(m => m.initGrowthMilestoneEngine()).catch(slog("initGrowthMilestoneEngine")) },
       ].filter(s => isEnabled(s.label)), 8_000);
     });
 

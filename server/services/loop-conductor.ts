@@ -39,13 +39,14 @@ import { sql }             from "drizzle-orm";
 import { createLogger }    from "../lib/logger";
 import { getState, setState } from "../lib/service-state";
 import { logSystemIncident } from "../lib/incident-log";
+import { computeAndSetAdaptiveMode, type AdaptiveModeConfig } from "./adaptive-mode-engine";
 
 const logger = createLogger("loop-conductor");
 
 const REAL_USER_ID = "7210ff92-76dd-4d0a-80bb-9eb5be27508b";
 
 // ── Thresholds ─────────────────────────────────────────────────────────────
-const VIRAL_VIEWS_THRESHOLD    = 500;   // Short crosses this → boost source video
+const VIRAL_VIEWS_THRESHOLD    = 300;   // Base SQL filter; mode-aware threshold applied after
 const REVIVAL_BOOST_POINTS     = 15;   // Points added to total_revival_score per viral Short
 const REVIVAL_SCORE_CAP        = 100;  // Maximum revival score
 const STALL_HEAL_COOLDOWN_MS   = 2 * 60 * 60_000;  // Emergency heal at most once per 2h
@@ -398,9 +399,10 @@ async function applyPublishingHeal(state: SystemState): Promise<boolean> {
 //   - Dashboard API can expose it for observability
 //   - Operators can query service_state to understand current system health
 function writeSnapshot(
-  state:   SystemState,
-  boosts:  number,
-  healed:  boolean,
+  state:        SystemState,
+  boosts:       number,
+  healed:       boolean,
+  adaptiveMode: AdaptiveModeConfig | null,
 ): void {
   setState("loop-conductor", "snapshot", {
     healthScore:             state.healthScore,
@@ -418,6 +420,8 @@ function writeSnapshot(
     revivalBoostsApplied:    boosts,
     emergencyHealTriggered:  healed,
     brainConfig:             state.brainConfig as unknown as Record<string, unknown>,
+    adaptiveMode:            adaptiveMode?.mode ?? "NORMAL",
+    adaptiveModeScore:       adaptiveMode?.score ?? state.healthScore,
     computedAt:              state.computedAt,
   });
 
@@ -446,6 +450,17 @@ export async function runLoopCycle(): Promise<void> {
 
     logger.info(`[loop-conductor] State: ${statusLine}`);
 
+    // Compute + persist adaptive mode (transmission shift) before taking any action
+    const adaptiveMode = await computeAndSetAdaptiveMode(
+      state.healthScore,
+      state.quotaUsedToday / Math.max(state.quotaLimit, 1),
+      state.activeIncidentCount,
+    ).catch((): AdaptiveModeConfig | null => null);
+
+    // Mode-aware revival threshold: PEAK catches more signals, RECOVERY is very selective
+    const modeThreshold = adaptiveMode?.revivalBoostViewThreshold ?? 500;
+    state.highPerformers = state.highPerformers.filter(hp => hp.views >= modeThreshold);
+
     // Apply both loops in parallel (they touch different tables)
     const [boosts, healed] = await Promise.all([
       applyRevivalBoosts(state).catch(() => 0),
@@ -453,7 +468,7 @@ export async function runLoopCycle(): Promise<void> {
     ]);
 
     // Persist snapshot (fire-and-forget)
-    writeSnapshot(state, boosts, healed as boolean);
+    writeSnapshot(state, boosts, healed as boolean, adaptiveMode);
 
     const ms = Date.now() - t0;
     logger.info(

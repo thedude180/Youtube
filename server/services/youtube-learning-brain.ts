@@ -1706,6 +1706,110 @@ export async function runDailyLearningCycle(userId: string): Promise<DailyLearni
       logger.debug(`[Brain] Step 9u loop-conductor snapshot non-fatal: ${snapErr?.message?.slice(0, 80)}`);
     }
 
+    // 9v. Fast-learner block promotion.
+    //     Surviving fast-learner blocks that are >4h old (i.e. have been seen across
+    //     at least one full learning cycle) get promoted to permanent masterKnowledgeBank
+    //     rules.  This closes the pain-reflex loop: fast block → brain confirmation →
+    //     permanent rule in every AI prompt → future content generation avoids the pattern.
+    try {
+      const { getActiveBlocks, markBlockPromoted } = await import('./fast-learner');
+      const activeBlocks = await getActiveBlocks();
+      const fourHoursAgo = Date.now() - 4 * 3_600_000;
+      const promotionCandidates = activeBlocks.filter(b =>
+        !b.promoted && new Date(b.createdAt).getTime() < fourHoursAgo,
+      );
+
+      for (const block of promotionCandidates.slice(0, 5)) {  // max 5 promotions per cycle
+        const principle =
+          `[FastBlock] Recurring failure pattern: ${block.type}="${block.target}" ` +
+          `failed ${block.detectedCount}+ times in ${Math.round(block.windowMs / 3_600_000)}h. ` +
+          `Auto-blocked by fast-learner. Root cause: ${block.reason}. ` +
+          `Avoid queuing this ${block.type === 'CONTENT_TYPE' ? 'content type' : 'source video'} ` +
+          `until the underlying failure is resolved.`;
+
+        await db.execute(sql`
+          DELETE FROM master_knowledge_bank
+          WHERE user_id  = ${userId}
+            AND principle ILIKE ${`[FastBlock]%${block.target}%`}
+        `).catch(() => {});
+
+        await db.insert(masterKnowledgeBank).values({
+          userId,
+          category:          'system_lesson',
+          principle,
+          sourceEngines:     ['learning-brain', 'fast-learner'],
+          evidenceCount:     block.detectedCount,
+          confidenceScore:   80,
+          applicableEngines: ['back-catalog-runner', 'content-maximizer', 'shorts-publisher'],
+          isActive:          true,
+          metadata:          block as unknown as Record<string, unknown>,
+        } as any).catch(() => {});
+
+        await markBlockPromoted(block.id).catch(() => {});
+        logger.info(`[Brain] Step 9v: promoted fast-block to masterKnowledgeBank — ${block.type}="${block.target}"`);
+      }
+
+      if (promotionCandidates.length === 0) {
+        logger.debug('[Brain] Step 9v: no fast-learner blocks ready for promotion');
+      }
+    } catch (flErr: any) {
+      logger.debug(`[Brain] Step 9v fast-learner promotion non-fatal: ${flErr?.message?.slice(0, 80)}`);
+    }
+
+    // 9w. Growth milestone strategy synthesis.
+    //     Reads the current growth tier and writes a tier-appropriate strategy principle
+    //     into masterKnowledgeBank.  This closes the growth-hormone loop: subscribers
+    //     grow → tier unlocks → brain knows new capabilities → AI decisions reflect tier.
+    try {
+      const { getMilestoneConfig } = await import('./growth-milestone-engine');
+      const tier = await getMilestoneConfig();
+
+      const nextLabel = tier.subscribersToNextTier > 0
+        ? `${tier.subscribersToNextTier.toLocaleString()} subscribers away from Tier ${tier.tier + 1}`
+        : 'maximum tier reached';
+
+      const unlockedFeatures = [
+        tier.deepSeoEnabled               && 'deep SEO optimization',
+        tier.abThumbnailTestingEnabled     && 'A/B thumbnail testing',
+        tier.communityPostsEnabled         && 'community post automation',
+        tier.collaborationSignalsEnabled   && 'collaboration signal tracking',
+        tier.monetizationOptEnabled        && 'monetization optimization',
+      ].filter(Boolean).join(', ') || 'basic optimization only';
+
+      const growthPrinciple =
+        `[Growth Tier ${tier.tier}] Channel at ${tier.currentSubscribers.toLocaleString()} subscribers ` +
+        `(${tier.name} tier, ${Math.round(tier.percentToNextTier * 100)}% to next). ` +
+        `Publishing target: ${tier.shortsPerDay} Shorts/day + ${tier.longFormPerDay} long-form/day. ` +
+        `Active capabilities: ${unlockedFeatures}. ` +
+        `AI budget multiplier: ×${tier.aiBudgetMultiplier}. ${nextLabel}. ` +
+        (tier.tieredUpFrom !== null
+          ? `JUST TIER-ED UP from Tier ${tier.tieredUpFrom} — apply all newly unlocked capabilities aggressively this cycle.`
+          : `Operate at full ${tier.name}-tier capacity every cycle.`);
+
+      await db.execute(sql`
+        DELETE FROM master_knowledge_bank
+        WHERE user_id  = ${userId}
+          AND principle ILIKE '[Growth Tier%'
+          AND source_engines::text ILIKE '%growth-milestone%'
+      `).catch(() => {});
+
+      await db.insert(masterKnowledgeBank).values({
+        userId,
+        category:          'strategy',
+        principle:         growthPrinciple,
+        sourceEngines:     ['learning-brain', 'growth-milestone-engine'],
+        evidenceCount:     1,
+        confidenceScore:   85,
+        applicableEngines: ['youtube-ai-orchestrator', 'back-catalog-runner', 'shorts-publisher', 'long-form-publisher'],
+        isActive:          true,
+        metadata:          tier as unknown as Record<string, unknown>,
+      } as any).catch(() => {});
+
+      logger.info(`[Brain] Step 9w: growth tier principle written — Tier ${tier.tier} (${tier.name}), ${tier.currentSubscribers.toLocaleString()} subs`);
+    } catch (gmErr: any) {
+      logger.debug(`[Brain] Step 9w growth milestone non-fatal: ${gmErr?.message?.slice(0, 80)}`);
+    }
+
     // 10. Write key findings to engineKnowledge so cross-pollination picks them up
     if (buckets.length >= 2) {
       const bestLong = longFormBuckets[0];
