@@ -29,7 +29,7 @@ import { eq, and, sql, or, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { logIncidentOnce } from "../lib/incident-log";
 import { downloadYouTubeSection } from "../lib/yt-dlp-section-download";
-import { assembleMusicScore, cleanupMusicScore } from "./music-scorer";
+import { cleanupMusicScore } from "./music-scorer";
 import {
   detectLowMotion,
   extractThumbnail,
@@ -168,9 +168,10 @@ async function encodeShort(
     logger.debug(`[PreEncoder] Cutscene detection skipped: ${csErr?.message?.slice(0, 80)}`);
   }
 
-  // Narrative music: short_arc tracks have a baked-in story arc (quiet→build→peak→resolve)
-  // channelId enables library-aware track selection (best-performing track wins)
-  const musicPath = await assembleMusicScore(durationSec, true, channelId);
+  // Music mixing disabled — raw game audio only (copyright + monetization safety).
+  // The music library tracks carry third-party claims that block channel monetization.
+  // Game audio alone is standard for no-commentary gaming content.
+  const musicPath: string | null = null;
 
   // ── Dialog-flip path: trim+crop+concat filter_complex ─────────────────────
   if (dialogFlipPlan) {
@@ -375,10 +376,8 @@ async function encodeLongForm(rawPath: string, durationSec: number, outputPath: 
   // Copyright-risky games (AC, Dragon Age, etc.) are blocked upstream in the
   // back-catalog engine — content reaching this encoder is from safe titles.
 
-  // Assemble narrative score: intro → rising action → climax → outro
-  // channelId enables library-aware track selection (best-performing track wins)
-  const musicPath = await assembleMusicScore(durationSec, false, channelId);
-  if (musicPath) logger.info(`[PreEncoder] Mixing music: ${path.basename(musicPath)}`);
+  // Music mixing disabled — raw game audio only (copyright + monetization safety).
+  const musicPath: string | null = null;
 
   const codecArgs = [
     "-c:v", "libx264",

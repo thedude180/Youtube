@@ -358,6 +358,13 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
       return { published: 0, failed: 0, skipped: dueItems.length, quotaExhausted: true };
     }
 
+    // Track which time slots have been claimed in this batch run.
+    // Prevents two items with scheduledAt within 90 min of each other from
+    // both publishing in the same window (catches stale queue items that were
+    // assigned slots before the window-claim system was solid).
+    const batchClaimedSlots: Date[] = [];
+    const BATCH_MIN_GAP_MS = 90 * 60_000; // 90 minutes — matches MIN_ANY_GAP_MS in scheduler
+
     for (const item of dueItems) {
       if (published >= MAX_PER_RUN) break;
 
@@ -406,6 +413,30 @@ export async function runShortsClipPublisher(opts?: { bypassBreakerCheck?: boole
           continue;
         }
       }
+
+      // ── Within-batch window-collision guard ──────────────────────────────────
+      // If two items in this batch are within 90 min of each other (same window),
+      // reschedule the second one to the next available slot so YouTube's scheduler
+      // can spread them correctly across the day.
+      const hasWindowCollision = batchClaimedSlots.some(
+        s => Math.abs(s.getTime() - effectiveScheduledAt!.getTime()) < BATCH_MIN_GAP_MS,
+      );
+      if (hasWindowCollision) {
+        try {
+          const newSlot = await getNextShortPublishTime(item.userId);
+          await db.update(autopilotQueue)
+            .set({ scheduledAt: newSlot })
+            .where(eq(autopilotQueue.id, item.id));
+          effectiveScheduledAt = newSlot;
+          logger.info(`[ShortsPublisher] Window collision — item ${item.id} rescheduled to ${newSlot.toISOString()}`);
+        } catch (err: any) {
+          logger.warn(`[ShortsPublisher] Collision reschedule failed item ${item.id}: ${err.message?.slice(0, 100)} — skipping`);
+          skipped++;
+          continue;
+        }
+      }
+      // Register slot so subsequent items in this batch see it as claimed.
+      batchClaimedSlots.push(effectiveScheduledAt!);
 
       // Daily cap safety net — max MAX_SHORTS_PER_DAY Shorts per local calendar day.
       // Uses effectiveScheduledAt (the possibly-rescheduled future slot) so the
