@@ -474,10 +474,15 @@ async function runDeepAudit(): Promise<void> {
 export function initPipelineSelfHeal(): void {
   const jitter = () => Math.random() * 2 * 60_000; // up to 2 min jitter
 
-  // Run immediately on startup (deep audit)
-  runPipelineSelfHeal(true).catch(err => {
-    logger.warn("[self-heal] Startup run failed", { error: err?.message });
-  });
+  // Startup deep audit: deferred 5 min after Wave 8 init.
+  // The boot-time prod-heal already ran a full self-heal at T+0; re-running
+  // a deep audit at T+15:21 (immediately when this init fires) adds DB pressure
+  // right in the Wave 7/8 convergence window → pool saturation → healthcheck 500s.
+  setTimeout(() => {
+    runPipelineSelfHeal(true).catch(err => {
+      logger.warn("[self-heal] Startup run failed", { error: err?.message });
+    });
+  }, 5 * 60_000);
 
   // Main heal loop: every 20 minutes
   setInterval(() => {

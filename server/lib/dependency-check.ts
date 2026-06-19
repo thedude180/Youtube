@@ -86,7 +86,27 @@ async function probeFFmpeg(): Promise<{ available: boolean; version?: string }> 
       // try next candidate
     }
   }
-  logger.warn("ffmpeg not found in any candidate path", {
+
+  // Dynamic Nix store discovery — handles hash changes after Nix package updates.
+  // Shell glob expansion is fast (OS-level directory scan, not a recursive find).
+  try {
+    const { stdout: shOut } = await execFileAsync(
+      "sh", ["-c", "ls /nix/store/*-ffmpeg-*/bin/ffmpeg 2>/dev/null | head -1"],
+      { timeout: 5_000 },
+    );
+    const dynamicPath = shOut.trim();
+    if (dynamicPath && dynamicPath.startsWith("/nix/store/")) {
+      const { stdout } = await execFileAsync(dynamicPath, ["-version"], { timeout: 10_000 });
+      const match = stdout.match(/ffmpeg version ([^\s]+)/);
+      _ffmpegBin = dynamicPath;
+      logger.info("ffmpeg found via dynamic Nix store discovery", { path: dynamicPath });
+      return { available: true, version: match?.[1] };
+    }
+  } catch {
+    // dynamic probe failed — ffmpeg is genuinely unavailable
+  }
+
+  logger.warn("ffmpeg not found in any candidate path (including dynamic Nix store probe)", {
     tried: FFMPEG_CANDIDATE_PATHS.join(", "),
   });
   return { available: false };

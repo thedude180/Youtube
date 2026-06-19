@@ -3515,13 +3515,14 @@ httpServer.listen(
       ].filter(s => isEnabled(s.label)), 1_500);
     });
 
-    // ── WAVE 7: Continuity, VOD, cache, cleanup — T+15min ────────────────────
-    // Wave 6 sleeps 8min; this wave adds 7 more min → fires at T+15min.
-    // vod-shorts-loop first run = T+15min init + 8min internal delay = T+23min.
+    // ── WAVE 7: Continuity, VOD, cache, cleanup — T+20min ────────────────────
+    // Wave 6 sleeps 8min; this wave adds 12 more min → fires at T+20min.
+    // (Was T+15min — pushed 5min to eliminate Wave 7/8 convergence crash window.)
+    // vod-shorts-loop first run = T+20min init + 8min internal delay = T+28min.
     // vod-continuous first run is also delayed by its own internal schedule.
     // Sequential: Wave 8 only starts after ALL 7 services here are inited.
     if (!LITE_MODE) wave(async () => {
-      await sleep(7 * 60_000); // Wave 6 = T+8min; +7min here = T+15min total
+      await sleep(12 * 60_000); // Wave 6 = T+8min; +12min here = T+20min total (was 7min/T+15min; pushed to reduce Wave 7/8 convergence window)
       await sequentialBoot([
         { label: "continuity-engine",           fn: () => import("./services/continuity-engine").then(m => m.initContinuityEngine()).catch(slog("initContinuityEngine")) },
         { label: "log-retention",               fn: () => import("./services/log-retention").then(m => m.initLogRetention()).catch(slog("initLogRetention")) },

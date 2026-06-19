@@ -531,12 +531,13 @@ export function initContinuityEngine(): void {
 
   const CYCLE_INTERVAL_MS = QUEUE_DOCTOR_INTERVAL_MINUTES * 60 * 1000;
 
-  // Run immediately on boot (with a short delay so other agents initialize first)
+  // First cycle 60s after init so Wave 8 services have time to register
+  // before the first DB scan (was 10s — too close to Wave 7 sequentialBoot).
   setTimeout(() => {
     runContinuityCycle().catch(err =>
       logger.error(`Initial continuity cycle failed: ${err.message}`)
     );
-  }, 10_000);
+  }, 60_000);
 
   continuityInterval = setInterval(() => {
     runContinuityCycle().catch(err =>
