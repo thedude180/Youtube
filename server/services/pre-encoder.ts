@@ -168,6 +168,29 @@ async function encodeShort(
     logger.debug(`[PreEncoder] Cutscene detection skipped: ${csErr?.message?.slice(0, 80)}`);
   }
 
+  // ── Static / boring clip rejection ────────────────────────────────────────
+  // Run a fast freeze-detection pass BEFORE spending an encode slot.
+  // Clips where the player is standing still (scoping at a wall, idle menu,
+  // waiting to respawn) have contiguous frozen-frame runs ≥ 10 s.
+  // If that frozen time covers > 50 % of the clip duration we reject the clip
+  // so the back-catalog engine picks a better timestamp on the next retry.
+  // Throwing here increments preEncoderFailCount; the item is permanently
+  // failed after 3 strikes (standard pre-encoder soft-fail behaviour).
+  try {
+    const freezeSegs = await detectFreezeSegments(rawPath, 10);
+    const totalFrozenSec = freezeSegs.reduce((s, seg) => s + (seg.end - seg.start), 0);
+    if (totalFrozenSec > durationSec * 0.50) {
+      throw new Error(
+        `boring-clip: ${Math.round(totalFrozenSec)}s frozen / ${Math.round(durationSec)}s total ` +
+        `— static moment rejected (wall-stare / idle)`,
+      );
+    }
+  } catch (boreErr: any) {
+    if ((boreErr as Error).message?.startsWith("boring-clip:")) throw boreErr;
+    // Freeze scan itself failed (e.g. ffmpeg not available on this codec path)
+    logger.debug(`[PreEncoder] Freeze scan non-fatal: ${(boreErr as Error)?.message?.slice(0, 80)}`);
+  }
+
   // Music mixing disabled — raw game audio only (copyright + monetization safety).
   // The music library tracks carry third-party claims that block channel monetization.
   // Game audio alone is standard for no-commentary gaming content.

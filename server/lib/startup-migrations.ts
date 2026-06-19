@@ -99,6 +99,7 @@ export const MIGRATION_CATALOG: Record<number, { name: string; description: stri
   101: { name: "Purge Ghost-User Vault Rows + GoQ Storm", category: "cleanup", description: "Deletes ALL non-real-user vault rows (ghost/demo/tiktok_ accounts whose indexed rows still feed InnerTube 400 storms). Cancels 18 scheduled GoQ-za4UPn4 queue items that survived the PERM_UNAVAILABLE cascade. Marks GoQ-za4UPn4 permanently failed." },
   102: { name: "Fix Game Mismatches + Purge Short Contamination", category: "data", description: "Corrects 3 wrong game_name values (Dragon Age/GTA-V→Assassin's Creed). Removes 232 autopilot-published Shorts from back_catalog_videos (they are channel output, not source material). Marks their vault entries as skipped." },
   103: { name: "Cancel YstycEObOiU Storm + Reset Stale Downloaded Vault", category: "cleanup", description: "Cancels all autopilot_queue items sourced from YstycEObOiU (vault=skipped/permanentFail, all yt-dlp clients fail). Resets oOvbZwsaeKI/njNPrR65YBs/vwrQy2LdGJU vault entries from 'downloaded' to 'indexed' (file lost across container restart) so vault downloader re-fetches them and pre-encoder can use vault-first trim path." },
+  104: { name: "Cancel BF2042 Queue Items", category: "cleanup", description: "Cancels all scheduled/pending autopilot_queue items whose gameName or caption contains 'Battlefield 2042' / 'bf2042' / '2042'. These were generated from old BF2042 source videos before the buildGameFilter explicit-deny was added. Channel is BF6-only." },
 };
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -1123,6 +1124,8 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
           OR metadata::text ILIKE '%"AssassinsCreed"%'
           OR metadata::text ILIKE '%"ACUnity"%'
           OR (metadata::text ILIKE '%"Valhalla"%' AND metadata::text NOT ILIKE '%battlefield%')
+          OR metadata::text ILIKE '%"Battlefield 2042"%'
+          OR metadata::text ILIKE '%"bf2042"%'
           OR type = 'studio_auto_publish'
           OR (
             caption IS NOT NULL AND caption != ''
@@ -1133,6 +1136,10 @@ async function cleanupNonBF6QueueItems(): Promise<void> {
               caption ILIKE '%assassin%'
               OR caption ILIKE '%valhalla%'
               OR caption ILIKE '%ac valhalla%'
+              OR caption ILIKE '%battlefield 2042%'
+              OR caption ILIKE '%bf 2042%'
+              OR caption ILIKE '% 2042 %'
+              OR caption ILIKE '% 2042:%'
             )
           )
         )
@@ -5984,6 +5991,40 @@ async function migration103CancelYstycAndResetStaleVault(): Promise<void> {
   }
 }
 
+// ── Migration 104: Cancel BF2042 queue items ─────────────────────────────────
+async function migration104CancelBF2042Items(): Promise<void> {
+  const FLAG = "migration:104:cancel_bf2042_queue_items_v1";
+  if (await getFlag(FLAG)) return;
+  try {
+    const REAL_USER = '7210ff92-76dd-4d0a-80bb-9eb5be27508b';
+    const r = await db.execute(sql.raw(`
+      UPDATE autopilot_queue
+      SET status        = 'cancelled',
+          error_message = 'migration-104: Battlefield 2042 content — channel is BF6-only',
+          metadata      = COALESCE(metadata, '{}'::jsonb)
+                       || '{"failReason":"migration-104:bf2042-off-brand"}'::jsonb
+      WHERE user_id = '${REAL_USER}'
+        AND status IN ('scheduled','pending')
+        AND (
+          LOWER(COALESCE(metadata->>'gameName','')) LIKE '%battlefield 2042%'
+          OR LOWER(COALESCE(metadata->>'gameName','')) LIKE '%bf2042%'
+          OR LOWER(COALESCE(metadata->>'gameName','')) LIKE '%bf 2042%'
+          OR LOWER(COALESCE(metadata->>'gameName','')) LIKE '% 2042%'
+          OR LOWER(COALESCE(caption,''))              LIKE '%battlefield 2042%'
+          OR LOWER(COALESCE(caption,''))              LIKE '%bf2042%'
+          OR LOWER(COALESCE(caption,''))              LIKE '% 2042 %'
+          OR LOWER(COALESCE(caption,''))              LIKE '% 2042:%'
+        )
+    `));
+    const cancelled = (r as any)?.rowCount ?? 0;
+    log.info(`[Migration 104] BF2042 queue items cancelled: ${cancelled}`);
+    await setFlag(FLAG);
+  } catch (err: any) {
+    log.warn(`[Migration 104] Failed (non-fatal): ${err?.message?.slice(0, 200)}`);
+    await setFlag(FLAG).catch(() => {});
+  }
+}
+
 // ── Non-flagged per-boot: reset stale 'downloaded' vault entries ─────────────
 // When the production container restarts after a new deployment, vault files on
 // ephemeral local disk are lost.  Any vault entry that says status='downloaded'
@@ -6260,6 +6301,7 @@ export async function runStartupMigrations(): Promise<void> {
     await migration101PurgeGhostVaultRowsAndGoQStorm();
     await migration102FixGameMismatchesAndPurgeShortContamination();
     await migration103CancelYstycAndResetStaleVault();
+    await migration104CancelBF2042Items();
 
     // Non-flagged per-boot creative library sync — seeds new music tracks from
     // data/music-library/ into the creative_library DB table.  Idempotent: skips
@@ -6316,10 +6358,10 @@ export async function runStartupMigrations(): Promise<void> {
       logEvent({
         eventType: "migration",
         service:   "startup-migrations",
-        title:     `Boot-heal complete — ${103} migrations registered, per-boot cleanups ran`,
+        title:     `Boot-heal complete — ${104} migrations registered, per-boot cleanups ran`,
         severity:  "info",
         detail: {
-          totalMigrations:  103,
+          totalMigrations:  104,
           perBootCleanups: [
             "resetStaleDownloadedVaultEntries",
             "cancelLongStreamEditJobs",

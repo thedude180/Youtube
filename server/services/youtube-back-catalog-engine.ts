@@ -311,7 +311,15 @@ function buildGameFilter(currentGame: string): (v: { gameName?: string | null; t
   const patterns = abbrevMap[currentGame.toLowerCase()] ?? words;
   const re = new RegExp(patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
 
-  return (v) => re.test(`${v.gameName ?? ""} ${v.title ?? ""}`);
+  // Explicit deny list — older Battlefield titles match the broad "battlefield"
+  // pattern but must NOT be queued when the focus game is Battlefield 6.
+  const DENY_RE = /battlefield\s*2042|bf\s*2042\b/i;
+
+  return (v) => {
+    const text = `${v.gameName ?? ""} ${v.title ?? ""}`;
+    if (DENY_RE.test(text)) return false;
+    return re.test(text);
+  };
 }
 
 
