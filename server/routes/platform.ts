@@ -3,7 +3,7 @@ import type { PlatformFetchedData } from "../platform-data-fetcher";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, desc, inArray } from "drizzle-orm";
-import { linkedChannels, streamDestinations, subscriptions, channels, videos } from "@shared/schema";
+import { linkedChannels, streamDestinations, subscriptions, channels, videos, managedPlaylists } from "@shared/schema";
 import type { Platform } from "@shared/schema";
 import { PLATFORM_INFO } from "@shared/schema";
 import { requireYouTubeOnly } from "@shared/youtube-only";
@@ -1640,7 +1640,13 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
     if (playlistId === null) return;
-    try { const result = await addToPlaylist(playlistId, req.body.videoId, req.body.position); res.json(result); }
+    try {
+      const [playlist] = await db.select().from(managedPlaylists)
+        .where(and(eq(managedPlaylists.id, playlistId), eq(managedPlaylists.userId, userId)));
+      if (!playlist) return res.status(403).json({ message: "Forbidden" });
+      const result = await addToPlaylist(playlistId, req.body.videoId, req.body.position);
+      res.json(result);
+    }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 
@@ -1649,7 +1655,13 @@ export async function registerPlatformRoutes(app: Express) {
     if (!userId) return;
     const playlistId = parseNumericId(req.params.playlistId as string, res, "playlist ID");
     if (playlistId === null) return;
-    try { const result = await getPlaylistSeoScore(playlistId); res.json(result); }
+    try {
+      const [playlist] = await db.select().from(managedPlaylists)
+        .where(and(eq(managedPlaylists.id, playlistId), eq(managedPlaylists.userId, userId)));
+      if (!playlist) return res.status(403).json({ message: "Forbidden" });
+      const result = await getPlaylistSeoScore(playlistId);
+      res.json(result);
+    }
     catch (error: any) { logger.error("Error:", error); res.status(500).json({ message: "An internal error occurred. Please try again." }); }
   });
 

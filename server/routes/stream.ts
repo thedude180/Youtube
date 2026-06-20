@@ -600,6 +600,8 @@ export function registerStreamRoutes(app: Express) {
     if (!userId) return;
     const streamId = parseNumericId(req.params.id, res);
     if (streamId === null) return;
+    const stream = await storage.getStream(streamId);
+    if (!stream || stream.userId !== userId) return res.status(403).json({ message: "Forbidden" });
     const allJobs = await storage.getJobs();
     const streamJobs = allJobs.filter(j =>
       (j.type === 'stream_automation' || j.type === 'post_stream_automation') &&
